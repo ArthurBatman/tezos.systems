@@ -950,6 +950,7 @@ async function checkSelectorContracts() {
     ['live block ticker renderer', 'function updateBlockTicker', health],
     ['live block ticker fixed age formatter', 'function formatTickerAge', health],
     ['live block ticker transition count hook', 'blockTickerTransitionCount', health],
+    ['live block ticker opts out of data-magic text reveals', 'id="block-ticker-strip" aria-label="Latest Tezos block" data-magic="off"', index],
     ['live block ticker Octez slot', 'block-ticker-octez', health],
     ['live block ticker health feed hook', 'updateBlockTicker(data)', health],
     ['price bar cycle health wiring', 'function wireCycleChipHealthLauncher', health],
@@ -988,7 +989,6 @@ async function checkSelectorContracts() {
     ['top continuity issuance color selector', '.top-continuity-stat[data-card-history="issuance-rate"]', styles],
     ['top continuity mobile pill grid', 'grid-template-columns: repeat(2, minmax(0, 1fr))', styles],
     ['top continuity decrypt styles', '.top-continuity-panel.is-shuffling', styles],
-    ['live block ticker aperture transition styles', 'blockTickerAperture', styles],
     ['health cycle timing styles', '.health-cycle-panel', styles],
     ['health Teztale consensus styles', '.health-consensus-panel', styles],
     ['health Octez versions styles', '.health-octez-panel', styles],
@@ -1001,6 +1001,9 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  if (styles.includes('.block-ticker-strip.is-updating .block-ticker-line') || styles.includes('blockTickerAperture')) {
+    fail('live block ticker text changes must stay unanimated');
   }
   if (henMode.includes('feed.insertBefore(output, grid())')) {
     fail('HEN CLI output must stay off-flow instead of inserting before the grid');

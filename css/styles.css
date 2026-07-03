@@ -1323,10 +1323,6 @@ body::before {
     white-space: nowrap;
 }
 
-.block-ticker-strip.is-updating .block-ticker-line {
-    animation: blockTickerAperture 0.46s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 .block-ticker-placeholder {
     overflow: hidden;
     color: var(--text-tertiary);
@@ -1426,12 +1422,6 @@ body::before {
 .block-ticker-health.degraded .block-ticker-value,
 .block-ticker-strip[data-block-health="degraded"] .block-ticker-dot {
     color: #ff6b7a;
-}
-
-@keyframes blockTickerAperture {
-    0% { opacity: 0; filter: blur(2px); transform: translateY(0.32rem); clip-path: inset(48% 0 48% 0); }
-    52% { opacity: 1; filter: blur(0); transform: translateY(-0.03rem); clip-path: inset(0 0 0 0); }
-    100% { opacity: 1; filter: blur(0); transform: translateY(0); clip-path: inset(0 0 0 0); }
 }
 
 @keyframes blockTickerPanelPulse {
@@ -1534,8 +1524,7 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .block-ticker-strip.is-updating .block-ticker-button::before,
-    .block-ticker-strip.is-updating .block-ticker-line {
+    .block-ticker-strip.is-updating .block-ticker-button::before {
         animation: none;
     }
 }
