@@ -57,7 +57,7 @@ tezos.systems/
 │   │   ├── storage.js                 # localStorage/sessionStorage wrappers
 │   │   └── utils.js                   # Formatting, sanitization, utility helpers
 │   ├── features/                      # Governance, LB, bakers, market, feeds, widgets
-│   ├── ui/                            # Theme, share, gauge, title, animations
+│   ├── ui/                            # Theme, share, toast queue, gauge, title, animations
 │   └── effects/                       # Matrix, themed backgrounds, audio/vibes, data-magic text reveals
 ├── data/
 │   ├── protocol-data.json             # Activated protocol timeline and lore
@@ -118,7 +118,10 @@ tezos.systems/
    user enables Network Stats from Explore.
 6. Background refreshes update hero stats, comparison data, governance state,
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
-   tools, leaderboard, My Tezos, and share-ready UI.
+   tools, leaderboard, My Tezos, and share-ready UI. Welcome, streak,
+   anniversary, network-moment, and cycle toasts go through a shared priority
+   queue after the hero arrival settles so first-load signals do not stack over
+   one another.
 7. Sparkline cards draw their series from historical snapshots, then align the
    final point with the latest live stat so chart endpoints and card values
    agree.
@@ -360,7 +363,12 @@ inline modal styles in `js/core/app.js`.
   delegator/staker activity.
 - Baker leaderboard, staking calculator, chain comparison, whale feed, sleeping
   giants, HEN NFT/profile mode, TzSafe Recovery, changelog, share captures, and
-  embeddable widgets.
+  embeddable widgets. The leaderboard marks the saved baker, keeps earned
+  descriptors rare, and shares guild-style cards with live proof seals. The
+  calculator opens with a 1,000 XTZ starting amount, live APY context, protocol
+  timing for first-payout copy, animated results, and private-by-default
+  projection sharing. Cycle whispers only announce a real cycle advance near
+  the beginning of the cycle.
 
 Useful deep links include:
 
@@ -571,7 +579,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v333`, including hero search, theme
+- Current aligned shell cache stamp: `v335`, including hero search, theme
   bundles, and the Ledger Flow lazy CSS loader.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
@@ -642,7 +650,8 @@ combo widget supports baker count, XTZ price, block height, staking ratio,
 current protocol, cycle, head freshness, and tz4 baking-power adoption, capped
 to four stats per embed. Builder iframe and Markdown snippets add widget UTM
 params, and raw widgets load the shared GoatCounter initializer so embed
-impressions and copy events can be measured.
+impressions and copy events can be measured. Builder copy success uses the
+site-owner language and heartbeat affordance from the dashboard polish pass.
 
 ## SEO And Analytics
 

@@ -6,7 +6,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez } from '../core/utils.js';
-import { loadHtml2Canvas, showShareModal } from '../ui/share.js';
+import { loadHtml2Canvas, showShareModal, appendCardSeal } from '../ui/share.js';
 
 const TZKT = API_URLS.tzkt;
 
@@ -205,7 +205,7 @@ function buildReportCardDOM(report) {
 
     const card = document.createElement('div');
     card.style.cssText = `
-        width: 680px; padding: 32px; background: #0a0e1a;
+        width: 680px; padding: 32px 32px 70px; background: #0a0e1a;
         border: 1px solid rgba(0,255,136,0.2); border-radius: 16px;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         color: #e0e0e0; position: relative; overflow: hidden;
@@ -254,11 +254,6 @@ function buildReportCardDOM(report) {
                 ${buildStatCell('Capacity Used', stats.usedCapacityPct.toFixed(0) + '%')}
             </div>
 
-            <!-- Footer -->
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);">
-                <span style="font-size:11px;color:rgba(255,255,255,0.28);">Share with delegators: tezos.systems</span>
-                <span style="font-size:11px;color:rgba(255,255,255,0.25);">${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
-            </div>
         </div>
     `;
 
@@ -308,6 +303,7 @@ export async function showBakerReportCard(bakerAddress) {
     try {
         const report = await fetchBakerReport(bakerAddress);
         const card = buildReportCardDOM(report);
+        appendCardSeal(card);
 
         // Render offscreen for html2canvas
         card.style.position = 'fixed';

@@ -60,6 +60,46 @@
     let nudge = null;
     let activeTarget = null;
     let positionFrame = 0;
+    let nudgeResizeHandler = null;
+
+    function ensureNudgeAvoidanceStyle() {
+        if (document.getElementById('tour-nudge-toast-avoidance')) return;
+        var style = document.createElement('style');
+        style.id = 'tour-nudge-toast-avoidance';
+        style.textContent = [
+            'body.tour-nudge-visible #moments-toast-container{bottom:var(--tour-nudge-toast-bottom,132px);z-index:100000;}',
+            'body.tour-nudge-visible .visit-streak-toast{bottom:var(--tour-nudge-toast-bottom,132px);z-index:100000;}',
+            '@media(max-width:600px){body.tour-nudge-visible #moments-toast-container{left:8px;right:8px;width:auto;transform:none;align-items:stretch;}body.tour-nudge-visible #moments-toast-container .moment-toast{width:100%;min-width:0;max-width:none;box-sizing:border-box;}}'
+        ].join('');
+        document.head.appendChild(style);
+    }
+
+    function syncNudgeToastOffset() {
+        if (!nudge) return;
+        var rect = nudge.getBoundingClientRect();
+        var bottom = Math.ceil(rect.height + 32);
+        document.body.style.setProperty('--tour-nudge-toast-bottom', bottom + 'px');
+    }
+
+    function setNudgeVisibleState() {
+        ensureNudgeAvoidanceStyle();
+        document.body.classList.add('tour-nudge-visible');
+        syncNudgeToastOffset();
+        requestAnimationFrame(syncNudgeToastOffset);
+        if (!nudgeResizeHandler) {
+            nudgeResizeHandler = syncNudgeToastOffset;
+            window.addEventListener('resize', nudgeResizeHandler, { passive: true });
+        }
+    }
+
+    function clearNudgeVisibleState() {
+        document.body.classList.remove('tour-nudge-visible');
+        document.body.style.removeProperty('--tour-nudge-toast-bottom');
+        if (nudgeResizeHandler) {
+            window.removeEventListener('resize', nudgeResizeHandler);
+            nudgeResizeHandler = null;
+        }
+    }
 
     function create() {
         overlay = document.createElement('div');
@@ -253,6 +293,7 @@
             nudge.remove();
             nudge = null;
         }
+        clearNudgeVisibleState();
     }
 
     function startTour() {
@@ -260,6 +301,7 @@
             nudge.remove();
             nudge = null;
         }
+        clearNudgeVisibleState();
         create();
         show(0);
     }
@@ -279,6 +321,7 @@
                 '<button class="tour-start" type="button">Show help</button>' +
             '</div>';
         document.body.appendChild(nudge);
+        setNudgeVisibleState();
         nudge.querySelector('.tour-start').addEventListener('click', startTour);
         nudge.querySelector('.tour-dismiss').addEventListener('click', end);
     }

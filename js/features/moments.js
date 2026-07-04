@@ -4,6 +4,7 @@
  */
 
 import { saveMoment, getMoments, isDismissed, dismissMoment } from '../core/storage.js';
+import { enqueueToast } from '../ui/toast-queue.js';
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -23,7 +24,7 @@ const MILESTONE_RULES = [
         id: `staking-${25 + i}`,
         metric: 'stakingRatio',
         threshold: 25 + i,
-        direction: 'crosses',
+        direction: 'up',
         title: `Staking hits ${25 + i}%!`,
         emoji: '🎉',
         tweet: `Tezos staking just crossed ${25 + i}%! The network keeps getting stronger.\n\nReal-time stats →`
@@ -34,7 +35,7 @@ const MILESTONE_RULES = [
         id: `bakers-${200 + i * 25}`,
         metric: 'totalBakers',
         threshold: 200 + i * 25,
-        direction: 'crosses',
+        direction: 'up',
         title: `${200 + i * 25} Active Bakers!`,
         emoji: '🍞',
         tweet: `Tezos now has ${200 + i * 25}+ active bakers securing the network. Permissionless validation at its finest.\n\nReal-time stats →`
@@ -202,6 +203,10 @@ Track it live →`;
             tweet = `Tezos just completed its ${curr}th self-amendment! ${name} is now active. Zero forks. Ever.
 
 Explore →`;
+            rule.tweetOptions = [
+                { label: '🎯 Moment', category: 'Moment', text: tweet },
+                { label: '🏛️ I was here', category: 'I was here', text: `I was watching when ${name} activated — Tezos self-amendment #${curr}. No fork. No restart. The chain just became something new.\n\ntezos.systems` }
+            ];
         }
 
         const moment = {
@@ -209,6 +214,7 @@ Explore →`;
             emoji: rule.emoji,
             title,
             tweet,
+            tweetOptions: rule.tweetOptions || null,
             timestamp: Date.now()
         };
 
@@ -227,9 +233,6 @@ Explore →`;
 }
 
 // ─── Toast Notification System ───────────────────────────────────
-
-let toastQueue = [];
-let toastActive = false;
 
 async function shareMoment(moment, button) {
     if (!moment?.tweet) return;
@@ -252,19 +255,16 @@ async function shareMoment(moment, button) {
 }
 
 function queueToasts(moments) {
-    toastQueue.push(...moments);
-    if (!toastActive) showNextToast();
+    moments.forEach((moment) => {
+        enqueueToast({
+            priority: 2,
+            duration: 15000,
+            show: (done, duration) => showMomentToast(moment, done, duration)
+        });
+    });
 }
 
-function showNextToast() {
-    if (toastQueue.length === 0) {
-        toastActive = false;
-        return;
-    }
-
-    toastActive = true;
-    const moment = toastQueue.shift();
-
+function showMomentToast(moment, done, duration = 15000) {
     // Get or create container
     let container = document.getElementById('moments-toast-container');
     if (!container) {
@@ -297,12 +297,12 @@ function showNextToast() {
     // Start progress bar
     const bar = toast.querySelector('.moment-toast-progress-bar');
     requestAnimationFrame(() => {
-        bar.style.transition = 'width 15s linear';
+        bar.style.transition = `width ${duration}ms linear`;
         bar.style.width = '0%';
     });
 
-    // Auto-dismiss after 15s
-    const autoTimer = setTimeout(() => closeToast(toast, moment.id), 15000);
+    // Auto-dismiss after the queued duration
+    const autoTimer = setTimeout(() => closeToast(toast, moment.id, done), duration);
 
     // Share button
     toast.querySelector('.moment-toast-share').addEventListener('click', (event) => {
@@ -312,17 +312,17 @@ function showNextToast() {
     // Dismiss button
     toast.querySelector('.moment-toast-dismiss').addEventListener('click', () => {
         clearTimeout(autoTimer);
-        closeToast(toast, moment.id);
+        closeToast(toast, moment.id, done);
     });
 }
 
-function closeToast(toast, momentId) {
+function closeToast(toast, momentId, done) {
     dismissMoment(momentId);
     toast.classList.remove('visible');
     toast.classList.add('exiting');
     setTimeout(() => {
         toast.remove();
-        showNextToast();
+        done?.();
     }, 400);
 }
 

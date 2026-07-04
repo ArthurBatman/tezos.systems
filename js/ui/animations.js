@@ -239,9 +239,9 @@ export function showLoading(cardId) {
 /**
  * Show error state on a stat card
  * @param {string} cardId - ID of the stat card
- * @param {string} message - Error message (default: 'Error')
+ * @param {string} message - Error message
  */
-export function showError(cardId, message = 'Error') {
+export function showError(cardId, message = "Didn't load — retrying next refresh") {
     updateStatInstant(cardId, message, null);
 
     const card = document.querySelector(`[data-stat="${cardId}"]`);

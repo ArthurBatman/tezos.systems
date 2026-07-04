@@ -165,10 +165,19 @@ body{
   border-radius:var(--radius);border:1px solid var(--border);
   background:repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%,transparent 0% 50%) 0 0/20px 20px;
   min-height:200px;position:relative;overflow:hidden;
-  transition:background 0.3s;
+  transition:background 0.3s,transform 0.4s ease;
 }
 .preview-stage.dark-bg{background:#000}
 .preview-stage.light-bg{background:#fff}
+.preview-stage.builder-heartbeat{animation:builder-heartbeat 0.4s ease both}
+@keyframes builder-heartbeat{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.02)}
+}
+@media(prefers-reduced-motion:reduce){
+  .preview-stage{transition:none}
+  .preview-stage.builder-heartbeat{animation:none}
+}
 .preview-iframe{
   border:none;display:block;
   box-shadow:0 4px 24px rgba(0,0,0,0.4);
@@ -613,9 +622,17 @@ import {
       tab: state.activeTab
     });
     write.then(()=>{
-      btn.textContent='✓ Copied';
+      const stage=document.getElementById('preview-stage');
+      const reduce=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      if(stage&&!reduce){
+        stage.classList.remove('builder-heartbeat');
+        void stage.offsetWidth;
+        stage.classList.add('builder-heartbeat');
+        setTimeout(()=>stage.classList.remove('builder-heartbeat'),450);
+      }
+      btn.textContent='Copied — go fly the flag';
       btn.classList.add('copied');
-      setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1800);
+      setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},2500);
     });
   }
 

@@ -30,6 +30,8 @@ const HenMode = (() => {
     const HEN_SORT_KEY = 'tezos-systems-hen-sort';
     const HEN_FAVORITES_KEY = 'tezos-systems-hen-favorites';
     const HEN_HINT_DISMISSED_KEY = 'tezos-systems-hen-loop-hint-dismissed';
+    const HEN_DOORWAY_KEY = 'tezos-hen-doorway-seen';
+    const HEN_LORE_KEY = 'tezos-hen-lore-seen';
     const HEN_VIEWER_KEY = 'tezos-systems-hen-viewer-address';
     const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
     const OCTEZ_WALLET_ADDRESS_KEY = 'tezos-systems-octez-wallet-address';
@@ -222,6 +224,67 @@ const HenMode = (() => {
 
     function safeSetStorage(key, value) {
         try { localStorage.setItem(key, value); } catch (_) {}
+    }
+
+    function reducedMotion() {
+        if (typeof window.tezosSystemsPrefersReducedMotion === 'function') {
+            return window.tezosSystemsPrefersReducedMotion();
+        }
+        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    function afterHeroSettled(callback) {
+        var attempts = 0;
+        function waitForGate() {
+            var gate = window.tezosSystemsHeroSettled;
+            if (gate && typeof gate.then === 'function') {
+                gate.then(callback).catch(callback);
+                return;
+            }
+            attempts += 1;
+            if (attempts < 50) {
+                setTimeout(waitForGate, 100);
+            } else {
+                callback();
+            }
+        }
+        waitForGate();
+    }
+
+    function primeHenDoorway() {
+        if (safeGetStorage(HEN_DOORWAY_KEY) === '1') return;
+        afterHeroSettled(function() {
+            var link = document.querySelector('.hen-theme-feed-link') || document.getElementById('hen-launcher');
+            if (!link || safeGetStorage(HEN_DOORWAY_KEY) === '1') return;
+            var tip = '🌱 hic et nunc lives here — enter the feed';
+            link.title = tip;
+            link.setAttribute('aria-label', tip);
+            link.style.display = link.classList.contains('hen-theme-feed-link') ? 'inline-flex' : '';
+            if (!reducedMotion()) {
+                link.classList.add('hen-doorway-attention');
+                setTimeout(function() {
+                    link.classList.remove('hen-doorway-attention');
+                }, 5200);
+            }
+            safeSetStorage(HEN_DOORWAY_KEY, '1');
+        });
+    }
+
+    function showHenLoreLine() {
+        if (safeGetStorage(HEN_LORE_KEY) === '1') return;
+        var header = document.querySelector('#hen-overlay .hen-header');
+        if (!header || document.getElementById('hen-lore-line')) return;
+        var line = document.createElement('div');
+        line.id = 'hen-lore-line';
+        line.className = 'hen-lore-line';
+        line.innerHTML = '<span>The art movement that made Tezos a home for artists — still minting daily.</span><button type="button" aria-label="Dismiss HEN lore">×</button>';
+        header.classList.add('has-lore');
+        header.appendChild(line);
+        line.querySelector('button').addEventListener('click', function() {
+            safeSetStorage(HEN_LORE_KEY, '1');
+            line.remove();
+            header.classList.remove('has-lore');
+        });
     }
 
     function safeRemoveStorage(key) {
@@ -2505,6 +2568,7 @@ const HenMode = (() => {
         ov.classList.add('active');
         document.body.classList.add('hen-active');
         clearInitialBlackout();
+        showHenLoreLine();
 
         applyModeFromUrl();
         mobileFiltersOpen = false;
@@ -2632,6 +2696,7 @@ const HenMode = (() => {
     }
 
     function init() {
+        primeHenDoorway();
         document.querySelectorAll('#hen-launcher, [data-hen-launch]').forEach(function(launcher) {
             if (launcher.dataset.henLaunchWired === '1') return;
             launcher.dataset.henLaunchWired = '1';

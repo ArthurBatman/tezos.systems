@@ -3,18 +3,24 @@
  * Calculates estimated XTZ staking/delegation/baker rewards with compound projections
  */
 
-import { fetchStakingAPY } from '../core/api.js';
+import { fetchProtocolConstants, fetchStakingAPY } from '../core/api.js';
+import { tweenNumber } from '../effects/data-magic.js';
 import { fetchXTZPrice } from './price.js';
 
 const STORAGE_KEY = 'tezos-calc-state';
 const DEBOUNCE_MS = 300;
+const CYCLES_PER_YEAR = 486.7;
+const FALLBACK_ACTIVATION_DELAY_CYCLES = 2;
 
 let debounceTimer = null;
 let cachedAPY = null;
 let apyFetchedAt = 0;
+let cachedProtocolTiming = null;
+let protocolTimingFetchedAt = 0;
 const CACHE_TTL = 120000; // 2 min
 
 let currentMode = 'delegate';
+let latestProjection = null;
 
 function debounce(fn, ms) {
     return (...args) => {
@@ -63,8 +69,7 @@ function calcRewards(amount, apyPct) {
 
 function calcCompound(amount, apyPct, years) {
     const rate = apyPct / 100;
-    const cyclesPerYear = 486.7;
-    return amount * Math.pow(1 + rate / cyclesPerYear, cyclesPerYear * years);
+    return amount * Math.pow(1 + rate / CYCLES_PER_YEAR, CYCLES_PER_YEAR * years);
 }
 
 function saveState() {
@@ -93,6 +98,96 @@ function setResult(id, text) {
     if (el) el.textContent = text;
 }
 
+function setResultNumber(id, value, formatter, duration = 250) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const target = Number(value);
+    if (!Number.isFinite(target)) {
+        el.textContent = formatter(value);
+        delete el.dataset.calcValue;
+        return;
+    }
+    const previous = Number(el.dataset.calcValue);
+    const from = Number.isFinite(previous) ? previous : target;
+    el.dataset.calcValue = String(target);
+    tweenNumber(el, from, target, { duration, formatter });
+}
+
+function clearPayoutLine() {
+    const line = document.getElementById('calc-payout-line');
+    if (!line) return;
+    line.hidden = true;
+    line.textContent = '';
+}
+
+async function getProtocolTiming() {
+    if (cachedProtocolTiming && Date.now() - protocolTimingFetchedAt < CACHE_TTL) return cachedProtocolTiming;
+    protocolTimingFetchedAt = Date.now();
+
+    try {
+        const constants = await fetchProtocolConstants();
+        const delay = Number(constants?.consensus_rights_delay);
+        const blockDelay = Number(Array.isArray(constants?.minimal_block_delay)
+            ? constants.minimal_block_delay[0]
+            : constants?.minimal_block_delay);
+        const blocksPerCycle = Number(constants?.blocks_per_cycle);
+        const liveCycleHours = Number.isFinite(blockDelay) && blockDelay > 0 && Number.isFinite(blocksPerCycle) && blocksPerCycle > 0
+            ? (blockDelay * blocksPerCycle) / 3600
+            : null;
+
+        cachedProtocolTiming = {
+            verified: Number.isFinite(delay) && delay >= 0,
+            activationDelayCycles: Number.isFinite(delay) && delay >= 0 ? delay : FALLBACK_ACTIVATION_DELAY_CYCLES,
+            cycleHours: liveCycleHours || (365.25 * 24 / CYCLES_PER_YEAR)
+        };
+        return cachedProtocolTiming;
+    } catch (_) {
+        cachedProtocolTiming = {
+            verified: false,
+            activationDelayCycles: FALLBACK_ACTIVATION_DELAY_CYCLES,
+            cycleHours: 365.25 * 24 / CYCLES_PER_YEAR
+        };
+        return cachedProtocolTiming;
+    }
+}
+
+function formatCycleHours(hours) {
+    if (!Number.isFinite(hours) || hours <= 0) return '24h';
+    if (hours < 24) return `${Math.round(hours)}h`;
+    const rounded = Math.round(hours);
+    return `${rounded}h`;
+}
+
+async function renderPayoutLine() {
+    const line = document.getElementById('calc-payout-line');
+    if (!line || currentMode === 'baker') {
+        clearPayoutLine();
+        return;
+    }
+    const timing = await getProtocolTiming();
+    const cycleLabel = formatCycleHours(timing.cycleHours);
+    line.hidden = false;
+
+    if (!timing.verified) {
+        line.textContent = `Rewards land every cycle (~${cycleLabel}). Your first payout within a few days.`;
+        return;
+    }
+
+    const firstPayout = new Date(Date.now() + timing.activationDelayCycles * timing.cycleHours * 3600000);
+    const dateLabel = firstPayout.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+    });
+    line.textContent = `Rewards land every cycle (~${cycleLabel}). Your first payout: ~${dateLabel}.`;
+}
+
+function setApyDisplay(value, label = 'live network rate') {
+    const el = document.getElementById('calc-apy-display');
+    if (el) el.title = 'Measured from the chain right now. Moves with the staking ratio.';
+    setResultNumber('calc-apy-display', value, (val) => `${formatNum(val, 1)}% — ${label} ⓘ`);
+}
+
 function clearCompound() {
     const body = document.getElementById('calc-compound-body');
     if (body) while (body.firstChild) body.removeChild(body.firstChild);
@@ -106,8 +201,10 @@ function clearResults() {
     setResult('calc-yearly-xtz', '—');
     setResult('calc-yearly-usd', '—');
     setResult('calc-apy-display', '—');
+    clearPayoutLine();
     clearCompound();
     removeBreakdown();
+    latestProjection = null;
 }
 
 function removeBreakdown() {
@@ -178,15 +275,16 @@ async function updateResults() {
     const [apy, price] = await Promise.all([getAPY(), getXTZPrice()]);
     const apyPct = currentMode === 'stake' ? apy.stakeAPY : apy.delegateAPY;
 
-    setResult('calc-apy-display', formatNum(apyPct, 1) + '%');
+    setApyDisplay(apyPct);
 
     const rewards = calcRewards(amount, apyPct);
-    setResult('calc-daily-xtz', formatNum(rewards.daily, 4) + ' ꜩ');
-    setResult('calc-daily-usd', '$' + formatNum(rewards.daily * price));
-    setResult('calc-monthly-xtz', formatNum(rewards.monthly, 2) + ' ꜩ');
-    setResult('calc-monthly-usd', '$' + formatNum(rewards.monthly * price));
-    setResult('calc-yearly-xtz', formatNum(rewards.yearly, 2) + ' ꜩ');
-    setResult('calc-yearly-usd', '$' + formatNum(rewards.yearly * price));
+    setResultNumber('calc-daily-xtz', rewards.daily, (val) => `${formatNum(val, 4)} ꜩ`);
+    setResultNumber('calc-daily-usd', rewards.daily * price, (val) => `$${formatNum(val)}`);
+    setResultNumber('calc-monthly-xtz', rewards.monthly, (val) => `${formatNum(val, 2)} ꜩ`);
+    setResultNumber('calc-monthly-usd', rewards.monthly * price, (val) => `$${formatNum(val)}`);
+    setResultNumber('calc-yearly-xtz', rewards.yearly, (val) => `${formatNum(val, 2)} ꜩ`);
+    setResultNumber('calc-yearly-usd', rewards.yearly * price, (val) => `$${formatNum(val)}`);
+    renderPayoutLine();
 
     renderCompound(amount, apyPct, price);
 }
@@ -204,17 +302,19 @@ async function updateBakerResults(ownStake) {
 
     // Show effective APY relative to own stake (if any)
     const effectiveAPY = ownStake > 0 ? (income.total / ownStake) * 100 : 0;
-    setResult('calc-apy-display', ownStake > 0 ? formatNum(effectiveAPY, 1) + '%' : '—');
+    if (ownStake > 0) setApyDisplay(effectiveAPY, 'effective baker rate');
+    else setResult('calc-apy-display', '—');
+    clearPayoutLine();
 
     // Show total baker income in the reward cards
     const daily = income.total / 365.25;
     const monthly = income.total / 12;
-    setResult('calc-daily-xtz', formatNum(daily, 4) + ' ꜩ');
-    setResult('calc-daily-usd', '$' + formatNum(daily * price));
-    setResult('calc-monthly-xtz', formatNum(monthly, 2) + ' ꜩ');
-    setResult('calc-monthly-usd', '$' + formatNum(monthly * price));
-    setResult('calc-yearly-xtz', formatNum(income.total, 2) + ' ꜩ');
-    setResult('calc-yearly-usd', '$' + formatNum(income.total * price));
+    setResultNumber('calc-daily-xtz', daily, (val) => `${formatNum(val, 4)} ꜩ`);
+    setResultNumber('calc-daily-usd', daily * price, (val) => `$${formatNum(val)}`);
+    setResultNumber('calc-monthly-xtz', monthly, (val) => `${formatNum(val, 2)} ꜩ`);
+    setResultNumber('calc-monthly-usd', monthly * price, (val) => `$${formatNum(val)}`);
+    setResultNumber('calc-yearly-xtz', income.total, (val) => `${formatNum(val, 2)} ꜩ`);
+    setResultNumber('calc-yearly-usd', income.total * price, (val) => `$${formatNum(val)}`);
 
     // Breakdown
     const resultsGrid = document.getElementById('calc-results');
@@ -261,10 +361,18 @@ function renderCompound(amount, apyPct, price) {
     if (!compoundRows || amount <= 0) { clearCompound(); return; }
 
     while (compoundRows.firstChild) compoundRows.removeChild(compoundRows.firstChild);
+    latestProjection = {
+        amount,
+        apyPct,
+        price,
+        rows: []
+    };
 
     for (let y = 1; y <= 5; y++) {
         const total = calcCompound(amount, apyPct, y);
         const earned = total - amount;
+        const gainPct = (earned / amount) * 100;
+        latestProjection.rows.push({ year: y, total, earned, gainPct });
         const row = document.createElement('div');
         row.className = 'calc-compound-row';
 
@@ -287,6 +395,114 @@ function renderCompound(amount, apyPct, price) {
     }
 }
 
+function closeProjectionOverlay(overlay) {
+    overlay?.classList.remove('visible');
+    setTimeout(() => overlay?.remove(), 160);
+}
+
+async function shareProjection(showAmounts, overlay) {
+    if (!latestProjection?.rows?.length) return;
+    const button = overlay?.querySelector('#calc-projection-generate');
+    const originalText = button?.textContent || '';
+    let card = null;
+    try {
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Generating...';
+        }
+        const { loadHtml2Canvas, showShareModal, appendCardSeal } = await import('../ui/share.js');
+        await loadHtml2Canvas();
+        const timing = await getProtocolTiming();
+        const cycleLabel = formatCycleHours(timing.cycleHours);
+        const fiveYear = latestProjection.rows[latestProjection.rows.length - 1];
+        const gainText = `+${formatNum(fiveYear.gainPct, 1)}%`;
+        const rowsHtml = latestProjection.rows.map((row) => `
+            <div style="display:grid;grid-template-columns:74px 1fr ${showAmounts ? '1fr' : ''};gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+                <span style="font-size:13px;color:rgba(255,255,255,0.44);font-weight:800;">${row.year}Y</span>
+                <strong style="font-size:20px;color:#00ff88;">+${formatNum(row.gainPct, 1)}%</strong>
+                ${showAmounts ? `<span style="font-size:17px;color:rgba(255,255,255,0.72);text-align:right;">${formatNum(row.total, 2)} ꜩ</span>` : ''}
+            </div>
+        `).join('');
+
+        card = document.createElement('div');
+        card.style.cssText = `
+            position:fixed;left:-9999px;top:-9999px;width:760px;min-height:560px;
+            padding:36px 42px 66px;background:#0a0e1a;color:#f7fbff;
+            border:1px solid rgba(0,255,136,0.18);border-radius:16px;
+            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            box-sizing:border-box;overflow:hidden;
+        `;
+        card.innerHTML = `
+            <div style="position:absolute;inset:0;background:linear-gradient(rgba(0,255,136,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.022) 1px,transparent 1px);background-size:22px 22px;pointer-events:none;"></div>
+            <div style="position:relative;z-index:1;">
+                <div style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:900;color:#00ff88;text-transform:uppercase;letter-spacing:0;">TEZOS SYSTEMS</div>
+                <div style="width:220px;height:1px;background:#00ff88;opacity:0.5;margin:14px 0 28px;"></div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.42);text-transform:uppercase;font-weight:850;letter-spacing:0;">Compound Projection</div>
+                <h1 style="margin:12px 0 10px;font-size:58px;line-height:1;font-weight:900;color:#ffffff;">${gainText} over 5 years</h1>
+                <p style="margin:0 0 24px;font-size:19px;line-height:1.38;color:rgba(255,255,255,0.62);">Live network rate, compounding every ~${cycleLabel}. ${showAmounts ? 'Amounts included by request.' : 'Percentages only.'}</p>
+                <div style="display:grid;gap:0;margin-top:8px;">${rowsHtml}</div>
+            </div>
+        `;
+        appendCardSeal(card);
+        document.body.appendChild(card);
+        const canvas = await window.html2canvas(card, {
+            backgroundColor: '#0a0e1a',
+            scale: 2,
+            useCORS: true,
+            logging: false
+        });
+        card.remove();
+        card = null;
+        closeProjectionOverlay(overlay);
+
+        showShareModal(canvas, [
+            { label: '📈 Projection', text: `Staking on Tezos at live network rates: ${gainText} over 5 years, compounding every cycle.\n\nRun yours → tezos.systems` },
+            { label: '🔒 Private', text: `Compounding every ~${cycleLabel}, automatically, on a chain that has never forked.\n\ntezos.systems` }
+        ], 'Compound Projection');
+    } catch (error) {
+        console.error('Projection share failed:', error);
+    } finally {
+        if (card?.isConnected) card.remove();
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
+function openProjectionShareOverlay() {
+    if (!latestProjection?.rows?.length) return;
+    document.getElementById('calc-projection-share-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'calc-projection-share-overlay';
+    overlay.className = 'calc-projection-share-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.innerHTML = `
+        <div class="calc-projection-share-dialog">
+            <div class="calc-projection-share-head">
+                <strong>Compound Projection</strong>
+                <button type="button" class="calc-projection-close" aria-label="Close projection share">×</button>
+            </div>
+            <label class="calc-projection-amounts">
+                <input type="checkbox" id="calc-projection-show-amounts">
+                <span>Show amounts on card</span>
+            </label>
+            <button type="button" id="calc-projection-generate" class="glass-button calc-projection-generate">Generate share card</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+    overlay.querySelector('.calc-projection-close')?.addEventListener('click', () => closeProjectionOverlay(overlay));
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) closeProjectionOverlay(overlay);
+    });
+    overlay.querySelector('#calc-projection-generate')?.addEventListener('click', () => {
+        const showAmounts = overlay.querySelector('#calc-projection-show-amounts')?.checked === true;
+        shareProjection(showAmounts, overlay);
+    });
+}
+
 function setMode(mode) {
     currentMode = mode;
     const toggle = document.getElementById('calc-mode-toggle');
@@ -299,6 +515,7 @@ function setMode(mode) {
     // Show/hide baker fields
     const bakerFields = document.getElementById('calc-baker-fields');
     if (bakerFields) bakerFields.style.display = mode === 'baker' ? '' : 'none';
+    if (mode === 'baker') clearPayoutLine();
 
     // Update amount label
     const label = document.getElementById('calc-amount-label');
@@ -369,7 +586,11 @@ export function initCalculator() {
             const el = document.getElementById('calc-deleg-payout');
             if (el) el.value = saved.delegPayout;
         }
+    } else {
+        amountInput.value = '1000';
     }
+
+    document.getElementById('calc-projection-share-btn')?.addEventListener('click', openProjectionShareOverlay);
 
     // Mode toggle buttons
     const toggle = document.getElementById('calc-mode-toggle');

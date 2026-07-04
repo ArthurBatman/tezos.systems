@@ -15,6 +15,7 @@ import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
 import { fetchObjktProfile } from './objkt.js';
 import { refresh as refreshMyBakerStats } from './my-baker.js';
 import { initRewardsTracker } from './rewards-tracker.js';
+import { enqueueToast } from '../ui/toast-queue.js';
 
 const TZKT = API_URLS.tzkt;
 const OCTEZ = API_URLS.octez;
@@ -22,6 +23,9 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const REWARDS_HISTORY_KEY = 'tezos-systems-my-rewards-history';
 const LAST_PORTFOLIO_KEY = 'tezos-systems-my-last-portfolio';
 const OVERNIGHT_KEY = 'tezos-systems-overnight-snapshot';
+const TEZ_NAME_CACHE_KEY = 'tezos-tez-name-cache';
+const TEZ_NAME_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const ANNIVERSARY_KEY_PREFIX = 'tezos-anniversary-shown';
 const RECENT_BAKER_ACTIVITY_DAYS = 14;
 const RECENT_BAKER_ACTIVITY_LIMIT = 40;
 const RECENT_BAKER_ACTIVITY_DISPLAY_LIMIT = 6;
@@ -31,6 +35,7 @@ const OCTEZ_VERSION_TTL_MS = 10 * 60 * 1000;
 const OPERATOR_SIGNAL_REFRESH_MS = 15000;
 const DRAWER_STATS_REFRESH_MS = 30000;
 const _octezSoftwareCache = new Map();
+const _tezNameMemoryCache = new Map();
 // Protocol eras — map block levels to protocol names
 const PROTOCOL_ERAS = [
     { name: 'Genesis', level: 0, date: '2018-06-30' },
@@ -588,6 +593,7 @@ export async function fetchBakerVoteStatus(bakerAddr) {
             const quorumPct = totalEligible > 0 ? ((totalVoted / totalEligible) * 100) : null;
             const yayNay = yayPower + nayPower;
             const yayPct = yayNay > 0 ? ((yayPower / yayNay) * 100) : null;
+            const quorumNeeded = Number(period.ballotsQuorum);
             
             // Check this baker's vote
             let voted = false, vote = null;
@@ -597,7 +603,7 @@ export async function fetchBakerVoteStatus(bakerAddr) {
                 voted = Boolean(vote);
             } catch {}
             
-            return { ...base, proposal: proposalName, voted, vote, voteType: 'ballot', quorumPct, yayPct };
+            return { ...base, proposal: proposalName, voted, vote, voteType: 'ballot', quorumPct, yayPct, quorumNeeded };
         }
         
         return null; // cooldown/adoption — no vote needed
@@ -701,6 +707,78 @@ function isTezDomainAlias(value) {
 function shortAddress(address) {
     if (!address) return 'Unknown';
     return `${address.slice(0, 8)}...${address.slice(-4)}`;
+}
+
+function loadTezNameCache() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(TEZ_NAME_CACHE_KEY) || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (_) {
+        return {};
+    }
+}
+
+function saveTezNameCache(cache) {
+    try {
+        localStorage.setItem(TEZ_NAME_CACHE_KEY, JSON.stringify(cache));
+    } catch (_) {}
+}
+
+async function resolveTezReverseName(address) {
+    const key = String(address || '').trim();
+    if (!key) return null;
+    const memory = _tezNameMemoryCache.get(key);
+    if (memory && Date.now() - memory.ts < TEZ_NAME_CACHE_TTL_MS) return memory.name || null;
+
+    const cache = loadTezNameCache();
+    const cached = cache[key];
+    if (cached && Date.now() - Number(cached.ts || 0) < TEZ_NAME_CACHE_TTL_MS) {
+        _tezNameMemoryCache.set(key, cached);
+        return cached.name || null;
+    }
+
+    let name = null;
+    try {
+        const resp = await fetch('https://api.tezos.domains/graphql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: 'query ReverseLookup($address: String!) { reverseRecord(address: $address) { domain { name } } }',
+                variables: { address: key }
+            })
+        });
+        if (resp.ok) {
+            const json = await resp.json();
+            const candidate = json?.data?.reverseRecord?.domain?.name || null;
+            name = isTezDomainAlias(candidate) ? candidate.toLowerCase() : null;
+        }
+    } catch (_) {}
+
+    const entry = { name, ts: Date.now() };
+    _tezNameMemoryCache.set(key, entry);
+    cache[key] = entry;
+    saveTezNameCache(cache);
+    return name;
+}
+
+export async function resolveTezName(address, account = null) {
+    const reverseName = await resolveTezReverseName(address);
+    return reverseName || account?.alias || shortAddress(address);
+}
+
+function getGreetingPeriod() {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 18) return 'afternoon';
+    return 'evening';
+}
+
+function updateDrawerGreeting(name) {
+    const greeting = document.getElementById('my-tezos-greeting');
+    if (!greeting) return;
+    const cleanName = String(name || '').trim();
+    greeting.textContent = cleanName ? `Good ${getGreetingPeriod()}, ${cleanName}` : '';
+    greeting.hidden = !cleanName;
 }
 
 function accountName(account) {
@@ -1340,15 +1418,25 @@ function buildMorningBrief(data) {
             if (v.voteType === 'upvote') {
                 voteText = `<br><span class="brief-sub" style="color:${color}">${icon} <strong>No proposal upvotes</strong> this period${urgencyNote}${timeLeft ? ' (' + timeLeft + ' left)' : ''}</span>`;
             } else {
-                voteText = `<br><span class="brief-sub" style="color:${color}">${icon} <strong>Hasn't voted</strong> on ${escapeHtml(v.proposal)}${urgencyNote}${timeLeft ? ' (' + timeLeft + ' left)' : ''}</span>`;
+                const leftCopy = timeLeft ? `${timeLeft} left` : 'time remains';
+                voteText = `<br><span class="brief-sub" style="color:${color}">${icon} Your baker hasn't weighed in on ${escapeHtml(v.proposal)} yet — ${escapeHtml(leftCopy)}. History is written by the ones who show up.</span>`;
             }
         }
         
         // Quorum/supermajority context (exploration/promotion only)
         if (v.quorumPct !== null && v.quorumPct !== undefined) {
-            const qColor = v.quorumPct < 50 ? 'var(--color-warning, #f59e0b)' : 'var(--text-dim, #888)';
+            const daysLeft = daysLeftInPeriod(v.endTime);
+            const quorumNeeded = Number.isFinite(Number(v.quorumNeeded)) ? Number(v.quorumNeeded) : null;
+            const lateAndLow = daysLeft !== null && daysLeft <= 2 && quorumNeeded !== null && v.quorumPct < quorumNeeded;
+            const qColor = lateAndLow ? 'var(--color-warning, #f59e0b)' : 'var(--text-dim, #888)';
             const supermajority = v.yayPct !== null ? ` • ${v.yayPct.toFixed(1)}% yay (needs 80%)` : '';
-            voteText += `<br><span class="brief-sub" style="font-size:0.85em;color:${qColor}">🗳️ Participation: ${v.quorumPct.toFixed(1)}%${supermajority}</span>`;
+            const daysCopy = daysLeft === null
+                ? 'Time remains.'
+                : `${daysLeft} days remain.`;
+            const quorumCopy = lateAndLow && quorumNeeded !== null
+                ? `🗳️ ${v.quorumPct.toFixed(1)}% — quorum needs ${quorumNeeded.toFixed(1)}%. ${daysCopy}`
+                : `🗳️ ${v.quorumPct.toFixed(1)}% so far — ballots usually land in the final days. ${daysCopy}`;
+            voteText += `<br><span class="brief-sub" style="font-size:0.85em;color:${qColor}">${escapeHtml(quorumCopy)}${supermajority}</span>`;
         }
     }
     cards.push({
@@ -1367,6 +1455,13 @@ function buildMorningBrief(data) {
     });
 
     return cards;
+}
+
+function daysLeftInPeriod(endTime) {
+    if (!endTime) return null;
+    const diff = new Date(endTime).getTime() - Date.now();
+    if (!Number.isFinite(diff)) return null;
+    return Math.max(0, Math.ceil(diff / 86400000));
 }
 
 // ─── Tezos Story Card ──────────────────────────────────
@@ -1417,21 +1512,7 @@ async function fetchTezosStory(address, account, bakerAddress) {
         }
     } catch {}
 
-    try {
-        const resp = await fetch('https://api.tezos.domains/graphql', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query: 'query ReverseLookup($address: String!) { reverseRecord(address: $address) { domain { name } } }',
-                variables: { address }
-            })
-        });
-        if (resp.ok) {
-            const json = await resp.json();
-            const name = json?.data?.reverseRecord?.domain?.name || null;
-            domainAlias = isTezDomainAlias(name) ? name.toLowerCase() : null;
-        }
-    } catch {}
+    domainAlias = await resolveTezReverseName(address);
 
     return {
         joinedEra: joinedEra.name,
@@ -1450,12 +1531,157 @@ async function fetchTezosStory(address, account, bakerAddress) {
     };
 }
 
+function anniversaryYears(firstActivityTime) {
+    const first = new Date(firstActivityTime);
+    const now = new Date();
+    if (Number.isNaN(first.getTime())) return 0;
+    if (first.getMonth() !== now.getMonth() || first.getDate() !== now.getDate()) return 0;
+    return Math.max(0, now.getFullYear() - first.getFullYear());
+}
+
+function anniversaryKey(address) {
+    return `${ANNIVERSARY_KEY_PREFIX}-${String(address || '').trim()}`;
+}
+
+async function shareAnniversaryCard(details, button) {
+    const original = button?.textContent || '';
+    try {
+        if (button) {
+            button.disabled = true;
+            button.textContent = '...';
+        }
+        const { loadHtml2Canvas, showShareModal, appendCardSeal } = await import('../ui/share.js');
+        await loadHtml2Canvas();
+        const yearsLabel = `${details.years} year${details.years === 1 ? '' : 's'}`;
+        const card = document.createElement('div');
+        card.style.cssText = `
+            position:fixed;left:-9999px;top:0;width:620px;padding:42px 42px 72px;
+            background:#0a0e1a;color:#fff;border:1px solid rgba(0,212,255,0.22);
+            border-radius:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            overflow:hidden;box-sizing:border-box;
+        `;
+        card.innerHTML = `
+            <div style="position:absolute;inset:0;background:radial-gradient(circle at 22% 18%,rgba(0,212,255,0.12),transparent 34%),linear-gradient(rgba(0,212,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.025) 1px,transparent 1px);background-size:auto,22px 22px,22px 22px;pointer-events:none;"></div>
+            <div style="position:relative;z-index:1;">
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,212,255,0.62);margin-bottom:12px;">Tezos Anniversary</div>
+                <div style="font-size:42px;line-height:1.05;font-weight:900;color:#fff;margin-bottom:18px;">${escapeHtml(yearsLabel)} on Tezos</div>
+                <p style="font-size:20px;line-height:1.45;color:rgba(255,255,255,0.78);margin:0 0 24px;">Joined in the <strong style="color:#00d4ff;">${escapeHtml(details.era)}</strong> era — <strong style="color:#00d4ff;">${details.upgrades}</strong> upgrades survived, zero forks.</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <span style="font-size:12px;border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:7px 10px;color:rgba(255,255,255,0.76);">First seen ${escapeHtml(String(details.joinYear))}</span>
+                    <span style="font-size:12px;border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:7px 10px;color:rgba(255,255,255,0.76);">Self-amending since day one</span>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(card);
+        appendCardSeal(card);
+        const canvas = await html2canvas(card, {
+            backgroundColor: '#0a0e1a',
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            width: 620,
+            windowWidth: 620
+        });
+        card.remove();
+        const tweetOptions = [
+            { label: '🎂 Anniversary', text: `${details.years} years on Tezos today. Joined in the ${details.era} era. ${details.upgrades} upgrades survived. Zero forks.\n\ntezos.systems` },
+            { label: '📜 Story', text: `My Tezos story: since ${details.era} (${details.joinYear}), through ${details.upgrades} self-amendments, on a chain that has never forked.\n\ntezos.systems` },
+        ];
+        showShareModal(canvas, tweetOptions, 'Tezos Anniversary');
+    } catch (error) {
+        console.error('Anniversary share failed:', error);
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = original;
+        }
+    }
+}
+
+function showAnniversaryToast(details, done, duration = 12000) {
+    let container = document.getElementById('moments-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'moments-toast-container';
+        document.body.appendChild(container);
+    }
+
+    const yearsLabel = `${details.years} year${details.years === 1 ? '' : 's'}`;
+    const toast = document.createElement('div');
+    toast.className = 'moment-toast tezos-anniversary-toast';
+    toast.innerHTML = `
+        <div class="moment-toast-header"><span class="moment-toast-label">🎂 Tezos Anniversary</span></div>
+        <div class="moment-toast-title">${escapeHtml(yearsLabel)} on Tezos today.</div>
+        <div class="moment-toast-body">Joined in the ${escapeHtml(details.era)} era — ${details.upgrades} upgrades survived, zero forks.</div>
+        <div class="moment-toast-actions">
+            <button class="moment-toast-share" type="button">Share</button>
+            <button class="moment-toast-dismiss" type="button">Dismiss</button>
+        </div>
+        <div class="moment-toast-progress"><div class="moment-toast-progress-bar"></div></div>
+    `;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    const bar = toast.querySelector('.moment-toast-progress-bar');
+    requestAnimationFrame(() => {
+        if (!bar) return;
+        bar.style.transition = `width ${duration}ms linear`;
+        bar.style.width = '0%';
+    });
+
+    let closed = false;
+    const close = () => {
+        if (closed) return;
+        closed = true;
+        clearTimeout(timer);
+        toast.classList.remove('visible');
+        toast.classList.add('exiting');
+        setTimeout(() => {
+            toast.remove();
+            done?.();
+        }, 400);
+    };
+    const timer = setTimeout(close, duration);
+    toast.querySelector('.moment-toast-share')?.addEventListener('click', (event) => {
+        shareAnniversaryCard(details, event.currentTarget);
+    });
+    toast.querySelector('.moment-toast-dismiss')?.addEventListener('click', close);
+}
+
+function maybeQueueAnniversaryToast(data) {
+    const story = data?.story;
+    const fullAddress = data?.fullAddress;
+    if (!story?.firstActivityTime || !fullAddress) return;
+    const years = anniversaryYears(story.firstActivityTime);
+    if (years < 1) return;
+
+    const now = new Date();
+    const key = anniversaryKey(fullAddress);
+    try {
+        if (localStorage.getItem(key) === String(now.getFullYear())) return;
+        localStorage.setItem(key, String(now.getFullYear()));
+    } catch (_) {}
+
+    const first = new Date(story.firstActivityTime);
+    const details = {
+        years,
+        era: story.joinedEra,
+        upgrades: story.upgradesSeen,
+        joinYear: Number.isNaN(first.getTime()) ? '' : first.getFullYear()
+    };
+
+    enqueueToast({
+        priority: 2,
+        duration: 12000,
+        show: (done, duration) => showAnniversaryToast(details, done, duration)
+    });
+}
+
 /**
  * Share Tezos Story as PNG card
  */
 async function shareTezosStory(data) {
     try {
-        const { loadHtml2Canvas, showShareModal } = await import('../ui/share.js');
+        const { loadHtml2Canvas, showShareModal, appendCardSeal } = await import('../ui/share.js');
         await loadHtml2Canvas();
 
         const isMatrix = document.body.getAttribute('data-theme') === 'matrix';
@@ -1472,7 +1698,7 @@ async function shareTezosStory(data) {
             color: white; overflow: hidden;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            padding: 48px;
+            padding: 48px 48px 72px;
             box-sizing: border-box;
         `;
 
@@ -1555,13 +1781,14 @@ async function shareTezosStory(data) {
                 </div>
             </div>
 
-            <div style="position:absolute;bottom:24px;left:40px;right:40px;display:flex;justify-content:space-between;align-items:center;z-index:1;">
+            <div style="position:absolute;bottom:44px;left:40px;right:40px;display:flex;justify-content:space-between;align-items:center;z-index:1;">
                 <span style="font-size:13px;color:rgba(255,255,255,0.3);">${data.address}</span>
                 <span style="font-size:13px;color:${brand};font-weight:600;letter-spacing:1px;">tezos.systems</span>
             </div>
         `;
 
         document.body.appendChild(wrapper);
+        appendCardSeal(wrapper);
         const canvas = await html2canvas(wrapper, {
             backgroundColor: bgColor, scale: 2, useCORS: true, logging: false,
             width: 600, height: 630, windowWidth: 600
@@ -1978,13 +2205,14 @@ async function renderMorningBrief(address, force = false) {
             ? participationPromise.then((participation) => fetchBakerOperatorStatus(bakerAddr, participation))
             : Promise.resolve(null);
 
-        const [participation, rewards, story, bakerVote, bakerActivity, operatorStatus] = await Promise.all([
+        const [participation, rewards, story, bakerVote, bakerActivity, operatorStatus, greetingName] = await Promise.all([
             participationPromise,
             fetchRecentRewards(address, account),
             fetchTezosStory(address, account, bakerAddr),
             bakerAddr ? fetchBakerVoteStatus(bakerAddr) : Promise.resolve(null),
             isBaker ? fetchRecentBakerActivity(address) : Promise.resolve(null),
             operatorStatusPromise,
+            resolveTezName(address, account),
         ]);
 
         const healthScore = calcBakerHealth(participation);
@@ -2036,14 +2264,19 @@ async function renderMorningBrief(address, force = false) {
             totalXTZ, staked, xtzPrice, apyRate, estDaily, estAnnual,
             rewardsLastCycle, rewardStreak,
             bakerName, bakerInactive, healthScore, health, attestRate,
-            isStaker, story, activeProposal, bakerVote, bakerActivity, operatorStatus,
+            isStaker, story, activeProposal, bakerVote, bakerActivity, operatorStatus, greetingName,
         };
 
-        const cards = buildMorningBrief(data);
         if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) {
             if (requestSeq === _briefRequestSeq) _briefRendering = false;
             return;
         }
+
+        // Publish the data contract before optional drawer embellishments.
+        window._myTezosData = data;
+        maybeQueueAnniversaryToast(data);
+
+        const cards = buildMorningBrief(data);
 
         // Overnight Report — prepend if returning user
         const overnight = buildOvernightCard(data, getOvernightSnapshot());
@@ -2051,6 +2284,7 @@ async function renderMorningBrief(address, force = false) {
         saveOvernightSnapshot(data);
 
         // Render morning brief sections in drawer
+        updateDrawerGreeting(greetingName);
         renderBakerOperatorStatus(operatorStatus, isBaker);
         renderBriefTabs(cards, data);
         renderBakerActivity(bakerActivity);
@@ -2123,8 +2357,6 @@ async function renderMorningBrief(address, force = false) {
         // Update minibar on main page
         updateMinibar(data);
 
-        // Store data for external use
-        window._myTezosData = data;
         window.dispatchEvent(new Event('my-tezos-data-ready'));
         _briefRendering = false;
         const pending = _pendingBriefAddr;
@@ -2305,8 +2537,20 @@ export function initMyTezos() {
     window.addEventListener('my-baker-updated', (e) => {
         const newAddr = e.detail?.address;
         if (newAddr) {
+            const previousAddress = e.detail?.previousAddress;
+            if (previousAddress && previousAddress !== newAddr) {
+                window._myTezosData = {
+                    fullAddress: newAddr,
+                    address: shortAddress(newAddr),
+                    bakerAddr: null,
+                    isBaker: false,
+                    loading: true
+                };
+            }
             renderMorningBrief(newAddr, true);
         } else {
+            window._myTezosData = null;
+            updateDrawerGreeting('');
             // Clear drawer sections
             ['drawer-operator-status', 'drawer-brief', 'drawer-network', 'drawer-rewards', 'drawer-baker-activity'].forEach(id => {
                 const el = document.getElementById(id);

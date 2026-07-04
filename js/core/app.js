@@ -7,7 +7,7 @@ import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth } from './api.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
-import { blockTick, initDataMagic, setMagicNumber } from '../effects/data-magic.js';
+import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
 import {
     formatCount,
     formatPercentage,
@@ -30,6 +30,7 @@ import {
 import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js';
 import { initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
+import { setToastGate } from '../ui/toast-queue.js';
 import { fetchProtocols, fetchVotingStatus, getVotingPeriodName } from '../features/governance.js';
 import { alertablePeriod, initGovernanceAlerts } from '../features/governance-alerts.js';
 import { initChamber } from '../features/chamber.js';
@@ -93,7 +94,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=325';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=335';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -118,6 +119,25 @@ const state = {
     refreshInterval: REFRESH_INTERVALS.main,
     refreshTimer: null,
 };
+
+window.tezosSystemsPrefersReducedMotion = prefersReducedMotion;
+
+let resolveHeroSettled;
+let heroSettledDone = false;
+const heroSettled = new Promise((resolve) => {
+    resolveHeroSettled = resolve;
+});
+
+if (typeof window !== 'undefined') {
+    window.tezosSystemsHeroSettled = heroSettled;
+    window.setTimeout(() => settleHeroArrival(), 6000);
+}
+
+function settleHeroArrival() {
+    if (heroSettledDone) return;
+    heroSettledDone = true;
+    resolveHeroSettled?.();
+}
 
 const PROTOCOL_RIBBON_MOBILE_QUERY = '(max-width: 640px)';
 let protocolRibbonModeMql = null;
@@ -187,6 +207,7 @@ async function init() {
     safe('priceBar', initPriceBar);
     safe('vibes', initVibes);
     safe('dataMagic', initDataMagic);
+    safe('toastGate', () => setToastGate(heroSettled));
     // briefingToggle removed — briefing now in drawer
     safe('priceIntelToggle', initPriceIntelToggle);
 
@@ -278,6 +299,8 @@ async function init() {
             activeBakers: cachedStats.totalBakers,
             stakedRatio: cachedStats.stakingRatio,
             currentIssuanceRate: cachedStats.currentIssuanceRate,
+            blockLevel: cachedStats.blockLevel,
+            blockTime: cachedStats.blockTime,
         });
     }
     if (cachedStats) updateTz4ChamberTile(cachedStats);
@@ -434,6 +457,8 @@ async function refreshInBackground() {
                 activeBakers: heroStats.totalBakers,
                 stakedRatio: heroStats.stakingRatio,
                 currentIssuanceRate: heroStats.currentIssuanceRate,
+                blockLevel: heroStats.blockLevel,
+                blockTime: heroStats.blockTime,
             });
         }
         updateTz4ChamberTile(heroStats);
@@ -462,6 +487,8 @@ async function refreshInBackground() {
             stakingRatio: heroStats.stakingRatio || state.currentStats?.stakingRatio,
             currentIssuanceRate: heroStats.currentIssuanceRate || state.currentStats?.currentIssuanceRate,
             cycle: heroStats.cycle || state.currentStats?.cycle,
+            blockLevel: heroStats.blockLevel || state.currentStats?.blockLevel,
+            blockTime: heroStats.blockTime || state.currentStats?.blockTime,
             cycleProgress: heroStats.cycleProgress ?? state.currentStats?.cycleProgress,
             cycleTimeRemaining: heroStats.cycleTimeRemaining || state.currentStats?.cycleTimeRemaining,
         };
@@ -569,10 +596,97 @@ function updateRewardAccountsBreakdown(totalDelegators, totalStakers) {
     el.textContent = `${formatLarge(totalDelegators)} delegators · ${formatLarge(totalStakers)} stakers`;
 }
 
+function clampPercent(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return Math.min(100, Math.max(0, num));
+}
+
+function renderGovernanceVessel(stats) {
+    const desc = document.getElementById('participation-description');
+    const card = document.querySelector('[data-stat="participation"]');
+    if (!desc) return;
+
+    const participation = clampPercent(stats?.participation);
+    const quorum = clampPercent(stats?.participationQuorum);
+    const yay = clampPercent(stats?.participationYayPct);
+    const daysLeft = Number(stats?.participationDaysLeft);
+    const isBallot = stats?.govPeriodKind === 'exploration' || stats?.govPeriodKind === 'promotion';
+
+    card?.classList.remove('governance-vessel-late-low');
+    if (!isBallot || participation === null || quorum === null) {
+        desc.textContent = stats?.participationDescription || '';
+        return;
+    }
+
+    const lateAndLow = Number.isFinite(daysLeft) && daysLeft <= 2 && participation < quorum;
+    card?.classList.toggle('governance-vessel-late-low', lateAndLow);
+    const label = `${participation.toFixed(1)}% of stake has spoken · quorum ${quorum.toFixed(1)}%`;
+    const yayHtml = yay === null ? '' : `
+        <div class="governance-vessel-yay" aria-label="${yay.toFixed(1)}% yay; supermajority threshold 80%">
+            <span class="governance-vessel-fill governance-vessel-fill-yay" style="width:${yay}%"></span>
+            <span class="governance-vessel-tick governance-vessel-tick-super" style="left:80%"></span>
+        </div>
+    `;
+    desc.innerHTML = `
+        <span class="governance-vessel-label">${label}</span>
+        <span class="governance-vessel" role="img" aria-label="${label}">
+            <span class="governance-vessel-fill" style="width:${participation}%"></span>
+            <span class="governance-vessel-tick" style="left:${quorum}%"></span>
+        </span>
+        ${yayHtml}
+    `;
+}
+
+function currentProtocolFromList(protocols = []) {
+    return protocols.find((protocol) => protocol?.isCurrent) || protocols[protocols.length - 1] || null;
+}
+
+function triggerProtocolActivationCeremony(previousName, nextName, upgradeCount) {
+    const headerProtocolEl = document.getElementById('header-current-protocol');
+    const chip = document.getElementById('header-protocol-chip');
+    if (!headerProtocolEl || !nextName) return;
+
+    if (prefersReducedMotion()) {
+        headerProtocolEl.textContent = nextName;
+        return;
+    }
+
+    headerProtocolEl.textContent = previousName || headerProtocolEl.textContent;
+    chip?.classList.add('protocol-chip-crossfade');
+    window.setTimeout(() => {
+        headerProtocolEl.textContent = nextName;
+        chip?.classList.add('protocol-chip-crossfade-in');
+    }, 280);
+    window.setTimeout(() => {
+        chip?.classList.remove('protocol-chip-crossfade', 'protocol-chip-crossfade-in');
+    }, 900);
+
+    const shimmer = document.createElement('div');
+    shimmer.className = 'protocol-activation-shimmer';
+    shimmer.setAttribute('aria-hidden', 'true');
+    shimmer.dataset.upgradeCount = String(upgradeCount || '');
+    document.body.appendChild(shimmer);
+    window.setTimeout(() => shimmer.remove(), 2100);
+}
+
+function enrichStatsWithProtocolState(stats) {
+    if (!stats || !Array.isArray(state.protocols) || !state.protocols.length) return stats;
+    const upgradeCount = countProtocolUpgrades(state.protocols);
+    const currentProtocol = currentProtocolFromList(state.protocols);
+    return {
+        ...stats,
+        protocolCount: upgradeCount,
+        upgradeCount,
+        currentProtocolName: currentProtocol?.name || stats.currentProtocolName || null
+    };
+}
+
 /**
  * Update displayed statistics
  */
 async function updateStats(newStats) {
+    newStats = enrichStatsWithProtocolState(newStats);
     // First load - update instantly
     if (!state.lastUpdate) {
         debugLog('First load - updating instantly');
@@ -593,7 +707,7 @@ async function updateStats(newStats) {
         revealStat('voting-period', newStats.votingPeriod, (v) => v);
         document.getElementById('voting-description').textContent = newStats.votingDescription;
         revealStat('participation', newStats.participation, formatPercentage);
-        document.getElementById('participation-description').textContent = newStats.participationDescription;
+        renderGovernanceVessel(newStats);
         
         // Economy
         revealStat('issuance-rate', newStats.currentIssuanceRate, formatPercentage);
@@ -630,6 +744,8 @@ async function updateStats(newStats) {
                 activeBakers: newStats.totalBakers,
                 stakedRatio: newStats.stakingRatio,
                 currentIssuanceRate: newStats.currentIssuanceRate,
+                blockLevel: newStats.blockLevel,
+                blockTime: newStats.blockTime,
             });
         }
     } else {
@@ -648,6 +764,15 @@ async function updateStats(newStats) {
         }
         if (state.currentStats.cycle !== newStats.cycle) {
             updates.push({ cardId: 'cycle-progress', value: newStats.cycle, formatter: formatCount });
+        }
+        if (state.currentStats.proposal !== newStats.proposal) {
+            updates.push({ cardId: 'proposal', value: newStats.proposal, formatter: (val) => val });
+        }
+        if (state.currentStats.votingPeriod !== newStats.votingPeriod) {
+            updates.push({ cardId: 'voting-period', value: newStats.votingPeriod, formatter: (val) => val });
+        }
+        if (state.currentStats.participation !== newStats.participation) {
+            updates.push({ cardId: 'participation', value: newStats.participation, formatter: formatPercentage });
         }
         if (state.currentStats.currentIssuanceRate !== newStats.currentIssuanceRate) {
             updates.push({ cardId: 'issuance-rate', value: newStats.currentIssuanceRate, formatter: formatPercentage });
@@ -714,6 +839,9 @@ async function updateStats(newStats) {
         if (tz4Desc2) tz4Desc2.textContent = `${newStats.tz4Bakers} / ${newStats.totalBakers} bakers active`;
         document.getElementById('cycle-description').textContent = 
             `${newStats.cycleProgress.toFixed(1)}% • ${newStats.cycleTimeRemaining}`;
+        document.getElementById('proposal-description').textContent = newStats.proposalDescription;
+        document.getElementById('voting-description').textContent = newStats.votingDescription;
+        renderGovernanceVessel(newStats);
         updateRewardAccountsBreakdown(newStats.totalDelegators, newStats.totalStakers);
     }
 
@@ -727,6 +855,8 @@ async function updateStats(newStats) {
             activeBakers: newStats.totalBakers,
             stakedRatio: newStats.stakingRatio,
             currentIssuanceRate: newStats.currentIssuanceRate,
+            blockLevel: newStats.blockLevel,
+            blockTime: newStats.blockTime,
         });
     }
 
@@ -779,7 +909,7 @@ function showAllLoading() {
  * Show error state
  */
 function showErrorState() {
-    ALL_CARD_IDS.forEach(id => showError(id, 'Error'));
+    ALL_CARD_IDS.forEach(id => showError(id));
 }
 
 /**
@@ -1553,6 +1683,28 @@ function buildAnthologyMetric(label, value, note) {
     `;
 }
 
+function renderProtocolAlphabetMarch(protocols = [], currentProtocol = null) {
+    const root = document.getElementById('protocol-alphabet-march');
+    if (!root) return;
+    const currentLetter = String(currentProtocol?.name || protocols[protocols.length - 1]?.name || 'A').charAt(0).toUpperCase();
+    const usedLetters = new Set(protocols.map((protocol) => String(protocol?.name || '').charAt(0).toUpperCase()).filter(Boolean));
+    const letters = Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index));
+    const remaining = Math.max(0, 90 - currentLetter.charCodeAt(0));
+
+    root.innerHTML = `
+        <div class="protocol-alphabet-row" aria-label="Protocol alphabet march">
+            ${letters.map((letter) => {
+                const classes = ['protocol-alphabet-letter'];
+                if (letter === currentLetter) classes.push('is-current');
+                else if (usedLetters.has(letter)) classes.push('is-past');
+                else classes.push('is-unused');
+                return `<span class="${classes.join(' ')}">${letter}</span>`;
+            }).join('<span class="protocol-alphabet-dot" aria-hidden="true">·</span>')}
+        </div>
+        <p>${remaining} letter${remaining === 1 ? '' : 's'} left in this alphabet. The chain will outlive it.</p>
+    `;
+}
+
 function buildAnthologyChapterButton(protocol, label = null) {
     const historyCount = Array.isArray(protocol?.history?.sections) ? protocol.history.sections.length : 0;
     const detail = label || (historyCount ? `${historyCount} scene${historyCount === 1 ? '' : 's'}` : formatProtocolDate(protocol) || 'open');
@@ -1592,6 +1744,7 @@ async function renderProtocolAnthologyBoard(protocols, currentProtocol = null) {
     const current = currentProtocol
         ? enriched.find((protocol) => protocol.name === currentProtocol.name) || currentProtocol
         : enriched.find((protocol) => protocol.isCurrent) || enriched[enriched.length - 1];
+    renderProtocolAlphabetMarch(enriched, current);
     const longReads = enriched.filter((protocol) => protocol.history?.sections?.length);
     const debated = enriched.filter((protocol) => protocol.debate || protocol.contention || protocol.history);
     const blockTimes = enriched.map((protocol) => Number(protocol.blockTime)).filter((time) => Number.isFinite(time) && time > 0);
@@ -2090,7 +2243,10 @@ function initUptimeClock() {
     const topContinuityPanel = document.getElementById('top-continuity-panel');
     const topContinuityHistory = document.getElementById('top-continuity-history');
 
-    if (!counterEl) return;
+    if (!counterEl) {
+        settleHeroArrival();
+        return;
+    }
 
     const LAUNCH = new Date(MAINNET_LAUNCH).getTime();
     const TOP_CONTINUITY_SHUFFLE_MS = 1500;
@@ -2102,16 +2258,14 @@ function initUptimeClock() {
     let chainStakedText = '';
     let chainIssuanceText = '';
     const topContinuityAnimations = new Map();
+    let topContinuityArrived = false;
+    let topContinuityArrivalStarted = false;
     const chainMetricAliases = {
         'chain-uptime-bakers': ['hero-chain-uptime-bakers'],
         'chain-uptime-finality': ['hero-chain-uptime-finality'],
         'chain-uptime-staked': ['hero-chain-uptime-staked'],
         'chain-uptime-issuance': ['hero-chain-uptime-issuance']
     };
-
-    function prefersReducedMotion() {
-        return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-    }
 
     function updateTopContinuityShuffleState() {
         if (!topContinuityPanel) return;
@@ -2164,7 +2318,10 @@ function initUptimeClock() {
 
     function setTopContinuityRuntime(years, days, hours, mins) {
         const el = document.getElementById('hero-chain-uptime-counter');
-        if (!el) return;
+        if (!el) {
+            settleHeroArrival();
+            return;
+        }
 
         const nextText = `${years}y ${days}d ${hours}h ${mins}m`;
         if (el.dataset.finalText === nextText) return;
@@ -2175,9 +2332,62 @@ function initUptimeClock() {
         }
 
         el.dataset.finalText = nextText;
-        el.innerHTML = renderTopContinuityRuntime(years, days, hours, mins);
+        const finalHtml = renderTopContinuityRuntime(years, days, hours, mins);
+
+        if (!topContinuityArrivalStarted) {
+            topContinuityArrivalStarted = true;
+            topContinuityPanel?.classList.add('hero-arrival-pending');
+            if (!prefersReducedMotion()) {
+                const totalMinutes = Math.max(1, Math.round((Date.now() - LAUNCH) / 60000));
+                tweenNumber(el, 0, totalMinutes, {
+                    duration: 1200,
+                    formatter: (value) => {
+                        const minutes = Math.max(0, Math.floor(value));
+                        const yearsValue = Math.floor(minutes / (365.25 * 24 * 60));
+                        const remAfterYears = minutes - Math.floor(yearsValue * 365.25 * 24 * 60);
+                        const daysValue = Math.floor(remAfterYears / (24 * 60));
+                        const hoursValue = Math.floor((remAfterYears % (24 * 60)) / 60);
+                        const minsValue = Math.floor(remAfterYears % 60);
+                        return `${yearsValue}y ${daysValue}d ${hoursValue}h ${minsValue}m`;
+                    },
+                    onDone: () => {
+                        el.innerHTML = finalHtml;
+                        revealTopContinuityPills();
+                    }
+                });
+                updateTopContinuityShuffleState();
+                return;
+            }
+        }
+
+        el.innerHTML = finalHtml;
+        if (!topContinuityArrived) revealTopContinuityPills();
         el.classList.remove('is-shuffling');
         updateTopContinuityShuffleState();
+    }
+
+    function revealTopContinuityPills() {
+        if (topContinuityArrived) return;
+        topContinuityArrived = true;
+        const pills = Array.from(topContinuityPanel?.querySelectorAll('.top-continuity-stat') || []);
+        if (!pills.length || prefersReducedMotion()) {
+            topContinuityPanel?.classList.remove('hero-arrival-pending');
+            pills.forEach((pill) => pill.classList.add('hero-arrived'));
+            settleHeroArrival();
+            return;
+        }
+
+        pills.forEach((pill, index) => {
+            window.setTimeout(() => {
+                pill.classList.add('hero-arrived');
+                if (index === pills.length - 1) {
+                    window.setTimeout(() => {
+                        topContinuityPanel?.classList.remove('hero-arrival-pending');
+                        settleHeroArrival();
+                    }, 180);
+                }
+            }, index * 80);
+        });
     }
 
     function setChainText(id, text, options = {}) {
@@ -2264,6 +2474,13 @@ function initUptimeClock() {
         const chainCounterEl = document.getElementById('chain-uptime-counter');
         if (chainCounterEl) chainCounterEl.innerHTML = html;
         setTopContinuityRuntime(years, days, hours, mins);
+        const totalDays = Math.floor(diff / 86400000);
+        const upgradeCount = state.currentStats?.protocolCount || countProtocolUpgrades(state.protocols || []);
+        if (topContinuityHistory) {
+            const myth = `${totalDays.toLocaleString('en-US')} days without stopping. ${upgradeCount} upgrades. Zero forks. The longest-running self-amending chain.`;
+            topContinuityHistory.title = myth;
+            topContinuityHistory.setAttribute('aria-label', `${myth} Open Protocol Anthology Chamber`);
+        }
         syncChainProofMetrics();
     }
 
@@ -2536,9 +2753,20 @@ function handleVisibilityChange() {
  */
 function renderProtocolTimeline(protocols) {
     if (!Array.isArray(protocols) || !protocols.length) return;
+    const previousUpgradeCount = Number(state.currentStats?.upgradeCount ?? state.currentStats?.protocolCount);
+    const previousProtocolName = state.currentStats?.currentProtocolName
+        || document.getElementById('header-current-protocol')?.textContent?.trim()
+        || null;
     state.protocols = protocols;
     const upgradeCount = countProtocolUpgrades(protocols);
-    state.currentStats = { ...(state.currentStats || {}), protocolCount: upgradeCount };
+    const currentProtocol = currentProtocolFromList(protocols);
+    const currentProtocolName = currentProtocol?.name || null;
+    state.currentStats = {
+        ...(state.currentStats || {}),
+        protocolCount: upgradeCount,
+        upgradeCount,
+        currentProtocolName
+    };
     updateProtocolHistoryEntryCard(protocols);
 
     const countEl = document.getElementById('upgrade-count');
@@ -2548,10 +2776,22 @@ function renderProtocolTimeline(protocols) {
     updateComparison(state.currentStats);
     renderProtocolRibbon(protocols);
 
-    const currentProtocol = protocols.find(p => p.isCurrent) || protocols[protocols.length - 1];
     if (currentProtocol) {
         const headerProtocolEl = document.getElementById('header-current-protocol');
-        if (headerProtocolEl) headerProtocolEl.textContent = currentProtocol.name;
+        const activatedInSession = Number.isFinite(previousUpgradeCount)
+            && previousUpgradeCount > 0
+            && upgradeCount > previousUpgradeCount
+            && previousProtocolName
+            && previousProtocolName !== currentProtocol.name;
+        if (activatedInSession) {
+            triggerProtocolActivationCeremony(previousProtocolName, currentProtocol.name, upgradeCount);
+            checkMoments(
+                { upgradeCount: previousUpgradeCount, currentProtocolName: previousProtocolName },
+                { upgradeCount, currentProtocolName: currentProtocol.name }
+            );
+        } else if (headerProtocolEl) {
+            headerProtocolEl.textContent = currentProtocol.name;
+        }
     }
     renderProtocolAnthologyBoard(protocols, currentProtocol);
 
@@ -3259,6 +3499,7 @@ function renderProtocolHistoryChamberShell(overlay) {
             <p class="protocol-history-chamber-lede">
                 The Tezos self-amendment archive: protocol lore, proposal context, impact views, and the path from Ushuaia back through every prior era.
             </p>
+            <div class="protocol-alphabet-march" id="protocol-alphabet-march" aria-live="polite"></div>
             <div class="protocol-history-chamber-actions">
                 <button class="protocol-history-chamber-link protocol-history-chamber-action" type="button" data-protocol-history-jump="timeline">View Timeline</button>
                 <button class="protocol-history-chamber-link protocol-history-chamber-action" type="button" data-protocol-history-jump="impact">View Impact</button>

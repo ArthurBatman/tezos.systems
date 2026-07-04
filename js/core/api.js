@@ -274,6 +274,10 @@ function fetchSharedConstants() {
     return _constantsPromise;
 }
 
+export async function fetchProtocolConstants() {
+    return fetchSharedConstants();
+}
+
 /**
  * Deduplicated fetch for /issuance/current_yearly_rate (used by fetchIssuance + fetchStakingAPY)
  */
@@ -388,6 +392,8 @@ async function fetchCycleInfo() {
 
     return {
         cycle: head.cycle,
+        blockLevel: head.level,
+        blockTime: head.timestamp,
         progress: Math.min(progress, 100),
         timeRemaining
     };
@@ -460,6 +466,13 @@ function governanceProposalDescription(kind, hasProposal) {
     return 'In progress';
 }
 
+function governanceDaysLeft(endTime) {
+    if (!endTime) return null;
+    const diff = new Date(endTime).getTime() - Date.now();
+    if (!Number.isFinite(diff)) return null;
+    return Math.max(0, Math.ceil(diff / 86400000));
+}
+
 async function fetchGovernance() {
     try {
         const [voting, report] = await Promise.all([
@@ -489,6 +502,12 @@ async function fetchGovernance() {
             : hasBallots && voting.totalVoters && voting.totalBakers
                 ? calculatePercentage(voting.totalVoters, voting.totalBakers)
                 : null;
+        const quorumNeeded = hasBallots ? Number(voting.ballotsQuorum ?? report?.currentGovernance?.tally?.ballotsQuorum) : null;
+        const yayNayPower = (voting.yayVotingPower || 0) + (voting.nayVotingPower || 0);
+        const yayPct = hasBallots && yayNayPower > 0
+            ? calculatePercentage(voting.yayVotingPower || 0, yayNayPower)
+            : null;
+        const daysLeft = governanceDaysLeft(voting.endTime);
         
         // Format period kind
         const periodKind = governancePeriodLabel(voting.kind);
@@ -505,6 +524,11 @@ async function fetchGovernance() {
             period: periodKind,
             periodDescription: `Ends ${endDate}`,
             participation: participation,
+            participationQuorum: Number.isFinite(quorumNeeded) ? quorumNeeded : null,
+            participationYayPct: Number.isFinite(yayPct) ? yayPct : null,
+            participationDaysLeft: daysLeft,
+            govPeriodKind: voting.kind,
+            govProposalName: proposalName === 'None' ? null : proposalName,
             participationDescription: hasBallots && voting.yayBallots !== undefined
                 ? `${(voting.yayBallots || 0) + (voting.nayBallots || 0) + (voting.passBallots || 0)} ballots`
                 : hasBallots
@@ -885,6 +909,8 @@ export async function fetchAllStats() {
             tz4Bakers: bakers.tz4Count,
             tz4Percentage: bakers.tz4Percentage,
             cycle: cycle.cycle,
+            blockLevel: cycle.blockLevel,
+            blockTime: cycle.blockTime,
             cycleProgress: cycle.progress,
             cycleTimeRemaining: cycle.timeRemaining,
             
@@ -894,7 +920,12 @@ export async function fetchAllStats() {
             votingPeriod: gov.period || 'N/A',
             votingDescription: gov.periodDescription || '',
             participation: gov.participation ?? null,
+            participationQuorum: gov.participationQuorum ?? null,
+            participationYayPct: gov.participationYayPct ?? null,
+            participationDaysLeft: gov.participationDaysLeft ?? null,
             participationDescription: gov.participationDescription || '',
+            govPeriodKind: gov.govPeriodKind || null,
+            govProposalName: gov.govProposalName || null,
             
             // Economy
             currentIssuanceRate: issuance.status === 'fulfilled' ? (issuance.value.total || 0) : 0,
@@ -958,6 +989,8 @@ export async function fetchHeroStats() {
             currentIssuanceRate: issuanceRate,
             stakingRatio: staking.stakingRatio,
             cycle: cycleInfo.cycle,
+            blockLevel: cycleInfo.blockLevel,
+            blockTime: cycleInfo.blockTime,
             cycleProgress: cycleInfo.progress,
             cycleTimeRemaining: cycleInfo.timeRemaining,
         };

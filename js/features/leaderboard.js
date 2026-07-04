@@ -6,21 +6,24 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez } from '../core/utils.js';
 import { letterGrade, computeBakerScores } from './baker-report-card.js';
-import { loadHtml2Canvas, showShareModal } from '../ui/share.js';
+import { loadHtml2Canvas, showShareModal, appendCardSeal } from '../ui/share.js';
 import { isValidAddress } from './my-baker.js';
+import { pulseFresh } from '../effects/data-magic.js';
 
 const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
 const SORT_KEY = 'tezos-systems-leaderboard-sort';
-const CACHE_KEY = 'tezos-systems-leaderboard-cache-v2';
+const CACHE_KEY = 'tezos-systems-leaderboard-cache-v4';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
+const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
 
 let bakersData = [];
 let currentSort = { col: 'stake', dir: 'desc' };
 let delegationLimit = DEFAULT_DELEGATION_LIMIT;
 let delegationLimitSource = 'fallback';
 let delegationLimitPromise = null;
+const previousStakeSnapshot = new Map();
 
 async function fetchDelegationLimit() {
     if (delegationLimitPromise) return delegationLimitPromise;
@@ -58,7 +61,7 @@ async function fetchBakers() {
     // All Bakers Attest activation: positive current baking power.
     while (true) {
         const resp = await fetch(
-            `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,stakedBalance,balance,software&sort.desc=id&limit=${limit}&offset=${offset}`
+            `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,stakedBalance,balance,software,firstActivity,firstActivityTime&sort.desc=id&limit=${limit}&offset=${offset}`
         );
         if (!resp.ok) throw new Error('Failed to fetch bakers');
         const batch = await resp.json();
@@ -84,6 +87,40 @@ function isTz4(addr, consensusAddress) {
     return (consensusAddress || addr || '').startsWith('tz4');
 }
 
+function normalizedAddress(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function savedBakerAddress() {
+    try { return normalizedAddress(localStorage.getItem(MY_BAKER_KEY)); }
+    catch { return ''; }
+}
+
+function sinceYear(baker) {
+    const time = Date.parse(baker.firstActivityTime || '');
+    if (Number.isFinite(time)) return new Date(time).getUTCFullYear();
+    return null;
+}
+
+function earnedBadgeFor(baker, freeCapacity) {
+    const capacity = Number(freeCapacity);
+    if (Number.isFinite(capacity) && capacity >= 50000 && Number(baker.delegationUsage || 0) < 50) {
+        return { label: 'Open oven', tone: 'open' };
+    }
+
+    const firstYear = sinceYear(baker);
+    if (Number.isFinite(firstYear) && firstYear < 2020) {
+        return { label: 'Veteran', tone: 'veteran' };
+    }
+
+    const previousStake = previousStakeSnapshot.get(baker.address);
+    if (Number.isFinite(previousStake) && Number(baker.stakingBalance || 0) > previousStake) {
+        return { label: 'Rising', tone: 'rising' };
+    }
+
+    return null;
+}
+
 /**
  * Compute derived fields for sorting
  */
@@ -99,13 +136,14 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
         : DEFAULT_DELEGATION_LIMIT;
     const maxDelegation = ownStake * limit;
     const delegationUsage = maxDelegation > 0 ? (extDelegated / maxDelegation) * 100 : 0;
-
-    return {
+    const freeDelegationCapacity = Math.max(0, maxDelegation - extDelegated);
+    const base = {
         ...b,
         stake,
         ownStake,
         extStaked,
         extDelegated,
+        freeDelegationCapacity,
         delegators,
         stakers,
         tz4: isTz4(b.address, b.consensusAddress),
@@ -113,6 +151,18 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
         delegationUsage: Math.min(delegationUsage, 100),
         name: b.alias || (b.address.slice(0, 8) + '…'),
     };
+
+    return {
+        ...base,
+        earnedBadge: earnedBadgeFor(base, freeDelegationCapacity),
+        sinceYear: sinceYear(base)
+    };
+}
+
+function rememberStakeSnapshot(bakers) {
+    bakers.forEach((baker) => {
+        if (baker?.address) previousStakeSnapshot.set(baker.address, Number(baker.stakingBalance || 0));
+    });
 }
 
 function searchableBakerText(baker) {
@@ -200,6 +250,18 @@ function buildRankStatCell(label, value) {
     `;
 }
 
+function bakerCapacityFact(baker) {
+    const free = Number(baker.freeDelegationCapacity || 0);
+    if (free >= 1000) {
+        return `${Math.floor(free).toLocaleString('en-US')} XTZ delegation room`;
+    }
+    return `${Number(baker.delegationUsage || 0).toFixed(0)}% capacity used`;
+}
+
+function bakerStatsLine(baker) {
+    return `${formatMutez(baker.stakingBalance)} XTZ | ${baker.delegators} delegators | ${baker.stakers} stakers`;
+}
+
 /**
  * Build the ranking card DOM for a baker (inline-styled for html2canvas)
  */
@@ -208,10 +270,13 @@ function buildRankingCardDOM(baker, rank, total, scores) {
     const name = escapeHtml(baker.name);
     const addr = escapeHtml(baker.address.slice(0, 8) + '…' + baker.address.slice(-4));
     const topPct = Math.max(1, Math.ceil((rank / total) * 100));
+    const badge = baker.earnedBadge?.label || 'Baker guild';
+    const since = baker.sinceYear ? `Since ${baker.sinceYear}` : 'Live baker';
+    const uptime = `${scores.uptime}%`;
 
     const card = document.createElement('div');
     card.style.cssText = `
-        width: 680px; padding: 32px; background: #0a0e1a;
+        width: 680px; padding: 32px 32px 70px; background: #0a0e1a;
         border: 1px solid rgba(0,255,136,0.2); border-radius: 16px;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         color: #e0e0e0; position: relative; overflow: hidden;
@@ -220,11 +285,11 @@ function buildRankingCardDOM(baker, rank, total, scores) {
     card.innerHTML = `
         <div style="position:absolute;inset:0;background:linear-gradient(rgba(0,255,136,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.02) 1px,transparent 1px);background-size:20px 20px;pointer-events:none;"></div>
 
-        <div style="position:relative;z-index:1;">
+            <div style="position:relative;z-index:1;">
             <!-- Header -->
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
                 <div>
-                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,255,136,0.5);margin-bottom:4px;">Baker Ranking</div>
+                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,255,136,0.5);margin-bottom:4px;">Tezos Baker Guild</div>
                     <div style="font-size:24px;font-weight:700;color:#fff;">${name}</div>
                     <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;margin-top:2px;">${addr}</div>
                 </div>
@@ -234,10 +299,16 @@ function buildRankingCardDOM(baker, rank, total, scores) {
                 </div>
             </div>
 
-            <!-- Rank banner -->
-            <div style="background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.12);border-radius:8px;padding:10px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:13px;color:rgba(255,255,255,0.6);">Leaderboard Rank</span>
-                <span style="font-size:18px;font-weight:700;color:#00ff88;">#${rank} <span style="font-size:12px;color:rgba(255,255,255,0.3);">of ${total}</span></span>
+            <div style="background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.12);border-radius:8px;padding:16px;margin-bottom:20px;">
+                <div style="font-size:13px;color:rgba(255,255,255,0.62);line-height:1.55;">
+                    One of <strong style="color:#fff;">${total}</strong> active bakers keeping Tezos running.
+                    Rank <strong style="color:#00ff88;">#${rank}</strong> by stake, top <strong style="color:#00ff88;">${topPct}%</strong>.
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+                    <span style="font-size:11px;color:#00ff88;border:1px solid rgba(0,255,136,0.18);border-radius:999px;padding:5px 9px;">${escapeHtml(badge)}</span>
+                    <span style="font-size:11px;color:rgba(255,255,255,0.72);border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:5px 9px;">${escapeHtml(since)}</span>
+                    <span style="font-size:11px;color:rgba(255,255,255,0.72);border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:5px 9px;">${escapeHtml(uptime)} uptime score</span>
+                </div>
             </div>
 
             <!-- Stats grid -->
@@ -247,13 +318,7 @@ function buildRankingCardDOM(baker, rank, total, scores) {
                 ${buildRankStatCell('Stakers', String(baker.stakers))}
                 ${buildRankStatCell('Capacity', baker.delegationUsage.toFixed(0) + '%')}
                 ${buildRankStatCell('tz4 Key', baker.tz4 ? '✅ Yes' : '— No')}
-                ${buildRankStatCell('Rank Percentile', 'Top ' + topPct + '%')}
-            </div>
-
-            <!-- Footer -->
-            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);">
-                <span style="font-size:11px;color:rgba(255,255,255,0.25);">tezos.systems</span>
-                <span style="font-size:11px;color:rgba(255,255,255,0.25);">${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                ${buildRankStatCell('Delegation Room', Math.floor(baker.freeDelegationCapacity || 0).toLocaleString('en-US') + ' XTZ')}
             </div>
         </div>
     `;
@@ -277,6 +342,7 @@ async function showBakerRankingCard(baker, rank, total, scores) {
 
     try {
         const card = buildRankingCardDOM(baker, rank, total, scores);
+        appendCardSeal(card);
         card.style.position = 'fixed';
         card.style.left = '-9999px';
         document.body.appendChild(card);
@@ -291,12 +357,13 @@ async function showBakerRankingCard(baker, rank, total, scores) {
         card.remove();
         overlay.remove();
 
-        const name = escapeHtml(baker.name);
-        const statsLine = `${formatMutez(baker.stakingBalance)} XTZ | ${baker.delegators} delegators | ${baker.stakers} stakers`;
+        const name = baker.name;
+        const fact = bakerCapacityFact(baker);
+        const statsLine = bakerStatsLine(baker);
         const tweetOptions = [
-            { label: '🍞 My Baker', text: `My baker ${name} is ranked #${rank} of ${total} on Tezos 🍞 Check yours at tezos.systems` },
-            { label: '📊 Stats', text: `${name} — #${rank} baker on Tezos by staking power.\n${statsLine}\ntezos.systems` },
-            { label: '❓ Challenge', text: `How does your Tezos baker rank? tezos.systems` },
+            { label: '🍞 My Baker', text: `My baker ${name} is one of ${total} bakers securing Tezos — ${fact} — #${rank} by stake.\n\ntezos.systems` },
+            { label: '🏛️ Guild', text: `${total} independent bakers keep Tezos running. Mine is ${name}. Find yours →\n\ntezos.systems` },
+            { label: '📊 Stats', text: `${name} — ${statsLine}\ntezos.systems` },
         ];
 
         showShareModal(canvas, tweetOptions, `Baker Ranking: ${name}`);
@@ -313,6 +380,7 @@ async function showBakerRankingCard(baker, rank, total, scores) {
  */
 function render(container) {
     const sorted = sortBakers(bakersData, currentSort.col, currentSort.dir);
+    const savedAddress = savedBakerAddress();
     
     const arrow = (col) => {
         if (currentSort.col !== col) return '';
@@ -341,10 +409,15 @@ function render(container) {
 
     sorted.forEach((b, i) => {
         const capacityClass = b.delegationUsage >= 90 ? 'cap-critical' : b.delegationUsage >= 70 ? 'cap-warning' : '';
+        const isMine = savedAddress && normalizedAddress(b.address) === savedAddress;
+        const badge = b.earnedBadge
+            ? `<span class="lb-badge lb-badge-${escapeHtml(b.earnedBadge.tone)}">${escapeHtml(b.earnedBadge.label)}</span>`
+            : '';
+        const mineMarker = isMine ? '<span class="lb-my-baker-marker" title="Your baker" aria-label="Your baker">🍞</span>' : '';
         html += `
-            <tr class="lb-row" data-address="${escapeHtml(b.address)}">
+            <tr class="lb-row ${isMine ? 'lb-my-baker' : ''}" data-address="${escapeHtml(b.address)}">
                 <td class="lb-rank">${i + 1}</td>
-                <td class="lb-name" title="${escapeHtml(b.address)}">${escapeHtml(b.name)}</td>
+                <td class="lb-name" title="${escapeHtml(b.address)}"><span class="lb-name-main">${mineMarker}${escapeHtml(b.name)}</span>${badge}</td>
                 <td class="lb-num">${formatMutez(b.stakingBalance)}</td>
                 <td class="lb-num">${b.delegators}</td>
                 <td class="lb-num">${b.stakers}</td>
@@ -359,6 +432,7 @@ function render(container) {
     html += `<div class="leaderboard-footer">${sorted.length} active bakers · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
 
     container.innerHTML = html;
+    focusSavedBakerRow(container);
 
     // Wire sort headers
     container.querySelectorAll('.lb-th[data-col]').forEach(th => {
@@ -420,6 +494,19 @@ function render(container) {
     });
 }
 
+function focusSavedBakerRow(container, { scroll = false } = {}) {
+    const row = container.querySelector('.lb-row.lb-my-baker');
+    if (!row) return;
+    if (scroll || container.dataset.focusMyBaker === '1') {
+        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        container.dataset.focusMyBaker = '0';
+    }
+    if (container.dataset.myBakerPulsedAddress !== row.dataset.address) {
+        container.dataset.myBakerPulsedAddress = row.dataset.address;
+        pulseFresh(row);
+    }
+}
+
 function renderLeaderboardSkeleton() {
     const rows = Array.from({ length: 8 }, (_, index) => `
         <tr class="lb-row lb-row-loading">
@@ -473,9 +560,10 @@ async function loadLeaderboard(container) {
             fetchDelegationLimit()
         ]);
         bakersData = raw.map(b => enrichBaker(b, limit));
+        rememberStakeSnapshot(raw);
         render(container);
     } catch (err) {
-        container.innerHTML = '<div class="leaderboard-error">Failed to load baker data. Try again later.</div>';
+        container.innerHTML = '<div class="leaderboard-error">The baker board didn\'t load — the oven door may be stuck. Retry?</div>';
         console.error('Leaderboard fetch error:', err);
     }
 }
@@ -522,6 +610,12 @@ export function initLeaderboard() {
                 optContainer.prepend(section);
             }
         }
+    });
+
+    window.addEventListener('my-baker-updated', () => {
+        if (!bakersData.length || !section.classList.contains('visible')) return;
+        container.dataset.focusMyBaker = '1';
+        render(container);
     });
 
     // Restore visibility
@@ -577,6 +671,8 @@ export async function openBakerProfile(address) {
         section.classList.add('visible');
         toggleBtn.classList.add('active');
     }
+    const leaderboardContainer = document.getElementById('leaderboard-results');
+    if (leaderboardContainer) leaderboardContainer.dataset.focusMyBaker = '1';
 
     const originalAddress = address;
 
@@ -614,9 +710,9 @@ export async function openBakerProfile(address) {
 
     try {
         const resp = await fetch(`${TZKT}/delegates/${encodeURIComponent(address)}`);
-        if (!resp.ok || resp.status === 204) throw new Error(`Baker not found (${resp.status})`);
+        if (!resp.ok || resp.status === 204) throw new Error('No oven at that address — double-check the tz1?');
         const baker = await resp.json();
-        if (!baker || !baker.active) throw new Error('Baker is not currently active');
+        if (!baker || !baker.active) throw new Error('This baker\'s oven has gone cold — not currently active.');
 
         // CRITICAL: set localStorage BEFORE clicking save and opening drawer.
         // This ensures refreshMyTezos (triggered by my-baker-updated) renders the correct baker.

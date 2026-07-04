@@ -68,3 +68,23 @@
     background: linear-gradient(90deg, #f0f1f3 25%, #e0e2e6 50%, #f0f1f3 75%);
     background-size: 200% 100%;
 }
+
+.hero-arrival-pending .top-continuity-stat strong {
+    min-width: 2.8rem;
+    border-radius: 5px;
+    color: transparent !important;
+    background: linear-gradient(
+        90deg,
+        var(--glass-bg) 25%,
+        rgba(255, 255, 255, 0.08) 50%,
+        var(--glass-bg) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-arrival-pending .top-continuity-stat strong {
+        animation: none;
+    }
+}

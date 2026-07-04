@@ -7,6 +7,14 @@ const CHANGELOG = [
     {
         date: '2026-07-04',
         entries: [
+            { type: '🔧', text: 'Cycle whispers now wait for a real prior cycle and only announce when the new cycle has just begun' },
+            { type: '🔧', text: 'First-visit help nudges now lift toast buttons above the prompt so Share and Dismiss stay clickable on desktop and mobile' },
+            { type: '🔧', text: 'Leaderboard descriptors now skip unavailable reliability data and reserve Open oven and Veteran badges for rarer baker signals' },
+            { type: '✨', text: 'Tezos Systems now sequences welcome, streak, network, anniversary, and cycle toasts so live moments arrive one at a time after the hero settles' },
+            { type: '✨', text: 'The calculator now opens with a working 1,000 XTZ lab, animated results, live-rate APY context, first-payout timing, and private-by-default projection sharing' },
+            { type: '🎨', text: 'Baker rows now show earned descriptors, mark your saved baker, and share guild-style cards with live block proof seals' },
+            { type: '🎨', text: 'Governance participation now renders as a quorum vessel during ballot periods, with warning color reserved for late-and-low turnout' },
+            { type: '✨', text: 'Protocol History now adds the alphabet march, live activation ceremony hooks, and wax-sealed share cards across story, report, ranking, chamber, moment, and projection captures' },
             { type: '🔧', text: 'Upgrade totals now count Paris C as a documented Paris follow-up instead of a separate self-amendment, so public totals show 21 upgrades while keeping the history record visible' },
         ]
     },

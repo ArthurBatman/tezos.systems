@@ -3,6 +3,7 @@
  */
 
 import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgradeOrdinal } from '../core/protocol-count.js';
+import { loadStats } from '../core/storage.js';
 
 let html2canvasLoaded = false;
 let _html2canvasPromise = null;
@@ -67,6 +68,40 @@ function getShareCreditHtml(brandColor) {
         return `Shared by <span style="color:${brandColor};font-weight:700;">@${escapeHtml(handle)}</span>`;
     }
     return `Powered by <span style="color:${brandColor};font-weight:600;">Tez Capital</span>`;
+}
+
+function parseBlockLevel(value) {
+    const parsed = Number(String(value || '').replace(/[^0-9]/g, ''));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getSealBlockLevel() {
+    const cached = loadStats();
+    const fromCache = parseBlockLevel(cached?.blockLevel);
+    if (fromCache) return fromCache;
+    return parseBlockLevel(document.getElementById('cycle-chip-block')?.textContent);
+}
+
+export function appendCardSeal(cardEl) {
+    if (!cardEl) return null;
+    cardEl.querySelector(':scope > .share-card-seal')?.remove();
+    const blockLevel = getSealBlockLevel();
+    const seal = document.createElement('div');
+    seal.className = 'share-card-seal';
+    seal.textContent = blockLevel
+        ? `live from tezos.systems · block #${blockLevel.toLocaleString('en-US')}`
+        : 'live from tezos.systems';
+    if (getComputedStyle(cardEl).position === 'static') cardEl.style.position = 'relative';
+    seal.style.cssText = `
+        position:absolute;left:34px;right:34px;bottom:14px;z-index:5;
+        padding:8px 0 0;border-top:1px solid rgba(255,255,255,0.08);
+        color:rgba(255,255,255,0.45);font-size:11px;line-height:1.2;
+        font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+        font-variant-numeric:tabular-nums;text-align:left;letter-spacing:0;
+        pointer-events:none;
+    `;
+    cardEl.appendChild(seal);
+    return seal;
 }
 
 function getTweetCategory(option) {
@@ -779,6 +814,7 @@ async function captureChamberCard(card) {
         content.appendChild(left);
         content.appendChild(right);
         wrapper.appendChild(content);
+        appendCardSeal(wrapper);
         document.body.appendChild(wrapper);
         sanitizeCaptureModernColorStyles(panelClone, { textColor, panelBg, panelBorder });
 
@@ -1583,6 +1619,7 @@ export async function captureBrandedChamberShare(target, details = {}) {
         content.appendChild(left);
         content.appendChild(right);
         wrapper.appendChild(content);
+        appendCardSeal(wrapper);
         document.body.appendChild(wrapper);
 
         restoreSpacing = await fixWordSpacing(wrapper);
@@ -1771,6 +1808,7 @@ export async function captureNetworkMomentShare(moment = {}) {
         content.appendChild(left);
         content.appendChild(right);
         wrapper.appendChild(content);
+        appendCardSeal(wrapper);
         document.body.appendChild(wrapper);
 
         restoreSpacing = await fixWordSpacing(wrapper);
@@ -1789,7 +1827,14 @@ export async function captureNetworkMomentShare(moment = {}) {
         wrapper.remove();
         wrapper = null;
 
-        showShareModal(canvas, [{ label: '🎯 Moment', category: 'Moment', text: tweetText }], `Network Moment: ${title}`);
+        const tweetOptions = Array.isArray(moment.tweetOptions) && moment.tweetOptions.length
+            ? moment.tweetOptions.map((option) => ({
+                ...option,
+                text: /\btezos\.systems\b/i.test(option.text || '') ? option.text : `${option.text || tweetText}\n\ntezos.systems`
+            }))
+            : [{ label: '🎯 Moment', category: 'Moment', text: tweetText }];
+
+        showShareModal(canvas, tweetOptions, `Network Moment: ${title}`);
     } catch (error) {
         console.error('Network Moment share failed:', error);
         showNotification('Screenshot failed. Try again.', 'error');

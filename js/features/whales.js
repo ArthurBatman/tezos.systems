@@ -468,7 +468,7 @@ async function loadInitialTransactions() {
         container.innerHTML = `
             <div id="whale-empty" class="whale-empty">
                 <span class="whale-empty-icon">🐬</span>
-                <span>No activity detected recently</span>
+                <span>No whales surfacing right now. The deep is quiet.</span>
                 <span class="whale-empty-sub">Watching transfers, stakes & delegations > 1,000 ꜩ</span>
             </div>
         `;

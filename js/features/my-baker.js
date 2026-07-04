@@ -701,6 +701,7 @@ export function init() {
                     renderSavedAddresses();
                     return;
                 }
+                const previousAddress = localStorage.getItem(STORAGE_KEY);
                 const addr = btn.dataset.addr;
                 localStorage.setItem(STORAGE_KEY, addr);
                 input.value = addr;
@@ -708,7 +709,7 @@ export function init() {
                 updateLedgerFlowLink(addr);
                 showCopyMode(addr);
                 setDrawerConnectionState(true);
-                window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: addr, source: 'my-baker' } }));
+                window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: addr, source: 'my-baker', previousAddress } }));
                 renderSavedAddresses();
             });
         });
@@ -819,6 +820,7 @@ export function init() {
             return '';
         }
 
+        const previousAddress = localStorage.getItem(STORAGE_KEY);
         localStorage.setItem(STORAGE_KEY, addr);
         input.value = addr;
         renderBakerData(addr, results);
@@ -828,7 +830,7 @@ export function init() {
         addToSavedAddresses(addr);
         setDrawerConnectionState(true);
         if (openAfterSave) openDrawer(true);
-        window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: addr, source: 'my-baker' } }));
+        window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: addr, source: 'my-baker', previousAddress } }));
         return addr;
     }
 
