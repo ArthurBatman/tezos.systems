@@ -79,6 +79,7 @@ import {
   startWidgetRefresh,
   WIDGET_ENDPOINTS
 } from './runtime.js';
+import { countProtocolUpgrades } from '../js/core/protocol-count.js';
 
 (function(){
   const settings=applyWidgetTheme();
@@ -96,7 +97,7 @@ import {
       if(proto){
         protoEl.textContent=protocolAlias(proto);
         protoEl.classList.remove('loading');
-        upgradesEl.textContent=Array.isArray(all)?all.length:'—';
+        upgradesEl.textContent=Array.isArray(all)?countProtocolUpgrades(all):'—';
         versionEl.textContent=proto.code!=null?proto.code:'—';
       }
     }catch(e){protoEl.textContent='—';protoEl.classList.remove('loading')}

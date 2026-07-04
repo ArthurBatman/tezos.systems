@@ -10,6 +10,7 @@ import '../core/tzkt-throttle.js';
 import { CHAIN_COMPARISON, API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
 import { getTzktTotalStaked } from '../core/api.js';
+import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades } from '../core/protocol-count.js';
 
 const LB_EMA_DISABLE_THRESHOLD = 1_000_000_000;
 const LB_MINUTES_PER_YEAR = 365.25 * 24 * 60;
@@ -18,8 +19,8 @@ async function fetchUpgradeCount() {
     try {
         const resp = await fetch(API_URLS.tzkt + '/protocols');
         const protocols = await resp.json();
-        return protocols.filter(p => p.code >= 4 && p.firstLevel > 0).length;
-    } catch { return 22; }
+        return countProtocolUpgrades(protocols);
+    } catch { return CANONICAL_UPGRADE_COUNT; }
 }
 
 function parseMutez(value) {

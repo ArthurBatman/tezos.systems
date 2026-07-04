@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-04',
+        entries: [
+            { type: '🔧', text: 'Upgrade totals now count Paris C as a documented Paris follow-up instead of a separate self-amendment, so public totals show 21 upgrades while keeping the history record visible' },
+        ]
+    },
+    {
         date: '2026-07-02',
         entries: [
             { type: '🔧', text: 'The live block ticker now updates its block, baker, health, and Octez text without data-magic or line-change reveal effects' },

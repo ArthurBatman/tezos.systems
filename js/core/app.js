@@ -19,6 +19,7 @@ import {
     debugLog,
     startLiveTimeTicker
 } from './utils.js';
+import { countProtocolUpgrades } from './protocol-count.js';
 import {
     connectOctezWallet,
     disconnectOctezWallet,
@@ -1395,11 +1396,12 @@ function wireProtocolRibbon() {
 function renderProtocolRibbon(protocols) {
     const { root, track, kicker } = protocolRibbonElements();
     if (!root || !track || !Array.isArray(protocols) || !protocols.length) return;
+    const upgradeCount = countProtocolUpgrades(protocols);
 
     wireProtocolRibbon();
     root.hidden = false;
-    kicker.textContent = `${protocols.length} upgrades · 0 forks`;
-    track.dataset.protocolCount = String(protocols.length);
+    kicker.textContent = `${upgradeCount} upgrades · 0 forks`;
+    track.dataset.protocolCount = String(upgradeCount);
     track.innerHTML = protocols.map((protocol, index) => {
         const name = protocol?.name || `Protocol ${index + 1}`;
         const date = formatProtocolDate(protocol);
@@ -2535,12 +2537,15 @@ function handleVisibilityChange() {
 function renderProtocolTimeline(protocols) {
     if (!Array.isArray(protocols) || !protocols.length) return;
     state.protocols = protocols;
+    const upgradeCount = countProtocolUpgrades(protocols);
+    state.currentStats = { ...(state.currentStats || {}), protocolCount: upgradeCount };
     updateProtocolHistoryEntryCard(protocols);
 
     const countEl = document.getElementById('upgrade-count');
-    if (countEl) countEl.textContent = protocols.length;
+    if (countEl) countEl.textContent = upgradeCount;
     const aboutUpgrades = document.getElementById('about-upgrades');
-    if (aboutUpgrades) aboutUpgrades.textContent = protocols.length;
+    if (aboutUpgrades) aboutUpgrades.textContent = upgradeCount;
+    updateComparison(state.currentStats);
     renderProtocolRibbon(protocols);
 
     const currentProtocol = protocols.find(p => p.isCurrent) || protocols[protocols.length - 1];

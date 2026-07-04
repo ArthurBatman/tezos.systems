@@ -28,6 +28,23 @@ const METRICS = [
   { key: 'slashing', label: 'Slashing', icon: '⚔️', context: true }
 ];
 
+function countsAsProtocolUpgrade(protocol) {
+  if (!protocol) return false;
+  if (protocol.countsAsUpgrade === false || protocol.countsAsSelfAmendment === false) return false;
+  const name = String(protocol.name || protocol.alias || protocol.extras?.alias || protocol.metadata?.alias || '').trim().toLowerCase();
+  const hash = String(protocol.hash || protocol.protocol || '');
+  if (name === 'paris c' || hash.startsWith('PsParisC') || hash.startsWith('PsParisc')) return false;
+  const code = Number(protocol.code ?? protocol.number);
+  if (Number.isFinite(code) && code < 4) return false;
+  const firstLevel = Number(protocol.firstLevel);
+  if (Object.prototype.hasOwnProperty.call(protocol, 'firstLevel') && Number.isFinite(firstLevel) && firstLevel <= 0) return false;
+  return true;
+}
+
+function countProtocolUpgrades(protocols) {
+  return Array.isArray(protocols) ? protocols.filter(countsAsProtocolUpgrade).length : 21;
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -49,7 +66,7 @@ async function loadComparisonData() {
 
 async function tezosStaticData(comparison) {
   const protocolData = JSON.parse(await fs.readFile(PROTOCOL_FILE, 'utf8'));
-  const selfAmendments = Array.isArray(protocolData.protocols) ? protocolData.protocols.length : 21;
+  const selfAmendments = Number(protocolData.meta?.totalUpgrades) || countProtocolUpgrades(protocolData.protocols);
   return {
     ...comparison.tezosStatic,
     name: 'Tezos',

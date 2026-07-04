@@ -7,24 +7,32 @@ const COMPARISON_CAPTURE_SCALE = /iPhone|iPad|iPod|Android/i.test(navigator.user
 
 import { CHAIN_COMPARISON, API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
+import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades } from '../core/protocol-count.js';
 
 // Dynamic upgrade count — initialized on first use
 let _upgradeCount = null;
+function displayedUpgradeCount(stats = null) {
+    const fromStats = Number(stats?.protocolCount);
+    if (Number.isFinite(fromStats) && fromStats > 0) return fromStats;
+    if (_upgradeCount) return _upgradeCount;
+    const fromUpgradeCard = Number(document.getElementById('upgrade-count')?.textContent);
+    if (Number.isFinite(fromUpgradeCard) && fromUpgradeCard > 0) return fromUpgradeCard;
+    return CANONICAL_UPGRADE_COUNT;
+}
+
 async function getUpgradeCount() {
     if (_upgradeCount) return _upgradeCount;
     try {
-        const chips = document.querySelectorAll('.upgrade-chip');
-        if (chips.length > 0) { _upgradeCount = chips.length; return _upgradeCount; }
         const resp = await fetch(API_URLS.tzkt + '/protocols');
         const p = await resp.json();
-        _upgradeCount = p.filter(x => x.code >= 4 && x.firstLevel > 0).length;
+        _upgradeCount = countProtocolUpgrades(p);
         return _upgradeCount;
-    } catch { return 22; }
+    } catch { return CANONICAL_UPGRADE_COUNT; }
 }
 
 // --- Full comparison tweet options ---
 function getComparisonTweets() {
-  const upgradeCount = document.querySelectorAll('.upgrade-chip').length || 22;
+  const upgradeCount = displayedUpgradeCount();
   return [
   { label: "Data Drop", text: `The blockchain trilemma, quantified:
 
@@ -184,7 +192,7 @@ tezos.systems` }
 
 // --- Per-metric tweet options ---
 function getPerMetricTweets() {
-  const upgradeCount = document.querySelectorAll('.upgrade-chip').length || 22;
+  const upgradeCount = displayedUpgradeCount();
   return {
   blockTime: [
     { label: "Honest", text: `Block time:
@@ -456,7 +464,7 @@ const METRICS = [
         key: 'selfAmendments',
         label: 'Self-Amendments',
         icon: '🔄',
-        tezosLive: (stats) => stats.protocolCount ? String(stats.protocolCount) : '22',
+        tezosLive: (stats) => String(displayedUpgradeCount(stats)),
         winner: 'tezos',
         winNote: 'Only self-amending chain',
     },
@@ -496,7 +504,7 @@ const CHAIN_STANDINGS = {
         name: 'Tezos',
         role: 'Self-upgrading baseline',
         body: (stats) => {
-            const upgradeCount = stats?.protocolCount || document.querySelectorAll('.upgrade-chip').length || 22;
+            const upgradeCount = displayedUpgradeCount(stats);
             return `${upgradeCount} on-chain upgrades, 0 hard forks, ${CHAIN_COMPARISON.tezosStatic.finality} deterministic finality.`;
         },
         watch: 'Not the fastest block time or absolute lowest fee.',

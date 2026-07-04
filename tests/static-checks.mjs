@@ -185,6 +185,25 @@ function protocolHashMatches(hash, prefix) {
   return hash.startsWith(prefix) || hash.startsWith(prefix.slice(0, 8)) || prefix.startsWith(hash.slice(0, 8));
 }
 
+function countsAsProtocolUpgrade(protocol) {
+  if (!protocol) return false;
+  if (protocol.countsAsUpgrade === false || protocol.countsAsSelfAmendment === false) return false;
+  const name = String(protocol.name || protocol.alias || protocol.extras?.alias || protocol.metadata?.alias || '').trim().toLowerCase();
+  const hash = String(protocol.hash || protocol.protocol || '');
+  if (name === 'paris c' || hash.startsWith('PsParisC') || hash.startsWith('PsParisc')) return false;
+  const code = Number(protocol.code ?? protocol.number);
+  if (Number.isFinite(code) && code < 4) return false;
+  if (Object.prototype.hasOwnProperty.call(protocol, 'firstLevel')) {
+    const firstLevel = Number(protocol.firstLevel);
+    if (Number.isFinite(firstLevel) && firstLevel <= 0) return false;
+  }
+  return true;
+}
+
+function countProtocolUpgrades(protocols) {
+  return Array.isArray(protocols) ? protocols.filter(countsAsProtocolUpgrade).length : 0;
+}
+
 async function checkGovernanceVotes() {
   const data = JSON.parse(await readText('data/governance-votes.json'));
   const report = JSON.parse(await readText('data/governance-refresh-report.json'));
@@ -208,6 +227,20 @@ async function checkGovernanceVotes() {
   }
   for (const expected of ['Brest A', 'Ithaca', 'Oxford', 'Qena', 'Qena42']) {
     if (!namedFailures.has(expected)) fail(`governance-votes missing failed proposal ${expected}`);
+  }
+
+  const parisC = protocols.find((protocol) => protocol.name === 'Paris C' || protocolHashMatches(protocol.hash, 'PsParisC'));
+  const countedUpgradeTotal = countProtocolUpgrades(protocols);
+  if (!parisC) {
+    fail('protocol-data must keep the Paris C follow-up record');
+  } else if (parisC.countsAsUpgrade !== false) {
+    fail('Paris C must be marked countsAsUpgrade:false so totals do not double-count the Paris follow-up');
+  }
+  if (protocolData.meta?.totalUpgrades !== countedUpgradeTotal) {
+    fail(`protocol-data meta.totalUpgrades (${protocolData.meta?.totalUpgrades}) must equal counted upgrade total (${countedUpgradeTotal})`);
+  }
+  if (countedUpgradeTotal !== 21) {
+    fail(`protocol-data counted upgrade total should be 21 with Paris C excluded, got ${countedUpgradeTotal}`);
   }
 
   if (hoursSince(data.generatedAt) > 72) {

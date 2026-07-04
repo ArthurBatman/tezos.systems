@@ -2,6 +2,8 @@
  * Share/Screenshot functionality for tezos.systems
  */
 
+import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgradeOrdinal } from '../core/protocol-count.js';
+
 let html2canvasLoaded = false;
 let _html2canvasPromise = null;
 
@@ -2171,6 +2173,31 @@ async function getProtocolData() {
     }
 }
 
+function protocolHashMatches(left, right) {
+    if (!left || !right) return false;
+    return left.startsWith(right) || right.startsWith(left) || left.startsWith(right.slice(0, 8)) || right.startsWith(left.slice(0, 8));
+}
+
+function findProtocolRecord(protocol, protocols = []) {
+    if (!protocol || !Array.isArray(protocols)) return protocol;
+    return protocols.find((candidate) => candidate === protocol)
+        || protocols.find((candidate) => candidate.name && protocol.name && candidate.name === protocol.name)
+        || protocols.find((candidate) => protocolHashMatches(String(candidate.hash || ''), String(protocol.hash || '')))
+        || protocol;
+}
+
+function protocolShareMeta(protocol, protocols = []) {
+    const record = findProtocolRecord(protocol, protocols);
+    const ordinal = getProtocolUpgradeOrdinal(record, protocols);
+    return {
+        record,
+        ordinal,
+        ordinalLabel: formatProtocolUpgradeOrdinal(record, protocols),
+        tweetOrdinal: ordinal === null ? 'follow-up' : String(ordinal),
+        title: ordinal === null ? `${record.name} follow-up` : `Protocol #${ordinal}: ${record.name}`
+    };
+}
+
 function getThemeColors() {
     const currentTheme = document.body.getAttribute('data-theme');
     const themeColors = {
@@ -2255,7 +2282,10 @@ export async function captureProtocol(protocol) {
         await loadHtml2Canvas();
         const { brand, bg, brandRgb, isClean, isDark } = getThemeColors();
         const data = await getProtocolData();
-        const total = data?.meta?.totalUpgrades || 21;
+        const protocols = data?.protocols || [];
+        const total = data?.meta?.totalUpgrades || countProtocolUpgrades(protocols);
+        const shareMeta = protocolShareMeta(protocol, protocols);
+        const shareProtocol = shareMeta.record;
 
         wrapper = createBaseWrapper(bg, brandRgb);
 
@@ -2281,17 +2311,17 @@ export async function captureProtocol(protocol) {
         `;
 
         // Protocol number + name
-        const num = protocol.number - 3; // Athens is #1 (code 4)
+        const ordinalFontSize = shareMeta.ordinal === null ? '20px' : '32px';
         content.innerHTML += `
             <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:8px;">
-                <span style="font-family:'Orbitron',sans-serif; font-size:32px; font-weight:900; color:rgba(255,255,255,0.15);">#${num}</span>
+                <span style="font-family:'Orbitron',sans-serif; font-size:${ordinalFontSize}; font-weight:900; color:rgba(255,255,255,0.15);">${shareMeta.ordinalLabel}</span>
                 <span style="font-family:'Orbitron',sans-serif; font-size:32px; font-weight:900; color:${brand};
-                    text-shadow: 0 0 30px rgba(${brandRgb},0.4);">${protocol.name.toUpperCase()}</span>
+                    text-shadow: 0 0 30px rgba(${brandRgb},0.4);">${shareProtocol.name.toUpperCase()}</span>
             </div>
         `;
 
         // Date
-        const dateStr = new Date(protocol.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        const dateStr = new Date(shareProtocol.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
         content.innerHTML += `
             <div style="font-size:16px; color:rgba(255,255,255,0.4); margin-bottom:20px;">Activated: ${dateStr}</div>
         `;
@@ -2300,12 +2330,12 @@ export async function captureProtocol(protocol) {
         content.innerHTML += `
             <div style="font-size:15px; font-style:italic; color:rgba(255,255,255,0.7); margin-bottom:20px;
                 padding-left:14px; border-left:3px solid rgba(${brandRgb},0.3);">
-                "${protocol.headline}"
+                "${shareProtocol.headline}"
             </div>
         `;
 
         // Key changes
-        const changes = (protocol.changes || []).slice(0, 5);
+        const changes = (shareProtocol.changes || []).slice(0, 5);
         if (changes.length) {
             let changesHtml = `<div style="font-size:12px; font-weight:700; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">Key Changes</div>`;
             changes.forEach(c => {
@@ -2328,13 +2358,13 @@ export async function captureProtocol(protocol) {
         wrapper = null;
 
         const suffix = '\n\ntezos.systems';
-        const protoOptions = await getProtocolTweetOptions(protocol, num, total);
+        const protoOptions = await getProtocolTweetOptions(shareProtocol, shareMeta.tweetOrdinal, total);
         const allOptions = protoOptions.map(o => ({
             ...o,
             text: o.text + suffix
         }));
         const displayOptions = pickRandomOptions(allOptions, 4);
-        showShareModal(canvas, displayOptions, `Protocol #${num}: ${protocol.name}`, allOptions);
+        showShareModal(canvas, displayOptions, shareMeta.title, allOptions);
     } catch (error) {
         console.error('Protocol capture failed:', error);
         showNotification('Screenshot failed. Try again.', 'error');
@@ -2353,7 +2383,7 @@ export async function captureTimeline(allProtocols) {
     try {
         await loadHtml2Canvas();
         const { brand, bg, brandRgb, isClean, isDark } = getThemeColors();
-        const total = allProtocols.length;
+        const total = countProtocolUpgrades(allProtocols);
 
         wrapper = createBaseWrapper(bg, brandRgb);
 
@@ -2529,7 +2559,7 @@ export async function initProtocolShare() {
 /**
  * Build a purpose-built 1200×630px share card DOM element for a protocol history
  */
-function buildProtocolHistoryCardDOM(protocol, num) {
+function buildProtocolHistoryCardDOM(protocol, ordinalLabel) {
     const { brand: accent, bg, brandRgb } = getThemeColors();
     const accent10 = accent + '1a';
     const accent30 = accent + '4d';
@@ -2677,7 +2707,7 @@ function buildProtocolHistoryCardDOM(protocol, num) {
             <!-- Header -->
             <div style="margin-bottom:18px;flex:0 0 auto;">
                 <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
-                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2.5px;color:${accent};opacity:0.65;font-family:'JetBrains Mono',monospace;">Protocol ${num !== '?' ? '#' + num : ''} · Tezos Governance</div>
+                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2.5px;color:${accent};opacity:0.65;font-family:'JetBrains Mono',monospace;">Protocol ${ordinalLabel || ''} · Tezos Governance</div>
                     ${protocol.contention ? `<div style="font-size:10px;background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.3);color:#ff8080;padding:2px 8px;border-radius:20px;letter-spacing:1px;">CONTESTED</div>` : ''}
                 </div>
                 <div style="font-size:28px;font-weight:800;color:#fff;line-height:1.2;margin-bottom:6px;max-width:820px;">${titleText}</div>
@@ -2746,16 +2776,16 @@ async function captureProtocolHistory(protocolName) {
         const data = await getProtocolData();
         const protocols = data?.protocols || [];
         const protocol = protocols.find(p => p.name === protocolName);
-        const total = data?.meta?.totalUpgrades || 21;
-        const num = protocol ? protocol.number - 3 : '?';
 
         if (!protocol) {
             showNotification('Protocol data not found.', 'error');
             return;
         }
+        const total = data?.meta?.totalUpgrades || countProtocolUpgrades(protocols);
+        const shareMeta = protocolShareMeta(protocol, protocols);
 
         // Build the purpose-built 1200×630 card
-        card = buildProtocolHistoryCardDOM(protocol, num);
+        card = buildProtocolHistoryCardDOM(protocol, shareMeta.ordinalLabel);
         document.body.appendChild(card);
 
         // Allow layout to settle
@@ -2777,7 +2807,7 @@ async function captureProtocolHistory(protocolName) {
 
         // Get tweet options for this protocol
         const suffix = '\n\ntezos.systems';
-        const protoOpts = await getProtocolTweetOptions(protocol, num, total);
+        const protoOpts = await getProtocolTweetOptions(protocol, shareMeta.tweetOrdinal, total);
         const allOptions = protoOpts.map(o => ({
             ...o,
             text: o.text + suffix

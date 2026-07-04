@@ -5,6 +5,7 @@
 import '../core/tzkt-throttle.js';
 import { fetchCurrentVotingPeriod, fetchWithRetry } from '../core/api.js';
 import { escapeHtml } from '../core/utils.js';
+import { countProtocolUpgrades } from '../core/protocol-count.js';
 
 const TZKT = 'https://api.tzkt.io/v1';
 const OCTEZ = 'https://eu.rpc.tez.capital';
@@ -198,7 +199,7 @@ export async function loadGovernanceData() {
 
         // Protocol count
         const activeProtocols = protocols.filter(p => p.firstLevel > 0);
-        inject('protocol-count', activeProtocols.length.toString());
+        inject('protocol-count', countProtocolUpgrades(activeProtocols).toString());
 
         // Current protocol
         const current = activeProtocols[0];

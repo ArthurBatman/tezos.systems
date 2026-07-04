@@ -5,6 +5,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
+import { countProtocolUpgrades } from '../core/protocol-count.js';
 
 const TZKT_BASE = API_URLS.tzkt;
 const PROTOCOL_DATA_URL = '/data/protocol-data.json';
@@ -121,6 +122,7 @@ function normalizeProtocol(protocol, loreEntry, currentProtocol = null) {
         highlight: buildLoreHighlight(loreEntry, { ...protocol, code, name }),
         debate: loreEntry?.debate || null,
         contention: Boolean(loreEntry?.contention || loreEntry?.history),
+        countsAsUpgrade: protocol.countsAsUpgrade !== false && loreEntry?.countsAsUpgrade !== false,
         isCurrent: isReportCurrentProtocol({ ...protocol, code, name }, currentProtocol)
     };
 }
@@ -327,7 +329,7 @@ export async function fetchVotingStatus() {
  */
 export async function getUpgradeCount() {
     const protocols = await fetchProtocols();
-    return protocols.length;
+    return countProtocolUpgrades(protocols);
 }
 
 /**

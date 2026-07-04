@@ -52,6 +52,7 @@ tezos.systems/
 │   │   ├── api.js                     # TzKT, Octez RPC, Supabase, Tezos data fetches
 │   │   ├── config.js                  # Endpoints, refresh intervals, constants
 │   │   ├── tzkt-throttle.js           # Browser-local TzKT request pacing
+│   │   ├── protocol-count.js          # Human-facing upgrade count convention
 │   │   ├── wallet.js                  # Lazy Octez.Connect wallet bridge
 │   │   ├── storage.js                 # localStorage/sessionStorage wrappers
 │   │   └── utils.js                   # Formatting, sanitization, utility helpers
@@ -304,6 +305,10 @@ inline modal styles in `js/core/app.js`.
   Chambers entry presents this as a Protocol Anthology: a current chapter,
   lore/impact/memory facets, and recent protocol spines that open into a
   current-first fold-out archive.
+  Human-facing upgrade totals use `js/core/protocol-count.js`: Paris C remains
+  visible as a protocol-history chapter and DAL follow-up, but it is not counted
+  as a separate self-amendment total, so public upgrade counts show 21 while the
+  archive still has 22 protocol records.
 - Tezos Loop Console near the bottom of the dashboard replaces the duplicate
   recruit/footer aura prompts with one search recipe surface. Wallet, Baker, Contracts, NFTs,
   Governance, and Market lanes explain accepted search inputs, seed the command
@@ -566,7 +571,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v331`, including hero search, theme
+- Current aligned shell cache stamp: `v332`, including hero search, theme
   bundles, and the Ledger Flow lazy CSS loader.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.

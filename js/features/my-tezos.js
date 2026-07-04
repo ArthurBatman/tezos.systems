@@ -6,6 +6,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
+import { countsAsProtocolUpgrade } from '../core/protocol-count.js';
 import { fetchSharedStats, fetchWithRetry, getTzktTotalDelegated, getTzktTotalStaked } from '../core/api.js';
 import { fetchXTZPrice } from './price.js';
 import { letterGrade } from './baker-report-card.js';
@@ -49,7 +50,7 @@ const PROTOCOL_ERAS = [
     { name: 'Nairobi', level: 3760129, date: '2023-06-24' },
     { name: 'Oxford', level: 5070849, date: '2024-02-09' },
     { name: 'Paris', level: 5726209, date: '2024-06-04' },
-    { name: 'Paris C', level: 5898242, date: '2024-06-25' },
+    { name: 'Paris C', level: 5898242, date: '2024-06-25', countsAsUpgrade: false },
     { name: 'Quebec', level: 7692289, date: '2025-01-20' },
     { name: 'Rio', level: 8767489, date: '2025-05-01' },
     { name: 'Seoul', level: 10279489, date: '2025-09-19' },
@@ -927,7 +928,7 @@ function getProtocolEra(firstActivityLevel) {
 }
 
 function countUpgradesSince(firstActivityLevel) {
-    return PROTOCOL_ERAS.filter(p => p.level > firstActivityLevel).length;
+    return PROTOCOL_ERAS.filter(p => p.level > firstActivityLevel && countsAsProtocolUpgrade(p)).length;
 }
 
 function escapeAttr(value) {
