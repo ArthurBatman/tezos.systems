@@ -5,6 +5,16 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-05',
+        entries: [
+            { type: '🔧', text: 'Network Moments now only celebrate forward milestone movement, keeping declining thresholds out of victory toasts' },
+            { type: '✨', text: 'SEO pages now share a connected Tezos Systems map, footer, and nav path back into the live dashboard and chambers' },
+            { type: '✨', text: 'Protocol Anthology now has a crawlable /anthology/ doorway for the self-amendment story room' },
+            { type: '✨', text: 'My Tezos now greets returning accounts and adds an always-available era card from the Story panel' },
+            { type: '✨', text: 'The baker leaderboard now includes a three-question delegator match flow with shortlist actions' },
+        ]
+    },
+    {
         date: '2026-07-04',
         entries: [
             { type: '🔧', text: 'Leaderboard open delegation room is now a filter and capacity dot, leaving the baker badge slot for scarcer Veteran and Rising signals' },

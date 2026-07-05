@@ -580,8 +580,8 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v336`, including hero search, theme
-  bundles, and the Ledger Flow lazy CSS loader.
+- Current aligned shell cache stamp: `v337`, including hero search, theme
+  bundles, and the Leaderboard and Ledger Flow lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes governance artifacts,
@@ -657,8 +657,8 @@ site-owner language and heartbeat affordance from the dashboard polish pass.
 ## SEO And Analytics
 
 - `robots.txt` allows major AI crawlers and points at `sitemap.xml`.
-- `sitemap.xml` includes the canonical site, SEO pages, compare pages, and
-  widget endpoints.
+- `sitemap.xml` includes the canonical site, Protocol Anthology, SEO pages,
+  compare pages, and widget endpoints.
 - `index.html` includes CSP, Open Graph/Twitter metadata, and JSON-LD.
 - `.well-known/ai-plugin.json` describes the current live/historical data model
   using the canonical September 17, 2018 mainnet date and avoids stale

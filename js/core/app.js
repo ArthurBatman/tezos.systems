@@ -5,6 +5,7 @@
 
 import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth } from './api.js';
+import { findSiteMapEntry, siteMapGroup } from './site-map.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
 import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
@@ -241,6 +242,7 @@ async function init() {
         }
     });
     safe('navButtons', initNavButtons);
+    safe('siteFooterMap', initSiteFooterMap);
     safe('heroSearch', initHeroSearch);
     safe('nativeExplorer', initNativeExplorer);
     safe('uptimeClock', initUptimeClock);
@@ -1002,6 +1004,32 @@ function initMyTezosButton() {
         return null;
     }
 
+    function greetingPeriod() {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 12) return 'morning';
+        if (hour >= 12 && hour < 18) return 'afternoon';
+        return 'evening';
+    }
+
+    function updateReturnGreeting(address, displayName, data) {
+        const el = document.getElementById('return-greeting');
+        if (!el) return;
+        if (!address) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        const story = data?.story || null;
+        const streak = Number(data?.rewardStreak || 0);
+        const detail = story?.joinedEra
+            ? `joined in ${story.joinedEra}`
+            : streak > 1
+                ? `${streak} reward cycles`
+                : 'welcome back';
+        el.textContent = `Good ${greetingPeriod()}, ${displayName} · ${detail}`;
+        el.hidden = false;
+    }
+
     async function updateButtonState() {
         const address = localStorage.getItem(STORAGE_KEY);
         if (address) {
@@ -1020,6 +1048,7 @@ function initMyTezosButton() {
                 ? data.totalXTZ.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' XTZ'
                 : null;
             if (labelEl) labelEl.textContent = balance ? `${displayName} · ${balance}` : displayName;
+            updateReturnGreeting(address, displayName, data);
         } else {
             const iconEl = btn.querySelector('.my-tezos-icon');
             const labelEl = btn.querySelector('.nav-label');
@@ -1027,6 +1056,7 @@ function initMyTezosButton() {
             if (labelEl) labelEl.textContent = 'My Tezos';
             btn.classList.remove('connected');
             btn.title = 'My Tezos — personalize your dashboard';
+            updateReturnGreeting('', '', null);
         }
     }
 
@@ -4274,6 +4304,7 @@ function initOfflineIndicator() {
 //   #section=consensus → scroll to section
 // Pretty chamber routes:
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
+//   /anthology/        → open Protocol History Chamber
 //   /health/           → open Network Health Chamber
 //   /tezosx/           → open Tezos X Chamber
 //   /l2chamber/        → open Tezos X Governance Chamber
@@ -4285,6 +4316,7 @@ function getPrettyChamberPathRoute() {
     const slug = window.location.pathname.replace(/^\/+|\/+$/g, '');
     if (!slug || slug.includes('/')) return null;
     const routes = {
+        anthology: 'protocol-history',
         chamber: 'chamber',
         health: 'health',
         tezosx: 'tezosx',
@@ -4600,6 +4632,12 @@ function applyDeepLink() {
                     'Failed to open Tezos Domains Chamber'
                 );
                 break;
+            case 'protocol-history':
+                openHashModal(
+                    () => openProtocolHistoryChamber(),
+                    'Failed to open Protocol History Chamber'
+                );
+                break;
         }
     };
 
@@ -4842,6 +4880,40 @@ function applyDeepLink() {
                 }
             }, 800);
         }
+    }
+}
+
+function footerMapLink(entry, { featured = false } = {}) {
+    if (!entry) return '';
+    const classes = ['footer-link'];
+    if (featured) classes.push('footer-link-feature');
+    const type = entry.href.endsWith('.xml') ? ' type="application/rss+xml"' : '';
+    const mark = featured ? '<span class="footer-link-mark" aria-hidden="true">+</span>' : '';
+    const detail = featured ? '<small>live stats for your site</small>' : '';
+    return `<a class="${classes.join(' ')}" href="${entry.href}"${type}>${mark}<span>${escapeHtml(entry.title)}</span>${detail}</a>`;
+}
+
+function initSiteFooterMap() {
+    const toolsRail = document.querySelector('[data-site-footer-tools]');
+    const roomsRail = document.querySelector('[data-site-footer-rooms]');
+    if (toolsRail) {
+        const entries = ['widgets', 'feed', 'anthology', 'staking', 'bakers-guide', 'compare']
+            .map(findSiteMapEntry)
+            .filter(Boolean);
+        toolsRail.innerHTML = entries
+            .map((entry) => footerMapLink(entry, { featured: entry.id === 'widgets' }))
+            .join('');
+    }
+    if (roomsRail) {
+        const entries = [
+            ...siteMapGroup('Story Rooms'),
+            ...siteMapGroup('Live Rooms'),
+            ...siteMapGroup('Account Rooms')
+        ].filter((entry) => entry.id !== 'anthology');
+        roomsRail.innerHTML = `
+            <span class="footer-rail-label">Rooms</span>
+            ${entries.map((entry) => footerMapLink(entry)).join('')}
+        `;
     }
 }
 

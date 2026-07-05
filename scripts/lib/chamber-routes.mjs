@@ -1,5 +1,15 @@
 export const CHAMBER_ROUTES = [
   {
+    slug: 'anthology',
+    imageSlug: 'chamber',
+    hash: '#protocol-history',
+    title: 'Protocol Anthology - Tezos Self-Amendment Story',
+    shortTitle: 'Protocol Anthology',
+    description: 'Read the Tezos self-amendment archive: protocol lore, upgrade debates, impact views, and the zero-fork chain story.',
+    eyebrow: 'Protocol Archive',
+    accent: '#45e0c8'
+  },
+  {
     slug: 'chamber',
     hash: '#chamber',
     title: 'Tezos L1 Governance - Tezos Governance Vote Room',

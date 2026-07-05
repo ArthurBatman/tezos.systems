@@ -138,13 +138,16 @@ async function checkRequiredFiles() {
     'css/styles.css',
     'css/styles.min.css',
     'css/hero-search.css',
+    'css/leaderboard.css',
     'js/core/app.js',
     'js/core/api.js',
     'js/core/config.js',
+    'js/core/site-map.js',
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
     'js/features/governance-alerts.js',
     'js/features/search.js',
+    'js/landing/site-nav.js',
     'sw.js',
     'version.json',
     'widgets/runtime.js',
@@ -314,6 +317,7 @@ async function checkCacheBustAlignment() {
   const sw = await readText('sw.js');
   const app = await readText('js/core/app.js');
   const heroSearch = await readText('js/features/search.js');
+  const leaderboard = await readText('js/features/leaderboard.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
   const themePreload = await readText('js/core/theme-preload.js');
   const themeUi = await readText('js/ui/theme.js');
@@ -324,6 +328,7 @@ async function checkCacheBustAlignment() {
   const themePreloadScriptMatch = index.match(/js\/core\/theme-preload\.js\?v=(\d+)/);
   const cacheMatch = sw.match(/CACHE_NAME\s*=\s*['"]tezos-systems-v(\d+)['"]/);
   const heroSearchCssMatch = heroSearch.match(/HERO_SEARCH_CSS_URL\s*=\s*['"]\/css\/hero-search\.css\?v=(\d+)['"]/);
+  const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
   const themeUiMatch = themeUi.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
@@ -335,6 +340,7 @@ async function checkCacheBustAlignment() {
   if (!themePreloadScriptMatch) fail('index.html theme-preload.js script must carry a ?v= cache stamp');
   if (!cacheMatch) fail('sw.js CACHE_NAME must be tezos-systems-vNN');
   if (!heroSearchCssMatch) fail('search.js hero-search.css loader must carry a ?v= cache stamp');
+  if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
   if (!themeUiMatch) fail('theme.js must expose THEME_CSS_VERSION');
@@ -347,11 +353,12 @@ async function checkCacheBustAlignment() {
     themePreloadScriptMatch?.[1],
     cacheMatch?.[1],
     heroSearchCssMatch?.[1],
+    leaderboardCssMatch?.[1],
     ledgerFlowCssMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 8) {
+  } else if (versions.length === 9) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -424,6 +431,7 @@ async function checkSitemapCoverage() {
   const locs = new Set(Array.from(sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)).map((match) => match[1]));
   const expected = [
     'https://tezos.systems/',
+    'https://tezos.systems/anthology/',
     'https://tezos.systems/staking/',
     'https://tezos.systems/governance/',
     'https://tezos.systems/chamber/',
@@ -568,6 +576,8 @@ async function checkSelectorContracts() {
   pass(`retired chamber launcher contracts checked: ${retiredLauncherSnippets.length}`);
 
   const app = await readText('js/core/app.js');
+  const siteMap = await readText('js/core/site-map.js');
+  const siteNav = await readText('js/landing/site-nav.js');
   const search = await readText('js/features/search.js');
   const heroSearchCss = await readText('css/hero-search.css');
   const henModeCss = await readText('css/hen-mode.css');
@@ -587,6 +597,7 @@ async function checkSelectorContracts() {
   const share = await readText('js/ui/share.js');
   const moments = await readText('js/features/moments.js');
   const governanceAlerts = await readText('js/features/governance-alerts.js');
+  const leaderboard = await readText('js/features/leaderboard.js');
   const myTezos = await readText('js/features/my-tezos.js');
   const myBaker = await readText('js/features/my-baker.js');
   const comparison = await readText('js/features/comparison.js');
@@ -595,6 +606,7 @@ async function checkSelectorContracts() {
   const chamberRouteGenerator = await readText('scripts/generate-chamber-routes.mjs');
   const themeUi = await readText('js/ui/theme.js');
   const styles = await readText('css/styles.css');
+  const leaderboardCss = await readText('css/leaderboard.css');
   const ledgerFlowCss = await readText('css/ledger-flow.css');
   const tezosDomainsCss = await readText('css/tezos-domains.css');
   const deepLinkContracts = [
@@ -618,6 +630,8 @@ async function checkSelectorContracts() {
     ['Protocol History chamber current-first timeline', 'const displayProtocols = isHistoryChamber ? [...protocols].reverse() : protocols', app],
     ['Protocol History Chamber card', "card.id = 'protocol-history-entry-card'", app],
     ['Protocol Anthology card copy', 'Protocol Anthology', app],
+    ['Protocol Anthology pretty route map', "anthology: 'protocol-history'", app],
+    ['Protocol Anthology crawlable route source', "slug: 'anthology'", chamberRoutes],
     ['Protocol Anthology card anatomy', 'protocol-history-entry-anthology', app],
     ['Protocol Anthology recent spines', 'protocol-history-entry-spine-item', app],
     ['Protocol Anthology curator board', 'protocol-history-anthology-board', app],
@@ -643,6 +657,11 @@ async function checkSelectorContracts() {
     ['Hero search raises command deck', 'body.hero-search-mode .command-deck', heroSearchCss],
     ['Hero search empty-state guide', 'hero-search-guide', search],
     ['Hero search guide styles', '.hero-search-guide', heroSearchCss],
+    ['Hero search imports site map', 'searchSiteMap', search],
+    ['Hero search root hash page normalization', 'const rootHashEntry', search],
+    ['Site map manifest exports groups', 'SITE_MAP_NAV_GROUPS', siteMap],
+    ['Site map manifest includes anthology route', "href: '/anthology/'", siteMap],
+    ['Landing pages share site nav renderer', 'function renderFooter()', siteNav],
     ['Hero search wallet chip clear copy', 'Wallet or .tez', search],
     ['Hero search Domains quick chip', "label: '/domains'", search],
     ['Hero search Domains chamber', "id: 'domains'", search],
@@ -667,6 +686,9 @@ async function checkSelectorContracts() {
     ['Chambers visibility storage', 'tezos-systems-chambers-visible', app],
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
     ['Pretty chamber route opens without hash redirect', "chamber: 'chamber'", app],
+    ['Dashboard footer uses site map renderer', 'function initSiteFooterMap', app],
+    ['Dashboard footer tools rail is data-driven', 'data-site-footer-tools', index],
+    ['Dashboard footer rooms rail is data-driven', 'data-site-footer-rooms', index],
     ['Pretty chamber route generator hydrates dashboard shell', "dashboardShell = await fs.readFile", chamberRouteGenerator],
     ['Chamber card copy link', 'data-copy-hash="#chamber"', chamber],
     ['Tezos L1 Governance card label', 'Tezos L1 Governance', chamber],
@@ -1030,7 +1052,17 @@ async function checkSelectorContracts() {
     ['canonical chamber expand cue factory', 'function createChamberExpandCue()', app],
     ['canonical chamber expand cue class', "cue.className = 'chamber-expand-cue'", app],
     ['shared chamber footer rail style', '.chamber-entry-footer', styles],
-    ['shared chamber freshness text style', '.chamber-entry-freshness', styles]
+    ['shared chamber freshness text style', '.chamber-entry-freshness', styles],
+    ['Network moments monotonic change guard', 'MONOTONIC_CHANGE_METRICS', moments],
+    ['Network moments shared rule gate', 'function ruleFires', moments],
+    ['Return greeting renderer', 'function updateReturnGreeting', app],
+    ['Return greeting styles', '.return-greeting', styles],
+    ['My Tezos era card button', 'tezos-era-share-btn', myTezos],
+    ['My Tezos era card share helper', 'function shareEraCard', myTezos],
+    ['Tezos Story action styles', '.tezos-story-actions', styles],
+    ['Delegator fit finder questions', 'FIT_QUESTIONS', leaderboard],
+    ['Delegator fit finder scorer', 'function scoreBakerFit', leaderboard],
+    ['Delegator fit finder styles', '.baker-fit-finder', leaderboardCss]
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);

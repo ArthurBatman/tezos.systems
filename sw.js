@@ -3,12 +3,13 @@
  * Cache-first for shell assets, network-first for API data
  */
 
-const CACHE_NAME = 'tezos-systems-v336';
+const CACHE_NAME = 'tezos-systems-v337';
 
 // Shell assets to precache
 const SHELL_ASSETS = [
     '/',
     '/index.html',
+    '/anthology/',
     '/chamber/',
     '/health/',
     '/tezosx/',
@@ -23,6 +24,7 @@ const SHELL_ASSETS = [
     '/css/styles.min.css',
     '/css/loading.css',
     '/css/hero-search.css',
+    '/css/leaderboard.css',
     '/css/shell-extras.css',
     '/css/ledger-flow.css',
     '/css/tezos-domains.css',
@@ -35,6 +37,7 @@ const SHELL_ASSETS = [
     '/js/core/goatcounter-init.js',
     '/js/core/hen-init.js',
     '/js/core/protocol-count.js',
+    '/js/core/site-map.js',
     '/js/core/utils.js',
     '/js/core/wallet.js',
     '/js/core/storage.js',
@@ -86,6 +89,7 @@ const SHELL_ASSETS = [
     '/js/features/tz4-adoption.js',
     '/js/features/upgrade-effect.js',
     '/js/landing/live-data.js',
+    '/js/landing/site-nav.js',
     '/widgets/runtime.js',
     '/widgets/baker-count.html',
     '/widgets/block-height.html',

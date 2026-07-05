@@ -120,6 +120,7 @@ const MILESTONE_RULES = [
 // ─── Detection Logic ─────────────────────────────────────────────
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+const MONOTONIC_CHANGE_METRICS = new Set(['cycle', 'govProposalCount', 'upgradeCount']);
 
 /**
  * Check if a milestone was recently triggered (within 24h)
@@ -129,6 +130,33 @@ function wasRecentlyTriggered(momentId) {
     const recent = moments.find(m => m.id === momentId);
     if (!recent) return false;
     return (Date.now() - recent.timestamp) < TWENTY_FOUR_HOURS;
+}
+
+function numericDirection(prev, curr) {
+    const before = Number(prev);
+    const after = Number(curr);
+    if (!Number.isFinite(before) || !Number.isFinite(after)) return 0;
+    if (after > before) return 1;
+    if (after < before) return -1;
+    return 0;
+}
+
+function ruleFires(rule, prev, curr) {
+    if (rule.direction === 'change') {
+        if (rule.metric === 'govPeriodKind') return true;
+        if (MONOTONIC_CHANGE_METRICS.has(rule.metric)) return numericDirection(prev, curr) > 0;
+        return numericDirection(prev, curr) >= 0;
+    }
+    if (rule.direction === 'up') {
+        return numericDirection(prev, curr) > 0 && prev < rule.threshold && curr >= rule.threshold;
+    }
+    if (rule.direction === 'crosses') {
+        if (numericDirection(prev, curr) < 0 && rule.declineTone !== 'watch') return false;
+        const prevBelow = prev < rule.threshold;
+        const currBelow = curr < rule.threshold;
+        return prevBelow !== currBelow;
+    }
+    return false;
 }
 
 /**
@@ -151,18 +179,7 @@ export function checkMoments(prevStats, newStats) {
 
         let fired = false;
 
-        if (rule.direction === 'change') {
-            // Any change triggers (used for cycle)
-            fired = true;
-        } else if (rule.direction === 'up') {
-            // Crossed threshold going up
-            fired = prev < rule.threshold && curr >= rule.threshold;
-        } else if (rule.direction === 'crosses') {
-            // Crossed threshold in either direction
-            const prevBelow = prev < rule.threshold;
-            const currBelow = curr < rule.threshold;
-            fired = prevBelow !== currBelow;
-        }
+        fired = ruleFires(rule, prev, curr);
 
         if (!fired) continue;
 

@@ -14,6 +14,8 @@ const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
 const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v4';
+const FIT_KEY = 'tezos-systems-baker-fit';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=337';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -25,6 +27,64 @@ let delegationLimitSource = 'fallback';
 let delegationLimitPromise = null;
 let showOpenOvensOnly = false;
 const previousStakeSnapshot = new Map();
+
+function ensureLeaderboardStyles() {
+    if (document.getElementById('leaderboard-css')) return;
+    const link = document.createElement('link');
+    link.id = 'leaderboard-css';
+    link.rel = 'stylesheet';
+    link.href = LEADERBOARD_CSS_URL;
+    document.head.appendChild(link);
+}
+
+const FIT_QUESTIONS = [
+    {
+        key: 'amount',
+        label: 'Delegation size',
+        options: [
+            { value: 'small', label: '<1K', detail: 'starter amount' },
+            { value: 'medium', label: '1K-50K', detail: 'typical delegator' },
+            { value: 'large', label: '50K+', detail: 'capacity matters' }
+        ]
+    },
+    {
+        key: 'priority',
+        label: 'Priority',
+        options: [
+            { value: 'reliability', label: 'Reliability', detail: 'balanced report score' },
+            { value: 'capacity', label: 'Capacity', detail: 'more delegation room' },
+            { value: 'fee', label: 'Fee', detail: 'competitive edge' }
+        ]
+    },
+    {
+        key: 'style',
+        label: 'Baker style',
+        options: [
+            { value: 'balanced', label: 'Balanced', detail: 'steady all-rounder' },
+            { value: 'modern', label: 'tz4 ready', detail: 'BLS consensus keys' },
+            { value: 'veteran', label: 'Veteran', detail: 'older operator lane' }
+        ]
+    }
+];
+
+function loadFitPrefs() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(FIT_KEY) || 'null');
+        return {
+            amount: saved?.amount || 'medium',
+            priority: saved?.priority || 'reliability',
+            style: saved?.style || 'balanced'
+        };
+    } catch {
+        return { amount: 'medium', priority: 'reliability', style: 'balanced' };
+    }
+}
+
+function saveFitPrefs(prefs) {
+    try { localStorage.setItem(FIT_KEY, JSON.stringify(prefs)); } catch {}
+}
+
+let fitPrefs = loadFitPrefs();
 
 async function fetchDelegationLimit() {
     if (delegationLimitPromise) return delegationLimitPromise;
@@ -262,6 +322,125 @@ function bakerCapacityFact(baker) {
     return `${Number(baker.delegationUsage || 0).toFixed(0)}% capacity used`;
 }
 
+function fitCapacityNeed(prefs) {
+    if (prefs.amount === 'large') return 250000;
+    if (prefs.amount === 'medium') return 50000;
+    return 1000;
+}
+
+function scoreBakerFit(baker, rankIndex, prefs = fitPrefs) {
+    const scores = computeBakerScores(baker, null);
+    const free = Number(baker.freeDelegationCapacity || 0);
+    const need = fitCapacityNeed(prefs);
+    const hasRoom = free >= need && Number(baker.delegationUsage || 0) < 90;
+    let score = scores.overall;
+    const reasons = [];
+
+    if (hasRoom) {
+        score += prefs.amount === 'large' ? 22 : 12;
+        reasons.push(`${Math.floor(free).toLocaleString('en-US')} XTZ room`);
+    } else {
+        score -= prefs.amount === 'large' ? 45 : 18;
+        reasons.push(`${Math.max(0, Math.floor(free)).toLocaleString('en-US')} XTZ room`);
+    }
+
+    if (prefs.priority === 'capacity') {
+        score += scores.capacity * 0.3;
+        if (baker.openDelegationRoom) reasons.push('open oven');
+    } else if (prefs.priority === 'fee') {
+        score += scores.fee * 0.25;
+        reasons.push(`fee score ${scores.fee}`);
+    } else {
+        score += scores.uptime * 0.2;
+        reasons.push(`grade ${letterGrade(scores.overall).grade}`);
+    }
+
+    if (prefs.style === 'modern' && baker.tz4) {
+        score += 18;
+        reasons.push('tz4/BLS');
+    } else if (prefs.style === 'veteran' && Number.isFinite(baker.sinceYear) && baker.sinceYear <= 2020) {
+        score += 18;
+        reasons.push(`since ${baker.sinceYear}`);
+    } else if (prefs.style === 'balanced') {
+        const rankBoost = Math.max(0, 10 - Math.min(10, rankIndex / 12));
+        score += rankBoost;
+        reasons.push(`${(baker.delegationUsage || 0).toFixed(0)}% used`);
+    }
+
+    return {
+        baker,
+        score,
+        grade: letterGrade(scores.overall).grade,
+        reasons: reasons.slice(0, 3),
+        hasRoom
+    };
+}
+
+function fitFinderHtml(ranked) {
+    const candidates = ranked
+        .map((baker, index) => scoreBakerFit(baker, index, fitPrefs))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+
+    return `
+        <section class="baker-fit-finder" aria-label="Delegator baker fit finder">
+            <div class="baker-fit-head">
+                <div>
+                    <span class="feature-kicker">Delegator match</span>
+                    <h3>Find bakers that fit your delegation lane</h3>
+                </div>
+                <a href="/staking/">Staking guide</a>
+            </div>
+            <div class="baker-fit-questions">
+                ${FIT_QUESTIONS.map((question) => `
+                    <div class="baker-fit-question">
+                        <span>${escapeHtml(question.label)}</span>
+                        <div class="baker-fit-options">
+                            ${question.options.map((option) => `
+                                <button type="button" class="baker-fit-option ${fitPrefs[question.key] === option.value ? 'active' : ''}" data-fit-key="${escapeHtml(question.key)}" data-fit-value="${escapeHtml(option.value)}" title="${escapeHtml(option.detail)}">
+                                    ${escapeHtml(option.label)}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="baker-fit-results">
+                ${candidates.map((item, index) => `
+                    <article class="baker-fit-card ${item.hasRoom ? '' : 'tight'}">
+                        <span class="baker-fit-rank">#${index + 1}</span>
+                        <strong>${escapeHtml(item.baker.name)}</strong>
+                        <small>${escapeHtml(item.reasons.join(' · '))}</small>
+                        <button type="button" class="baker-fit-select" data-address="${escapeHtml(item.baker.address)}">Use this baker</button>
+                    </article>
+                `).join('')}
+            </div>
+        </section>
+    `;
+}
+
+function openBakerInDrawer(addr) {
+    if (!addr) return;
+    const input = document.getElementById('my-baker-input');
+    const saveBtn = document.getElementById('my-baker-save');
+    const drawer = document.getElementById('my-tezos-drawer');
+    const scrim = document.getElementById('my-tezos-drawer-scrim');
+    const emptyState = document.getElementById('drawer-empty-state');
+    const connectedState = document.getElementById('drawer-connected');
+
+    if (input) input.value = addr;
+    if (saveBtn) saveBtn.click();
+
+    if (drawer && scrim) {
+        drawer.classList.add('open');
+        scrim.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        if (emptyState) emptyState.style.display = 'none';
+        if (connectedState) connectedState.style.display = '';
+    }
+}
+
 function bakerStatsLine(baker) {
     return `${formatMutez(baker.stakingBalance)} XTZ | ${baker.delegators} delegators | ${baker.stakers} stakers`;
 }
@@ -397,6 +576,7 @@ function render(container) {
     const headerClass = (col) => currentSort.col === col ? 'lb-th active' : 'lb-th';
 
     let html = `
+        ${fitFinderHtml(ranked)}
         <div class="leaderboard-affordance-row">
             <button type="button" id="leaderboard-open-ovens-filter" class="leaderboard-filter-chip ${showOpenOvensOnly ? 'active' : ''}" aria-pressed="${showOpenOvensOnly ? 'true' : 'false'}">
                 <span class="lb-open-capacity-dot" aria-hidden="true"></span>
@@ -458,6 +638,24 @@ function render(container) {
         render(container);
     });
 
+    container.querySelectorAll('.baker-fit-option').forEach((button) => {
+        button.addEventListener('click', () => {
+            const key = button.dataset.fitKey;
+            const value = button.dataset.fitValue;
+            if (!key || !value) return;
+            fitPrefs = { ...fitPrefs, [key]: value };
+            saveFitPrefs(fitPrefs);
+            render(container);
+        });
+    });
+
+    container.querySelectorAll('.baker-fit-select').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openBakerInDrawer(button.dataset.address);
+        });
+    });
+
     // Wire sort headers
     container.querySelectorAll('.lb-th[data-col]').forEach(th => {
         th.style.cursor = 'pointer';
@@ -494,26 +692,7 @@ function render(container) {
         row.style.cursor = 'pointer';
         row.addEventListener('click', () => {
             const addr = row.dataset.address;
-            if (!addr) return;
-            // Populate My Baker input and trigger save
-            const input = document.getElementById('my-baker-input');
-            const saveBtn = document.getElementById('my-baker-save');
-            const drawer = document.getElementById('my-tezos-drawer');
-            const scrim = document.getElementById('my-tezos-drawer-scrim');
-            const emptyState = document.getElementById('drawer-empty-state');
-            const connectedState = document.getElementById('drawer-connected');
-
-            if (input) input.value = addr;
-            if (saveBtn) saveBtn.click();
-
-            // Open My Tezos drawer in connected state
-            if (drawer && scrim) {
-                drawer.classList.add('open');
-                scrim.classList.add('open');
-                document.body.style.overflow = 'hidden';
-                if (emptyState) emptyState.style.display = 'none';
-                if (connectedState) connectedState.style.display = '';
-            }
+            openBakerInDrawer(addr);
         });
     });
 }
@@ -618,6 +797,7 @@ export function initLeaderboard() {
         
         // Lazy-load on first open
         if (isVisible && !loaded) {
+            ensureLeaderboardStyles();
             loaded = true;
             loadLeaderboard(container);
         }

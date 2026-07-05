@@ -1221,6 +1221,10 @@ function renderTezosStoryBody(data) {
             <div class="tezos-story-badges">
                 ${badges.join('')}
             </div>
+            <div class="tezos-story-actions">
+                <button class="tezos-era-share-btn" type="button">Share era card</button>
+                <a href="/anthology/">Protocol Anthology</a>
+            </div>
             ${renderStoryEraRail(story)}
             <div class="tezos-story-next tezos-story-next-${safeTone(next.tone)}">
                 <span>${escapeHtml(next.label)}</span>
@@ -1553,6 +1557,8 @@ async function shareAnniversaryCard(details, button) {
         const { loadHtml2Canvas, showShareModal, appendCardSeal } = await import('../ui/share.js');
         await loadHtml2Canvas();
         const yearsLabel = `${details.years} year${details.years === 1 ? '' : 's'}`;
+        const heading = details.heading || `${yearsLabel} on Tezos`;
+        const kicker = details.kicker || 'Tezos Anniversary';
         const card = document.createElement('div');
         card.style.cssText = `
             position:fixed;left:-9999px;top:0;width:620px;padding:42px 42px 72px;
@@ -1563,8 +1569,8 @@ async function shareAnniversaryCard(details, button) {
         card.innerHTML = `
             <div style="position:absolute;inset:0;background:radial-gradient(circle at 22% 18%,rgba(0,212,255,0.12),transparent 34%),linear-gradient(rgba(0,212,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.025) 1px,transparent 1px);background-size:auto,22px 22px,22px 22px;pointer-events:none;"></div>
             <div style="position:relative;z-index:1;">
-                <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,212,255,0.62);margin-bottom:12px;">Tezos Anniversary</div>
-                <div style="font-size:42px;line-height:1.05;font-weight:900;color:#fff;margin-bottom:18px;">${escapeHtml(yearsLabel)} on Tezos</div>
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,212,255,0.62);margin-bottom:12px;">${escapeHtml(kicker)}</div>
+                <div style="font-size:42px;line-height:1.05;font-weight:900;color:#fff;margin-bottom:18px;">${escapeHtml(heading)}</div>
                 <p style="font-size:20px;line-height:1.45;color:rgba(255,255,255,0.78);margin:0 0 24px;">Joined in the <strong style="color:#00d4ff;">${escapeHtml(details.era)}</strong> era — <strong style="color:#00d4ff;">${details.upgrades}</strong> upgrades survived, zero forks.</p>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <span style="font-size:12px;border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:7px 10px;color:rgba(255,255,255,0.76);">First seen ${escapeHtml(String(details.joinYear))}</span>
@@ -1587,7 +1593,7 @@ async function shareAnniversaryCard(details, button) {
             { label: '🎂 Anniversary', text: `${details.years} years on Tezos today. Joined in the ${details.era} era. ${details.upgrades} upgrades survived. Zero forks.\n\ntezos.systems` },
             { label: '📜 Story', text: `My Tezos story: since ${details.era} (${details.joinYear}), through ${details.upgrades} self-amendments, on a chain that has never forked.\n\ntezos.systems` },
         ];
-        showShareModal(canvas, tweetOptions, 'Tezos Anniversary');
+        showShareModal(canvas, tweetOptions, kicker);
     } catch (error) {
         console.error('Anniversary share failed:', error);
     } finally {
@@ -1596,6 +1602,22 @@ async function shareAnniversaryCard(details, button) {
             button.textContent = original;
         }
     }
+}
+
+function shareEraCard(data, button) {
+    const story = data?.story;
+    if (!story) return;
+    const first = new Date(story.firstActivityTime || story.joinedDate);
+    const years = Math.max(1, anniversaryYears(story.firstActivityTime || story.joinedDate) || Math.floor((story.daysSinceJoin || 365) / 365));
+    const details = {
+        years,
+        era: story.joinedEra,
+        upgrades: story.upgradesSeen,
+        joinYear: Number.isNaN(first.getTime()) ? '' : first.getFullYear(),
+        heading: `${story.joinedEra} era account`,
+        kicker: 'Tezos Era Card'
+    };
+    shareAnniversaryCard(details, button);
 }
 
 function showAnniversaryToast(details, done, duration = 12000) {
@@ -2161,6 +2183,12 @@ function renderBriefTabs(cards, data) {
                 const d = window._myTezosData;
                 if (d && d.story) shareTezosStory(d);
             }
+        });
+    });
+    container.querySelectorAll('.tezos-era-share-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const d = data?.story ? data : window._myTezosData;
+            if (d?.story) shareEraCard(d, btn);
         });
     });
 }

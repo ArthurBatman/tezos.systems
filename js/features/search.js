@@ -4,11 +4,12 @@
  */
 
 import { debounce, escapeHtml } from '../core/utils.js';
+import { searchSiteMap } from '../core/site-map.js';
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=336';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=337';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -233,6 +234,21 @@ function commandResult(command) {
         action: command.action || (command.id === 'theme' ? 'theme-picker' : 'hash'),
         value: command.value || command.hash,
         aliases: command.aliases
+    };
+}
+
+function siteMapResult(entry) {
+    const rootHashEntry = entry.hash && (entry.href === '/' || entry.href.startsWith('/#'));
+    return {
+        kind: entry.group === 'Guides' ? 'guide' : entry.group === 'Story Rooms' ? 'story' : 'page',
+        group: 'Pages on tezos.systems',
+        title: entry.title,
+        detail: entry.detail,
+        badge: entry.group,
+        action: rootHashEntry ? 'hash' : 'page',
+        value: rootHashEntry ? entry.hash : entry.href,
+        hash: rootHashEntry ? null : entry.hash,
+        aliases: entry.keywords
     };
 }
 
@@ -516,6 +532,7 @@ function buildResults(query) {
         .filter((result) => matchesQuery(result, q));
     const commandMatches = COMMANDS.map(commandResult).filter((result) => matchesQuery(result, q));
     const chamberMatches = CHAMBERS.map(chamberResult).filter((result) => matchesQuery(result, q));
+    const siteMapMatches = searchSiteMap(q).map(siteMapResult);
     const entityMatches = entityResults(q);
     const themeMatches = themeResults(q);
     const starterMatches = starterResults(q);
@@ -531,6 +548,7 @@ function buildResults(query) {
         ...entityMatches,
         ...themeMatches,
         ...starterMatches,
+        ...siteMapMatches.slice(0, 6),
         ...protocolMatches.slice(0, 5),
         ...chamberMatches.slice(0, 4),
         ...commandMatches.slice(0, 4),
@@ -607,6 +625,14 @@ function runResult(result) {
     }
     if (result.action === 'hash') {
         navigateHash(result.value);
+        return true;
+    }
+    if (result.action === 'page') {
+        if (result.hash && result.value === '/') {
+            navigateHash(result.hash);
+            return true;
+        }
+        window.location.href = result.hash ? `${result.value}${result.hash}` : result.value;
         return true;
     }
     if (result.action === 'button') {

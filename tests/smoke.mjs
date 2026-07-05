@@ -51,6 +51,7 @@ const allowedWarningPatterns = [
 const browserRoutes = [
   '/',
   '/landing.html',
+  '/anthology/',
   '/staking/',
   '/governance/',
   '/chamber/',
