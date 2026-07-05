@@ -16,6 +16,7 @@ const CHANGELOG = [
             { type: '🎨', text: 'Governance participation now renders as a quorum vessel during ballot periods, with warning color reserved for late-and-low turnout' },
             { type: '✨', text: 'Protocol History now adds the alphabet march, live activation ceremony hooks, and wax-sealed share cards across story, report, ranking, chamber, moment, and projection captures' },
             { type: '🔧', text: 'Upgrade totals now count Paris C as a documented Paris follow-up instead of a separate self-amendment, so public totals show 21 upgrades while keeping the history record visible' },
+            { type: '🔧', text: 'Protocol Anthology volume and chapter labels now use the same 21-upgrade convention instead of the raw 22 protocol-record archive length' },
         ]
     },
     {

@@ -19,7 +19,7 @@ import {
     debugLog,
     startLiveTimeTicker
 } from './utils.js';
-import { countProtocolUpgrades } from './protocol-count.js';
+import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades, getProtocolUpgradeOrdinal } from './protocol-count.js';
 import {
     connectOctezWallet,
     disconnectOctezWallet,
@@ -1393,21 +1393,47 @@ function getKnownProtocols() {
     return Array.isArray(cached) ? cached : [];
 }
 
+const PROTOCOL_ENTRY_RECENT_FALLBACK = Object.freeze([
+    { name: 'Paris C', code: 20, countsAsUpgrade: false },
+    { name: 'Quebec', code: 21 },
+    { name: 'Rio', code: 22 },
+    { name: 'Seoul', code: 23 },
+    { name: 'Tallinn', code: 24 },
+    { name: 'Ushuaia', code: 25, isCurrent: true }
+]);
+
+const PROTOCOL_ENTRY_CODE_HINTS = new Map(PROTOCOL_ENTRY_RECENT_FALLBACK.map((protocol) => [
+    protocol.name.toLowerCase(),
+    protocol
+]));
+
+function withProtocolEntryOrdinalHints(protocol) {
+    const name = String(protocol?.name || '').trim().toLowerCase();
+    const hint = PROTOCOL_ENTRY_CODE_HINTS.get(name);
+    if (!hint) return protocol;
+    return {
+        ...hint,
+        ...protocol,
+        code: protocol?.code ?? protocol?.number ?? hint.code,
+        countsAsUpgrade: protocol?.countsAsUpgrade ?? hint.countsAsUpgrade
+    };
+}
+
+function getProtocolEntryOrdinal(protocol, protocols) {
+    const shouldUseArchivePosition = countProtocolUpgrades(protocols, 0) >= CANONICAL_UPGRADE_COUNT;
+    return getProtocolUpgradeOrdinal(protocol, shouldUseArchivePosition ? protocols : []);
+}
+
 function buildProtocolEntryRail(protocols) {
     const hasProtocols = Array.isArray(protocols) && protocols.length;
-    const list = hasProtocols
-        ? protocols
-        : ['Paris C', 'Quebec', 'Rio', 'Seoul', 'Tallinn', 'Ushuaia'].map((name, index, names) => ({
-            name,
-            isCurrent: index === names.length - 1
-        }));
-    const chapterBase = hasProtocols ? list.length : 22;
+    const list = (hasProtocols ? protocols : PROTOCOL_ENTRY_RECENT_FALLBACK).map(withProtocolEntryOrdinalHints);
     const currentFirst = [...list].reverse().slice(0, 6);
     return currentFirst.map((protocol, index) => {
         const name = protocol?.name || `Chapter ${currentFirst.length - index}`;
         const classes = ['protocol-history-entry-spine-item'];
         if (protocol?.isCurrent || index === 0) classes.push('current');
-        const chapter = index === 0 ? 'Now' : `Ch. ${Math.max(1, chapterBase - index)}`;
+        const ordinal = getProtocolEntryOrdinal(protocol, list);
+        const chapter = index === 0 ? 'Now' : (ordinal === null ? 'Follow-up' : `Ch. ${ordinal}`);
         return `
             <span class="${classes.join(' ')}" title="${escapeHtml(name)}">
                 <strong>${escapeHtml(name)}</strong>
@@ -1751,6 +1777,7 @@ async function renderProtocolAnthologyBoard(protocols, currentProtocol = null) {
     const slowest = blockTimes.length ? Math.max(...blockTimes) : null;
     const fastest = blockTimes.length ? Math.min(...blockTimes) : null;
     const latestLongRead = ordered.find((protocol) => protocol.history && protocol.name !== current?.name) || longReads[longReads.length - 1] || current;
+    const chapterCount = countProtocolUpgrades(enriched);
     const features = chooseFeaturedAnthologyChapters(ordered, current);
     const clashChapters = ordered
         .filter((protocol) => protocol.history || protocol.contention || protocol.debate)
@@ -1790,7 +1817,7 @@ async function renderProtocolAnthologyBoard(protocols, currentProtocol = null) {
                 <p>The anthology is built from the protocol archive in this repo: activation dates, block receipts, change lists, debate notes, and long-form histories where the governance fight left a mark.</p>
             </div>
             <div class="protocol-anthology-metrics" aria-label="Protocol anthology evidence">
-                ${buildAnthologyMetric('Chapters', String(enriched.length), 'activated or accepted records')}
+                ${buildAnthologyMetric('Chapters', String(chapterCount), 'Paris C kept as follow-up record')}
                 ${buildAnthologyMetric('Long reads', String(longReads.length), 'curated history scenes')}
                 ${buildAnthologyMetric('Debate marks', String(debated.length), 'upgrades with dispute context')}
                 ${buildAnthologyMetric('Block time', slowest && fastest ? `${slowest}s -> ${fastest}s` : 'syncing', 'fastest recorded target')}
@@ -1840,7 +1867,7 @@ function updateProtocolHistoryEntryCard(protocols = getKnownProtocols()) {
 
     const list = Array.isArray(protocols) ? protocols : [];
     const currentProtocol = list.find((protocol) => protocol.isCurrent) || list[list.length - 1] || null;
-    const count = list.length || 22;
+    const count = Math.max(CANONICAL_UPGRADE_COUNT, countProtocolUpgrades(list, 0));
     const currentName = currentProtocol?.name || document.getElementById('header-current-protocol')?.textContent?.trim() || 'Ushuaia';
 
     const countEl = card.querySelector('#protocol-history-entry-count');
@@ -1879,7 +1906,7 @@ function ensureProtocolHistoryEntryCard() {
                     <div class="protocol-history-entry-anthology">
                         <div class="protocol-history-entry-count">
                             <span>Volume</span>
-                            <strong id="protocol-history-entry-count">22</strong>
+                            <strong id="protocol-history-entry-count">21</strong>
                             <em>chapters</em>
                         </div>
                         <div class="protocol-history-entry-core">

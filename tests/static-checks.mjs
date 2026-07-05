@@ -1035,6 +1035,24 @@ async function checkSelectorContracts() {
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
   }
+  const protocolEntryRailBlock = app.match(/function buildProtocolEntryRail[\s\S]*?function protocolDate/)?.[0] || '';
+  if (!protocolEntryRailBlock.includes('PROTOCOL_ENTRY_RECENT_FALLBACK') || !protocolEntryRailBlock.includes('getProtocolEntryOrdinal(protocol, list)')) {
+    fail('Protocol Anthology rail must use shared upgrade ordinals so Paris C stays a follow-up');
+  }
+  if (protocolEntryRailBlock.includes('chapterBase') || protocolEntryRailBlock.includes('list.length : 22')) {
+    fail('Protocol Anthology rail must not derive chapter labels from raw protocol record length');
+  }
+  const protocolAnthologyBoardBlock = app.match(/function renderProtocolAnthologyBoard[\s\S]*?function updateProtocolHistoryEntryCard/)?.[0] || '';
+  if (!protocolAnthologyBoardBlock.includes('const chapterCount = countProtocolUpgrades(enriched)')) {
+    fail('Protocol Anthology board metric must use shared upgrade count convention');
+  }
+  const protocolEntryCardBlock = app.match(/function updateProtocolHistoryEntryCard[\s\S]*?function ensureProtocolHistoryEntryCard/)?.[0] || '';
+  if (!protocolEntryCardBlock.includes('const count = Math.max(CANONICAL_UPGRADE_COUNT, countProtocolUpgrades(list, 0))')) {
+    fail('Protocol Anthology entry card total must use shared upgrade count convention with canonical fallback');
+  }
+  if (protocolEntryCardBlock.includes('list.length || 22') || protocolEntryCardBlock.includes('id="protocol-history-entry-count">22')) {
+    fail('Protocol Anthology entry card must not show raw 22-record protocol total');
+  }
   if (styles.includes('.block-ticker-strip.is-updating .block-ticker-line') || styles.includes('blockTickerAperture')) {
     fail('live block ticker text changes must stay unanimated');
   }
@@ -1156,6 +1174,7 @@ async function checkSelectorContracts() {
     if (etherlinkGovernance.includes(address)) fail(`Tezos X Governance chamber should discover active contract, not hardcode ${address}`);
   }
   pass(`deep-link selector contracts checked: ${deepLinkContracts.length}`);
+  pass('Protocol Anthology chapter-count convention checked');
 
   const cardControlContracts = [
     ['Health card copy slot', '.health-entry-card .card-copy-link', styles],
