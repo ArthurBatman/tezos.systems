@@ -23,6 +23,7 @@ let currentSort = { col: 'stake', dir: 'desc' };
 let delegationLimit = DEFAULT_DELEGATION_LIMIT;
 let delegationLimitSource = 'fallback';
 let delegationLimitPromise = null;
+let showOpenOvensOnly = false;
 const previousStakeSnapshot = new Map();
 
 async function fetchDelegationLimit() {
@@ -102,14 +103,16 @@ function sinceYear(baker) {
     return null;
 }
 
-function earnedBadgeFor(baker, freeCapacity) {
+function isOpenDelegationRoom(baker, freeCapacity) {
     const capacity = Number(freeCapacity);
-    if (Number.isFinite(capacity) && capacity >= 50000 && Number(baker.delegationUsage || 0) < 50) {
-        return { label: 'Open oven', tone: 'open' };
-    }
+    return Number.isFinite(capacity)
+        && capacity >= 50000
+        && Number(baker.delegationUsage || 0) < 80;
+}
 
+function earnedBadgeFor(baker) {
     const firstYear = sinceYear(baker);
-    if (Number.isFinite(firstYear) && firstYear < 2020) {
+    if (Number.isFinite(firstYear) && firstYear < 2019) {
         return { label: 'Veteran', tone: 'veteran' };
     }
 
@@ -154,7 +157,8 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
 
     return {
         ...base,
-        earnedBadge: earnedBadgeFor(base, freeDelegationCapacity),
+        earnedBadge: earnedBadgeFor(base),
+        openDelegationRoom: isOpenDelegationRoom(base, freeDelegationCapacity),
         sinceYear: sinceYear(base)
     };
 }
@@ -379,7 +383,10 @@ async function showBakerRankingCard(baker, rank, total, scores) {
  * Render the leaderboard table
  */
 function render(container) {
-    const sorted = sortBakers(bakersData, currentSort.col, currentSort.dir);
+    const ranked = sortBakers(bakersData, currentSort.col, currentSort.dir);
+    const sorted = showOpenOvensOnly
+        ? ranked.filter((baker) => baker.openDelegationRoom)
+        : ranked;
     const savedAddress = savedBakerAddress();
     
     const arrow = (col) => {
@@ -390,6 +397,12 @@ function render(container) {
     const headerClass = (col) => currentSort.col === col ? 'lb-th active' : 'lb-th';
 
     let html = `
+        <div class="leaderboard-affordance-row">
+            <button type="button" id="leaderboard-open-ovens-filter" class="leaderboard-filter-chip ${showOpenOvensOnly ? 'active' : ''}" aria-pressed="${showOpenOvensOnly ? 'true' : 'false'}">
+                <span class="lb-open-capacity-dot" aria-hidden="true"></span>
+                Show open ovens
+            </button>
+        </div>
         <div class="leaderboard-table-wrap">
             <table class="leaderboard-table">
                 <thead>
@@ -413,6 +426,9 @@ function render(container) {
         const badge = b.earnedBadge
             ? `<span class="lb-badge lb-badge-${escapeHtml(b.earnedBadge.tone)}">${escapeHtml(b.earnedBadge.label)}</span>`
             : '';
+        const openRoom = b.openDelegationRoom
+            ? '<span class="lb-open-capacity-dot" title="Open delegation room" aria-label="Open delegation room"></span>'
+            : '';
         const mineMarker = isMine ? '<span class="lb-my-baker-marker" title="Your baker" aria-label="Your baker">🍞</span>' : '';
         html += `
             <tr class="lb-row ${isMine ? 'lb-my-baker' : ''}" data-address="${escapeHtml(b.address)}">
@@ -421,7 +437,7 @@ function render(container) {
                 <td class="lb-num">${formatMutez(b.stakingBalance)}</td>
                 <td class="lb-num">${b.delegators}</td>
                 <td class="lb-num">${b.stakers}</td>
-                <td class="lb-num ${capacityClass}">${b.delegationUsage.toFixed(0)}%</td>
+                <td class="lb-num lb-capacity-cell ${capacityClass}">${openRoom}${b.delegationUsage.toFixed(0)}%</td>
                 <td class="lb-tz4">${b.tz4 ? '✅' : '—'}</td>
                 <td class="lb-share-cell"><button class="lb-share-btn" title="Share ranking card">📸</button></td>
             </tr>
@@ -429,10 +445,18 @@ function render(container) {
     });
 
     html += `</tbody></table></div>`;
-    html += `<div class="leaderboard-footer">${sorted.length} active bakers · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
+    const countLabel = showOpenOvensOnly
+        ? `${sorted.length} of ${ranked.length} active bakers with open delegation room`
+        : `${sorted.length} active bakers`;
+    html += `<div class="leaderboard-footer">${countLabel} · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
 
     container.innerHTML = html;
     focusSavedBakerRow(container);
+
+    container.querySelector('#leaderboard-open-ovens-filter')?.addEventListener('click', () => {
+        showOpenOvensOnly = !showOpenOvensOnly;
+        render(container);
+    });
 
     // Wire sort headers
     container.querySelectorAll('.lb-th[data-col]').forEach(th => {

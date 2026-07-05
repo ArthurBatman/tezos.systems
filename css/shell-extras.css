@@ -1089,11 +1089,56 @@
     background: color-mix(in srgb, var(--text-secondary) 8%, transparent);
 }
 
-.lb-badge-rising,
-.lb-badge-reliable {
+.lb-badge-rising {
     color: var(--color-success, #10b981);
     border-color: color-mix(in srgb, var(--color-success, #10b981) 34%, transparent);
     background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
+}
+
+.leaderboard-affordance-row {
+    display: flex;
+    justify-content: flex-end;
+    margin: -2px 0 10px;
+}
+
+.leaderboard-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    color: var(--text-secondary);
+    font: 700 0.72rem 'IBM Plex Mono', 'Courier New', monospace;
+    letter-spacing: 0;
+    cursor: pointer;
+}
+
+.leaderboard-filter-chip.active {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.lb-capacity-cell {
+    white-space: nowrap;
+}
+
+.lb-open-capacity-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--color-success, #10b981);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success, #10b981) 12%, transparent);
+    vertical-align: middle;
+}
+
+.leaderboard-filter-chip .lb-open-capacity-dot {
+    margin-right: 0;
 }
 
 .lb-my-baker {

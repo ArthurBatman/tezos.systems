@@ -363,8 +363,9 @@ inline modal styles in `js/core/app.js`.
   delegator/staker activity.
 - Baker leaderboard, staking calculator, chain comparison, whale feed, sleeping
   giants, HEN NFT/profile mode, TzSafe Recovery, changelog, share captures, and
-  embeddable widgets. The leaderboard marks the saved baker, keeps earned
-  descriptors rare, and shares guild-style cards with live proof seals. The
+  embeddable widgets. The leaderboard marks the saved baker, separates open
+  delegation-room affordances from scarcer earned descriptors, and shares
+  guild-style cards with live proof seals. The
   calculator opens with a 1,000 XTZ starting amount, live APY context, protocol
   timing for first-payout copy, animated results, and private-by-default
   projection sharing. Cycle whispers only announce a real cycle advance near
