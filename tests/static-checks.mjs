@@ -1040,7 +1040,8 @@ async function checkSelectorContracts() {
     ['top continuity staked color selector', '.top-continuity-stat[data-card-history="staking-ratio"]', styles],
     ['top continuity issuance color selector', '.top-continuity-stat[data-card-history="issuance-rate"]', styles],
     ['top continuity mobile pill grid', 'grid-template-columns: repeat(2, minmax(0, 1fr))', styles],
-    ['top continuity decrypt styles', '.top-continuity-panel.is-shuffling', styles],
+    ['top continuity isolated decrypt styles', '.top-continuity-stat.is-shuffling', styles],
+    ['top continuity stable finality slot', '.top-continuity-stat[data-card-history="finality"] strong', styles],
     ['health cycle timing styles', '.health-cycle-panel', styles],
     ['health Teztale consensus styles', '.health-consensus-panel', styles],
     ['health Octez versions styles', '.health-octez-panel', styles],
@@ -1928,34 +1929,52 @@ async function checkDailyBriefingPriceContracts() {
 
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
-  const requiredRoutes = {
-    baker: '#my-baker',
-    portfolio: '#price',
-    staking: '#calculator',
-    governance: '#chamber',
-    collector: '?hen=1',
-    creator: '?hen=1',
-    price: '#price',
-    whales: '#whales',
-    volume: '#section=network',
-    contracts: '#section=ecosystem',
-    ecosystem: '#section=ecosystem',
-    network: '#health'
+  const requiredSiteMapRoutes = {
+    staking: 'calculator',
+    governance: 'chamber',
+    collector: 'hen',
+    creator: 'hen',
+    nft: 'hen',
+    domains: 'domains',
+    lb: 'liquidity-baking',
+    tz4: 'tz4',
+    etherlink: 'tezosx',
+    ledger: 'ledger-flow',
+    network: 'health'
   };
 
-  for (const [key, route] of Object.entries(requiredRoutes)) {
-    const pattern = new RegExp(`${key}:\\s*['"]${route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]`);
+  for (const [key, siteMapId] of Object.entries(requiredSiteMapRoutes)) {
+    const pattern = new RegExp(`${key}:\\s*['"]${siteMapId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]`);
     if (!pattern.test(briefing)) {
-      fail(`Network Context route map missing ${key} -> ${route}`);
+      fail(`Network Context site-map route missing ${key} -> ${siteMapId}`);
     }
   }
 
   const requiredSnippets = [
+    "import { findSiteMapEntry } from '../core/site-map.js';",
+    'NETWORK_FEATURE_SITE_MAP_IDS',
+    'routeFromSiteMapEntry',
+    'window.addEventListener(\'hot-signal\', receiveHotSignal)',
+    'window.addEventListener(\'governance-alert-state\'',
+    'hotPoolSignals()',
+    'LS_DAILY_SNAPSHOT',
+    'HOT_SIGNAL_RENDER_CAP = 12',
+    'HOT_SIGNAL_CATEGORY_BUDGET = 2',
+    'HOT_SIGNAL_EVENT_DECAY_PER_HOUR = 8',
+    'dailySnapshotReference',
+    'captureDailySnapshot(stats)',
+    'const kind = normalizeSignalKind',
+    'scoreBoostFor(category, profile)',
+    'fetchNftPulse',
+    'maybeDispatchProtocolLoreSignal',
+    'delta: normalizeDelta',
+    'BRIEFING_SCHEMA_VERSION = 3',
     '<a class="network-focus-chip"',
     '<a class="network-signal',
     'data-network-route',
     'wireNetworkContextNavigation(container)',
     'closeDrawerForNetworkRoute(route)',
+    'window.location.assign(route)',
     "window.dispatchEvent(new Event('hashchange'))"
   ];
   for (const snippet of requiredSnippets) {

@@ -280,6 +280,90 @@ function eventKey(event) {
     ].join(':'));
 }
 
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function safeHotId(value, fallback = 'signal') {
+    return String(value || fallback).replace(/[^a-z0-9-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || fallback;
+}
+
+function dispatchTezosDomainsHotSignals(data) {
+    if (!data) return;
+    const registrations24h = Number(data.counts?.registrations24h || 0);
+    if (registrations24h >= 10) {
+        dispatchHotSignal({
+            id: 'domains-registrations-24h',
+            category: 'domains',
+            kind: 'state',
+            score: 82,
+            title: '.tez registrations',
+            detail: 'Identity pulse',
+            text: `${formatCount(registrations24h)} .tez names registered in the last 24h.`,
+            route: '/domains/',
+            ttlMs: ENTRY_REFRESH_MS * 2
+        });
+    }
+
+    const liveAuction = data.liveAuctions?.[0];
+    const auctionName = liveAuction?.domainName || liveAuction?.domain?.name || '';
+    const auctionBid = Number(liveAuction?.highestBid?.amount || liveAuction?.bidAmountSum || 0);
+    const auctionEndsAt = liveAuction?.endsAtUtc || '';
+    const auctionEnds = auctionEndsAt ? new Date(auctionEndsAt).getTime() : 0;
+    const auctionTtl = auctionEnds - Date.now();
+    if (auctionName && auctionBid >= Number(MIN_HIGH_VALUE_MUTEZ) && auctionTtl > 0) {
+        dispatchHotSignal({
+            id: `domains-live-auction-${safeHotId(auctionName)}`,
+            category: 'domains',
+            kind: 'event',
+            score: 100,
+            title: 'Live .tez auction',
+            detail: `ends in ${formatTimeDistance(auctionEndsAt)}`,
+            text: `${auctionName} auction is at ${formatTez(auctionBid)}.`,
+            route: '/domains/',
+            createdAt: new Date(liveAuction?.highestBid?.timestamp || Date.now()).getTime(),
+            ttlMs: auctionTtl
+        });
+    }
+
+    const settlement = data.recentEvents?.find((event) => event?.type === 'AUCTION_SETTLE_EVENT' && eventValueNumber(event) > 0);
+    if (settlement) {
+        const settledAt = new Date(settlement.block?.timestamp || Date.now()).getTime();
+        const age = Date.now() - settledAt;
+        if (Number.isFinite(age) && age >= 0 && age < 24 * 60 * 60 * 1000) {
+            const name = domainNameFromEvent(settlement) || '.tez name';
+            dispatchHotSignal({
+                id: `domains-auction-settled-${safeHotId(eventKey(settlement))}`,
+                category: 'domains',
+                kind: 'event',
+                score: 106,
+                title: 'Auction settled',
+                detail: formatTez(eventValueNumber(settlement)),
+                text: `${name} sold at auction for ${formatTez(eventValueNumber(settlement))}.`,
+                route: '/domains/',
+                createdAt: settledAt,
+                ttlMs: (24 * 60 * 60 * 1000) - age
+            });
+        }
+    }
+
+    const expiringSoon = Number(data.counts?.expiringSoon || data.expiringSoon?.length || 0);
+    if (expiringSoon >= 5) {
+        dispatchHotSignal({
+            id: 'domains-expiring-soon',
+            category: 'domains',
+            kind: 'state',
+            score: 70,
+            title: '.tez expiry pressure',
+            detail: 'Renewal window',
+            text: `${formatCount(expiringSoon)} .tez names expire in the next renewal window.`,
+            route: '/domains/',
+            ttlMs: ENTRY_REFRESH_MS * 2
+        });
+    }
+}
+
 function gqlQuery(now = new Date()) {
     const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
     const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -1163,6 +1247,7 @@ async function refreshEntryCard({ force = false } = {}) {
         const data = force || !lastData ? await fetchTezosDomainsData() : lastData;
         lastData = data;
         updateEntryCard(data);
+        dispatchTezosDomainsHotSignals(data);
     } catch (error) {
         console.debug('Tezos Domains entry refresh failed', error);
         const card = document.getElementById('tezos-domains-entry-card');
@@ -1188,6 +1273,7 @@ async function refreshChamber({ initial = false, force = false } = {}) {
         const previousEventKeys = initial ? new Set() : collectEventKeys(body);
         const data = force || !lastData ? await fetchTezosDomainsData() : lastData;
         lastData = data;
+        dispatchTezosDomainsHotSignals(data);
         const newEventKeys = initial
             ? new Set()
             : new Set((data.recentEvents || []).map(eventKey).filter((key) => key && !previousEventKeys.has(key)));

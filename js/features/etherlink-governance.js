@@ -129,6 +129,11 @@ function formatPercent(value, decimals = 1) {
     return `${value.toFixed(decimals)}%`;
 }
 
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
 function formatXTZ(value) {
     const tez = Number(toBigInt(value)) / 1e6;
     if (!Number.isFinite(tez)) return '--';
@@ -596,6 +601,28 @@ function hasActiveProposalTrack(data) {
     return data.tracks.some(hasActiveTrackPayload);
 }
 
+function dispatchEtherlinkGovernanceHotSignal(data) {
+    if (!data?.tracks?.length) return;
+    const track = topTrack(data);
+    if (!track || !hasActiveTrackPayload(track)) return;
+    const payload = track.phase === 'promotion' ? track.promotion?.candidate : track.proposal?.winner;
+    const label = proposalLabel(payload);
+    const period = track.phase === 'promotion' ? 'promotion' : 'proposal';
+    const progress = track.phase === 'promotion' ? track.promotion?.participation : track.proposalProgress;
+    const required = track.phase === 'promotion' ? track.promotionRequired : track.proposalRequired;
+    dispatchHotSignal({
+        id: `etherlink-governance-${track.key}`,
+        category: 'etherlink',
+        kind: 'event',
+        score: 110,
+        title: 'L2 governance live',
+        detail: `${track.label} ${period}`,
+        text: `Etherlink ${track.label} track: ${label} in ${period} with ${formatPercent(progress)} of ${formatPercent(required, 0)} quorum.`,
+        route: '/l2chamber/',
+        ttlMs: ENTRY_REFRESH_MS * 2
+    });
+}
+
 function allTracksQuiet(data) {
     return data.tracks.every((track) => track.phase !== 'error' && !hasActiveTrackPayload(track));
 }
@@ -1040,6 +1067,7 @@ async function refreshEntryCard({ force = false } = {}) {
     try {
         const data = await fetchEtherlinkGovernanceData({ force });
         renderEntryCard(data);
+        dispatchEtherlinkGovernanceHotSignal(data);
     } catch (error) {
         console.warn('Tezos X governance entry refresh failed:', error);
         renderEntryError();
@@ -1091,6 +1119,7 @@ async function refreshChamber({ force = false } = {}) {
     try {
         const data = await fetchEtherlinkGovernanceData({ force });
         if (overlay.classList.contains('active')) renderChamber(data, body);
+        dispatchEtherlinkGovernanceHotSignal(data);
     } catch (error) {
         console.warn('Tezos X governance chamber refresh failed:', error);
         if (!body.dataset.rendered) {

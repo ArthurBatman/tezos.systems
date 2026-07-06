@@ -710,7 +710,6 @@ body::before {
     align-items: center;
     gap: 1.2rem;
     padding-top: 0.85rem;
-    border-top: 1px solid var(--glass-border);
 }
 
 .top-continuity-panel {
@@ -734,7 +733,7 @@ body::before {
     pointer-events: none;
 }
 
-.top-continuity-panel.is-shuffling {
+.top-continuity-stat.is-shuffling {
     filter: drop-shadow(0 0 16px color-mix(in srgb, var(--uptime-badge-label) 22%, transparent));
 }
 
@@ -817,7 +816,12 @@ body::before {
 }
 
 .top-continuity-stat strong {
+    display: inline-block;
     color: var(--pill-color, var(--top-pill-bakers));
+}
+
+.top-continuity-stat[data-card-history="finality"] strong {
+    min-width: 3ch;
 }
 
 .top-continuity-label {
@@ -22079,6 +22083,10 @@ body[data-theme="nerv"]::after {
 }
 .network-signal-detail {
     flex: 0 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.32rem;
     max-width: 45%;
     text-align: right;
     line-height: 1.2;
@@ -22375,6 +22383,7 @@ body[data-theme="nerv"]::after {
     .network-signal-detail {
         max-width: none;
         text-align: left;
+        justify-content: flex-start;
     }
     .network-signal-head {
         align-items: flex-start;

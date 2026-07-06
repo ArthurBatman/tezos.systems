@@ -7,9 +7,10 @@ import { debounce, escapeHtml } from '../core/utils.js';
 import { searchSiteMap } from '../core/site-map.js';
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
+import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=347';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=353';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -27,6 +28,16 @@ const QUICK_CHIPS = [
     { label: 'KT1', value: 'KT1' },
     { label: '/theme', value: '/theme' }
 ];
+
+function livePulseChip() {
+    const signal = getTopHotSignal();
+    if (!signal?.route) return null;
+    const label = String(signal.title || signal.routeLabel || 'Live pulse').replace(/\s+/g, ' ').trim();
+    return {
+        label: `Live: ${label}`.slice(0, 24),
+        route: signal.route
+    };
+}
 
 const COMMANDS = [
     { id: 'my-tezos', title: 'My Tezos', detail: 'Set or switch your primary wallet or .tez name', hash: null, action: 'button', value: 'my-tezos-btn', aliases: ['my tezos', 'wallet', 'primary address', 'domain'] },
@@ -660,6 +671,16 @@ function runResult(result) {
     return false;
 }
 
+function runRoute(route) {
+    if (!route) return false;
+    if (route.startsWith('#')) {
+        navigateHash(route);
+        return true;
+    }
+    window.location.href = route;
+    return true;
+}
+
 function isTextEntryTarget(target) {
     const tag = target?.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
@@ -678,9 +699,19 @@ export function initHeroSearch() {
     let selectedIndex = -1;
     let results = [];
 
-    chips.innerHTML = QUICK_CHIPS.map((chip) => `
-        <button class="hero-search-chip" type="button" data-hero-query="${escapeHtml(chip.value)}">${escapeHtml(chip.label)}</button>
-    `).join('');
+    const renderQuickChips = () => {
+        const liveChip = livePulseChip();
+        const chipList = liveChip ? [liveChip, ...QUICK_CHIPS] : QUICK_CHIPS;
+        chips.innerHTML = chipList.map((chip) => {
+            const attr = chip.route
+                ? `data-hero-route="${escapeHtml(chip.route)}"`
+                : `data-hero-query="${escapeHtml(chip.value)}"`;
+            return `<button class="hero-search-chip" type="button" ${attr}>${escapeHtml(chip.label)}</button>`;
+        }).join('');
+    };
+
+    renderQuickChips();
+    window.addEventListener('hot-signal-rendered', renderQuickChips);
 
     const setOpen = (next) => {
         isOpen = Boolean(next);
@@ -843,6 +874,12 @@ export function initHeroSearch() {
     });
 
     chips.addEventListener('click', (event) => {
+        const routeChip = event.target.closest('[data-hero-route]');
+        if (routeChip) {
+            runRoute(routeChip.dataset.heroRoute || '');
+            setOpen(false);
+            return;
+        }
         const chip = event.target.closest('[data-hero-query]');
         if (!chip) return;
         applyQuery(chip.dataset.heroQuery || '');

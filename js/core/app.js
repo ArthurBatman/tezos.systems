@@ -90,13 +90,13 @@ import { initUpgradeEffect } from '../features/upgrade-effect.js';
 import { initCyclePulse, updateCyclePulse } from '../features/cycle-pulse.js';
 import { initPriceIntelligence, updatePriceIntelligence } from '../features/price-intelligence.js';
 import { initRewardsTracker, updateRewardsTracker, destroyRewardsTracker } from '../features/rewards-tracker.js';
-import { initDailyBriefing, initHotTodayIsland, updateDailyBriefing, updateHotTodayIsland } from '../features/daily-briefing.js';
+import { activateHotTodaySignal, initDailyBriefing, initHotTodayIsland, updateDailyBriefing, updateHotTodayIsland } from '../features/daily-briefing.js';
 import { initStateOfTezos } from '../features/state-of-tezos.js';
 import { initNetworkHealth, refreshNetworkHealth } from '../features/network-health.js';
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=347';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=353';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2168,8 +2168,8 @@ function initUptimeClock() {
     let explainActivePill = null;
 
     function updateTopContinuityShuffleState() {
-        if (!topContinuityPanel) return;
-        topContinuityPanel.classList.toggle('is-shuffling', topContinuityAnimations.size > 0);
+        // Keep live-number motion scoped to the pill whose value changed.
+        // A rail-level state repaints neighboring pills and makes stable values look jittery.
     }
 
     function setTopContinuityText(id, text, options = {}) {
@@ -2192,9 +2192,11 @@ function initUptimeClock() {
         const isReadyForMotion = (hadFinalText && currentText && currentText !== '—') || options.animateInitial !== false;
         const shouldAnimate = allowMotion && isReadyForMotion && isLiveChange && !prefersReducedMotion();
         topContinuityAnimations.delete(id);
+        pill?.classList.remove('is-shuffling');
 
         el.dataset.finalText = nextText;
         el.classList.toggle('is-shuffling', shouldAnimate);
+        pill?.classList.toggle('is-shuffling', shouldAnimate);
         if (shouldAnimate) topContinuityAnimations.set(id, true);
         updateTopContinuityShuffleState();
         setMagicNumber(el, nextText, {
@@ -2206,6 +2208,7 @@ function initUptimeClock() {
             onDone: () => {
                 topContinuityAnimations.delete(id);
                 el.classList.remove('is-shuffling');
+                pill?.classList.remove('is-shuffling');
                 updateTopContinuityShuffleState();
             }
         });
@@ -4106,6 +4109,7 @@ function initDeepLinkAffordances() {
         { selector: '#calculator-section .section-header', hash: '#calculator', label: 'rewards calculator' },
         { selector: '#price-intelligence .section-header', hash: '#price', label: 'price intelligence' },
         { selector: '#widgets-gallery .section-header', hash: '#widgets', label: 'embed builder' },
+        { selector: '#hot-today-island .hot-today-titleline', hash: '#hot-today', label: 'live pulse' },
         { selector: '#chambers-section .section-header', hash: '#chambers', label: 'chambers' },
         { selector: '#consensus-section .section-header', hash: '#section=consensus', label: 'consensus stats' },
         { selector: '#economy-section .section-header', hash: '#section=economy', label: 'economy stats' },
@@ -4500,7 +4504,9 @@ function applyDeepLink() {
 
     const scrollToElement = (target, options = {}) => {
         if (!target) return;
-        const scroll = () => target.scrollIntoView({ behavior: 'smooth', block: options.block || 'center' });
+        const reduceMotion = typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const scroll = () => target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: options.block || 'center' });
         scroll();
         setTimeout(scroll, 180);
         setTimeout(scroll, 520);
@@ -4678,6 +4684,16 @@ function applyDeepLink() {
     if (params.has('chambers') || hash === 'chambers') {
         ensureChambersVisible();
         setTimeout(() => scrollToElementAfterLayout(() => document.getElementById('chambers-section'), { block: 'start' }), 200);
+    }
+
+    // #hot-today / #hot-today=category
+    if (params.has('hot-today') || hash === 'hot-today') {
+        const category = params.get('hot-today');
+        scrollToElementAfterLayout(() => document.getElementById('hot-today-island'), { block: 'center' });
+        if (category) {
+            setTimeout(() => activateHotTodaySignal(category), 900);
+            setTimeout(() => activateHotTodaySignal(category), 1800);
+        }
     }
 
     // #tezosx / legacy #tezlink

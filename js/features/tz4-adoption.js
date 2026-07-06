@@ -15,6 +15,7 @@ const LATEST_SWITCH_LIMIT = 5;
 const ENTRY_PREVIEW_SWITCH_LIMIT = 3;
 const PENDING_QUEUE_LIMIT = 8;
 const BAKER_STATUS_PREVIEW_LIMIT = 20;
+const TZ4_SWITCH_TTL_MS = 48 * 60 * 60 * 1000;
 
 let _tz4Cache = null;
 let _tz4CacheTime = 0;
@@ -59,8 +60,61 @@ function formatAge(value) {
     return rest ? `${years}y ${rest}mo ago` : `${years}y ago`;
 }
 
+function formatRecentAge(value) {
+    if (!value) return 'recently';
+    const diff = Date.now() - new Date(value).getTime();
+    if (!Number.isFinite(diff) || diff < 0) return 'just now';
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 48) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+}
+
 function bakerName(baker) {
     return baker?.alias || `${baker?.address?.slice(0, 8) || 'tz'}...${baker?.address?.slice(-5) || ''}`;
+}
+
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function dispatchTz4HotSignals(data) {
+    if (!data) return;
+    const latest = data.latestSwitches?.[0];
+    if (latest?.switchedAt) {
+        const switchedAt = new Date(latest.switchedAt).getTime();
+        const age = Date.now() - switchedAt;
+        if (Number.isFinite(age) && age >= 0 && age < TZ4_SWITCH_TTL_MS) {
+            dispatchHotSignal({
+                id: `tz4-switch-${latest.address || 'latest'}`,
+                category: 'tz4',
+                kind: 'event',
+                score: 112,
+                title: 'tz4 switch',
+                detail: `${formatPercent(data.adoptionPct)} adoption`,
+                text: `${bakerName(latest)} switched to tz4 keys ${formatRecentAge(latest.switchedAt)} - ${formatCount(data.pendingCount)} more queued.`,
+                route: '/tz4/',
+                createdAt: switchedAt,
+                ttlMs: TZ4_SWITCH_TTL_MS - age
+            });
+        }
+    }
+    if (Number(data.pendingCount || 0) >= 3) {
+        dispatchHotSignal({
+            id: 'tz4-pending-queue',
+            category: 'tz4',
+            kind: 'state',
+            score: 76,
+            title: 'tz4 queue',
+            detail: 'Consensus key migration',
+            text: `${formatCount(data.pendingCount)} bakers are queued to activate tz4 keys.`,
+            route: '/tz4/',
+            ttlMs: CACHE_TTL * 2
+        });
+    }
 }
 
 function isTz4Address(value) {
@@ -246,6 +300,7 @@ function sortBakersForTable(bakers) {
 async function fetchTz4AdoptionData({ force = false } = {}) {
     if (!force && _tz4Cache && Date.now() - _tz4CacheTime < CACHE_TTL) {
         renderTz4EntryPreview(_tz4Cache);
+        dispatchTz4HotSignals(_tz4Cache);
         return _tz4Cache;
     }
     const [bakers, operations, headState] = await Promise.all([
@@ -258,6 +313,7 @@ async function fetchTz4AdoptionData({ force = false } = {}) {
     _tz4Cache = data;
     _tz4CacheTime = Date.now();
     renderTz4EntryPreview(data);
+    dispatchTz4HotSignals(data);
     return data;
 }
 

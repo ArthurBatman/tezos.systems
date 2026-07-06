@@ -129,6 +129,32 @@ function operationHref(awakening) {
     return hash ? `https://tzkt.io/${encodeURIComponent(hash)}` : `https://tzkt.io/${encodeURIComponent(awakening.address)}`;
 }
 
+function safeHotId(value, fallback = 'awakening') {
+    return String(value || fallback).replace(/[^a-z0-9-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || fallback;
+}
+
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function dispatchAwakeningHotSignal(awakening) {
+    const opHash = awakening?.operation?.hash || awakening?.operation?.operationGroupHash || '';
+    const awakenedAt = new Date(awakening?.awakenedAt || Date.now()).getTime();
+    dispatchHotSignal({
+        id: `giant-awakening-${safeHotId(opHash || awakening?.address)}`,
+        category: 'whales',
+        kind: 'event',
+        score: 126,
+        title: 'Giant awakening',
+        detail: operationLabel(awakening?.operation),
+        text: `A wallet holding ${formatXTZ(awakening.balance)} XTZ moved after ${formatDormancy(awakening.dormantDays)} dormant.`,
+        route: '#giants',
+        createdAt: Number.isFinite(awakenedAt) ? awakenedAt : Date.now(),
+        ttlMs: 24 * 60 * 60 * 1000
+    });
+}
+
 // Tezos mainnet launch date
 const MAINNET_LAUNCH = new Date('2018-09-17T00:00:00Z').getTime();
 
@@ -429,6 +455,7 @@ function showAwakening(awakening) {
     
     // Send browser notification
     sendAwakeningNotification(awakening);
+    dispatchAwakeningHotSignal(awakening);
     
     // Play sound if enabled
     if (window.playSound) {

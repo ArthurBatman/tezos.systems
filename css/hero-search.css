@@ -1748,6 +1748,38 @@ body.hero-search-mode .main-content {
     }
 }
 
+@media (max-width: 1180px) {
+    .header-primary-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        justify-content: center;
+        justify-items: center;
+        gap: 0.95rem;
+        width: 100%;
+    }
+
+    .header-left {
+        justify-content: center;
+        width: 100%;
+        text-align: center;
+    }
+
+    .header-brand-stack {
+        justify-items: center;
+        width: 100%;
+    }
+
+    .header-status-row {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .controls {
+        justify-content: center;
+        width: 100%;
+    }
+}
+
 @media (max-width: 768px) {
     .header-content {
         align-items: stretch;
@@ -1755,6 +1787,8 @@ body.hero-search-mode .main-content {
 
     .header-primary-row {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        justify-content: center;
         justify-items: center;
         gap: 0.85rem;
         width: 100%;

@@ -7,6 +7,10 @@ const CHANGELOG = [
     {
         date: '2026-07-06',
         entries: [
+            { type: '✨', text: 'Live Pulse now tracks tz4 switches, baker registrations, .tez auctions, Tezos X activity, L2 governance, NFT market heat, contested rounds, protocol lore days, and sleeping-giant awakenings' },
+            { type: '🔧', text: 'Finality pill updates now animate only the changed pill without making the baker count or neighboring live stat pills jiggle' },
+            { type: '🎨', text: 'The stacked header now centers the Tezos Systems wordmark, protocol/feed chips, and My Tezos/Explore/Settings controls on small desktop and mobile screens' },
+            { type: '✨', text: 'Live Pulse now catches major whale moves and Network Moments as they happen, routes cards through the site map, and remembers whether today is running hotter than yesterday' },
             { type: '🔧', text: 'The command deck no longer repeats protocol history with the extra upgrade ribbon under search' },
             { type: '🔧', text: 'Network Context activity copy now treats near-baseline transaction volume as steady instead of calling tiny positive drift busy' },
             { type: '🎨', text: 'The header block now has roomier side padding around the title, controls, uptime proof, and live stat pills' },

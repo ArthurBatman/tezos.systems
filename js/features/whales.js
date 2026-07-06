@@ -36,6 +36,7 @@ const CONFIG = {
     pollInterval: 20000, // 20 seconds (more activity at lower threshold)
     apiBase: API_URLS.tzkt
 };
+const HOT_SIGNAL_WHALE_THRESHOLD_XTZ = 100000;
 
 // State
 let transactions = [];
@@ -57,6 +58,26 @@ function formatAmount(mutez) {
         return `${(xtz / 1000).toFixed(1)}K`;
     }
     return xtz.toLocaleString();
+}
+
+function dispatchHotWhaleSignal(tx) {
+    if (typeof window === 'undefined') return;
+    const amountXtz = Number(tx?.amount || 0) / 1e6;
+    if (!Number.isFinite(amountXtz) || amountXtz < HOT_SIGNAL_WHALE_THRESHOLD_XTZ) return;
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+        detail: {
+            category: 'whales',
+            id: 'whale-breaking',
+            score: 120,
+            title: 'Large transfer',
+            icon: '🐋',
+            text: `${Math.round(amountXtz).toLocaleString('en-US')} ꜩ moved in one transaction.`,
+            detail: 'Live whale feed',
+            tone: 'capital-hot',
+            ttlMs: 90000,
+            route: '#whales'
+        }
+    }));
 }
 
 // Cache for resolved Tezos Domains names
@@ -405,6 +426,7 @@ function updateFeed(newTxs) {
         
         // Dispatch whale alert event for vibes system
         window.dispatchEvent(new CustomEvent('whale-alert', { detail: tx }));
+        dispatchHotWhaleSignal(tx);
         
         if (container.firstChild) {
             container.insertBefore(el, container.firstChild);

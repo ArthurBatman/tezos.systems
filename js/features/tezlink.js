@@ -65,6 +65,44 @@ function compactNumber(value, options = {}) {
     }).format(number);
 }
 
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function dispatchTezlinkHotSignals(data) {
+    if (!data) return;
+    const transactionsToday = toNumber(data.transactionsToday);
+    if (transactionsToday !== null && transactionsToday > 0) {
+        dispatchHotSignal({
+            id: 'etherlink-throughput',
+            category: 'etherlink',
+            kind: 'state',
+            score: 84,
+            title: 'Tezos X throughput',
+            detail: 'L2 transactions today',
+            text: `Tezos X processed ${compactNumber(transactionsToday)} L2 transactions today.`,
+            route: '/tezosx/',
+            ttlMs: ENTRY_REFRESH_MS * 2
+        });
+    }
+
+    const tvlShare = toNumber(data.tvlShare);
+    if (tvlShare !== null && tvlShare > 0) {
+        dispatchHotSignal({
+            id: 'etherlink-tvl-share',
+            category: 'etherlink',
+            kind: 'state',
+            score: 72,
+            title: 'Tezos X TVL share',
+            detail: 'L1 + L2 TVL',
+            text: `Tezos X holds ${tvlShare.toFixed(1)}% of combined L1+L2 TVL.`,
+            route: '/tezosx/',
+            ttlMs: ENTRY_REFRESH_MS * 2
+        });
+    }
+}
+
 function formatUsd(value) {
     const number = toNumber(value);
     if (number === null) return '--';
@@ -660,6 +698,7 @@ async function refreshTezlinkChamber({ force = false } = {}) {
         const data = await fetchTezlinkData({ force });
         renderEntryCard(data);
         renderTezlinkChamber(data, body);
+        dispatchTezlinkHotSignals(data);
     } catch (error) {
         console.warn('Tezlink chamber refresh failed:', error);
         if (!body.dataset.rendered) {
@@ -723,6 +762,7 @@ async function refreshEntryCard({ force = false } = {}) {
     try {
         const data = await fetchTezlinkData({ force });
         renderEntryCard(data);
+        dispatchTezlinkHotSignals(data);
     } catch (error) {
         console.warn('Tezlink entry refresh failed:', error);
         renderEntryError();

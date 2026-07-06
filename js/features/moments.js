@@ -121,6 +121,17 @@ const MILESTONE_RULES = [
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 const MONOTONIC_CHANGE_METRICS = new Set(['cycle', 'govProposalCount', 'upgradeCount']);
+const HOT_SIGNAL_CATEGORY_BY_METRIC = {
+    stakingRatio: 'staking',
+    totalBakers: 'security',
+    tz4Percentage: 'tz4',
+    fundedAccounts: 'ecosystem',
+    cycle: 'cycle',
+    totalBurned: 'network',
+    govPeriodKind: 'governance',
+    govProposalCount: 'governance',
+    upgradeCount: 'governance'
+};
 
 /**
  * Check if a milestone was recently triggered (within 24h)
@@ -157,6 +168,32 @@ function ruleFires(rule, prev, curr) {
         return prevBelow !== currBelow;
     }
     return false;
+}
+
+function calmMomentTitle(title) {
+    return String(title || 'Network milestone')
+        .replace(/!+/g, '.')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function dispatchHotMomentSignal(moment, rule) {
+    if (typeof window === 'undefined' || !moment) return;
+    const category = HOT_SIGNAL_CATEGORY_BY_METRIC[rule?.metric] || 'moment';
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+        detail: {
+            category,
+            id: `moment-${moment.id}`,
+            score: 111,
+            title: 'Network milestone',
+            icon: moment.emoji || '✦',
+            text: calmMomentTitle(moment.title),
+            detail: 'Network Moments',
+            tone: category === 'governance' ? 'governance-hot' : category === 'security' || category === 'staking' || category === 'tz4' ? 'growth' : 'activity',
+            route: category === 'tz4' ? '#tz4' : category === 'governance' ? '#chamber' : category === 'cycle' || category === 'security' ? '#health' : '',
+            share: { type: 'moment', id: moment.id }
+        }
+    }));
 }
 
 /**
@@ -237,6 +274,7 @@ Explore →`;
 
         // Save and queue
         saveMoment(moment);
+        dispatchHotMomentSignal(moment, rule);
         triggered.push(moment);
     }
 

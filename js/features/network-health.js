@@ -33,6 +33,8 @@ const USAGE_WINDOW_MS = 60 * 60 * 1000;
 const USAGE_AMOUNT_PAGE_LIMIT = 10000;
 const CYCLE_TIMING_LIMIT = 8;
 const CYCLE_TIMING_TTL = 10 * 60 * 1000;
+const CONTESTED_ROUND_HOT_SIGNAL_TTL = 30 * 60 * 1000;
+const CONTESTED_ROUND_HOT_SIGNAL_COOLDOWN = 60 * 60 * 1000;
 const CYCLE_TARGET_SECONDS_FALLBACK = 24 * 60 * 60;
 const CYCLE_DRIFT_PEAK_PCT = 1;
 const CYCLE_DRIFT_WATCH_PCT = 3;
@@ -42,6 +44,7 @@ const OCTEZ_VERSIONS_TTL = 30 * 60 * 1000;
 const OCTEZ_VERSION_PAGE_LIMIT = 500;
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
+const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
 
 const PERIODS = [
     { key: '24h', label: '24H', hours: 24, exactLimit: 22000 },
@@ -58,6 +61,7 @@ let lastBlockPulseAt = 0;
 let chamberTimer = null;
 let ageTimer = null;
 let chamberRefreshInFlight = false;
+let lastContestedRoundSignalAt = 0;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 let activityTapeCache = [];
@@ -428,6 +432,38 @@ function renderBlockTickerLine(block, timestamp, octezVersions, usage) {
     `;
 }
 
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function contestedRoundLastSignalAt() {
+    const stored = Number(localStorage.getItem(CONTESTED_ROUND_SIGNAL_KEY));
+    return Math.max(lastContestedRoundSignalAt, Number.isFinite(stored) ? stored : 0);
+}
+
+function dispatchContestedRoundHotSignal(block) {
+    const round = Number(block?.blockRound);
+    if (!Number.isFinite(round) || round < 1) return;
+    const now = Date.now();
+    if (now - contestedRoundLastSignalAt() < CONTESTED_ROUND_HOT_SIGNAL_COOLDOWN) return;
+    lastContestedRoundSignalAt = now;
+    try { localStorage.setItem(CONTESTED_ROUND_SIGNAL_KEY, String(now)); } catch { /* storage unavailable */ }
+    const level = Number(block?.level);
+    dispatchHotSignal({
+        id: `contested-round-${Number.isFinite(level) ? level : now}`,
+        category: 'security',
+        kind: 'event',
+        score: 98,
+        title: 'Contested round',
+        detail: `R${formatCount(round)}`,
+        text: `Block ${Number.isFinite(level) ? formatCount(level) : 'head'} needed round ${formatCount(round)} - consensus recovered in seconds.`,
+        route: '#health',
+        createdAt: block?.timestamp ? new Date(block.timestamp).getTime() : now,
+        ttlMs: CONTESTED_ROUND_HOT_SIGNAL_TTL
+    });
+}
+
 function updateBlockTicker(data, { error = false } = {}) {
     const strip = document.getElementById('block-ticker-strip');
     const button = document.getElementById('block-ticker-button');
@@ -445,6 +481,7 @@ function updateBlockTicker(data, { error = false } = {}) {
         return;
     }
 
+    dispatchContestedRoundHotSignal(latest);
     fetchUsagePulse().then(patchTickerUsage);
 
     const timestamp = getHeadTimestamp(data);

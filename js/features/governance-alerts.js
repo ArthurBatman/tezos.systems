@@ -48,6 +48,7 @@ export function alertablePeriod(period) {
 function hide(root) {
     root.hidden = true;
     root.innerHTML = '';
+    window.dispatchEvent(new CustomEvent('governance-alert-state', { detail: { visible: false } }));
 }
 
 function phaseName(kind) {
@@ -173,6 +174,13 @@ function render(root, period, vote, savedBaker) {
             </div>
         </div>
     `;
+    window.dispatchEvent(new CustomEvent('governance-alert-state', {
+        detail: {
+            visible: true,
+            kind: period?.kind || 'unknown',
+            title: copy.title
+        }
+    }));
 
     root.querySelectorAll('[data-governance-alert-action]').forEach((control) => {
         control.addEventListener('click', async (event) => {
