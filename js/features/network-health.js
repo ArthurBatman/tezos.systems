@@ -933,7 +933,7 @@ async function fetchUsagePulse({ force = false } = {}) {
 
     const since = usageWindowStart();
     usagePulseInFlight = Promise.all([
-        fetchJson(`${TZKT}/operations/transactions/count?timestamp.ge=${since}`, 1).catch(() => null),
+        fetchJson(`${TZKT}/operations/transactions/count?status=applied&timestamp.ge=${since}`, 1).catch(() => null),
         fetchJson(`${TZKT}/operations/transactions?status=applied&timestamp.ge=${since}&select=amount&limit=${USAGE_AMOUNT_PAGE_LIMIT}`, 1).catch(() => null),
         fetchJson(`${TZKT}/tokens/transfers/count?token.metadata.artifactUri.null=false&timestamp.ge=${since}`, 1).catch(() => null),
         fetchActivityTape().catch(() => activityTapeCache)
