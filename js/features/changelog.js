@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-06',
         entries: [
+            { type: '🔧', text: 'Header stat pills now open anchored, dismissible explainers with their all-time chart action kept inside the popover' },
             { type: '🎨', text: 'Live NFT feed doorway is now a themed header pill across every theme, with HEN keeping its terminal treatment' },
         ]
     },

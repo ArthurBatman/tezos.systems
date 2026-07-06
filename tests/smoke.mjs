@@ -6532,6 +6532,71 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   assert(priceLinks.coinGecko === 'https://www.coingecko.com/en/coins/tezos', `feature workflows price bar CoinGecko link mismatch: ${priceLinks.coinGecko}`);
   assert(priceLinks.stake === 'https://gov.tez.capital/', `feature workflows price bar stake link mismatch: ${priceLinks.stake}`);
   assert(priceLinks.bake === 'https://docs.tez.capital/', `feature workflows price bar bake link mismatch: ${priceLinks.bake}`);
+  await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent?.trim() || ''), null, { timeout: 10000 });
+  const mainTopBeforeExplain = await page.evaluate(() => document.querySelector('main.main-content')?.getBoundingClientRect().top || 0);
+  const topBakersPill = page.locator('#top-continuity-panel .top-continuity-stat[data-card-history="total-bakers"]');
+  await topBakersPill.click();
+  await page.locator('#top-continuity-panel > #top-continuity-explain.is-visible').waitFor({ state: 'visible', timeout: 5000 });
+  const topExplainState = await page.evaluate((beforeTop) => {
+    const panel = document.querySelector('#top-continuity-panel');
+    const pill = panel?.querySelector('.top-continuity-stat[data-card-history="total-bakers"]');
+    const popover = panel?.querySelector(':scope > #top-continuity-explain');
+    const panelRect = panel?.getBoundingClientRect();
+    const pillRect = pill?.getBoundingClientRect();
+    const popoverRect = popover?.getBoundingClientRect();
+    const mainTopAfter = document.querySelector('main.main-content')?.getBoundingClientRect().top || 0;
+    return {
+      active: pill?.classList.contains('is-explaining') || false,
+      ariaControls: pill?.getAttribute('aria-controls') || '',
+      ariaExpanded: pill?.getAttribute('aria-expanded') || '',
+      ariaHidden: popover?.getAttribute('aria-hidden') || '',
+      chartButton: Boolean(popover?.querySelector('[data-open-card-history="total-bakers"]')),
+      closeButton: Boolean(popover?.querySelector('[data-close-top-continuity-explain]')),
+      insidePanel: Boolean(panel && popover && popover.parentElement === panel),
+      mainDelta: Math.abs(mainTopAfter - beforeTop),
+      popoverBelowPanel: Boolean(panelRect && popoverRect && popoverRect.top >= panelRect.bottom - 2),
+      popoverCompact: Boolean(popoverRect && popoverRect.width <= 390),
+      popoverText: popover?.textContent || '',
+      popoverTintsFromPill: Boolean(pillRect && popoverRect && popoverRect.left < pillRect.right && popoverRect.right > pillRect.left),
+      role: popover?.getAttribute('role') || ''
+    };
+  }, mainTopBeforeExplain);
+  assert(topExplainState.insidePanel && topExplainState.popoverBelowPanel, `feature workflows top pill explainer should be anchored inside the continuity panel: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.mainDelta <= 1, `feature workflows top pill explainer caused layout shift: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.active && topExplainState.ariaControls === 'top-continuity-explain' && topExplainState.ariaExpanded === 'true', `feature workflows top pill active ARIA mismatch: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.ariaHidden === 'false' && topExplainState.role === 'region', `feature workflows top pill popover disclosure state mismatch: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.closeButton && topExplainState.chartButton, `feature workflows top pill popover controls missing: ${JSON.stringify(topExplainState)}`);
+  assert(/Baker set/.test(topExplainState.popoverText) && /Open all-time chart/.test(topExplainState.popoverText), `feature workflows top pill popover copy mismatch: ${topExplainState.popoverText}`);
+  assert(topExplainState.popoverCompact && topExplainState.popoverTintsFromPill, `feature workflows top pill popover geometry mismatch: ${JSON.stringify(topExplainState)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => {
+    const popover = document.querySelector('#top-continuity-explain');
+    return popover && !popover.classList.contains('is-visible') && popover.getAttribute('aria-hidden') === 'true';
+  }, null, { timeout: 5000 });
+  const escapeState = await page.evaluate(() => {
+    const pill = document.querySelector('#top-continuity-panel .top-continuity-stat[data-card-history="total-bakers"]');
+    const popover = document.querySelector('#top-continuity-explain');
+    return {
+      activeElementKey: document.activeElement?.dataset?.cardHistory || '',
+      ariaExpanded: pill?.getAttribute('aria-expanded') || '',
+      inert: popover?.inert || false,
+      selected: pill?.classList.contains('is-explaining') || false,
+      tabStopsDisabled: Array.from(popover?.querySelectorAll('button') || []).every((button) => button.tabIndex === -1)
+    };
+  });
+  assert(escapeState.activeElementKey === 'total-bakers' && escapeState.ariaExpanded === 'false' && !escapeState.selected && escapeState.inert && escapeState.tabStopsDisabled, `feature workflows top pill Escape close mismatch: ${JSON.stringify(escapeState)}`);
+  await topBakersPill.click();
+  await page.locator('#top-continuity-panel > #top-continuity-explain.is-visible [data-open-card-history="total-bakers"]').click();
+  await page.locator('#card-history-modal.active').waitFor({ state: 'visible', timeout: 10000 });
+  await expectClassContains(page.locator('#card-history-modal .card-history-range-btn[data-range="all"]'), 'active', 'feature workflows top pill chart opens all-time range');
+  const topExplainChartState = await page.evaluate(() => ({
+    explainerVisible: document.querySelector('#top-continuity-explain')?.classList.contains('is-visible') || false,
+    title: document.querySelector('#card-history-modal .card-history-title')?.textContent || ''
+  }));
+  assert(!topExplainChartState.explainerVisible && /Total Bakers/.test(topExplainChartState.title), `feature workflows top pill chart CTA mismatch: ${JSON.stringify(topExplainChartState)}`);
+  await page.locator('#card-history-close').click();
+  await page.locator('#card-history-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
+  log('ok - feature workflow: top pill explainer popover');
   await page.evaluate(async () => {
     localStorage.setItem('tezos-systems-pi-visible', 'false');
     document.querySelector('#price-intelligence')?.remove();

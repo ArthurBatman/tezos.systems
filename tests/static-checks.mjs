@@ -1018,7 +1018,7 @@ async function checkSelectorContracts() {
     ['top continuity decrypt duration', 'TOP_CONTINUITY_SHUFFLE_MS = 1500', app],
     ['top continuity Protocol Anthology launcher wiring', 'openProtocolHistoryChamber();', app],
     ['top continuity Protocol Anthology hash wiring', "window.history.pushState(null, '', '#protocol-history');", app],
-    ['top continuity all-time pill history wiring', "openCardHistoryModal(pill.dataset.cardHistory, 'all')", app],
+    ['top continuity all-time pill history wiring', "openCardHistoryModal(key, 'all')", app],
     ['top continuity finality history metric', "metric: 'finality_seconds'", await readText('js/features/history.js')],
     ['chain uptime baker updater', "setChainText('chain-uptime-bakers'", app],
     ['top continuity proof styles', '.top-continuity-panel', styles],

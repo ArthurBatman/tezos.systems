@@ -1,31 +1,68 @@
 .top-continuity-explain {
-    order: 4;
-    flex: 1 0 100%;
-    width: 100%;
-    max-width: 1200px;
-    margin: -0.25rem auto 0;
-    display: none;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 0.76rem 0.9rem;
-    border: 1px solid color-mix(in srgb, var(--accent-cyan) 18%, var(--glass-border));
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    z-index: 60;
+    display: grid;
+    width: min(380px, 100%);
+    min-width: 0;
+    gap: 0.78rem;
+    padding: 0.82rem 0.88rem 0.86rem;
+    border: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 34%, var(--glass-border));
     border-radius: 8px;
     background:
-        linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 7%, transparent), color-mix(in srgb, var(--accent-purple) 5%, transparent)),
-        rgba(255, 255, 255, 0.022);
-    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
+        linear-gradient(135deg, color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 10%, transparent), color-mix(in srgb, var(--accent-purple) 5%, transparent)),
+        color-mix(in srgb, var(--bg-secondary) 76%, rgba(8, 12, 20, 0.9));
+    box-shadow:
+        0 18px 50px rgba(0, 0, 0, 0.24),
+        0 0 22px color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 10%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px) scale(0.98);
+    transform-origin: var(--caret-x, 50%) top;
+    transition:
+        opacity 180ms ease-out,
+        transform 180ms ease-out;
+    backdrop-filter: blur(16px) saturate(1.18);
 }
 
 .top-continuity-explain.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+}
+
+.top-continuity-explain::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: var(--caret-x, 50%);
+    width: 10px;
+    height: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 34%, var(--glass-border));
+    border-left: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 34%, var(--glass-border));
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 10%, transparent), color-mix(in srgb, var(--accent-purple) 5%, transparent)),
+        color-mix(in srgb, var(--bg-secondary) 82%, rgba(8, 12, 20, 0.95));
+    transform: translateX(-50%) rotate(45deg);
+    pointer-events: none;
+}
+
+.top-continuity-explain-copy {
     display: grid;
+    min-width: 0;
+    gap: 0.22rem;
+    padding-right: 2rem;
 }
 
 .top-continuity-explain strong,
 .top-continuity-explain p {
-    display: block;
     min-width: 0;
     margin: 0;
+}
+
+.top-continuity-explain .feature-kicker {
+    color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 78%, var(--text-primary));
 }
 
 .top-continuity-explain strong {
@@ -35,19 +72,24 @@
 }
 
 .top-continuity-explain p {
-    margin-top: 0.22rem;
     color: var(--text-secondary);
     font-size: 0.78rem;
     line-height: 1.45;
 }
 
-.top-continuity-explain button {
+.top-continuity-explain-actions {
+    display: flex;
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+.top-continuity-explain-chart {
     min-height: 34px;
     padding: 0.36rem 0.72rem;
-    border: 1px solid color-mix(in srgb, var(--accent-cyan) 36%, var(--glass-border));
+    border: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 46%, var(--glass-border));
     border-radius: 7px;
-    background: color-mix(in srgb, var(--accent-cyan) 9%, transparent);
-    color: var(--accent-cyan);
+    background: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 12%, transparent);
+    color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 82%, var(--text-primary));
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     font-weight: 850;
@@ -55,11 +97,49 @@
     white-space: nowrap;
 }
 
-.top-continuity-explain button:hover,
-.top-continuity-explain button:focus-visible {
-    border-color: var(--accent-cyan);
+.top-continuity-explain-chart:hover,
+.top-continuity-explain-chart:focus-visible {
+    border-color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 72%, var(--text-primary));
     outline: none;
-    box-shadow: 0 0 18px color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 16%, transparent);
+}
+
+.top-continuity-explain-close {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 22%, var(--glass-border));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+    color: var(--text-secondary);
+    font: 900 1rem/1 'JetBrains Mono', monospace;
+    cursor: pointer;
+}
+
+.top-continuity-explain-close:hover,
+.top-continuity-explain-close:focus-visible {
+    border-color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 58%, var(--text-primary));
+    color: var(--text-primary);
+    outline: none;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 12%, transparent);
+}
+
+.top-continuity-stat.is-explaining {
+    border-color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 76%, var(--text-primary));
+    box-shadow:
+        var(--top-pill-shadow),
+        0 0 20px color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 22%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 20%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .top-continuity-explain {
+        transition: none;
+    }
 }
 
 .leaderboard-loading-state {
@@ -529,13 +609,15 @@
 
 @media (max-width: 640px) {
     .top-continuity-explain {
-        grid-template-columns: 1fr;
-        width: calc(100% - 2rem);
-        margin: 0 auto;
+        width: 100%;
     }
 
-    .top-continuity-explain button {
-        justify-self: start;
+    .top-continuity-explain-actions,
+    .top-continuity-explain-chart {
+        width: 100%;
+    }
+
+    .top-continuity-explain-chart {
         white-space: normal;
     }
 

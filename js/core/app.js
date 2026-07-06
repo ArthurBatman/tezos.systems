@@ -18,7 +18,8 @@ import {
     formatSupply,
     escapeHtml,
     debugLog,
-    startLiveTimeTicker
+    startLiveTimeTicker,
+    debounce
 } from './utils.js';
 import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades, getProtocolUpgradeOrdinal } from './protocol-count.js';
 import {
@@ -95,7 +96,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=339';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=340';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2323,6 +2324,14 @@ function initUptimeClock() {
         'chain-uptime-staked': ['hero-chain-uptime-staked'],
         'chain-uptime-issuance': ['hero-chain-uptime-issuance']
     };
+    const topContinuityValueKeys = {
+        'hero-chain-uptime-bakers': 'total-bakers',
+        'hero-chain-uptime-finality': 'finality',
+        'hero-chain-uptime-staked': 'staking-ratio',
+        'hero-chain-uptime-issuance': 'issuance-rate'
+    };
+    let explainActiveKey = null;
+    let explainActivePill = null;
 
     function updateTopContinuityShuffleState() {
         if (!topContinuityPanel) return;
@@ -2360,6 +2369,10 @@ function initUptimeClock() {
                 updateTopContinuityShuffleState();
             }
         });
+
+        if (explainActiveKey && topContinuityValueKeys[id] === explainActiveKey) {
+            updateTopContinuityExplainTitle();
+        }
     }
 
     function renderTopContinuityRuntime(years, days, hours, mins) {
@@ -2455,6 +2468,81 @@ function initUptimeClock() {
         });
     }
 
+    function clampTopContinuityPopover(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    function getTopContinuityPillByKey(key) {
+        if (!topContinuityPanel || !key) return null;
+        return Array.from(topContinuityPanel.querySelectorAll('.top-continuity-stat[data-card-history]'))
+            .find((pill) => pill.dataset.cardHistory === key) || null;
+    }
+
+    function getTopContinuityPillValue(pill = explainActivePill) {
+        return pill?.querySelector('strong')?.textContent?.trim() || '';
+    }
+
+    function formatTopContinuityExplainTitle(pill, copy) {
+        const value = getTopContinuityPillValue(pill);
+        return value ? `${value}: ${copy.title}` : copy.title;
+    }
+
+    function updateTopContinuityExplainTitle() {
+        if (!explainActiveKey) return;
+        const explain = document.getElementById('top-continuity-explain');
+        const title = explain?.querySelector('[data-top-continuity-explain-title]');
+        const copy = TOP_CONTINUITY_EXPLANATIONS[explainActiveKey];
+        const pill = explainActivePill || getTopContinuityPillByKey(explainActiveKey);
+        if (!title || !copy || !pill) return;
+        title.textContent = formatTopContinuityExplainTitle(pill, copy);
+    }
+
+    function positionTopContinuityExplain(pill = explainActivePill) {
+        const explain = document.getElementById('top-continuity-explain');
+        if (!topContinuityPanel || !explain || !pill) return;
+        const panelRect = topContinuityPanel.getBoundingClientRect();
+        const pillRect = pill.getBoundingClientRect();
+        const panelWidth = Math.max(0, panelRect.width);
+        if (!panelWidth) return;
+
+        const explainRect = explain.getBoundingClientRect();
+        const explainWidth = Math.min(explainRect.width || 380, panelWidth);
+        const pillCenter = (pillRect.left + (pillRect.width / 2)) - panelRect.left;
+        const mobileLayout = window.matchMedia?.('(max-width: 640px)').matches || panelWidth <= 420;
+        const maxLeft = Math.max(0, panelWidth - explainWidth);
+        const left = mobileLayout ? 0 : clampTopContinuityPopover(pillCenter - (explainWidth / 2), 0, maxLeft);
+        const caretX = clampTopContinuityPopover(pillCenter - left, 18, Math.max(18, explainWidth - 18));
+
+        explain.style.left = `${Math.round(left)}px`;
+        explain.style.setProperty('--caret-x', `${Math.round(caretX)}px`);
+    }
+
+    function renderTopContinuityExplain(explain, pill, copy, key) {
+        explain.innerHTML = `
+            <button type="button" class="top-continuity-explain-close" data-close-top-continuity-explain aria-label="Dismiss explanation">&times;</button>
+            <div class="top-continuity-explain-copy">
+                <span class="feature-kicker">${escapeHtml(copy.kicker)}</span>
+                <strong id="top-continuity-explain-title" data-top-continuity-explain-title>${escapeHtml(formatTopContinuityExplainTitle(pill, copy))}</strong>
+                <p>${escapeHtml(copy.body)}</p>
+            </div>
+            <div class="top-continuity-explain-actions">
+                <button type="button" class="top-continuity-explain-chart" data-open-card-history="${escapeHtml(key)}">Open all-time chart</button>
+            </div>
+        `;
+    }
+
+    function setTopContinuityExplainInteractive(explain, interactive) {
+        if (!explain) return;
+        explain.inert = !interactive;
+        explain.querySelectorAll('button').forEach((button) => {
+            if (interactive) {
+                button.removeAttribute('tabindex');
+            } else {
+                button.setAttribute('tabindex', '-1');
+            }
+        });
+    }
+
     function ensureTopContinuityExplainPanel() {
         if (!topContinuityPanel) return null;
         let explain = document.getElementById('top-continuity-explain');
@@ -2462,31 +2550,73 @@ function initUptimeClock() {
         explain = document.createElement('div');
         explain.id = 'top-continuity-explain';
         explain.className = 'top-continuity-explain';
-        explain.setAttribute('role', 'status');
-        explain.setAttribute('aria-live', 'polite');
-        topContinuityPanel.insertAdjacentElement('afterend', explain);
+        explain.setAttribute('role', 'region');
+        explain.setAttribute('aria-labelledby', 'top-continuity-explain-title');
+        explain.setAttribute('aria-hidden', 'true');
+        setTopContinuityExplainInteractive(explain, false);
+        explain.addEventListener('click', (event) => {
+            const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+            if (!target) return;
+            if (target.closest('[data-close-top-continuity-explain]')) {
+                closeTopContinuityExplanation({ returnFocus: true });
+                return;
+            }
+
+            const chartButton = target.closest('[data-open-card-history]');
+            if (!chartButton) return;
+            const key = chartButton.dataset.openCardHistory || explainActiveKey;
+            closeTopContinuityExplanation();
+            openCardHistoryModal(key, 'all');
+        });
+        topContinuityPanel.appendChild(explain);
         return explain;
     }
 
-    function showTopContinuityExplanation(pill) {
+    function clearTopContinuityPillState() {
+        topContinuityPanel?.querySelectorAll('.top-continuity-stat.is-explaining').forEach((pill) => {
+            pill.classList.remove('is-explaining');
+            pill.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function closeTopContinuityExplanation({ returnFocus = false } = {}) {
+        const explain = document.getElementById('top-continuity-explain');
+        const focusTarget = explainActivePill;
+        explain?.classList.remove('is-visible');
+        explain?.setAttribute('aria-hidden', 'true');
+        setTopContinuityExplainInteractive(explain, false);
+        clearTopContinuityPillState();
+        explainActiveKey = null;
+        explainActivePill = null;
+        if (returnFocus && focusTarget) {
+            focusTarget.focus({ preventScroll: true });
+        }
+    }
+
+    function openTopContinuityExplanation(pill) {
         const key = pill?.dataset?.cardHistory;
         const copy = TOP_CONTINUITY_EXPLANATIONS[key];
         const explain = copy ? ensureTopContinuityExplainPanel() : null;
         if (!copy || !explain) return;
-        const value = pill.querySelector('strong')?.textContent?.trim() || '';
-        explain.innerHTML = `
-            <div>
-                <span class="feature-kicker">${escapeHtml(copy.kicker)}</span>
-                <strong>${escapeHtml(value ? `${value}: ${copy.title}` : copy.title)}</strong>
-                <p>${escapeHtml(copy.body)}</p>
-            </div>
-            <button type="button" data-open-card-history="${escapeHtml(key)}">Open all-time chart</button>
-        `;
-        explain.querySelector('[data-open-card-history]')?.addEventListener('click', () => {
-            openCardHistoryModal(pill.dataset.cardHistory, 'all');
-        }, { once: true });
+        clearTopContinuityPillState();
+        explainActiveKey = key;
+        explainActivePill = pill;
+        const pillColor = getComputedStyle(pill).getPropertyValue('--pill-color').trim();
+        if (pillColor) explain.style.setProperty('--pill-color', pillColor);
+        renderTopContinuityExplain(explain, pill, copy, key);
+        setTopContinuityExplainInteractive(explain, true);
+        pill.classList.add('is-explaining');
+        pill.setAttribute('aria-expanded', 'true');
+        explain.setAttribute('aria-hidden', 'false');
         explain.classList.add('is-visible');
+        positionTopContinuityExplain(pill);
+        window.requestAnimationFrame(() => positionTopContinuityExplain(pill));
     }
+
+    const repositionTopContinuityExplanation = debounce(() => {
+        if (!explainActiveKey || !explainActivePill) return;
+        positionTopContinuityExplain(explainActivePill);
+    }, 150);
 
     if (topContinuityPanel && topContinuityHistory && topContinuityPanel.dataset.historyWired !== '1') {
         topContinuityPanel.dataset.historyWired = '1';
@@ -2499,10 +2629,28 @@ function initUptimeClock() {
         topContinuityPanel.querySelectorAll('.top-continuity-stat[data-card-history]').forEach((pill) => {
             if (pill.dataset.topContinuityHistoryPillWired === '1') return;
             pill.dataset.topContinuityHistoryPillWired = '1';
+            pill.setAttribute('aria-controls', 'top-continuity-explain');
+            pill.setAttribute('aria-expanded', 'false');
             pill.addEventListener('click', () => {
-                showTopContinuityExplanation(pill);
+                if (explainActiveKey === pill.dataset.cardHistory) {
+                    closeTopContinuityExplanation();
+                    return;
+                }
+                openTopContinuityExplanation(pill);
             });
         });
+        document.addEventListener('click', (event) => {
+            if (!explainActiveKey) return;
+            const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+            if (!target) return;
+            if (target.closest('#top-continuity-explain, .top-continuity-stat')) return;
+            closeTopContinuityExplanation();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape' || !explainActiveKey) return;
+            closeTopContinuityExplanation({ returnFocus: true });
+        });
+        window.addEventListener('resize', repositionTopContinuityExplanation);
     }
 
     function syncChainProofMetrics() {
