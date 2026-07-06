@@ -78,6 +78,7 @@
     /* Subtle effects */
     --blur-amount: 24px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --toast-base-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 
     /* Header proof palette */
     --header-title-color: #45E0C8;
@@ -8449,33 +8450,35 @@ body.high-combo .stat-card {
     --streak-toast-glow: rgba(91, 141, 239, 0.16);
     --streak-toast-pop-glow: rgba(91, 141, 239, 0.34);
     position: fixed;
-    bottom: 20px;
-    left: 20px;
+    bottom: var(--toast-safe-bottom, var(--toast-base-bottom));
+    right: 20px;
     display: inline-flex;
     align-items: center;
+    gap: 10px;
     min-height: 36px;
-    max-width: calc(100vw - 40px);
+    width: max-content;
+    max-width: min(420px, calc(100vw - 40px));
     background: var(--streak-toast-bg);
     border: 1px solid var(--streak-toast-border);
     color: var(--streak-toast-color);
-    padding: 8px 14px;
+    padding: 10px 14px;
     border-radius: 8px;
     font-size: 0.82rem;
-    line-height: 1.2;
+    line-height: 1.25;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-weight: 700;
     z-index: 1000;
     opacity: 0;
-    transform: translateY(18px) scale(0.9);
-    transform-origin: left bottom;
-    transition: opacity 0.28s ease, transform 0.32s ease;
+    transform: translate3d(18px, 18px, 0) scale(0.9);
+    transform-origin: right bottom;
+    transition: bottom 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease, transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), 0 0 16px var(--streak-toast-glow);
     letter-spacing: 0;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    will-change: opacity, transform, box-shadow;
 }
 
 .visit-streak-toast::after {
@@ -8491,7 +8494,7 @@ body.high-combo .stat-card {
 
 .visit-streak-toast.visible {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0) scale(1);
     animation: visit-streak-pop 0.62s cubic-bezier(0.2, 1.35, 0.32, 1) both;
 }
 
@@ -8501,29 +8504,56 @@ body.high-combo .stat-card {
 
 .visit-streak-toast.milestone {
     border-color: var(--streak-toast-strong-border);
+    pointer-events: auto;
 }
 
 .visit-streak-toast.visible.milestone {
     animation: visit-streak-pop 0.62s cubic-bezier(0.2, 1.35, 0.32, 1) both, visit-streak-glow 2s ease-in-out 0.62s infinite;
 }
 
+.visit-streak-copy {
+    min-width: 0;
+}
+
+.visit-streak-share {
+    flex: 0 0 auto;
+    border: 1px solid var(--streak-toast-strong-border);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--streak-toast-color) 11%, transparent);
+    color: var(--streak-toast-color);
+    padding: 5px 9px;
+    font: inherit;
+    font-size: 0.72rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.visit-streak-share:hover {
+    background: color-mix(in srgb, var(--streak-toast-color) 18%, transparent);
+}
+
+.visit-streak-share:active {
+    transform: translateY(1px) scale(0.98);
+}
+
 @keyframes visit-streak-pop {
     0% {
         opacity: 0;
-        transform: translateY(18px) scale(0.82);
+        transform: translate3d(18px, 18px, 0) scale(0.82);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 0 var(--streak-toast-glow);
     }
     42% {
         opacity: 1;
-        transform: translateY(-6px) scale(1.1);
+        transform: translate3d(-3px, -6px, 0) scale(1.06);
         box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32), 0 0 34px var(--streak-toast-pop-glow);
     }
     68% {
-        transform: translateY(2px) scale(0.98);
+        transform: translate3d(1px, 2px, 0) scale(0.985);
     }
     100% {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translate3d(0, 0, 0) scale(1);
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), 0 0 16px var(--streak-toast-glow);
     }
 }
@@ -8675,11 +8705,15 @@ body.high-combo .stat-card {
 
 @media (max-width: 768px) {
     .visit-streak-toast {
-        bottom: 12px;
+        bottom: var(--toast-safe-bottom, calc(12px + env(safe-area-inset-bottom, 0px)));
         left: 12px;
+        right: 12px;
+        width: auto;
         font-size: 0.72rem;
         padding: 6px 12px;
-        max-width: calc(100vw - 24px);
+        max-width: none;
+        justify-content: center;
+        text-align: center;
     }
 }
 
@@ -12650,13 +12684,14 @@ body {
 
 #moments-toast-container {
     position: fixed;
-    bottom: 20px;
+    bottom: var(--toast-safe-bottom, var(--toast-base-bottom));
     right: 20px;
     z-index: 10002;
     display: flex;
     flex-direction: column;
     gap: 10px;
     pointer-events: none;
+    transition: bottom 0.42s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (max-width: 600px) {
@@ -12664,7 +12699,7 @@ body {
         right: 50%;
         transform: translateX(50%);
         width: 90%;
-        bottom: 16px;
+        bottom: var(--toast-safe-bottom, calc(16px + env(safe-area-inset-bottom, 0px)));
     }
 }
 
@@ -12681,21 +12716,22 @@ body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.1);
     backdrop-filter: blur(12px);
     opacity: 0;
-    transform: translateY(30px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
+    transform: translate3d(18px, 28px, 0) scale(0.96);
+    transform-origin: right bottom;
+    transition: opacity 0.34s ease, transform 0.46s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s ease;
     overflow: hidden;
     position: relative;
 }
 
 .moment-toast.visible {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0) scale(1);
 }
 
 .moment-toast.exiting {
     opacity: 0;
-    transform: translateY(30px);
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transform: translate3d(14px, 24px, 0) scale(0.97);
+    transition: opacity 0.26s ease, transform 0.32s cubic-bezier(0.4, 0, 1, 1);
 }
 
 .moment-toast-header {
@@ -12778,6 +12814,20 @@ body {
     width: 100%;
     background: rgba(0, 212, 255, 0.6);
     transition: width 15s linear;
+    transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #moments-toast-container {
+        transition: none;
+    }
+
+    .moment-toast,
+    .moment-toast.visible,
+    .moment-toast.exiting {
+        animation: none;
+        transition: none;
+    }
 }
 
 /* ─── Moments Dismiss Button ──────────────────────────────────── */

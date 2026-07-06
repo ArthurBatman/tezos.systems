@@ -5,6 +5,9 @@
 
 const STORAGE_KEY_COUNT = 'tezos_streak_count';
 const STORAGE_KEY_LAST = 'tezos_streak_last_visit';
+const FIRST_VISIT_TOAST_DURATION = 7200;
+const STREAK_TOAST_DURATION = 6400;
+const MILESTONE_TOAST_DURATION = 11000;
 const MILESTONES = new Set([7, 14, 30, 60, 100, 365]);
 const MILESTONE_COPY = {
     7: '🍞 One week in the bakery.',
@@ -171,7 +174,7 @@ export function initStreak() {
     if (isNew) {
         enqueueToast({
             priority: 1,
-            duration: 3600,
+            duration: FIRST_VISIT_TOAST_DURATION,
             show: (done, duration) => showStreakToast({
                 text: 'Welcome 👋 — this dashboard is watching Tezos live. Press / to search anything.',
                 count,
@@ -183,7 +186,7 @@ export function initStreak() {
     const isMilestone = MILESTONES.has(count);
     enqueueToast({
         priority: 3,
-        duration: isMilestone ? 10000 : 6000,
+        duration: isMilestone ? MILESTONE_TOAST_DURATION : STREAK_TOAST_DURATION,
         show: (done, duration) => showStreakToast({
             text: formatStreak(count),
             count,

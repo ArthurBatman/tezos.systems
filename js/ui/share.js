@@ -4,9 +4,12 @@
 
 import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgradeOrdinal } from '../core/protocol-count.js';
 import { loadStats } from '../core/storage.js';
+import { releaseToastSafeArea, reserveToastSafeArea } from './toast-queue.js';
 
 let html2canvasLoaded = false;
 let _html2canvasPromise = null;
+const SHARE_NOTIFICATION_SAFE_AREA_KEY = 'share-notification';
+let shareNotificationSequence = 0;
 
 const CARD_SHARE_ICON_SVG = '<svg class="card-share-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7.8 6H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2.8L14.5 4Z"/><circle cx="12" cy="13" r="3.2"/></svg>';
 const CARD_SHARE_LOADING_ICON = '<span class="card-share-loading" aria-hidden="true"></span>';
@@ -2155,8 +2158,10 @@ function closeShareModal(modal) {
  * Show notification toast
  */
 function showNotification(message, type = 'info') {
+    const notificationSequence = ++shareNotificationSequence;
     const existing = document.querySelector('.share-notification');
     if (existing) existing.remove();
+    releaseToastSafeArea(SHARE_NOTIFICATION_SAFE_AREA_KEY);
     
     const _notifTheme = document.body.getAttribute('data-theme');
     const isMatrix = _notifTheme === 'matrix';
@@ -2184,18 +2189,26 @@ function showNotification(message, type = 'info') {
         font-weight: 500;
         z-index: 10010;
         opacity: 0;
-        transition: all 0.2s ease;
+        transition: opacity 0.22s ease, transform 0.34s cubic-bezier(0.16, 1, 0.3, 1);
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        max-width: min(420px, calc(100vw - 32px));
+        text-align: center;
+        line-height: 1.3;
     `;
     notification.textContent = message;
     document.body.appendChild(notification);
     
     requestAnimationFrame(() => {
+        if (notificationSequence !== shareNotificationSequence) return;
+        const rect = notification.getBoundingClientRect();
+        reserveToastSafeArea(SHARE_NOTIFICATION_SAFE_AREA_KEY, window.innerHeight - rect.top + 12);
         notification.style.opacity = '1';
         notification.style.transform = 'translateX(-50%) translateY(0)';
     });
     
     setTimeout(() => {
+        if (notificationSequence !== shareNotificationSequence) return;
+        releaseToastSafeArea(SHARE_NOTIFICATION_SAFE_AREA_KEY);
         notification.style.opacity = '0';
         notification.style.transform = 'translateX(-50%) translateY(20px)';
         setTimeout(() => notification.remove(), 200);

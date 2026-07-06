@@ -9,6 +9,54 @@ let active = false;
 let queue = [];
 let gatePromise = null;
 let gateSettled = false;
+const safeAreaReservations = new Map();
+
+function normalizeSafeAreaBottom(bottomPx) {
+    const bottom = Number(bottomPx);
+    if (!Number.isFinite(bottom) || bottom <= 0) return 0;
+    return Math.ceil(bottom);
+}
+
+function applyToastSafeArea() {
+    if (typeof document === 'undefined') return;
+    let bottom = 0;
+    safeAreaReservations.forEach((value) => {
+        bottom = Math.max(bottom, normalizeSafeAreaBottom(value));
+    });
+
+    const root = document.documentElement;
+    if (bottom > 0) {
+        root.style.setProperty('--toast-safe-bottom', `calc(${bottom}px + env(safe-area-inset-bottom, 0px))`);
+        document.body?.classList.add('toast-safe-area-raised');
+    } else {
+        root.style.removeProperty('--toast-safe-bottom');
+        document.body?.classList.remove('toast-safe-area-raised');
+    }
+}
+
+export function reserveToastSafeArea(key, bottomPx) {
+    if (!key) return;
+    const bottom = normalizeSafeAreaBottom(bottomPx);
+    if (bottom <= 0) {
+        safeAreaReservations.delete(key);
+    } else {
+        safeAreaReservations.set(key, bottom);
+    }
+    applyToastSafeArea();
+}
+
+export function releaseToastSafeArea(key) {
+    if (!key) return;
+    safeAreaReservations.delete(key);
+    applyToastSafeArea();
+}
+
+if (typeof window !== 'undefined') {
+    window.tezosSystemsToastSafeArea = {
+        reserve: reserveToastSafeArea,
+        release: releaseToastSafeArea
+    };
+}
 
 function getWindowGate() {
     if (gatePromise || gateSettled || typeof window === 'undefined') return gatePromise;

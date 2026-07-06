@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-05',
         entries: [
+            { type: '🎨', text: 'Visit streak, first-visit, share, and Network Moment toasts now share a smoother bottom rail with longer welcome timing and animated safe-area settling' },
             { type: '🔧', text: 'Network Moments now only celebrate forward milestone movement, keeping declining thresholds out of victory toasts' },
             { type: '✨', text: 'SEO pages now share a connected Tezos Systems map, footer, and nav path back into the live dashboard and chambers' },
             { type: '✨', text: 'Protocol Anthology now has a crawlable /anthology/ doorway for the self-amendment story room' },

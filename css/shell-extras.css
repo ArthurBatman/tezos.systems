@@ -1348,7 +1348,7 @@
     #moments-toast-container {
         left: 8px;
         right: 8px;
-        bottom: 84px;
+        bottom: var(--toast-safe-bottom, calc(16px + env(safe-area-inset-bottom, 0px)));
         width: auto;
         transform: none;
         align-items: stretch;
@@ -1364,7 +1364,7 @@
     .visit-streak-toast {
         left: 8px;
         right: 8px;
-        bottom: 84px;
+        bottom: var(--toast-safe-bottom, calc(16px + env(safe-area-inset-bottom, 0px)));
         max-width: none;
         width: auto;
         justify-content: space-between;

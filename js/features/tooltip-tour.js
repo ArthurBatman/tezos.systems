@@ -2,6 +2,7 @@
 (function () {
     const TOUR_KEY = 'tezos-toured';
     const WELCOMED_KEY = 'tezos-welcomed'; // respect welcome-terminal key too
+    const TOAST_SAFE_AREA_KEY = 'tour-nudge';
     const VIEWPORT_PAD = 16;
     const TOOLTIP_GAP = 16;
     if (localStorage.getItem(TOUR_KEY) || localStorage.getItem(WELCOMED_KEY)) return;
@@ -67,18 +68,36 @@
         var style = document.createElement('style');
         style.id = 'tour-nudge-toast-avoidance';
         style.textContent = [
-            'body.tour-nudge-visible #moments-toast-container{bottom:var(--tour-nudge-toast-bottom,132px);z-index:100000;}',
-            'body.tour-nudge-visible .visit-streak-toast{bottom:var(--tour-nudge-toast-bottom,132px);z-index:100000;}',
+            'body.tour-nudge-visible #moments-toast-container{z-index:100000;}',
+            'body.tour-nudge-visible .visit-streak-toast{z-index:100000;}',
             '@media(max-width:600px){body.tour-nudge-visible #moments-toast-container{left:8px;right:8px;width:auto;transform:none;align-items:stretch;}body.tour-nudge-visible #moments-toast-container .moment-toast{width:100%;min-width:0;max-width:none;box-sizing:border-box;}}'
         ].join('');
         document.head.appendChild(style);
     }
 
+    function reserveToastSpace(bottom) {
+        var manager = window.tezosSystemsToastSafeArea;
+        if (manager && typeof manager.reserve === 'function') {
+            manager.reserve(TOAST_SAFE_AREA_KEY, bottom);
+            return;
+        }
+        document.documentElement.style.setProperty('--toast-safe-bottom', 'calc(' + bottom + 'px + env(safe-area-inset-bottom, 0px))');
+    }
+
+    function releaseToastSpace() {
+        var manager = window.tezosSystemsToastSafeArea;
+        if (manager && typeof manager.release === 'function') {
+            manager.release(TOAST_SAFE_AREA_KEY);
+            return;
+        }
+        document.documentElement.style.removeProperty('--toast-safe-bottom');
+    }
+
     function syncNudgeToastOffset() {
         if (!nudge) return;
         var rect = nudge.getBoundingClientRect();
-        var bottom = Math.ceil(rect.height + 32);
-        document.body.style.setProperty('--tour-nudge-toast-bottom', bottom + 'px');
+        var bottom = Math.ceil(window.innerHeight - rect.top + 12);
+        reserveToastSpace(bottom);
     }
 
     function setNudgeVisibleState() {
@@ -94,7 +113,7 @@
 
     function clearNudgeVisibleState() {
         document.body.classList.remove('tour-nudge-visible');
-        document.body.style.removeProperty('--tour-nudge-toast-bottom');
+        releaseToastSpace();
         if (nudgeResizeHandler) {
             window.removeEventListener('resize', nudgeResizeHandler);
             nudgeResizeHandler = null;
