@@ -96,7 +96,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=340';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=344';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2344,6 +2344,12 @@ function initUptimeClock() {
 
         const nextText = String(text);
         if (el.dataset.finalText === nextText && !options.changed) return;
+
+        const pill = el.closest('.top-continuity-stat');
+        if (pill?.classList.contains('is-loading')) {
+            pill.classList.remove('is-loading');
+            pill.removeAttribute('aria-busy');
+        }
 
         const hadFinalText = Boolean(el.dataset.finalText);
         const currentText = el.dataset.finalText || el.textContent.trim();

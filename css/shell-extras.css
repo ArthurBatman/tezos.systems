@@ -1,3 +1,68 @@
+.block-ticker-minted .block-ticker-value,
+.block-ticker-fees .block-ticker-value {
+    width: 6.6ch;
+}
+
+.block-ticker-cluster {
+    position: relative;
+    display: inline-flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    align-items: baseline;
+    gap: 0.55rem;
+    margin-left: auto;
+    padding: 0.34rem 0.58rem;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 22%, transparent);
+    border-radius: 999px;
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--accent-cyan) 9%, transparent), color-mix(in srgb, var(--accent-purple) 7%, transparent));
+}
+
+.block-ticker-cluster-kicker {
+    flex: 0 0 auto;
+    align-self: center;
+    color: color-mix(in srgb, var(--accent-cyan) 80%, var(--text-primary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.56rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.block-ticker-cluster .block-ticker-label {
+    color: color-mix(in srgb, var(--accent-cyan) 45%, var(--text-muted));
+}
+
+.block-ticker-usage-tx .block-ticker-value {
+    min-width: 5.4ch;
+}
+
+.block-ticker-usage-moved .block-ticker-value {
+    min-width: 6.2ch;
+}
+
+.block-ticker-usage-nft .block-ticker-value {
+    min-width: 3.4ch;
+}
+
+.block-ticker-whale .block-ticker-value {
+    max-width: 16ch;
+}
+
+@media (max-width: 1479px) {
+    .block-ticker-segment.block-ticker-whale {
+        display: none;
+    }
+}
+
+@media (max-width: 1119px) {
+    .block-ticker-cluster {
+        display: none;
+    }
+}
+
 .top-continuity-explain {
     position: absolute;
     top: calc(100% + 12px);

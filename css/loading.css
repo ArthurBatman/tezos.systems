@@ -83,8 +83,30 @@
     animation: shimmer 1.6s ease-in-out infinite;
 }
 
+.top-continuity-stat.is-loading strong {
+    display: inline-block;
+    width: 2.8rem;
+    height: 0.9em;
+    border-radius: 999px;
+    color: transparent !important;
+    text-shadow: none !important;
+    background: linear-gradient(90deg, var(--glass-bg) 25%, rgba(255,255,255,0.1) 50%, var(--glass-bg) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.top-continuity-stat.is-loading .top-continuity-label {
+    opacity: 0.76;
+}
+
+[data-theme="clean"] .top-continuity-stat.is-loading strong {
+    background: linear-gradient(90deg, #f0f1f3 25%, #dbe4f0 50%, #f0f1f3 75%);
+    background-size: 200% 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .hero-arrival-pending .top-continuity-stat strong {
+    .hero-arrival-pending .top-continuity-stat strong,
+    .top-continuity-stat.is-loading strong {
         animation: none;
     }
 }

@@ -173,11 +173,13 @@ export function updateCyclePulse(stats) {
   const chipLabel = document.getElementById('cycle-chip-label');
   const chipPct = document.getElementById('cycle-chip-pct');
   const progressBar = document.getElementById('price-bar-progress');
-  if (chipLabel) chipLabel.textContent = `C${cycle || '—'}`;
-  if (chipPct) chipPct.textContent = `${progress.toFixed(1)}%`;
+  const cycleChip = document.getElementById('cycle-chip');
+  cycleChip?.classList.toggle('is-loading', !validCycle);
+  if (chipLabel) chipLabel.textContent = validCycle ? `C${cycle}` : 'sync';
+  if (chipPct) chipPct.textContent = validCycle ? `${progress.toFixed(1)}%` : 'live';
   const blockLevel = Number(stats?.blockLevel ?? stats?.currentStats?.blockLevel ?? 0);
   if (chipBlock && blockLevel) chipBlock.textContent = blockLevel.toLocaleString();
-  if (progressBar) progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+  if (progressBar) progressBar.style.width = `${validCycle ? Math.min(100, Math.max(0, progress)) : 0}%`;
 
   if (cycleAdvanced && cycleJustStarted && !cycleWhispered) {
     cycleWhispered = true;

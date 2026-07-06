@@ -7,6 +7,10 @@ const CHANGELOG = [
     {
         date: '2026-07-06',
         entries: [
+            { type: '✨', text: 'The live block ticker now anchors a 1H network pulse cluster on wide screens — transactions, XTZ moved, NFT transfers, and the latest whale — plus per-block minted and fee totals' },
+            { type: '🎨', text: 'The top shell now groups title, protocol, NFT feed, uptime, and live network pills into one responsive console across themes' },
+            { type: '🎨', text: 'Header typography now steps down more cleanly from the wordmark to uptime and live network pills on wide screens' },
+            { type: '🎨', text: 'The masthead now sits directly on the themed canvas while keeping the uptime rail and live pills aligned to the page column' },
             { type: '🔧', text: 'Header stat pills now open anchored, dismissible explainers with their all-time chart action kept inside the popover' },
             { type: '🎨', text: 'Live NFT feed doorway is now a themed header pill across every theme, with HEN keeping its terminal treatment' },
         ]

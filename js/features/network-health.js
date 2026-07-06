@@ -28,6 +28,9 @@ const AGE_TICK_INTERVAL = 1000;
 const BLOCK_PULSE_THROTTLE = 4 * 1000;
 const ACTIVITY_TAPE_TTL = 60 * 1000;
 const ACTIVITY_TAPE_LIMIT = 5;
+const USAGE_PULSE_TTL = 60 * 1000;
+const USAGE_WINDOW_MS = 60 * 60 * 1000;
+const USAGE_AMOUNT_PAGE_LIMIT = 10000;
 const CYCLE_TIMING_LIMIT = 8;
 const CYCLE_TIMING_TTL = 10 * 60 * 1000;
 const CYCLE_TARGET_SECONDS_FALLBACK = 24 * 60 * 60;
@@ -60,6 +63,9 @@ let savedHtmlOverflow = null;
 let activityTapeCache = [];
 let activityTapeCacheAt = 0;
 let activityTapeInFlight = null;
+let usagePulseCache = null;
+let usagePulseCacheAt = 0;
+let usagePulseInFlight = null;
 let blockTickerAnimationTimer = null;
 let cycleTimingCache = null;
 let cycleTimingCacheAt = 0;
@@ -85,6 +91,14 @@ function formatCompactPower(value) {
         notation: 'compact',
         maximumFractionDigits: value >= 100000000 ? 2 : 1
     }).format(value);
+}
+
+function formatTezAmount(value) {
+    if (!Number.isFinite(value)) return '--';
+    if (value >= 1000) return formatCompactPower(value);
+    if (value >= 1) return value.toFixed(2);
+    if (value >= 0.001) return value.toFixed(3);
+    return value > 0 ? '~0' : '0';
 }
 
 function formatBlockDenominator(value) {
@@ -292,7 +306,75 @@ function animateBlockTicker(strip, line, changed) {
     }, 520);
 }
 
-function renderBlockTickerLine(block, timestamp, octezVersions) {
+function usageSlotContent(slot, usage) {
+    if (slot === 'tx') {
+        return {
+            html: Number.isFinite(usage?.txCount) ? formatCount(usage.txCount) : '--',
+            title: 'Applied transactions across Tezos L1 in the trailing hour'
+        };
+    }
+    if (slot === 'moved') {
+        const known = Number.isFinite(usage?.movedXtz);
+        const suffix = usage?.movedClipped ? '+' : '';
+        return {
+            html: known ? `${formatTezAmount(usage.movedXtz)}${suffix}<small>ꜩ</small>` : '--',
+            title: 'XTZ moved by transactions in the trailing hour'
+        };
+    }
+    if (slot === 'nft') {
+        return {
+            html: Number.isFinite(usage?.nftCount) ? formatCount(usage.nftCount) : '--',
+            title: 'NFT transfers (tokens with artwork metadata) in the trailing hour'
+        };
+    }
+
+    const whale = usage?.whale || null;
+    if (!whale || !Number.isFinite(whale.amount)) {
+        return { html: '--', title: 'Latest transfer of 1,000 XTZ or more' };
+    }
+    const target = whale.target || 'unknown';
+    return {
+        html: `${formatTezAmount(whale.amount)}<small>ꜩ</small> → ${escapeHtml(target)}`,
+        title: `Latest ≥1,000 XTZ transfer: ${formatCount(Math.round(whale.amount))} XTZ from ${whale.sender || 'unknown'} to ${target} (${whale.method || 'transfer'}), ${formatAge(whale.timestamp)}`
+    };
+}
+
+const USAGE_SLOTS = [
+    { slot: 'tx', label: 'TX', className: 'block-ticker-usage-tx' },
+    { slot: 'moved', label: 'Moved', className: 'block-ticker-usage-moved' },
+    { slot: 'nft', label: 'NFT', className: 'block-ticker-usage-nft' },
+    { slot: 'whale', label: 'Whale', className: 'block-ticker-whale' }
+];
+
+function renderTickerUsageCluster(usage) {
+    const segments = USAGE_SLOTS.map(({ slot, label, className }) => {
+        const { html, title } = usageSlotContent(slot, usage);
+        return `
+        <span class="block-ticker-segment block-ticker-usage ${className}">
+            <span class="block-ticker-label">${label}</span>
+            <strong class="block-ticker-value" data-usage-slot="${slot}" title="${escapeHtml(title)}">${html}</strong>
+        </span>`;
+    }).join('');
+    return `
+        <span class="block-ticker-cluster" title="Network pulse — trailing hour across Tezos L1">
+            <span class="block-ticker-cluster-kicker" aria-hidden="true">1H</span>${segments}
+        </span>`;
+}
+
+function patchTickerUsage(usage) {
+    const line = document.getElementById('block-ticker-line');
+    if (!line || !usage?.updatedAt) return;
+    const stamp = String(usage.updatedAt);
+    if (line.dataset.usagePulseStamp === stamp) return;
+    line.dataset.usagePulseStamp = stamp;
+    line.querySelectorAll('[data-usage-slot]').forEach((element) => {
+        const { html, title } = usageSlotContent(element.dataset.usageSlot, usage);
+        element.innerHTML = html;
+        element.title = title;
+    });
+}
+
+function renderBlockTickerLine(block, timestamp, octezVersions, usage) {
     const status = latestBlockStatus(block);
     const producer = block?.producer || {};
     const name = bakerName(producer);
@@ -302,6 +384,8 @@ function renderBlockTickerLine(block, timestamp, octezVersions) {
         ? `Octez ${octez.value}: ${octez.label}${octez.latestVersion ? `; latest observed ${octez.latestVersion}` : ''}`
         : 'Octez version unavailable for this baker';
     const octezStyle = octez.color ? ` style="color:${octez.color}"` : '';
+    const minted = block?.mintedMutez === null ? '--' : `${formatTezAmount(block.mintedMutez / 1e6)}<small>ꜩ</small>`;
+    const fees = block?.feesMutez === null ? '--' : `${formatTezAmount(block.feesMutez / 1e6)}<small>ꜩ</small>`;
 
     return `
         <span class="block-ticker-segment block-ticker-level">
@@ -324,6 +408,14 @@ function renderBlockTickerLine(block, timestamp, octezVersions) {
             <span class="block-ticker-label">Attested</span>
             <strong class="block-ticker-value">${formatCount(block.power)}<small>/${formatCount(block.committee)}</small></strong>
         </span>
+        <span class="block-ticker-segment block-ticker-minted" data-ticker-priority="wide">
+            <span class="block-ticker-label">Minted</span>
+            <strong class="block-ticker-value" title="XTZ minted by this block: baking and attestation rewards plus bonuses">${minted}</strong>
+        </span>
+        <span class="block-ticker-segment block-ticker-fees" data-ticker-priority="wide">
+            <span class="block-ticker-label">Fees</span>
+            <strong class="block-ticker-value" title="Total transaction fees paid in this block">${fees}</strong>
+        </span>
         <span class="block-ticker-segment block-ticker-round" data-ticker-priority="optional">
             <span class="block-ticker-label">Round</span>
             <strong class="block-ticker-value">${escapeHtml(round)}</strong>
@@ -332,6 +424,7 @@ function renderBlockTickerLine(block, timestamp, octezVersions) {
             <span class="block-ticker-label">Age</span>
             <strong class="block-ticker-value" data-health-age="${escapeHtml(timestamp || '')}" data-health-age-format="ticker">${escapeHtml(formatTickerAge(timestamp))}</strong>
         </span>
+        ${renderTickerUsageCluster(usage)}
     `;
 }
 
@@ -352,6 +445,8 @@ function updateBlockTicker(data, { error = false } = {}) {
         return;
     }
 
+    fetchUsagePulse().then(patchTickerUsage);
+
     const timestamp = getHeadTimestamp(data);
     const status = latestBlockStatus(latest);
     const producerName = bakerName(latest.producer);
@@ -369,7 +464,11 @@ function updateBlockTicker(data, { error = false } = {}) {
     const octezTitle = octez.known
         ? ` Octez ${octez.value}: ${octez.label}${octez.latestVersion ? `; latest observed ${octez.latestVersion}.` : '.'}`
         : ' Octez version unavailable for this baker.';
-    const title = `Block ${formatCount(latest.level)} baked by ${producerName}. ${status.label}: ${formatCount(latest.power)} / ${formatCount(latest.committee)} attested, ${formatCount(latest.missedPower)} missed, round ${formatCount(latest.blockRound)}.${octezTitle}`;
+    const usage = usagePulseCache;
+    const usageTitle = usage && Number.isFinite(usage.txCount)
+        ? ` Last hour: ${formatCount(usage.txCount)} transactions${Number.isFinite(usage.movedXtz) ? `, ${formatTezAmount(usage.movedXtz)}${usage.movedClipped ? '+' : ''} XTZ moved` : ''}${Number.isFinite(usage.nftCount) ? `, ${formatCount(usage.nftCount)} NFT transfers` : ''}.`
+        : '';
+    const title = `Block ${formatCount(latest.level)} baked by ${producerName}. ${status.label}: ${formatCount(latest.power)} / ${formatCount(latest.committee)} attested, ${formatCount(latest.missedPower)} missed, round ${formatCount(latest.blockRound)}.${octezTitle}${usageTitle}`;
 
     strip.dataset.blockHealth = status.className;
     button.title = title;
@@ -382,7 +481,8 @@ function updateBlockTicker(data, { error = false } = {}) {
 
     const previousSignature = line.dataset.blockTickerSignature || '';
     line.dataset.blockTickerSignature = signature;
-    line.innerHTML = renderBlockTickerLine(latest, timestamp, data?.octezVersions);
+    line.dataset.usagePulseStamp = String(usage?.updatedAt || '');
+    line.innerHTML = renderBlockTickerLine(latest, timestamp, data?.octezVersions, usage);
     animateBlockTicker(strip, line, Boolean(previousSignature && previousSignature !== signature));
 }
 
@@ -819,6 +919,50 @@ async function fetchActivityTape({ force = false } = {}) {
     return activityTapeInFlight;
 }
 
+function usageWindowStart() {
+    const start = new Date(Date.now() - USAGE_WINDOW_MS);
+    start.setSeconds(0, 0);
+    return encodeURIComponent(start.toISOString());
+}
+
+async function fetchUsagePulse({ force = false } = {}) {
+    if (!force && usagePulseCache && Date.now() - usagePulseCacheAt < USAGE_PULSE_TTL) {
+        return usagePulseCache;
+    }
+    if (usagePulseInFlight) return usagePulseInFlight;
+
+    const since = usageWindowStart();
+    usagePulseInFlight = Promise.all([
+        fetchJson(`${TZKT}/operations/transactions/count?timestamp.ge=${since}`, 1).catch(() => null),
+        fetchJson(`${TZKT}/operations/transactions?status=applied&timestamp.ge=${since}&select=amount&limit=${USAGE_AMOUNT_PAGE_LIMIT}`, 1).catch(() => null),
+        fetchJson(`${TZKT}/tokens/transfers/count?token.metadata.artifactUri.null=false&timestamp.ge=${since}`, 1).catch(() => null),
+        fetchActivityTape().catch(() => activityTapeCache)
+    ]).then(([txCount, amounts, nftCount, tape]) => {
+        const previous = usagePulseCache;
+        const amountRows = Array.isArray(amounts) ? amounts : null;
+        const movedXtz = amountRows
+            ? amountRows.reduce((sum, value) => sum + (Number(value) || 0), 0) / 1e6
+            : null;
+        usagePulseCache = {
+            updatedAt: Date.now(),
+            txCount: Number.isFinite(Number(txCount)) ? Number(txCount) : (previous?.txCount ?? null),
+            movedXtz: Number.isFinite(movedXtz) ? movedXtz : (previous?.movedXtz ?? null),
+            movedClipped: amountRows ? amountRows.length >= USAGE_AMOUNT_PAGE_LIMIT : Boolean(previous?.movedClipped),
+            nftCount: Number.isFinite(Number(nftCount)) ? Number(nftCount) : (previous?.nftCount ?? null),
+            whale: (Array.isArray(tape) && tape[0]) || previous?.whale || null
+        };
+        usagePulseCacheAt = Date.now();
+        return usagePulseCache;
+    }).catch((error) => {
+        console.warn('Network Health usage pulse failed:', error);
+        return usagePulseCache;
+    }).finally(() => {
+        usagePulseInFlight = null;
+    });
+
+    return usagePulseInFlight;
+}
+
 function normalizeOctezSoftware(software) {
     const rawVersion = typeof software === 'string' ? software : software?.version;
     const rawDate = typeof software === 'object' && software ? software.date : null;
@@ -1155,6 +1299,11 @@ function normalizeBlock(block) {
     const power = Math.max(0, Math.min(Number.isFinite(rawPower) ? rawPower : 0, committee));
     const payloadRound = numericRound(block.payloadRound);
     const blockRound = Number.isFinite(Number(block.blockRound)) ? Number(block.blockRound) : payloadRound;
+    const feesMutez = Number(block.fees);
+    const rewardParts = [
+        block.rewardDelegated, block.rewardStakedOwn, block.rewardStakedEdge, block.rewardStakedShared,
+        block.bonusDelegated, block.bonusStakedOwn, block.bonusStakedEdge, block.bonusStakedShared
+    ].map(Number);
     return {
         level: Number(block.level) || 0,
         timestamp: block.timestamp || null,
@@ -1166,7 +1315,11 @@ function normalizeBlock(block) {
         committee,
         missedPower: Math.max(0, committee - power),
         intervalSeconds: null,
-        score: committee > 0 ? (power / committee) * 100 : 0
+        score: committee > 0 ? (power / committee) * 100 : 0,
+        feesMutez: Number.isFinite(feesMutez) ? feesMutez : null,
+        mintedMutez: rewardParts.some(Number.isFinite)
+            ? rewardParts.reduce((sum, part) => sum + (Number.isFinite(part) ? part : 0), 0)
+            : null
     };
 }
 
@@ -1219,7 +1372,9 @@ function summarizeTiming(blocks) {
 }
 
 async function fetchRecentBlocks(limit = LAST_BLOCK_LIMIT) {
-    const fields = 'level,timestamp,producer,proposer,attestationPower,attestationCommittee,payloadRound,blockRound';
+    const fields = 'level,timestamp,producer,proposer,attestationPower,attestationCommittee,payloadRound,blockRound'
+        + ',fees,rewardDelegated,rewardStakedOwn,rewardStakedEdge,rewardStakedShared'
+        + ',bonusDelegated,bonusStakedOwn,bonusStakedEdge,bonusStakedShared';
     const url = `${TZKT}/blocks?sort.desc=level&limit=${limit}&select=${fields}`;
     const blocks = await fetchJson(url);
     return addBlockIntervals((Array.isArray(blocks) ? blocks : []).map(normalizeBlock));
