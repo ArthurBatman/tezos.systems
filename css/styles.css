@@ -652,7 +652,7 @@ body::before {
     position: relative;
     width: var(--page-col);
     margin: 1rem auto 1.25rem;
-    padding: clamp(0.85rem, 1.45vw, 1.15rem) 0 0;
+    padding: clamp(0.85rem, 1.45vw, 1.15rem) clamp(1.25rem, 2.35vw, 2.75rem) 0;
 }
 
 .header-content {
@@ -5315,7 +5315,7 @@ body::before {
     .header {
         width: calc(100% - 24px);
         margin: 0.65rem auto 1rem;
-        padding: 0.75rem 0 0;
+        padding: 0.75rem clamp(0.85rem, 4vw, 1.15rem) 0;
     }
 
     .controls {
