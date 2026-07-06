@@ -22752,14 +22752,10 @@ body[data-theme="hen"]::after {
     animation: hen-idle-dot 1.8s ease-in-out infinite;
 }
 
-[data-theme="hen"] :is(.upgrade-clock, .command-deck, .protocol-ribbon, .hero-slot, .tezos-loop-console, .morning-brief, .daily-briefing, .briefing-card) {
+[data-theme="hen"] :is(.upgrade-clock, .command-deck, .hero-slot, .tezos-loop-console, .morning-brief, .daily-briefing, .briefing-card) {
     background: #0f0f0f !important;
     border: 1px solid #222222 !important;
     box-shadow: none !important;
-}
-
-[data-theme="hen"] .protocol-ribbon {
-    box-shadow: inset 2px 0 0 #00ff88 !important;
 }
 
 [data-theme="hen"] .tezos-loop-title,
@@ -22787,44 +22783,6 @@ body[data-theme="hen"]::after {
 [data-theme="hen"] .recruit-card strong,
 [data-theme="hen"] .tezos-loop-hints strong {
     color: #00ff88;
-}
-
-[data-theme="hen"] .protocol-ribbon-kicker,
-[data-theme="hen"] .protocol-ribbon-next {
-    color: var(--text-secondary);
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0 !important;
-}
-
-[data-theme="hen"] .protocol-ribbon-segment {
-    background: #222222;
-}
-
-[data-theme="hen"] .protocol-ribbon-dot {
-    border-color: #00d4ff;
-    background: #0a0a0a;
-    box-shadow: none;
-}
-
-[data-theme="hen"] .protocol-ribbon-tick:hover .protocol-ribbon-dot,
-[data-theme="hen"] .protocol-ribbon-tick:focus-visible .protocol-ribbon-dot,
-[data-theme="hen"] .protocol-ribbon-tick.is-current .protocol-ribbon-dot {
-    background: #00ff88;
-    border-color: #00ff88;
-    box-shadow: 0 0 8px rgba(0, 255, 136, 0.28);
-}
-
-[data-theme="hen"] .protocol-ribbon-name,
-[data-theme="hen"] .protocol-ribbon-next {
-    background: #101010;
-    border: 1px solid #222222;
-    box-shadow: none;
-}
-
-[data-theme="hen"] .protocol-ribbon-next:hover,
-[data-theme="hen"] .protocol-ribbon-next:focus-visible {
-    border-color: #00d4ff;
-    color: #00d4ff;
 }
 
 [data-theme="hen"] .hero-search-form {
@@ -23103,9 +23061,6 @@ body[data-theme="hen"]::after {
     /* C5: tighten density so the terminal reads packed, not airy */
     [data-theme="hen"] :is(.chamber-entry-card, .health-entry-card, .tz4-entry-card, .lb-entry-card, .stat-card) .card-front {
         padding: 0.7rem 0.75rem;
-    }
-    [data-theme="hen"] .protocol-ribbon {
-        padding: 0.85rem !important;
     }
 }
 

@@ -328,6 +328,7 @@ async function checkCacheBustAlignment() {
   const themePreloadScriptMatch = index.match(/js\/core\/theme-preload\.js\?v=(\d+)/);
   const cacheMatch = sw.match(/CACHE_NAME\s*=\s*['"]tezos-systems-v(\d+)['"]/);
   const heroSearchCssMatch = heroSearch.match(/HERO_SEARCH_CSS_URL\s*=\s*['"]\/css\/hero-search\.css\?v=(\d+)['"]/);
+  const shellExtrasCssMatch = app.match(/SHELL_EXTRAS_CSS_URL\s*=\s*['"]\/css\/shell-extras\.css\?v=(\d+)['"]/);
   const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
@@ -340,6 +341,7 @@ async function checkCacheBustAlignment() {
   if (!themePreloadScriptMatch) fail('index.html theme-preload.js script must carry a ?v= cache stamp');
   if (!cacheMatch) fail('sw.js CACHE_NAME must be tezos-systems-vNN');
   if (!heroSearchCssMatch) fail('search.js hero-search.css loader must carry a ?v= cache stamp');
+  if (!shellExtrasCssMatch) fail('app.js shell-extras.css loader must carry a ?v= cache stamp');
   if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
@@ -353,12 +355,13 @@ async function checkCacheBustAlignment() {
     themePreloadScriptMatch?.[1],
     cacheMatch?.[1],
     heroSearchCssMatch?.[1],
+    shellExtrasCssMatch?.[1],
     leaderboardCssMatch?.[1],
     ledgerFlowCssMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 9) {
+  } else if (versions.length === 10) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -486,9 +489,6 @@ async function checkSelectorContracts() {
     'header-protocol-chip',
     'header-current-protocol',
     'upgrade-clock',
-    'protocol-ribbon',
-    'protocol-ribbon-track',
-    'protocol-ribbon-next',
     'hero-slot',
     'hero-search-form',
     'hero-search-input',
@@ -541,9 +541,6 @@ async function checkSelectorContracts() {
     ['timeline share protocol history chamber fallback', 'document.querySelector(\'#protocol-history-chamber-modal .protocol-history-chamber-header\')'],
     ['header protocol chip', 'id="header-protocol-chip" href="#protocol-history"'],
     ['command deck shell', 'class="upgrade-clock command-deck"'],
-    ['protocol ribbon shell', 'class="protocol-ribbon" id="protocol-ribbon"'],
-    ['protocol ribbon track', 'class="protocol-ribbon-track" id="protocol-ribbon-track" role="list"'],
-    ['protocol ribbon governance cell', 'class="protocol-ribbon-next" id="protocol-ribbon-next"'],
     ['hero command bar slot', 'class="hero-slot" id="hero-slot"'],
     ['hero command bar combobox', 'aria-controls="hero-search-panel"'],
     ['My Tezos recruit prompt', 'data-hero-query="my tezos"'],
@@ -1119,10 +1116,12 @@ async function checkSelectorContracts() {
     fail('top header uptime badge should not retain the old Zero Forks / Zero Outages proof stamps');
   }
   if (index.includes('continuity-proof') || styles.includes('continuity-proof') || heroSearchCss.includes('continuity-proof') || app.includes('continuity-proof')) {
-    fail('homepage should use the protocol ribbon instead of the retired continuity-proof panel');
+    fail('homepage should not retain the retired continuity-proof panel');
   }
-  for (const snippet of ['protocol-ribbon-tick', 'openProtocolHistoryByName(name)', 'updateProtocolRibbonNextCell']) {
-    if (!app.includes(snippet)) fail(`protocol ribbon app wiring missing: ${snippet}`);
+  for (const [sourceName, source] of [['index.html', index], ['app.js', app], ['hero-search.css', heroSearchCss], ['styles.css', styles]]) {
+    if (source.includes('protocol-ribbon') || source.includes('protocolRibbon') || source.includes('protocol_ribbon') || source.includes('PROTOCOL_RIBBON')) {
+      fail(`${sourceName} should not retain the retired homepage protocol ribbon`);
+    }
   }
   if (/style=["'][^"']*--pill-color/.test(index)) {
     fail('top header stat pills should use theme palette tokens, not inline --pill-color styles');
@@ -1900,7 +1899,12 @@ async function checkDailyBriefingPriceContracts() {
     "import { fetchXTZPrice } from './price.js';",
     'resolvePriceContext',
     'priceChange24h: currentChange24h',
-    'cached.priceChange24h'
+    'cached.priceChange24h',
+    'BRIEFING_SCHEMA_VERSION',
+    'activityNarrative',
+    'ACTIVITY_MEANINGFUL_PCT',
+    'baselineText',
+    'cached.schema !== BRIEFING_SCHEMA_VERSION'
   ];
 
   for (const snippet of requiredSnippets) {
@@ -1912,8 +1916,14 @@ async function checkDailyBriefingPriceContracts() {
   if (!/absPct24h\s*<\s*0\.4\s*\?\s*TEMPLATES\.price\[2\]/.test(briefing)) {
     fail('daily briefing steady-price template must stay gated behind sub-0.4% 24h movement');
   }
+  if (/dir\s*===\s*['"]above['"]\s*\?\s*['"]busy['"]/.test(briefing)) {
+    fail('daily briefing activity copy must not label every above-baseline move as busy');
+  }
+  if (briefing.includes('the 7-day average')) {
+    fail('daily briefing activity copy must not claim a 7-day average when using the saved activity baseline');
+  }
 
-  pass('daily briefing price movement cache contracts checked');
+  pass('daily briefing price and activity movement cache contracts checked');
 }
 
 async function checkNetworkContextNavigationContracts() {

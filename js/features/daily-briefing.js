@@ -10,9 +10,12 @@ import { fetchXTZPrice } from './price.js';
 const LS_BASELINE  = 'tezos-systems-briefing-baseline';
 const LS_BRIEFING  = 'tezos-systems-briefing-cache';
 const LS_LAST_SEEN = 'tezos-systems-briefing-last-seen';
+const BRIEFING_SCHEMA_VERSION = 2;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const HOT_TODAY_LIVE_TICK_MS = 1000;
 const HOT_TODAY_ROTATE_MS = 8000;
+const ACTIVITY_NEUTRAL_PCT = 1;
+const ACTIVITY_MEANINGFUL_PCT = 10;
 
 const CATEGORY_META = {
   baker: { label: 'Baker', icon: '🍞', tone: 'operator', detail: 'Personal operator signal' },
@@ -91,11 +94,11 @@ const TEMPLATES = {
     ({ ratio, delta })          => `${Math.abs(delta) > 0.3 ? `Staking shifted ${delta > 0 ? '+' : ''}${delta.toFixed(2)}pp to` : 'Staking stable at'} ${ratio}%.`,
   ],
   volume: [
-    ({ pct, dir })              => `Transaction volume is ${pct}% ${dir} the 7-day average — chain is ${dir === 'above' ? 'busy' : 'quiet'}.`,
+    ({ baselineText, activityState }) => `Transaction volume is ${baselineText} — chain is ${activityState}.`,
     ({ vol })                   => `${vol.toLocaleString()} on-chain transactions in the last 24h.`,
-    ({ pct, dir })              => `On-chain activity is ${pct}% ${dir} normal levels this cycle.`,
-    ({ vol, pct, dir })         => `${vol.toLocaleString()} txns recorded — ${pct}% ${dir} typical pace.`,
-    ({ vol, dir, pct })         => `Chain throughput: ${vol.toLocaleString()} transactions, trending ${dir} (${pct}%).`,
+    ({ normalText })            => `On-chain activity is ${normalText} this cycle.`,
+    ({ vol, paceText })         => `${vol.toLocaleString()} txns recorded — ${paceText}.`,
+    ({ vol, trendText })        => `Chain throughput: ${vol.toLocaleString()} transactions, trending ${trendText}.`,
   ],
   contracts: [
     ({ count })                 => `Smart contract calls: ${count.toLocaleString()} in the last 24h.`,
@@ -137,6 +140,39 @@ function fmtPrice(p)    { return p < 1 ? p.toFixed(4) : p.toFixed(2); }
 function fmtPct(p)      { return Math.abs(p).toFixed(1); }
 function signedPct(a,b) { return b ? ((a - b) / b) * 100 : 0; }
 function pick(arr)      { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function activityNarrative(deltaPct) {
+  const abs = Math.abs(deltaPct);
+  const pct = fmtPct(deltaPct);
+
+  if (abs < ACTIVITY_NEUTRAL_PCT) {
+    return {
+      pct,
+      dir: 'near',
+      baselineText: 'in line with the activity baseline',
+      normalText: 'in line with normal levels',
+      paceText: 'holding a typical pace',
+      trendText: 'steady',
+      activityState: 'steady',
+      isMeaningful: false,
+      tone: 'quiet'
+    };
+  }
+
+  const dir = deltaPct > 0 ? 'above' : 'below';
+  const isMeaningful = abs > ACTIVITY_MEANINGFUL_PCT;
+  return {
+    pct,
+    dir,
+    baselineText: `${pct}% ${dir} the activity baseline`,
+    normalText: `${pct}% ${dir} normal levels`,
+    paceText: isMeaningful ? `${pct}% ${dir} typical pace` : `near typical pace (${pct}% ${dir})`,
+    trendText: isMeaningful ? `${dir} (${pct}%)` : `steady (${pct}% ${dir})`,
+    activityState: isMeaningful ? (deltaPct > 0 ? 'busy' : 'quiet') : 'steady',
+    isMeaningful,
+    tone: isMeaningful ? (deltaPct > 0 ? 'activity' : 'quiet') : 'quiet'
+  };
+}
 
 function finiteNumber(value) {
   const number = Number(value);
@@ -311,11 +347,11 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
   if (stats.transactionVolume24h != null) {
     const prev  = baseline?.transactionVolume24h ?? stats.transactionVolume24h;
     const sp    = signedPct(stats.transactionVolume24h, prev);
-    const dir   = sp >= 0 ? 'above' : 'below';
+    const narrative = activityNarrative(sp);
     const score = Math.abs(sp) > 20 ? 85 : Math.abs(sp) > 10 ? 60 : 30;
-    addSignal('volume', score, pick(TEMPLATES.volume)({ vol: stats.transactionVolume24h, pct: fmtPct(sp), dir }), {
-      detail: Math.abs(sp) > 10 ? 'Activity changed meaningfully' : 'Activity baseline',
-      tone: sp >= 0 ? 'activity' : 'quiet'
+    addSignal('volume', score, pick(TEMPLATES.volume)({ vol: stats.transactionVolume24h, ...narrative }), {
+      detail: narrative.isMeaningful ? 'Activity changed meaningfully' : 'Activity baseline',
+      tone: narrative.tone
     });
   }
 
@@ -428,8 +464,9 @@ async function generate(stats, xtzPrice) {
       const missingLiveMove = currentChange24h != null && cachedChange24h == null;
       const crossedSteadyBoundary = currentChange24h != null && cachedChange24h != null
         && (Math.abs(currentChange24h) < 0.4) !== (Math.abs(cachedChange24h) < 0.4);
+      const schemaChanged = cached.schema !== BRIEFING_SCHEMA_VERSION;
       // Regenerate if: >4 hours old, price shifted >2%, or the real 24h move changed enough to affect narrative.
-      const isStale = ageHrs > 4 || priceDrift > 0.02 || profileChanged || missingLiveMove || changeDrift > 0.75 || crossedSteadyBoundary;
+      const isStale = schemaChanged || ageHrs > 4 || priceDrift > 0.02 || profileChanged || missingLiveMove || changeDrift > 0.75 || crossedSteadyBoundary;
       if (!isStale) return cached;
     }
   } catch { /* ignore */ }
@@ -442,7 +479,7 @@ async function generate(stats, xtzPrice) {
   ]);
 
   const sentences = buildSentences(nextStats, currentPrice, baseline, whales, bakerStats, profile);
-  const briefing  = { cycle, sentences, generatedAt: Date.now(), priceAt: currentPrice, priceChange24h: currentChange24h, profileKey: profile.key };
+  const briefing  = { schema: BRIEFING_SCHEMA_VERSION, cycle, sentences, generatedAt: Date.now(), priceAt: currentPrice, priceChange24h: currentChange24h, profileKey: profile.key };
 
   try {
     localStorage.setItem(LS_BRIEFING,  JSON.stringify(briefing));

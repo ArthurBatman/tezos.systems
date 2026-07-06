@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-06',
         entries: [
+            { type: '🔧', text: 'The command deck no longer repeats protocol history with the extra upgrade ribbon under search' },
+            { type: '🔧', text: 'Network Context activity copy now treats near-baseline transaction volume as steady instead of calling tiny positive drift busy' },
             { type: '🎨', text: 'The header block now has roomier side padding around the title, controls, uptime proof, and live stat pills' },
             { type: '✨', text: 'The live block ticker now anchors a quiet 1H activity rail on wide screens — transactions, XTZ moved, NFT transfers, and the latest whale — plus per-block minted and fee totals' },
             { type: '🎨', text: 'The top shell now groups title, protocol, NFT feed, uptime, and live network pills into one responsive console across themes' },

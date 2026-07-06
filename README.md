@@ -286,7 +286,9 @@ inline modal styles in `js/core/app.js`.
 - First-screen command deck built for retrieval: the top of the page moves from
   live cycle/market data to `Tezos Systems`, a clickable
   `Running on <current protocol>` Protocol History launcher, a live
-  block-health ticker, then a pure command bar before Chambers. The bar accepts
+  block-health ticker, then a pure command bar before Chambers. The former
+  command-deck protocol ribbon stays retired so protocol history access is not
+  repeated in a third first-screen surface. The bar accepts
   Tezos addresses, `.tez` names, protocol names, block levels, block hashes,
   operation hashes, KT1 contracts, and slash commands. While active, the command
   bar switches the page into a focused search mode that pushes Chambers into a
@@ -580,7 +582,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v346`, including hero search, theme
+- Current aligned shell cache stamp: `v347`, including hero search, theme
   bundles, and the Leaderboard and Ledger Flow lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
