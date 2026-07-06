@@ -794,7 +794,7 @@ async function checkSelectorContracts() {
     ['HEN standalone route entry link', 'href="/?hen=1"', henPage],
     ['HEN standalone route copy', 'Live Teia and OBJKT mints on Tezos', henPage],
     ['HEN CSS cache stamp', 'css/hen-mode.css?v=93', index],
-    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=90', index],
+    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=91', index],
     ['HEN setup status strip', 'id="hen-status-strip"', index],
     ['HEN permanent now line', 'id="hen-now-line"', index],
     ['HEN mobile filter toggle', 'id="hen-mobile-filter-toggle"', index],

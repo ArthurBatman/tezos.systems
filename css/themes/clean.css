@@ -38,6 +38,11 @@
     --top-pill-issuance: #C026D3;
     --top-pill-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
+[data-theme="clean"] .live-feed-pill{
+    box-shadow:
+        0 0 10px color-mix(in srgb, var(--accent) 14%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
 [data-theme="clean"] .build-version{
     color: rgba(0, 0, 0, 0.22);
 }

@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-06',
+        entries: [
+            { type: '🎨', text: 'Live NFT feed doorway is now a themed header pill across every theme, with HEN keeping its terminal treatment' },
+        ]
+    },
+    {
         date: '2026-07-05',
         entries: [
             { type: '🎨', text: 'Visit streak, first-visit, share, and Network Moment toasts now share a smoother bottom rail with longer welcome timing and animated safe-area settling' },

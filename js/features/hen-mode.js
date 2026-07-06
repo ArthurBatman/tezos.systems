@@ -254,12 +254,10 @@ const HenMode = (() => {
     function primeHenDoorway() {
         if (safeGetStorage(HEN_DOORWAY_KEY) === '1') return;
         afterHeroSettled(function() {
-            var link = document.querySelector('.hen-theme-feed-link') || document.getElementById('hen-launcher');
+            var link = document.querySelector('.live-feed-pill') || document.getElementById('hen-launcher');
             if (!link || safeGetStorage(HEN_DOORWAY_KEY) === '1') return;
             var tip = '🌱 hic et nunc lives here — enter the feed';
             link.title = tip;
-            link.setAttribute('aria-label', tip);
-            link.style.display = link.classList.contains('hen-theme-feed-link') ? 'inline-flex' : '';
             if (!reducedMotion()) {
                 link.classList.add('hen-doorway-attention');
                 setTimeout(function() {
