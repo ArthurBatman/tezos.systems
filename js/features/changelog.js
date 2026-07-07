@@ -5,8 +5,20 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-07',
+        entries: [
+            { type: '🔧', text: 'Explore direct-link buttons now sit as small circular badges just left of status pills without widening the launcher' },
+            { type: '🔧', text: 'Explore no longer repeats the same live network proof in the Command Center intro before the live rows below it' },
+            { type: '🎨', text: 'Explore launcher rows now keep HEN and Tezos Domains link text formatted like native tools while aligning every status pill on the same rail' },
+        ]
+    },
+    {
         date: '2026-07-06',
         entries: [
+            { type: '🎨', text: 'Explore is now a Tezos Command Center with a Chambers status hero, Happening Now signals, .tez identity, quiet copy actions, and collapsed recovery tools' },
+            { type: '🔧', text: 'Explore toggle states now stay readable at full contrast and sync their visible labels, titles, and ARIA state through one launcher helper' },
+            { type: '🎨', text: 'The top uptime proof badge now stays shorter and squarer than the live stat pills in the header' },
+            { type: '🎨', text: 'The live block ticker now gives baker names a little more room before truncating' },
             { type: '✨', text: 'Live Pulse now tracks tz4 switches, baker registrations, .tez auctions, Tezos X activity, L2 governance, NFT market heat, contested rounds, protocol lore days, and sleeping-giant awakenings' },
             { type: '🔧', text: 'Finality pill updates now animate only the changed pill without making the baker count or neighboring live stat pills jiggle' },
             { type: '🎨', text: 'The stacked header now centers the Tezos Systems wordmark, protocol/feed chips, and My Tezos/Explore/Settings controls on small desktop and mobile screens' },

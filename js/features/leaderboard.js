@@ -15,7 +15,7 @@ const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
 const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v4';
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=353';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=362';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -774,6 +774,18 @@ async function loadLeaderboard(container) {
 /**
  * Initialize leaderboard section
  */
+function setLauncherToggleState(btn, isOn) {
+    const helper = window.tezosSystemsLauncher?.setToggleState;
+    if (helper) {
+        helper(btn, isOn);
+        return;
+    }
+    btn?.classList.toggle('active', isOn);
+    btn?.setAttribute('aria-pressed', String(isOn));
+    const pill = btn?.querySelector('.feature-status');
+    if (pill) pill.textContent = btn?.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+}
+
 export function initLeaderboard() {
     const section = document.getElementById('leaderboard-section');
     if (!section) return;
@@ -792,8 +804,8 @@ export function initLeaderboard() {
 
     function updateVis(isVisible) {
         section.classList.toggle('visible', isVisible);
-        toggleBtn.classList.toggle('active', isVisible);
-        toggleBtn.title = `Leaderboard: ${isVisible ? 'ON' : 'OFF'}`;
+        setLauncherToggleState(toggleBtn, isVisible);
+        toggleBtn.title = `Baker Directory: ${isVisible ? 'Showing' : 'Hidden'}`;
         
         // Lazy-load on first open
         if (isVisible && !loaded) {
@@ -873,7 +885,8 @@ export async function openBakerProfile(address) {
     if (section && toggleBtn && !section.classList.contains('visible')) {
         localStorage.setItem(TOGGLE_KEY, 'true');
         section.classList.add('visible');
-        toggleBtn.classList.add('active');
+        setLauncherToggleState(toggleBtn, true);
+        toggleBtn.title = 'Baker Directory: Showing';
     }
     const leaderboardContainer = document.getElementById('leaderboard-results');
     if (leaderboardContainer) leaderboardContainer.dataset.focusMyBaker = '1';

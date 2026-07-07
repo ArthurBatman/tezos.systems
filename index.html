@@ -50,15 +50,15 @@
     <link rel="mask-icon" href="safari-pinned-tab.svg" color="#00d4ff">
     <link rel="manifest" href="site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=353">
+    <link rel="stylesheet" href="css/styles.min.css?v=362">
     <link rel="stylesheet" href="css/loading.css?v=347">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=353">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=362">
     <link rel="stylesheet" href="css/hen-mode.css?v=93">
     <script src="js/core/hen-init.js?v=78" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=353">
+    <link rel="modulepreload" href="js/core/app.js?v=362">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/utils.js">
@@ -216,7 +216,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=353"></script>
+    <script src="js/core/theme-preload.js?v=362"></script>
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
         <button id="corner-gift-toggle" class="corner-gift-toggle" type="button" aria-label="Open corner tools: HEN, ctez, and TzSafe" aria-expanded="false" aria-controls="corner-gift-items" title="Corner tools">
             <span aria-hidden="true">🎁</span>
@@ -298,35 +298,153 @@
                     <button id="features-gear" class="glass-button header-nav-btn" aria-label="Open feature launcher" title="Explore Tezos Systems tools">
                         <span>🧭</span> <span class="nav-label">Explore</span>
                     </button>
-                    <div class="settings-dropdown feature-launcher" id="features-dropdown" aria-label="Feature launcher">
+                    <div class="settings-dropdown feature-launcher" id="features-dropdown" aria-label="Tezos Systems command center">
                         <div class="feature-launcher-intro">
-                            <strong>Explore by goal</strong>
-                            <span>Open a tool, then pin what you want on the dashboard.</span>
+                            <strong>Command Center</strong>
+                            <span>Start live, learn fast, or save your regular Tezos tools.</span>
                         </div>
 
-                        <div class="feature-launcher-group">
-                            <div class="dropdown-section-label">Network Now</div>
-                            <div class="feature-launcher-row">
-                                <button id="tezos-stats-toggle" class="glass-button feature-launcher-item" aria-label="Show or hide live Tezos network stats" title="Tezos Stats: OFF">
-                                    <span class="tezos-stats-toggle-icon">📊</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Network Stats</span><span class="dropdown-hint">Economy, consensus, market, ecosystem</span></span>
-                                    <span class="feature-status">Hidden</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#section=consensus" aria-label="Copy Network Stats link" title="Copy direct link">🔗</button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="chambers-toggle" class="glass-button feature-launcher-item" aria-label="Show or hide Tezos chambers" title="Chambers: ON">
+                        <div class="feature-launcher-group feature-launcher-primary">
+                            <div class="feature-launcher-row feature-launcher-hero">
+                                <button id="chambers-toggle" class="glass-button feature-launcher-item feature-toggle active" aria-label="Show or hide Tezos Chambers" aria-pressed="true" title="Tezos Chambers: Showing" data-status-on="Start here" data-status-off="Start here">
                                     <span class="chambers-toggle-icon">🏛️</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Chambers</span><span class="dropdown-hint">Governance, Tezos X, LB, Domains</span></span>
-                                    <span class="feature-status">Pinned</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Tezos Chambers</span><span class="dropdown-hint">Protocol, governance, health, Domains, Tezos X, and Anthology.</span><span class="dropdown-hint feature-hero-live" id="explore-chambers-live">Running Tezos</span></span>
+                                    <span class="feature-status feature-status-start">Start here</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#chambers" aria-label="Copy Chambers link" title="Copy direct link">🔗</button>
                             </div>
+                        </div>
+
+                        <div class="feature-launcher-group">
+                            <div class="dropdown-section-label">Happening Now</div>
                             <div class="feature-launcher-row">
-                                <button id="ctez-feature-btn" class="glass-button feature-launcher-item" aria-label="Open ctez End of Life" title="ctez End of Life">
+                                <button id="tezos-stats-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Show or hide live Tezos network pulse" aria-pressed="false" title="Network Pulse: Hidden" data-status-on="Showing" data-status-off="Live">
+                                    <span class="tezos-stats-toggle-icon">📊</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Network Pulse</span><span class="dropdown-hint">Consensus, staking, bakers, market, and chain health.</span><span class="dropdown-hint feature-live-crumb" id="explore-network-crumb">TzKT + RPC live</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#section=consensus" aria-label="Copy Network Pulse link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <a id="hen-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/?hen=1" data-hen-launch aria-label="Enter HEN live Teia and OBJKT feed" title="Enter HEN live feed">
+                                    <span class="ctez-feature-icon hen-feature-icon">hen<span class="uptime-pulse-dot" aria-hidden="true"></span></span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">HEN / Teia Collecting</span><span class="dropdown-hint">Watch Teia and OBJKT mints and collects as they land.</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </a>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <button id="whale-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide large tez transfer feed" aria-pressed="false" title="Large Tez Transfers: Hidden" data-status-on="Showing" data-status-off="Live">
+                                    <span class="whale-toggle-icon">🐬</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Large Tez Transfers</span><span class="dropdown-hint">Catch transfers, stakes, and delegations over 1,000 ꜩ.</span><span class="dropdown-hint feature-live-crumb" id="explore-whale-crumb">Watching TzKT</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#whales" aria-label="Copy Large Tez Transfers link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <button id="giants-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide dormant wallet movement feed" aria-pressed="false" title="Dormant Wallet Movement: Hidden" data-status-on="Showing" data-status-off="Live">
+                                    <span class="giants-toggle-icon">😴</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Dormant Wallet Movement</span><span class="dropdown-hint">Large inactive wallets moving again, when TzKT sees them.</span><span class="dropdown-hint feature-live-crumb" id="explore-giants-crumb">Dormancy watch</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#giants" aria-label="Copy Dormant Wallet Movement link" title="Copy direct link">🔗</button>
+                            </div>
+                        </div>
+
+                        <div class="feature-launcher-group">
+                            <div class="dropdown-section-label">Bakers &amp; Staking</div>
+                            <div class="feature-launcher-row">
+                                <button id="leaderboard-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide Baker Directory" aria-pressed="false" title="Baker Directory: Hidden" data-status-on="Showing" data-status-off="Tool">
+                                    <span class="leaderboard-toggle-icon">🏆</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Baker Directory</span><span class="dropdown-hint">Find capacity, fees, stake, and open room.</span><span class="dropdown-hint feature-live-crumb" id="explore-baker-crumb">Active bakers syncing</span></span>
+                                    <span class="feature-status feature-status-tool">Tool</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#leaderboard" aria-label="Copy Baker Directory link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <button id="calc-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide Staking Rewards Estimator" aria-pressed="false" title="Staking Rewards Estimator: Hidden" data-status-on="Showing" data-status-off="Tool">
+                                    <span class="calc-toggle-icon">🧮</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Staking Rewards Estimator</span><span class="dropdown-hint">Estimate delegation, staking, and baking rewards.</span></span>
+                                    <span class="feature-status feature-status-tool">Tool</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#calculator" aria-label="Copy Staking Rewards Estimator link" title="Copy direct link">🔗</button>
+                            </div>
+                        </div>
+
+                        <div class="feature-launcher-group">
+                            <div class="dropdown-section-label">Accounts &amp; Identity</div>
+                            <div class="feature-launcher-row">
+                                <button id="my-tezos-feature-btn" class="glass-button feature-launcher-item" aria-label="Open My Tezos" title="Open My Tezos">
+                                    <span class="my-tezos-icon">👤</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">My Tezos</span><span class="dropdown-hint">Bring a wallet or .tez name into one personal drawer.</span></span>
+                                    <span class="feature-status feature-status-tool">Tool</span>
+                                </button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <a id="domains-feature-link" href="/domains/" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Tezos Domains Chamber" title="Open Tezos Domains">
+                                    <span class="ctez-feature-icon domains-feature-icon">.tez</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Tezos Domains</span><span class="dropdown-hint">Lookup names, auctions, offers, and expiring .tez identity.</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </a>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#domains" aria-label="Copy Tezos Domains link" title="Copy direct link">🔗</button>
+                            </div>
+                        </div>
+
+                        <div class="feature-launcher-group">
+                            <div class="dropdown-section-label">Markets</div>
+                            <div class="feature-launcher-row">
+                                <button id="price-intel-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide XTZ Market Watch" aria-pressed="false" title="XTZ Market Watch: Hidden" data-status-on="Showing" data-status-off="Live">
+                                    <span class="price-intel-toggle-icon">💰</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">XTZ Market Watch</span><span class="dropdown-hint">Live price, predictions, alerts, and market context.</span><span class="dropdown-hint feature-live-crumb" id="explore-market-crumb">Price syncing</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#price" aria-label="Copy XTZ Market Watch link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <button id="comparison-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide Tezos chain comparisons" aria-pressed="false" title="Chain Comparisons: Hidden" data-status-on="Showing" data-status-off="Share">
+                                    <span class="comparison-toggle-icon">⛓️</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Compare Chains</span><span class="dropdown-hint">Compare Tezos valuation, staking, activity, and cost.</span></span>
+                                    <span class="feature-status feature-status-share">Share</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#compare" aria-label="Copy Compare Chains link" title="Copy direct link">🔗</button>
+                            </div>
+                        </div>
+
+                        <div class="feature-launcher-group">
+                            <div class="dropdown-section-label">History &amp; Publishing</div>
+                            <div class="feature-launcher-row">
+                                <button id="history-btn" class="glass-button feature-launcher-item" aria-label="Open historical data" title="Historical data">
+                                    <span>📈</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Cycle History</span><span class="dropdown-hint">Rewind core Tezos metrics across cycles.</span></span>
+                                    <span class="feature-status feature-status-share">Share</span>
+                                </button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#history" aria-label="Copy History link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <button id="state-of-tezos-btn" class="glass-button feature-launcher-item" aria-label="Generate State of Tezos Snapshot" title="State of Tezos">
+                                    <span>📊</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Network Snapshot</span><span class="dropdown-hint">Generate a weekly Tezos snapshot worth posting.</span></span>
+                                    <span class="feature-status feature-status-share">Share</span>
+                                </button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <a id="embed-builder-link" href="/widgets/builder.html" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open embeddable widget builder" title="Open embed builder">
+                                    <span>🧩</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Tezos Widgets</span><span class="dropdown-hint">Put live Tezos stats on your own site.</span></span>
+                                    <span class="feature-status feature-status-tool">Embed</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <details class="feature-launcher-group feature-launcher-legacy">
+                            <summary class="feature-launcher-legacy-summary">
+                                <span><span class="dropdown-section-label">Recovery tools</span><span class="feature-launcher-subcaption">Old ctez ovens and legacy KT1 safes.</span></span>
+                                <span class="feature-status feature-status-muted">2 tools</span>
+                            </summary>
+                            <div class="feature-launcher-row">
+                                <button id="ctez-feature-btn" class="glass-button feature-launcher-item" aria-label="Open ctez Oven Exit" title="ctez Oven Exit">
                                     <span class="ctez-feature-icon">ctez</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">ctez End of Life</span><span class="dropdown-hint">Close old ovens and recover tez</span></span>
-                                    <span class="feature-status">Tool</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">ctez Oven Exit</span><span class="dropdown-hint">Legacy close, burn, and recover flow for old ovens.</span></span>
+                                    <span class="feature-status feature-status-muted">Legacy</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#ctez" aria-label="Copy ctez End of Life link" title="Copy direct link">🔗</button>
                             </div>
@@ -338,101 +456,12 @@
                                             <span class="tzsafe-logo-key"></span>
                                         </span>
                                     </span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">TzSafe Recovery</span><span class="dropdown-hint">Legacy KT1 multisig cleanup path</span></span>
-                                    <span class="feature-status">External</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">KT1 Multisig Recovery</span><span class="dropdown-hint">External cleanup path for legacy TzSafe KT1 safes.</span></span>
+                                    <span class="feature-status feature-status-muted">External</span>
                                 </a>
-                                <a class="feature-external-link" href="https://tzsafe.tez.page/" target="_blank" rel="noopener" aria-label="Open TzSafe Recovery externally" title="Open TzSafe Recovery">↗</a>
+                                <a class="feature-copy-link feature-external-link" href="https://tzsafe.tez.page/" target="_blank" rel="noopener" aria-label="Open TzSafe Recovery externally" title="Open TzSafe Recovery">↗</a>
                             </div>
-                            <div class="feature-launcher-row">
-                                <button id="price-intel-toggle" class="glass-button feature-launcher-item" aria-label="Open or hide Price Intelligence" title="Price Intel: OFF">
-                                    <span class="price-intel-toggle-icon">💰</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Price Intel</span><span class="dropdown-hint">Live price, predictions, alerts</span></span>
-                                    <span class="feature-status">Tool</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#price" aria-label="Copy Price Intel link" title="Copy direct link">🔗</button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="comparison-toggle" class="glass-button feature-launcher-item" aria-label="Open or hide Tezos chain comparisons" title="Chains: ON">
-                                    <span class="comparison-toggle-icon">⛓️</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Compare Chains</span><span class="dropdown-hint">Tezos vs Ethereum, Solana, Cardano, Algorand</span></span>
-                                    <span class="feature-status">Tool</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#compare" aria-label="Copy Compare Chains link" title="Copy direct link">🔗</button>
-                            </div>
-                        </div>
-
-                        <div class="feature-launcher-group">
-                            <div class="dropdown-section-label">Bakers & Staking</div>
-                            <div class="feature-launcher-row">
-                                <button id="leaderboard-toggle" class="glass-button feature-launcher-item" aria-label="Open or hide Baker Leaderboard" title="Leaderboard: OFF">
-                                    <span class="leaderboard-toggle-icon">🏆</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Leaderboard</span><span class="dropdown-hint">Top bakers ranked by stake and capacity</span></span>
-                                    <span class="feature-status">Tool</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#leaderboard" aria-label="Copy Leaderboard link" title="Copy direct link">🔗</button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="calc-toggle" class="glass-button feature-launcher-item" aria-label="Open or hide Rewards Calculator" title="Calculator: OFF">
-                                    <span class="calc-toggle-icon">🧮</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Rewards Calculator</span><span class="dropdown-hint">Estimate delegation, staking, and baking rewards</span></span>
-                                    <span class="feature-status">Tool</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#calculator" aria-label="Copy Rewards Calculator link" title="Copy direct link">🔗</button>
-                            </div>
-                        </div>
-
-                        <div class="feature-launcher-group">
-                            <div class="dropdown-section-label">Activity & Culture</div>
-                            <div class="feature-launcher-row">
-                                <a id="hen-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/?hen=1" data-hen-launch aria-label="Enter HEN live Teia and OBJKT feed" title="Enter HEN live feed">
-                                    <span class="ctez-feature-icon hen-feature-icon">hen</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">HEN Live Feed</span><span class="dropdown-hint">Teia-first live NFT collecting surface</span></span>
-                                    <span class="feature-status">Live</span>
-                                </a>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="whale-toggle" class="glass-button feature-launcher-item" aria-label="Open or hide Mini Whale feed" title="Mini Whale: OFF">
-                                    <span class="whale-toggle-icon">🐬</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Whales</span><span class="dropdown-hint">Live feed of large XTZ transfers over 1K</span></span>
-                                    <span class="feature-status">Feed</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#whales" aria-label="Copy Whales link" title="Copy direct link">🔗</button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="giants-toggle" class="glass-button feature-launcher-item" aria-label="Open or hide Sleeping Giants" title="Sleeping Giants: OFF">
-                                    <span class="giants-toggle-icon">😴</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Sleeping Giants</span><span class="dropdown-hint">Dormant large wallets that just woke up</span></span>
-                                    <span class="feature-status">Feed</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#giants" aria-label="Copy Sleeping Giants link" title="Copy direct link">🔗</button>
-                            </div>
-                        </div>
-
-                        <div class="feature-launcher-group">
-                            <div class="dropdown-section-label">Story & Sharing</div>
-                            <div class="feature-launcher-row">
-                                <button id="history-btn" class="glass-button feature-launcher-item" aria-label="Open historical data" title="Historical data">
-                                    <span>📈</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">History</span><span class="dropdown-hint">Historical charts for core metrics</span></span>
-                                    <span class="feature-status">Modal</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#history" aria-label="Copy History link" title="Copy direct link">🔗</button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="state-of-tezos-btn" class="glass-button feature-launcher-item" aria-label="Create State of Tezos Snapshot" title="State of Tezos">
-                                    <span>📊</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">State of Tezos</span><span class="dropdown-hint">Shareable weekly network snapshot</span></span>
-                                    <span class="feature-status">Share</span>
-                                </button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <a href="/widgets/builder.html" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open embeddable widget builder" title="Open embed builder">
-                                    <span>🧩</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Embed Builder</span><span class="dropdown-hint">Configured live-stat iframes for sites and docs</span></span>
-                                    <span class="feature-status">Utility</span>
-                                </a>
-                            </div>
-                        </div>
+                        </details>
                     </div>
                 </div>
 
@@ -2191,7 +2220,7 @@
 
     <!-- Load app as module -->
     <script src="js/features/hen-mode.js?v=91"></script>
-    <script type="module" src="js/core/app.js?v=353"></script>
+    <script type="module" src="js/core/app.js?v=362"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content">

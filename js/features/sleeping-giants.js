@@ -590,6 +590,18 @@ export function toggleSleepingGiants() {
 /**
  * Update visibility based on state
  */
+function setLauncherToggleState(btn, isOn) {
+    const helper = window.tezosSystemsLauncher?.setToggleState;
+    if (helper) {
+        helper(btn, isOn);
+        return;
+    }
+    btn?.classList.toggle('active', isOn);
+    btn?.setAttribute('aria-pressed', String(isOn));
+    const pill = btn?.querySelector('.feature-status');
+    if (pill) pill.textContent = btn?.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+}
+
 function updateVisibility() {
     const section = document.getElementById('giants-section');
     const toggleBtn = document.getElementById('giants-toggle');
@@ -599,8 +611,8 @@ function updateVisibility() {
     }
     
     if (toggleBtn) {
-        toggleBtn.classList.toggle('active', isEnabled);
-        toggleBtn.title = `Sleeping Giants: ${isEnabled ? 'ON' : 'OFF'}`;
+        setLauncherToggleState(toggleBtn, isEnabled);
+        toggleBtn.title = `Dormant Wallet Movement: ${isEnabled ? 'Showing' : 'Hidden'}`;
     }
     
     if (isEnabled) {

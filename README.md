@@ -114,8 +114,8 @@ tezos.systems/
    During proposal and ballot windows, a compact Governance Alert strip sits
    above Chambers and reuses the live voting/My Tezos baker-vote logic to expose
    Chamber, My Tezos, RSS, and browser-reminder actions. Outside active voting
-   windows, the strip stays hidden. Network Stats sections are hidden until the
-   user enables Network Stats from Explore.
+   windows, the strip stays hidden. Network Pulse sections are hidden until the
+   user enables Network Pulse from Explore's Happening Now group.
 6. Background refreshes update hero stats, comparison data, governance state,
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
    tools, leaderboard, My Tezos, and share-ready UI. Welcome, streak,
@@ -219,8 +219,9 @@ inline modal styles in `js/core/app.js`.
 - Chambers section is visible by default and orders the chamber rows as Network
   Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance, tz4 Adoption <> LB
   Monitor, Ledger Flow <> Protocol History, then a full-width Tezos Domains
-  strip at the bottom. ctez End of Life and TzSafe Recovery stay off the default
-  Chambers grid and open from Explore or the corner gift tray launcher.
+  strip at the bottom. ctez Oven Exit and KT1 Multisig Recovery stay off the
+  default Chambers grid and open from Explore's collapsed Recovery tools drawer
+  or the corner gift tray launcher.
   Each Chamber row is wrapped responsively so wide cards keep their companion
   card instead of creating desktop grid holes; cards also keep a canonical
   app-shell open affordance in the fixed footer rail, card-level direct-link
@@ -256,7 +257,8 @@ inline modal styles in `js/core/app.js`.
   quiet-state fallbacks, TzKT smart-rollup anchor metadata, gas oracle detail,
   and top tokens by holders when those upstream feeds are available.
 - Live network stat cards for consensus, economy, governance, network activity,
-  and ecosystem metrics are opt-in from Explore under Network Stats.
+  and ecosystem metrics are opt-in from Explore's Happening Now group under
+  Network Pulse.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
@@ -348,17 +350,18 @@ inline modal styles in `js/core/app.js`.
   timing, projection to 50%, largest holdouts, visible monthly switch-count
   momentum, power milestones, top-10 first movers, and a capped Baker Status
   table with a Show all control.
-- ctez End of Life with direct `#ctez` access, a corner gift-tray launcher, an
-  Explore entry, a native Tezos.Systems My Ovens summary/detail console,
+- ctez End of Life with direct `#ctez` access, a corner gift-tray launcher, a
+  collapsed Recovery tools Explore entry, a native Tezos.Systems My Ovens
+  summary/detail console,
   Octez.Connect pairing, TzKT contract storage and big-map discovery for ovens
   owned by the connected wallet, wallet-reviewed one-batch close requests that
   burn outstanding ctez before withdrawing tez when both legs are needed,
   Purple Matter/community fallback links, and signing-safety reminders for users
   recovering tez from old ctez ovens.
 - TzSafe Recovery as an external stewardship entry in the corner gift tray and
-  Explore menu, linking to `https://tzsafe.tez.page/` for the community fork and
-  legacy KT1 multisig migration path while new multisig setups move toward
-  protocol-native accounts.
+  Explore's collapsed Recovery tools group, linking to
+  `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
+  migration path while new multisig setups move toward protocol-native accounts.
 - My Tezos drawer and My Baker lookup, including live drawer-open stats refresh,
   live baker signal refresh, baker Octez version status coloring, baker
   performance, latest LB vote state, Octez.Connect wallet sync, and recent baker
@@ -582,7 +585,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v353`, including hero search, theme
+- Current aligned shell cache stamp: `v362`, including hero search, theme
   bundles, and the Leaderboard and Ledger Flow lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.

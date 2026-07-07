@@ -524,6 +524,10 @@ async function checkSelectorContracts() {
 
   const requiredSnippets = [
     ['feature launcher grouped menu', 'class="settings-dropdown feature-launcher"'],
+    ['feature launcher command center title', 'Command Center'],
+    ['feature launcher happening now group', 'Happening Now'],
+    ['feature launcher Tezos Domains row', 'id="domains-feature-link"'],
+    ['feature launcher legacy group', 'feature-launcher-group feature-launcher-legacy'],
     ['combined chambers launcher copy link', 'data-copy-hash="#chambers"'],
     ['direct feature copy links', 'data-copy-hash="#compare"'],
     ['widget embed utility panel', 'class="widget-utility-panel"'],
@@ -560,6 +564,17 @@ async function checkSelectorContracts() {
     }
   }
   pass(`new UX selector contracts checked: ${requiredSnippets.length}`);
+
+  const chambersLauncherIndex = index.indexOf('id="chambers-toggle"');
+  const ctezLauncherIndex = index.indexOf('id="ctez-feature-btn"');
+  const legacyLauncherIndex = index.indexOf('feature-launcher-group feature-launcher-legacy');
+  if (chambersLauncherIndex < 0 || ctezLauncherIndex < 0 || chambersLauncherIndex > ctezLauncherIndex) {
+    fail('Explore launcher must keep Chambers ahead of ctez recovery tools');
+  }
+  if (legacyLauncherIndex < 0 || ctezLauncherIndex < 0 || legacyLauncherIndex > ctezLauncherIndex) {
+    fail('Explore launcher ctez recovery tools must stay inside the legacy group');
+  }
+  pass('Explore launcher hierarchy checked');
 
   const retiredLauncherSnippets = [
     ['individual Chamber launcher', 'id="chamber-toggle"'],
@@ -779,8 +794,8 @@ async function checkSelectorContracts() {
     ['TzSafe top-left launcher', 'id="tzsafe-launcher"', index],
     ['TzSafe feature launcher', 'id="tzsafe-feature-link"', index],
     ['TzSafe canonical external link', 'href="https://tzsafe.tez.page/"', index],
-    ['TzSafe feature copy', 'TzSafe Recovery', index],
-    ['TzSafe cleanup hint', 'Legacy KT1 multisig cleanup path', index],
+    ['TzSafe feature copy', 'KT1 Multisig Recovery', index],
+    ['TzSafe cleanup hint', 'External cleanup path for legacy TzSafe KT1 safes', index],
     ['TzSafe external action button', 'feature-external-link" href="https://tzsafe.tez.page/"', index],
     ['TzSafe feature row polish', '.tzsafe-feature-link', henModeCss],
     ['TzSafe tray icon style', '.tzsafe-launcher', henModeCss],
@@ -1854,7 +1869,7 @@ async function checkTourAndShareCaptureContracts() {
     'Read the latest head',
     'Protocol Anthology',
     'Network Context',
-    'Explore opens optional tools',
+    'Explore opens the Command Center',
     'Help is available when you want it',
     'Show help',
     'Not now'

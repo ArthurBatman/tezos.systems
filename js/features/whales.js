@@ -577,6 +577,18 @@ export function toggleWhaleTracker() {
 /**
  * Update UI based on enabled state
  */
+function setLauncherToggleState(btn, isOn) {
+    const helper = window.tezosSystemsLauncher?.setToggleState;
+    if (helper) {
+        helper(btn, isOn);
+        return;
+    }
+    btn?.classList.toggle('active', isOn);
+    btn?.setAttribute('aria-pressed', String(isOn));
+    const pill = btn?.querySelector('.feature-status');
+    if (pill) pill.textContent = btn?.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+}
+
 function updateWhaleVisibility() {
     const section = document.getElementById('whale-section');
     const toggleBtn = document.getElementById('whale-toggle');
@@ -586,8 +598,8 @@ function updateWhaleVisibility() {
     }
     
     if (toggleBtn) {
-        toggleBtn.classList.toggle('active', isEnabled);
-        toggleBtn.title = `Mini Whale: ${isEnabled ? 'ON' : 'OFF'}`;
+        setLauncherToggleState(toggleBtn, isEnabled);
+        toggleBtn.title = `Large Tez Transfers: ${isEnabled ? 'Showing' : 'Hidden'}`;
     }
     
     // Start/stop polling based on state

@@ -3321,18 +3321,20 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
 
   await openDropdown(page, '#features-gear', '#features-dropdown');
   await expectCount(page, '#features-dropdown.feature-launcher', 1, label);
-  await expectCount(page, '#features-dropdown .feature-launcher-group', 4, label);
-  await expectCount(page, '#features-dropdown .feature-copy-link', 10, label);
+  await expectCount(page, '#features-dropdown .feature-launcher-group', 7, label);
+  await expectCount(page, '#features-dropdown button.feature-copy-link', 11, label);
   await expectCount(page, '#features-dropdown #chambers-toggle', 1, label);
   await expectCount(page, '#features-dropdown .feature-copy-link[data-copy-hash="#chambers"]', 1, label);
+  await expectCount(page, '#features-dropdown #domains-feature-link[href="/domains/"]', 1, label);
+  await expectCount(page, '#features-dropdown .feature-copy-link[data-copy-hash="#domains"]', 1, label);
   await expectCount(page, '#features-dropdown #ctez-feature-btn', 1, label);
   await expectCount(page, '#features-dropdown .feature-copy-link[data-copy-hash="#ctez"]', 1, label);
   await expectCount(page, '#corner-gift-items #tzsafe-launcher[href="https://tzsafe.tez.page/"]', 1, label);
   await expectCount(page, '#features-dropdown #tzsafe-feature-link[href="https://tzsafe.tez.page/"]', 1, label);
   await expectCount(page, '#features-dropdown .feature-external-link[href="https://tzsafe.tez.page/"]', 1, label);
-  assert((await page.locator('#features-dropdown #tzsafe-feature-link').innerText()).includes('Legacy KT1 multisig cleanup path'), `${label}: TzSafe launcher copy missing`);
+  assert((await page.locator('#features-dropdown #tzsafe-feature-link').evaluate((el) => el.textContent || '')).includes('legacy TzSafe KT1 safes'), `${label}: TzSafe launcher copy missing`);
   await assertLocatorCount(page.locator('#features-dropdown #chamber-toggle, #features-dropdown #liquidity-baking-toggle, #features-dropdown #tz4-adoption-toggle'), 0, `${label} individual chamber launchers`);
-  assert((await page.locator('#features-dropdown a[href="/widgets/builder.html"]').innerText()).includes('Embed Builder'), `${label}: launcher should point widgets to Embed Builder`);
+  assert((await page.locator('#features-dropdown a[href="/widgets/builder.html"]').innerText()).includes('Tezos Widgets'), `${label}: launcher should point widgets to Tezos Widgets`);
   await page.locator('.feature-copy-link[data-copy-hash="#compare"]').click();
   await page.waitForFunction(() => document.querySelector('.feature-copy-link[data-copy-hash="#compare"]')?.textContent?.trim() === '✓', null, { timeout: 3000 });
   await page.locator('#calc-toggle').click();
@@ -4421,7 +4423,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const tickerSegmentOrder = Array.from(tickerLine?.querySelectorAll('.block-ticker-segment') || []).map((segment) => {
       const keys = ['level', 'baker', 'health', 'octez', 'power', 'round', 'age'];
       return keys.find((key) => segment.classList.contains(`block-ticker-${key}`)) || '';
-    });
+    }).filter(Boolean);
     const measureTickerText = (source, text) => {
       if (!source) return 0;
       const probe = document.createElement('span');
@@ -5187,9 +5189,9 @@ async function smokeCtezChamber(browser, baseUrl) {
   assert(ctezState.hasTopLeftLauncher, `ctez chamber: top-left launcher missing: ${JSON.stringify(ctezState)}`);
   assert(ctezState.hasTzSafeTopLeftLauncher, `TzSafe external launcher missing from gift tray: ${JSON.stringify(ctezState)}`);
   assert(ctezState.tzsafeFeatureHref === 'https://tzsafe.tez.page/', `TzSafe feature href mismatch: ${ctezState.tzsafeFeatureHref}`);
-  assert(/TzSafe Recovery/.test(ctezState.tzsafeFeatureText) && /Legacy KT1 multisig cleanup path/.test(ctezState.tzsafeFeatureText), `TzSafe feature copy mismatch: ${ctezState.tzsafeFeatureText}`);
+  assert(/KT1 Multisig Recovery/.test(ctezState.tzsafeFeatureText) && /legacy TzSafe KT1 safes/.test(ctezState.tzsafeFeatureText), `TzSafe feature copy mismatch: ${ctezState.tzsafeFeatureText}`);
   assert(ctezState.featureCopyHash === '#ctez', `ctez chamber: feature copy hash mismatch: ${ctezState.featureCopyHash}`);
-  assert(/ctez End of Life/.test(ctezState.featureButtonText) && /Close old ovens/.test(ctezState.featureButtonText), `ctez chamber: feature launcher copy mismatch: ${ctezState.featureButtonText}`);
+  assert(/ctez Oven Exit/.test(ctezState.featureButtonText) && /old ovens/.test(ctezState.featureButtonText), `ctez chamber: feature launcher copy mismatch: ${ctezState.featureButtonText}`);
   assert(!/ctez/i.test(ctezState.chambersHint), `ctez chamber: Chambers hint should not advertise ctez as default: ${ctezState.chambersHint}`);
 
   await page.locator('#ctez-modal.active .chamber-close').click();
@@ -5201,6 +5203,7 @@ async function smokeCtezChamber(browser, baseUrl) {
   await page.locator('#ctez-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#ctez-modal')?.classList.contains('active'), null, { timeout: 5000 });
   await ensureDropdownOpen(page, '#features-gear', '#features-dropdown');
+  await page.locator('#features-dropdown .feature-launcher-legacy-summary').click();
   await page.locator('#ctez-feature-btn').click();
   await page.locator('#ctez-modal.active .ctez-content').waitFor({ state: 'visible', timeout: 5000 });
 
@@ -6257,7 +6260,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
     { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Chambers explain the chain', 'Protocol Anthology'] },
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
     { selector: '#tezos-loop-chips', label: 'loop console step', snippets: ['Use the recipe console', 'Market lanes'] },
-    { selector: '#features-gear', label: 'explore step', snippets: ['Explore without clutter', 'State of Tezos'] },
+    { selector: '#features-gear', label: 'explore step', snippets: ['Command Center', 'Happening Now', 'Recovery tools'] },
     { selector: '#settings-gear', label: 'settings step', snippets: ['Tune and export', '14 themes'] }
   ];
 

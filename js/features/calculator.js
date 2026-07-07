@@ -526,13 +526,25 @@ function setMode(mode) {
 
 const CALC_VISIBLE_KEY = 'tezos-systems-calc-visible';
 
+function setLauncherToggleState(btn, isOn) {
+    const helper = window.tezosSystemsLauncher?.setToggleState;
+    if (helper) {
+        helper(btn, isOn);
+        return;
+    }
+    btn?.classList.toggle('active', isOn);
+    btn?.setAttribute('aria-pressed', String(isOn));
+    const pill = btn?.querySelector('.feature-status');
+    if (pill) pill.textContent = btn?.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+}
+
 function updateCalcVisibility(isVisible) {
     const section = document.getElementById('calculator-section');
     const toggleBtn = document.getElementById('calc-toggle');
     if (section) section.classList.toggle('visible', isVisible);
     if (toggleBtn) {
-        toggleBtn.classList.toggle('active', isVisible);
-        toggleBtn.title = `Calculator: ${isVisible ? 'ON' : 'OFF'}`;
+        setLauncherToggleState(toggleBtn, isVisible);
+        toggleBtn.title = `Staking Rewards Estimator: ${isVisible ? 'Showing' : 'Hidden'}`;
     }
 }
 

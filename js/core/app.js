@@ -96,7 +96,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=353';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=362';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -139,6 +139,62 @@ function settleHeroArrival() {
     if (heroSettledDone) return;
     heroSettledDone = true;
     resolveHeroSettled?.();
+}
+
+function setLauncherToggleState(btn, isOn) {
+    if (!btn) return;
+    btn.classList.toggle('active', isOn);
+    btn.setAttribute('aria-pressed', String(isOn));
+    const pill = btn.querySelector('.feature-status');
+    if (pill) {
+        pill.textContent = btn.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+    }
+}
+
+function updateExploreChambersLiveLine() {
+    const liveLine = document.getElementById('explore-chambers-live');
+    const protocol = document.getElementById('header-current-protocol')?.textContent?.trim() || 'Tezos';
+    if (liveLine) {
+        liveLine.textContent = 'Running ';
+        const protocolName = document.createElement('strong');
+        protocolName.textContent = protocol;
+        liveLine.appendChild(protocolName);
+    }
+
+    const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+    const setCrumb = (id, value) => {
+        const el = document.getElementById(id);
+        if (el && value) el.textContent = value;
+    };
+
+    const bakerEl = document.getElementById('hero-chain-uptime-bakers');
+    const bakers = clean(bakerEl?.dataset?.finalText || bakerEl?.textContent);
+    const health = clean(document.getElementById('network-health-status')?.textContent);
+    const cycle = clean(document.getElementById('cycle-chip')?.textContent);
+    const price = clean(document.querySelector('.price-value')?.textContent);
+    const priceChange = clean(document.querySelector('.price-change')?.textContent);
+    const whaleCount = window.whaleTracker?.transactions?.length || 0;
+    const awakeningCount = window.sleepingGiantsData?.awakenings?.length || 0;
+
+    setCrumb('explore-network-crumb', [health && !/loading/i.test(health) ? `Health ${health}` : 'TzKT + RPC live', cycle].filter(Boolean).join(' · '));
+    setCrumb('explore-baker-crumb', bakers ? `${bakers} active bakers` : 'Active bakers syncing');
+    setCrumb('explore-market-crumb', [price, priceChange].filter(Boolean).join(' ') || 'Price syncing');
+    setCrumb('explore-whale-crumb', whaleCount ? `${whaleCount} recent large moves` : 'Watching TzKT');
+    setCrumb('explore-giants-crumb', awakeningCount ? `${awakeningCount} recent dormant moves` : 'Dormancy watch');
+}
+
+function countExploreEvent(path) {
+    try {
+        window.goatcounter?.count?.({ path, event: true });
+    } catch {}
+}
+
+if (typeof window !== 'undefined') {
+    window.tezosSystemsLauncher = {
+        ...(window.tezosSystemsLauncher || {}),
+        setToggleState: setLauncherToggleState,
+        updateLiveState: updateExploreChambersLiveLine
+    };
 }
 
 // Safe feature wrapper — one failing feature can't kill init or refresh
@@ -1894,10 +1950,8 @@ function initChambersToggle() {
 
     function updateVis(isVisible) {
         section.style.display = isVisible ? '' : 'none';
-        toggleBtn.classList.toggle('active', isVisible);
-        toggleBtn.title = `Chambers: ${isVisible ? 'ON' : 'OFF'}`;
-        const status = toggleBtn.querySelector('.feature-status');
-        if (status) status.textContent = isVisible ? 'Pinned' : 'Hidden';
+        setLauncherToggleState(toggleBtn, isVisible);
+        toggleBtn.title = `Tezos Chambers: ${isVisible ? 'Showing' : 'Hidden'}`;
     }
 
     toggleBtn.addEventListener('click', () => {
@@ -1967,10 +2021,8 @@ function initTezosStatsToggle() {
 
     function updateVis(isVisible) {
         sections.forEach(s => s.style.display = isVisible ? '' : 'none');
-        toggleBtn.classList.toggle('active', isVisible);
-        toggleBtn.title = `Tezos Stats: ${isVisible ? 'ON' : 'OFF'}`;
-        const status = toggleBtn.querySelector('.feature-status');
-        if (status) status.textContent = isVisible ? 'Pinned' : 'Hidden';
+        setLauncherToggleState(toggleBtn, isVisible);
+        toggleBtn.title = `Network Pulse: ${isVisible ? 'Showing' : 'Hidden'}`;
     }
 
     async function loadStatsIfNeeded() {
@@ -2015,8 +2067,8 @@ function initComparisonToggle() {
 
     function updateVis(isVisible) {
         section.classList.toggle('visible', isVisible);
-        toggleBtn.classList.toggle('active', isVisible);
-        toggleBtn.title = `Chains: ${isVisible ? 'ON' : 'OFF'}`;
+        setLauncherToggleState(toggleBtn, isVisible);
+        toggleBtn.title = `Chain Comparisons: ${isVisible ? 'Showing' : 'Hidden'}`;
     }
 
     toggleBtn.addEventListener('click', () => {
@@ -2052,8 +2104,8 @@ function syncPriceIntelligenceVisibility(isVisible = isPriceIntelligenceSelected
     const toggleBtn = document.getElementById('price-intel-toggle');
     if (section) section.style.display = isVisible ? '' : 'none';
     if (!toggleBtn) return;
-    toggleBtn.classList.toggle('active', isVisible);
-    toggleBtn.title = `Price Intel: ${isVisible ? 'ON' : 'OFF'}`;
+    setLauncherToggleState(toggleBtn, isVisible);
+    toggleBtn.title = `XTZ Market Watch: ${isVisible ? 'Showing' : 'Hidden'}`;
 }
 
 function initPriceIntelToggle() {
@@ -4056,7 +4108,7 @@ function initCornerGiftTray() {
 
 function initSmartDock() {
     // Generic dropdown setup
-    function setupDropdown(gearId, dropdownId) {
+    function setupDropdown(gearId, dropdownId, onOpen) {
         const g = document.getElementById(gearId);
         const d = document.getElementById(dropdownId);
         if (!g || !d) return;
@@ -4073,13 +4125,36 @@ function initSmartDock() {
                 }
             });
             d.classList.toggle('open');
-            g.setAttribute('aria-expanded', d.classList.contains('open') ? 'true' : 'false');
+            const isOpen = d.classList.contains('open');
+            g.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            if (isOpen && typeof onOpen === 'function') onOpen();
         });
         d.addEventListener('click', (e) => e.stopPropagation());
     }
 
-    setupDropdown('features-gear', 'features-dropdown');
+    setupDropdown('features-gear', 'features-dropdown', () => {
+        updateExploreChambersLiveLine();
+        countExploreEvent('explore/open');
+    });
     setupDropdown('settings-gear', 'settings-dropdown');
+
+    const featureLauncher = document.getElementById('features-dropdown');
+    if (featureLauncher && featureLauncher.dataset.analyticsReady !== 'true') {
+        featureLauncher.dataset.analyticsReady = 'true';
+        featureLauncher.addEventListener('click', (event) => {
+            const item = event.target.closest('.feature-launcher-item');
+            if (!item || !featureLauncher.contains(item) || !item.id) return;
+            countExploreEvent(`explore/${item.id}`);
+        });
+    }
+    const myTezosFeatureBtn = document.getElementById('my-tezos-feature-btn');
+    if (myTezosFeatureBtn && myTezosFeatureBtn.dataset.launcherReady !== 'true') {
+        myTezosFeatureBtn.dataset.launcherReady = 'true';
+        myTezosFeatureBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            document.getElementById('my-tezos-btn')?.click();
+        });
+    }
 
     // Close all dropdowns on outside click
     document.addEventListener('click', () => {
@@ -4482,8 +4557,8 @@ function applyDeepLink() {
 
         localStorage.setItem(STATS_VISIBLE_KEY, 'true');
         sections.forEach((section) => { section.style.display = ''; });
-        toggle?.classList.add('active');
-        if (toggle) toggle.title = 'Tezos Stats: ON';
+        setLauncherToggleState(toggle, true);
+        if (toggle) toggle.title = 'Network Pulse: Showing';
     };
 
     const ensureChambersVisible = () => {
@@ -4498,8 +4573,8 @@ function applyDeepLink() {
 
         localStorage.setItem(CHAMBERS_VISIBLE_KEY, 'true');
         section.style.display = '';
-        toggle?.classList.add('active');
-        if (toggle) toggle.title = 'Chambers: ON';
+        setLauncherToggleState(toggle, true);
+        if (toggle) toggle.title = 'Tezos Chambers: Showing';
     };
 
     const scrollToElement = (target, options = {}) => {

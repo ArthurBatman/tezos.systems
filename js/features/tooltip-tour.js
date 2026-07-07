@@ -44,8 +44,8 @@
         },
         {
             target: '#features-gear',
-            title: 'Explore without clutter',
-            text: 'Explore opens optional tools: Network Stats, ctez, Price Intel, Compare, leaderboard, calculator, activity feeds, NFT Profile, History, State of Tezos, and widgets.',
+            title: 'Open the Command Center',
+            text: 'Explore opens the Command Center: Chambers first, Happening Now signals, Tezos-native tools, shareables, and collapsed Recovery tools.',
         },
         {
             target: '#settings-gear',
