@@ -176,8 +176,9 @@ until the visitor jumps back to the top. The visible HEN filter bar is the
 primary collecting surface: it exposes for-sale, price, search, edition, sort,
 saved, hide-owned, and shuffle controls without requiring the CLI; desktop gets
 a clipped edge fade when controls overflow, while mobile keeps the controls
-collapsed behind a `filters` toggle that opens as an overlay panel instead of
-pushing art down. First-time HEN visitors see a dismissible hint that points
+collapsed behind an anchored `filters` toggle; opening it drops the filter tray
+below the status line without dislodging the toggle. First-time HEN visitors see
+a dismissible hint that points
 them to For Sale plus wallet-owned flags. Inside the HEN CLI,
 `all`, `teia`, and `objkt` switch source scope; `forsale on|off`,
 `price <max>`, `editions <max>`, `sort <newest|cheapest|scarce>`,
@@ -225,7 +226,8 @@ inline modal styles in `js/core/app.js`.
   Each Chamber row is wrapped responsively so wide cards keep their companion
   card instead of creating desktop grid holes; cards also keep a canonical
   app-shell open affordance in the fixed footer rail, card-level direct-link
-  controls, and quiet `as of` freshness stamps on the live chamber cards.
+  controls, a matching section info button, and quiet `as of` freshness stamps on
+  the live chamber cards.
 - A live block ticker sits as its own island below the header/title row and
   above the command deck.
   It uses the Network Health block feed to show the latest block, baker,
@@ -233,10 +235,10 @@ inline modal styles in `js/core/app.js`.
   animated strip with stable-width volatile numbers, compact baker names, and a
   clean whole-line transition.
   Clicking the strip opens the Network Health Chamber.
-- The header keeps `uptime` in a theme-aware status badge directly under the
-  Tezos Systems title, with years/days/hours/minutes, a since-2018 marker,
-  active baker count, finality, staked share, and issuance rate in
-  theme-matched stat pills.
+- The header keeps the current protocol beside the Tezos Systems title, then
+  places `uptime` and the live NFT feed doorway together in the next row, with
+  years/days/hours/minutes, a since-2018 marker, active baker count, finality,
+  staked share, and issuance rate in theme-matched stat pills.
   Clicking the uptime badge opens Protocol Anthology; clicking a stat pill
   opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Continuity Proof panel with
@@ -585,7 +587,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v364`, including hero search, theme
+- Current aligned shell cache stamp: `v365`, including hero search, theme
   bundles, and the Leaderboard and Ledger Flow lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.

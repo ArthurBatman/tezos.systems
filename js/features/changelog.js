@@ -7,8 +7,11 @@ const CHANGELOG = [
     {
         date: '2026-07-07',
         entries: [
+            { type: '🎨', text: 'The header now tucks the current protocol beside the Tezos Systems wordmark and moves the live NFT feed next to uptime' },
+            { type: '🔧', text: 'HEN mobile filters now keep the toggle anchored while the filter tray opens below it' },
             { type: '🎨', text: 'The site favicon now uses a chunky Tezos tz monogram that stays readable in light and dark browser tabs' },
             { type: '🎨', text: 'HEN mode now keeps the live block number in the header only so the left status line stays readable' },
+            { type: '🎨', text: 'Collapsed Chambers now lines up with the Baker Leaderboard spacing and has a matching section info button' },
             { type: '🔧', text: 'Explore direct-link buttons now sit as small circular badges just left of status pills without widening the launcher' },
             { type: '🔧', text: 'Explore no longer repeats the same live network proof in the Command Center intro before the live rows below it' },
             { type: '🎨', text: 'Explore launcher rows now keep HEN and Tezos Domains link text formatted like native tools while aligning every status pill on the same rail' },

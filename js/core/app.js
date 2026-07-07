@@ -96,7 +96,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=364';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=365';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2759,6 +2759,7 @@ function setupEventListeners() {
     setupModal('network-info-btn', 'network-modal', 'network-modal-close');
     setupModal('ecosystem-info-btn', 'ecosystem-modal', 'ecosystem-modal-close');
     setupModal('comparison-info-btn', 'comparison-modal', 'comparison-modal-close');
+    setupModal('chambers-info-btn', 'chambers-modal', 'chambers-modal-close');
     setupModal('my-baker-info-btn', 'my-baker-modal', 'my-baker-modal-close');
     setupModal('calc-info-btn', 'calc-modal', 'calc-modal-close');
     setupModal('leaderboard-info-btn', 'leaderboard-modal', 'leaderboard-modal-close');
@@ -3996,6 +3997,7 @@ function initCollapsibleSections() {
 
         function collapse() {
             section.classList.add('collapsed');
+            header.style.marginBottom = '0';
             getCollapsibleElements().forEach(el => {
                 el.style.maxHeight = el.scrollHeight + 'px';
                 el.offsetHeight; // force reflow
@@ -4013,6 +4015,7 @@ function initCollapsibleSections() {
 
         function expand() {
             section.classList.remove('collapsed');
+            header.style.marginBottom = '';
             getCollapsibleElements().forEach(el => {
                 el.style.margin = '';
                 el.style.padding = '';
@@ -4043,6 +4046,7 @@ function initCollapsibleSections() {
         if (storageKey && localStorage.getItem(storageKey) === '1') {
             // Instant collapse (no animation)
             section.classList.add('collapsed');
+            header.style.marginBottom = '0';
             getCollapsibleElements().forEach(el => {
                 el.style.maxHeight = '0';
                 el.style.overflow = 'hidden';

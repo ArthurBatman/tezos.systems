@@ -1810,13 +1810,16 @@
     .hen-source-tab { min-width: 58px; }
     .hen-status-strip { height: 42px; min-height: 42px; max-height: 42px; padding: 6px 14px; flex-wrap: nowrap; }
     .hen-status-line { flex: 1 1 auto; min-width: 0; }
-    .hen-mobile-filter-toggle { display: inline-flex; align-items: center; justify-content: center; width: auto; flex: 0 0 96px; }
+    .hen-mobile-filter-toggle { display: inline-flex; align-items: center; justify-content: center; width: auto; flex: 0 0 118px; white-space: nowrap; }
     .hen-status-strip.mobile-filters-open {
         height: auto;
         max-height: none;
-        align-items: stretch;
+        align-items: center;
         flex-wrap: wrap;
         row-gap: 8px;
+    }
+    .hen-status-strip.mobile-filters-open .hen-status-line {
+        flex: 1 1 0;
     }
     .hen-status-strip:not(.mobile-filters-open) .hen-filterbar,
     .hen-status-strip:not(.mobile-filters-open) .hen-wallet-controls {
