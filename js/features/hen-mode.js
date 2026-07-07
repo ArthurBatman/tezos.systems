@@ -289,10 +289,6 @@ const HenMode = (() => {
         try { localStorage.removeItem(key); } catch (_) {}
     }
 
-    function blockLabel() {
-        return latestBlockLevel ? 'block ' + latestBlockLevel.toLocaleString() : '';
-    }
-
     function liveStateLabel() {
         if (sortMode !== DEFAULT_SORT_MODE) {
             return 'live paused (sorted by ' + SORT_MODES[sortMode].label + ')';
@@ -1195,8 +1191,6 @@ const HenMode = (() => {
         var viewer = viewerAddress ? 'wallet ' + (viewerLabel || shortAddr(viewerAddress)) : 'connect to flag pieces you own';
         var filters = activeFilterLabel();
         var statusParts = [source, liveStateLabel()];
-        var block = blockLabel();
-        if (block) statusParts.push(block);
         statusParts.push(viewer);
         if (filters) statusParts.push(filters);
         if (status) status.textContent = statusParts.join(' · ');
