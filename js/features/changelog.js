@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-07',
         entries: [
+            { type: '🎨', text: 'The site favicon now uses a chunky Tezos tz monogram that stays readable in light and dark browser tabs' },
             { type: '🎨', text: 'HEN mode now keeps the live block number in the header only so the left status line stays readable' },
             { type: '🔧', text: 'Explore direct-link buttons now sit as small circular badges just left of status pills without widening the launcher' },
             { type: '🔧', text: 'Explore no longer repeats the same live network proof in the Command Center intro before the live rows below it' },
