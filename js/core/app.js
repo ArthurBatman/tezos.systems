@@ -98,7 +98,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=381';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=390';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2222,8 +2222,10 @@ function initUptimeClock() {
     const issuanceEl = document.getElementById('uptime-issuance');
     const topContinuityPanel = document.getElementById('top-continuity-panel');
     const topContinuityHistory = document.getElementById('top-continuity-history');
+    const topContinuityProof = topContinuityHistory?.closest('.top-uptime-cluster');
     const topContinuityClaim = topContinuityHistory?.querySelector('.top-continuity-claim');
     const topContinuityOrigin = topContinuityHistory?.querySelector('.top-continuity-origin');
+    const topContinuityMilestoneInfo = topContinuityProof?.querySelector('.top-continuity-milestone-info');
     const uptimeClock = document.getElementById('uptime-clock');
 
     if (!counterEl) {
@@ -2257,6 +2259,186 @@ function initUptimeClock() {
     };
     let explainActiveKey = null;
     let explainActivePill = null;
+    let activeUptimeMilestoneSignal = null;
+    let uptimeMilestoneTimer = null;
+    let uptimeMilestoneArrivalTimer = null;
+    let renderedUptimeMilestoneSignature = '__unset__';
+    const UPTIME_MILESTONE_ARRIVAL_MS = 1900;
+
+    function cleanUptimeMilestoneText(value) {
+        return String(value || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function finiteTimestamp(value) {
+        if (value == null || value === '') return null;
+        const timestamp = Number(value);
+        return Number.isFinite(timestamp) ? timestamp : null;
+    }
+
+    function getActiveUptimeMilestoneSignal(now = Date.now()) {
+        const expiresAt = finiteTimestamp(activeUptimeMilestoneSignal?.expiresAt);
+        if (expiresAt != null && expiresAt <= now) {
+            activeUptimeMilestoneSignal = null;
+            return null;
+        }
+        return activeUptimeMilestoneSignal;
+    }
+
+    function describeUptimeMilestone(signal) {
+        const title = cleanUptimeMilestoneText(signal?.title || 'Network milestone');
+        const text = cleanUptimeMilestoneText(signal?.text);
+        const detail = cleanUptimeMilestoneText(signal?.detail);
+        return [title, text, detail].filter(Boolean).join(' · ');
+    }
+
+    function uptimeMilestoneStatus(signal) {
+        if (signal?.milestoneStatus === 'crossed') return 'crossed';
+        if (signal?.milestoneStatus === 'near') return 'near';
+        return signal?.kind === 'event' ? 'crossed' : 'near';
+    }
+
+    function uptimeMilestoneDestination(signal) {
+        const route = cleanUptimeMilestoneText(signal?.route);
+        if (!route || route === '#hot-today' || route.startsWith('#section=')) return '#pulse';
+        return route;
+    }
+
+    function uptimeMilestoneDestinationLabel(destination, signal) {
+        const labels = {
+            '#pulse': 'Open Network Pulse',
+            '#health': 'Open Network Health',
+            '#leaderboard': 'Open Baker Leaderboard',
+            '#calculator': 'Open staking calculator',
+            '/tz4/': 'Open the tz4 chamber',
+            '/anthology/': 'Open Protocol Anthology',
+            '/tezosx/': 'Open the Tezos X chamber'
+        };
+        const supplied = cleanUptimeMilestoneText(signal?.routeLabel);
+        return labels[destination] || (/^Open\b/i.test(supplied) ? supplied : 'Open milestone details');
+    }
+
+    function clearUptimeMilestoneArrival() {
+        if (uptimeMilestoneArrivalTimer) {
+            window.clearTimeout(uptimeMilestoneArrivalTimer);
+            uptimeMilestoneArrivalTimer = null;
+        }
+        topContinuityHistory?.classList.remove('is-milestone-arriving');
+        topContinuityProof?.classList.remove('is-milestone-arriving');
+    }
+
+    function startUptimeMilestoneArrival() {
+        if (!topContinuityHistory) return;
+        clearUptimeMilestoneArrival();
+        // Restart only when a new on-chain crossing becomes the active hot signal.
+        void topContinuityHistory.offsetWidth;
+        topContinuityHistory.classList.add('is-milestone-arriving');
+        topContinuityProof?.classList.add('is-milestone-arriving');
+        uptimeMilestoneArrivalTimer = window.setTimeout(() => {
+            uptimeMilestoneArrivalTimer = null;
+            topContinuityHistory.classList.remove('is-milestone-arriving');
+            topContinuityProof?.classList.remove('is-milestone-arriving');
+        }, UPTIME_MILESTONE_ARRIVAL_MS);
+    }
+
+    function syncUptimeMilestoneCelebration(signal = getActiveUptimeMilestoneSignal()) {
+        const active = Boolean(signal);
+        const status = active ? uptimeMilestoneStatus(signal) : null;
+        const crossed = status === 'crossed';
+        const near = status === 'near';
+        const renderSignature = active
+            ? `${signal.id}|${status}|${signal.shortLabel || signal.icon || signal.title}|${signal.expiresAt || ''}`
+            : '';
+        if (renderSignature === renderedUptimeMilestoneSignature) return;
+        renderedUptimeMilestoneSignature = renderSignature;
+        topContinuityHistory?.classList.toggle('has-milestone-signal', active);
+        topContinuityHistory?.classList.toggle('is-milestone-near', near);
+        topContinuityHistory?.classList.toggle('is-milestone-crossed', crossed);
+        topContinuityHistory?.classList.toggle('is-milestone-celebrating', crossed);
+        topContinuityProof?.classList.toggle('has-milestone-signal', active);
+        topContinuityProof?.classList.toggle('is-milestone-near', near);
+        topContinuityProof?.classList.toggle('is-milestone-crossed', crossed);
+        topContinuityProof?.classList.toggle('is-milestone-celebrating', crossed);
+        topContinuityPanel?.classList.toggle('has-milestone-near', near);
+        topContinuityPanel?.classList.toggle('has-milestone-celebration', crossed);
+
+        if (topContinuityHistory) {
+            if (active) topContinuityHistory.dataset.milestoneStatus = status;
+            else delete topContinuityHistory.dataset.milestoneStatus;
+        }
+
+        if (!topContinuityMilestoneInfo) return;
+        topContinuityMilestoneInfo.hidden = !active;
+        if (active) {
+            const target = cleanUptimeMilestoneText(signal.shortLabel || signal.icon || signal.title || 'Milestone');
+            const destination = uptimeMilestoneDestination(signal);
+            const destinationLabel = uptimeMilestoneDestinationLabel(destination, signal);
+            topContinuityMilestoneInfo.textContent = target;
+            topContinuityMilestoneInfo.href = destination;
+            topContinuityMilestoneInfo.dataset.networkRoute = destination;
+            topContinuityMilestoneInfo.dataset.milestoneStatus = status;
+            topContinuityMilestoneInfo.setAttribute('aria-label', `${crossed ? 'Confirmed on-chain' : 'Approaching'}: ${target}. ${destinationLabel}`);
+            topContinuityMilestoneInfo.title = `${crossed ? 'Confirmed on-chain' : 'Approaching'}: ${describeUptimeMilestone(signal)}. ${destinationLabel}`;
+        } else {
+            topContinuityMilestoneInfo.textContent = 'Milestone';
+            topContinuityMilestoneInfo.href = '#pulse';
+            delete topContinuityMilestoneInfo.dataset.networkRoute;
+            delete topContinuityMilestoneInfo.dataset.milestoneStatus;
+            topContinuityMilestoneInfo.removeAttribute('aria-label');
+            topContinuityMilestoneInfo.removeAttribute('title');
+        }
+    }
+
+    function setActiveUptimeMilestoneSignal(signal) {
+        if (uptimeMilestoneTimer) {
+            window.clearTimeout(uptimeMilestoneTimer);
+            uptimeMilestoneTimer = null;
+        }
+
+        const expiresAt = finiteTimestamp(signal?.expiresAt);
+        const isMilestone = signal?.tone === 'milestone' || signal?.category === 'milestone';
+        if (!signal || !isMilestone || (expiresAt != null && expiresAt <= Date.now())) {
+            activeUptimeMilestoneSignal = null;
+            clearUptimeMilestoneArrival();
+            syncUptimeMilestoneCelebration(null);
+            tickUptime();
+            return;
+        }
+
+        const nextSignal = {
+            id: cleanUptimeMilestoneText(signal.id),
+            title: cleanUptimeMilestoneText(signal.title || 'Network milestone'),
+            shortLabel: cleanUptimeMilestoneText(signal.shortLabel || signal.title || 'Network milestone'),
+            icon: cleanUptimeMilestoneText(signal.icon),
+            text: cleanUptimeMilestoneText(signal.text),
+            detail: cleanUptimeMilestoneText(signal.detail),
+            route: cleanUptimeMilestoneText(signal.route),
+            routeLabel: cleanUptimeMilestoneText(signal.routeLabel),
+            kind: signal.kind === 'event' ? 'event' : 'state',
+            milestoneStatus: uptimeMilestoneStatus(signal),
+            expiresAt
+        };
+        const previousSignature = activeUptimeMilestoneSignal
+            ? `${activeUptimeMilestoneSignal.id}|${activeUptimeMilestoneSignal.milestoneStatus}|${activeUptimeMilestoneSignal.expiresAt || ''}`
+            : '';
+        const nextSignature = `${nextSignal.id}|${nextSignal.milestoneStatus}|${nextSignal.expiresAt || ''}`;
+        activeUptimeMilestoneSignal = nextSignal;
+        syncUptimeMilestoneCelebration(activeUptimeMilestoneSignal);
+        if (nextSignal.milestoneStatus === 'crossed' && nextSignature !== previousSignature) {
+            startUptimeMilestoneArrival();
+        } else if (nextSignal.milestoneStatus !== 'crossed') {
+            clearUptimeMilestoneArrival();
+        }
+        if (expiresAt != null) {
+            uptimeMilestoneTimer = window.setTimeout(() => {
+                uptimeMilestoneTimer = null;
+                activeUptimeMilestoneSignal = null;
+                clearUptimeMilestoneArrival();
+                syncUptimeMilestoneCelebration(null);
+                tickUptime();
+            }, Math.max(0, expiresAt - Date.now()) + 80);
+        }
+        tickUptime();
+    }
 
     function updateTopContinuityShuffleState() {
         // Keep live-number motion scoped to the pill whose value changed.
@@ -2587,6 +2769,13 @@ function initUptimeClock() {
         window.addEventListener('resize', repositionTopContinuityExplanation);
     }
 
+    if (topContinuityHistory && topContinuityHistory.dataset.milestoneCelebrationWired !== '1') {
+        topContinuityHistory.dataset.milestoneCelebrationWired = '1';
+        window.addEventListener('hot-signal-rendered', (event) => {
+            setActiveUptimeMilestoneSignal(event?.detail?.milestone || null);
+        });
+    }
+
     function syncChainProofMetrics() {
         setChainText('chain-uptime-bakers', chainBakersText);
         setChainText('chain-uptime-finality', chainFinalityText);
@@ -2596,6 +2785,8 @@ function initUptimeClock() {
 
     function applyUptimeAnniversaryState(anniversary, totalDays, upgradeCount) {
         const active = Boolean(anniversary?.isAnniversary);
+        const activeMilestone = getActiveUptimeMilestoneSignal();
+        syncUptimeMilestoneCelebration(activeMilestone);
         topContinuityHistory?.classList.toggle('is-anniversary', active);
         topContinuityPanel?.classList.toggle('has-anniversary', active);
         uptimeClock?.classList.toggle('is-anniversary', active);
@@ -2612,8 +2803,11 @@ function initUptimeClock() {
         const myth = active
             ? `${anniversary.message} ${upgradeCount} protocol upgrades kept shipping without a stop.`
             : `${totalDays.toLocaleString('en-US')} days without stopping. ${upgradeCount} upgrades. Zero forks. The longest-running self-amending chain.`;
-        topContinuityHistory.title = myth;
-        topContinuityHistory.setAttribute('aria-label', `${myth} Open Protocol Anthology Chamber`);
+        const milestoneLead = activeMilestone
+            ? `${uptimeMilestoneStatus(activeMilestone) === 'crossed' ? 'Network milestone confirmed' : 'Network milestone approaching'}: ${describeUptimeMilestone(activeMilestone)}. `
+            : '';
+        topContinuityHistory.title = `${milestoneLead}${myth}`;
+        topContinuityHistory.setAttribute('aria-label', `${milestoneLead}${myth} Open Protocol Anthology Chamber`);
     }
 
     // Tick the uptime counter every second — fixed-width digits

@@ -244,8 +244,10 @@ inline modal styles in `js/core/app.js`.
   issuance rate remain in theme-matched stat pills.
   On the September 17 UTC mainnet anniversary, the uptime statement switches to
   a congratulatory anniversary message while preserving the live counter.
-  Clicking the uptime statement opens Protocol Anthology; clicking a stat pill
-  opens that metric's historical stats surface.
+  Imminent or newly crossed network milestones make the runtime glow and add a
+  compact linked marker beside it; the marker opens Network Pulse or the most
+  relevant Chamber while the uptime statement still opens Protocol Anthology.
+  Clicking a stat pill opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Continuity Proof panel with
   the same core proof data in the deep Health context.
 - Tezos X Governance Chamber with direct `#l2chamber` access and visible L2
@@ -306,6 +308,10 @@ inline modal styles in `js/core/app.js`.
   sits above Chambers as a horizontally scrolling strip for non-obvious daily
   signals instead of repeating the header's cycle, baker, staking, or security
   facts, and leads with a larger uptime-anniversary card on September 17 UTC.
+  Pace-aware milestone cards normally appear only within the final 14 days and
+  are hard-capped at 30 days before a target; newly crossed milestones remain
+  celebratory for 72 hours. Each milestone card can open the existing branded
+  image-share composer with milestone-specific promotional tweet styles.
   Phase-one internal routes open My Tezos,
   baker profiles, protocol lore/history, Chambers, themes, calculator,
   comparisons, leaderboard, whale/giant feeds, NFT lookup, History, and native
@@ -597,7 +603,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v381`, including hero search, theme
+- Current aligned shell cache stamp: `v390`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.

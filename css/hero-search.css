@@ -110,10 +110,27 @@
     min-width: 0;
 }
 
+.top-uptime-cluster {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 0.72rem;
+    min-width: 0;
+}
+
 .top-continuity-statement {
     display: grid;
     gap: 0.44rem;
     min-width: 0;
+}
+
+.top-continuity-primary-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.72rem;
+    min-width: 0;
+    font-size: clamp(1.5rem, 2.15vw, 2rem);
+    line-height: 0.96;
+    white-space: nowrap;
 }
 
 .top-continuity-runtime {
@@ -122,7 +139,7 @@
     gap: 0.5ch;
     margin-inline: 0;
     color: var(--text-primary);
-    font-size: clamp(1.5rem, 2.15vw, 2rem);
+    font-size: inherit;
     font-weight: 900;
     letter-spacing: 0;
     line-height: 0.96;
@@ -257,8 +274,20 @@
     }
 
     .top-continuity-runtime {
-        font-size: clamp(1.5rem, 7vw, 2rem);
+        font-size: inherit;
         text-align: center;
+    }
+
+    .top-continuity-primary-line {
+        justify-content: center;
+        width: auto;
+        font-size: clamp(1.25rem, 5.6vw, 1.55rem);
+    }
+
+    .top-uptime-cluster {
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
     }
 
     .top-continuity-subline {

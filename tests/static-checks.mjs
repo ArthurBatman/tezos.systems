@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs/promises';
+import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHAMBER_ROUTES, routeUrl } from '../scripts/lib/chamber-routes.mjs';
+import { advanceMilestoneTrack, claimMilestoneArrival, normalizeMilestoneStore, qualifyMilestoneNearState } from '../js/features/milestone-lifecycle.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -602,6 +604,7 @@ async function checkSelectorContracts() {
   const siteNav = await readText('js/landing/site-nav.js');
   const search = await readText('js/features/search.js');
   const heroSearchCss = await readText('css/hero-search.css');
+  const shellExtrasCss = await readText('css/shell-extras.css');
   const loadingCss = await readText('css/loading.css');
   const henModeCss = await readText('css/hen-mode.css');
   const henMode = await readText('js/features/hen-mode.js');
@@ -1081,6 +1084,8 @@ async function checkSelectorContracts() {
     ['top continuity uptime statement claim', 'top-continuity-claim">100% uptime', index],
     ['top continuity statement subline', 'class="top-continuity-subline"', index],
     ['top continuity since-2018 marker', 'top-continuity-origin">since 2018', index],
+    ['top continuity milestone runtime marker', 'class="top-continuity-primary-line"', index],
+    ['top continuity milestone destination link', '<a class="top-continuity-milestone-info" href="#pulse" hidden>', index],
     ['top continuity proof baker metric', 'id="hero-chain-uptime-bakers"', index],
     ['top continuity baker all-time pill', 'data-card-history="total-bakers"', index],
     ['top continuity finality all-time pill', 'data-card-history="finality"', index],
@@ -1113,7 +1118,7 @@ async function checkSelectorContracts() {
     ['top continuity statement runtime scale', 'font-size: clamp(1.5rem, 2.15vw, 2rem);', heroSearchCss],
     ['top continuity statement caption scale', 'font-size: clamp(0.72rem, 0.92vw, 0.875rem);', heroSearchCss],
     ['top continuity statement separator scale', 'font-size: clamp(0.7rem, 0.85vw, 0.82rem);', heroSearchCss],
-    ['top continuity mobile runtime cap', 'font-size: clamp(1.5rem, 7vw, 2rem);', heroSearchCss],
+    ['top continuity mobile shared runtime cap', 'font-size: clamp(1.25rem, 5.6vw, 1.55rem);', heroSearchCss],
     ['top continuity runtime natural segment gap', 'gap: 0.5ch;', heroSearchCss],
     ['top continuity hover affordance', '.top-continuity-history:is(:hover, :focus-visible) .top-continuity-arrow', heroSearchCss],
     ['top continuity segmented runtime renderer', 'renderTopContinuityRuntime(years, days, hours, mins)', app],
@@ -1125,6 +1130,18 @@ async function checkSelectorContracts() {
     ['top continuity pill stagger', '}, index * 80);', app],
     ['top continuity arrival pending class', 'hero-arrival-pending', app],
     ['top continuity arrival completion class', 'hero-arrived', app],
+    ['top continuity milestone event bridge', "window.addEventListener('hot-signal-rendered'", app],
+    ['top continuity milestone active class', 'is-milestone-celebrating', app],
+    ['top continuity milestone destination resolver', 'uptimeMilestoneDestination(signal)', app],
+    ['top continuity milestone near state', "classList.toggle('is-milestone-near', near)", app],
+    ['top continuity milestone crossed state', "classList.toggle('is-milestone-crossed', crossed)", app],
+    ['top continuity milestone arrival state', "classList.add('is-milestone-arriving')", app],
+    ['top continuity nullable milestone expiry guard', "if (value == null || value === '') return null;", app],
+    ['top continuity milestone glow styles', '.top-uptime-cluster.has-milestone-signal :is(.top-continuity-primary-line, .top-continuity-milestone-info)', shellExtrasCss],
+    ['top continuity milestone info styles', '.top-continuity-milestone-info', shellExtrasCss],
+    ['milestone card DOM status styles', '.hot-today-milestone-status', shellExtrasCss],
+    ['milestone card protocol trace styles', '.hot-today-milestone-trace', shellExtrasCss],
+    ['milestone card active-only sustained trace', '.is-milestone-crossed.is-hot-active .hot-today-milestone-trace', shellExtrasCss],
     ['top continuity loading skeleton respects arrived pills', '.hero-arrival-pending .top-continuity-stat:not(.hero-arrived) strong', loadingCss],
     ['top continuity title theme token', '--header-title-color', styles],
     ['top continuity uptime statement transparent bg', 'background: transparent;', styles],
@@ -2102,6 +2119,18 @@ async function checkNetworkContextNavigationContracts() {
     'HOT_SIGNAL_RENDER_CAP = 12',
     'HOT_SIGNAL_CATEGORY_BUDGET = 2',
     'HOT_SIGNAL_EVENT_DECAY_PER_HOUR = 8',
+    "if (value == null || value === '') return null;",
+    'MILESTONE_MOMENT_TTL_MS = 72 * HOUR_MS',
+    'advanceMilestoneTrack(momentStore',
+    "milestoneStatus: 'crossed'",
+    "milestoneStatus: 'near'",
+    'shortLabel: milestoneShortLabel',
+    'claimMilestoneArrival(seenMilestoneArrivals',
+    "signal?.tone === 'milestone' && signal?.milestoneStatus === 'crossed'",
+    'data-milestone-status=',
+    'hot-today-milestone-status',
+    'scheduleHotSignalExpiryRefresh(hotTodaySignals)',
+    'milestone: hotSignalPayload(milestoneSignal)',
     'dailySnapshotReference',
     'captureDailySnapshot(stats)',
     'const kind = normalizeSignalKind',
@@ -2109,7 +2138,10 @@ async function checkNetworkContextNavigationContracts() {
     'fetchNftPulse',
     'maybeDispatchProtocolLoreSignal',
     'delta: normalizeDelta',
-    'BRIEFING_SCHEMA_VERSION = 3',
+    'BRIEFING_SCHEMA_VERSION = 9',
+    'MILESTONE_NEAR_MAX_DAYS = 30',
+    'data-hot-milestone-share',
+    'captureNetworkMomentShare',
     '<a class="network-focus-chip"',
     '<a class="network-signal',
     'data-network-route',
@@ -2123,6 +2155,118 @@ async function checkNetworkContextNavigationContracts() {
   }
 
   pass('Network Context feature routes stay clickable');
+}
+
+function checkMilestoneLifecycleBehavior() {
+  try {
+    const now = 1_700_000_000_000;
+    const ttlMs = 72 * 60 * 60 * 1000;
+    const thresholds = [100, 200];
+    const legacyStore = normalizeMilestoneStore({
+      'blocks:100': { track: 'blocks', target: '100', createdAt: now - 1000 }
+    });
+    const baseline = advanceMilestoneTrack(legacyStore, {
+      trackId: 'blocks',
+      currentValue: 105,
+      thresholds,
+      now,
+      ttlMs
+    });
+    assert.equal(baseline.baseline, true);
+    assert.equal(baseline.activeMoments.length, 0);
+    assert.equal(legacyStore.tracks.blocks.celebratedTargets['100'].baseline, true);
+
+    const store = normalizeMilestoneStore(null);
+    const first = advanceMilestoneTrack(store, {
+      trackId: 'blocks',
+      currentValue: 95,
+      thresholds,
+      now,
+      ttlMs
+    });
+    assert.equal(first.activeMoments.length, 0);
+    const crossing = advanceMilestoneTrack(store, {
+      trackId: 'blocks',
+      currentValue: 101,
+      thresholds,
+      now: now + 1000,
+      ttlMs
+    });
+    assert.equal(crossing.newlyCrossed.length, 1);
+    assert.equal(crossing.activeMoments[0].expiresAt, now + 1000 + ttlMs);
+
+    const movedAway = advanceMilestoneTrack(store, {
+      trackId: 'blocks',
+      currentValue: 150,
+      thresholds,
+      now: now + ttlMs - 1000,
+      ttlMs
+    });
+    assert.equal(movedAway.activeMoments.length, 1);
+    const expired = advanceMilestoneTrack(store, {
+      trackId: 'blocks',
+      currentValue: 99,
+      thresholds,
+      now: now + ttlMs + 1001,
+      ttlMs
+    });
+    assert.equal(expired.activeMoments.length, 0);
+    assert.ok(store.tracks.blocks.celebratedTargets['100']);
+    const noRearm = advanceMilestoneTrack(store, {
+      trackId: 'blocks',
+      currentValue: 101,
+      thresholds,
+      now: now + ttlMs + 2000,
+      ttlMs
+    });
+    assert.equal(noRearm.newlyCrossed.length, 0);
+    assert.equal(noRearm.activeMoments.length, 0);
+
+    const arrivals = new Set();
+    assert.equal(claimMilestoneArrival(arrivals, 'blocks|100|event'), true);
+    assert.equal(claimMilestoneArrival(arrivals, 'blocks|100|event'), false);
+    assert.equal(claimMilestoneArrival(arrivals, 'blocks|200|event'), true);
+
+    const tooEarly = qualifyMilestoneNearState({
+      currentValue: 2852,
+      thresholds: [3000],
+      nearWindow: 180,
+      dailyRate: 1,
+      maxLeadDays: 14,
+      absoluteMaxDays: 30
+    });
+    assert.equal(tooEarly, null);
+    const withinTwoWeeks = qualifyMilestoneNearState({
+      currentValue: 2988,
+      thresholds: [3000],
+      nearWindow: 180,
+      dailyRate: 1,
+      maxLeadDays: 14,
+      absoluteMaxDays: 30
+    });
+    assert.equal(Math.ceil(withinTwoWeeks.etaDays), 12);
+    const beyondAbsoluteCap = qualifyMilestoneNearState({
+      currentValue: 2969,
+      thresholds: [3000],
+      nearWindow: 180,
+      dailyRate: 1,
+      maxLeadDays: 45,
+      absoluteMaxDays: 30
+    });
+    assert.equal(beyondAbsoluteCap, null);
+    const insideAbsoluteCap = qualifyMilestoneNearState({
+      currentValue: 2971,
+      thresholds: [3000],
+      nearWindow: 180,
+      dailyRate: 1,
+      maxLeadDays: 45,
+      absoluteMaxDays: 30
+    });
+    assert.equal(Math.ceil(insideAbsoluteCap.etaDays), 29);
+    pass('milestone lifecycle behavior covers baseline, crossing, TTL, tombstones, one-time arrival, and the 30-day near cap');
+  } catch (error) {
+    fail(`milestone lifecycle behavior failed: ${error.message}`);
+  }
 }
 
 async function checkReadmeContracts() {
@@ -2224,6 +2368,7 @@ async function main() {
   await checkTourAndShareCaptureContracts();
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
+  checkMilestoneLifecycleBehavior();
   await checkReadmeContracts();
 
   for (const message of passes) console.log(`ok - ${message}`);

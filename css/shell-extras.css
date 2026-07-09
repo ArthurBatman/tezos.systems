@@ -322,6 +322,191 @@
     letter-spacing: 0.03em;
 }
 
+.top-uptime-cluster.has-milestone-signal,
+.hot-today-milestone-shell,
+.hot-today-card-milestone {
+    --milestone-blue: #2c7df7;
+    --milestone-cyan: #20c8d7;
+    --milestone-pink: #d96cc6;
+    --milestone-ink: color-mix(in srgb, var(--text-primary) 82%, var(--milestone-blue));
+}
+
+.top-uptime-cluster.has-milestone-signal {
+    isolation: isolate;
+}
+
+.top-uptime-cluster.has-milestone-signal :is(.top-continuity-primary-line, .top-continuity-milestone-info) {
+    --milestone-glow-primary: color-mix(in srgb, var(--milestone-blue) 72%, transparent);
+    --milestone-glow-secondary: color-mix(in srgb, var(--milestone-cyan) 42%, transparent);
+    filter:
+        drop-shadow(0 0 3px var(--milestone-glow-primary))
+        drop-shadow(0 0 8px var(--milestone-glow-secondary));
+    animation: uptimeMilestoneCounterGlow 3.2s ease-in-out infinite;
+    transition: filter 320ms ease;
+}
+
+.top-uptime-cluster.has-milestone-signal .top-continuity-runtime {
+    position: relative;
+    z-index: 1;
+    transition: color 320ms ease, text-shadow 420ms ease, filter 320ms ease;
+}
+
+.top-uptime-cluster.is-milestone-near .top-continuity-runtime {
+    color: color-mix(in srgb, var(--text-primary) 76%, var(--milestone-blue));
+    text-shadow: 0 0 10px color-mix(in srgb, var(--milestone-blue) 22%, transparent);
+}
+
+.top-uptime-cluster.is-milestone-crossed :is(.top-continuity-primary-line, .top-continuity-milestone-info) {
+    --milestone-glow-primary: color-mix(in srgb, var(--milestone-cyan) 78%, transparent);
+    --milestone-glow-secondary: color-mix(in srgb, var(--milestone-pink) 44%, transparent);
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-runtime {
+    color: var(--milestone-ink);
+    text-shadow:
+        0 0 6px color-mix(in srgb, white 38%, transparent),
+        0 0 14px color-mix(in srgb, var(--milestone-blue) 38%, transparent);
+}
+
+.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment {
+    animation: uptimeMilestoneSegmentLock 780ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
+}
+
+.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment:nth-child(2) {
+    animation-delay: 90ms;
+}
+
+.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment:nth-child(3) {
+    animation-delay: 180ms;
+}
+
+.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment:nth-child(4) {
+    animation-delay: 270ms;
+}
+
+.top-uptime-cluster.is-milestone-arriving :is(.top-continuity-claim, .top-continuity-origin) {
+    animation: uptimeMilestoneCaptionLock 920ms 320ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-claim,
+.top-uptime-cluster.is-milestone-crossed .top-continuity-origin {
+    color: color-mix(in srgb, var(--uptime-badge-label) 72%, var(--milestone-cyan));
+    text-shadow: 0 0 8px color-mix(in srgb, var(--milestone-blue) 16%, transparent);
+}
+
+.top-continuity-milestone-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    flex: 0 1 8.4em;
+    gap: 0.3rem;
+    width: 8.4em;
+    max-width: 8.4em;
+    min-height: 1.52em;
+    margin-top: -0.08em;
+    padding: 0.12em 0.46em;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--milestone-blue, #2c7df7) 64%, var(--glass-border));
+    border-radius: 4px;
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--milestone-blue, #2c7df7) 18%, transparent), color-mix(in srgb, var(--milestone-cyan, #20c8d7) 8%, transparent));
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--milestone-blue, #2c7df7) 82%, transparent);
+    color: color-mix(in srgb, var(--text-primary) 74%, var(--milestone-blue, #2c7df7));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(1.035rem, 1.484vw, 1.38rem);
+    font-weight: 950;
+    letter-spacing: 0;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    visibility: visible;
+    transition: color 220ms ease, border-color 220ms ease, background 220ms ease, opacity 180ms ease;
+}
+
+.top-continuity-milestone-info:is(:hover, :focus-visible) {
+    border-color: color-mix(in srgb, var(--milestone-cyan, #20c8d7) 86%, white);
+    color: color-mix(in srgb, var(--text-primary) 82%, var(--milestone-cyan, #20c8d7));
+    outline: none;
+    box-shadow:
+        inset 3px 0 0 var(--milestone-blue, #2c7df7),
+        inset -2px 0 0 color-mix(in srgb, var(--milestone-pink, #d96cc6) 72%, transparent),
+        0 0 0 2px color-mix(in srgb, var(--milestone-cyan, #20c8d7) 24%, transparent);
+}
+
+.top-continuity-milestone-info[hidden] {
+    display: inline-flex !important;
+    visibility: hidden;
+    opacity: 0;
+}
+
+.top-continuity-milestone-info::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 0.38rem;
+    height: 0.38rem;
+    background: var(--milestone-blue, #2c7df7);
+    box-shadow: 0 0 7px color-mix(in srgb, var(--milestone-blue, #2c7df7) 42%, transparent);
+    transform: rotate(45deg);
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-info {
+    border-color: color-mix(in srgb, var(--milestone-cyan) 82%, var(--glass-border));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--milestone-blue) 24%, transparent), color-mix(in srgb, var(--milestone-cyan) 15%, transparent));
+    box-shadow:
+        inset 3px 0 0 var(--milestone-blue),
+        inset -2px 0 0 color-mix(in srgb, var(--milestone-pink) 72%, transparent);
+    color: color-mix(in srgb, var(--text-primary) 78%, var(--milestone-cyan));
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-info::before {
+    background: linear-gradient(135deg, var(--milestone-blue), var(--milestone-cyan) 62%, var(--milestone-pink));
+    animation: uptimeMilestoneDiamondHold 4.8s ease-in-out infinite;
+}
+
+.top-uptime-cluster.is-milestone-arriving .top-continuity-milestone-info {
+    animation: uptimeMilestoneMarkerArrival 1.1s 330ms cubic-bezier(0.18, 0.88, 0.22, 1) 1 both;
+}
+
+@keyframes uptimeMilestoneCounterGlow {
+    0%, 100% {
+        filter:
+            drop-shadow(0 0 3px var(--milestone-glow-primary))
+            drop-shadow(0 0 7px var(--milestone-glow-secondary));
+    }
+    50% {
+        filter:
+            drop-shadow(0 0 5px var(--milestone-glow-primary))
+            drop-shadow(0 0 12px var(--milestone-glow-secondary));
+    }
+}
+
+
+@keyframes uptimeMilestoneMarkerArrival {
+    0% { clip-path: inset(0 100% 0 0); opacity: 0; transform: translateY(1px); }
+    58% { clip-path: inset(0); opacity: 1; transform: translateY(-1px); }
+    100% { clip-path: inset(0); opacity: 1; transform: none; }
+}
+
+@keyframes uptimeMilestoneSegmentLock {
+    0% { color: color-mix(in srgb, var(--text-primary) 48%, var(--milestone-blue)); opacity: 0.42; transform: translateY(2px); }
+    46% { color: color-mix(in srgb, white 68%, var(--milestone-cyan)); opacity: 1; transform: translateY(-1px); }
+    100% { color: inherit; opacity: 1; transform: none; }
+}
+
+@keyframes uptimeMilestoneCaptionLock {
+    0% { opacity: 0.48; transform: translateY(1px); }
+    52% { opacity: 1; color: color-mix(in srgb, white 62%, var(--milestone-cyan)); transform: translateY(-1px); }
+    100% { opacity: 1; transform: none; }
+}
+
+@keyframes uptimeMilestoneDiamondHold {
+    0%, 100% { opacity: 0.76; transform: rotate(45deg) scale(0.86); }
+    50% { opacity: 1; transform: rotate(45deg) scale(1); }
+}
+
 .recruit-section {
     margin-top: 6rem;
     margin-bottom: 4rem;
@@ -525,6 +710,340 @@
     font-size: 0.86rem;
 }
 
+.hot-today-milestone-shell {
+    position: relative;
+    flex: 0 0 clamp(320px, 36vw, 450px);
+    min-width: 0;
+    scroll-snap-align: start;
+}
+
+.hot-today-milestone-shell > .hot-today-card {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    scroll-snap-align: none;
+}
+
+.hot-today-card-milestone {
+    position: relative;
+    flex-basis: clamp(320px, 36vw, 450px);
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+    gap: 0.58rem 0.76rem;
+    min-height: 136px;
+    padding: 0.9rem 4.15rem 0.9rem 0.9rem;
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--milestone-blue) 68%, var(--glass-border));
+    background:
+        linear-gradient(110deg, color-mix(in srgb, var(--milestone-blue) 18%, transparent), transparent 48%),
+        linear-gradient(165deg, transparent 58%, color-mix(in srgb, var(--milestone-pink) 8%, transparent)),
+        color-mix(in srgb, var(--bg-primary) 70%, rgba(255, 255, 255, 0.055));
+    box-shadow:
+        inset 4px 0 0 color-mix(in srgb, var(--milestone-blue) 82%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--milestone-blue) 16%, transparent);
+    transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+}
+
+.hot-today-milestone-share {
+    position: absolute;
+    z-index: 4;
+    top: 0.72rem;
+    right: 0.72rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    min-width: 3.2rem;
+    min-height: 1.75rem;
+    padding: 0.26rem 0.46rem;
+    border: 1px solid color-mix(in srgb, var(--milestone-cyan) 48%, var(--glass-border));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bg-primary) 84%, var(--milestone-blue) 16%);
+    color: color-mix(in srgb, var(--text-primary) 74%, var(--milestone-cyan));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--milestone-blue) 72%, transparent);
+    transition: color 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.hot-today-milestone-share:is(:hover, :focus-visible) {
+    border-color: color-mix(in srgb, var(--milestone-cyan) 82%, white);
+    background: color-mix(in srgb, var(--bg-primary) 74%, var(--milestone-blue) 26%);
+    color: color-mix(in srgb, white 76%, var(--milestone-cyan));
+    outline: none;
+    box-shadow:
+        inset 2px 0 0 var(--milestone-blue),
+        0 0 0 2px color-mix(in srgb, var(--milestone-cyan) 18%, transparent);
+}
+
+.hot-today-milestone-share:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+
+.hot-today-card-milestone::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 42%;
+    background:
+        repeating-linear-gradient(165deg, transparent 0 12px, color-mix(in srgb, var(--milestone-blue) 16%, transparent) 12px 13px, transparent 13px 24px);
+    clip-path: polygon(0 0, 72% 0, 100% 100%, 0 100%);
+    opacity: 0.42;
+    pointer-events: none;
+}
+
+.hot-today-card-milestone::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4.4rem;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--milestone-cyan) 52%, var(--milestone-pink));
+    opacity: 0.72;
+    pointer-events: none;
+}
+
+.hot-today-card-milestone.is-milestone-crossed {
+    border-color: color-mix(in srgb, var(--milestone-cyan) 74%, var(--glass-border));
+    background:
+        linear-gradient(110deg, color-mix(in srgb, var(--milestone-blue) 24%, transparent), color-mix(in srgb, var(--milestone-cyan) 11%, transparent) 56%, color-mix(in srgb, var(--milestone-pink) 10%, transparent)),
+        color-mix(in srgb, var(--bg-primary) 68%, rgba(255, 255, 255, 0.065));
+    box-shadow:
+        inset 4px 0 0 var(--milestone-blue),
+        inset 0 0 0 1px color-mix(in srgb, var(--milestone-cyan) 24%, transparent),
+        inset -3px 0 0 color-mix(in srgb, var(--milestone-pink) 54%, transparent);
+}
+
+.hot-today-card-milestone.is-hot-active {
+    border-color: color-mix(in srgb, var(--milestone-cyan) 82%, var(--text-primary));
+    box-shadow:
+        inset 5px 0 0 var(--milestone-blue),
+        inset 0 0 0 2px color-mix(in srgb, var(--milestone-cyan) 28%, transparent),
+        inset -3px 0 0 color-mix(in srgb, var(--milestone-pink) 64%, transparent);
+}
+
+.hot-today-card-milestone .hot-today-rank {
+    position: relative;
+    z-index: 1;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid color-mix(in srgb, var(--milestone-blue) 72%, transparent);
+    border-radius: 6px;
+    color: color-mix(in srgb, var(--text-primary) 76%, var(--milestone-blue));
+    background:
+        linear-gradient(145deg, color-mix(in srgb, var(--milestone-blue) 25%, transparent), color-mix(in srgb, var(--milestone-cyan) 9%, transparent));
+    font-size: 0.82rem;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, white 12%, transparent),
+        inset 0 -3px 0 color-mix(in srgb, var(--milestone-blue) 28%, transparent);
+    transition: color 220ms ease, border-color 220ms ease, background 220ms ease, transform 220ms ease;
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-rank {
+    border-color: color-mix(in srgb, var(--milestone-cyan) 78%, white);
+    background: linear-gradient(135deg, #2469d8, #159fb2 58%, #b653a8);
+    color: #ffffff;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, white 28%, transparent),
+        inset 0 -4px 0 color-mix(in srgb, #083e91 48%, transparent);
+}
+
+.hot-today-card-milestone .hot-today-copy {
+    position: relative;
+    z-index: 1;
+    gap: 0.24rem;
+}
+
+.hot-today-card-milestone .hot-today-copy strong {
+    color: var(--milestone-ink);
+    font-size: 1.04rem;
+    line-height: 1.16;
+    text-shadow: 0 0 14px color-mix(in srgb, var(--milestone-blue) 16%, transparent);
+}
+
+.hot-today-card-milestone .hot-today-copy span {
+    color: color-mix(in srgb, var(--text-secondary) 84%, var(--text-primary));
+    font-size: 0.82rem;
+}
+
+.hot-today-card-milestone .hot-today-milestone-status {
+    width: fit-content;
+    padding: 0.15rem 0.32rem;
+    border-left: 3px solid var(--milestone-blue);
+    background: color-mix(in srgb, var(--milestone-blue) 12%, transparent);
+    color: color-mix(in srgb, var(--text-primary) 68%, var(--milestone-blue));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 950;
+    line-height: 1;
+    text-transform: uppercase;
+    transition: color 220ms ease, background 220ms ease, clip-path 220ms ease, opacity 220ms ease;
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-milestone-status {
+    border-left-color: var(--milestone-cyan);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--milestone-blue) 23%, transparent), color-mix(in srgb, var(--milestone-cyan) 12%, transparent));
+    color: color-mix(in srgb, var(--text-primary) 76%, var(--milestone-cyan));
+}
+
+.hot-today-card-milestone em {
+    grid-column: 1 / -1;
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    color: color-mix(in srgb, var(--text-secondary) 72%, var(--milestone-cyan));
+}
+
+.hot-today-card-milestone em > span:first-child {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.hot-today-milestone-trace {
+    grid-column: 1 / -1;
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 0.62fr 1.2fr 0.48fr;
+    gap: 3px;
+    width: 100%;
+    height: 4px;
+    overflow: hidden;
+}
+
+.hot-today-milestone-trace > span {
+    background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--milestone-blue) 78%, transparent) 0 12px, transparent 12px 17px);
+    opacity: 0.62;
+    transform-origin: left;
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.hot-today-milestone-trace > span:nth-child(2) {
+    background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--milestone-cyan) 76%, transparent) 0 16px, transparent 16px 21px);
+}
+
+.hot-today-milestone-trace > span:nth-child(3) {
+    background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--milestone-pink) 72%, transparent) 0 10px, transparent 10px 15px);
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-milestone-trace > span {
+    background: linear-gradient(90deg, var(--milestone-blue), var(--milestone-cyan));
+    opacity: 0.94;
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-milestone-trace > span:nth-child(2) {
+    background: linear-gradient(90deg, var(--milestone-cyan), color-mix(in srgb, var(--milestone-blue) 68%, var(--milestone-cyan)));
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-milestone-trace > span:nth-child(3) {
+    background: linear-gradient(90deg, var(--milestone-blue), var(--milestone-pink));
+}
+
+.hot-today-card-milestone.is-milestone-arriving .hot-today-rank {
+    animation: milestoneTargetLock 920ms 150ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
+}
+
+.hot-today-card-milestone.is-milestone-arriving .hot-today-milestone-status {
+    animation: milestoneStatusConfirm 820ms 260ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
+}
+
+.hot-today-card-milestone.is-milestone-arriving .hot-today-milestone-trace > span {
+    animation: milestoneTraceIgnition 1.2s cubic-bezier(0.16, 0.86, 0.22, 1) both;
+}
+
+.hot-today-card-milestone.is-milestone-arriving .hot-today-milestone-trace > span:nth-child(2) {
+    animation-delay: 150ms;
+}
+
+.hot-today-card-milestone.is-milestone-arriving .hot-today-milestone-trace > span:nth-child(3) {
+    animation-delay: 300ms;
+}
+
+.hot-today-card-milestone.is-milestone-crossed.is-hot-active .hot-today-milestone-trace > span {
+    animation: milestoneActiveTrace 5.6s ease-in-out infinite;
+}
+
+.hot-today-card-milestone.is-milestone-crossed.is-hot-active .hot-today-milestone-trace > span:nth-child(2) {
+    animation-delay: 240ms;
+}
+
+.hot-today-card-milestone.is-milestone-crossed.is-hot-active .hot-today-milestone-trace > span:nth-child(3) {
+    animation-delay: 480ms;
+}
+
+.hot-today-card-milestone.is-milestone-crossed.is-hot-active.is-milestone-arriving .hot-today-milestone-trace > span {
+    animation: milestoneTraceIgnition 1.2s cubic-bezier(0.16, 0.86, 0.22, 1) both;
+}
+
+.hot-today-card-milestone.is-milestone-crossed.is-hot-active.is-milestone-arriving .hot-today-milestone-trace > span:nth-child(2) {
+    animation-delay: 150ms;
+}
+
+.hot-today-card-milestone.is-milestone-crossed.is-hot-active.is-milestone-arriving .hot-today-milestone-trace > span:nth-child(3) {
+    animation-delay: 300ms;
+}
+
+@keyframes milestoneTargetLock {
+    0% { opacity: 0.36; transform: translateY(2px) scale(0.9); }
+    52% { opacity: 1; transform: translateY(-1px) scale(1.04); }
+    100% { opacity: 1; transform: none; }
+}
+
+@keyframes milestoneStatusConfirm {
+    0% { clip-path: inset(0 100% 0 0); opacity: 0; }
+    62% { clip-path: inset(0); opacity: 1; }
+    100% { clip-path: inset(0); opacity: 1; }
+}
+
+@keyframes milestoneTraceIgnition {
+    0% { opacity: 0.14; transform: scaleX(0); }
+    56% { opacity: 1; transform: scaleX(1); }
+    76% { opacity: 0.7; transform: scaleX(0.94); }
+    100% { opacity: 0.94; transform: scaleX(1); }
+}
+
+@keyframes milestoneActiveTrace {
+    0%, 100% { opacity: 0.72; transform: scaleX(0.94); }
+    50% { opacity: 1; transform: scaleX(1); }
+}
+
+[data-theme="clean"] .hot-today-card-milestone {
+    border-color: color-mix(in srgb, var(--milestone-blue) 76%, #b8c6db);
+    background:
+        linear-gradient(110deg, rgba(44, 125, 247, 0.15), rgba(32, 200, 215, 0.065) 62%, rgba(217, 108, 198, 0.065)),
+        #ffffff;
+    box-shadow:
+        inset 4px 0 0 #2c7df7,
+        inset 0 0 0 1px rgba(44, 125, 247, 0.12);
+}
+
+[data-theme="clean"] .hot-today-card-milestone.is-hot-active {
+    border-color: #168fa9;
+    box-shadow:
+        inset 5px 0 0 #2469d8,
+        inset 0 0 0 2px rgba(32, 200, 215, 0.22),
+        inset -3px 0 0 rgba(182, 83, 168, 0.52);
+}
+
+[data-theme="clean"] .top-uptime-cluster.is-milestone-crossed .top-continuity-runtime,
+[data-theme="clean"] .top-uptime-cluster.is-milestone-crossed :is(.top-continuity-claim, .top-continuity-origin) {
+    color: #1857aa;
+}
+
+[data-theme="clean"] .top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-info {
+    border-color: #168fa9;
+    background: linear-gradient(90deg, rgba(44, 125, 247, 0.18), rgba(32, 200, 215, 0.13));
+    color: #134e88;
+}
+
 .hot-today-rank {
     width: 1.9rem;
     height: 1.9rem;
@@ -679,8 +1198,29 @@
     .hot-today-clock-dot,
     .hot-today-section.is-live-pulsing .hot-today-card.is-hot-active,
     .hot-today-section.is-live-pulsing .hot-today-clock-dot,
-    .hot-today-card.is-hot-breaking {
+    .hot-today-card.is-hot-breaking,
+    .hot-today-card-milestone .hot-today-rank,
+    .hot-today-card-milestone .hot-today-milestone-status,
+    .hot-today-card-milestone .hot-today-milestone-trace > span,
+    .top-uptime-cluster .top-continuity-primary-line,
+    .top-uptime-cluster .top-continuity-time-segment,
+    .top-uptime-cluster .top-continuity-claim,
+    .top-uptime-cluster .top-continuity-origin,
+    .top-uptime-cluster .top-continuity-milestone-info,
+    .top-uptime-cluster .top-continuity-milestone-info::before {
         animation: none !important;
+    }
+
+    .hot-today-card-milestone,
+    .hot-today-card-milestone .hot-today-rank,
+    .hot-today-card-milestone .hot-today-milestone-status,
+    .hot-today-card-milestone .hot-today-milestone-trace > span,
+    .top-uptime-cluster .top-continuity-runtime,
+    .top-uptime-cluster .top-continuity-primary-line,
+    .top-uptime-cluster .top-continuity-claim,
+    .top-uptime-cluster .top-continuity-origin,
+    .top-uptime-cluster .top-continuity-milestone-info {
+        transition: none !important;
     }
 }
 
@@ -900,6 +1440,20 @@
         justify-items: center;
     }
 
+    .top-continuity-milestone-info {
+        width: 7.65em;
+        max-width: 7.65em;
+        min-height: 1.66em;
+        gap: 0.18rem;
+        padding: 0.1em 0.16em;
+        font-size: clamp(0.863rem, 3.864vw, 1.07rem);
+    }
+
+    .top-continuity-milestone-info::before {
+        width: 0.32rem;
+        height: 0.32rem;
+    }
+
     .hot-today-card {
         flex-basis: min(82vw, 300px);
         max-width: calc(100vw - 2rem);
@@ -908,6 +1462,30 @@
     .hot-today-card-anniversary {
         flex-basis: min(82vw, 320px);
         min-height: 150px;
+    }
+
+    .hot-today-card-milestone {
+        flex-basis: min(86vw, 340px);
+        grid-template-columns: 2.55rem minmax(0, 1fr);
+        min-height: 142px;
+    }
+
+    .hot-today-milestone-shell {
+        flex-basis: min(86vw, 340px);
+    }
+
+    .hot-today-card-milestone {
+        padding-right: 3.85rem;
+    }
+
+    .hot-today-card-milestone .hot-today-copy strong {
+        font-size: 1rem;
+    }
+
+    .hot-today-card-milestone .hot-today-rank {
+        width: 2.55rem;
+        height: 2.55rem;
+        font-size: 0.76rem;
     }
 
     .hot-today-grid {

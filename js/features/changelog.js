@@ -7,6 +7,15 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '🔧', text: 'Approaching milestones now target the final 14 days and can never take over What is hot today or the uptime header more than 30 days early' },
+            { type: '✨', text: 'Milestone cards now have a Share control with branded celebration captures and receipt, I was here, long-game, and live-watch tweet styles' },
+            { type: '🎨', text: 'The milestone link beside the uptime runtime is now 69% of the counter type scale' },
+            { type: '🎨', text: 'Milestone hot cards and the uptime proof now share a stronger contained Tezos protocol trace, with a prominent milestone marker beside the glowing uptime runtime and active-only living motion' },
+            { type: '🔧', text: 'The milestone marker is now a separate link to Network Pulse or the most relevant chamber while uptime continues to open Protocol History' },
+            { type: '🔧', text: 'Milestones now celebrate only observed threshold crossings, keep their full 72-hour receipt, and cannot immediately re-arm after expiry' },
+            { type: '✨', text: 'What is hot today now promotes round-number Tezos milestone cards for blocks, funded wallets, transactions, contracts, bakers, staking, burn, uptime, upgrades, tokens, and rollups' },
+            { type: '🔧', text: 'Approaching milestones now stay honest and live while first-run baselines no longer turn old round numbers into fresh celebrations' },
+            { type: '🔧', text: 'Milestone cards now expose confirmation status to assistive technology and carry concise context into the header marker' },
             { type: '✨', text: 'Tezos uptime anniversaries now take over the header proof with a congratulatory message and lead What is hot today with a bold live milestone card' },
             { type: '🎨', text: 'The header uptime statement now uses natural counter spacing, tighter caption scale, hover feedback, and a clearer NFT feed doorway on mobile' },
             { type: '🎨', text: 'The header now promotes NFT feed into the main nav and turns uptime into a larger 100% uptime statement' },
