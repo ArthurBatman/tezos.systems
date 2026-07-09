@@ -3,7 +3,7 @@
  * Cache-first for shell assets, network-first for API data
  */
 
-const CACHE_NAME = 'tezos-systems-v380';
+const CACHE_NAME = 'tezos-systems-v381';
 
 // Shell assets to precache
 const SHELL_ASSETS = [
@@ -35,6 +35,7 @@ const SHELL_ASSETS = [
     '/js/core/tzkt-throttle.js',
     '/js/core/app.js',
     '/js/core/api.js',
+    '/js/core/anniversary.js',
     '/js/core/config.js',
     '/js/core/goatcounter-init.js',
     '/js/core/hen-init.js',

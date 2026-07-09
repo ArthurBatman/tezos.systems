@@ -4,6 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { getTezosUptimeAnniversary } from '../core/anniversary.js';
 import { escapeHtml } from '../core/utils.js';
 import { findSiteMapEntry } from '../core/site-map.js';
 import { fetchXTZPrice } from './price.js';
@@ -48,6 +49,7 @@ const CATEGORY_META = {
   tz4: { label: 'tz4', icon: 'tz4', tone: 'security', detail: 'BLS consensus key adoption' },
   etherlink: { label: 'Etherlink', icon: 'L2', tone: 'activity', detail: 'Tezos X activity lane' },
   ledger: { label: 'Ledger Flow', icon: '↔', tone: 'network', detail: 'Account transfer paths' },
+  anniversary: { label: 'Anniversary', icon: '∞', tone: 'anniversary', detail: 'Tezos uptime anniversary' },
   moment: { label: 'Milestone', icon: '✦', tone: 'growth', detail: 'Network milestone' },
   network: { label: 'Network', icon: '🌐', tone: 'network', detail: 'Daily Tezos pulse' }
 };
@@ -103,6 +105,7 @@ const NETWORK_FEATURE_FALLBACK_LABELS = {
   tz4: 'Open tz4 Adoption',
   etherlink: 'Open Tezos X',
   ledger: 'Open Ledger Flow',
+  anniversary: 'Open Protocol Anthology',
   moment: 'Open live Tezos pulse',
   cycle: 'Open live cycle health',
   security: 'Open Network Health',
@@ -1158,8 +1161,24 @@ function buildLiveHotSignals(stats = lastStats || {}) {
   const newAccounts = finiteNumber(stats?.newAccounts24h);
   const fundedAccounts = finiteNumber(stats?.fundedAccounts);
   const signals = [];
+  const uptimeAnniversary = getTezosUptimeAnniversary();
 
   addDailyDeltaSignals(signals, stats);
+
+  if (uptimeAnniversary.isAnniversary) {
+    signals.push(makeSignal('anniversary', 180, uptimeAnniversary.hotText, {
+      id: `uptime-anniversary-${uptimeAnniversary.years}`,
+      kind: 'state',
+      breaking: true,
+      title: `${uptimeAnniversary.years} years live`,
+      detail: uptimeAnniversary.detail,
+      route: '/anthology/',
+      tone: 'anniversary',
+      createdAt: uptimeAnniversary.startsAt,
+      expiresAt: uptimeAnniversary.endsAt,
+      live: true
+    }));
+  }
 
   if (hasActiveProposalLabel(stats?.proposal) && !governanceAlertStripVisible()) {
     signals.push(makeSignal('governance', 118, `"${stats.proposal}" is in ${stats.votingPeriod || 'the active'} period.`, {
@@ -1525,7 +1544,9 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     return;
   }
   hotTodaySignals = signals;
-  hotTodayActiveIndex %= hotTodaySignals.length;
+  hotTodayActiveIndex = signals[0]?.category === 'anniversary'
+    ? 0
+    : hotTodayActiveIndex % hotTodaySignals.length;
   const history = hotHistorySummary(signals[0]);
   const memoryChip = history?.chip
     ? `<span class="hot-today-memory-chip">${escapeHtml(history.chip)}</span>`

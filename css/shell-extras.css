@@ -282,6 +282,46 @@
     display: none;
 }
 
+.top-continuity-history.is-anniversary {
+    padding: 0.48rem 0.66rem;
+    border: 1px solid color-mix(in srgb, var(--uptime-badge-label) 42%, transparent);
+    border-radius: 8px;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--uptime-badge-label) 12%, transparent), rgba(255, 255, 255, 0.035)),
+        color-mix(in srgb, var(--glass-bg, rgba(0, 0, 0, 0.65)) 62%, transparent);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--uptime-badge-label) 9%, transparent),
+        0 16px 34px color-mix(in srgb, var(--uptime-badge-label) 13%, transparent);
+}
+
+.top-continuity-history.is-anniversary .top-continuity-statement {
+    display: inline-grid;
+    justify-items: start;
+    gap: 0.2rem;
+}
+
+.top-continuity-history.is-anniversary .top-continuity-subline {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.34rem;
+}
+
+.top-continuity-history.is-anniversary .top-continuity-runtime {
+    color: color-mix(in srgb, var(--uptime-badge-value) 86%, white);
+    font-size: clamp(1.05rem, 1.55vw, 1.34rem);
+    text-shadow: 0 0 16px color-mix(in srgb, var(--uptime-badge-label) 36%, transparent);
+}
+
+.top-continuity-history.is-anniversary .top-continuity-claim,
+.top-continuity-history.is-anniversary .top-continuity-origin {
+    color: color-mix(in srgb, var(--uptime-badge-label) 88%, white);
+}
+
+.top-continuity-history.is-anniversary .top-continuity-origin {
+    letter-spacing: 0.03em;
+}
+
 .recruit-section {
     margin-top: 6rem;
     margin-bottom: 4rem;
@@ -444,6 +484,45 @@
 .hot-today-card.is-hot-breaking {
     border-color: color-mix(in srgb, var(--accent-pink, #f49ad1) 48%, var(--glass-border));
     animation: hotTodayBreaking 1.2s ease-out 1;
+}
+
+.hot-today-card-anniversary {
+    flex-basis: clamp(360px, 46vw, 560px);
+    min-height: 146px;
+    padding: 1rem;
+    border-color: color-mix(in srgb, var(--accent-cyan) 58%, var(--glass-border));
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 14%, transparent), color-mix(in srgb, var(--accent-pink, #f49ad1) 8%, transparent)),
+        rgba(255, 255, 255, 0.038);
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 12%, transparent),
+        0 18px 42px color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+
+.hot-today-card-anniversary.is-hot-active {
+    border-color: color-mix(in srgb, var(--accent-cyan) 72%, white);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 18%, transparent), color-mix(in srgb, var(--accent-pink, #f49ad1) 11%, transparent)),
+        rgba(255, 255, 255, 0.05);
+}
+
+.hot-today-card-anniversary .hot-today-rank {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent-cyan) 15%, rgba(255, 255, 255, 0.06));
+    font-size: 1.08rem;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+}
+
+.hot-today-card-anniversary .hot-today-copy strong {
+    color: color-mix(in srgb, var(--text-primary) 84%, var(--accent-cyan));
+    font-size: clamp(1rem, 1.25vw, 1.28rem);
+}
+
+.hot-today-card-anniversary .hot-today-copy span {
+    color: color-mix(in srgb, var(--text-secondary) 78%, white);
+    font-size: 0.86rem;
 }
 
 .hot-today-rank {
@@ -810,9 +889,25 @@
         justify-content: flex-start;
     }
 
+    .top-continuity-history.is-anniversary {
+        width: min(100%, 23rem);
+        padding: 0.48rem 0.58rem;
+    }
+
+    .top-continuity-history.is-anniversary .top-continuity-statement,
+    .top-continuity-history.is-anniversary .top-continuity-subline {
+        justify-content: center;
+        justify-items: center;
+    }
+
     .hot-today-card {
         flex-basis: min(82vw, 300px);
         max-width: calc(100vw - 2rem);
+    }
+
+    .hot-today-card-anniversary {
+        flex-basis: min(82vw, 320px);
+        min-height: 150px;
     }
 
     .hot-today-grid {

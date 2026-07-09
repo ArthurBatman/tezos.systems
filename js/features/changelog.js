@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '✨', text: 'Tezos uptime anniversaries now take over the header proof with a congratulatory message and lead What is hot today with a bold live milestone card' },
             { type: '🎨', text: 'The header uptime statement now uses natural counter spacing, tighter caption scale, hover feedback, and a clearer NFT feed doorway on mobile' },
             { type: '🎨', text: 'The header now promotes NFT feed into the main nav and turns uptime into a larger 100% uptime statement' },
             { type: '🎨', text: 'The header uptime counter now rolls in before the live stat pills fade on one by one, keeping welcome and streak toasts queued until the hero settles' },

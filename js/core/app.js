@@ -77,6 +77,7 @@ import { initPriceBar } from '../features/price.js';
 import { initStreak } from '../features/streak.js';
 import { updatePageTitle } from '../ui/title.js';
 import { REFRESH_INTERVALS, STAKING_TARGET, MAINNET_LAUNCH, API_URLS } from './config.js';
+import { getTezosUptimeAnniversary } from './anniversary.js';
 import { initComparison, updateComparison } from '../features/comparison.js';
 import { init as initMyBaker, refresh as refreshMyBaker } from '../features/my-baker.js';
 import { initCalculator } from '../features/calculator.js';
@@ -97,7 +98,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=380';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=381';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2221,6 +2222,9 @@ function initUptimeClock() {
     const issuanceEl = document.getElementById('uptime-issuance');
     const topContinuityPanel = document.getElementById('top-continuity-panel');
     const topContinuityHistory = document.getElementById('top-continuity-history');
+    const topContinuityClaim = topContinuityHistory?.querySelector('.top-continuity-claim');
+    const topContinuityOrigin = topContinuityHistory?.querySelector('.top-continuity-origin');
+    const uptimeClock = document.getElementById('uptime-clock');
 
     if (!counterEl) {
         settleHeroArrival();
@@ -2590,6 +2594,28 @@ function initUptimeClock() {
         setChainText('chain-uptime-issuance', chainIssuanceText);
     }
 
+    function applyUptimeAnniversaryState(anniversary, totalDays, upgradeCount) {
+        const active = Boolean(anniversary?.isAnniversary);
+        topContinuityHistory?.classList.toggle('is-anniversary', active);
+        topContinuityPanel?.classList.toggle('has-anniversary', active);
+        uptimeClock?.classList.toggle('is-anniversary', active);
+        counterEl?.classList.toggle('is-anniversary', active);
+
+        if (topContinuityClaim) {
+            topContinuityClaim.textContent = active ? anniversary.claimText : '100% uptime';
+        }
+        if (topContinuityOrigin) {
+            topContinuityOrigin.textContent = active ? anniversary.originText : 'since 2018';
+        }
+        if (!topContinuityHistory) return;
+
+        const myth = active
+            ? `${anniversary.message} ${upgradeCount} protocol upgrades kept shipping without a stop.`
+            : `${totalDays.toLocaleString('en-US')} days without stopping. ${upgradeCount} upgrades. Zero forks. The longest-running self-amending chain.`;
+        topContinuityHistory.title = myth;
+        topContinuityHistory.setAttribute('aria-label', `${myth} Open Protocol Anthology Chamber`);
+    }
+
     // Tick the uptime counter every second — fixed-width digits
     function tickUptime() {
         const now = Date.now();
@@ -2611,11 +2637,7 @@ function initUptimeClock() {
         setTopContinuityRuntime(years, days, hours, mins);
         const totalDays = Math.floor(diff / 86400000);
         const upgradeCount = state.currentStats?.protocolCount || countProtocolUpgrades(state.protocols || []);
-        if (topContinuityHistory) {
-            const myth = `${totalDays.toLocaleString('en-US')} days without stopping. ${upgradeCount} upgrades. Zero forks. The longest-running self-amending chain.`;
-            topContinuityHistory.title = myth;
-            topContinuityHistory.setAttribute('aria-label', `${myth} Open Protocol Anthology Chamber`);
-        }
+        applyUptimeAnniversaryState(getTezosUptimeAnniversary(now), totalDays, upgradeCount);
         syncChainProofMetrics();
     }
 

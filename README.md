@@ -242,6 +242,8 @@ inline modal styles in `js/core/app.js`.
   into a first-screen statement with years/days/hours/minutes plus a `100%
   uptime · since 2018` claim. Active baker count, finality, staked share, and
   issuance rate remain in theme-matched stat pills.
+  On the September 17 UTC mainnet anniversary, the uptime statement switches to
+  a congratulatory anniversary message while preserving the live counter.
   Clicking the uptime statement opens Protocol Anthology; clicking a stat pill
   opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Continuity Proof panel with
@@ -303,7 +305,8 @@ inline modal styles in `js/core/app.js`.
   barely-visible background layer. The compact `What's hot today` live pulse
   sits above Chambers as a horizontally scrolling strip for non-obvious daily
   signals instead of repeating the header's cycle, baker, staking, or security
-  facts. Phase-one internal routes open My Tezos,
+  facts, and leads with a larger uptime-anniversary card on September 17 UTC.
+  Phase-one internal routes open My Tezos,
   baker profiles, protocol lore/history, Chambers, themes, calculator,
   comparisons, leaderboard, whale/giant feeds, NFT lookup, History, and native
   account/contract/operation/block receipt views. Baker-name searches hydrate
@@ -594,7 +597,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v372`, including hero search, theme
+- Current aligned shell cache stamp: `v381`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
