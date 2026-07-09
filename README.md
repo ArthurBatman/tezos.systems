@@ -451,6 +451,9 @@ Live staking ratio and APY surfaces use TzKT `statistics/current` totals for
 RPC still supplies issuance, constants, cycle/head metadata, and fallback values
 when TzKT stats are unavailable.
 
+The core statistics payload also exposes TzKT's all-time transaction operation
+count as `totalTransactions`, which feeds the pace-aware transaction milestone.
+
 Visitor-side TzKT fetches are paced in the browser by `js/core/tzkt-throttle.js`
 at six request starts per second. This shim is installed by the dashboard,
 SEO landing pages, standalone compare pages, and TzKT-backed widgets so embeds

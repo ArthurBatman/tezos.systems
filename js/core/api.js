@@ -622,6 +622,16 @@ async function fetchTransactionVolume() {
 }
 
 /**
+ * Fetch all-time transaction operation count.
+ * Matches the 24h transaction counter by using TzKT's transaction operation
+ * surface without narrowing to applied-only status.
+ */
+async function fetchTotalTransactions() {
+    const url = `${ENDPOINTS.tzkt.base}/operations/transactions/count`;
+    return await fetchWithRetry(url);
+}
+
+/**
  * Fetch contract calls (24h) - transactions with entrypoints
  */
 async function fetchContractCalls() {
@@ -864,6 +874,7 @@ export async function fetchAllStats() {
             governance,
             issuance,
             txVolume,
+            totalTransactions,
             contractCalls,
             stakingData,
             totalSupply,
@@ -881,6 +892,7 @@ export async function fetchAllStats() {
             fetchGovernance(),
             fetchIssuance(),
             fetchTransactionVolume(),
+            fetchTotalTransactions(),
             fetchContractCalls(),
             fetchStakingRatio(),
             fetchTotalSupply(),
@@ -895,7 +907,7 @@ export async function fetchAllStats() {
         ]);
 
         // Log warning if multiple API categories failed
-        const allResults = [bakersData, cycleInfo, governance, issuance, txVolume, contractCalls, stakingData, totalSupply, totalBurned, fundedAccounts, newAccounts, smartContracts, activeContracts, tokens, rollups, stakingAPY];
+        const allResults = [bakersData, cycleInfo, governance, issuance, txVolume, totalTransactions, contractCalls, stakingData, totalSupply, totalBurned, fundedAccounts, newAccounts, smartContracts, activeContracts, tokens, rollups, stakingAPY];
         const failedCount = allResults.filter(r => r.status === 'rejected').length;
         if (failedCount >= 2) {
             console.warn('Multiple API categories failed, showing cached/stale data');
@@ -955,6 +967,7 @@ export async function fetchAllStats() {
             
             // Network Activity
             transactionVolume24h: txVolume.status === 'fulfilled' ? txVolume.value : 0,
+            totalTransactions: totalTransactions.status === 'fulfilled' ? totalTransactions.value : 0,
             contractCalls24h: contractCalls.status === 'fulfilled' ? contractCalls.value : 0,
             fundedAccounts: fundedAccounts.status === 'fulfilled' ? fundedAccounts.value : 0,
             newAccounts24h: newAccounts.status === 'fulfilled' ? newAccounts.value : 0,
