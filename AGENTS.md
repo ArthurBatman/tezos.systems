@@ -27,7 +27,9 @@ the highest-risk gotchas.
 - Generated distribution surfaces can be refreshed together with
   `npm run refresh:generated`. The pre-commit hook runs the same orchestrator in
   commit mode, stages generated governance/feed and root OG output, and refreshes
-  other generated outputs when their source files are already staged.
+  other generated outputs when their source files are already staged. The
+  milestone catalog is checked on the same path but regenerates only after 14
+  days or 100 commits; `npm run refresh:milestones` forces it manually.
 - `index.html` currently serves `css/styles.min.css`, not `css/styles.css`.
   Edit `styles.css` first, then regenerate/minify `styles.min.css`.
 - Playwright callers should use `scripts/lib/playwright-browser.cjs`. It tries
@@ -305,6 +307,10 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   staged-source outputs for CSS bundles, pretty chamber route shells, sitemap,
   chamber OG images, and compare pages; scheduled/manual mode refreshes the full
   generated set.
+- `scripts/generate-milestone-catalog.mjs`: refreshes
+  `data/milestone-catalog.json` from a compact TzKT snapshot when either 14 days
+  or 100 commits have elapsed. The pre-commit path projects the pending commit;
+  scheduled runs use wall-clock age, and `--force` bypasses both gates.
 - `scripts/update-governance-votes.mjs`: compatibility wrapper around
   `scripts/refresh-governance-data.mjs`.
 - `scripts/stamp-version.sh`: updates `version.json` and stages it.

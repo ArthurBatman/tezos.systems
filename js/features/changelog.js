@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '⚡', text: 'Milestone thresholds now refresh through the generated-surface cadence after 14 days or 100 commits, with a live TzKT catalog and runtime fallback' },
             { type: '🔧', text: 'Approaching milestones now target the final 14 days and can never take over What is hot today or the uptime header more than 30 days early' },
             { type: '✨', text: 'Milestone cards now have a Share control with branded celebration captures and receipt, I was here, long-game, and live-watch tweet styles' },
             { type: '🎨', text: 'The milestone link beside the uptime runtime is now 69% of the counter type scale' },

@@ -27,7 +27,7 @@ const relevantRules = [
   [/^\.gitignore$/, 'tracked/ignored setup contract'],
   [/^\.githooks\//, 'shared hook behavior'],
   [/^AGENTS\.md$/, 'agent handoff docs must agree with README'],
-  [/^scripts\/(?:refresh-generated-surfaces\.mjs|refresh-governance-data\.mjs|update-governance-votes\.mjs|stamp-version\.sh|guard-readme-sync\.mjs|generate-og-image\.js|generate-chamber-routes\.mjs|generate-chamber-og-images\.mjs|bake-compare-pages\.mjs|build-css\.mjs|generate-favicons\.mjs)$/, 'documented automation scripts'],
+  [/^scripts\/(?:refresh-generated-surfaces\.mjs|refresh-governance-data\.mjs|update-governance-votes\.mjs|stamp-version\.sh|guard-readme-sync\.mjs|generate-og-image\.js|generate-chamber-routes\.mjs|generate-chamber-og-images\.mjs|generate-milestone-catalog\.mjs|bake-compare-pages\.mjs|build-css\.mjs|generate-favicons\.mjs)$/, 'documented automation scripts'],
   [/^tests\/(?:static-checks|smoke)\.mjs$/, 'documented QA and smoke-test behavior'],
   [/^QA\.md$/, 'QA docs must agree with README'],
   [/^js\/core\/config\.js$/, 'documented endpoints, refresh intervals, cache TTLs, or constants'],

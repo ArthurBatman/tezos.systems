@@ -5,6 +5,15 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHAMBER_ROUTES, routeUrl } from '../scripts/lib/chamber-routes.mjs';
+import {
+  MILESTONE_BASE_THRESHOLDS,
+  MILESTONE_CATALOG_SCHEMA,
+  MILESTONE_REFRESH_COMMITS,
+  MILESTONE_REFRESH_DAYS,
+  extendMilestoneThresholds,
+  generatedMilestoneThresholds,
+  milestoneCatalogCadence
+} from '../js/features/milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, normalizeMilestoneStore, qualifyMilestoneNearState } from '../js/features/milestone-lifecycle.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -150,6 +159,7 @@ async function checkRequiredFiles() {
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
     'js/features/governance-alerts.js',
+    'js/features/milestone-catalog.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
     'sw.js',
@@ -158,8 +168,10 @@ async function checkRequiredFiles() {
     'widgets/runtime.js',
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
+    'scripts/generate-milestone-catalog.mjs',
     'data/governance-votes.json',
     'data/governance-refresh-report.json',
+    'data/milestone-catalog.json',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -1903,6 +1915,7 @@ async function checkPortableTooling() {
     'refresh:generated': 'node scripts/refresh-generated-surfaces.mjs --all',
     'refresh:generated:commit': 'node scripts/refresh-generated-surfaces.mjs --mode precommit',
     'refresh:generated:scheduled': 'node scripts/refresh-generated-surfaces.mjs --mode scheduled',
+    'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     test: 'npm run test:static && npm run test:smoke',
     'test:static': 'node tests/static-checks.mjs',
     'test:smoke': 'node tests/smoke.mjs',
@@ -1936,7 +1949,7 @@ async function checkPortableTooling() {
     fail('.githooks/pre-commit must guard README sync and run focused README contract checks');
   }
   const generatedRefresh = await readText('scripts/refresh-generated-surfaces.mjs');
-  for (const expected of ['refresh-governance-data.mjs', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
+  for (const expected of ['refresh-governance-data.mjs', 'generate-milestone-catalog.mjs', 'data/milestone-catalog.json', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
     if (!generatedRefresh.includes(expected)) {
       fail(`scripts/refresh-generated-surfaces.mjs must coordinate ${expected}`);
     }
@@ -2138,8 +2151,10 @@ async function checkNetworkContextNavigationContracts() {
     'fetchNftPulse',
     'maybeDispatchProtocolLoreSignal',
     'delta: normalizeDelta',
-    'BRIEFING_SCHEMA_VERSION = 9',
+    'BRIEFING_SCHEMA_VERSION = 10',
     'MILESTONE_NEAR_MAX_DAYS = 30',
+    'MILESTONE_CATALOG_URL',
+    'generatedMilestoneThresholds',
     'data-hot-milestone-share',
     'captureNetworkMomentShare',
     '<a class="network-focus-chip"',
@@ -2269,6 +2284,41 @@ function checkMilestoneLifecycleBehavior() {
   }
 }
 
+async function checkMilestoneCatalogContracts() {
+  try {
+    const catalog = JSON.parse(await readText('data/milestone-catalog.json'));
+    assert.equal(catalog.schema, MILESTONE_CATALOG_SCHEMA);
+    assert.equal(catalog.cadence?.days, MILESTONE_REFRESH_DAYS);
+    assert.equal(catalog.cadence?.commits, MILESTONE_REFRESH_COMMITS);
+    assert.ok(Number.isFinite(Number(catalog.generatedAtCommitCount)));
+    assert.ok(Number.isFinite(Date.parse(catalog.generatedAt)));
+
+    for (const trackId of Object.keys(MILESTONE_BASE_THRESHOLDS)) {
+      const generated = generatedMilestoneThresholds(catalog, trackId);
+      const base = MILESTONE_BASE_THRESHOLDS[trackId];
+      assert.ok(generated.length >= base.length, `${trackId} generated thresholds should preserve the base catalog`);
+      assert.deepEqual(generated.slice(0, base.length), [...base]);
+      assert.ok(catalog.tracks?.[trackId]?.nextTarget == null || generated.includes(catalog.tracks[trackId].nextTarget));
+    }
+
+    const extendedBlocks = extendMilestoneThresholds('blocks', 31_200_000);
+    assert.ok(extendedBlocks.at(-1) > 31_200_000);
+    const cadenceBase = Date.parse('2026-07-01T00:00:00Z');
+    assert.equal(milestoneCatalogCadence({ generatedAt: new Date(cadenceBase).toISOString(), generatedAtCommitCount: 700, now: cadenceBase + (13 * 86400000), commitCount: 799 }).due, false);
+    assert.equal(milestoneCatalogCadence({ generatedAt: new Date(cadenceBase).toISOString(), generatedAtCommitCount: 700, now: cadenceBase + (14 * 86400000), commitCount: 799 }).due, true);
+    assert.equal(milestoneCatalogCadence({ generatedAt: new Date(cadenceBase).toISOString(), generatedAtCommitCount: 700, now: cadenceBase + (13 * 86400000), commitCount: 800 }).due, true);
+    const generator = await readText('scripts/generate-milestone-catalog.mjs');
+    const orchestrator = await readText('scripts/refresh-generated-surfaces.mjs');
+    for (const snippet of ['MILESTONE_REFRESH_DAYS', 'MILESTONE_REFRESH_COMMITS', '--project-next-commit']) {
+      assert.ok(generator.includes(snippet) || orchestrator.includes(snippet), `milestone cadence missing ${snippet}`);
+    }
+    assert.ok(orchestrator.includes("MILESTONE_TARGETS = ['data/milestone-catalog.json']"));
+    pass('milestone catalog preserves curated thresholds and regenerates after 14 days or 100 commits');
+  } catch (error) {
+    fail(`milestone catalog contracts failed: ${error.message}`);
+  }
+}
+
 async function checkReadmeContracts() {
   const readme = await readText('README.md');
   const themeSource = await readText('js/ui/theme.js');
@@ -2299,6 +2349,7 @@ async function checkReadmeContracts() {
     'http://localhost:9000',
     'npm run build:css',
     'npm run refresh:generated',
+    'npm run refresh:milestones',
     'npm run routes:chambers',
     'npm run og:chambers',
     'npm run bake:compare',
@@ -2369,6 +2420,7 @@ async function main() {
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
   checkMilestoneLifecycleBehavior();
+  await checkMilestoneCatalogContracts();
   await checkReadmeContracts();
 
   for (const message of passes) console.log(`ok - ${message}`);

@@ -28,6 +28,7 @@ const ROUTE_TARGETS = CHAMBER_ROUTES.map((route) => `${route.slug}/index.html`);
 const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`);
 const SITEMAP_TARGETS = ['sitemap.xml'];
 const ROOT_OG_TARGETS = ['og-image.png'];
+const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -36,7 +37,8 @@ const GENERATED_TARGETS = unique([
   ...CHAMBER_OG_TARGETS,
   ...COMPARE_PAGES,
   ...SITEMAP_TARGETS,
-  ...ROOT_OG_TARGETS
+  ...ROOT_OG_TARGETS,
+  ...MILESTONE_TARGETS
 ]);
 
 function unique(values) {
@@ -195,9 +197,17 @@ async function main() {
   const modeName = mode();
   const shouldStage = hasFlag('--stage');
   const initialStaged = modeName === 'precommit' ? stagedFiles() : [];
-  const ran = ['governance'];
+  const ran = [];
+
+  const milestoneArgs = [];
+  if (modeName === 'all' || hasFlag('--force-milestones')) milestoneArgs.push('--force');
+  if (modeName === 'precommit') milestoneArgs.push('--project-next-commit');
+  nodeScript('scripts/generate-milestone-catalog.mjs', milestoneArgs);
+  ran.push('milestones');
+  if (shouldStage) stageTargets(MILESTONE_TARGETS);
 
   nodeScript('scripts/refresh-governance-data.mjs', shouldStage ? ['--stage'] : []);
+  ran.push('governance');
   const touched = unique([...initialStaged, ...(modeName === 'precommit' ? stagedFiles() : [])]);
 
   if (shouldRun(modeName, touched, [/^css\/styles\.css$/, /^scripts\/build-css\.mjs$/, /^package(?:-lock)?\.json$/])) {

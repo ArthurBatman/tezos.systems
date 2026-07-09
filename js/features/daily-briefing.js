@@ -8,6 +8,7 @@ import { getTezosUptimeAnniversary } from '../core/anniversary.js';
 import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
 import { escapeHtml } from '../core/utils.js';
 import { findSiteMapEntry } from '../core/site-map.js';
+import { generatedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, normalizeMilestoneStore, qualifyMilestoneNearState } from './milestone-lifecycle.mjs';
 import { fetchXTZPrice } from './price.js';
 
@@ -18,10 +19,11 @@ const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
 const LS_PROTOCOL_LORE_DAY = 'tezos-systems-protocol-lore-hot-day';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
-const BRIEFING_SCHEMA_VERSION = 9;
+const BRIEFING_SCHEMA_VERSION = 10;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const NFT_FETCH_TIMEOUT_MS = 2500;
 const MILESTONE_FETCH_TIMEOUT_MS = 2800;
+const MILESTONE_CATALOG_URL = '/data/milestone-catalog.json';
 const HOT_TODAY_LIVE_TICK_MS = 1000;
 const HOT_TODAY_ROTATE_MS = 8000;
 const HOT_SIGNAL_RENDER_THROTTLE_MS = 1000;
@@ -145,6 +147,8 @@ let lastHotSignalRenderAt = 0;
 let hotSignalListenerWired = false;
 let protocolLoreSignalInFlight = false;
 let lastMilestoneStats = {};
+let generatedMilestoneCatalog = null;
+let generatedMilestoneCatalogPromise = null;
 const hotSignalPool = new Map();
 const seenMilestoneArrivals = new Set();
 
@@ -381,17 +385,11 @@ function formatTez(value, precision = 0) {
   });
 }
 
-function milestoneRange(start, end, step) {
-  const values = [];
-  for (let value = start; value <= end; value += step) values.push(value);
-  return values;
-}
-
 const MILESTONE_TRACKS = [
   {
     id: 'blocks',
     value: stats => finiteNumber(stats?.blockLevel),
-    thresholds: milestoneRange(1_000_000, 30_000_000, 1_000_000),
+    thresholds: milestoneBaseThresholds('blocks'),
     noun: 'blocks',
     targetSuffix: 'blocks',
     currentSuffix: 'blocks baked',
@@ -406,7 +404,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'funded-wallets',
     value: stats => finiteNumber(stats?.fundedAccounts),
-    thresholds: [1_000_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000, 10_000_000],
+    thresholds: milestoneBaseThresholds('funded-wallets'),
     noun: 'funded wallets',
     targetSuffix: 'funded wallets',
     currentSuffix: 'funded accounts',
@@ -420,7 +418,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'transactions',
     value: stats => finiteNumber(stats?.totalTransactions),
-    thresholds: [100_000_000, 250_000_000, 500_000_000, 750_000_000, 1_000_000_000],
+    thresholds: milestoneBaseThresholds('transactions'),
     noun: 'transactions',
     targetSuffix: 'transactions',
     currentSuffix: 'transaction operations',
@@ -434,7 +432,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'smart-contracts',
     value: stats => finiteNumber(stats?.smartContracts),
-    thresholds: [100_000, 250_000, 500_000, 1_000_000],
+    thresholds: milestoneBaseThresholds('smart-contracts'),
     noun: 'smart contracts',
     targetSuffix: 'smart contracts',
     currentSuffix: 'smart contracts',
@@ -448,7 +446,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'tokens',
     value: stats => finiteNumber(stats?.tokens),
-    thresholds: [1_000_000, 5_000_000, 10_000_000, 25_000_000],
+    thresholds: milestoneBaseThresholds('tokens'),
     noun: 'tokens',
     targetSuffix: 'tokens indexed',
     currentSuffix: 'tokens indexed',
@@ -462,7 +460,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'bakers',
     value: stats => finiteNumber(stats?.totalBakers),
-    thresholds: [200, 250, 300, 400, 500],
+    thresholds: milestoneBaseThresholds('bakers'),
     noun: 'active bakers',
     targetSuffix: 'active bakers',
     currentSuffix: 'active bakers',
@@ -476,7 +474,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'tz4-adoption',
     value: stats => finiteNumber(stats?.tz4Percentage),
-    thresholds: [10, 25, 50, 75, 90, 100],
+    thresholds: milestoneBaseThresholds('tz4-adoption'),
     noun: 'tz4 adoption',
     targetSuffix: 'tz4 adoption',
     currentSuffix: 'tz4 adoption',
@@ -493,7 +491,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'staking',
     value: stats => finiteNumber(stats?.stakingRatio),
-    thresholds: [30, 35, 40, 45, 50],
+    thresholds: milestoneBaseThresholds('staking'),
     noun: 'staked',
     targetSuffix: 'staked',
     currentSuffix: 'of supply staked',
@@ -510,7 +508,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'burned',
     value: stats => finiteNumber(stats?.totalBurned),
-    thresholds: [1_000_000, 2_000_000, 2_500_000, 3_000_000, 5_000_000, 10_000_000],
+    thresholds: milestoneBaseThresholds('burned'),
     noun: 'XTZ burned',
     targetSuffix: 'XTZ burned',
     currentSuffix: 'XTZ burned',
@@ -524,7 +522,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'cycle',
     value: stats => finiteNumber(stats?.cycle),
-    thresholds: [1000, 1250, 1500, 2000, 2500],
+    thresholds: milestoneBaseThresholds('cycle'),
     noun: 'cycles',
     targetSuffix: 'cycles',
     currentSuffix: 'current cycle',
@@ -538,7 +536,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'uptime-days',
     value: () => Math.floor((Date.now() - Date.parse('2018-09-17T00:00:00Z')) / DAY_MS),
-    thresholds: [1000, 1500, 2000, 2500, 3000, 3500],
+    thresholds: milestoneBaseThresholds('uptime-days'),
     noun: 'uptime days',
     targetSuffix: 'days live',
     currentSuffix: 'days live',
@@ -552,7 +550,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'protocol-upgrades',
     value: stats => finiteNumber(stats?.upgradeCount) ?? finiteNumber(stats?.protocolCount) ?? CANONICAL_UPGRADE_COUNT,
-    thresholds: [10, 20, 21, 25, 30],
+    thresholds: milestoneBaseThresholds('protocol-upgrades'),
     noun: 'self-amendments',
     targetSuffix: 'self-amendments',
     currentSuffix: 'protocol upgrades',
@@ -566,7 +564,7 @@ const MILESTONE_TRACKS = [
   {
     id: 'rollups',
     value: stats => finiteNumber(stats?.rollups),
-    thresholds: [25, 50, 100, 250],
+    thresholds: milestoneBaseThresholds('rollups'),
     noun: 'smart rollups',
     targetSuffix: 'smart rollups',
     currentSuffix: 'smart rollups',
@@ -578,6 +576,25 @@ const MILESTONE_TRACKS = [
     afterWindow: 5
   }
 ];
+
+function milestoneThresholds(track) {
+  const generated = generatedMilestoneThresholds(generatedMilestoneCatalog, track.id);
+  return generated.length ? generated : track.thresholds;
+}
+
+async function loadGeneratedMilestoneCatalog() {
+  if (generatedMilestoneCatalog) return generatedMilestoneCatalog;
+  if (generatedMilestoneCatalogPromise) return generatedMilestoneCatalogPromise;
+  generatedMilestoneCatalogPromise = withTimeout(
+    fetch(MILESTONE_CATALOG_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(response => response.ok ? response.json() : null),
+    MILESTONE_FETCH_TIMEOUT_MS
+  ).then((catalog) => {
+    generatedMilestoneCatalog = catalog && typeof catalog === 'object' ? catalog : null;
+    return generatedMilestoneCatalog;
+  }).catch(() => null);
+  return generatedMilestoneCatalogPromise;
+}
 
 function hasMilestoneNumber(value) {
   return Number.isFinite(Number(value)) && Number(value) > 0;
@@ -740,11 +757,12 @@ function buildMilestoneSignals(stats = {}) {
 
   MILESTONE_TRACKS.forEach((track) => {
     const current = track.value(stats);
+    const thresholds = milestoneThresholds(track);
     const dailyRate = milestoneDailyRate(track, current, momentStore, snapshotReference, now);
     const lifecycle = advanceMilestoneTrack(momentStore, {
       trackId: track.id,
       currentValue: current,
-      thresholds: track.thresholds,
+      thresholds,
       now,
       ttlMs: MILESTONE_MOMENT_TTL_MS
     });
@@ -781,7 +799,7 @@ function buildMilestoneSignals(stats = {}) {
     if (lifecycle.activeMoments.length) return;
     const state = qualifyMilestoneNearState({
       currentValue: current,
-      thresholds: track.thresholds,
+      thresholds,
       nearWindow: track.nearWindow,
       dailyRate,
       maxLeadDays: track.nearLeadDays || MILESTONE_NEAR_LEAD_DAYS,
@@ -1442,6 +1460,7 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
 // ─── Core Generate ────────────────────────────────────────────────────────────
 
 async function generate(stats, xtzPrice) {
+  await loadGeneratedMilestoneCatalog();
   const sourceStats = stats || {};
   const cycle = sourceStats.cycle ?? 0;
   const profile = getCurrentMyTezosProfile();

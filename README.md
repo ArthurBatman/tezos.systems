@@ -64,6 +64,7 @@ tezos.systems/
 │   ├── protocol-debates.json          # Debate/rejection narratives
 │   ├── governance-votes.json          # Generated governance vote history
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
+│   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
 │   └── tweets.json                    # Share-copy templates
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
@@ -82,6 +83,7 @@ tezos.systems/
 │   ├── refresh-generated-surfaces.mjs  # Commit/scheduled generated-surface orchestrator
 │   ├── generate-chamber-routes.mjs    # Pretty Chamber route generator
 │   ├── generate-chamber-og-images.mjs # Per-Chamber OG image generator
+│   ├── generate-milestone-catalog.mjs # 14-day/100-commit milestone refresh
 │   ├── bake-compare-pages.mjs         # Static compare-page content baker
 │   ├── build-css.mjs                  # Base/theme CSS splitter and minifier
 │   ├── update-governance-votes.mjs    # Compatibility wrapper
@@ -464,10 +466,15 @@ snapshot across dashboard consumers.
 Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
-crawlable compare content, and generated CSS bundles. The pre-commit hook runs
-the same orchestrator in commit mode so fast-moving generated outputs update
-with each normal commit. `.github/workflows/refresh-governance-surfaces.yml`
-runs the full scheduled mode and commits only when generated outputs change.
+crawlable compare content, generated CSS bundles, and the milestone catalog.
+The milestone generator is cadence-gated: scheduled runs refresh it after 14
+days, while pre-commit runs refresh it after 100 commits, whichever happens
+first. `npm run refresh:milestones` forces a manual refresh. The browser consumes
+the generated thresholds and falls back to its shared base catalog when the
+manifest is unavailable. The pre-commit hook runs the same orchestrator in
+commit mode so fast-moving generated outputs update with each normal commit.
+`.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
+and commits only when generated outputs change.
 
 The Supabase anon key in `js/core/config.js` is public client configuration, not
 a secret. Browser fetch domains must be allowed by the CSP in `index.html`.
@@ -525,6 +532,7 @@ Common commands:
 ```bash
 npm run build:css
 npm run refresh:generated
+npm run refresh:milestones
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare
@@ -606,7 +614,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v390`, including hero search, theme
+- Current aligned shell cache stamp: `v391`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.

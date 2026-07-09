@@ -21,6 +21,7 @@
     "refresh:generated": "node scripts/refresh-generated-surfaces.mjs --all",
     "refresh:generated:commit": "node scripts/refresh-generated-surfaces.mjs --mode precommit",
     "refresh:generated:scheduled": "node scripts/refresh-generated-surfaces.mjs --mode scheduled",
+    "refresh:milestones": "node scripts/generate-milestone-catalog.mjs --force",
     "build:css": "node scripts/build-css.mjs",
     "og:chambers": "node scripts/generate-chamber-og-images.mjs",
     "routes:chambers": "node scripts/generate-chamber-routes.mjs",
