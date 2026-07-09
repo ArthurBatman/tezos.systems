@@ -1792,6 +1792,29 @@ body.hero-search-mode .main-content {
     margin-top: 0.62rem;
 }
 
+@media (max-width: 640px) {
+    .hero-search-chips {
+        flex-wrap: wrap;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: visible;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-mask-image: none;
+        mask-image: none;
+    }
+
+    .hero-search-chips::-webkit-scrollbar {
+        display: none;
+    }
+
+    .hero-search-chip {
+        flex: 0 1 auto;
+        min-height: 36px;
+    }
+}
+
 .hero-search-chip {
     padding: 0.3rem 0.68rem;
     border-radius: 999px;
@@ -2215,15 +2238,25 @@ body.hero-search-mode .main-content {
 
     .hero-slot {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
     }
 
     .hero-search-form {
-        grid-template-columns: 28px minmax(0, 1fr) 30px;
+        box-sizing: border-box;
+        grid-template-columns: 24px minmax(0, 1fr) 30px;
+        gap: 0.28rem;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding: 0.36rem;
     }
 
     .hero-search-input {
+        box-sizing: border-box;
         height: 40px;
-        padding-inline: 0.56rem;
+        min-width: 0;
+        padding-inline: 0.44rem;
         /* iOS zooms focused form controls whose computed text is under 16px. */
         font-size: 16px;
         line-height: 1.2;

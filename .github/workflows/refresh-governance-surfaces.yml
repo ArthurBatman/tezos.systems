@@ -1,4 +1,4 @@
-name: Refresh Governance Surfaces
+name: Refresh Generated Surfaces
 
 on:
   schedule:
@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Refresh generated governance and distribution surfaces
+      - name: Refresh generated data and distribution surfaces
         run: npm run refresh:generated:scheduled
 
       - name: Validate generated surfaces
@@ -44,5 +44,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           ./scripts/stamp-version.sh
           git add -- $(node scripts/refresh-generated-surfaces.mjs --print-targets) version.json
-          git commit -m "Refresh governance distribution surfaces"
+          git commit -m "Refresh generated distribution surfaces"
           git push

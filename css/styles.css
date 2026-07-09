@@ -629,6 +629,7 @@ body {
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
+    overflow-anchor: none;
     line-height: 1.6;
 }
 
@@ -729,11 +730,13 @@ body::before {
     overflow: visible;
     padding: 0;
     border: 0;
-    border-radius: 0;
+    border-radius: 8px;
     background: transparent;
     color: var(--text-primary);
     box-shadow: none;
     text-align: left;
+    transform: scale(0.62);
+    transform-origin: left top;
     white-space: normal;
 }
 
@@ -2158,6 +2161,8 @@ body::before {
     border-radius: 8px;
     cursor: pointer;
     transition: var(--transition);
+    min-width: 36px;
+    min-height: 36px;
 }
 
 .feature-copy-link {
@@ -2165,8 +2170,8 @@ body::before {
     top: 50%;
     right: 80px;
     transform: translateY(-50%);
-    width: 20px;
-    min-height: 20px;
+    width: 34px;
+    min-height: 34px;
     border-radius: 999px;
     font-size: 0.56rem;
     text-decoration: none;
@@ -2789,8 +2794,8 @@ body::before {
     position: absolute;
     top: 1rem;
     right: 1rem;
-    width: 24px;
-    height: 24px;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2805,7 +2810,9 @@ body::before {
     pointer-events: auto;
 }
 
-.card-info-btn:hover {
+.card-info-btn:hover,
+.card-info-btn:focus-visible,
+.card-info-btn.is-open {
     opacity: 1;
     background: rgba(0, 212, 255, 0.15);
     border-color: var(--accent-cyan);
@@ -2814,7 +2821,9 @@ body::before {
     box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
 }
 
-.card-info-btn:hover svg {
+.card-info-btn:hover svg,
+.card-info-btn:focus-visible svg,
+.card-info-btn.is-open svg {
     animation: pulse-glow 1s ease-in-out infinite;
 }
 
@@ -2844,6 +2853,9 @@ body::before {
 }
 
 .card-info-btn:hover + .card-tooltip,
+.card-info-btn:focus-visible + .card-tooltip,
+.card-info-btn.is-open + .card-tooltip,
+.card-tooltip.is-open,
 .card-tooltip:hover {
     opacity: 1;
     visibility: visible;
@@ -4954,12 +4966,13 @@ body::before {
     color: var(--text-secondary);
     font-size: 1.5rem;
     cursor: pointer;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 8px;
+    z-index: 120;
     transition: var(--transition);
 }
 
@@ -15777,7 +15790,7 @@ body {
 /* Chamber entry card */
 .chamber-entry-card {
     border: 1px dashed rgba(0, 212, 255, 0.16) !important;
-    transition: all 0.3s ease !important;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, background 0.3s ease !important;
 }
 
 .chamber-entry-card:hover {
@@ -16899,8 +16912,10 @@ body {
 #chambers-grid .chamber-entry-card > .card-info-btn,
 #chambers-grid .chamber-entry-card > .card-history-btn {
     top: 0.85rem;
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
     z-index: 70;
 }
 
@@ -16935,6 +16950,11 @@ body {
     border: 1px solid var(--accent-cyan);
     opacity: 0;
     pointer-events: none;
+    animation: none;
+}
+
+.chamber-entry-card.chamber-entry-live::before,
+.chamber-entry-card[data-updated-label]::before {
     animation: entryCardPulse 6s ease-in-out infinite;
 }
 
@@ -17353,8 +17373,10 @@ body {
     #chambers-grid .chamber-entry-card > .card-info-btn,
     #chambers-grid .chamber-entry-card > .card-history-btn {
         top: 0.78rem;
-        width: 28px;
-        height: 28px;
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        min-height: 34px;
     }
 
     #chambers-grid .chamber-entry-card > .card-copy-link {
@@ -22035,14 +22057,29 @@ body[data-theme="nerv"]::after {
     border-color: rgba(255,255,255,0.2);
 }
 .drawer-close {
-    background: none;
-    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    width: 44px;
+    height: 44px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    color: var(--text-secondary);
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 0;
     opacity: 0.7;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
-.drawer-close:hover { opacity: 1; }
+.drawer-close:hover,
+.drawer-close:focus-visible {
+    opacity: 1;
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.16);
+}
 #drawer-operator-status[hidden] { display: none; }
 .drawer-operator-panel {
     border: 1px solid rgba(255,255,255,0.1);

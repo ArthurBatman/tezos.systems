@@ -44,6 +44,7 @@ import { initCtezChamber } from '../features/ctez.js';
 import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
 import { initNetworkPulseChamber, openNetworkPulseChamber } from '../features/network-pulse.js';
+import { initMaxisChamber } from '../features/maxis.js';
 
 const SPARKLINE_LIVE_METRICS = [
     ['tz4_percentage', 'tz4Percentage'],
@@ -98,7 +99,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=391';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=396';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -244,6 +245,7 @@ async function init() {
     safe('ctezChamber', initCtezChamber);
     safe('ledgerFlowChamber', initLedgerFlowChamber);
     safe('tezosDomainsChamber', initTezosDomainsChamber);
+    safe('maxisChamber', initMaxisChamber);
     safe('governanceAlerts', initGovernanceAlerts);
     safe('protocolHistoryChamber', initProtocolHistoryChamber);
     safe('protocolHistoryHeaderLauncher', initProtocolHistoryHeaderLauncher);
@@ -1048,8 +1050,24 @@ function bringToTop(sectionId) {
 function initMyTezosButton() {
     const btn = document.getElementById('my-tezos-btn');
     if (!btn) return;
+    const drawer = document.getElementById('my-tezos-drawer');
+    const scrim = document.getElementById('my-tezos-drawer-scrim');
+    let drawerFocusedBeforeOpen = null;
+    let drawerSavedBodyOverflow = null;
+    let drawerSavedHtmlOverflow = null;
+    let drawerWasOpen = drawer?.classList.contains('open') === true;
 
     const STORAGE_KEY = 'tezos-systems-my-baker-address';
+    btn.setAttribute('aria-controls', 'my-tezos-drawer');
+    btn.setAttribute('aria-expanded', 'false');
+    if (drawer) {
+        drawer.setAttribute('role', 'dialog');
+        drawer.setAttribute('aria-modal', 'true');
+        drawer.setAttribute('aria-hidden', 'true');
+        drawer.setAttribute('inert', '');
+        drawer.inert = true;
+    }
+    if (scrim) scrim.setAttribute('aria-hidden', 'true');
 
     // Cache for .tez domain lookups
     const _tezDomainCache = {};
@@ -1208,24 +1226,121 @@ function initMyTezosButton() {
     });
     updateWalletDrawerState();
 
-    btn.addEventListener('click', () => {
-        const drawer = document.getElementById('my-tezos-drawer');
-        const scrim = document.getElementById('my-tezos-drawer-scrim');
-        if (drawer && scrim) {
-            const isOpen = drawer.classList.contains('open');
-            drawer.classList.toggle('open', !isOpen);
-            scrim.classList.toggle('open', !isOpen);
-            if (!isOpen) {
-                prewarmWalletFromDrawer();
-                // Show correct state
-                const address = localStorage.getItem(STORAGE_KEY);
-                const emptyState = document.getElementById('drawer-empty-state');
-                const connectedState = document.getElementById('drawer-connected');
-                if (emptyState) emptyState.style.display = address ? 'none' : '';
-                if (connectedState) connectedState.style.display = address ? '' : 'none';
-            }
-            document.body.style.overflow = !isOpen ? 'hidden' : '';
+    function setDrawerOpen(open, { restoreFocus = true } = {}) {
+        if (!drawer || !scrim) return;
+        if (open === drawer.classList.contains('open')) return;
+        if (open) {
+            drawerFocusedBeforeOpen = document.activeElement;
+            drawer.classList.add('open');
+            scrim.classList.add('open');
+            drawer.removeAttribute('inert');
+            drawer.inert = false;
+            drawer.setAttribute('aria-hidden', 'false');
+            btn.setAttribute('aria-expanded', 'true');
+            drawerSavedBodyOverflow = document.body.style.overflow;
+            drawerSavedHtmlOverflow = document.documentElement.style.overflow;
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+            prewarmWalletFromDrawer();
+            const address = localStorage.getItem(STORAGE_KEY);
+            const emptyState = document.getElementById('drawer-empty-state');
+            const connectedState = document.getElementById('drawer-connected');
+            if (emptyState) emptyState.style.display = address ? 'none' : '';
+            if (connectedState) connectedState.style.display = address ? '' : 'none';
+            window.requestAnimationFrame(() => {
+                const target = drawer.querySelector('#drawer-address-input, #my-baker-input, button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                target?.focus({ preventScroll: true });
+            });
+            return;
         }
+        drawer.classList.remove('open');
+        scrim.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+        drawer.setAttribute('inert', '');
+        drawer.inert = true;
+        btn.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = drawerSavedBodyOverflow || '';
+        document.documentElement.style.overflow = drawerSavedHtmlOverflow || '';
+        drawerSavedBodyOverflow = null;
+        drawerSavedHtmlOverflow = null;
+        if (restoreFocus && drawerFocusedBeforeOpen && document.contains(drawerFocusedBeforeOpen)) {
+            const restoreTarget = drawerFocusedBeforeOpen;
+            window.requestAnimationFrame(() => restoreTarget.focus({ preventScroll: true }));
+        }
+        drawerFocusedBeforeOpen = null;
+    }
+
+    function syncDrawerStateFromClass() {
+        if (!drawer || !scrim) return;
+        const open = drawer.classList.contains('open');
+        const wasOpen = drawerWasOpen;
+        if (open) {
+            if (!wasOpen && (!drawerFocusedBeforeOpen || drawer.contains(drawerFocusedBeforeOpen))) {
+                drawerFocusedBeforeOpen = document.activeElement;
+            }
+            drawer.removeAttribute('inert');
+            drawer.inert = false;
+            drawer.setAttribute('aria-hidden', 'false');
+            btn.setAttribute('aria-expanded', 'true');
+            scrim.classList.add('open');
+            if (drawerSavedBodyOverflow == null) drawerSavedBodyOverflow = document.body.style.overflow;
+            if (drawerSavedHtmlOverflow == null) drawerSavedHtmlOverflow = document.documentElement.style.overflow;
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+            if (!drawer.contains(document.activeElement)) {
+                window.requestAnimationFrame(() => {
+                    const target = drawer.querySelector('#drawer-address-input, #my-baker-input, button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                    target?.focus({ preventScroll: true });
+                });
+            }
+            drawerWasOpen = true;
+            return;
+        }
+        drawer.setAttribute('aria-hidden', 'true');
+        drawer.setAttribute('inert', '');
+        drawer.inert = true;
+        btn.setAttribute('aria-expanded', 'false');
+        scrim.classList.remove('open');
+        document.body.style.overflow = drawerSavedBodyOverflow || '';
+        document.documentElement.style.overflow = drawerSavedHtmlOverflow || '';
+        drawerSavedBodyOverflow = null;
+        drawerSavedHtmlOverflow = null;
+        if (wasOpen && drawerFocusedBeforeOpen && document.contains(drawerFocusedBeforeOpen)) {
+            const restoreTarget = drawerFocusedBeforeOpen;
+            window.requestAnimationFrame(() => restoreTarget.focus({ preventScroll: true }));
+        }
+        drawerFocusedBeforeOpen = null;
+        drawerWasOpen = false;
+    }
+
+    if (drawer && scrim) {
+        new MutationObserver(syncDrawerStateFromClass).observe(drawer, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+    }
+
+    function trapDrawerFocus(event) {
+        if (event.key !== 'Tab' || !drawer?.classList.contains('open')) return;
+        const focusable = getFocusableElements(drawer);
+        if (!focusable.length) {
+            event.preventDefault();
+            drawer.focus({ preventScroll: true });
+            return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+        }
+    }
+
+    btn.addEventListener('click', () => {
+        setDrawerOpen(!drawer?.classList.contains('open'));
     });
 
     // Listen for address changes
@@ -1256,14 +1371,13 @@ function initMyTezosButton() {
     // Drawer close handlers
     document.getElementById('drawer-close')?.addEventListener('click', closeDrawer);
     document.getElementById('my-tezos-drawer-scrim')?.addEventListener('click', closeDrawer);
+    drawer?.addEventListener('keydown', trapDrawerFocus);
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeDrawer();
     });
 
     function closeDrawer() {
-        document.getElementById('my-tezos-drawer')?.classList.remove('open');
-        document.getElementById('my-tezos-drawer-scrim')?.classList.remove('open');
-        document.body.style.overflow = '';
+        setDrawerOpen(false);
     }
 
     // Refresh button text when data loads (Feature 1: Smart Header Button)
@@ -1310,6 +1424,10 @@ const CHAMBER_CARD_PAIRS = [
     {
         key: 'ledger-history',
         selectors: ['#ledger-flow-entry-card', '#protocol-history-entry-card']
+    },
+    {
+        key: 'maxis',
+        selectors: ['#maxis-entry-card']
     },
     {
         key: 'tezos-domains',
@@ -1379,6 +1497,12 @@ const CHAMBER_INFO_COPY = {
         body: 'Live Tezos Domains room for fresh .tez registrations, renewals, expiring names, auctions, offers, and reverse-record identity moves.',
         href: '/domains/',
         link: 'Open Domains ->'
+    },
+    'maxis-entry-card': {
+        title: 'Tezos Maxis',
+        body: 'One inspectable leader per Tezos activity lane, including art, DeFi, gaming, transactions, governance, staking, and the cross-lane Unicorn.',
+        href: '/maxis/',
+        link: 'Open Tezos Maxis ->'
     }
 };
 
@@ -1403,6 +1527,36 @@ function getChamberInfoCopy(card) {
     return { title, body, href: '#chambers', link: 'Open Chambers ->' };
 }
 
+let activeChamberInfoButton = null;
+let chamberInfoGlobalWired = false;
+
+function setChamberInfoOpen(button, open) {
+    if (!button) return;
+    const tooltip = document.getElementById(button.getAttribute('aria-controls'));
+    button.classList.toggle('is-open', open);
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    tooltip?.classList.toggle('is-open', open);
+    if (open) activeChamberInfoButton = button;
+    else if (activeChamberInfoButton === button) activeChamberInfoButton = null;
+}
+
+function closeActiveChamberInfo() {
+    if (activeChamberInfoButton) setChamberInfoOpen(activeChamberInfoButton, false);
+}
+
+function wireChamberInfoGlobals() {
+    if (chamberInfoGlobalWired) return;
+    chamberInfoGlobalWired = true;
+    document.addEventListener('click', (event) => {
+        if (!activeChamberInfoButton) return;
+        if (event.target.closest('.card-info-btn, .card-tooltip')) return;
+        closeActiveChamberInfo();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeActiveChamberInfo();
+    });
+}
+
 function ensureChamberInfoButton(card) {
     if (!card?.classList?.contains('chamber-entry-card')) return null;
     const key = getChamberInfoKey(card);
@@ -1417,10 +1571,23 @@ function ensureChamberInfoButton(card) {
         info.className = 'card-info-btn';
         if (insertBefore) card.insertBefore(info, insertBefore);
         else card.appendChild(info);
+    } else if (info.tagName !== 'BUTTON') {
+        const button = document.createElement('button');
+        Array.from(info.attributes).forEach((attribute) => {
+            button.setAttribute(attribute.name, attribute.value);
+        });
+        button.type = 'button';
+        button.innerHTML = info.innerHTML;
+        info.replaceWith(button);
+        info = button;
     }
 
+    info.type = 'button';
+    info.removeAttribute('tabindex');
     info.dataset.tooltip = info.dataset.tooltip || key;
     info.setAttribute('aria-label', `Explain ${copy.title}`);
+    info.setAttribute('aria-controls', `tooltip-${key}`);
+    info.setAttribute('aria-expanded', info.classList.contains('is-open') ? 'true' : 'false');
     info.title = 'What is this?';
     if (!info.querySelector('svg')) info.innerHTML = CHAMBER_INFO_ICON_SVG;
     if (!info.dataset.chamberInfoWired) {
@@ -1428,13 +1595,24 @@ function ensureChamberInfoButton(card) {
         info.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
+            const shouldOpen = activeChamberInfoButton !== info || info.getAttribute('aria-expanded') !== 'true';
+            closeActiveChamberInfo();
+            setChamberInfoOpen(info, shouldOpen);
+        });
+        info.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            event.stopPropagation();
+            setChamberInfoOpen(info, false);
+            info.focus({ preventScroll: true });
         });
     }
+    wireChamberInfoGlobals();
 
     if (!tooltip) {
         tooltip = document.createElement('div');
         tooltip.className = 'card-tooltip';
         tooltip.id = `tooltip-${key}`;
+        tooltip.setAttribute('role', 'tooltip');
         tooltip.innerHTML = `
             <div class="tooltip-content">
                 <h4>${escapeHtml(copy.title)}</h4>
@@ -2499,7 +2677,7 @@ function initUptimeClock() {
             [mins, 'm']
         ].map(([value, unit]) => (
             `<span class="top-continuity-time-segment"><span class="top-continuity-time-number">${value}</span>${unit}</span>`
-        )).join('');
+        )).join(' ');
     }
 
     function setTopContinuityRuntime(years, days, hours, mins) {
@@ -3023,6 +3201,45 @@ function setupEventListeners() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
+function getFocusableElements(root) {
+    if (!root) return [];
+    return Array.from(root.querySelectorAll([
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(','))).filter((el) => {
+        if (el.closest('[inert], [aria-hidden="true"]')) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    });
+}
+
+let genericModalLockCount = 0;
+let genericModalBodyOverflow = null;
+let genericModalHtmlOverflow = null;
+
+function lockGenericModalScroll() {
+    if (genericModalLockCount === 0) {
+        genericModalBodyOverflow = document.body.style.overflow;
+        genericModalHtmlOverflow = document.documentElement.style.overflow;
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+    }
+    genericModalLockCount += 1;
+}
+
+function unlockGenericModalScroll() {
+    genericModalLockCount = Math.max(0, genericModalLockCount - 1);
+    if (genericModalLockCount > 0) return;
+    document.body.style.overflow = genericModalBodyOverflow || '';
+    document.documentElement.style.overflow = genericModalHtmlOverflow || '';
+    genericModalBodyOverflow = null;
+    genericModalHtmlOverflow = null;
+}
+
 /**
  * Setup a modal
  */
@@ -3030,25 +3247,72 @@ function setupModal(triggerBtnId, modalId, closeBtnId) {
     const triggerBtn = document.getElementById(triggerBtnId);
     const modal = document.getElementById(modalId);
     const closeBtn = document.getElementById(closeBtnId);
+    const content = modal?.querySelector('.modal-content, .modal-large');
+    const title = modal?.querySelector('.modal-title');
 
     let escHandler = null;
+    let focusedBeforeOpen = null;
+
+    if (modal && content) {
+        content.setAttribute('role', content.getAttribute('role') || 'dialog');
+        content.setAttribute('aria-modal', 'true');
+        content.setAttribute('tabindex', content.getAttribute('tabindex') || '-1');
+        if (title) {
+            title.id = title.id || `${modalId}-title`;
+            content.setAttribute('aria-labelledby', title.id);
+        } else {
+            content.setAttribute('aria-label', content.getAttribute('aria-label') || 'Tezos Systems dialog');
+        }
+    }
 
     const openModal = () => {
+        if (!modal || modal.classList.contains('active')) return;
+        focusedBeforeOpen = document.activeElement;
         modal.classList.add('active');
         modal.setAttribute('aria-hidden', 'false');
+        lockGenericModalScroll();
         escHandler = (e) => {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') {
+                closeModal();
+                return;
+            }
+            if (e.key !== 'Tab') return;
+            const focusable = getFocusableElements(content || modal);
+            if (!focusable.length) {
+                e.preventDefault();
+                content?.focus({ preventScroll: true });
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus({ preventScroll: true });
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus({ preventScroll: true });
+            }
         };
         document.addEventListener('keydown', escHandler);
+        window.requestAnimationFrame(() => {
+            (closeBtn || getFocusableElements(content || modal)[0] || content)?.focus({ preventScroll: true });
+        });
     };
 
     const closeModal = () => {
+        if (!modal || !modal.classList.contains('active')) return;
         modal.classList.remove('active');
         modal.setAttribute('aria-hidden', 'true');
         if (escHandler) {
             document.removeEventListener('keydown', escHandler);
             escHandler = null;
         }
+        unlockGenericModalScroll();
+        if (focusedBeforeOpen && document.contains(focusedBeforeOpen)) {
+            const restoreTarget = focusedBeforeOpen;
+            window.requestAnimationFrame(() => restoreTarget.focus({ preventScroll: true }));
+        }
+        focusedBeforeOpen = null;
     };
 
     if (triggerBtn && modal) {
@@ -4462,7 +4726,8 @@ function initDeepLinkAffordances() {
             '#lb-tile': '/lb/',
             '#tz4': '/tz4/',
             '#ctez': '/ctez/',
-            '#ledger-flow': '/ledger-flow/'
+            '#ledger-flow': '/ledger-flow/',
+            '#maxis': '/maxis/'
         };
         const pretty = prettyRoutes[hash];
         if (pretty) return `${window.location.origin}${pretty}`;
@@ -4623,6 +4888,7 @@ function initOfflineIndicator() {
 //   #lb-tile           → scroll to the Liquidity Baking dashboard tile
 //   #tz4               → open tz4 Adoption Chamber
 //   #ctez              → open ctez Oven Guide
+//   #maxis             → open Tezos Maxis Chamber
 //   #protocol-history  → open Protocol History Chamber
 //   #protocol=Ushuaia  → open protocol lore/history
 //   #theme=dark        → switch to theme
@@ -4634,7 +4900,7 @@ function initOfflineIndicator() {
 //   /health/           → open Network Health Chamber
 //   /tezosx/           → open Tezos X Chamber
 //   /l2chamber/        → open Tezos X Governance Chamber
-//   /tz4/ /lb/ /domains/ /ledger-flow/ /ctez/ → open their chamber rooms
+//   /tz4/ /lb/ /domains/ /ledger-flow/ /ctez/ /maxis/ → open their chamber rooms
 // Account path shortcuts:
 //   /tz1...            → open My Tezos with address
 //   /name.tez          → resolve Tezos Domain and open My Tezos
@@ -4653,7 +4919,8 @@ function getPrettyChamberPathRoute() {
         lb: 'lb',
         domains: 'domains',
         'ledger-flow': 'ledger-flow',
-        ctez: 'ctez'
+        ctez: 'ctez',
+        maxis: 'maxis'
     };
     return routes[slug] || null;
 }
@@ -4911,6 +5178,7 @@ function applyDeepLink() {
             import('../features/ctez.js').then((module) => module.closeCtezChamber?.()),
             import('../features/ledger-flow.js').then((module) => module.closeLedgerFlowChamber?.()),
             import('../features/tezos-domains.js').then((module) => module.closeTezosDomainsChamber?.()),
+            import('../features/maxis.js').then((module) => module.closeMaxisChamber?.()),
             import('../features/native-explorer.js').then((module) => module.closeNativeExplorer?.())
         ]);
 
@@ -4989,6 +5257,12 @@ function applyDeepLink() {
                     'Failed to open Tezos Domains Chamber'
                 );
                 break;
+            case 'maxis':
+                openHashModal(
+                    () => import('../features/maxis.js').then(({ openMaxisChamber }) => openMaxisChamber()),
+                    'Failed to open Tezos Maxis Chamber'
+                );
+                break;
             case 'protocol-history':
                 openHashModal(
                     () => openProtocolHistoryChamber(),
@@ -5055,6 +5329,14 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
             'Failed to open Network Pulse Chamber'
+        );
+    }
+
+    // #maxis / #tezos-maxis
+    if (params.has('maxis') || hash === 'maxis' || params.has('tezos-maxis') || hash === 'tezos-maxis') {
+        openHashModal(
+            () => import('../features/maxis.js').then(({ openMaxisChamber }) => openMaxisChamber()),
+            'Failed to open Tezos Maxis Chamber'
         );
     }
 

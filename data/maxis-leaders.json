@@ -1,0 +1,194 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-07-09T20:44:34.314Z",
+  "window": {
+    "kind": "rolling",
+    "days": 30,
+    "from": "2026-06-09T20:44:34.314Z",
+    "to": "2026-07-09T20:44:34.314Z"
+  },
+  "staleAfterHours": 48,
+  "sources": [
+    {
+      "name": "TzKT",
+      "url": "https://api.tzkt.io/",
+      "role": "accounts, delegates, contract labels, successful contract calls"
+    },
+    {
+      "name": "OBJKT API v3",
+      "url": "https://data.objkt.com/docs/",
+      "role": "buyer and artist sales ranks, mint events, profile identity"
+    }
+  ],
+  "coverage": {
+    "contractCatalogLimit": 10000,
+    "recognizedContracts": 176,
+    "recognizedApps": 11,
+    "byCategory": {
+      "defi": {
+        "apps": 7,
+        "contracts": 170
+      },
+      "gaming": {
+        "apps": 4,
+        "contracts": 6
+      }
+    },
+    "caveat": "DeFi and Gaming cover successful top-level wallet calls to recently active contracts recognized by the reviewed TzKT-alias taxonomy. Unknown or unlabeled contracts are not classified."
+  },
+  "truncation": {
+    "mints": false,
+    "appTransactions": false
+  },
+  "leaders": [
+    {
+      "category": "transaction",
+      "title": "Transaction Maxi",
+      "status": "ready",
+      "address": "tz1W1en9UpMCH4ZJL8wQCh8JDKCZARyVx2co",
+      "alias": "Everstake Payouts",
+      "score": 43273449,
+      "scoreLabel": "43,273,449 transactions",
+      "context": [
+        "All-time TzKT account counter"
+      ],
+      "lastActivity": "2026-07-09T14:03:28.000Z",
+      "sourceUrl": "https://tzkt.io/tz1W1en9UpMCH4ZJL8wQCh8JDKCZARyVx2co",
+      "method": "Highest all-time transaction count among implicit user accounts indexed by TzKT.",
+      "windowKind": "all-time"
+    },
+    {
+      "category": "collector",
+      "title": "Collector Maxi",
+      "status": "ready",
+      "address": "tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4",
+      "alias": "absurdeity.tez",
+      "score": 75863820600,
+      "scoreLabel": "75,864 ꜩ collected",
+      "context": [
+        "OBJKT-indexed 30d buyer volume"
+      ],
+      "lastActivity": null,
+      "sourceUrl": "https://objkt.com/profile/tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4",
+      "method": "Highest 30-day buyer volume in OBJKT sales statistics; flagged profiles excluded.",
+      "windowKind": "rolling-30d"
+    },
+    {
+      "category": "artist",
+      "title": "Art Maxi",
+      "status": "ready",
+      "address": "tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm",
+      "alias": "zancan.tez",
+      "score": 75013829999,
+      "scoreLabel": "75,014 ꜩ art volume",
+      "context": [
+        "OBJKT-indexed 30d artist volume"
+      ],
+      "lastActivity": null,
+      "sourceUrl": "https://objkt.com/profile/tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm",
+      "method": "Highest 30-day artist volume in OBJKT sales statistics; flagged profiles excluded.",
+      "windowKind": "rolling-30d"
+    },
+    {
+      "category": "minter",
+      "title": "Mint Maxi",
+      "status": "ready",
+      "address": "tz1Yw8SgnsAmbQcJyaBbQokoYGxeeoX5AKYw",
+      "alias": "Dinç Erem Tapa - PFP Series",
+      "score": 32,
+      "scoreLabel": "32 tokens minted",
+      "context": [
+        "13 mint operations",
+        "32 editions"
+      ],
+      "lastActivity": "2026-06-10T18:59:49.000Z",
+      "sourceUrl": "https://objkt.com/profile/tz1Yw8SgnsAmbQcJyaBbQokoYGxeeoX5AKYw",
+      "method": "Most distinct token mints in OBJKT-indexed, non-reverted mint events during the rolling window.",
+      "windowKind": "rolling-30d"
+    },
+    {
+      "category": "defi",
+      "title": "DeFi Maxi",
+      "status": "ready",
+      "address": "tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
+      "alias": null,
+      "score": 5,
+      "scoreLabel": "5 apps · 13,681 calls",
+      "context": [
+        "3Route, Plenty, SpicySwap, Vortex, youves",
+        "120 recognized contracts"
+      ],
+      "lastActivity": "2026-07-09T20:43:46.000Z",
+      "sourceUrl": "https://tzkt.io/tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
+      "method": "Most distinct recognized DeFi apps used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.",
+      "windowKind": "rolling-30d"
+    },
+    {
+      "category": "gaming",
+      "title": "Gaming Maxi",
+      "status": "ready",
+      "address": "tz1VhCvo2M7ne6GihA46hqhEoPceFo1Kbhg5",
+      "alias": "The Running Man",
+      "score": 2,
+      "scoreLabel": "2 games · 3 calls",
+      "context": [
+        "ChainBorn, Tezotopia",
+        "2 recognized contracts"
+      ],
+      "lastActivity": "2026-06-17T01:22:25.000Z",
+      "sourceUrl": "https://tzkt.io/tz1VhCvo2M7ne6GihA46hqhEoPceFo1Kbhg5",
+      "method": "Most distinct recognized Tezos games used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.",
+      "windowKind": "rolling-30d"
+    },
+    {
+      "category": "governance",
+      "title": "Governance Maxi",
+      "status": "ready",
+      "address": "tz1MivraUX9U6nmGAQkm7XkrNVmsPExEUT1W",
+      "alias": null,
+      "score": 77,
+      "scoreLabel": "77 governance actions",
+      "context": [
+        "48 ballots",
+        "29 proposals"
+      ],
+      "lastActivity": "2026-07-09T20:44:28.000Z",
+      "sourceUrl": "https://tzkt.io/tz1MivraUX9U6nmGAQkm7XkrNVmsPExEUT1W",
+      "method": "Most all-time ballots plus proposals among currently active TzKT delegates.",
+      "windowKind": "all-time-active"
+    },
+    {
+      "category": "staking",
+      "title": "Staking Maxi",
+      "status": "ready",
+      "address": "tz1cJTktkAEhxyWZAyQrjcqZJ3BeQYyQMvBt",
+      "alias": null,
+      "score": 20641089036591,
+      "scoreLabel": "20,641,089 ꜩ staked",
+      "context": [
+        "0 stakers",
+        "20,643,351 ꜩ baking power"
+      ],
+      "lastActivity": "2026-07-09T20:44:28.000Z",
+      "sourceUrl": "https://tzkt.io/tz1cJTktkAEhxyWZAyQrjcqZJ3BeQYyQMvBt",
+      "method": "Largest live staked balance among active TzKT delegates.",
+      "windowKind": "live"
+    },
+    {
+      "category": "unicorn",
+      "title": "Tezos Unicorn",
+      "status": "ready",
+      "address": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
+      "alias": "sneketoshi.tez",
+      "score": 2.01,
+      "scoreLabel": "4 lanes crossed",
+      "context": [
+        "collector #8 · artist #50 · minter #63 · defi #82"
+      ],
+      "lastActivity": "2026-07-03T10:55:49.000Z",
+      "sourceUrl": "https://tzkt.io/tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
+      "method": "Breadth first across the top 100 Collector, Art, Mint, DeFi, Gaming, and Governance ranks; normalized rank points break ties. Requires three lanes.",
+      "windowKind": "mixed"
+    }
+  ]
+}

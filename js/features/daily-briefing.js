@@ -141,6 +141,7 @@ let hotTodaySignals = [];
 let hotTodayBriefingSentences = [];
 let hotTodayActiveIndex = 0;
 let hotTodayRotationPaused = false;
+let hotTodayManualPauseTimer = null;
 let hotTodayHasRendered = false;
 let hotSignalRenderTimer = null;
 let lastHotSignalRenderAt = 0;
@@ -2206,6 +2207,11 @@ function applyHotTodayActive(index = hotTodayActiveIndex, { scroll = true } = {}
     card.classList.toggle('is-hot-active', isActive);
     if (isActive) activeCard = card;
   });
+  document.querySelectorAll('#hot-today-island [data-hot-progress-index]').forEach((segment) => {
+    const isActive = Number(segment.dataset.hotProgressIndex) === nextIndex;
+    segment.classList.toggle('is-active', isActive);
+    segment.setAttribute('aria-current', isActive ? 'true' : 'false');
+  });
   if (scroll && activeCard) {
     const scrollItem = activeCard.closest('.hot-today-milestone-shell') || activeCard;
     const strip = scrollItem.closest('.hot-today-strip');
@@ -2218,6 +2224,36 @@ function applyHotTodayActive(index = hotTodayActiveIndex, { scroll = true } = {}
     }
   }
   refreshHotTodayLiveMetrics();
+}
+
+function isHotTodayStripVisible() {
+  const strip = document.querySelector('#hot-today-island .hot-today-strip');
+  const rect = strip?.getBoundingClientRect();
+  if (!rect) return false;
+  const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+  return visibleHeight >= Math.min(rect.height || 0, 80) * 0.75;
+}
+
+function renderHotTodayProgress(signals = hotTodaySignals) {
+  if (!Array.isArray(signals) || signals.length <= 1) return '';
+  return `
+    <div class="hot-today-progress" aria-label="Live Pulse position">
+      ${signals.map((signal, index) => `
+        <button class="hot-today-progress-segment" type="button" data-hot-progress-index="${index}" aria-label="${escapeHtml(`Show ${signal.title || `signal ${index + 1}`}`)}"></button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function pauseHotTodayRotationTemporarily(duration = HOT_TODAY_ROTATE_MS * 2) {
+  hotTodayRotationPaused = true;
+  if (hotTodayManualPauseTimer) window.clearTimeout(hotTodayManualPauseTimer);
+  hotTodayManualPauseTimer = window.setTimeout(() => {
+    hotTodayManualPauseTimer = null;
+    const island = document.getElementById('hot-today-island');
+    const strip = island?.querySelector('.hot-today-strip');
+    hotTodayRotationPaused = Boolean(strip?.matches(':hover') || strip?.contains(document.activeElement));
+  }, duration);
 }
 
 function wireHotTodayMilestoneSharing(island) {
@@ -2236,6 +2272,7 @@ function wireHotTodayMilestoneSharing(island) {
 
 function advanceHotTodayLead() {
   if (!hotTodaySignals.length) return;
+  if (!isHotTodayStripVisible()) return;
   applyHotTodayActive(hotTodayActiveIndex + 1);
 }
 
@@ -2288,10 +2325,27 @@ function wireHotTodayRealtime() {
 function wireHotTodayStripPauses(island) {
   const strip = island?.querySelector('.hot-today-strip');
   if (!strip) return;
+  const progress = island.querySelector('.hot-today-progress');
   strip.addEventListener('pointerenter', () => { hotTodayRotationPaused = true; });
   strip.addEventListener('pointerleave', () => { hotTodayRotationPaused = false; });
   strip.addEventListener('focusin', () => { hotTodayRotationPaused = true; });
   strip.addEventListener('focusout', () => { hotTodayRotationPaused = strip.contains(document.activeElement); });
+  strip.addEventListener('pointerdown', () => pauseHotTodayRotationTemporarily(), { passive: true });
+  strip.addEventListener('touchstart', () => pauseHotTodayRotationTemporarily(), { passive: true });
+  strip.addEventListener('scroll', () => pauseHotTodayRotationTemporarily(), { passive: true });
+  progress?.addEventListener('focusin', () => { hotTodayRotationPaused = true; });
+  progress?.addEventListener('focusout', () => {
+    hotTodayRotationPaused = Boolean(strip.matches(':hover') || strip.contains(document.activeElement) || progress.contains(document.activeElement));
+  });
+  progress?.addEventListener('pointerdown', () => pauseHotTodayRotationTemporarily(), { passive: true });
+  progress?.addEventListener('touchstart', () => pauseHotTodayRotationTemporarily(), { passive: true });
+  progress?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-hot-progress-index]');
+    if (!button || !island.contains(button)) return;
+    event.preventDefault();
+    pauseHotTodayRotationTemporarily();
+    applyHotTodayActive(Number(button.dataset.hotProgressIndex), { scroll: true });
+  });
 }
 
 function settleMilestoneCardArrivals(island) {
@@ -2358,6 +2412,7 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     <div class="hot-today-strip" aria-label="Scrollable live pulse">
       ${signals.map(renderHotSignal).join('')}
     </div>
+    ${renderHotTodayProgress(signals)}
     ${earlierRow}
   `;
   hotTodayHasRendered = true;

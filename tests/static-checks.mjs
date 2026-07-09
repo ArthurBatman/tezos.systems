@@ -15,6 +15,14 @@ import {
   milestoneCatalogCadence
 } from '../js/features/milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, normalizeMilestoneStore, qualifyMilestoneNearState } from '../js/features/milestone-lifecycle.mjs';
+import {
+  compileContractCoverage,
+  rankAppActivity,
+  rankMints,
+  rankSalesStats,
+  rankUnicorn,
+  validateMaxisConfig
+} from '../scripts/lib/maxis-ranking.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -152,6 +160,7 @@ async function checkRequiredFiles() {
     'css/hero-search.css',
     'css/leaderboard.css',
     'css/network-pulse.css',
+    'css/maxis.css',
     'js/core/app.js',
     'js/core/api.js',
     'js/core/config.js',
@@ -169,9 +178,14 @@ async function checkRequiredFiles() {
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
     'scripts/generate-milestone-catalog.mjs',
+    'scripts/refresh-maxis-data.mjs',
     'data/governance-votes.json',
     'data/governance-refresh-report.json',
     'data/milestone-catalog.json',
+    'data/maxis-contracts.json',
+    'data/maxis-leaders.json',
+    'maxis/index.html',
+    'og/maxis.png',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -338,6 +352,7 @@ async function checkCacheBustAlignment() {
   const leaderboard = await readText('js/features/leaderboard.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
   const networkPulse = await readText('js/features/network-pulse.js');
+  const maxis = await readText('js/features/maxis.js');
   const themePreload = await readText('js/core/theme-preload.js');
   const themeUi = await readText('js/ui/theme.js');
   const cssMatch = index.match(/css\/styles\.min\.css\?v=(\d+)/);
@@ -351,6 +366,7 @@ async function checkCacheBustAlignment() {
   const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
   const networkPulseCssMatch = networkPulse.match(/NETWORK_PULSE_CSS_URL\s*=\s*['"]\/css\/network-pulse\.css\?v=(\d+)['"]/);
+  const maxisCssMatch = maxis.match(/MAXIS_CSS_URL\s*=\s*['"]\/css\/maxis\.css\?v=(\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
   const themeUiMatch = themeUi.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
 
@@ -365,6 +381,7 @@ async function checkCacheBustAlignment() {
   if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
   if (!networkPulseCssMatch) fail('network-pulse.js network-pulse.css loader must carry a ?v= cache stamp');
+  if (!maxisCssMatch) fail('maxis.js maxis.css loader must carry a ?v= cache stamp');
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
   if (!themeUiMatch) fail('theme.js must expose THEME_CSS_VERSION');
 
@@ -379,11 +396,12 @@ async function checkCacheBustAlignment() {
     shellExtrasCssMatch?.[1],
     leaderboardCssMatch?.[1],
     ledgerFlowCssMatch?.[1],
-    networkPulseCssMatch?.[1]
+    networkPulseCssMatch?.[1],
+    maxisCssMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 11) {
+  } else if (versions.length === 12) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -2350,6 +2368,8 @@ async function checkReadmeContracts() {
     'npm run build:css',
     'npm run refresh:generated',
     'npm run refresh:milestones',
+    'npm run refresh:maxis',
+    'npm run check:maxis',
     'npm run routes:chambers',
     'npm run og:chambers',
     'npm run bake:compare',
@@ -2383,6 +2403,96 @@ async function checkReadmeContracts() {
   }
 
   pass(`README contracts checked against package/config/theme reality (${themes.length} themes)`);
+}
+
+async function checkMaxisContracts() {
+  const config = JSON.parse(await readText('data/maxis-contracts.json'));
+  const snapshot = JSON.parse(await readText('data/maxis-leaders.json'));
+  const maxis = await readText('js/features/maxis.js');
+  const maxisCss = await readText('css/maxis.css');
+  const app = await readText('js/core/app.js');
+  const siteMap = await readText('js/core/site-map.js');
+  const sw = await readText('sw.js');
+
+  const configErrors = validateMaxisConfig(config);
+  if (configErrors.length) fail(`maxis contract taxonomy invalid: ${configErrors.join('; ')}`);
+  if (snapshot.schema !== 1) fail('maxis snapshot schema must be 1');
+  if (hoursSince(snapshot.generatedAt) > 72) fail('maxis snapshot is older than 72 hours; run npm run refresh:maxis');
+  if (snapshot.truncation?.mints || snapshot.truncation?.appTransactions) {
+    fail(`maxis snapshot must not publish truncated rankings: ${JSON.stringify(snapshot.truncation)}`);
+  }
+
+  const expectedCategories = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'staking', 'unicorn'];
+  const categories = (snapshot.leaders || []).map((leader) => leader.category);
+  if (new Set(categories).size !== categories.length) fail('maxis snapshot categories must be unique');
+  for (const category of expectedCategories) {
+    if (!categories.includes(category)) fail(`maxis snapshot missing ${category} leader`);
+  }
+  for (const leader of snapshot.leaders || []) {
+    if (!['ready', 'empty'].includes(leader.status)) fail(`maxis leader ${leader.category} has invalid status ${leader.status}`);
+    if (leader.status === 'ready') {
+      if (!/^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/.test(leader.address || '')) fail(`maxis leader ${leader.category} has invalid address`);
+      if (!leader.scoreLabel || !leader.method || !/^https:\/\//.test(leader.sourceUrl || '')) fail(`maxis leader ${leader.category} is missing score, method, or source`);
+    }
+  }
+  if (!snapshot.coverage?.caveat?.includes('Unknown or unlabeled contracts')) fail('maxis coverage must state the unknown-contract limitation');
+
+  const addressA = 'tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4';
+  const addressB = 'tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm';
+  const addressC = 'tz1Yw8SgnsAmbQcJyaBbQokoYGxeeoX5AKYw';
+  const coverage = compileContractCoverage([
+    { address: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT', alias: '3Route v4', lastActivityTime: '2026-07-09T00:00:00Z' },
+    { address: 'KT1R5dHqnpeKVFow9mErfN763RFfe51vmiB8', alias: 'Tezotopia Resource Collector', lastActivityTime: '2026-07-09T00:00:00Z' }
+  ], config.apps, '2026-07-01T00:00:00Z');
+  if (coverage.length !== 2) fail(`maxis taxonomy fixture should classify two contracts, got ${coverage.length}`);
+
+  const appLookup = new Map(coverage.map((item) => [item.address, item.app]));
+  const appRank = rankAppActivity([
+    { id: 1, hash: 'o1', counter: 1, nonce: null, timestamp: '2026-07-09T01:00:00Z', sender: { address: addressA }, target: { address: coverage[0]?.address } },
+    { id: 2, hash: 'o2', counter: 2, nonce: null, timestamp: '2026-07-09T02:00:00Z', sender: { address: addressA }, target: { address: coverage[1]?.address } },
+    { id: 3, hash: 'o3', counter: 3, nonce: null, timestamp: '2026-07-09T03:00:00Z', sender: { address: addressB }, target: { address: coverage[0]?.address } },
+    { id: 4, hash: 'o4', counter: 4, nonce: 1, timestamp: '2026-07-09T04:00:00Z', sender: { address: addressC }, target: { address: coverage[1]?.address } }
+  ], appLookup);
+  if (appRank[0]?.address !== addressA || appRank[0]?.appCount !== 2 || appRank.some((row) => row.address === addressC)) {
+    fail('maxis app ranking must prefer breadth and exclude internal transactions');
+  }
+
+  const mintRank = rankMints([
+    { creator_address: addressA, token_pk: 1, amount: 1, ophash: 'm1', timestamp: '2026-07-08T00:00:00Z', creator: { flag: 'none' } },
+    { creator_address: addressA, token_pk: 1, amount: 2, ophash: 'm1', timestamp: '2026-07-08T00:00:00Z', creator: { flag: 'none' } },
+    { creator_address: addressB, token_pk: 2, amount: 1, ophash: 'm2', timestamp: '2026-07-09T00:00:00Z', creator: { flag: 'none' } }
+  ]);
+  if (mintRank.find((row) => row.address === addressA)?.tokens !== 1) fail('maxis mint ranking must deduplicate token ids');
+
+  const salesRank = rankSalesStats([
+    { type: 'buyer', subject_address: addressA, volume: 10, rank: 2, interval_days: 30, subject: { flag: 'none' } },
+    { type: 'buyer', subject_address: addressA, volume: 12, rank: 1, interval_days: 30, subject: { flag: 'none' } },
+    { type: 'buyer', subject_address: addressB, volume: 11, rank: 1, interval_days: 30, subject: { flag: 'none' } }
+  ], 'buyer');
+  if (salesRank[0]?.address !== addressA || salesRank.length !== 2) fail('maxis sales ranking must deduplicate subjects by strongest volume row');
+
+  const unicornRank = rankUnicorn({
+    collector: [{ address: addressA, score: 4 }, { address: addressB, score: 3 }],
+    minter: [{ address: addressB, score: 3 }, { address: addressA, score: 2 }],
+    defi: [{ address: addressA, score: 2 }]
+  }, 3);
+  if (unicornRank[0]?.address !== addressA || unicornRank[0]?.breadth !== 3) fail('maxis unicorn ranking must prefer qualifying breadth');
+
+  const contracts = [
+    ['maxis app import', 'initMaxisChamber', app],
+    ['maxis pretty path map', "maxis: 'maxis'", app],
+    ['maxis hash route', "hash === 'maxis'", app],
+    ['maxis site map', "id: 'maxis'", siteMap],
+    ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
+    ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
+    ['maxis direct route', 'Direct: /maxis/', maxis],
+    ['maxis entry grid', '.maxis-entry-grid', maxisCss],
+    ['maxis service worker data', '/data/maxis-leaders.json', sw]
+  ];
+  for (const [label, snippet, source] of contracts) {
+    if (!source.includes(snippet)) fail(`missing ${label}`);
+  }
+  pass('Tezos Maxis taxonomy, snapshot, scoring, route, and Ledger Flow contracts checked');
 }
 
 async function main() {
@@ -2421,6 +2531,7 @@ async function main() {
   await checkNetworkContextNavigationContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();
+  await checkMaxisContracts();
   await checkReadmeContracts();
 
   for (const message of passes) console.log(`ok - ${message}`);

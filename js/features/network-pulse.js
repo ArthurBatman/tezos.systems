@@ -18,7 +18,7 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=391';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=396';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1120,8 +1120,18 @@ function headerMeta(stats) {
     return `${summaryLine(stats)} - ${freshnessLabel()}`;
 }
 
+function hasSeedStats(stats) {
+    return Boolean(stats && typeof stats === 'object' && Object.keys(stats).length);
+}
+
 function renderNetworkPulseChamber(stats, container, { loading = false, rows = lastHistoryRows, domainRows = lastDomainRows } = {}) {
     if (!container) return;
+    const seeded = hasSeedStats(stats);
+    const fieldClasses = [
+        'network-pulse-field',
+        loading && !seeded ? 'is-loading' : '',
+        loading && seeded ? 'is-refreshing' : ''
+    ].filter(Boolean).join(' ');
     container.innerHTML = `
         <div class="chamber-header network-pulse-header chamber-anim-fade">
             <div class="lb-system-strip">
@@ -1131,7 +1141,7 @@ function renderNetworkPulseChamber(stats, container, { loading = false, rows = l
             </div>
             <div class="chamber-title-row">
                 <h2 class="chamber-title">Network Pulse Chamber</h2>
-                <span class="chamber-badge live" data-pulse-live-badge>${loading ? 'Syncing' : 'Live'}</span>
+                <span class="chamber-badge live" data-pulse-live-badge>${loading ? (seeded ? 'Warming' : 'Syncing') : 'Live'}</span>
                 <span class="lb-live-pill lb-refresh-pill" data-pulse-refresh-pill>${refreshWindowLabel()}</span>
             </div>
             <div class="chamber-proposal-info">
@@ -1143,7 +1153,7 @@ function renderNetworkPulseChamber(stats, container, { loading = false, rows = l
             ${GROUPS.map((group) => `<button type="button" data-pulse-target="network-pulse-${escapeHtml(group.id)}">${escapeHtml(group.label)}</button>`).join('')}
             <button type="button" data-pulse-target="network-pulse-rooms">Chambers</button>
         </div>
-        <div class="network-pulse-field ${loading ? 'is-loading' : ''}">
+        <div class="${fieldClasses}">
             ${GROUPS.map((group) => renderGroup(group, stats || {}, rows, domainRows)).join('')}
             ${renderChamberLinks()}
         </div>
@@ -1164,11 +1174,13 @@ function patchNetworkPulseChamber(stats, rows = lastHistoryRows, { loading = fal
     const body = overlay?.querySelector('.network-pulse-body');
     if (!body || body.dataset.networkPulseRendered !== '1') return false;
 
-    body.querySelector('[data-pulse-live-badge]')?.replaceChildren(document.createTextNode(loading ? 'Syncing' : 'Live'));
+    const seeded = hasSeedStats(stats);
+    body.querySelector('[data-pulse-live-badge]')?.replaceChildren(document.createTextNode(loading ? (seeded ? 'Warming' : 'Syncing') : 'Live'));
     body.querySelector('[data-pulse-refresh-pill]')?.replaceChildren(document.createTextNode(refreshWindowLabel()));
     body.querySelector('[data-pulse-header-meta]')?.replaceChildren(document.createTextNode(headerMeta(stats)));
     const field = body.querySelector('.network-pulse-field');
-    field?.classList.toggle('is-loading', loading);
+    field?.classList.toggle('is-loading', loading && !seeded);
+    field?.classList.toggle('is-refreshing', loading && seeded);
 
     METRIC_BY_KEY.forEach((metric, key) => {
         const card = body.querySelector(`[data-network-pulse-metric="${CSS.escape(key)}"]`);

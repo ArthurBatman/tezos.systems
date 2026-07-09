@@ -453,6 +453,7 @@ function getChamberShareRoute(card) {
     const routes = {
         '#pulse': '/pulse/',
         '#network-pulse': '/pulse/',
+        '#maxis': '/maxis/',
         '#chamber': '/chamber/',
         '#health': '/health/',
         '#tezosx': '/tezosx/',

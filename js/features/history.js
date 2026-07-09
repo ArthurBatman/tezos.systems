@@ -1238,6 +1238,15 @@ export function initHistoryModal() {
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
     });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !modal.classList.contains('active')) return;
+        e.preventDefault();
+        closeModal();
+        const focusTarget = openBtn.getClientRects().length
+            ? openBtn
+            : document.getElementById('features-gear');
+        focusTarget?.focus();
+    });
 
     // Time range buttons
     const timeRangeBtns = document.querySelectorAll('.time-range-btn');

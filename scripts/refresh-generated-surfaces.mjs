@@ -29,6 +29,7 @@ const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`)
 const SITEMAP_TARGETS = ['sitemap.xml'];
 const ROOT_OG_TARGETS = ['og-image.png'];
 const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
+const MAXIS_TARGETS = ['data/maxis-leaders.json'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -38,7 +39,8 @@ const GENERATED_TARGETS = unique([
   ...COMPARE_PAGES,
   ...SITEMAP_TARGETS,
   ...ROOT_OG_TARGETS,
-  ...MILESTONE_TARGETS
+  ...MILESTONE_TARGETS,
+  ...MAXIS_TARGETS
 ]);
 
 function unique(values) {
@@ -198,6 +200,15 @@ async function main() {
   const shouldStage = hasFlag('--stage');
   const initialStaged = modeName === 'precommit' ? stagedFiles() : [];
   const ran = [];
+
+  if (modeName === 'precommit') {
+    nodeScript('scripts/refresh-maxis-data.mjs', ['--check']);
+    ran.push('maxis-check');
+  } else if (modeName === 'all' || modeName === 'scheduled') {
+    nodeScript('scripts/refresh-maxis-data.mjs');
+    ran.push('maxis');
+    if (shouldStage) stageTargets(MAXIS_TARGETS);
+  }
 
   const milestoneArgs = [];
   if (modeName === 'all' || hasFlag('--force-milestones')) milestoneArgs.push('--force');

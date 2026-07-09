@@ -61,6 +61,12 @@ function routeDetails(route, report) {
       chips: ['consensus', 'economy', 'activity'],
       body: 'Scan Tezos bakers, staking, governance, transactions, contracts, supply, and adjacent chambers in one live operations room.'
     },
+    maxis: {
+      kicker: 'Spot the Maxis',
+      value: 'On-chain activity leaders',
+      chips: ['art + minting', 'DeFi + gaming', 'Ledger Flow trails'],
+      body: 'Meet the leading Tezos accounts across declared activity lanes, inspect every scoring method, and trace each winner through Ledger Flow.'
+    },
     chamber: {
       kicker: `${proposal} ${kind}`,
       value: end,

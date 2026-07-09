@@ -7,6 +7,11 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '✨', text: 'Tezos Maxis now spots the leading art, mint, DeFi, gaming, transaction, governance, and staking accounts, with a cross-lane Unicorn and direct Ledger Flow trails' },
+            { type: '⚡', text: 'Network Pulse now keeps cached launcher stats visible while background refreshes warm in with quieter sync states' },
+            { type: '🎨', text: 'What is hot today now pauses rotation on touch or scroll and shows compact position controls for the active signal' },
+            { type: '🔧', text: 'Drawers, modals, help nudges, chamber explainers, tap targets, and freshness motion now behave more cleanly across keyboard, touch, and mobile views' },
+            { type: '🔧', text: 'Cycle History now closes with Escape, first-visit help yields to open surfaces, and long Domains and Maxis labels stay readable on mobile' },
             { type: '⚡', text: 'Milestone thresholds now refresh through the generated-surface cadence after 14 days or 100 commits, with a live TzKT catalog and runtime fallback' },
             { type: '🔧', text: 'Approaching milestones now target the final 14 days and can never take over What is hot today or the uptime header more than 30 days early' },
             { type: '✨', text: 'Milestone cards now have a Share control with branded celebration captures and receipt, I was here, long-game, and live-watch tweet styles' },

@@ -28,6 +28,15 @@ export const CHAMBER_ROUTES = [
     accent: '#38bdf8'
   },
   {
+    slug: 'maxis',
+    hash: '#maxis',
+    title: 'Tezos Maxis - On-Chain Activity Leaders',
+    shortTitle: 'Tezos Maxis',
+    description: 'Spot the leading Tezos art, DeFi, gaming, transaction, governance, and staking accounts, then trace every winner in Ledger Flow.',
+    eyebrow: 'Activity Leaders',
+    accent: '#f5c451'
+  },
+  {
     slug: 'health',
     hash: '#health',
     title: 'Network Health Chamber - Tezos Consensus Status',

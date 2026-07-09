@@ -37,6 +37,15 @@ export const SITE_MAP = [
         keywords: ['network pulse', 'live stats', 'consensus', 'economy', 'activity']
     },
     {
+        id: 'maxis',
+        title: 'Tezos Maxis',
+        href: '/maxis/',
+        hash: '#maxis',
+        group: 'Live Rooms',
+        detail: 'Top art, DeFi, gaming, transaction, governance, staking, and cross-lane activity leaders',
+        keywords: ['maxis', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'staking', 'unicorn']
+    },
+    {
         id: 'health',
         title: 'Network Health',
         href: '/health/',

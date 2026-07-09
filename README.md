@@ -65,11 +65,13 @@ tezos.systems/
 │   ├── governance-votes.json          # Generated governance vote history
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
+│   ├── maxis-contracts.json            # Reviewed TzKT-alias app taxonomy
+│   ├── maxis-leaders.json              # Generated Tezos Maxis snapshot
 │   └── tweets.json                    # Share-copy templates
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ maxis/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -80,6 +82,7 @@ tezos.systems/
 │   └── smoke.mjs                      # Playwright browser smoke suites
 ├── scripts/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
+│   ├── refresh-maxis-data.mjs         # Generated on-chain activity leaders
 │   ├── refresh-generated-surfaces.mjs  # Commit/scheduled generated-surface orchestrator
 │   ├── generate-chamber-routes.mjs    # Pretty Chamber route generator
 │   ├── generate-chamber-og-images.mjs # Per-Chamber OG image generator
@@ -222,9 +225,10 @@ inline modal styles in `js/core/app.js`.
 ## Main Surfaces
 
 - Chambers section is visible by default and orders the chamber rows as Network
-  Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance, tz4 Adoption <> LB
-  Monitor, Ledger Flow <> Protocol History, then a full-width Tezos Domains
-  strip at the bottom. ctez Oven Exit and KT1 Multisig Recovery stay off the
+  Pulse, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
+  tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis, then
+  a full-width Tezos Domains strip at the bottom. ctez Oven Exit and KT1
+  Multisig Recovery stay off the
   default Chambers grid and open from Explore's collapsed Recovery tools drawer
   or the corner gift tray launcher.
   Each Chamber row is wrapped responsively so wide cards keep their companion
@@ -271,6 +275,14 @@ inline modal styles in `js/core/app.js`.
   consensus, economy, governance, network activity, ecosystem, and adjacent
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
+- Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access. Its generated
+  TzKT + OBJKT snapshot names one inspectable leader for transactions,
+  collecting, art sales, minting, DeFi, gaming, governance, and staking, plus a
+  cross-lane Unicorn. Every leader card declares its scoring window and method,
+  links to the primary source, and opens the exact address in Ledger Flow. DeFi
+  and Gaming cover successful top-level wallet calls to recently active
+  contracts recognized by `data/maxis-contracts.json`; unknown or unlabeled
+  contracts are not presented as classified coverage.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
@@ -411,6 +423,7 @@ Useful deep links include:
 - `#price`
 - `#chambers`
 - `#pulse`
+- `#maxis`
 - `#l2chamber`
 - `#tezosx`
 - `#health`
@@ -422,7 +435,7 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/chamber/`, `/pulse/`, `/health/`,
+Public share routes are also available at `/chamber/`, `/pulse/`, `/maxis/`, `/health/`,
 `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
 `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -435,12 +448,12 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 
 | Source | Purpose |
 |--------|---------|
-| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Etherlink governance contract discovery/storage/bigmaps, and ctez oven discovery |
+| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, and ctez oven discovery |
 | Octez RPC `https://eu.rpc.tez.capital` | Issuance, supply, constants, cycle/head metadata |
 | Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including quorum delay, validation/application delay, source count, and operations-report observations; Teztale is by Nomadic Labs |
 | CoinGecko | XTZ price, market cap, 24h change, volume |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
-| OBJKT GraphQL | HEN mode's live Teia + OBJKT feed plus collector and creator profile stats |
+| OBJKT GraphQL | HEN mode's live Teia + OBJKT feed, collector and creator profile stats, and Maxis 30-day buyer/artist ranks plus mint events |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
 | DefiLlama `https://api.llama.fi` | Tezos X chain TVL and protocol TVL; DefiLlama currently indexes the chain as Etherlink |
 | Etherlink Blockscout `https://explorer.etherlink.com/api/v2` | Tezos X chamber transaction, address, gas, and block stats |
@@ -466,7 +479,10 @@ snapshot across dashboard consumers.
 Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
-crawlable compare content, generated CSS bundles, and the milestone catalog.
+crawlable compare content, generated CSS bundles, the milestone catalog, and the
+Maxis snapshot. `npm run refresh:maxis` forces the Maxis ranking refresh; normal
+pre-commit runs validate the committed snapshot without rescanning chain
+activity, while scheduled/full generated runs refresh it.
 The milestone generator is cadence-gated: scheduled runs refresh it after 14
 days, while pre-commit runs refresh it after 100 commits, whichever happens
 first. `npm run refresh:milestones` forces a manual refresh. The browser consumes
@@ -533,6 +549,8 @@ Common commands:
 npm run build:css
 npm run refresh:generated
 npm run refresh:milestones
+npm run refresh:maxis
+npm run check:maxis
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare

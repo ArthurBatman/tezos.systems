@@ -61,7 +61,9 @@
     let nudge = null;
     let activeTarget = null;
     let positionFrame = 0;
+    let positionTimer = 0;
     let nudgeResizeHandler = null;
+    let surfaceObserver = null;
 
     function ensureNudgeAvoidanceStyle() {
         if (document.getElementById('tour-nudge-toast-avoidance')) return;
@@ -120,6 +122,55 @@
         }
     }
 
+    function hasActiveSurface() {
+        return Boolean(document.querySelector(
+            '.my-tezos-drawer.open, .modal-overlay.active, .chamber-overlay.active, .share-modal-overlay.visible, .share-modal-overlay.active, .settings-dropdown.open'
+        ));
+    }
+
+    function removeNudge() {
+        if (nudge) {
+            nudge.remove();
+            nudge = null;
+        }
+        clearNudgeVisibleState();
+    }
+
+    function suspendNudgeForSurface() {
+        if (!nudge || !hasActiveSurface()) return;
+        removeNudge();
+        deferNudge();
+    }
+
+    function watchActiveSurfaces() {
+        if (surfaceObserver) return;
+        surfaceObserver = new MutationObserver(suspendNudgeForSurface);
+        document.querySelectorAll(
+            '.my-tezos-drawer, .modal-overlay, .chamber-overlay, .share-modal-overlay, .settings-dropdown'
+        ).forEach(function (surface) {
+            surfaceObserver.observe(surface, {
+                attributes: true,
+                attributeFilter: ['class', 'aria-hidden'],
+            });
+        });
+    }
+
+    function stopWatchingActiveSurfaces() {
+        if (!surfaceObserver) return;
+        surfaceObserver.disconnect();
+        surfaceObserver = null;
+    }
+
+    function deferNudge() {
+        setTimeout(function () {
+            if (nudge || overlay || window.scrollY > 300 || hasActiveSurface()) {
+                if (hasActiveSurface()) deferNudge();
+                return;
+            }
+            createNudge();
+        }, 1400);
+    }
+
     function create() {
         overlay = document.createElement('div');
         overlay.id = 'tour-overlay';
@@ -149,6 +200,7 @@
         document.addEventListener('keydown', onKey);
         window.addEventListener('resize', schedulePosition, { passive: true });
         window.addEventListener('scroll', schedulePosition, { passive: true });
+        positionTimer = window.setInterval(schedulePosition, 250);
         backdrop.addEventListener('click', end);
     }
 
@@ -303,29 +355,33 @@
             cancelAnimationFrame(positionFrame);
             positionFrame = 0;
         }
+        if (positionTimer) {
+            window.clearInterval(positionTimer);
+            positionTimer = 0;
+        }
 
         if (overlay) {
             overlay.style.opacity = '0';
             setTimeout(function () { overlay.remove(); overlay = null; }, 300);
         }
         if (nudge) {
-            nudge.remove();
-            nudge = null;
+            removeNudge();
         }
-        clearNudgeVisibleState();
+        stopWatchingActiveSurfaces();
     }
 
     function startTour() {
-        if (nudge) {
-            nudge.remove();
-            nudge = null;
-        }
-        clearNudgeVisibleState();
+        removeNudge();
+        stopWatchingActiveSurfaces();
         create();
         show(0);
     }
 
     function createNudge() {
+        if (hasActiveSurface()) {
+            deferNudge();
+            return;
+        }
         nudge = document.createElement('div');
         nudge.className = 'tour-nudge';
         nudge.setAttribute('role', 'dialog');
@@ -346,9 +402,11 @@
     }
 
     // Offer the tour after page settles without blocking the dashboard.
+    watchActiveSurfaces();
     setTimeout(function () {
         if (window.scrollY > 300) return;
         if (document.activeElement && document.activeElement.id === 'hero-search-input') return;
+        if (hasActiveSurface()) { deferNudge(); return; }
         createNudge();
     }, 4000);
 })();

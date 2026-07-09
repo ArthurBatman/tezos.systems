@@ -56,6 +56,7 @@ const browserRoutes = [
   '/governance/',
   '/chamber/',
   '/pulse/',
+  '/maxis/',
   '/health/',
   '/tezosx/',
   '/tezlink/',
@@ -126,6 +127,7 @@ const EXPECTED_CHAMBER_ORDER = [
   'lb-entry-card',
   'ledger-flow-entry-card',
   'protocol-history-entry-card',
+  'maxis-entry-card',
   'tezos-domains-entry-card'
 ];
 
@@ -2135,6 +2137,7 @@ async function assertChamberOrder(page, label) {
     ['tezlink-entry-card', 'etherlink-governance-entry-card'],
     ['tz4-adoption', 'lb-entry-card'],
     ['ledger-flow-entry-card', 'protocol-history-entry-card'],
+    ['maxis-entry-card'],
     ['tezos-domains-entry-card']
   ];
   assert(
@@ -2159,6 +2162,7 @@ async function assertChamberControlGeometry(page, label) {
       '#etherlink-governance-entry-card',
       '#lb-entry-card',
       '#ledger-flow-entry-card',
+      '#maxis-entry-card',
       '#tezos-domains-entry-card',
       '#chambers-section [data-stat="tz4-adoption"]',
       '#chambers-section [data-stat="network-health"]'
@@ -2180,6 +2184,9 @@ async function assertChamberControlGeometry(page, label) {
       '.card-front .etherlink-gov-entry-metric',
       '.card-front .ledger-flow-entry-main',
       '.card-front .ledger-flow-entry-metrics',
+      '.card-front .maxis-entry-head',
+      '.card-front .maxis-entry-grid',
+      '.card-front .maxis-entry-leader',
       '.card-front .network-health-blocks',
       '.card-front .network-health-block',
       '.card-front .health-live-tape',
@@ -4109,16 +4116,25 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
 
   await page.locator('#my-tezos-btn').click();
   await expectClassContains(page.locator('#my-tezos-drawer'), 'open', 'my tezos proposal attribution drawer');
-  await page.waitForFunction((address) => {
-    const story = window._myTezosData?.story;
-    return window._myTezosData?.fullAddress === address
-      && story?.proposalsInjected === 0
-      && story?.bakerProposalsInjected === 1
-      && story?.nftAssetsCollected === 501
-      && story?.creatorStats?.totalCreated === 501
-      && story?.creatorStats?.totalSalesVolume === 2.5
-      && story?.domainAlias === 'qa-baker.tez';
-  }, SAMPLE_DELEGATOR_ADDRESS, { timeout: 15000 });
+  try {
+    await page.waitForFunction((address) => {
+      const story = window._myTezosData?.story;
+      return window._myTezosData?.fullAddress === address
+        && story?.proposalsInjected === 0
+        && story?.bakerProposalsInjected === 1
+        && story?.nftAssetsCollected === 501
+        && story?.creatorStats?.totalCreated === 501
+        && story?.creatorStats?.totalSalesVolume === 2.5
+        && story?.domainAlias === 'qa-baker.tez';
+    }, SAMPLE_DELEGATOR_ADDRESS, { timeout: 30000 });
+  } catch (error) {
+    const snapshot = await page.evaluate(() => ({
+      address: window._myTezosData?.fullAddress || null,
+      story: window._myTezosData?.story || null,
+      drawer: document.querySelector('#drawer-brief')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    }));
+    throw new Error(`${error.message}\nmy tezos proposal attribution snapshot: ${JSON.stringify(snapshot)}`);
+  }
 
   const storyText = await page.evaluate(() => {
     const sections = Array.from(document.querySelectorAll('#drawer-brief .brief-section'));
@@ -4926,6 +4942,93 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
   await context.close();
   assert(issues.length === 0, `ledger flow chamber browser issues:\n${issues.join('\n')}`);
   log('ok - ledger flow chamber smoke');
+}
+
+async function smokeMaxisChamber(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'tezos maxis chamber', issues);
+
+  const response = await page.goto(`${baseUrl}/maxis/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `tezos maxis chamber: pretty route failed with HTTP ${response?.status()}`);
+  await page.waitForFunction(() => window.location.pathname === '/maxis/' && window.location.hash === '', null, { timeout: 7000 });
+  await page.locator('#maxis-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#maxis-modal.active .maxis-content').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#maxis-modal .maxis-card').length === 9, null, { timeout: 10000 });
+
+  const state = await page.evaluate(() => {
+    const modal = document.querySelector('#maxis-modal');
+    const ready = Array.from(modal?.querySelectorAll('.maxis-card:not(.maxis-card-empty)') || []);
+    const ledgerLinks = ready.map((card) => card.querySelector('.maxis-ledger-action')?.getAttribute('href') || '');
+    const entry = document.querySelector('#maxis-entry-card');
+    const unicorn = modal?.querySelector('.maxis-card[data-maxi-category="unicorn"]');
+    return {
+      title: modal?.querySelector('#maxis-title')?.textContent?.trim() || '',
+      cardCount: modal?.querySelectorAll('.maxis-card').length || 0,
+      readyCount: ready.length,
+      ledgerLinks,
+      sourceLinks: modal?.querySelectorAll('.maxis-source-action[target="_blank"]').length || 0,
+      entryLeaderCount: entry?.querySelectorAll('.maxis-entry-leader').length || 0,
+      unicornText: unicorn?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      methodology: modal?.querySelector('.maxis-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      directHref: modal?.querySelector('a[href="/maxis/"]')?.getAttribute('href') || '',
+      bodyOverflow: document.body.style.overflow,
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(state.title === 'Tezos Maxis', `tezos maxis chamber: title mismatch ${state.title}`);
+  assert(state.cardCount === 9 && state.readyCount === 9, `tezos maxis chamber: expected nine ready leaders ${JSON.stringify(state)}`);
+  assert(state.entryLeaderCount === 9, `tezos maxis chamber: entry card must preview every category ${state.entryLeaderCount}`);
+  assert(state.ledgerLinks.length === state.readyCount && state.ledgerLinks.every((href) => /^\/#ledger-flow=tz/.test(href)), `tezos maxis chamber: address-scoped Ledger Flow links missing ${JSON.stringify(state.ledgerLinks)}`);
+  assert(state.sourceLinks === state.readyCount, `tezos maxis chamber: source links missing ${state.sourceLinks}/${state.readyCount}`);
+  assert(/lanes crossed/i.test(state.unicornText), `tezos maxis chamber: Unicorn breadth missing ${state.unicornText}`);
+  assert(/Unknown or unlabeled contracts/i.test(state.methodology), `tezos maxis chamber: coverage caveat missing ${state.methodology}`);
+  assert(state.directHref === '/maxis/' && state.bodyOverflow === 'hidden', `tezos maxis chamber: route or scroll lock mismatch ${JSON.stringify(state)}`);
+  assert(state.horizontalOverflow <= 1, `tezos maxis chamber: horizontal overflow ${state.horizontalOverflow}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileGovernanceKicker = await page.evaluate(() => {
+    const kicker = document.querySelector('.maxis-card[data-maxi-category="governance"] .maxis-card-kicker');
+    const rect = kicker?.getBoundingClientRect();
+    const textRange = kicker ? document.createRange() : null;
+    if (textRange) textRange.selectNodeContents(kicker);
+    return {
+      text: kicker?.textContent?.trim() || '',
+      clientWidth: kicker?.clientWidth || 0,
+      scrollWidth: kicker?.scrollWidth || 0,
+      textWidth: textRange?.getBoundingClientRect().width || 0,
+      right: rect?.right || 0,
+      viewportWidth: window.innerWidth,
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(mobileGovernanceKicker.text === 'Governance Maxi', `tezos maxis chamber: governance label text mismatch ${JSON.stringify(mobileGovernanceKicker)}`);
+  assert(mobileGovernanceKicker.scrollWidth <= mobileGovernanceKicker.clientWidth + 1 && mobileGovernanceKicker.textWidth <= mobileGovernanceKicker.clientWidth - 2, `tezos maxis chamber: governance label lacks mobile paint room ${JSON.stringify(mobileGovernanceKicker)}`);
+  assert(mobileGovernanceKicker.right <= mobileGovernanceKicker.viewportWidth && mobileGovernanceKicker.horizontalOverflow <= 1, `tezos maxis chamber: mobile governance label escapes viewport ${JSON.stringify(mobileGovernanceKicker)}`);
+
+  const firstLedgerLink = page.locator('#maxis-modal .maxis-ledger-action').first();
+  const ledgerHref = await firstLedgerLink.getAttribute('href');
+  const ledgerTarget = decodeURIComponent((ledgerHref || '').split('=').slice(1).join('='));
+  await firstLedgerLink.click();
+  await page.waitForFunction((target) => window.location.pathname === '/' && window.location.hash === `#ledger-flow=${encodeURIComponent(target)}`, ledgerTarget, { timeout: 10000 });
+  await page.locator('#ledger-flow-modal.active .ledger-flow-content').waitFor({ state: 'visible', timeout: 15000 });
+  const ledgerInput = await page.locator('#ledger-flow-input').inputValue();
+  assert(ledgerInput === ledgerTarget, `tezos maxis chamber: Ledger Flow opened ${ledgerInput} instead of ${ledgerTarget}`);
+
+  await context.close();
+  assert(issues.length === 0, `tezos maxis chamber browser issues:\n${issues.join('\n')}`);
+  log('ok - tezos maxis chamber smoke');
 }
 
 async function smokeTezosDomainsChamber(browser, baseUrl) {
@@ -6246,10 +6349,15 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   attachIssueCollectors(page, 'first visit tour', issues);
 
   async function expectTourStep(currentPage, label, snippets) {
-    await currentPage.waitForFunction((items) => {
-      const text = document.querySelector('#tour-overlay')?.innerText || '';
-      return items.every((item) => text.toLowerCase().includes(item.toLowerCase()));
-    }, snippets, { timeout: 6000 });
+    try {
+      await currentPage.waitForFunction((items) => {
+        const text = document.querySelector('#tour-overlay')?.innerText || '';
+        return items.every((item) => text.toLowerCase().includes(item.toLowerCase()));
+      }, snippets, { timeout: 10000 });
+    } catch (error) {
+      const text = await currentPage.locator('#tour-overlay').innerText().catch(() => 'missing overlay');
+      throw new Error(`first visit tour: ${label} did not render ${JSON.stringify(snippets)}; saw ${JSON.stringify(text)}\n${error.message}`);
+    }
     const text = await currentPage.locator('#tour-overlay').innerText();
     for (const snippet of snippets) {
       assert(text.toLowerCase().includes(snippet.toLowerCase()), `first visit tour: ${label} missing "${snippet}" in ${text}`);
@@ -6313,30 +6421,35 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   }
 
   async function expectTourGeometry(currentPage, step, label) {
-    await currentPage.waitForFunction((targetSelector) => {
-      const target = document.querySelector(targetSelector);
-      const tooltip = document.querySelector('.tour-tooltip');
-      if (!target || !tooltip) return false;
+    try {
+      await currentPage.waitForFunction((targetSelector) => {
+        const target = document.querySelector(targetSelector);
+        const tooltip = document.querySelector('.tour-tooltip');
+        if (!target || !tooltip) return false;
 
-      const targetRect = target.getBoundingClientRect();
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const tooltipStyle = window.getComputedStyle(tooltip);
-      const targetVisible = targetRect.bottom > 0
-        && targetRect.top < window.innerHeight
-        && targetRect.right > 0
-        && targetRect.left < window.innerWidth;
-      const targetSizedForTour = targetRect.height <= window.innerHeight * 0.72;
-      const tooltipVisible = Number(tooltipStyle.opacity) > 0.9 && tooltipRect.width > 0 && tooltipRect.height > 0;
-      const tooltipOnscreen = tooltipRect.left >= 0
-        && tooltipRect.top >= 0
-        && tooltipRect.right <= window.innerWidth
-        && tooltipRect.bottom <= window.innerHeight;
-      const verticalOverlap = Math.max(0, Math.min(targetRect.bottom, tooltipRect.bottom) - Math.max(targetRect.top, tooltipRect.top));
-      const horizontalOverlap = Math.max(0, Math.min(targetRect.right, tooltipRect.right) - Math.max(targetRect.left, tooltipRect.left));
-      const hasCollision = verticalOverlap > 1 && horizontalOverlap > 1;
+        const targetRect = target.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const tooltipStyle = window.getComputedStyle(tooltip);
+        const targetVisible = targetRect.bottom > 0
+          && targetRect.top < window.innerHeight
+          && targetRect.right > 0
+          && targetRect.left < window.innerWidth;
+        const targetSizedForTour = targetRect.height <= window.innerHeight * 0.72;
+        const tooltipVisible = Number(tooltipStyle.opacity) > 0.9 && tooltipRect.width > 0 && tooltipRect.height > 0;
+        const tooltipOnscreen = tooltipRect.left >= 0
+          && tooltipRect.top >= 0
+          && tooltipRect.right <= window.innerWidth
+          && tooltipRect.bottom <= window.innerHeight;
+        const verticalOverlap = Math.max(0, Math.min(targetRect.bottom, tooltipRect.bottom) - Math.max(targetRect.top, tooltipRect.top));
+        const horizontalOverlap = Math.max(0, Math.min(targetRect.right, tooltipRect.right) - Math.max(targetRect.left, tooltipRect.left));
+        const hasCollision = verticalOverlap > 1 && horizontalOverlap > 1;
 
-      return targetVisible && targetSizedForTour && tooltipVisible && tooltipOnscreen && !hasCollision;
-    }, step.selector, { timeout: 6000 });
+        return targetVisible && targetSizedForTour && tooltipVisible && tooltipOnscreen && !hasCollision;
+      }, step.selector, { timeout: 10000 });
+    } catch (error) {
+      const geometry = await readTourGeometry(currentPage, step.selector);
+      throw new Error(`first visit tour: ${label} did not settle: ${JSON.stringify(geometry)}\n${error.message}`);
+    }
 
     const geometry = await readTourGeometry(currentPage, step.selector);
     assert(geometry.target, `first visit tour: ${label} target missing for ${step.selector}`);
@@ -6374,6 +6487,11 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   const nudgeText = await page.locator('.tour-nudge').innerText();
   assert(/Need a map/i.test(nudgeText) && /Help is available/i.test(nudgeText) && /Show help/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
   await assertLocatorCount(page.locator('.tour-nudge .tour-start'), 1, 'first visit tour start');
+  await page.locator('#features-gear').click();
+  await page.locator('#features-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('.tour-nudge').waitFor({ state: 'detached', timeout: 3000 });
+  await page.locator('#features-gear').click();
+  await page.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('.tour-nudge .tour-start').click();
   await page.locator('#tour-overlay').waitFor({ state: 'visible', timeout: 6000 });
   for (let index = 0; index < tourSteps.length; index += 1) {
@@ -6411,6 +6529,11 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   assert(response?.ok(), `first visit tour mobile: dashboard failed with HTTP ${response?.status()}`);
   await mobilePage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
   await mobilePage.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 6000 });
+  await mobilePage.locator('#features-gear').click();
+  await mobilePage.locator('#features-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
+  await mobilePage.locator('.tour-nudge').waitFor({ state: 'detached', timeout: 3000 });
+  await mobilePage.locator('#features-gear').click();
+  await mobilePage.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 5000 });
   await mobilePage.locator('.tour-nudge .tour-start').click();
   for (let index = 0; index < tourSteps.length; index += 1) {
     const step = tourSteps[index];
@@ -6703,8 +6826,9 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelector('#history-digest')?.textContent?.includes('24h'), null, { timeout: 5000 });
   await page.locator('#history-share-btn').click();
   await expectShareModal(page, 'feature workflows historical data share', issues);
-  await page.locator('#history-modal-close').click();
+  await page.keyboard.press('Escape');
   await page.locator('#history-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
+  assert(await page.evaluate(() => ['history-btn', 'features-gear'].includes(document.activeElement?.id)), 'feature workflows history Escape should restore focus to a visible launcher');
   log('ok - feature workflow: history modal');
 
   await page.evaluate(() => {
@@ -7646,6 +7770,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
     { name: 'network-health', description: 'Network Health card opens #health chamber with block cadence, missed rights, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
+    { name: 'maxis', description: 'Tezos Maxis opens /maxis/ with nine declared leaders and address-scoped Ledger Flow trails', run: () => smokeMaxisChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },

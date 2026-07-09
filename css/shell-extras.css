@@ -623,6 +623,61 @@
     scrollbar-color: color-mix(in srgb, var(--accent-cyan) 30%, transparent) rgba(255, 255, 255, 0.045);
 }
 
+.hot-today-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.28rem;
+    width: min(24rem, 100%);
+    min-height: 36px;
+    margin-top: 0.7rem;
+}
+
+.hot-today-progress-segment {
+    appearance: none;
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    opacity: 0.68;
+    transition: background 0.22s ease, opacity 0.22s ease, transform 0.22s ease;
+}
+
+.hot-today-progress-segment::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    height: 4px;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--text-tertiary) 24%, transparent);
+    transform: translateY(-50%);
+    transition: background 0.22s ease, transform 0.22s ease;
+}
+
+.hot-today-progress-segment:is(:hover, :focus-visible, .is-active)::before {
+    background: var(--accent-cyan);
+}
+
+.hot-today-progress-segment:is(:hover, :focus-visible, .is-active) {
+    opacity: 1;
+}
+
+.hot-today-progress-segment:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent-cyan) 70%, transparent);
+    outline-offset: -2px;
+}
+
+.hot-today-progress-segment.is-active::before {
+    transform: translateY(-50%) scaleY(1.8);
+}
+
 .hot-today-strip::-webkit-scrollbar {
     height: 0.42rem;
 }
@@ -1457,6 +1512,10 @@
     .hot-today-card {
         flex-basis: min(82vw, 300px);
         max-width: calc(100vw - 2rem);
+    }
+
+    .hot-today-progress {
+        width: 100%;
     }
 
     .hot-today-card-anniversary {
