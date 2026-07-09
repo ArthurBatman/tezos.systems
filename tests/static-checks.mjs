@@ -606,9 +606,10 @@ async function checkSelectorContracts() {
   const henMode = await readText('js/features/hen-mode.js');
   const henPage = await readText('hen/index.html');
   const objkt = await readText('js/features/objkt.js');
-  const chamber = await readText('js/features/chamber.js');
-  const lb = await readText('js/features/liquidity-baking.js');
-  const tezlink = await readText('js/features/tezlink.js');
+    const chamber = await readText('js/features/chamber.js');
+    const lb = await readText('js/features/liquidity-baking.js');
+    const api = await readText('js/core/api.js');
+    const tezlink = await readText('js/features/tezlink.js');
   const etherlinkGovernance = await readText('js/features/etherlink-governance.js');
   const tz4 = await readText('js/features/tz4-adoption.js');
   const ctez = await readText('js/features/ctez.js');
@@ -759,6 +760,9 @@ async function checkSelectorContracts() {
     ['Network Pulse pretty route', "slug: 'pulse'", chamberRoutes],
     ['Network Pulse chamber pair', "key: 'network-pulse'", app],
     ['Network Pulse share route', "'#pulse': '/pulse/'", share],
+    ['Network Pulse hero stats spread', '...heroStats', app],
+    ['Network Pulse hero stats fallback event', "source: 'hero'", app],
+    ['Network Pulse delegated hero stat', 'delegatedRatio: staking.delegatedRatio', api],
     ['Network Pulse service worker JS', '/js/features/network-pulse.js', await readText('sw.js')],
     ['Network Pulse service worker CSS', '/css/network-pulse.css', await readText('sw.js')],
     ['Network Pulse XTZ price card history', "'xtz-price'", history],

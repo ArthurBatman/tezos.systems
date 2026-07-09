@@ -985,7 +985,9 @@ export async function fetchHeroStats() {
         ]);
 
         const bakers = bakersData.status === 'fulfilled' ? bakersData.value : { total: 0, tz4Count: 0, tz4Percentage: 0 };
-        const staking = stakingData.status === 'fulfilled' ? stakingData.value : { stakingRatio: 0, delegatedRatio: 0 };
+        const staking = stakingData.status === 'fulfilled'
+            ? stakingData.value
+            : { stakingRatio: 0, delegatedRatio: 0, totalStaked: 0, totalDelegated: 0, bakingPower: 0, totalDelegators: 0, totalStakers: 0, rewardAccounts: 0 };
 
         const issuanceRate = issuanceData.status === "fulfilled" ? (issuanceData.value.total || 0) : 0;
 
@@ -997,6 +999,13 @@ export async function fetchHeroStats() {
             tz4Percentage: bakers.tz4Percentage,
             currentIssuanceRate: issuanceRate,
             stakingRatio: staking.stakingRatio,
+            delegatedRatio: staking.delegatedRatio,
+            totalStaked: staking.totalStaked,
+            totalDelegated: staking.totalDelegated,
+            bakingPower: staking.bakingPower,
+            totalDelegators: staking.totalDelegators,
+            totalStakers: staking.totalStakers,
+            rewardAccounts: staking.rewardAccounts,
             cycle: cycleInfo.cycle,
             blockLevel: cycleInfo.blockLevel,
             blockTime: cycleInfo.blockTime,
@@ -1005,7 +1014,7 @@ export async function fetchHeroStats() {
         };
     } catch (error) {
         console.error('Failed to fetch hero stats:', error);
-        return { totalBakers: 0, tz4Bakers: 0, tz4Percentage: 0, stakingRatio: 0, currentIssuanceRate: 0, cycle: 0, cycleProgress: 0, cycleTimeRemaining: '—' };
+        return { totalBakers: 0, tz4Bakers: 0, tz4Percentage: 0, stakingRatio: 0, delegatedRatio: 0, currentIssuanceRate: 0, cycle: 0, cycleProgress: 0, cycleTimeRemaining: '—' };
     }
 }
 

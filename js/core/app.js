@@ -523,6 +523,7 @@ async function refreshInBackground() {
 
         // Only fetch full stats if Tezos Stats sections are visible
         const statsVisible = localStorage.getItem(STATS_VISIBLE_KEY);
+        let fullStatsPublished = false;
         if (statsVisible === 'true') {
             const newStats = await fetchAllStats();
             debugLog('✅ Fresh stats received');
@@ -532,6 +533,7 @@ async function refreshInBackground() {
             saveVisitSnapshot(newStats);
             saveStats(newStats);
             await updateStats(newStats);
+            fullStatsPublished = true;
             syncLiveSparklineMetrics(newStats);
             state.lastUpdate = new Date();
             updateLastRefreshTime();
@@ -541,13 +543,14 @@ async function refreshInBackground() {
         // (heroStats provides stakingRatio; full stats add issuance if available)
         const comparisonStats = {
             ...state.currentStats,
-            stakingRatio: heroStats.stakingRatio || state.currentStats?.stakingRatio,
-            currentIssuanceRate: heroStats.currentIssuanceRate || state.currentStats?.currentIssuanceRate,
-            cycle: heroStats.cycle || state.currentStats?.cycle,
-            blockLevel: heroStats.blockLevel || state.currentStats?.blockLevel,
-            blockTime: heroStats.blockTime || state.currentStats?.blockTime,
+            ...heroStats,
+            stakingRatio: heroStats.stakingRatio ?? state.currentStats?.stakingRatio,
+            currentIssuanceRate: heroStats.currentIssuanceRate ?? state.currentStats?.currentIssuanceRate,
+            cycle: heroStats.cycle ?? state.currentStats?.cycle,
+            blockLevel: heroStats.blockLevel ?? state.currentStats?.blockLevel,
+            blockTime: heroStats.blockTime ?? state.currentStats?.blockTime,
             cycleProgress: heroStats.cycleProgress ?? state.currentStats?.cycleProgress,
-            cycleTimeRemaining: heroStats.cycleTimeRemaining || state.currentStats?.cycleTimeRemaining,
+            cycleTimeRemaining: heroStats.cycleTimeRemaining ?? state.currentStats?.cycleTimeRemaining,
         };
         updateComparison(comparisonStats);
         updateCyclePulse(comparisonStats);
@@ -556,6 +559,12 @@ async function refreshInBackground() {
         updateHotTodayIsland(comparisonStats, bgXtzPrice);
         updateRewardsTracker(comparisonStats, bgXtzPrice);
         updatePriceIntelligence(comparisonStats, bgXtzPrice);
+
+        if (!fullStatsPublished) {
+            window.dispatchEvent(new CustomEvent('stats-updated', {
+                detail: { stats: comparisonStats, source: 'hero' }
+            }));
+        }
 
         
         // Refresh My Baker/Leaderboard if visible
