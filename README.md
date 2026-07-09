@@ -237,11 +237,12 @@ inline modal styles in `js/core/app.js`.
   animated strip with stable-width volatile numbers, compact baker names, and a
   clean whole-line transition.
   Clicking the strip opens the Network Health Chamber.
-- The header keeps the current protocol beside the Tezos Systems title, then
-  places `uptime` and the live NFT feed doorway together in the next row, with
-  years/days/hours/minutes, a since-2018 marker, active baker count, finality,
-  staked share, and issuance rate in theme-matched stat pills.
-  Clicking the uptime badge opens Protocol Anthology; clicking a stat pill
+- The header keeps the current protocol beside the Tezos Systems title, promotes
+  the live NFT feed doorway into the right-side navigation, and turns uptime
+  into a first-screen statement with years/days/hours/minutes plus a `100%
+  uptime · since 2018` claim. Active baker count, finality, staked share, and
+  issuance rate remain in theme-matched stat pills.
+  Clicking the uptime statement opens Protocol Anthology; clicking a stat pill
   opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Continuity Proof panel with
   the same core proof data in the deep Health context.

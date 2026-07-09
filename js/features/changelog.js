@@ -7,6 +7,9 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '🎨', text: 'The header uptime statement now uses natural counter spacing, tighter caption scale, hover feedback, and a clearer NFT feed doorway on mobile' },
+            { type: '🎨', text: 'The header now promotes NFT feed into the main nav and turns uptime into a larger 100% uptime statement' },
+            { type: '🎨', text: 'The header uptime counter now rolls in before the live stat pills fade on one by one, keeping welcome and streak toasts queued until the hero settles' },
             { type: '🔧', text: 'Network Pulse launcher now clears its opening state from the normal background hero refresh even when full optional stats stay hidden' },
             { type: '🔧', text: 'Generated route, sitemap, root OG, chamber OG, governance, compare, and CSS surfaces now refresh through one commit/scheduled automation path' },
             { type: '🎨', text: 'Aurora live-number updates now use a longer quiet surface bloom instead of the classic blur-focus reveal' },

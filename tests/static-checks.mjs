@@ -602,6 +602,7 @@ async function checkSelectorContracts() {
   const siteNav = await readText('js/landing/site-nav.js');
   const search = await readText('js/features/search.js');
   const heroSearchCss = await readText('css/hero-search.css');
+  const loadingCss = await readText('css/loading.css');
   const henModeCss = await readText('css/hen-mode.css');
   const henMode = await readText('js/features/hen-mode.js');
   const henPage = await readText('hen/index.html');
@@ -621,6 +622,8 @@ async function checkSelectorContracts() {
   const history = await readText('js/features/history.js');
   const share = await readText('js/ui/share.js');
   const moments = await readText('js/features/moments.js');
+  const streak = await readText('js/features/streak.js');
+  const toastQueue = await readText('js/ui/toast-queue.js');
   const governanceAlerts = await readText('js/features/governance-alerts.js');
   const leaderboard = await readText('js/features/leaderboard.js');
   const myTezos = await readText('js/features/my-tezos.js');
@@ -872,7 +875,7 @@ async function checkSelectorContracts() {
     ['HEN standalone route entry link', 'href="/?hen=1"', henPage],
     ['HEN standalone route copy', 'Live Teia and OBJKT mints on Tezos', henPage],
     ['HEN CSS cache stamp', 'css/hen-mode.css?v=94', index],
-    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=92', index],
+    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=93', index],
     ['HEN setup status strip', 'id="hen-status-strip"', index],
     ['HEN permanent now line', 'id="hen-now-line"', index],
     ['HEN mobile filter toggle', 'id="hen-mobile-filter-toggle"', index],
@@ -1071,10 +1074,13 @@ async function checkSelectorContracts() {
     ['top continuity stat panel', 'id="top-continuity-panel"', index],
     ['top continuity title-stack uptime launcher', 'id="top-continuity-history"', index],
     ['top continuity proof opens Protocol Anthology', 'aria-controls="protocol-history-chamber-modal"', index],
-    ['top continuity identity claim', 'top-continuity-claim">uptime:', index],
-    ['top continuity fixed grid before counter', 'top-continuity-claim">uptime:</span><strong', index],
-    ['top continuity fixed grid before origin', '</strong><span class="top-continuity-origin"', index],
-    ['top continuity since-2018 marker', 'top-continuity-origin">&middot; since 2018', index],
+    ['header NFT feed nav action', 'class="glass-button header-nav-btn header-nft-feed-btn"', index],
+    ['header NFT feed nav label visible on mobile', '.header-nft-feed-btn .nav-label', heroSearchCss],
+    ['header NFT feed art-frame icon', '.nft-feed-icon::before', heroSearchCss],
+    ['top continuity statement wrapper', 'class="top-continuity-statement"', index],
+    ['top continuity uptime statement claim', 'top-continuity-claim">100% uptime', index],
+    ['top continuity statement subline', 'class="top-continuity-subline"', index],
+    ['top continuity since-2018 marker', 'top-continuity-origin">since 2018', index],
     ['top continuity proof baker metric', 'id="hero-chain-uptime-bakers"', index],
     ['top continuity baker all-time pill', 'data-card-history="total-bakers"', index],
     ['top continuity finality all-time pill', 'data-card-history="finality"', index],
@@ -1103,16 +1109,26 @@ async function checkSelectorContracts() {
     ['header uptime badge title stack styles', '.header-brand-stack', styles],
     ['top continuity stat rail right aligned', 'justify-content: flex-end', styles],
     ['top continuity rail is borderless tape', 'border: 0;', styles],
-    ['top continuity uptime badge glint', '.top-continuity-history::before', styles],
-    ['top continuity identity claim styles', '.top-continuity-claim', styles],
-    ['top continuity runtime hugs label', 'margin-inline: 0.25ch 1ch;', styles],
-    ['top continuity two-digit number slots', '.top-continuity-digits-2', styles],
-    ['top continuity three-digit day slot', '.top-continuity-digits-3', styles],
-    ['top continuity first year slot puts spare space after number', '.top-continuity-time-segment:first-child .top-continuity-time-number', styles],
+    ['top continuity identity claim styles', '.top-continuity-claim', heroSearchCss],
+    ['top continuity statement runtime scale', 'font-size: clamp(1.5rem, 2.15vw, 2rem);', heroSearchCss],
+    ['top continuity statement caption scale', 'font-size: clamp(0.72rem, 0.92vw, 0.875rem);', heroSearchCss],
+    ['top continuity statement separator scale', 'font-size: clamp(0.7rem, 0.85vw, 0.82rem);', heroSearchCss],
+    ['top continuity mobile runtime cap', 'font-size: clamp(1.5rem, 7vw, 2rem);', heroSearchCss],
+    ['top continuity runtime natural segment gap', 'gap: 0.5ch;', heroSearchCss],
+    ['top continuity hover affordance', '.top-continuity-history:is(:hover, :focus-visible) .top-continuity-arrow', heroSearchCss],
     ['top continuity segmented runtime renderer', 'renderTopContinuityRuntime(years, days, hours, mins)', app],
+    ['top continuity hero settled promise', 'window.tezosSystemsHeroSettled = heroSettled', app],
+    ['top continuity toast gate waits for hero', 'setToastGate(heroSettled)', app],
+    ['toast queue waits for hero gate', 'await waitForGate();', toastQueue],
+    ['first visit welcome watches live copy', 'Welcome 👋 — this dashboard is watching Tezos live. Press / to search anything.', streak],
+    ['top continuity counter tween', 'tweenNumber(el, 0, totalMinutes', app],
+    ['top continuity pill stagger', '}, index * 80);', app],
+    ['top continuity arrival pending class', 'hero-arrival-pending', app],
+    ['top continuity arrival completion class', 'hero-arrived', app],
+    ['top continuity loading skeleton respects arrived pills', '.hero-arrival-pending .top-continuity-stat:not(.hero-arrived) strong', loadingCss],
     ['top continuity title theme token', '--header-title-color', styles],
-    ['top continuity uptime badge theme bg', 'background: var(--uptime-badge-bg);', styles],
-    ['top continuity uptime badge theme border', 'border: 1px solid var(--uptime-badge-border);', styles],
+    ['top continuity uptime statement transparent bg', 'background: transparent;', styles],
+    ['top continuity uptime statement unboxed border', 'border: 0;', styles],
     ['top continuity uptime badge label token', 'color: var(--uptime-badge-label);', styles],
     ['top continuity uptime value token', 'color: var(--uptime-badge-value);', styles],
     ['top continuity value color tokens', 'var(--pill-color, var(--top-pill-bakers))', styles],
@@ -1123,6 +1139,8 @@ async function checkSelectorContracts() {
     ['top continuity mobile pill grid', 'grid-template-columns: repeat(2, minmax(0, 1fr))', styles],
     ['top continuity isolated decrypt styles', '.top-continuity-stat.is-shuffling', styles],
     ['top continuity stable finality slot', '.top-continuity-stat[data-card-history="finality"] strong', styles],
+    ['top continuity arrival hides pending pills only', '.top-continuity-panel.hero-arrival-pending .top-continuity-stat:not(.hero-arrived)', heroSearchCss],
+    ['top continuity arrival reveal class', '.top-continuity-stat.hero-arrived', heroSearchCss],
     ['health cycle timing styles', '.health-cycle-panel', styles],
     ['health Teztale consensus styles', '.health-consensus-panel', styles],
     ['health Octez versions styles', '.health-octez-panel', styles],
@@ -1145,6 +1163,12 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  if (styles.includes('top-continuity-digits-') || app.includes('top-continuity-digits-')) {
+    fail('top continuity runtime must use natural segment widths, not fixed digit slots');
+  }
+  if (index.includes('live-feed-pill')) {
+    fail('header NFT feed should not keep the old live-feed-pill class');
   }
   const networkPulseMobileNavBlock = networkPulseCss.match(/@media\s*\(max-width:\s*759px\)\s*\{[\s\S]*?\.network-pulse-nav\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
   if (!networkPulseMobileNavBlock.includes('position: static') || !networkPulseMobileNavBlock.includes('flex-wrap: wrap')) {

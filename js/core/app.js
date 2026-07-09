@@ -97,7 +97,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=372';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=380';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2307,13 +2307,13 @@ function initUptimeClock() {
 
     function renderTopContinuityRuntime(years, days, hours, mins) {
         return [
-            [years, 'y', 2],
-            [days, 'd', 3],
-            [hours, 'h', 2],
-            [mins, 'm', 2]
-        ].map(([value, unit, digits]) => (
-            `<span class="top-continuity-time-segment"><span class="top-continuity-time-number top-continuity-digits-${digits}">${value}</span>${unit}</span>`
-        )).join(' ');
+            [years, 'y'],
+            [days, 'd'],
+            [hours, 'h'],
+            [mins, 'm']
+        ].map(([value, unit]) => (
+            `<span class="top-continuity-time-segment"><span class="top-continuity-time-number">${value}</span>${unit}</span>`
+        )).join('');
     }
 
     function setTopContinuityRuntime(years, days, hours, mins) {

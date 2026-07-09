@@ -38,11 +38,6 @@
     --top-pill-issuance: #C026D3;
     --top-pill-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
-[data-theme="clean"] .live-feed-pill{
-    box-shadow:
-        0 0 10px color-mix(in srgb, var(--accent) 14%, transparent),
-        inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
-}
 [data-theme="clean"] .build-version{
     color: rgba(0, 0, 0, 0.22);
 }
@@ -729,6 +724,19 @@
     border-color: #0784c3;
     color: #0784c3;
     box-shadow: 0 2px 8px rgba(7, 132, 195, 0.12);
+}
+[data-theme="clean"] .header-nft-feed-btn{
+    border-color: color-mix(in srgb, var(--top-pill-issuance) 46%, #d5dae2);
+    color: var(--top-pill-issuance);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--top-pill-issuance) 15%, transparent);
+}
+[data-theme="clean"] .header-nft-feed-btn:hover{
+    border-color: color-mix(in srgb, var(--top-pill-issuance) 72%, #d5dae2);
+    color: color-mix(in srgb, var(--top-pill-issuance) 86%, #1a1d26);
+}
+[data-theme="clean"] .header-nft-feed-btn:focus-visible{
+    border-color: color-mix(in srgb, var(--top-pill-issuance) 72%, #d5dae2);
+    color: color-mix(in srgb, var(--top-pill-issuance) 86%, #1a1d26);
 }
 [data-theme="clean"] .price-change.positive{
     color: #059669 !important;

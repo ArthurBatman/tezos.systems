@@ -254,7 +254,7 @@ const HenMode = (() => {
     function primeHenDoorway() {
         if (safeGetStorage(HEN_DOORWAY_KEY) === '1') return;
         afterHeroSettled(function() {
-            var link = document.querySelector('.live-feed-pill') || document.getElementById('hen-launcher');
+            var link = document.querySelector('.header-nft-feed-btn') || document.getElementById('hen-launcher');
             if (!link || safeGetStorage(HEN_DOORWAY_KEY) === '1') return;
             var tip = '🌱 hic et nunc lives here — enter the feed';
             link.title = tip;
