@@ -55,6 +55,7 @@ const browserRoutes = [
   '/staking/',
   '/governance/',
   '/chamber/',
+  '/pulse/',
   '/health/',
   '/tezosx/',
   '/tezlink/',
@@ -116,6 +117,7 @@ const ETHERLINK_PROPOSALS_BIGMAP = '990001';
 const ETHERLINK_UPVOTERS_BIGMAP = '990002';
 const ETHERLINK_UPVOTE_COUNTS_BIGMAP = '990003';
 const EXPECTED_CHAMBER_ORDER = [
+  'network-pulse-entry-card',
   'network-health',
   'chamber-entry-card',
   'tezlink-entry-card',
@@ -2128,6 +2130,7 @@ async function assertChamberOrder(page, label) {
     `${label}: Chambers order mismatch, expected ${EXPECTED_CHAMBER_ORDER.join(', ')} but saw ${chamberState.order.join(', ')}`
   );
   const expectedPairs = [
+    ['network-pulse-entry-card'],
     ['network-health', 'chamber-entry-card'],
     ['tezlink-entry-card', 'etherlink-governance-entry-card'],
     ['tz4-adoption', 'lb-entry-card'],
@@ -2137,6 +2140,10 @@ async function assertChamberOrder(page, label) {
   assert(
     expectedPairs.every((pair, index) => pair.every((key, innerIndex) => chamberState.pairs[index]?.[innerIndex] === key)),
     `${label}: Chambers pair layout mismatch, expected ${JSON.stringify(expectedPairs)} but saw ${JSON.stringify(chamberState.pairs)}`
+  );
+  assert(
+    chamberState.pairs.at(0)?.length === 1 && chamberState.pairs.at(0)?.[0] === 'network-pulse-entry-card',
+    `${label}: Network Pulse must stay as its own top strip, saw ${JSON.stringify(chamberState.pairs.at(0))}`
   );
   assert(
     chamberState.pairs.at(-1)?.length === 1 && chamberState.pairs.at(-1)?.[0] === 'tezos-domains-entry-card',
@@ -6250,7 +6257,9 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   }
 
   async function advanceTour(currentPage) {
-    await currentPage.locator('#tour-overlay .tour-next').click();
+    const next = currentPage.locator('#tour-overlay .tour-next');
+    await next.waitFor({ state: 'visible', timeout: 5000 });
+    await next.click({ force: true });
   }
 
   const tourSteps = [
@@ -6698,6 +6707,14 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await page.locator('#history-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
   log('ok - feature workflow: history modal');
 
+  await page.evaluate(() => {
+    window.location.hash = 'section=consensus';
+  });
+  await page.waitForFunction(() => {
+    const section = document.querySelector('#consensus-section');
+    return section && getComputedStyle(section).display !== 'none';
+  }, null, { timeout: 10000 });
+  await page.locator('[data-stat="total-bakers"]').scrollIntoViewIfNeeded();
   await page.locator('[data-stat="total-bakers"] .card-history-btn').click({ force: true });
   await page.locator('#card-history-modal.active').waitFor({ state: 'visible', timeout: 10000 });
   assert((await page.locator('#card-history-modal .card-history-title').innerText()).includes('Total Bakers'), 'feature workflows card history title mismatch');
@@ -6803,7 +6820,7 @@ async function smokeShareActions(browser, baseUrl) {
 
   const page = await context.newPage();
   attachIssueCollectors(page, 'share actions', issues);
-  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  const response = await page.goto(`${baseUrl}/?theme=matrix#section=consensus`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `share actions: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('[data-stat="total-bakers"] .card-share-btn').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('[data-stat="total-bakers"]').scrollIntoViewIfNeeded();
@@ -6892,7 +6909,7 @@ async function smokeShareActions(browser, baseUrl) {
 
   const mobilePage = await mobileContext.newPage();
   attachIssueCollectors(mobilePage, 'share actions mobile fallback', issues);
-  const mobileResponse = await mobilePage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  const mobileResponse = await mobilePage.goto(`${baseUrl}/?theme=matrix#section=consensus`, { waitUntil: 'domcontentloaded' });
   assert(mobileResponse?.ok(), `share actions mobile fallback: dashboard failed with HTTP ${mobileResponse?.status()}`);
   await mobilePage.locator('[data-stat="total-bakers"] .card-share-btn').waitFor({ state: 'visible', timeout: 10000 });
   await mobilePage.evaluate(() => document.querySelector('[data-stat="total-bakers"] .card-share-btn')?.click());
@@ -6930,7 +6947,7 @@ async function smokeInfoModals(browser, baseUrl) {
 
   const page = await context.newPage();
   attachIssueCollectors(page, 'info modals', issues);
-  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  const response = await page.goto(`${baseUrl}/?theme=matrix#section=consensus`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `info modals: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
 

@@ -55,6 +55,12 @@ function routeDetails(route, report) {
     : 'live supermajority';
 
   const bySlug = {
+    pulse: {
+      kicker: 'Network Pulse',
+      value: 'Live stats field',
+      chips: ['consensus', 'economy', 'activity'],
+      body: 'Scan Tezos bakers, staking, governance, transactions, contracts, supply, and adjacent chambers in one live operations room.'
+    },
     chamber: {
       kicker: `${proposal} ${kind}`,
       value: end,

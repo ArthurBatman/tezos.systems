@@ -1341,6 +1341,16 @@ const CARD_METRICS = {
     'rollups': { metric: 'rollups', label: 'Rollups', unit: '' },
     'active-contracts': { metric: 'active_contracts_24h', label: 'Active Contracts (24h)', unit: '' },
     'network-health': { source: 'networkHealth', metric: 'health_score', label: 'Network Health', unit: '%' },
+    'block-time': { source: 'networkHealth', metric: 'avg_block_seconds', label: 'Block Time', unit: 's' },
+    'round-zero': { source: 'networkHealth', metric: 'round_zero_pct', label: 'Round-0 Rate', unit: '%' },
+    'missed-attestations': { source: 'networkHealth', metric: 'missed_attestation_slots', label: 'Missed Attestations', unit: '' },
+    'xtz-price': { source: 'market', metric: 'price_usd', label: 'XTZ Price', unit: ' USD' },
+    'market-cap': { source: 'market', metric: 'market_cap_usd', label: 'Market Cap', unit: ' USD' },
+    'volume-24h': { source: 'market', metric: 'volume_24h_usd', label: '24h Volume', unit: ' USD' },
+    'price-sats': { source: 'market', metric: 'price_sats', label: 'Sats per Tez', unit: ' sats' },
+    'l2-transactions': { source: 'tezosx', metric: 'transactions_24h', label: 'L2 Transactions', unit: '' },
+    'l2-gas': { source: 'tezosx', metric: 'gas_gwei', label: 'L2 Gas', unit: ' gwei' },
+    'l2-active-addresses': { source: 'tezosx', metric: 'active_addresses', label: 'L2 Active Addresses', unit: '' },
     'chamber-entry-card': {
         selector: '#chamber-entry-card',
         source: 'governance',
@@ -1563,7 +1573,9 @@ function createCardHistoryModal() {
     const closeModal = () => {
         modal.classList.remove('active');
         modal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
+        if (!document.querySelector('.chamber-overlay.active')) {
+            document.body.style.overflow = '';
+        }
         cardHistoryRequestId += 1;
         destroyChartInstance('card-history-canvas');
     };

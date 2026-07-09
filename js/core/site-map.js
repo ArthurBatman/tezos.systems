@@ -28,6 +28,15 @@ export const SITE_MAP = [
         keywords: ['governance', 'vote', 'proposal', 'chamber']
     },
     {
+        id: 'pulse',
+        title: 'Network Pulse',
+        href: '/pulse/',
+        hash: '#pulse',
+        group: 'Live Rooms',
+        detail: 'Consensus, economy, governance, activity, and ecosystem cards in one live chamber',
+        keywords: ['network pulse', 'live stats', 'consensus', 'economy', 'activity']
+    },
+    {
         id: 'health',
         title: 'Network Health',
         href: '/health/',

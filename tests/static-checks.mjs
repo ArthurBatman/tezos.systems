@@ -139,6 +139,7 @@ async function checkRequiredFiles() {
     'css/styles.min.css',
     'css/hero-search.css',
     'css/leaderboard.css',
+    'css/network-pulse.css',
     'js/core/app.js',
     'js/core/api.js',
     'js/core/config.js',
@@ -319,6 +320,7 @@ async function checkCacheBustAlignment() {
   const heroSearch = await readText('js/features/search.js');
   const leaderboard = await readText('js/features/leaderboard.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
+  const networkPulse = await readText('js/features/network-pulse.js');
   const themePreload = await readText('js/core/theme-preload.js');
   const themeUi = await readText('js/ui/theme.js');
   const cssMatch = index.match(/css\/styles\.min\.css\?v=(\d+)/);
@@ -331,6 +333,7 @@ async function checkCacheBustAlignment() {
   const shellExtrasCssMatch = app.match(/SHELL_EXTRAS_CSS_URL\s*=\s*['"]\/css\/shell-extras\.css\?v=(\d+)['"]/);
   const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
+  const networkPulseCssMatch = networkPulse.match(/NETWORK_PULSE_CSS_URL\s*=\s*['"]\/css\/network-pulse\.css\?v=(\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
   const themeUiMatch = themeUi.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
 
@@ -344,6 +347,7 @@ async function checkCacheBustAlignment() {
   if (!shellExtrasCssMatch) fail('app.js shell-extras.css loader must carry a ?v= cache stamp');
   if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
+  if (!networkPulseCssMatch) fail('network-pulse.js network-pulse.css loader must carry a ?v= cache stamp');
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
   if (!themeUiMatch) fail('theme.js must expose THEME_CSS_VERSION');
 
@@ -357,11 +361,12 @@ async function checkCacheBustAlignment() {
     heroSearchCssMatch?.[1],
     shellExtrasCssMatch?.[1],
     leaderboardCssMatch?.[1],
-    ledgerFlowCssMatch?.[1]
+    ledgerFlowCssMatch?.[1],
+    networkPulseCssMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 10) {
+  } else if (versions.length === 11) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -438,6 +443,7 @@ async function checkSitemapCoverage() {
     'https://tezos.systems/staking/',
     'https://tezos.systems/governance/',
     'https://tezos.systems/chamber/',
+    'https://tezos.systems/pulse/',
     'https://tezos.systems/health/',
     'https://tezos.systems/tezosx/',
     'https://tezos.systems/l2chamber/',
@@ -606,6 +612,8 @@ async function checkSelectorContracts() {
   const tezosDomains = await readText('js/features/tezos-domains.js');
   const wallet = await readText('js/core/wallet.js');
   const health = await readText('js/features/network-health.js');
+  const networkPulse = await readText('js/features/network-pulse.js');
+  const history = await readText('js/features/history.js');
   const share = await readText('js/ui/share.js');
   const moments = await readText('js/features/moments.js');
   const governanceAlerts = await readText('js/features/governance-alerts.js');
@@ -619,6 +627,7 @@ async function checkSelectorContracts() {
   const themeUi = await readText('js/ui/theme.js');
   const styles = await readText('css/styles.css');
   const leaderboardCss = await readText('css/leaderboard.css');
+  const networkPulseCss = await readText('css/network-pulse.css');
   const ledgerFlowCss = await readText('css/ledger-flow.css');
   const tezosDomainsCss = await readText('css/tezos-domains.css');
   const deepLinkContracts = [
@@ -627,6 +636,7 @@ async function checkSelectorContracts() {
     ['Tezos X Governance hash route', "hash === 'l2chamber'", app],
     ['Tezos X hash route', "hash === 'tezosx'", app],
     ['Legacy Tezlink hash route', "hash === 'tezlink'", app],
+    ['Network Pulse hash route', "hash === 'pulse'", app],
     ['Health hash route', "hash === 'health'", app],
     ['Ledger Flow hash route', "hash === 'ledger-flow'", app],
     ['Ledger Flow scoped hash route', "params.has('ledger-flow')", app],
@@ -673,6 +683,7 @@ async function checkSelectorContracts() {
     ['Hero search root hash page normalization', 'const rootHashEntry', search],
     ['Site map manifest exports groups', 'SITE_MAP_NAV_GROUPS', siteMap],
     ['Site map manifest includes anthology route', "href: '/anthology/'", siteMap],
+    ['Site map manifest includes Network Pulse route', "href: '/pulse/'", siteMap],
     ['Landing pages share site nav renderer', 'function renderFooter()', siteNav],
     ['Hero search wallet chip clear copy', 'Wallet or .tez', search],
     ['Hero search Domains quick chip', "label: '/domains'", search],
@@ -695,16 +706,60 @@ async function checkSelectorContracts() {
     ['comparison hub all peer links', '/compare/tezos-vs-algorand.html', compareIndex],
     ['Chambers launcher button', 'id="chambers-toggle"', index],
     ['Chambers launcher copy link', 'data-copy-hash="#chambers"', index],
+    ['Network Pulse launcher copy link', 'data-copy-hash="#pulse"', index],
     ['Chambers section info button', 'id="chambers-info-btn"', index],
     ['Chambers info modal wiring', "setupModal('chambers-info-btn', 'chambers-modal', 'chambers-modal-close')", app],
     ['Collapsed header inline spacing reset', "header.style.marginBottom = '0'", app],
     ['Chambers visibility storage', 'tezos-systems-chambers-visible', app],
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
     ['Pretty chamber route opens without hash redirect', "chamber: 'chamber'", app],
+    ['Network Pulse pretty route opens without hash redirect', "pulse: 'pulse'", app],
     ['Dashboard footer uses site map renderer', 'function initSiteFooterMap', app],
     ['Dashboard footer tools rail is data-driven', 'data-site-footer-tools', index],
     ['Dashboard footer rooms rail is data-driven', 'data-site-footer-rooms', index],
     ['Pretty chamber route generator hydrates dashboard shell', "dashboardShell = await fs.readFile", chamberRouteGenerator],
+    ['Network Pulse feature import', 'initNetworkPulseChamber', app],
+    ['Network Pulse card copy link', 'data-copy-hash="#pulse"', networkPulse],
+    ['Network Pulse modal', 'network-pulse-modal', networkPulse],
+    ['Network Pulse lazy CSS loader', 'network-pulse-css', networkPulse],
+    ['Network Pulse real cache timestamp', 'loadStatsTimestamp', networkPulse],
+    ['Network Pulse history data fetch', 'fetchHistoricalData', networkPulse],
+    ['Network Pulse chamber history data fetch', 'fetchChamberHistoricalData', networkPulse],
+    ['Network Pulse Market category', "id: 'market'", networkPulse],
+    ['Network Pulse Market source cards', "source: 'market'", networkPulse],
+    ['Network Pulse sourced freshness label', 'network-pulse-source-age', networkPulse],
+    ['Network Pulse card history modal', 'openCardHistoryModal', networkPulse],
+    ['Network Pulse SITE_MAP room source', 'SITE_MAP', networkPulse],
+    ['Network Pulse nav buttons avoid hash pollution', 'data-pulse-target', networkPulse],
+    ['Network Pulse scrollspy wiring', 'IntersectionObserver', networkPulse],
+    ['Network Pulse delta chip markup', 'network-pulse-delta', networkPulse],
+    ['Network Pulse entry delta chip', 'network-pulse-entry-delta', networkPulse],
+    ['Network Pulse entry cell jumps', 'data-pulse-jump', networkPulse],
+    ['Network Pulse entry header freshness', 'network-pulse-entry-freshness', networkPulse],
+    ['Network Pulse tiered top mover', "tier: 'structural'", networkPulse],
+    ['Network Pulse quiet ballot guard', 'quietWhen: isGovernanceBallotQuiet', networkPulse],
+    ['Network Pulse USD delta prefix', "deltaPrefix: '$'", networkPulse],
+    ['Network Pulse sparkline markup', 'network-pulse-sparkline', networkPulse],
+    ['Network Pulse history button markup', 'data-pulse-history', networkPulse],
+    ['Network Pulse card grid CSS', '.network-pulse-card-grid', networkPulseCss],
+    ['Network Pulse dense entry cells CSS', '.network-pulse-entry-metric', networkPulseCss],
+    ['Network Pulse flex entry header CSS', '.network-pulse-entry-head', networkPulseCss],
+    ['Network Pulse hover headline transform guard', 'network-pulse-entry-card:hover .network-pulse-entry-value', networkPulseCss],
+    ['Network Pulse entry footer cue alignment', '.network-pulse-entry-card .chamber-entry-footer', networkPulseCss],
+    ['Network Pulse entry sparkline CSS', '.network-pulse-entry-sparkline', networkPulseCss],
+    ['Network Pulse loading state CSS', '.network-pulse-field.is-loading', networkPulseCss],
+    ['Network Pulse scroll-margin CSS', 'scroll-margin-top', networkPulseCss],
+    ['Network Pulse active nav CSS', '.network-pulse-nav button.active', networkPulseCss],
+    ['Network Pulse mobile nav wraps on phones', 'flex-wrap: wrap', networkPulseCss],
+    ['Network Pulse direct footer link', 'Direct: /pulse/', networkPulse],
+    ['Network Pulse pretty route', "slug: 'pulse'", chamberRoutes],
+    ['Network Pulse chamber pair', "key: 'network-pulse'", app],
+    ['Network Pulse share route', "'#pulse': '/pulse/'", share],
+    ['Network Pulse service worker JS', '/js/features/network-pulse.js', await readText('sw.js')],
+    ['Network Pulse service worker CSS', '/css/network-pulse.css', await readText('sw.js')],
+    ['Network Pulse XTZ price card history', "'xtz-price'", history],
+    ['Network Pulse market cap card history', "'market-cap'", history],
+    ['Network Pulse L2 transactions card history', "'l2-transactions'", history],
     ['Chamber card copy link', 'data-copy-hash="#chamber"', chamber],
     ['Tezos L1 Governance card label', 'Tezos L1 Governance', chamber],
     ['Chamber current state panel', 'id="chamber-now-panel"', chamber],
@@ -1082,6 +1137,26 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  const networkPulseMobileNavBlock = networkPulseCss.match(/@media\s*\(max-width:\s*759px\)\s*\{[\s\S]*?\.network-pulse-nav\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
+  if (!networkPulseMobileNavBlock.includes('position: static') || !networkPulseMobileNavBlock.includes('flex-wrap: wrap')) {
+    fail('Network Pulse mobile nav must wrap in normal flow instead of using an off-viewport scroll strip');
+  }
+  if (networkPulseMobileNavBlock.includes('overflow-x: auto') || networkPulseMobileNavBlock.includes('flex-wrap: nowrap')) {
+    fail('Network Pulse mobile nav must not use horizontal overflow or nowrap pills');
+  }
+  const roomSelectorBlock = networkPulse.match(/const ROOM_VALUE_SELECTORS\s*=\s*\{([\s\S]*?)\n\};/)?.[1] || '';
+  if (!roomSelectorBlock) {
+    fail('Network Pulse room value selectors must stay explicit and checkable');
+  } else {
+    const selectorIds = Array.from(roomSelectorBlock.matchAll(/:\s*['"]#([^'"]+)['"]/g), (match) => match[1]);
+    const selectorSurfaceFiles = await walk('.', (file) => /\.(?:html|js|mjs)$/.test(file) && !file.startsWith('node_modules/'));
+    const selectorSurfaceText = (await Promise.all(selectorSurfaceFiles.map((file) => readText(file)))).join('\n');
+    for (const id of selectorIds) {
+      const hasId = selectorSurfaceText.includes(`id="${id}"`) || selectorSurfaceText.includes(`id='${id}'`);
+      if (!hasId) fail(`Network Pulse room selector references missing DOM id: #${id}`);
+    }
+    pass(`Network Pulse room selectors checked: ${selectorIds.length}`);
   }
   const protocolEntryRailBlock = app.match(/function buildProtocolEntryRail[\s\S]*?function protocolDate/)?.[0] || '';
   if (!protocolEntryRailBlock.includes('PROTOCOL_ENTRY_RECENT_FALLBACK') || !protocolEntryRailBlock.includes('getProtocolEntryOrdinal(protocol, list)')) {
@@ -1958,7 +2033,7 @@ async function checkNetworkContextNavigationContracts() {
     tz4: 'tz4',
     etherlink: 'tezosx',
     ledger: 'ledger-flow',
-    network: 'health'
+    network: 'pulse'
   };
 
   for (const [key, siteMapId] of Object.entries(requiredSiteMapRoutes)) {

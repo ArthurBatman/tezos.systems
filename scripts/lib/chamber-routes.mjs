@@ -19,6 +19,15 @@ export const CHAMBER_ROUTES = [
     accent: '#00d4ff'
   },
   {
+    slug: 'pulse',
+    hash: '#pulse',
+    title: 'Network Pulse Chamber - Tezos Live Stats Field',
+    shortTitle: 'Network Pulse',
+    description: 'Scan Tezos consensus, economy, governance, activity, ecosystem, and adjacent chamber signals in one live card field.',
+    eyebrow: 'Live Stats',
+    accent: '#38bdf8'
+  },
+  {
     slug: 'health',
     hash: '#health',
     title: 'Network Health Chamber - Tezos Consensus Status',

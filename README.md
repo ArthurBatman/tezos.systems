@@ -114,8 +114,9 @@ tezos.systems/
    During proposal and ballot windows, a compact Governance Alert strip sits
    above Chambers and reuses the live voting/My Tezos baker-vote logic to expose
    Chamber, My Tezos, RSS, and browser-reminder actions. Outside active voting
-   windows, the strip stays hidden. Network Pulse sections are hidden until the
-   user enables Network Pulse from Explore's Happening Now group.
+   windows, the strip stays hidden. Network Pulse now opens as a Chamber from
+   Explore's Happening Now group; legacy `#section=...` links can still reveal
+   the inline stat sections for focused QA and deep links.
 6. Background refreshes update hero stats, comparison data, governance state,
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
    tools, leaderboard, My Tezos, and share-ready UI. Welcome, streak,
@@ -258,9 +259,10 @@ inline modal styles in `js/core/app.js`.
   also layers in 30-day TVL/transaction/active-address direction with
   quiet-state fallbacks, TzKT smart-rollup anchor metadata, gas oracle detail,
   and top tokens by holders when those upstream feeds are available.
-- Live network stat cards for consensus, economy, governance, network activity,
-  and ecosystem metrics are opt-in from Explore's Happening Now group under
-  Network Pulse.
+- Network Pulse Chamber with direct `#pulse` and `/pulse/` access. It gathers
+  consensus, economy, governance, network activity, ecosystem, and adjacent
+  chamber signals into one categorized live card field while keeping the
+  original inline stat sections available through `#section=...` deep links.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
@@ -395,6 +397,7 @@ Useful deep links include:
 - `#section=...`
 - `#price`
 - `#chambers`
+- `#pulse`
 - `#l2chamber`
 - `#tezosx`
 - `#health`
@@ -406,7 +409,7 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/chamber/`, `/health/`,
+Public share routes are also available at `/chamber/`, `/pulse/`, `/health/`,
 `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
 `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -587,8 +590,8 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v365`, including hero search, theme
-  bundles, and the Leaderboard and Ledger Flow lazy CSS loaders.
+- Current aligned shell cache stamp: `v372`, including hero search, theme
+  bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes governance artifacts,

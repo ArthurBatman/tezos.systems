@@ -43,6 +43,7 @@ import { initEtherlinkGovernanceChamber } from '../features/etherlink-governance
 import { initCtezChamber } from '../features/ctez.js';
 import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
+import { initNetworkPulseChamber, openNetworkPulseChamber } from '../features/network-pulse.js';
 
 const SPARKLINE_LIVE_METRICS = [
     ['tz4_percentage', 'tz4Percentage'],
@@ -96,7 +97,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=365';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=372';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -238,6 +239,7 @@ async function init() {
     safe('tezlinkChamber', initTezlinkChamber);
     safe('etherlinkGovernanceChamber', initEtherlinkGovernanceChamber);
     safe('tz4AdoptionChamber', initTz4AdoptionChamber);
+    safe('networkPulseChamber', initNetworkPulseChamber);
     safe('ctezChamber', initCtezChamber);
     safe('ledgerFlowChamber', initLedgerFlowChamber);
     safe('tezosDomainsChamber', initTezosDomainsChamber);
@@ -951,6 +953,10 @@ async function updateStats(newStats) {
         statusEl.classList.remove('active');
         statusEl.innerHTML = '';
     }
+
+    window.dispatchEvent(new CustomEvent('stats-updated', {
+        detail: { stats: state.currentStats }
+    }));
 }
 
 /**
@@ -1276,6 +1282,10 @@ function initNavButtons() {
 const CHAMBERS_VISIBLE_KEY = 'tezos-systems-chambers-visible';
 const CHAMBER_CARD_PAIRS = [
     {
+        key: 'network-pulse',
+        selectors: ['#network-pulse-entry-card']
+    },
+    {
         key: 'health-governance',
         selectors: ['[data-stat="network-health"]', '#chamber-entry-card']
     },
@@ -1300,6 +1310,12 @@ let _chamberPairObserver = null;
 const CHAMBER_EXPAND_CUE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h5v5"/><path d="M9 20H4v-5"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/></svg>';
 const CHAMBER_INFO_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>';
 const CHAMBER_INFO_COPY = {
+    'network-pulse-entry-card': {
+        title: 'Network Pulse',
+        body: 'A categorized chamber for the live consensus, economy, governance, activity, and ecosystem stats that power the dashboard.',
+        href: '/pulse/',
+        link: 'Open Network Pulse ->'
+    },
     'chamber-entry-card': {
         title: 'Tezos L1 Governance',
         body: 'Current Tezos governance state, proposal context, vote receipts, next milestones, and historical amendment memory.',
@@ -2018,6 +2034,16 @@ function initTezosStatsToggle() {
     if (!toggleBtn) return;
 
     const sections = document.querySelectorAll('.tezos-stats-section');
+    if (toggleBtn.dataset.openChamber === 'network-pulse') {
+        sections.forEach(s => s.style.display = 'none');
+        setLauncherToggleState(toggleBtn, false);
+        toggleBtn.title = 'Network Pulse Chamber: Open';
+        toggleBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            openNetworkPulseChamber();
+        });
+        return;
+    }
 
     function updateVis(isVisible) {
         sections.forEach(s => s.style.display = isVisible ? '' : 'none');
@@ -4200,6 +4226,8 @@ function initDeepLinkAffordances() {
 
     function makeUrl(hash) {
         const prettyRoutes = {
+            '#pulse': '/pulse/',
+            '#network-pulse': '/pulse/',
             '#chamber': '/chamber/',
             '#health': '/health/',
             '#tezosx': '/tezosx/',
@@ -4361,6 +4389,7 @@ function initOfflineIndicator() {
 //   #giants            → show sleeping giants
 //   #history           → open history modal
 //   #chamber           → open Tezos L1 Governance modal
+//   #pulse             -> open Network Pulse Chamber
 //   #tezosx           -> open Tezos X Chamber
 //   #tezlink          -> legacy alias for Tezos X Chamber
 //   #l2chamber         -> open Tezos X Governance Chamber
@@ -4375,6 +4404,7 @@ function initOfflineIndicator() {
 //   #section=consensus → scroll to section
 // Pretty chamber routes:
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
+//   /pulse/            -> open Network Pulse Chamber
 //   /anthology/        → open Protocol History Chamber
 //   /health/           → open Network Health Chamber
 //   /tezosx/           → open Tezos X Chamber
@@ -4388,6 +4418,7 @@ function getPrettyChamberPathRoute() {
     if (!slug || slug.includes('/')) return null;
     const routes = {
         anthology: 'protocol-history',
+        pulse: 'pulse',
         chamber: 'chamber',
         health: 'health',
         tezosx: 'tezosx',
@@ -4555,6 +4586,27 @@ function applyDeepLink() {
         if (!anyHidden) return;
 
         const toggle = document.getElementById('tezos-stats-toggle');
+        if (toggle?.dataset.openChamber === 'network-pulse') {
+            localStorage.setItem(STATS_VISIBLE_KEY, 'true');
+            sections.forEach((section) => { section.style.display = ''; });
+            toggle.title = 'Network Pulse Chamber: Open';
+            if (!statsDataLoaded) {
+                statsDataLoaded = true;
+                fetchAllStats()
+                    .then(async (newStats) => {
+                        saveStats(newStats);
+                        await updateStats(newStats);
+                        state.lastUpdate = new Date();
+                        updateLastRefreshTime();
+                    })
+                    .catch((error) => {
+                        console.warn('Stats fetch failed for section deep link:', error);
+                        statsDataLoaded = false;
+                    });
+            }
+            refreshNetworkHealth({ force: true });
+            return;
+        }
         if (toggle && localStorage.getItem(STATS_VISIBLE_KEY) !== 'true') {
             toggle.click();
             return;
@@ -4628,6 +4680,7 @@ function applyDeepLink() {
             import('../features/tezlink.js').then((module) => module.closeTezlinkChamber?.()),
             import('../features/etherlink-governance.js').then((module) => module.closeEtherlinkGovernanceChamber?.()),
             import('../features/network-health.js').then((module) => module.closeNetworkHealthChamber?.()),
+            import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
             import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
             import('../features/tz4-adoption.js').then((module) => module.closeTz4AdoptionChamber?.()),
             import('../features/ctez.js').then((module) => module.closeCtezChamber?.()),
@@ -4655,6 +4708,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/chamber.js').then(({ openChamber }) => openChamber()),
                     'Failed to open Tezos L1 Governance'
+                );
+                break;
+            case 'pulse':
+                openHashModal(
+                    () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
+                    'Failed to open Network Pulse Chamber'
                 );
                 break;
             case 'health':
@@ -4764,6 +4823,14 @@ function applyDeepLink() {
     if (params.has('chambers') || hash === 'chambers') {
         ensureChambersVisible();
         setTimeout(() => scrollToElementAfterLayout(() => document.getElementById('chambers-section'), { block: 'start' }), 200);
+    }
+
+    // #pulse / #network-pulse
+    if (params.has('pulse') || hash === 'pulse' || params.has('network-pulse') || hash === 'network-pulse') {
+        openHashModal(
+            () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
+            'Failed to open Network Pulse Chamber'
+        );
     }
 
     // #hot-today / #hot-today=category

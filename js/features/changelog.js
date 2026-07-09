@@ -7,13 +7,25 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '🔧', text: 'Generated route, sitemap, OG, governance, compare, and CSS surfaces now refresh through one commit/scheduled automation path' },
             { type: '🎨', text: 'Aurora live-number updates now use a longer quiet surface bloom instead of the classic blur-focus reveal' },
             { type: '🔧', text: 'The finality pill now stays still when a live refresh recalculates the same visible value' },
         ]
     },
     {
+        date: '2026-07-08',
+        entries: [
+            { type: '✨', text: 'Network Pulse now includes sourced Market, health, governance, Tezos X, staking, Liquidity Baking, and sleeping-giant cards with source ages and history charts' },
+            { type: '🎨', text: 'Network Pulse launcher is now a denser ten-cell chamber strip with cached 24h movers, seven-day mini sparklines, and direct category jumps' },
+            { type: '🔧', text: 'Network Pulse density polish now keeps the strip collision-free, fills the price cell after the price bar wakes, quiets inactive ballot cards, and labels dollar deltas' },
+            { type: '🔧', text: 'Network Pulse now updates its launcher from the shared stats refresh, keeps stacked history charts from unlocking the page, and wraps mobile category pills inside the viewport' },
+            { type: '✨', text: 'Network Pulse cards now show 24h deltas, seven-day sparklines, history chart buttons, cleaner room links, and route-safe category navigation' },
+        ]
+    },
+    {
         date: '2026-07-07',
         entries: [
+            { type: '✨', text: 'Network Pulse is now a Chamber with categorized live stat cards, adjacent room links, search routing, and a direct /pulse/ page' },
             { type: '🎨', text: 'The header now tucks the current protocol beside the Tezos Systems wordmark and moves the live NFT feed next to uptime' },
             { type: '🔧', text: 'HEN mobile filters now keep the toggle anchored while the filter tray opens below it' },
             { type: '🎨', text: 'The site favicon now uses a chunky Tezos tz monogram that stays readable in light and dark browser tabs' },

@@ -77,6 +77,20 @@ export function loadStats() {
 }
 
 /**
+ * Load the real capture timestamp for cached stats.
+ * @returns {number} Millisecond timestamp, or 0 when unavailable/invalid.
+ */
+export function loadStatsTimestamp() {
+    try {
+        if (localStorage.getItem(STORAGE_KEYS.statsVersion) !== STATS_CACHE_VERSION) return 0;
+        const timestamp = Number(localStorage.getItem(STORAGE_KEYS.timestamp));
+        return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
+    } catch {
+        return 0;
+    }
+}
+
+/**
  * Save protocol data to localStorage
  * @param {Array} protocols - Protocol list
  */

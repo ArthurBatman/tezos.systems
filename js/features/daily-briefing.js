@@ -60,7 +60,7 @@ const NETWORK_FEATURE_SITE_MAP_IDS = {
   nft: 'hen',
   cycle: 'health',
   security: 'health',
-  network: 'health',
+  network: 'pulse',
   domains: 'domains',
   lb: 'liquidity-baking',
   tz4: 'tz4',
@@ -82,7 +82,7 @@ const NETWORK_FEATURE_FALLBACK_ROUTES = {
   ecosystem: '#section=ecosystem',
   cycle: '#health',
   security: '#health',
-  network: '#health'
+  network: '#pulse'
 };
 
 const NETWORK_FEATURE_FALLBACK_LABELS = {
@@ -106,7 +106,7 @@ const NETWORK_FEATURE_FALLBACK_LABELS = {
   moment: 'Open live Tezos pulse',
   cycle: 'Open live cycle health',
   security: 'Open Network Health',
-  network: 'Open Network Health'
+  network: 'Open Network Pulse'
 };
 
 let lastStats = null;

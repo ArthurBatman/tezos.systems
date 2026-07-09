@@ -42,13 +42,14 @@ const LB_EMA_DISABLE_THRESHOLD = 1_000_000_000;
 const LB_EMA_DENOMINATOR = 2_000_000_000;
 const GOVERNANCE_SNAPSHOT_TTL = 60 * 1000;
 const historicalDataCache = new Map();
-const DOMAIN_HISTORY_TABLES = {
+const reportedHistoryFetchFailures = new Set();
+export const DOMAIN_HISTORY_TABLES = {
     market: 'market_history',
     networkHealth: 'network_health_history',
     tezosx: 'tezosx_history',
     governance: 'governance_period_history'
 };
-const HISTORY_FRESHNESS_LIMITS = {
+export const HISTORY_FRESHNESS_LIMITS = {
     tezos_history: 3 * 60 * 60 * 1000,
     market_history: 90 * 60 * 1000,
     network_health_history: 90 * 60 * 1000,
@@ -682,6 +683,8 @@ async function fetchStakingRatio() {
             return {
                 stakingRatio: 0,
                 delegatedRatio: 0,
+                totalStaked: 0,
+                totalDelegated: 0,
                 bakingPower: 0,
                 totalDelegators: 0,
                 totalStakers: 0,
@@ -705,6 +708,8 @@ async function fetchStakingRatio() {
         return {
             stakingRatio,
             delegatedRatio,
+            totalStaked: totalStaked / 1e6,
+            totalDelegated: totalDelegated / 1e6,
             bakingPower: (stats.totalBakingPower || 0) / 1e6,
             totalDelegators,
             totalStakers,
@@ -715,6 +720,8 @@ async function fetchStakingRatio() {
         return {
             stakingRatio: 0,
             delegatedRatio: 0,
+            totalStaked: 0,
+            totalDelegated: 0,
             bakingPower: 0,
             totalDelegators: 0,
             totalStakers: 0,
@@ -935,6 +942,8 @@ export async function fetchAllStats() {
             lbEmaPct: issuance.status === 'fulfilled' ? issuance.value.lbEmaPct : null,
             stakingRatio: staking.stakingRatio,
             delegatedRatio: staking.delegatedRatio,
+            totalStaked: staking.totalStaked,
+            totalDelegated: staking.totalDelegated,
             bakingPower: staking.bakingPower,
             totalDelegators: staking.totalDelegators,
             totalStakers: staking.totalStakers,
@@ -1130,7 +1139,10 @@ async function fetchSupabaseHistoryRows(table, range = '7d', select = '*') {
         return rows;
     } catch (error) {
         historicalDataCache.delete(cacheKey);
-        console.error(`Failed to fetch ${table}:`, error);
+        if (!reportedHistoryFetchFailures.has(table)) {
+            reportedHistoryFetchFailures.add(table);
+            console.warn(`Supabase history table ${table} unavailable; using empty history rows until the next refresh succeeds.`, error);
+        }
         return [];
     }
 }

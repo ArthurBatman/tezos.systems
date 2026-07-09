@@ -451,6 +451,8 @@ function pushUniqueLine(lines, value) {
 function getChamberShareRoute(card) {
     const hash = card.querySelector(':scope > .card-copy-link')?.dataset?.copyHash || '';
     const routes = {
+        '#pulse': '/pulse/',
+        '#network-pulse': '/pulse/',
         '#chamber': '/chamber/',
         '#health': '/health/',
         '#tezosx': '/tezosx/',

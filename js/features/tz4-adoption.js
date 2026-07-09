@@ -25,6 +25,7 @@ let _tz4ActiveFilter = 'all';
 let _tz4ShowAllBakers = false;
 let _tz4ModalTimer = null;
 let _tz4ModalRefreshInFlight = false;
+let _entryResizeWired = false;
 
 function formatCount(value) {
     return Number(value || 0).toLocaleString('en-US');
@@ -384,6 +385,7 @@ function renderTz4EntryPreview(data) {
 
     card.classList.add('chamber-entry-wide');
     card.classList.toggle('tz4-entry-pending', data.pendingCount > 0);
+    syncTz4EntryCardHeight(card);
     card.dataset.tz4EntrySize = 'wide';
     card.dataset.tz4Pending = String(data.pendingCount || 0);
     const latest = (data.latestSwitches || []).slice(0, ENTRY_PREVIEW_SWITCH_LIMIT);
@@ -409,6 +411,21 @@ function renderTz4EntryPreview(data) {
             ${hiddenPending ? `<div class="tz4-entry-preview-more">+${formatCount(hiddenPending)} more pending</div>` : ''}
         </div>
     `;
+}
+
+function syncTz4EntryCardHeight(card = document.querySelector('.stat-card[data-stat="tz4-adoption"]')) {
+    if (!card) return;
+    const needsTabletHeight = Boolean(
+        card.classList.contains('chamber-entry-wide') &&
+        window.matchMedia?.('(min-width: 760px) and (max-width: 1040px)').matches
+    );
+    card.style.height = needsTabletHeight ? '306px' : '';
+}
+
+function wireTz4EntryResize() {
+    if (_entryResizeWired) return;
+    _entryResizeWired = true;
+    window.addEventListener('resize', () => syncTz4EntryCardHeight(), { passive: true });
 }
 
 function renderAdoptionBar(data) {
@@ -986,6 +1003,8 @@ function wireTz4AdoptionTile() {
     if (!card || card.dataset.tz4ChamberWired) return;
     card.dataset.tz4ChamberWired = '1';
     card.classList.add('chamber-entry-card', 'tz4-entry-card');
+    syncTz4EntryCardHeight(card);
+    wireTz4EntryResize();
     card.style.cursor = 'pointer';
     card.title = 'Open tz4 Adoption Chamber';
     card.setAttribute('role', 'button');
