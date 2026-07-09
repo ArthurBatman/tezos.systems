@@ -5,15 +5,15 @@
  *   • tweenNumber  — odometer / count-up on a raw numeric value (formatter applied per frame)
  *   • scrambleText — glyph-decode reveal for strings (proposal names, headlines)
  *   • focusReveal  — understated blur-to-sharp reveal (classic themes)
- *   • revealValue  — theme-aware dispatch: picks scramble vs focus per personality
+ *   • revealValue  — theme-aware dispatch: picks scramble/focus/bloom per personality
  *   • pulseFresh   — one-shot accent shimmer sweep signalling "this value just updated"
  *   • blockTick    — mechanical up-tick for the block-height number (the chain's heartbeat)
  *   • initDataMagic — themechange tracking + the ambient loop (sparse idle re-decodes)
  *
  * Every theme carries an effect personality: bombastic themes (matrix, nerv,
  * warzone…) decode through theme-flavoured glyph sets with flair classes;
- * classic themes (default, dark, clean) and aurora get a quiet blur-focus
- * reveal instead — no glyph noise, still alive.
+ * classic themes (default, dark, clean) get a quiet blur-focus reveal, while
+ * aurora gets a quiet surface bloom across freshly updated values.
  *
  * All effects honour prefers-reduced-motion (fall back to an instant set) and pause
  * while the tab is hidden.
@@ -43,9 +43,9 @@ const MAGIC_NUMBER_RE = new RegExp(
 
 /**
  * Effect personality per theme.
- *   mode     'scramble' (glyph decode) | 'focus' (blur-to-sharp)
+ *   mode     'scramble' (glyph decode) | 'focus' (blur-to-sharp) | 'bloom'
  *   glyphs   scramble alphabet — the theme's texture
- *   scrambleMs / tweenMs / focusMs — pacing (bombastic = slower, savoured)
+ *   scrambleMs / tweenMs / focusMs / bloomMs — pacing (bombastic = slower, savoured)
  *   flair    CSS class applied to the element while revealing (extra character)
  */
 const THEME_PERSONALITIES = {
@@ -60,8 +60,8 @@ const THEME_PERSONALITIES = {
     moss:      { mode: 'scramble', glyphs: '·:⁚⁘*ᵕꞏ', scrambleMs: 800, tweenMs: 1000 },
     bubblegum: { mode: 'scramble', glyphs: '○●◐◑◌♡', scrambleMs: 650, tweenMs: 900, flair: 'dm-pop' },
     void:      { mode: 'focus', focusMs: 900, tweenMs: 1000 },
-    // ── Understated (classic + aurora) — no glyph noise, quiet confidence ──
-    aurora:    { mode: 'focus', focusMs: 650, tweenMs: 900 },
+    // ── Understated — no heavy glyph noise, quiet confidence ──
+    aurora:    { mode: 'bloom', bloomMs: 1040, tweenMs: 850 },
     default:   { mode: 'focus', focusMs: 450, tweenMs: 750 },
     dark:      { mode: 'focus', focusMs: 450, tweenMs: 750 },
     clean:     { mode: 'focus', focusMs: 400, tweenMs: 700 }
@@ -108,6 +108,7 @@ function cancelMagic(el) {
     }
     if (el.__dmTweenCancel) el.__dmTweenCancel();
     if (el.__dmScrambleCancel) el.__dmScrambleCancel();
+    if (el.__dmBloomCancel) el.__dmBloomCancel();
 }
 
 function applyFlair(el, personality) {
@@ -283,11 +284,69 @@ export function focusReveal(el, finalText, opts = {}) {
     };
 }
 
+function bloomSurfaceFor(el) {
+    return el?.closest?.([
+        '.top-continuity-stat',
+        '.card-inner',
+        '[data-stat]',
+        '.chamber-entry-metric',
+        '.chamber-now-card',
+        '.lb-metric-card',
+        '.lb-metric-grid',
+        '.tezlink-entry-metric',
+        '.td-entry-metric',
+        '.td-pulse-metric',
+        '.ctez-console-metric',
+        '.ctez-summary-strip',
+        '.ledger-flow-detail-metrics'
+    ].join(', ')) || el;
+}
+
+/**
+ * Quiet Bloom: write the final value immediately, then pulse the nearest
+ * metric surface. Aurora uses this so the update is visible without moving or
+ * distorting the text itself.
+ */
+export function bloomReveal(el, finalText, opts = {}) {
+    if (!el) return () => {};
+    const text = finalText == null ? '' : String(finalText);
+    const defaultDuration = getPersonality().bloomMs ?? FOCUS_DEFAULT_MS;
+    const duration = Math.min(opts.duration ?? defaultDuration, defaultDuration);
+
+    dmWrite(el, text);
+    if (prefersReducedMotion() || isHidden() || duration <= 0 || !text) {
+        opts.onDone?.();
+        return () => {};
+    }
+
+    injectStyles();
+    const surface = bloomSurfaceFor(el);
+    let done = false;
+    const finish = (callDone = false) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        surface?.classList.remove('dm-bloom-pop');
+        el.__dmBloomCancel = null;
+        if (callDone) opts.onDone?.();
+    };
+
+    surface.style.setProperty('--dm-bloom-ms', duration + 'ms');
+    surface.classList.remove('dm-bloom-pop');
+    void surface.offsetWidth;
+    surface.classList.add('dm-bloom-pop');
+    const timer = setTimeout(() => finish(true), duration + 80);
+    el.__dmBloomCancel = () => finish(false);
+    return () => finish(false);
+}
+
 /**
  * Theme-aware text reveal: scramble on bombastic themes, blur-focus on
- * understated ones. The one entry point callers should reach for.
+ * classic themes, and Quiet Bloom on Aurora. The one entry point callers should
+ * reach for.
  */
 export function revealValue(el, finalText, opts = {}) {
+    if (getPersonality().mode === 'bloom') return bloomReveal(el, finalText, opts);
     return getPersonality().mode === 'focus'
         ? focusReveal(el, finalText, opts)
         : scrambleText(el, finalText, opts);
@@ -717,8 +776,14 @@ export function injectStyles() {
         // Flair: settle pop (bubblegum)
         '.dm-pop{animation:dmPop 0.5s cubic-bezier(0.34,1.56,0.64,1)}',
         '@keyframes dmPop{0%{transform:scale(0.96)}60%{transform:scale(1.04)}100%{transform:scale(1)}}',
+        // Quiet Bloom (aurora)
+        '.dm-bloom-pop{animation:dmBloomPop var(--dm-bloom-ms,1040ms) cubic-bezier(0.22,1,0.36,1)}',
+        '@keyframes dmBloomPop{0%{filter:brightness(1);box-shadow:0 0 0 rgba(69,224,200,0),inset 0 0 0 rgba(159,255,214,0)}' +
+            '32%{filter:brightness(1.1) saturate(1.06);box-shadow:0 0 18px rgba(69,224,200,0.2),inset 0 0 0 1px rgba(159,255,214,0.28)}' +
+            '66%{filter:brightness(1.08) saturate(1.04);box-shadow:0 0 14px rgba(69,224,200,0.16),inset 0 0 0 1px rgba(159,255,214,0.2)}' +
+            '100%{filter:brightness(1);box-shadow:0 0 0 rgba(69,224,200,0),inset 0 0 0 rgba(159,255,214,0)}}',
         // Honour reduced motion globally for this layer
-        '@media (prefers-reduced-motion: reduce){.dm-fresh::after,.dm-block-tick,.dm-focus-in,.dm-crt,.dm-flicker,.dm-jitter,.dm-pop{animation:none!important}}',
+        '@media (prefers-reduced-motion: reduce){.dm-fresh::after,.dm-block-tick,.dm-focus-in,.dm-crt,.dm-flicker,.dm-jitter,.dm-pop,.dm-bloom-pop{animation:none!important}}',
     ].join('\n');
     (document.head || document.documentElement).appendChild(s);
     stylesInjected = true;

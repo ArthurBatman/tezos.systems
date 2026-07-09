@@ -5,6 +5,13 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-09',
+        entries: [
+            { type: '🎨', text: 'Aurora live-number updates now use a longer quiet surface bloom instead of the classic blur-focus reveal' },
+            { type: '🔧', text: 'The finality pill now stays still when a live refresh recalculates the same visible value' },
+        ]
+    },
+    {
         date: '2026-07-07',
         entries: [
             { type: '🎨', text: 'The header now tucks the current protocol beside the Tezos Systems wordmark and moves the live NFT feed next to uptime' },

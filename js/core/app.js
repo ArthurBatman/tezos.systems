@@ -2649,8 +2649,9 @@ function initUptimeClock() {
                     const avgBlockTime = (last - first) / (recentBlockTimes.length - 1);
                     const finality = Math.round((avgBlockTime * 2) / 1000);
                     const finalityText = `${finality}s`;
+                    const finalityChanged = chainFinalityText !== finalityText;
                     chainFinalityText = finalityText;
-                    const liveFinalityOptions = { changed: true, animateInitial: true };
+                    const liveFinalityOptions = { changed: finalityChanged, animateInitial: true };
                     if (finalityEl) setMagicNumber(finalityEl, finalityText, liveFinalityOptions);
                     setChainText('chain-uptime-finality', finalityText, liveFinalityOptions);
                 }
