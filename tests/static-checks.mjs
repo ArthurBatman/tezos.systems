@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CHAMBER_ROUTES, routeUrl } from '../scripts/lib/chamber-routes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -150,9 +151,11 @@ async function checkRequiredFiles() {
     'js/features/search.js',
     'js/landing/site-nav.js',
     'sw.js',
+    'og-image.png',
     'version.json',
     'widgets/runtime.js',
     'feed.xml',
+    'scripts/refresh-generated-surfaces.mjs',
     'data/governance-votes.json',
     'data/governance-refresh-report.json',
     'data/protocol-data.json',
@@ -383,6 +386,12 @@ async function checkCacheBustAlignment() {
     pass('service worker handles version.json freshness');
   }
 
+  if (!index.includes('<meta property="og:image:width" content="1200">') || !index.includes('<meta property="og:image:height" content="630">')) {
+    fail('index.html root OG image metadata must match generated og-image.png at 1200x630');
+  } else {
+    pass('root OG image dimensions match generator output');
+  }
+
   if (!app.includes("fetch('/version.json'")) {
     fail('app.js must fetch /version.json from the site root so clean route pages do not request nested version metadata');
   } else {
@@ -439,21 +448,16 @@ async function checkSitemapCoverage() {
   const locs = new Set(Array.from(sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)).map((match) => match[1]));
   const expected = [
     'https://tezos.systems/',
-    'https://tezos.systems/anthology/',
     'https://tezos.systems/staking/',
     'https://tezos.systems/governance/',
-    'https://tezos.systems/chamber/',
-    'https://tezos.systems/pulse/',
-    'https://tezos.systems/health/',
-    'https://tezos.systems/tezosx/',
-    'https://tezos.systems/l2chamber/',
-    'https://tezos.systems/tz4/',
-    'https://tezos.systems/lb/',
-    'https://tezos.systems/ctez/',
     'https://tezos.systems/bakers/',
     'https://tezos.systems/hen/',
     'https://tezos.systems/compare/'
   ];
+  for (const route of CHAMBER_ROUTES) {
+    if (String(route.robots || '').includes('noindex')) continue;
+    expected.push(routeUrl(route));
+  }
 
   for (const file of await walk('compare', (name) => name.endsWith('.html'))) {
     expected.push(file.endsWith('/index.html')
@@ -1851,6 +1855,9 @@ async function checkPortableTooling() {
     'install-hooks': 'git config core.hooksPath .githooks',
     'guard:readme': 'node scripts/guard-readme-sync.mjs',
     'check:readme': 'node tests/static-checks.mjs --readme-only',
+    'refresh:generated': 'node scripts/refresh-generated-surfaces.mjs --all',
+    'refresh:generated:commit': 'node scripts/refresh-generated-surfaces.mjs --mode precommit',
+    'refresh:generated:scheduled': 'node scripts/refresh-generated-surfaces.mjs --mode scheduled',
     test: 'npm run test:static && npm run test:smoke',
     'test:static': 'node tests/static-checks.mjs',
     'test:smoke': 'node tests/smoke.mjs',
@@ -1874,11 +1881,24 @@ async function checkPortableTooling() {
   if (!(await pathExists('scripts/guard-readme-sync.mjs'))) {
     fail('scripts/guard-readme-sync.mjs must exist for the README pre-commit guard');
   }
-  if (!hook.includes('refresh-governance-data.mjs') || !hook.includes('stamp-version.sh')) {
-    fail('.githooks/pre-commit must refresh governance data and stamp version metadata');
+  if (!(await pathExists('scripts/refresh-generated-surfaces.mjs'))) {
+    fail('scripts/refresh-generated-surfaces.mjs must exist for generated-surface refreshes');
+  }
+  if (!hook.includes('refresh-generated-surfaces.mjs') || !hook.includes('stamp-version.sh')) {
+    fail('.githooks/pre-commit must refresh generated surfaces and stamp version metadata');
   }
   if (!hook.includes('guard-readme-sync.mjs') || !hook.includes('static-checks.mjs') || !hook.includes('--readme-only')) {
     fail('.githooks/pre-commit must guard README sync and run focused README contract checks');
+  }
+  const generatedRefresh = await readText('scripts/refresh-generated-surfaces.mjs');
+  for (const expected of ['refresh-governance-data.mjs', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
+    if (!generatedRefresh.includes(expected)) {
+      fail(`scripts/refresh-generated-surfaces.mjs must coordinate ${expected}`);
+    }
+  }
+  const rootOgGenerator = await readText('scripts/generate-og-image.js');
+  if (rootOgGenerator.includes('Math.random')) {
+    fail('scripts/generate-og-image.js must be deterministic when commit hooks regenerate og-image.png');
   }
 
   if (!(await pathExists('scripts/lib/playwright-browser.cjs'))) {
@@ -2106,6 +2126,7 @@ async function checkReadmeContracts() {
     'npm run serve',
     'http://localhost:9000',
     'npm run build:css',
+    'npm run refresh:generated',
     'npm run routes:chambers',
     'npm run og:chambers',
     'npm run bake:compare',

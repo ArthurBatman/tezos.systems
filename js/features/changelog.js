@@ -7,7 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
-            { type: '🔧', text: 'Generated route, sitemap, OG, governance, compare, and CSS surfaces now refresh through one commit/scheduled automation path' },
+            { type: '🔧', text: 'Generated route, sitemap, root OG, chamber OG, governance, compare, and CSS surfaces now refresh through one commit/scheduled automation path' },
             { type: '🎨', text: 'Aurora live-number updates now use a longer quiet surface bloom instead of the classic blur-focus reveal' },
             { type: '🔧', text: 'The finality pill now stays still when a live refresh recalculates the same visible value' },
         ]

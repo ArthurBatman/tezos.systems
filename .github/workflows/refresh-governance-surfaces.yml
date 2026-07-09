@@ -28,19 +28,14 @@ jobs:
         run: npm ci
 
       - name: Refresh generated governance and distribution surfaces
-        run: |
-          npm run refresh:governance
-          npm run routes:chambers
-          npm run og:chambers
-          npm run bake:compare
-          npm run build:css
+        run: npm run refresh:generated:scheduled
 
       - name: Validate generated surfaces
         run: npm run test:static
 
       - name: Commit changes when generated surfaces changed
         run: |
-          if git diff --quiet -- data/governance-votes.json data/governance-refresh-report.json feed.xml chamber health tezlink l2chamber tz4 lb og compare css/styles.min.css css/themes; then
+          if git diff --quiet; then
             echo "No generated surface changes"
             exit 0
           fi
@@ -48,6 +43,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           ./scripts/stamp-version.sh
-          git add data/governance-votes.json data/governance-refresh-report.json feed.xml chamber health tezlink l2chamber tz4 lb og compare css/styles.min.css css/themes version.json
+          git add -- $(node scripts/refresh-generated-surfaces.mjs --print-targets) version.json
           git commit -m "Refresh governance distribution surfaces"
           git push

@@ -24,6 +24,10 @@ the highest-risk gotchas.
   - bump the service worker cache name in `sw.js`
   - update `version.json` or run the stamp script if appropriate
   - update any explicit asset query params if they exist
+- Generated distribution surfaces can be refreshed together with
+  `npm run refresh:generated`. The pre-commit hook runs the same orchestrator in
+  commit mode, stages generated governance/feed and root OG output, and refreshes
+  other generated outputs when their source files are already staged.
 - `index.html` currently serves `css/styles.min.css`, not `css/styles.css`.
   Edit `styles.css` first, then regenerate/minify `styles.min.css`.
 - Playwright callers should use `scripts/lib/playwright-browser.cjs`. It tries
@@ -108,7 +112,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v238`
+- Service worker cache name: `tezos-systems-v372`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -175,8 +179,9 @@ Frontend rendering:
 Hook installation caveat:
 
 - The repo now contains a tracked `.githooks/pre-commit` wrapper that runs the
-  README sync guard, refreshes governance artifacts, runs focused README
-  contract checks, then runs `scripts/stamp-version.sh`.
+  README sync guard, refreshes commit-relevant generated surfaces through
+  `scripts/refresh-generated-surfaces.mjs`, runs focused README contract checks,
+  then runs `scripts/stamp-version.sh`.
 - This checkout has `core.hooksPath` set to `.githooks`, so the hook is active
   locally.
 - Git hooks are local and do not travel with the repo.
@@ -295,6 +300,11 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   point. It updates generated governance vote artifacts from TzKT and fails when
   an accepted/current protocol is missing curated lore in
   `data/protocol-data.json`.
+- `scripts/refresh-generated-surfaces.mjs`: generated-surface orchestrator.
+  Commit mode refreshes governance/feed and root OG on every normal commit, plus
+  staged-source outputs for CSS bundles, pretty chamber route shells, sitemap,
+  chamber OG images, and compare pages; scheduled/manual mode refreshes the full
+  generated set.
 - `scripts/update-governance-votes.mjs`: compatibility wrapper around
   `scripts/refresh-governance-data.mjs`.
 - `scripts/stamp-version.sh`: updates `version.json` and stages it.
@@ -309,8 +319,9 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   governance/protocol data. It refreshes `data/governance-votes.json` and
   `data/governance-refresh-report.json`.
 - The tracked `.githooks/pre-commit` runs
-  `scripts/refresh-governance-data.mjs --stage` before version stamping, so
-  generated governance artifacts are refreshed on every normal commit.
+  `scripts/refresh-generated-surfaces.mjs --mode precommit --stage` before
+  version stamping, so generated governance/feed artifacts and other
+  source-relevant generated outputs are refreshed on every normal commit.
 - `npm run update:governance-votes` remains as an alias for older instructions,
   but new work should name `refresh:governance`.
 - If Exploration or Promotion fails, the generated vote history should pick it

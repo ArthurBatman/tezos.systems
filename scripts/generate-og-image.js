@@ -41,11 +41,32 @@ async function fetchStats() {
     return { bakers, tz4Bakers, tz4Pct, stakingRatio, supply: supplyB, protocolName };
 }
 
-function generateMatrixChars() {
+function hashSeed(value) {
+    let seed = 2166136261;
+    for (let i = 0; i < value.length; i++) {
+        seed ^= value.charCodeAt(i);
+        seed = Math.imul(seed, 16777619);
+    }
+    return seed >>> 0;
+}
+
+function seededRandom(seed) {
+    let state = seed >>> 0;
+    return () => {
+        state = Math.imul(state + 0x6D2B79F5, 1);
+        let t = state;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function generateMatrixChars(stats) {
     const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
+    const random = seededRandom(hashSeed(JSON.stringify(stats)));
     let result = '';
     for (let i = 0; i < 3000; i++) {
-        result += chars[Math.floor(Math.random() * chars.length)];
+        result += chars[Math.floor(random() * chars.length)];
     }
     return result;
 }
@@ -143,7 +164,7 @@ function buildHTML(stats) {
 </style>
 </head>
 <body>
-  <div class="bg-chars">${generateMatrixChars()}</div>
+  <div class="bg-chars">${generateMatrixChars(stats)}</div>
   <div class="content">
     <div class="header">
       <div>

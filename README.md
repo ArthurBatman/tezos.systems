@@ -79,6 +79,7 @@ tezos.systems/
 │   └── smoke.mjs                      # Playwright browser smoke suites
 ├── scripts/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
+│   ├── refresh-generated-surfaces.mjs  # Commit/scheduled generated-surface orchestrator
 │   ├── generate-chamber-routes.mjs    # Pretty Chamber route generator
 │   ├── generate-chamber-og-images.mjs # Per-Chamber OG image generator
 │   ├── bake-compare-pages.mjs         # Static compare-page content baker
@@ -447,12 +448,13 @@ do not bypass the visitor-side request budget. The core API helper also honors
 TzKT `429` Retry-After responses and shares the current governance-period
 snapshot across dashboard consumers.
 
-Governance distribution surfaces are generated from the same refresh path:
-`npm run refresh:governance` updates vote/report/feed artifacts, while
-`npm run routes:chambers`, `npm run og:chambers`, and `npm run bake:compare`
-refresh pretty route pages, per-Chamber share images, and crawlable compare
-content. `.github/workflows/refresh-governance-surfaces.yml` runs those on a
-schedule and commits only when generated outputs change.
+Generated distribution surfaces now have one orchestration path:
+`npm run refresh:generated` refreshes governance vote/report/feed artifacts,
+pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
+crawlable compare content, and generated CSS bundles. The pre-commit hook runs
+the same orchestrator in commit mode so fast-moving generated outputs update
+with each normal commit. `.github/workflows/refresh-governance-surfaces.yml`
+runs the full scheduled mode and commits only when generated outputs change.
 
 The Supabase anon key in `js/core/config.js` is public client configuration, not
 a secret. Browser fetch domains must be allowed by the CSP in `index.html`.
@@ -509,6 +511,7 @@ Common commands:
 
 ```bash
 npm run build:css
+npm run refresh:generated
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare
@@ -594,8 +597,8 @@ metadata:
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
-- The pre-commit hook runs the README guard, refreshes governance artifacts,
-  runs focused README contract checks, then stamps version metadata.
+- The pre-commit hook runs the README guard, refreshes commit-relevant generated
+  surfaces, runs focused README contract checks, then stamps version metadata.
 
 New clones must run `npm run install-hooks` once so `core.hooksPath` points at
 `.githooks`. Using `git commit --no-verify` skips the refresh/stamp hook and can
@@ -619,6 +622,7 @@ It updates:
 
 - `data/governance-votes.json`
 - `data/governance-refresh-report.json`
+- `feed.xml`
 
 The refresh report blocks when an accepted/current protocol is missing curated
 lore in `data/protocol-data.json`. Accepted protocol entries should keep
@@ -667,8 +671,8 @@ site-owner language and heartbeat affordance from the dashboard polish pass.
 ## SEO And Analytics
 
 - `robots.txt` allows major AI crawlers and points at `sitemap.xml`.
-- `sitemap.xml` includes the canonical site, Protocol Anthology, SEO pages,
-  compare pages, and widget endpoints.
+- `sitemap.xml` is generated from the Chamber route manifest plus SEO, compare,
+  and widget endpoints by `scripts/refresh-generated-surfaces.mjs`.
 - `index.html` includes CSP, Open Graph/Twitter metadata, and JSON-LD.
 - `.well-known/ai-plugin.json` describes the current live/historical data model
   using the canonical September 17, 2018 mainnet date and avoids stale
