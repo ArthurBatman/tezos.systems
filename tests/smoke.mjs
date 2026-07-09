@@ -4965,18 +4965,26 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.waitForFunction(() => window.location.pathname === '/maxis/' && window.location.hash === '', null, { timeout: 7000 });
   await page.locator('#maxis-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#maxis-modal.active .maxis-content').waitFor({ state: 'visible', timeout: 15000 });
-  await page.waitForFunction(() => document.querySelectorAll('#maxis-modal .maxis-card').length === 9, null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelectorAll('#maxis-modal .maxis-rank-row').length === 45, null, { timeout: 10000 });
 
   const state = await page.evaluate(() => {
     const modal = document.querySelector('#maxis-modal');
     const ready = Array.from(modal?.querySelectorAll('.maxis-card:not(.maxis-card-empty)') || []);
-    const ledgerLinks = ready.map((card) => card.querySelector('.maxis-ledger-action')?.getAttribute('href') || '');
+    const rankedRows = Array.from(modal?.querySelectorAll('.maxis-rank-row') || []);
+    const ledgerLinks = rankedRows.map((row) => row.querySelector('.maxis-ledger-action')?.getAttribute('href') || '');
     const entry = document.querySelector('#maxis-entry-card');
     const unicorn = modal?.querySelector('.maxis-card[data-maxi-category="unicorn"]');
+    const categoryCounts = Object.fromEntries(Array.from(modal?.querySelectorAll('.maxis-card[data-maxi-category]') || []).map((card) => [
+      card.dataset.maxiCategory,
+      card.querySelectorAll('.maxis-rank-row').length
+    ]));
     return {
       title: modal?.querySelector('#maxis-title')?.textContent?.trim() || '',
       cardCount: modal?.querySelectorAll('.maxis-card').length || 0,
       readyCount: ready.length,
+      rankedCount: rankedRows.length,
+      categoryCounts,
+      rankSequences: Array.from(modal?.querySelectorAll('.maxis-ranking-list') || []).map((list) => Array.from(list.querySelectorAll('[data-maxi-rank]')).map((row) => Number(row.dataset.maxiRank))),
       ledgerLinks,
       sourceLinks: modal?.querySelectorAll('.maxis-source-action[target="_blank"]').length || 0,
       entryLeaderCount: entry?.querySelectorAll('.maxis-entry-leader').length || 0,
@@ -4988,10 +4996,12 @@ async function smokeMaxisChamber(browser, baseUrl) {
     };
   });
   assert(state.title === 'Tezos Maxis', `tezos maxis chamber: title mismatch ${state.title}`);
-  assert(state.cardCount === 9 && state.readyCount === 9, `tezos maxis chamber: expected nine ready leaders ${JSON.stringify(state)}`);
+  assert(state.cardCount === 9 && state.readyCount === 9, `tezos maxis chamber: expected nine ready leaderboards ${JSON.stringify(state)}`);
+  assert(state.rankedCount === 45 && Object.values(state.categoryCounts).every((count) => count === 5), `tezos maxis chamber: every category must show top five ${JSON.stringify(state.categoryCounts)}`);
+  assert(state.rankSequences.every((ranks) => ranks.join(',') === '1,2,3,4,5'), `tezos maxis chamber: visible rank sequences are invalid ${JSON.stringify(state.rankSequences)}`);
   assert(state.entryLeaderCount === 9, `tezos maxis chamber: entry card must preview every category ${state.entryLeaderCount}`);
-  assert(state.ledgerLinks.length === state.readyCount && state.ledgerLinks.every((href) => /^\/#ledger-flow=tz/.test(href)), `tezos maxis chamber: address-scoped Ledger Flow links missing ${JSON.stringify(state.ledgerLinks)}`);
-  assert(state.sourceLinks === state.readyCount, `tezos maxis chamber: source links missing ${state.sourceLinks}/${state.readyCount}`);
+  assert(state.ledgerLinks.length === state.rankedCount && state.ledgerLinks.every((href) => /^\/#ledger-flow=tz/.test(href)), `tezos maxis chamber: address-scoped Ledger Flow links missing ${JSON.stringify(state.ledgerLinks)}`);
+  assert(state.sourceLinks === state.rankedCount, `tezos maxis chamber: source links missing ${state.sourceLinks}/${state.rankedCount}`);
   assert(/lanes crossed/i.test(state.unicornText), `tezos maxis chamber: Unicorn breadth missing ${state.unicornText}`);
   assert(/Unknown or unlabeled contracts/i.test(state.methodology), `tezos maxis chamber: coverage caveat missing ${state.methodology}`);
   assert(state.directHref === '/maxis/' && state.bodyOverflow === 'hidden', `tezos maxis chamber: route or scroll lock mismatch ${JSON.stringify(state)}`);
@@ -7770,7 +7780,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
     { name: 'network-health', description: 'Network Health card opens #health chamber with block cadence, missed rights, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
-    { name: 'maxis', description: 'Tezos Maxis opens /maxis/ with nine declared leaders and address-scoped Ledger Flow trails', run: () => smokeMaxisChamber(browser, baseUrl) },
+    { name: 'maxis', description: 'Tezos Maxis opens /maxis/ with nine top-five leaderboards and address-scoped Ledger Flow trails', run: () => smokeMaxisChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },

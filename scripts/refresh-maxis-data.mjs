@@ -24,6 +24,7 @@ const PAGE_SIZE = 1000;
 const TZKT_PAGE_SIZE = 10000;
 const MAX_PAGES = 60;
 const CONTRACT_BATCH = 40;
+const RANKING_LIMIT = 5;
 const EXPECTED_CATEGORIES = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'staking', 'unicorn'];
 
 function chunks(values, size) {
@@ -46,12 +47,31 @@ async function readJson(file) {
 
 function validateSnapshot(snapshot) {
   const errors = [];
-  if (Number(snapshot?.schema) !== 1) errors.push('snapshot schema must be 1');
+  if (Number(snapshot?.schema) !== 2) errors.push('snapshot schema must be 2');
   if (!Number.isFinite(Date.parse(snapshot?.generatedAt || ''))) errors.push('snapshot generatedAt must be an ISO timestamp');
   if (!Array.isArray(snapshot?.leaders)) errors.push('snapshot leaders must be an array');
+  if (!snapshot?.rankings || typeof snapshot.rankings !== 'object') errors.push('snapshot rankings must be an object');
+  if (Number(snapshot?.rankingLimit) !== RANKING_LIMIT) errors.push(`snapshot rankingLimit must be ${RANKING_LIMIT}`);
   const categories = new Set((snapshot?.leaders || []).map((leader) => leader.category));
   for (const category of EXPECTED_CATEGORIES) {
     if (!categories.has(category)) errors.push(`snapshot missing ${category}`);
+    const ranking = snapshot?.rankings?.[category];
+    if (!Array.isArray(ranking)) {
+      errors.push(`snapshot missing ${category} ranking`);
+      continue;
+    }
+    if (ranking.length !== RANKING_LIMIT) errors.push(`${category} ranking must contain ${RANKING_LIMIT} accounts`);
+    const addresses = new Set();
+    ranking.forEach((entry, index) => {
+      if (entry?.status !== 'ready') errors.push(`${category} rank ${index + 1} is not ready`);
+      if (Number(entry?.rank) !== index + 1) errors.push(`${category} rank order is invalid`);
+      if (!isImplicitAddress(entry?.address)) errors.push(`${category} rank ${index + 1} has invalid address`);
+      if (!entry?.scoreLabel || !entry?.method || !entry?.sourceUrl) errors.push(`${category} rank ${index + 1} is missing display evidence`);
+      if (addresses.has(entry?.address)) errors.push(`${category} ranking repeats ${entry.address}`);
+      addresses.add(entry?.address);
+    });
+    const leaderAddress = (snapshot?.leaders || []).find((leader) => leader.category === category)?.address;
+    if (ranking[0]?.address && ranking[0].address !== leaderAddress) errors.push(`${category} leader does not match rank 1`);
   }
   for (const leader of snapshot?.leaders || []) {
     if (!['ready', 'empty'].includes(leader?.status)) errors.push(`${leader?.category || 'unknown'} has invalid status`);
@@ -156,12 +176,13 @@ function sourceUrl(category, address) {
     : `https://tzkt.io/${encodeURIComponent(address)}`;
 }
 
-function leader(category, title, row, scoreLabel, context, method, windowKind) {
+function leader(category, title, row, scoreLabel, context, method, windowKind, rank = null) {
   if (!row) return { category, title, status: 'empty', method, windowKind };
   return {
     category,
     title,
     status: 'ready',
+    rank,
     address: row.address,
     alias: row.alias || null,
     score: row.score,
@@ -172,6 +193,13 @@ function leader(category, title, row, scoreLabel, context, method, windowKind) {
     method,
     windowKind
   };
+}
+
+function buildRanking({ category, title, rows, display, method, windowKind }) {
+  return rows.slice(0, RANKING_LIMIT).map((row, index) => {
+    const evidence = display(row);
+    return leader(category, title, row, evidence.scoreLabel, evidence.context || [], method, windowKind, index + 1);
+  });
 }
 
 function appLabels(row, apps) {
@@ -198,59 +226,62 @@ function buildSnapshot({ now, fromIso, config, accounts, delegates, sales, mints
     defi: categoryLookup.defi,
     gaming: categoryLookup.gaming,
     governance
-  }, 3);
+  }, 3, 500);
 
-  const transaction = transactions[0];
-  const collector = collectors[0];
-  const artist = artists[0];
-  const minter = minters[0];
-  const defi = categoryLookup.defi[0];
-  const gaming = categoryLookup.gaming[0];
-  const governanceMaxi = governance[0];
-  const stakingMaxi = staking[0];
-  const unicorn = unicorns[0];
-
-  const leaders = [
-    leader('transaction', 'Transaction Maxi', transaction,
-      transaction ? `${formatInteger(transaction.transactions)} transactions` : '',
-      ['All-time TzKT account counter'],
-      'Highest all-time transaction count among implicit user accounts indexed by TzKT.', 'all-time'),
-    leader('collector', 'Collector Maxi', collector,
-      collector ? `${formatXtz(collector.volume)} collected` : '',
-      ['OBJKT-indexed 30d buyer volume'],
-      'Highest 30-day buyer volume in OBJKT sales statistics; flagged profiles excluded.', 'rolling-30d'),
-    leader('artist', 'Art Maxi', artist,
-      artist ? `${formatXtz(artist.volume)} art volume` : '',
-      ['OBJKT-indexed 30d artist volume'],
-      'Highest 30-day artist volume in OBJKT sales statistics; flagged profiles excluded.', 'rolling-30d'),
-    leader('minter', 'Mint Maxi', minter,
-      minter ? `${formatInteger(minter.tokens)} tokens minted` : '',
-      minter ? [`${formatInteger(minter.mintOperations)} mint operations`, `${formatInteger(minter.editions)} editions`] : [],
-      'Most distinct token mints in OBJKT-indexed, non-reverted mint events during the rolling window.', 'rolling-30d'),
-    leader('defi', 'DeFi Maxi', defi,
-      defi ? `${formatInteger(defi.appCount)} apps · ${formatInteger(defi.calls)} calls` : '',
-      defi ? [appLabels(defi, config.apps), `${formatInteger(defi.contractCount)} recognized contracts`] : [],
-      'Most distinct recognized DeFi apps used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.', 'rolling-30d'),
-    leader('gaming', 'Gaming Maxi', gaming,
-      gaming ? `${formatInteger(gaming.appCount)} games · ${formatInteger(gaming.calls)} calls` : '',
-      gaming ? [appLabels(gaming, config.apps), `${formatInteger(gaming.contractCount)} recognized contracts`] : [],
-      'Most distinct recognized Tezos games used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.', 'rolling-30d'),
-    leader('governance', 'Governance Maxi', governanceMaxi,
-      governanceMaxi ? `${formatInteger(governanceMaxi.governanceActions)} governance actions` : '',
-      governanceMaxi ? [`${formatInteger(governanceMaxi.ballots)} ballots`, `${formatInteger(governanceMaxi.proposals)} proposals`] : [],
-      'Most all-time ballots plus proposals among currently active TzKT delegates.', 'all-time-active'),
-    leader('staking', 'Staking Maxi', stakingMaxi,
-      stakingMaxi ? `${formatXtz(stakingMaxi.stakedBalance)} staked` : '',
-      stakingMaxi ? [`${formatInteger(stakingMaxi.stakers)} stakers`, `${formatXtz(stakingMaxi.bakingPower)} baking power`] : [],
-      'Largest live staked balance among active TzKT delegates.', 'live'),
-    leader('unicorn', 'Tezos Unicorn', unicorn,
-      unicorn ? `${formatInteger(unicorn.breadth)} lanes crossed` : '',
-      unicorn ? [unicorn.categories.map((item) => `${item.category} #${item.rank}`).join(' · ')] : [],
-      'Breadth first across the top 100 Collector, Art, Mint, DeFi, Gaming, and Governance ranks; normalized rank points break ties. Requires three lanes.', 'mixed')
+  const specs = [
+    {
+      category: 'transaction', title: 'Transaction Maxi', rows: transactions,
+      display: (row) => ({ scoreLabel: `${formatInteger(row.transactions)} transactions`, context: ['All-time TzKT account counter'] }),
+      method: 'Highest all-time transaction count among implicit user accounts indexed by TzKT.', windowKind: 'all-time'
+    },
+    {
+      category: 'collector', title: 'Collector Maxi', rows: collectors,
+      display: (row) => ({ scoreLabel: `${formatXtz(row.volume)} collected`, context: ['OBJKT-indexed 30d buyer volume'] }),
+      method: 'Highest 30-day buyer volume in OBJKT sales statistics; flagged profiles excluded.', windowKind: 'rolling-30d'
+    },
+    {
+      category: 'artist', title: 'Art Maxi', rows: artists,
+      display: (row) => ({ scoreLabel: `${formatXtz(row.volume)} art volume`, context: ['OBJKT-indexed 30d artist volume'] }),
+      method: 'Highest 30-day artist volume in OBJKT sales statistics; flagged profiles excluded.', windowKind: 'rolling-30d'
+    },
+    {
+      category: 'minter', title: 'Mint Maxi', rows: minters,
+      display: (row) => ({ scoreLabel: `${formatInteger(row.tokens)} tokens minted`, context: [`${formatInteger(row.mintOperations)} mint operations`, `${formatInteger(row.editions)} editions`] }),
+      method: 'Most distinct token mints in OBJKT-indexed, non-reverted mint events during the rolling window.', windowKind: 'rolling-30d'
+    },
+    {
+      category: 'defi', title: 'DeFi Maxi', rows: categoryLookup.defi,
+      display: (row) => ({ scoreLabel: `${formatInteger(row.appCount)} apps · ${formatInteger(row.calls)} calls`, context: [appLabels(row, config.apps), `${formatInteger(row.contractCount)} recognized contracts`] }),
+      method: 'Most distinct recognized DeFi apps used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.', windowKind: 'rolling-30d'
+    },
+    {
+      category: 'gaming', title: 'Gaming Maxi', rows: categoryLookup.gaming,
+      display: (row) => ({ scoreLabel: `${formatInteger(row.appCount)} games · ${formatInteger(row.calls)} calls`, context: [appLabels(row, config.apps), `${formatInteger(row.contractCount)} recognized contracts`] }),
+      method: 'Most distinct recognized Tezos games used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.', windowKind: 'rolling-30d'
+    },
+    {
+      category: 'governance', title: 'Governance Maxi', rows: governance,
+      display: (row) => ({ scoreLabel: `${formatInteger(row.governanceActions)} governance actions`, context: [`${formatInteger(row.ballots)} ballots`, `${formatInteger(row.proposals)} proposals`] }),
+      method: 'Most all-time ballots plus proposals among currently active TzKT delegates.', windowKind: 'all-time-active'
+    },
+    {
+      category: 'staking', title: 'Staking Maxi', rows: staking,
+      display: (row) => ({ scoreLabel: `${formatXtz(row.stakedBalance)} staked`, context: [`${formatInteger(row.stakers)} stakers`, `${formatXtz(row.bakingPower)} baking power`] }),
+      method: 'Largest live staked balance among active TzKT delegates.', windowKind: 'live'
+    },
+    {
+      category: 'unicorn', title: 'Tezos Unicorn', rows: unicorns,
+      display: (row) => ({ scoreLabel: `${formatInteger(row.breadth)} lanes crossed`, context: [row.categories.map((item) => `${item.category} #${item.rank}`).join(' · ')] }),
+      method: 'Breadth first across the top 500 available Collector, Art, Mint, DeFi, Gaming, and Governance ranks; normalized rank points break ties. Requires three lanes.', windowKind: 'mixed'
+    }
   ];
+  const rankings = Object.fromEntries(specs.map((spec) => [spec.category, buildRanking(spec)]));
+  const leaders = specs.map((spec) => rankings[spec.category][0]
+    || leader(spec.category, spec.title, null, '', [], spec.method, spec.windowKind));
 
   return {
-    schema: 1,
+    schema: 2,
+    rankingLimit: RANKING_LIMIT,
     generatedAt: now.toISOString(),
     window: { kind: 'rolling', days: config.windowDays, from: fromIso, to: now.toISOString() },
     staleAfterHours: 48,
@@ -269,7 +300,8 @@ function buildSnapshot({ now, fromIso, config, accounts, delegates, sales, mints
       caveat: 'DeFi and Gaming cover successful top-level wallet calls to recently active contracts recognized by the reviewed TzKT-alias taxonomy. Unknown or unlabeled contracts are not classified.'
     },
     truncation,
-    leaders
+    leaders,
+    rankings
   };
 }
 
@@ -332,7 +364,8 @@ async function main() {
   const snapshotErrors = validateSnapshot(snapshot);
   if (snapshotErrors.length) throw new Error(`Generated invalid maxis snapshot: ${snapshotErrors.join('; ')}`);
   await fs.writeFile(OUTPUT_FILE, `${JSON.stringify(snapshot, null, 2)}\n`);
-  console.log(`Wrote data/maxis-leaders.json with ${snapshot.leaders.filter((item) => item.status === 'ready').length} leaders across ${coverage.length} recognized contracts`);
+  const rankedCount = Object.values(snapshot.rankings).reduce((sum, rows) => sum + rows.length, 0);
+  console.log(`Wrote data/maxis-leaders.json with ${rankedCount} ranked accounts across ${coverage.length} recognized contracts`);
 }
 
 main().catch((error) => {

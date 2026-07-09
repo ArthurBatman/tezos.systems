@@ -3,8 +3,8 @@
 ## Outcome
 
 Add a first-class **Tezos Maxis** chamber that answers “who is doing the most?”
-with one inspectable leader per activity category, plus a cross-category
-**Unicorn**. Every result must say what was measured, over which window, when
+with five inspectable ranked accounts per activity category, plus cross-category
+**Unicorns**. Every result must say what was measured, over which window, when
 the data was refreshed, and link the account directly into Ledger Flow so a
 visitor can investigate the surrounding on-chain activity.
 
@@ -251,9 +251,10 @@ source schemas:
   counter rather than implying that a sampled recent-operation scan is a
   chain-wide result.
 
-The delivered chamber therefore has nine ready cards: Transaction, Collector,
-Art, Mint, DeFi, Gaming, Governance, Staking, and Tezos Unicorn. The rolling
-categories use a 30-day window, Staking is explicitly live, Transaction is
-explicitly all-time, and the generated snapshot declares coverage, freshness,
-and truncation state. All nine cards link the exact leader address into Ledger
-Flow.
+The delivered chamber therefore has nine ready leaderboards: Transaction,
+Collector, Art, Mint, DeFi, Gaming, Governance, Staking, and Tezos Unicorn.
+Each full-chamber leaderboard carries five accounts while the homepage keeps
+the rank-one preview compact. The rolling categories use a 30-day window,
+Staking is explicitly live, Transaction is explicitly all-time, and the
+generated snapshot declares coverage, freshness, and truncation state. Every
+ranked account links its exact address into Ledger Flow.

@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '✨', text: 'Tezos Maxis now expands every category into a top-five leaderboard, with exact Ledger Flow trails for every ranked account' },
+            { type: '🎨', text: 'What is hot today now centers its live progress controls beneath the signal carousel' },
             { type: '✨', text: 'Tezos Maxis now spots the leading art, mint, DeFi, gaming, transaction, governance, and staking accounts, with a cross-lane Unicorn and direct Ledger Flow trails' },
             { type: '⚡', text: 'Network Pulse now keeps cached launcher stats visible while background refreshes warm in with quieter sync states' },
             { type: '🎨', text: 'What is hot today now pauses rotation on touch or scroll and shows compact position controls for the active signal' },

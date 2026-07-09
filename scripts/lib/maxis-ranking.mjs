@@ -201,10 +201,10 @@ export function rankAppActivity(rows = [], contractLookup = new Map()) {
     ]));
 }
 
-export function rankUnicorn(categoryRows = {}, minimumBreadth = 3) {
+export function rankUnicorn(categoryRows = {}, minimumBreadth = 3, scopeLimit = 100) {
   const candidates = new Map();
   for (const [category, rows] of Object.entries(categoryRows)) {
-    const scoped = (rows || []).slice(0, 100);
+    const scoped = (rows || []).slice(0, Math.max(1, Number(scopeLimit) || 100));
     const denominator = Math.max(1, scoped.length);
     scoped.forEach((row, index) => {
       if (!isImplicitAddress(row?.address)) return;

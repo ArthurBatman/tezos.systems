@@ -2410,13 +2410,15 @@ async function checkMaxisContracts() {
   const snapshot = JSON.parse(await readText('data/maxis-leaders.json'));
   const maxis = await readText('js/features/maxis.js');
   const maxisCss = await readText('css/maxis.css');
+  const shellExtrasCss = await readText('css/shell-extras.css');
   const app = await readText('js/core/app.js');
   const siteMap = await readText('js/core/site-map.js');
   const sw = await readText('sw.js');
 
   const configErrors = validateMaxisConfig(config);
   if (configErrors.length) fail(`maxis contract taxonomy invalid: ${configErrors.join('; ')}`);
-  if (snapshot.schema !== 1) fail('maxis snapshot schema must be 1');
+  if (snapshot.schema !== 2) fail('maxis snapshot schema must be 2');
+  if (snapshot.rankingLimit !== 5) fail('maxis snapshot ranking limit must be 5');
   if (hoursSince(snapshot.generatedAt) > 72) fail('maxis snapshot is older than 72 hours; run npm run refresh:maxis');
   if (snapshot.truncation?.mints || snapshot.truncation?.appTransactions) {
     fail(`maxis snapshot must not publish truncated rankings: ${JSON.stringify(snapshot.truncation)}`);
@@ -2427,6 +2429,17 @@ async function checkMaxisContracts() {
   if (new Set(categories).size !== categories.length) fail('maxis snapshot categories must be unique');
   for (const category of expectedCategories) {
     if (!categories.includes(category)) fail(`maxis snapshot missing ${category} leader`);
+    const ranking = snapshot.rankings?.[category];
+    if (!Array.isArray(ranking) || ranking.length !== 5) fail(`maxis snapshot ${category} ranking must contain five accounts`);
+    const addresses = new Set();
+    for (const [index, ranked] of (ranking || []).entries()) {
+      if (ranked.rank !== index + 1) fail(`maxis snapshot ${category} rank order is invalid at ${index + 1}`);
+      if (!/^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/.test(ranked.address || '')) fail(`maxis snapshot ${category} rank ${index + 1} has invalid address`);
+      if (addresses.has(ranked.address)) fail(`maxis snapshot ${category} repeats ${ranked.address}`);
+      addresses.add(ranked.address);
+    }
+    const leader = (snapshot.leaders || []).find((item) => item.category === category);
+    if (leader?.address !== ranking?.[0]?.address) fail(`maxis snapshot ${category} winner must match rank 1`);
   }
   for (const leader of snapshot.leaders || []) {
     if (!['ready', 'empty'].includes(leader.status)) fail(`maxis leader ${leader.category} has invalid status ${leader.status}`);
@@ -2487,10 +2500,14 @@ async function checkMaxisContracts() {
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis direct route', 'Direct: /maxis/', maxis],
     ['maxis entry grid', '.maxis-entry-grid', maxisCss],
+    ['maxis top-five ranking list', '.maxis-ranking-list', maxisCss],
     ['maxis service worker data', '/data/maxis-leaders.json', sw]
   ];
   for (const [label, snippet, source] of contracts) {
     if (!source.includes(snippet)) fail(`missing ${label}`);
+  }
+  if (!/\.hot-today-progress\s*\{[^}]*margin:\s*0\.7rem auto 0;/s.test(shellExtrasCss)) {
+    fail('What is hot today progress controls must stay centered');
   }
   pass('Tezos Maxis taxonomy, snapshot, scoring, route, and Ledger Flow contracts checked');
 }

@@ -10,7 +10,7 @@ import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=396';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=397';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;

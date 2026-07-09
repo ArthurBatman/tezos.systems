@@ -311,6 +311,140 @@
     line-height: 1.45;
 }
 
+.maxis-ranking-card,
+.maxis-card-featured.maxis-ranking-card {
+    display: block;
+    padding: 0;
+}
+
+.maxis-ranking-card .maxis-card-top {
+    padding: 0.9rem 1rem 0;
+}
+
+.maxis-ranking-method {
+    margin: 0;
+    padding: 0.45rem 1rem 0.78rem 3.1rem;
+    color: var(--text-tertiary);
+    font-size: 0.59rem;
+    line-height: 1.45;
+}
+
+.maxis-ranking-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.055);
+    list-style: none;
+}
+
+.maxis-rank-row {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(9.5rem, 0.8fr);
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    min-height: 88px;
+    padding: 0.7rem 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.maxis-rank-row:last-child { border-bottom: 0; }
+
+.maxis-rank-row.is-category-leader {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--maxis-card-accent) 8%, transparent), transparent 72%);
+}
+
+.maxis-rank-position {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.maxis-rank-row.is-category-leader .maxis-rank-position { color: var(--maxis-card-accent); }
+
+.maxis-rank-main,
+.maxis-rank-side { min-width: 0; }
+
+.maxis-rank-main {
+    display: grid;
+    gap: 0.14rem;
+}
+
+.maxis-rank-main strong,
+.maxis-rank-main code,
+.maxis-rank-main small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.maxis-rank-main strong {
+    color: var(--text-primary);
+    font-size: 0.79rem;
+    line-height: 1.2;
+}
+
+.maxis-rank-main code {
+    color: var(--text-tertiary);
+    font-size: 0.55rem;
+}
+
+.maxis-rank-main small {
+    color: var(--text-secondary);
+    font-size: 0.54rem;
+    line-height: 1.25;
+}
+
+.maxis-rank-side {
+    display: grid;
+    justify-items: end;
+    gap: 0.36rem;
+    text-align: right;
+}
+
+.maxis-rank-score {
+    max-width: 100%;
+    color: color-mix(in srgb, var(--maxis-card-accent) 76%, var(--text-primary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+}
+
+.maxis-rank-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.24rem;
+}
+
+.maxis-rank-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0.32rem 0.42rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 5px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.025);
+    font-size: 0.52rem;
+    font-weight: 850;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.maxis-rank-action:is(:hover, :focus-visible) {
+    border-color: var(--maxis-card-accent);
+    color: var(--text-primary);
+    outline: none;
+}
+
 .maxis-card-empty h3 { margin: 0; color: var(--text-primary); font-size: 0.95rem; }
 .maxis-card-empty p { margin: 0; color: var(--text-tertiary); font-size: 0.7rem; line-height: 1.5; }
 
@@ -366,7 +500,9 @@
 }
 
 [data-theme="clean"] .maxis-hero,
-[data-theme="clean"] .maxis-card-method {
+[data-theme="clean"] .maxis-card-method,
+[data-theme="clean"] .maxis-ranking-list,
+[data-theme="clean"] .maxis-rank-row {
     border-color: rgba(26, 29, 38, 0.1);
 }
 
@@ -388,6 +524,7 @@
 [data-theme="clean"] .maxis-card-context span,
 [data-theme="clean"] .maxis-action,
 [data-theme="clean"] .maxis-source-action,
+[data-theme="clean"] .maxis-rank-action,
 [data-theme="clean"] .maxis-entry-unicorn,
 [data-theme="clean"] .maxis-methodology-facts span {
     border-color: rgba(26, 29, 38, 0.1);
@@ -503,7 +640,7 @@
     .maxis-hero .chamber-title { max-width: 11rem; font-size: 1.1rem; }
     .maxis-hero-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .maxis-grid { grid-template-columns: 1fr; }
-    .maxis-card-featured { display: grid; grid-template-columns: 1fr; grid-template-rows: none; }
+    .maxis-card-featured:not(.maxis-ranking-card) { display: grid; grid-template-columns: 1fr; grid-template-rows: none; }
     .maxis-card-featured .maxis-card-top,
     .maxis-card-featured .maxis-card-identity,
     .maxis-card-featured .maxis-card-score,
@@ -512,6 +649,10 @@
     .maxis-card-featured .maxis-card-actions { grid-column: 1; grid-row: auto; }
     .maxis-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .maxis-ledger-action { grid-column: 1 / -1; }
+    .maxis-rank-row { grid-template-columns: 1.65rem minmax(0, 1fr); gap: 0.5rem; min-height: 0; }
+    .maxis-rank-side { grid-column: 2; justify-items: start; text-align: left; }
+    .maxis-rank-actions { justify-content: flex-start; }
+    .maxis-ranking-method { padding-left: 1rem; }
     .maxis-methodology-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
     #chambers-grid .maxis-entry-card.chamber-entry-wide {
