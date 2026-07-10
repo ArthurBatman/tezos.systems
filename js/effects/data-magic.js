@@ -4,16 +4,18 @@
  * The "magic" layer for numbers and text as they land:
  *   • tweenNumber  — odometer / count-up on a raw numeric value (formatter applied per frame)
  *   • scrambleText — glyph-decode reveal for strings (proposal names, headlines)
+ *   • auroraResolve — a restrained left-to-right glyph wave for Aurora
+ *   • themed reveals — Kindle, Sweep Lock, Delta Tick, Sonar Echo,
+ *     Mycelial Bloom, and Target Lock for their matching themes
  *   • focusReveal  — understated blur-to-sharp reveal (classic themes)
- *   • revealValue  — theme-aware dispatch: picks scramble/focus/bloom per personality
+ *   • revealValue  — theme-aware dispatch across the theme personalities
  *   • pulseFresh   — one-shot accent shimmer sweep signalling "this value just updated"
  *   • blockTick    — mechanical up-tick for the block-height number (the chain's heartbeat)
  *   • initDataMagic — themechange tracking + the ambient loop (sparse idle re-decodes)
  *
- * Every theme carries an effect personality: bombastic themes (matrix, nerv,
- * warzone…) decode through theme-flavoured glyph sets with flair classes;
- * classic themes (default, dark, clean) get a quiet blur-focus reveal, while
- * aurora gets a quiet surface bloom across freshly updated values.
+ * Every theme carries an effect personality. Matrix, HEN, NERV, and Bubblegum
+ * keep their strong themed decodes; the environment-led themes use bespoke
+ * motion, while Default, Void, and Dark retain a quiet blur-focus reveal.
  *
  * All effects honour prefers-reduced-motion (fall back to an instant set) and pause
  * while the tab is hidden.
@@ -21,6 +23,7 @@
 
 const TWEEN_DEFAULT_MS = 900;
 const SCRAMBLE_DEFAULT_MS = 700;
+const AURORA_RESOLVE_DEFAULT_MS = 880;
 const FOCUS_DEFAULT_MS = 500;
 const DEFAULT_GLYPHS = '0123456789ABCDEFXTZ$#%◆◇▲▼⬡ꜩ';
 const MAGIC_NUMBER_MIN_FONT_PX = 16;
@@ -43,28 +46,29 @@ const MAGIC_NUMBER_RE = new RegExp(
 
 /**
  * Effect personality per theme.
- *   mode     'scramble' (glyph decode) | 'focus' (blur-to-sharp) | 'bloom'
+ *   mode     reveal primitive dispatched by revealValue(...)
  *   glyphs   scramble alphabet — the theme's texture
- *   scrambleMs / tweenMs / focusMs / bloomMs — pacing (bombastic = slower, savoured)
+ *   *Ms      theme-specific reveal pacing
  *   flair    CSS class applied to the element while revealing (extra character)
  */
 const THEME_PERSONALITIES = {
     // ── Bombastic ──
     matrix:    { mode: 'scramble', glyphs: 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ0123456789Z', scrambleMs: 950, tweenMs: 1200, flair: 'dm-crt' },
     nerv:      { mode: 'scramble', glyphs: '0123456789ABCDEF!▲■◤◢', scrambleMs: 450, tweenMs: 700, flair: 'dm-jitter' },
-    warzone:   { mode: 'scramble', glyphs: '█▓▒░', scrambleMs: 850, tweenMs: 1100 },
-    ember:     { mode: 'scramble', glyphs: '▲△∴·˟*', scrambleMs: 750, tweenMs: 1000, flair: 'dm-flicker' },
     hen:       { mode: 'scramble', glyphs: '▓▒░█▄▀▌▐', scrambleMs: 700, tweenMs: 900 },
-    signal:    { mode: 'scramble', glyphs: '01<>/\\|=+-_', scrambleMs: 700, tweenMs: 900 },
-    abyss:     { mode: 'scramble', glyphs: '~≈∿·°˚∴', scrambleMs: 850, tweenMs: 1100 },
-    moss:      { mode: 'scramble', glyphs: '·:⁚⁘*ᵕꞏ', scrambleMs: 800, tweenMs: 1000 },
     bubblegum: { mode: 'scramble', glyphs: '○●◐◑◌♡', scrambleMs: 650, tweenMs: 900, flair: 'dm-pop' },
+    // ── Environment-led ──
+    ember:     { mode: 'kindle', kindleMs: 720, tweenMs: 1000 },
+    signal:    { mode: 'sweep', sweepMs: 620, tweenMs: 900 },
+    abyss:     { mode: 'sonar', sonarMs: 900, tweenMs: 1100 },
+    moss:      { mode: 'growth', growthMs: 780, tweenMs: 1000 },
+    warzone:   { mode: 'lock', lockMs: 600, tweenMs: 1100 },
     void:      { mode: 'focus', focusMs: 900, tweenMs: 1000 },
     // ── Understated — no heavy glyph noise, quiet confidence ──
-    aurora:    { mode: 'bloom', bloomMs: 1040, tweenMs: 850 },
+    aurora:    { mode: 'resolve', glyphs: '·˚°◦○', resolveMs: 880, tweenMs: 850 },
     default:   { mode: 'focus', focusMs: 450, tweenMs: 750 },
     dark:      { mode: 'focus', focusMs: 450, tweenMs: 750 },
-    clean:     { mode: 'focus', focusMs: 400, tweenMs: 700 }
+    clean:     { mode: 'delta', deltaMs: 260, tweenMs: 700 }
 };
 const FALLBACK_PERSONALITY = THEME_PERSONALITIES.aurora;
 
@@ -108,7 +112,8 @@ function cancelMagic(el) {
     }
     if (el.__dmTweenCancel) el.__dmTweenCancel();
     if (el.__dmScrambleCancel) el.__dmScrambleCancel();
-    if (el.__dmBloomCancel) el.__dmBloomCancel();
+    if (el.__dmAuroraCancel) el.__dmAuroraCancel();
+    if (el.__dmThemeCancel) el.__dmThemeCancel();
 }
 
 function applyFlair(el, personality) {
@@ -255,6 +260,352 @@ export function scrambleText(el, finalText, opts = {}) {
 }
 
 /**
+ * Aurora Resolve: keep most of the old value legible while a two-character
+ * teal/violet glyph wave resolves the new value from left to right. It borrows
+ * Matrix's decode idea without scrambling the full string or moving its box.
+ */
+export function auroraResolve(el, finalText, opts = {}) {
+    if (!el) return () => {};
+    const personality = getPersonality();
+    const text = finalText == null ? '' : String(finalText);
+    const duration = opts.duration ?? personality.resolveMs ?? AURORA_RESOLVE_DEFAULT_MS;
+
+    if (prefersReducedMotion() || isHidden() || duration <= 0 || !text) {
+        dmWrite(el, text);
+        opts.onDone?.();
+        return () => {};
+    }
+
+    if (el.__dmAuroraCancel) el.__dmAuroraCancel();
+    injectStyles();
+
+    const previous = Array.from(el.textContent || '');
+    const finalChars = Array.from(text);
+    const activeIndexes = finalChars
+        .map((ch, index) => (/\s|[,%.\/·—–-]/.test(ch) ? -1 : index))
+        .filter((index) => index >= 0);
+    const orderByIndex = new Map(activeIndexes.map((index, order) => [index, order]));
+    const glyphs = Array.from(opts.glyphs || personality.glyphs || '·˚°◦○');
+    const waveWidth = Math.min(2, Math.max(1, activeIndexes.length));
+    const startedAt = performance.now();
+    let rafId = 0;
+    let cancelled = false;
+    let done = false;
+
+    el.style.setProperty('--dm-aurora-ms', duration + 'ms');
+    el.classList.remove('dm-aurora-resolve');
+    void el.offsetWidth;
+    el.classList.add('dm-aurora-resolve');
+
+    const finish = (callDone = false) => {
+        if (done) return;
+        done = true;
+        dmWrite(el, text);
+        el.classList.remove('dm-aurora-resolve');
+        el.__dmAuroraCancel = null;
+        if (callDone) opts.onDone?.();
+    };
+
+    const step = (now) => {
+        if (cancelled) return;
+        const p = Math.min(1, (now - startedAt) / duration);
+        const waveLead = p * (activeIndexes.length + waveWidth) - waveWidth;
+        const frame = Math.floor((now - startedAt) / 95);
+        const out = finalChars.map((ch, index) => {
+            const order = orderByIndex.get(index);
+            if (order === undefined) return ch;
+            if (order < waveLead) return ch;
+            if (order <= waveLead + waveWidth) {
+                return glyphs[(frame + order * 2) % glyphs.length] || '·';
+            }
+            const oldChar = previous[index];
+            return oldChar && !/\s/.test(oldChar) ? oldChar : '·';
+        });
+        dmWrite(el, out.join(''));
+        if (p < 1) {
+            rafId = requestAnimationFrame(step);
+        } else {
+            finish(true);
+        }
+    };
+
+    const cancel = () => {
+        cancelled = true;
+        if (rafId) cancelAnimationFrame(rafId);
+        finish(false);
+    };
+    el.__dmAuroraCancel = cancel;
+    rafId = requestAnimationFrame(step);
+    return cancel;
+}
+
+const STABLE_REVEAL_CHAR_RE = /\s|[,%.\/:·—–-]/;
+
+function revealableIndexes(chars) {
+    return chars
+        .map((ch, index) => (STABLE_REVEAL_CHAR_RE.test(ch) ? -1 : index))
+        .filter((index) => index >= 0);
+}
+
+function changedActiveIndexes(previous, finalChars, activeIndexes) {
+    return activeIndexes.filter((index) => previous[index] !== finalChars[index]);
+}
+
+/**
+ * Shared narrow-wave runner for effects whose identity comes from the order,
+ * boundary glyph, and CSS treatment rather than full-string random noise.
+ */
+function runWaveReveal(el, finalText, opts = {}) {
+    if (!el) return () => {};
+    const text = finalText == null ? '' : String(finalText);
+    const duration = opts.duration ?? SCRAMBLE_DEFAULT_MS;
+
+    if (prefersReducedMotion() || isHidden() || duration <= 0 || !text) {
+        dmWrite(el, text);
+        opts.onDone?.();
+        return () => {};
+    }
+
+    if (el.__dmThemeCancel) el.__dmThemeCancel();
+    injectStyles();
+
+    const previous = Array.from(el.textContent || '');
+    const finalChars = Array.from(text);
+    const activeIndexes = revealableIndexes(finalChars);
+    const requestedOrder = opts.getOrder?.(previous, finalChars, activeIndexes) || activeIndexes;
+    const activeSet = new Set(activeIndexes);
+    const order = Array.from(new Set(requestedOrder)).filter((index) => activeSet.has(index));
+    const rankByIndex = new Map(order.map((index, rank) => [index, rank]));
+    const glyphs = Array.from(opts.glyphs || '·');
+    const waveWidth = Math.min(opts.waveWidth ?? 1, Math.max(1, order.length));
+    const startedAt = performance.now();
+    let rafId = 0;
+    let cancelled = false;
+    let done = false;
+
+    el.style.setProperty('--dm-theme-ms', duration + 'ms');
+    if (opts.dataAttribute) el.setAttribute(opts.dataAttribute, text);
+    el.classList.remove(opts.className);
+    void el.offsetWidth;
+    el.classList.add(opts.className);
+
+    const finish = (callDone = false) => {
+        if (done) return;
+        done = true;
+        dmWrite(el, text);
+        el.classList.remove(opts.className);
+        if (opts.dataAttribute) el.removeAttribute(opts.dataAttribute);
+        el.__dmThemeCancel = null;
+        if (callDone) opts.onDone?.();
+    };
+
+    const step = (now) => {
+        if (cancelled) return;
+        const p = Math.min(1, (now - startedAt) / duration);
+        const waveLead = p * (order.length + waveWidth) - waveWidth;
+        const frame = Math.floor((now - startedAt) / (opts.frameMs || 110));
+        const out = finalChars.map((ch, index) => {
+            const rank = rankByIndex.get(index);
+            if (rank === undefined) return ch;
+            if (rank < waveLead) return ch;
+            if (rank <= waveLead + waveWidth) {
+                return glyphs[(frame + rank) % glyphs.length] || '·';
+            }
+            const oldChar = previous[index];
+            return oldChar && !/\s/.test(oldChar) ? oldChar : '·';
+        });
+        dmWrite(el, out.join(''));
+        if (p < 1) {
+            rafId = requestAnimationFrame(step);
+        } else {
+            finish(true);
+        }
+    };
+
+    const cancel = () => {
+        cancelled = true;
+        if (rafId) cancelAnimationFrame(rafId);
+        finish(false);
+    };
+    el.__dmThemeCancel = cancel;
+    rafId = requestAnimationFrame(step);
+    return cancel;
+}
+
+/**
+ * Shared character runner for effects that animate only selected final glyphs.
+ * Temporary spans opt out of the mutation observer so they cannot recursively
+ * become new data-magic targets.
+ */
+function runCharacterReveal(el, finalText, opts = {}) {
+    if (!el) return () => {};
+    const text = finalText == null ? '' : String(finalText);
+    const duration = opts.duration ?? FOCUS_DEFAULT_MS;
+
+    if (prefersReducedMotion() || isHidden() || duration <= 0 || !text) {
+        dmWrite(el, text);
+        opts.onDone?.();
+        return () => {};
+    }
+
+    if (el.__dmThemeCancel) el.__dmThemeCancel();
+    injectStyles();
+
+    const previous = Array.from(el.textContent || '');
+    const finalChars = Array.from(text);
+    const activeIndexes = revealableIndexes(finalChars);
+    const requestedOrder = opts.getOrder?.(previous, finalChars, activeIndexes) || activeIndexes;
+    const activeSet = new Set(activeIndexes);
+    const order = Array.from(new Set(requestedOrder)).filter((index) => activeSet.has(index));
+    const rankByIndex = new Map(order.map((index, rank) => [index, rank]));
+
+    if (!order.length) {
+        dmWrite(el, text);
+        opts.onDone?.();
+        return () => {};
+    }
+
+    const staggerSteps = Math.max(1, Math.min(order.length - 1, 8));
+    const staggerWindow = duration * 0.35;
+    const charDuration = Math.max(120, duration - staggerWindow);
+    const fragment = document.createDocumentFragment();
+
+    finalChars.forEach((ch, index) => {
+        const rank = rankByIndex.get(index);
+        if (rank === undefined) {
+            fragment.append(document.createTextNode(ch));
+            return;
+        }
+        const span = document.createElement('span');
+        span.className = opts.charClass;
+        span.setAttribute('data-magic', 'off');
+        span.textContent = ch;
+        span.style.setProperty('--dm-char-ms', charDuration + 'ms');
+        span.style.setProperty('--dm-char-delay', Math.min(rank, 8) / staggerSteps * staggerWindow + 'ms');
+        fragment.append(span);
+    });
+
+    let done = false;
+    let timer = 0;
+    el.style.setProperty('--dm-theme-ms', duration + 'ms');
+    el.classList.remove(opts.className);
+    el.__dmLastWrite = text;
+    el.replaceChildren(fragment);
+    void el.offsetWidth;
+    el.classList.add(opts.className);
+
+    const finish = (callDone = false) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        dmWrite(el, text);
+        el.classList.remove(opts.className);
+        el.__dmThemeCancel = null;
+        if (callDone) opts.onDone?.();
+    };
+
+    const cancel = () => finish(false);
+    el.__dmThemeCancel = cancel;
+    timer = setTimeout(() => finish(true), duration + 70);
+    return cancel;
+}
+
+/** Ember — changed characters kindle through a tiny spark front, then cool. */
+export function kindleReveal(el, finalText, opts = {}) {
+    const personality = getPersonality();
+    return runWaveReveal(el, finalText, {
+        ...opts,
+        duration: opts.duration ?? personality.kindleMs ?? 720,
+        className: 'dm-kindle-reveal',
+        glyphs: '·*˟',
+        waveWidth: 1,
+        frameMs: 120,
+        getOrder: (previous, finalChars, activeIndexes) => {
+            const changed = changedActiveIndexes(previous, finalChars, activeIndexes);
+            return changed.length ? changed : activeIndexes;
+        }
+    });
+}
+
+/** Signal — a scan beam resolves and locks the value from left to right. */
+export function sweepLockReveal(el, finalText, opts = {}) {
+    const personality = getPersonality();
+    return runWaveReveal(el, finalText, {
+        ...opts,
+        duration: opts.duration ?? personality.sweepMs ?? 620,
+        className: 'dm-sweep-lock',
+        glyphs: '_|',
+        waveWidth: 1,
+        frameMs: 95
+    });
+}
+
+/** Clean — only changed glyphs make a crisp, tiny analytics-style delta tick. */
+export function deltaTickReveal(el, finalText, opts = {}) {
+    const personality = getPersonality();
+    return runCharacterReveal(el, finalText, {
+        ...opts,
+        duration: opts.duration ?? personality.deltaMs ?? 260,
+        className: 'dm-delta-tick',
+        charClass: 'dm-delta-char',
+        getOrder: (previous, finalChars, activeIndexes) => {
+            const changed = changedActiveIndexes(previous, finalChars, activeIndexes);
+            return changed.length ? changed : activeIndexes;
+        }
+    });
+}
+
+/** Abyss — resolve from the center while cyan pressure echoes drift outward. */
+export function sonarEchoReveal(el, finalText, opts = {}) {
+    const personality = getPersonality();
+    return runWaveReveal(el, finalText, {
+        ...opts,
+        duration: opts.duration ?? personality.sonarMs ?? 900,
+        className: 'dm-sonar-echo',
+        dataAttribute: 'data-dm-sonar',
+        glyphs: '≈',
+        waveWidth: 1,
+        getOrder: (_previous, _finalChars, activeIndexes) => {
+            const center = activeIndexes.length
+                ? (activeIndexes[0] + activeIndexes[activeIndexes.length - 1]) / 2
+                : 0;
+            return [...activeIndexes].sort((a, b) => Math.abs(a - center) - Math.abs(b - center) || a - b);
+        }
+    });
+}
+
+/** Moss — final glyphs grow in a branching order from the first changed node. */
+export function mycelialBloomReveal(el, finalText, opts = {}) {
+    const personality = getPersonality();
+    return runCharacterReveal(el, finalText, {
+        ...opts,
+        duration: opts.duration ?? personality.growthMs ?? 780,
+        className: 'dm-mycelial-bloom',
+        charClass: 'dm-mycelial-char',
+        getOrder: (previous, finalChars, activeIndexes) => {
+            const changed = changedActiveIndexes(previous, finalChars, activeIndexes);
+            const seed = changed[0] ?? activeIndexes[Math.floor(activeIndexes.length / 2)] ?? 0;
+            return [...activeIndexes].sort((a, b) => Math.abs(a - seed) - Math.abs(b - seed) || a - b);
+        }
+    });
+}
+
+/** Warzone — changed glyphs hard-lock while acquisition brackets close in. */
+export function targetLockReveal(el, finalText, opts = {}) {
+    const personality = getPersonality();
+    return runCharacterReveal(el, finalText, {
+        ...opts,
+        duration: opts.duration ?? personality.lockMs ?? 600,
+        className: 'dm-target-lock',
+        charClass: 'dm-lock-char',
+        getOrder: (previous, finalChars, activeIndexes) => {
+            const changed = changedActiveIndexes(previous, finalChars, activeIndexes);
+            return changed.length ? changed : activeIndexes;
+        }
+    });
+}
+
+/**
  * Understated reveal: set the final text immediately, then sharpen it from a
  * soft blur. The classic themes' answer to the scramble — calm, precise.
  */
@@ -284,72 +635,19 @@ export function focusReveal(el, finalText, opts = {}) {
     };
 }
 
-function bloomSurfaceFor(el) {
-    return el?.closest?.([
-        '.top-continuity-stat',
-        '.card-inner',
-        '[data-stat]',
-        '.chamber-entry-metric',
-        '.chamber-now-card',
-        '.lb-metric-card',
-        '.lb-metric-grid',
-        '.tezlink-entry-metric',
-        '.td-entry-metric',
-        '.td-pulse-metric',
-        '.ctez-console-metric',
-        '.ctez-summary-strip',
-        '.ledger-flow-detail-metrics'
-    ].join(', ')) || el;
-}
-
-/**
- * Quiet Bloom: write the final value immediately, then pulse the nearest
- * metric surface. Aurora uses this so the update is visible without moving or
- * distorting the text itself.
- */
-export function bloomReveal(el, finalText, opts = {}) {
-    if (!el) return () => {};
-    const text = finalText == null ? '' : String(finalText);
-    const defaultDuration = getPersonality().bloomMs ?? FOCUS_DEFAULT_MS;
-    const duration = Math.min(opts.duration ?? defaultDuration, defaultDuration);
-
-    dmWrite(el, text);
-    if (prefersReducedMotion() || isHidden() || duration <= 0 || !text) {
-        opts.onDone?.();
-        return () => {};
-    }
-
-    injectStyles();
-    const surface = bloomSurfaceFor(el);
-    let done = false;
-    const finish = (callDone = false) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        surface?.classList.remove('dm-bloom-pop');
-        el.__dmBloomCancel = null;
-        if (callDone) opts.onDone?.();
-    };
-
-    surface.style.setProperty('--dm-bloom-ms', duration + 'ms');
-    surface.classList.remove('dm-bloom-pop');
-    void surface.offsetWidth;
-    surface.classList.add('dm-bloom-pop');
-    const timer = setTimeout(() => finish(true), duration + 80);
-    el.__dmBloomCancel = () => finish(false);
-    return () => finish(false);
-}
-
-/**
- * Theme-aware text reveal: scramble on bombastic themes, blur-focus on
- * classic themes, and Quiet Bloom on Aurora. The one entry point callers should
- * reach for.
- */
+/** Theme-aware text reveal. The one entry point callers should reach for. */
 export function revealValue(el, finalText, opts = {}) {
-    if (getPersonality().mode === 'bloom') return bloomReveal(el, finalText, opts);
-    return getPersonality().mode === 'focus'
-        ? focusReveal(el, finalText, opts)
-        : scrambleText(el, finalText, opts);
+    switch (getPersonality().mode) {
+        case 'resolve': return auroraResolve(el, finalText, opts);
+        case 'kindle': return kindleReveal(el, finalText, opts);
+        case 'sweep': return sweepLockReveal(el, finalText, opts);
+        case 'delta': return deltaTickReveal(el, finalText, opts);
+        case 'sonar': return sonarEchoReveal(el, finalText, opts);
+        case 'growth': return mycelialBloomReveal(el, finalText, opts);
+        case 'lock': return targetLockReveal(el, finalText, opts);
+        case 'focus': return focusReveal(el, finalText, opts);
+        default: return scrambleText(el, finalText, opts);
+    }
 }
 
 function hasNumericText(text) {
@@ -669,8 +967,8 @@ export function observeMagic() {
 }
 
 // ─── AMBIENT LOOP ───
-// Every 18–35s, one random visible stat quietly re-decodes (scramble themes)
-// or shimmers (focus themes). Sparse enough to feel alive, not busy.
+// Every 18–35s, one random visible stat quietly repeats its theme reveal or
+// shimmers in focus themes. Sparse enough to feel alive, not busy.
 
 const AMBIENT_MIN_MS = 18000;
 const AMBIENT_MAX_MS = 35000;
@@ -699,7 +997,7 @@ function ambientTargets() {
         // Loading copy can outlive its class (cached-stats path): real stat values
         // are short or contain a digit; prose like "Preheating the oven" is neither.
         if (text.length > 16 && !/\d/.test(text)) return false;
-        if (el.__dmTweenCancel || el.__dmScrambleCancel) return false; // mid-animation
+        if (el.__dmTweenCancel || el.__dmScrambleCancel || el.__dmAuroraCancel || el.__dmThemeCancel) return false; // mid-animation
         return inViewport(el);
     });
 }
@@ -712,9 +1010,24 @@ function ambientTick() {
     if (!targets.length) return;
     const el = targets[(Math.random() * targets.length) | 0];
 
-    if (getPersonality().mode === 'scramble') {
+    const mode = getPersonality().mode;
+    if (mode === 'scramble') {
         // Re-decode the value in place — same text, brief glyph shiver.
         scrambleText(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS });
+    } else if (mode === 'resolve') {
+        auroraResolve(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 160 });
+    } else if (mode === 'kindle') {
+        kindleReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 120 });
+    } else if (mode === 'sweep') {
+        sweepLockReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 80 });
+    } else if (mode === 'delta') {
+        deltaTickReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS - 120 });
+    } else if (mode === 'sonar') {
+        sonarEchoReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 260 });
+    } else if (mode === 'growth') {
+        mycelialBloomReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 220 });
+    } else if (mode === 'lock') {
+        targetLockReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 100 });
     } else {
         const card = el.closest('[data-stat]');
         pulseFresh(card?.querySelector('.card-inner') || el);
@@ -767,23 +1080,84 @@ export function injectStyles() {
         // Flair: CRT glow flicker (matrix)
         '.dm-crt{animation:dmCrt 0.12s steps(2) infinite;text-shadow:0 0 6px rgba(var(--accent-rgb,0,255,65),0.55)}',
         '@keyframes dmCrt{0%{opacity:1}100%{opacity:0.88}}',
-        // Flair: flame flicker (ember)
-        '.dm-flicker{animation:dmFlicker 0.18s ease-in-out infinite}',
-        '@keyframes dmFlicker{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35) saturate(1.2)}}',
         // Flair: alarm jitter (nerv)
         '.dm-jitter{animation:dmJitter 0.09s steps(2) infinite}',
         '@keyframes dmJitter{0%{transform:translate(0.5px,-0.5px)}100%{transform:translate(-0.5px,0.5px)}}',
         // Flair: settle pop (bubblegum)
         '.dm-pop{animation:dmPop 0.5s cubic-bezier(0.34,1.56,0.64,1)}',
         '@keyframes dmPop{0%{transform:scale(0.96)}60%{transform:scale(1.04)}100%{transform:scale(1)}}',
-        // Quiet Bloom (aurora)
-        '.dm-bloom-pop{animation:dmBloomPop var(--dm-bloom-ms,1040ms) cubic-bezier(0.22,1,0.36,1)}',
-        '@keyframes dmBloomPop{0%{filter:brightness(1);box-shadow:0 0 0 rgba(69,224,200,0),inset 0 0 0 rgba(159,255,214,0)}' +
-            '32%{filter:brightness(1.1) saturate(1.06);box-shadow:0 0 18px rgba(69,224,200,0.2),inset 0 0 0 1px rgba(159,255,214,0.28)}' +
-            '66%{filter:brightness(1.08) saturate(1.04);box-shadow:0 0 14px rgba(69,224,200,0.16),inset 0 0 0 1px rgba(159,255,214,0.2)}' +
-            '100%{filter:brightness(1);box-shadow:0 0 0 rgba(69,224,200,0),inset 0 0 0 rgba(159,255,214,0)}}',
+        // Aurora Resolve — a restrained teal-to-violet glow behind the glyph wave
+        '.dm-aurora-resolve{animation:dmAuroraResolve var(--dm-aurora-ms,880ms) cubic-bezier(0.22,1,0.36,1)}',
+        '@keyframes dmAuroraResolve{0%{filter:brightness(1);text-shadow:0 0 0 rgba(69,224,200,0)}' +
+            '28%{filter:brightness(1.12) saturate(1.08);text-shadow:0 0 10px rgba(69,224,200,0.52)}' +
+            '62%{filter:brightness(1.08) saturate(1.06);text-shadow:0 0 9px rgba(155,140,255,0.42)}' +
+            '100%{filter:brightness(1);text-shadow:0 0 0 rgba(244,154,209,0)}}',
+        // Ember Kindle — changed glyphs ignite, flare once, then cool
+        '.dm-kindle-reveal{animation:dmKindleReveal var(--dm-theme-ms,720ms) cubic-bezier(0.22,1,0.36,1)}',
+        '@keyframes dmKindleReveal{0%{filter:brightness(0.92);text-shadow:0 0 0 rgba(229,80,57,0)}' +
+            '28%{filter:brightness(1.24) saturate(1.16);text-shadow:0 0 5px rgba(229,80,57,0.72),0 0 14px rgba(255,99,32,0.34)}' +
+            '58%{filter:brightness(1.14) saturate(1.1);text-shadow:0 0 6px rgba(255,159,67,0.55)}' +
+            '100%{filter:brightness(1);text-shadow:0 0 0 rgba(255,159,67,0)}}',
+        // Signal Sweep Lock — a narrow scan beam resolves the value behind it
+        '.dm-sweep-lock{position:relative;animation:dmSignalLock var(--dm-theme-ms,620ms) steps(4,end)}',
+        '.dm-sweep-lock::after{content:"";position:absolute;top:-0.14em;bottom:-0.14em;left:0;width:2px;' +
+            'pointer-events:none;background:#c8fff0;box-shadow:0 0 5px #00e4a0,0 0 12px rgba(0,228,160,0.65);' +
+            'animation:dmSignalBeam var(--dm-theme-ms,620ms) linear forwards}',
+        '@keyframes dmSignalLock{0%,22%{text-shadow:0 0 0 rgba(0,228,160,0)}' +
+            '52%{text-shadow:0 0 7px rgba(0,228,160,0.55)}100%{text-shadow:0 0 0 rgba(0,228,160,0)}}',
+        '@keyframes dmSignalBeam{0%{left:0;opacity:0}10%{opacity:1}88%{opacity:0.85}100%{left:100%;opacity:0}}',
+        // Clean Delta Tick — crisp per-glyph movement plus a single blue hairline
+        '.dm-delta-tick{position:relative}',
+        '.dm-delta-tick::after{content:"";position:absolute;left:50%;bottom:-0.08em;width:1.5em;height:1px;margin-left:-0.75em;pointer-events:none;' +
+            'background:#2563eb;transform-origin:center;animation:dmDeltaLine var(--dm-theme-ms,260ms) ease-out forwards}',
+        '.dm-delta-char{display:inline-block;animation:dmDeltaChar var(--dm-char-ms,170ms) cubic-bezier(0.22,1,0.36,1) both;' +
+            'animation-delay:var(--dm-char-delay,0ms)}',
+        '@keyframes dmDeltaChar{0%{opacity:0;transform:translateY(2px);color:#2563eb}' +
+            '100%{opacity:1;transform:translateY(0);color:inherit}}',
+        '@keyframes dmDeltaLine{0%{opacity:0;transform:scaleX(0)}25%{opacity:0.8}100%{opacity:0;transform:scaleX(1)}}',
+        // Abyss Sonar Echo — center-out resolve with two cyan pressure echoes
+        '.dm-sonar-echo{position:relative;animation:dmSonarCore var(--dm-theme-ms,900ms) ease-out}',
+        '.dm-sonar-echo::before,.dm-sonar-echo::after{content:attr(data-dm-sonar);position:absolute;inset:0;pointer-events:none;' +
+            'color:#00e5ff;font:inherit;line-height:inherit;text-align:inherit;white-space:inherit;opacity:0}',
+        '.dm-sonar-echo::before{animation:dmSonarEchoOne var(--dm-theme-ms,900ms) ease-out forwards}',
+        '.dm-sonar-echo::after{animation:dmSonarEchoTwo var(--dm-theme-ms,900ms) ease-out 90ms forwards}',
+        '@keyframes dmSonarCore{0%{filter:brightness(0.9)}45%{filter:brightness(1.2)}100%{filter:brightness(1)}}',
+        '@keyframes dmSonarEchoOne{12%{opacity:0.42;transform:scale(0.96);filter:blur(0)}' +
+            '100%{opacity:0;transform:scale(1.08);filter:blur(3px)}}',
+        '@keyframes dmSonarEchoTwo{16%{opacity:0.28;transform:scale(0.98);filter:blur(0)}' +
+            '100%{opacity:0;transform:scale(1.14);filter:blur(5px)}}',
+        // Moss Mycelial Bloom — characters grow outward from the changed node
+        '.dm-mycelial-char{display:inline-block;transform-origin:50% 85%;animation:dmMycelialChar var(--dm-char-ms,500ms) ease-out both;' +
+            'animation-delay:var(--dm-char-delay,0ms)}',
+        '@keyframes dmMycelialChar{0%{opacity:0.18;transform:scale(0.58);color:#d4a050;text-shadow:0 0 11px rgba(212,160,80,0.86)}' +
+            '42%{opacity:1;transform:scale(1.08);color:#66e066;text-shadow:0 0 8px rgba(102,224,102,0.72)}' +
+            '100%{opacity:1;transform:scale(1);color:inherit;text-shadow:0 0 0 rgba(102,224,102,0)}}',
+        // Warzone Target Lock — acquisition brackets, scan beam, hard glyph snap
+        '.dm-target-lock{position:relative}',
+        '.dm-target-lock::before{content:"";position:absolute;inset:-0.3em -0.42em;pointer-events:none;' +
+            'background:linear-gradient(#ffc000,#ffc000) left top/9px 1px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) left top/1px 9px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) right top/9px 1px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) right top/1px 9px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) left bottom/9px 1px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) left bottom/1px 9px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) right bottom/9px 1px no-repeat,' +
+            'linear-gradient(#ffc000,#ffc000) right bottom/1px 9px no-repeat;' +
+            'animation:dmTargetBrackets var(--dm-theme-ms,600ms) cubic-bezier(0.22,1,0.36,1) forwards}',
+        '.dm-target-lock::after{content:"";position:absolute;top:-0.12em;bottom:-0.12em;left:0;width:1px;pointer-events:none;' +
+            'background:#fff1a8;box-shadow:0 0 7px rgba(255,192,0,0.9);animation:dmTargetScan var(--dm-theme-ms,600ms) linear forwards}',
+        '.dm-lock-char{display:inline-block;animation:dmLockChar var(--dm-char-ms,390ms) steps(3,end) both;' +
+            'animation-delay:var(--dm-char-delay,0ms)}',
+        '@keyframes dmTargetBrackets{0%{opacity:0;transform:scale(1.5)}18%{opacity:0.9}' +
+            '72%{opacity:0.72;transform:scale(1)}100%{opacity:0}}',
+        '@keyframes dmTargetScan{0%{left:0;opacity:0}15%{opacity:1}82%{opacity:0.85}100%{left:100%;opacity:0}}',
+        '@keyframes dmLockChar{0%{opacity:0.12;transform:scaleX(0.58);color:#ffc000}' +
+            '66%{opacity:1;transform:scaleX(1.08);color:#fff1a8}100%{opacity:1;transform:scaleX(1);color:inherit}}',
         // Honour reduced motion globally for this layer
-        '@media (prefers-reduced-motion: reduce){.dm-fresh::after,.dm-block-tick,.dm-focus-in,.dm-crt,.dm-flicker,.dm-jitter,.dm-pop,.dm-bloom-pop{animation:none!important}}',
+        '@media (prefers-reduced-motion: reduce){.dm-fresh::after,.dm-block-tick,.dm-focus-in,.dm-crt,.dm-jitter,.dm-pop,' +
+            '.dm-aurora-resolve,.dm-kindle-reveal,.dm-sweep-lock,.dm-sweep-lock::after,.dm-delta-tick::after,.dm-delta-char,' +
+            '.dm-sonar-echo,.dm-sonar-echo::before,.dm-sonar-echo::after,.dm-mycelial-char,.dm-target-lock::before,' +
+            '.dm-target-lock::after,.dm-lock-char{animation:none!important}}',
     ].join('\n');
     (document.head || document.documentElement).appendChild(s);
     stylesInjected = true;

@@ -31,7 +31,8 @@ const CHANGELOG = [
             { type: '🎨', text: 'The header uptime counter now rolls in before the live stat pills fade on one by one, keeping welcome and streak toasts queued until the hero settles' },
             { type: '🔧', text: 'Network Pulse launcher now clears its opening state from the normal background hero refresh even when full optional stats stay hidden' },
             { type: '🔧', text: 'Generated route, sitemap, root OG, chamber OG, governance, compare, and CSS surfaces now refresh through one commit/scheduled automation path' },
-            { type: '🎨', text: 'Aurora live-number updates now use a longer quiet surface bloom instead of the classic blur-focus reveal' },
+            { type: '🎨', text: 'Aurora live-number updates now resolve through a calm teal-to-violet glyph wave inspired by Matrix decode motion' },
+            { type: '🎨', text: 'Ember, Signal, Clean, Abyss, Moss, and Warzone now use bespoke Kindle, Sweep Lock, Delta Tick, Sonar Echo, Mycelial Bloom, and Target Lock value transitions' },
             { type: '🔧', text: 'The finality pill now stays still when a live refresh recalculates the same visible value' },
         ]
     },
