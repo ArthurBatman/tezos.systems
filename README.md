@@ -251,8 +251,9 @@ inline modal styles in `js/core/app.js`.
   On the September 17 UTC mainnet anniversary, the uptime statement switches to
   a congratulatory anniversary message while preserving the live counter.
   Imminent or newly crossed network milestones make the runtime glow and add a
-  compact linked marker beside it; the marker opens Network Pulse or the most
-  relevant Chamber while the uptime statement still opens Protocol Anthology.
+  compact linked marker immediately to the left of the uptime/year counter;
+  the marker opens Network Pulse or the most relevant Chamber while the uptime
+  statement still opens Protocol Anthology.
   Clicking a stat pill opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Continuity Proof panel with
   the same core proof data in the deep Health context.

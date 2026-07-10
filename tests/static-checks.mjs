@@ -607,6 +607,13 @@ async function checkSelectorContracts() {
   }
   pass(`new UX selector contracts checked: ${requiredSnippets.length}`);
 
+  const uptimeClusterStart = index.indexOf('<div class="top-uptime-cluster">');
+  const milestoneMarkerIndex = index.indexOf('<a class="top-continuity-milestone-info"', uptimeClusterStart);
+  const uptimeYearIndex = index.indexOf('<button class="top-continuity-history"', uptimeClusterStart);
+  if (uptimeClusterStart < 0 || milestoneMarkerIndex < uptimeClusterStart || uptimeYearIndex < uptimeClusterStart || milestoneMarkerIndex > uptimeYearIndex) {
+    fail('header milestone marker must precede the uptime/year counter inside the uptime cluster');
+  }
+
   const chambersLauncherIndex = index.indexOf('id="chambers-toggle"');
   const ctezLauncherIndex = index.indexOf('id="ctez-feature-btn"');
   const legacyLauncherIndex = index.indexOf('feature-launcher-group feature-launcher-legacy');

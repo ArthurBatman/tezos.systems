@@ -4415,8 +4415,12 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const header = document.querySelector('.header');
     const title = document.querySelector('.title');
     const topProof = document.querySelector('#top-continuity-panel');
+    const topProofUptimeCluster = document.querySelector('.top-uptime-cluster');
     const topProofHistory = document.querySelector('#top-continuity-history');
+    const topProofMilestone = document.querySelector('.top-continuity-milestone-info');
     const topProofFirstPill = topProof?.querySelector('.top-continuity-stat');
+    const topProofHistoryRect = topProofHistory?.getBoundingClientRect();
+    const topProofMilestoneRect = topProofMilestone?.getBoundingClientRect();
     const card = document.querySelector('[data-stat="network-health"]');
     const ticker = document.querySelector('#block-ticker-strip');
     const tickerButton = document.querySelector('#block-ticker-button');
@@ -4507,12 +4511,14 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofHistoryTag: topProofHistory?.tagName || '',
       topProofHistoryType: topProofHistory?.getAttribute('type') || '',
       topProofHistoryAriaControls: topProofHistory?.getAttribute('aria-controls') || '',
+      topProofMilestoneBeforeHistory: Boolean(topProofMilestone && topProofHistory && (topProofMilestone.compareDocumentPosition(topProofHistory) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      topProofMilestoneGap: topProofHistoryRect && topProofMilestoneRect ? topProofHistoryRect.left - topProofMilestoneRect.right : null,
       topProofHistoryWired: topProof?.dataset.historyWired || '',
       topProofPillCards: Array.from(topProof?.querySelectorAll('.top-continuity-stat[data-card-history]') || []).map((pill) => pill.dataset.cardHistory || ''),
       topProofPillsWired: Array.from(topProof?.querySelectorAll('.top-continuity-stat[data-card-history]') || []).every((pill) => pill.dataset.topContinuityHistoryPillWired === '1'),
       topProofCounter: topProofHistory?.querySelector('#hero-chain-uptime-counter')?.textContent || '',
-      topProofBadgeUnderTitle: Boolean(topProofHistory && title && topProofHistory.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 2),
-      topProofBadgeLeftAligned: Boolean(topProofHistory && title && Math.abs(topProofHistory.getBoundingClientRect().left - title.getBoundingClientRect().left) <= 2),
+      topProofPairUnderTitle: Boolean(topProofUptimeCluster && title && topProofUptimeCluster.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 2),
+      topProofPairLeftAligned: Boolean(topProofUptimeCluster && title && Math.abs(topProofUptimeCluster.getBoundingClientRect().left - title.getBoundingClientRect().left) <= 2),
       topProofBadgeHeight: topProofHistory?.getBoundingClientRect().height || 0,
       topProofPillHeight: topProofFirstPill?.getBoundingClientRect().height || 0,
       topProofBadgeRadius: topProofHistory ? parseFloat(getComputedStyle(topProofHistory).borderTopLeftRadius) : 0,
@@ -4643,9 +4649,10 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.topProofInHeader && healthState.topProofHistoryInHeader, 'network health chamber: continuity stats and uptime badge should live in the top header');
   assert(healthState.topProofTag === 'DIV' && healthState.topProofHistoryTag === 'BUTTON' && healthState.topProofHistoryType === 'button', `network health chamber: continuity surface should use a stat container with a button uptime launcher, saw ${healthState.topProofTag}/${healthState.topProofHistoryTag}/${healthState.topProofHistoryType}`);
   assert(healthState.topProofHistoryAriaControls === 'protocol-history-chamber-modal' && healthState.topProofHistoryWired === '1', `network health chamber: continuity proof Protocol Anthology launcher missing: ${healthState.topProofHistoryAriaControls}/${healthState.topProofHistoryWired}`);
+  assert(healthState.topProofMilestoneBeforeHistory && healthState.topProofMilestoneGap >= 0 && healthState.topProofMilestoneGap <= 24, `network health chamber: milestone marker must sit directly left of the uptime/year counter: ${JSON.stringify({ before: healthState.topProofMilestoneBeforeHistory, gap: healthState.topProofMilestoneGap })}`);
   assert(['total-bakers', 'finality', 'staking-ratio', 'issuance-rate'].every((key) => healthState.topProofPillCards.includes(key)) && healthState.topProofPillsWired, `network health chamber: continuity proof all-time pills missing or unwired: ${healthState.topProofPillCards.join(',')}/${healthState.topProofPillsWired}`);
   assert(/uptime/i.test(healthState.topProofHistoryText) && /since 2018/i.test(healthState.topProofHistoryText) && !/mainnet uptime|zero forks|zero outages/i.test(healthState.topProofHistoryText), `network health chamber: uptime badge should include the uptime identity/counter only: ${healthState.topProofHistoryText}`);
-  assert(healthState.topProofBadgeUnderTitle && healthState.topProofBadgeLeftAligned, `network health chamber: uptime badge should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofBadgeUnderTitle, aligned: healthState.topProofBadgeLeftAligned })}`);
+  assert(healthState.topProofPairUnderTitle && healthState.topProofPairLeftAligned, `network health chamber: milestone/year pair should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofPairUnderTitle, aligned: healthState.topProofPairLeftAligned })}`);
   assert(healthState.topProofBadgeHeight > 0 && healthState.topProofPillHeight > 0 && healthState.topProofBadgeHeight <= healthState.topProofPillHeight * 0.82, `network health chamber: uptime badge should be about 70-80% of right pill height: ${healthState.topProofBadgeHeight}/${healthState.topProofPillHeight}`);
   assert(healthState.topProofBadgeRadius > 0 && healthState.topProofBadgeRadius < healthState.topProofPillRadius, `network health chamber: uptime badge should be squarer than right pills: ${healthState.topProofBadgeRadius}/${healthState.topProofPillRadius}`);
   assert(!/\|/.test(healthState.topProofHistoryText), `network health chamber: top uptime badge should not add a pipe: ${healthState.topProofHistoryText}`);
