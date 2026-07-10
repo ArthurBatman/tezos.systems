@@ -114,7 +114,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v405`
+- Service worker cache name: `tezos-systems-v406`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -210,7 +210,12 @@ Stamping gotchas:
 
 - Governance: `js/features/governance.js`, `js/features/chamber.js`
 - Tezos Maxis: `js/features/maxis.js`; source presentation lives in
-  `css/maxis.css` rather than the main minified bundle.
+  `css/maxis.css` rather than the main minified bundle. Maxis is the default
+  canonical all-lane room and uses each crown's honest natural clock; Season is
+  the separate protocol-bounded game, Passport combines career and season
+  progress, and Champions is the finalized archive. Passport career reads one
+  verified address shard from every manifest season; it must preserve repeated
+  season-scoped badge receipts and keep historical shard failures local.
 - Protocol history: `js/features/history.js`
 - Baker tools: `leaderboard.js`, `my-baker.js`, `my-tezos.js`,
   `rewards-tracker.js`, `baker-report-card.js`
@@ -267,7 +272,14 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
 - `data/governance-refresh-report.json`: generated stale-data audit with live
   current protocol/period, lore coverage, active proposal watch notes, and
   blocker/warning status.
-- `data/maxis-leaders.json`: legacy mixed-clock Crown Hall snapshot.
+- `data/maxis-leaders.json`: canonical lane-native-clock Maxis snapshot. It
+  intentionally mixes explicitly labeled all-time, all-time-active, live,
+  rolling, and cross-lane clocks rather than pretending every crown shares one
+  window.
+- `data/maxis-careers.json`: mutable canonical career layer, currently covering
+  the complete applied ballot/proposal history, voting-period ledger, streaks,
+  and current active-delegate ranks. It is deliberately independent of frozen
+  protocol-season evaluators and artifacts.
 - `data/maxis/manifest.json`: protocol-season catalog and active/settling/final
   lifecycle entry point. Each `data/maxis/seasons/<season-id>/` directory keeps
   its frozen rules, summary, integrity-checked Passport shards, and resumable
@@ -277,6 +289,11 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   hashes until atomically promoted. Both checkpoints are generator input, not
   browser payloads. Final archives must validate from their own
   frozen lane catalog rather than current category constants.
+- Maxis Governance has three non-interchangeable clocks: the canonical crown is
+  all-time participation among currently active delegates, the current voting
+  period supplies live actionable/quiet context, and the protocol-season result
+  is an episodic race. A quiet season must not erase the enduring Governance
+  Maxi or be presented as evidence that governance participation does not exist.
 - `data/tweets.json`: share-copy templates used by the share system.
 
 ## Version History Log
@@ -321,12 +338,16 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   staged-source outputs for CSS bundles, pretty chamber route shells, sitemap,
   chamber OG images, and compare pages; scheduled/manual mode refreshes the full
   generated set.
-- `scripts/refresh-maxis-data.mjs`: generates the mixed-clock Crown Hall and
-  frozen protocol-season artifacts. It must run after governance refresh,
+- `scripts/refresh-maxis-data.mjs`: generates the canonical mixed-clock Maxis
+  board and frozen protocol-season artifacts. It must run after governance refresh,
   preserve active rules and finalized archives byte-for-byte, open a new season
   at activation while the prior one settles for 24 hours, and fail closed on a
   non-adjacent protocol jump rather than assigning an ending season the wrong
   boundary. `npm run check:maxis` validates without rescanning live sources.
+- `scripts/refresh-maxis-careers.mjs`: rebuilds the separate all-history
+  Governance career artifact from TzKT count receipts and terminal period
+  exhaustion. `npm run check:maxis-careers` validates the committed artifact,
+  and normal pre-commit runs check it without rewriting frozen season data.
 - `scripts/lib/maxis-evaluator-v2.mjs` and
   `scripts/lib/maxis-source-v2.mjs`: immutable v2 scoring plus source/build
   semantics. `scripts/lib/maxis-transactions-v2.mjs` owns the resumable exact
@@ -402,8 +423,11 @@ Check at least:
 - live stats render without CSP errors
 - share capture opens and produces a sane image
 - protocol history modal remains readable
-- Tezos Maxis keeps one lane visible in all four rooms, the circular season
-  selector remains contained on mobile, Passport shard/hash errors stay local,
-  and no active/settling result appears as a finalized champion
+- Tezos Maxis opens on its scannable all-lane canonical crown overview, while
+  Season keeps one lane expanded at a time. The circular selector appears only
+  where selecting a season changes the result and remains contained on mobile.
+  Passport separates career records from current-season progress, shard/hash
+  errors stay local, and no active/settling result appears as a finalized
+  champion
 - My Baker / My Tezos drawer still opens
 - service worker/cache does not serve stale edited assets

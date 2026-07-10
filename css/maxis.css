@@ -1263,6 +1263,32 @@
     pointer-events: none;
 }
 
+.maxis-maxis-hero {
+    background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--maxis-gold) 16%, transparent), transparent 31%),
+        radial-gradient(circle at 92% 20%, color-mix(in srgb, var(--maxis-cyan) 11%, transparent), transparent 36%),
+        linear-gradient(130deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012));
+}
+
+.maxis-passport-hero,
+.maxis-champions-hero {
+    padding-top: 0.82rem;
+    padding-bottom: 0.86rem;
+}
+
+.maxis-passport-hero .maxis-protocol-title,
+.maxis-champions-hero .maxis-protocol-title { font-size: clamp(1.25rem, 2.5vw, 1.8rem); }
+.maxis-passport-hero .maxis-protocol-lead,
+.maxis-champions-hero .maxis-protocol-lead { max-width: 44rem; font-size: 0.7rem; }
+.maxis-passport-hero .maxis-season-telemetry,
+.maxis-champions-hero .maxis-season-telemetry { margin-top: 0.65rem; }
+.maxis-champions-hero {
+    background:
+        radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--maxis-gold) 11%, transparent), transparent 30%),
+        radial-gradient(circle at 90% 20%, color-mix(in srgb, var(--maxis-violet) 11%, transparent), transparent 35%),
+        linear-gradient(130deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01));
+}
+
 .maxis-protocol-kicker {
     position: relative;
     z-index: 1;
@@ -1362,6 +1388,8 @@
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
 }
+
+.maxis-experience:not(.has-season-context) .maxis-room-tabs { padding-left: 0.42rem; }
 
 .maxis-room-tab {
     display: inline-flex;
@@ -1696,7 +1724,7 @@
 }
 .maxis-passport-identity {
     display: grid;
-    grid-template-columns: 4.25rem minmax(0, 1fr) auto;
+    grid-template-columns: 4.25rem minmax(0, 1fr);
     align-items: center;
     gap: 0.78rem;
     padding: 0.85rem;
@@ -1729,12 +1757,39 @@
 .maxis-passport-unicorn strong { display: block; color: var(--maxis-gold); font-family: 'Orbitron', sans-serif; font-size: 1.2rem; }
 .maxis-passport-unicorn small { display: block; margin-top: 0.1rem; color: var(--text-tertiary); font-size: 0.5rem; }
 
+.maxis-passport-scope + .maxis-passport-scope { border-top: 1px solid rgba(255, 255, 255, 0.055); }
+.maxis-passport-scope-head {
+    padding: 0.7rem 0.85rem 0.2rem;
+}
+.maxis-passport-scope-head > span:first-child {
+    display: block;
+    color: color-mix(in srgb, var(--maxis-gold) 74%, var(--text-tertiary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.46rem;
+    font-weight: 900;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+.maxis-passport-scope-head > strong { display: block; margin-top: 0.18rem; color: var(--text-primary); font-size: 0.72rem; }
+.maxis-passport-scope-head > small { display: block; max-width: 42rem; margin-top: 0.18rem; color: var(--text-tertiary); font-size: 0.5rem; line-height: 1.4; }
+.maxis-passport-season-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 0.8rem;
+    padding-top: 0.78rem;
+}
+.maxis-passport-season-head > span:first-child,
+.maxis-passport-season-head > strong,
+.maxis-passport-season-head > small { grid-column: 1; }
+.maxis-passport-season-head .maxis-passport-unicorn { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+.maxis-passport-section-heading { padding: 0.72rem 0.85rem 0; }
+
 .maxis-passport-badges {
     display: flex;
     gap: 0.45rem;
     padding: 0.68rem 0.85rem;
     overflow-x: auto;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+    border-bottom: 0;
 }
 .maxis-passport-badge {
     flex: 0 0 auto;
@@ -1813,6 +1868,7 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.55rem;
 }
+.maxis-identity-grid { margin-bottom: 0.82rem; }
 .maxis-crown-card,
 .maxis-champion-card {
     position: relative;
@@ -1833,6 +1889,136 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-crown-card strong { margin-top: 0.32rem; color: var(--text-primary); font-size: 0.72rem; }
 .maxis-crown-card code { margin-top: 0.13rem; color: var(--text-tertiary); font-size: 0.48rem; }
 .maxis-crown-card small { margin-top: 0.4rem; color: color-mix(in srgb, var(--maxis-gold) 60%, var(--text-secondary)); font-family: 'JetBrains Mono', monospace; font-size: 0.53rem; }
+
+.maxis-identity-card {
+    display: grid;
+    grid-template-rows: auto auto auto auto 1fr;
+    min-height: 9rem;
+    padding: 0.78rem;
+    border-color: color-mix(in srgb, var(--maxis-gold) 12%, rgba(255, 255, 255, 0.06));
+    background:
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--maxis-violet) 7%, transparent), transparent 45%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012));
+}
+.maxis-identity-card.is-selected {
+    border-color: color-mix(in srgb, var(--maxis-gold) 48%, transparent);
+    background:
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--maxis-violet) 11%, transparent), transparent 45%),
+        linear-gradient(135deg, color-mix(in srgb, var(--maxis-gold) 9%, transparent), rgba(255, 255, 255, 0.014));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 0 24px color-mix(in srgb, var(--maxis-gold) 7%, transparent);
+}
+.maxis-identity-card .maxis-identity-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.56rem;
+    overflow: visible;
+    color: inherit;
+    white-space: normal;
+}
+.maxis-identity-card .maxis-identity-mark {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 28%, transparent);
+    border-radius: 50%;
+    color: var(--maxis-gold);
+    background: color-mix(in srgb, var(--maxis-gold) 7%, transparent);
+    font-size: 0.72rem;
+}
+.maxis-identity-card .maxis-identity-clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    width: auto;
+    padding: 0.22rem 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-cyan) 22%, rgba(255, 255, 255, 0.05));
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--maxis-cyan) 68%, var(--text-secondary));
+    background: color-mix(in srgb, var(--maxis-cyan) 4%, transparent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.44rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.maxis-identity-card .maxis-identity-clock b { font-size: 0.58rem; }
+.maxis-identity-card > strong { margin: 0; color: var(--text-primary); font-size: 0.76rem; }
+.maxis-identity-card .maxis-identity-leader { margin-top: 0.32rem; color: color-mix(in srgb, var(--maxis-gold) 68%, var(--text-primary)); font-size: 0.6rem; font-weight: 850; }
+.maxis-identity-card > small { margin-top: 0.18rem; color: var(--text-tertiary); font-size: 0.49rem; }
+.maxis-identity-card .maxis-identity-cta {
+    align-self: end;
+    margin-top: 0.62rem;
+    color: var(--text-secondary);
+    font-size: 0.48rem;
+    font-weight: 800;
+}
+.maxis-identity-card .maxis-identity-cta b { color: var(--maxis-gold); }
+
+.maxis-maxis-detail {
+    scroll-margin-top: 4.5rem;
+    outline: none;
+}
+.maxis-maxis-detail:focus-visible .maxis-detail-heading {
+    outline: 2px solid color-mix(in srgb, var(--maxis-cyan) 52%, transparent);
+    outline-offset: 3px;
+}
+.maxis-detail-heading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.48rem;
+    padding: 0 0.12rem;
+    color: var(--text-tertiary);
+    font-size: 0.5rem;
+}
+.maxis-detail-heading > span { color: color-mix(in srgb, var(--maxis-gold) 72%, var(--text-tertiary)); font-family: 'JetBrains Mono', monospace; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.maxis-detail-heading strong { overflow: hidden; color: var(--text-primary); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-detail-heading small { color: color-mix(in srgb, var(--maxis-cyan) 62%, var(--text-tertiary)); font-family: 'JetBrains Mono', monospace; }
+
+.maxis-governance-context {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.7fr) minmax(0, 1.3fr);
+    align-items: center;
+    gap: 0.8rem;
+    margin: 0 0 0.62rem;
+    padding: 0.68rem 0.78rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-cyan) 18%, var(--maxis-line));
+    border-radius: 11px;
+    background: linear-gradient(115deg, color-mix(in srgb, var(--maxis-cyan) 6%, transparent), color-mix(in srgb, var(--maxis-violet) 3%, transparent));
+}
+.maxis-governance-context > div { min-width: 0; }
+.maxis-governance-context span,
+.maxis-governance-context strong { display: block; }
+.maxis-governance-context span {
+    color: color-mix(in srgb, var(--maxis-cyan) 66%, var(--text-tertiary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.44rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.maxis-governance-context strong { margin-top: 0.16rem; color: var(--text-primary); font-size: 0.66rem; }
+.maxis-governance-context p { margin: 0; color: var(--text-tertiary); font-size: 0.52rem; line-height: 1.48; }
+.maxis-governance-context.is-unavailable { border-style: dashed; opacity: 0.82; }
+
+.maxis-season-to-maxis {
+    min-height: 42px;
+    margin-top: 0.8rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 34%, transparent);
+    border-radius: 9px;
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--maxis-gold) 8%, rgba(255, 255, 255, 0.02));
+    font: inherit;
+    font-size: 0.56rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+.maxis-season-to-maxis:is(:hover, :focus-visible) { outline: none; border-color: color-mix(in srgb, var(--maxis-gold) 62%, transparent); transform: translateY(-1px); }
 
 .maxis-champion-card { overflow: hidden; padding: 0; }
 .maxis-champion-banner { padding: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: linear-gradient(120deg, color-mix(in srgb, var(--maxis-gold) 9%, transparent), color-mix(in srgb, var(--maxis-violet) 6%, transparent)); }
@@ -1857,7 +2043,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-empty-stage strong { display: block; margin-top: 0.65rem; color: var(--text-primary); font-size: 0.8rem; }
 .maxis-empty-stage p { max-width: 30rem; margin: 0.35rem auto 0; font-size: 0.62rem; line-height: 1.5; }
 
-/* The launcher becomes a season doorway instead of a nine-board wall. */
+/* The launcher leads with durable Maxis identities and keeps the season as a pulse. */
 #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide {
     height: auto !important;
     min-height: 286px !important;
@@ -1870,6 +2056,51 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-entry-season-meta { display: flex; flex-wrap: wrap; gap: 0.34rem; margin-top: 0.62rem; }
 .maxis-entry-season-meta span { padding: 0.25rem 0.42rem; border: 1px solid rgba(255, 255, 255, 0.065); border-radius: 999px; color: var(--text-tertiary); background: rgba(255, 255, 255, 0.022); font-size: 0.48rem; }
 .maxis-entry-season-meta strong { color: var(--maxis-gold); }
+.maxis-entry-identity-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.3rem;
+    margin-top: 0.58rem;
+}
+.maxis-entry-identity-strip > span {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.28rem;
+    min-width: 0;
+    padding: 0.28rem 0.36rem;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 7px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.018);
+    font-size: 0.48rem;
+    font-weight: 800;
+}
+.maxis-entry-identity-strip b { color: var(--maxis-gold); }
+.maxis-entry-identity-strip small { overflow: hidden; color: var(--text-tertiary); font-family: 'JetBrains Mono', monospace; font-size: 0.38rem; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-entry-season-pulse {
+    align-self: stretch;
+    min-width: 0;
+    padding: 0.68rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 14%, rgba(255, 255, 255, 0.06));
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--maxis-violet) 9%, transparent), transparent 46%),
+        rgba(255, 255, 255, 0.018);
+}
+.maxis-entry-season-pulse > strong { display: block; margin-top: 0.38rem; color: var(--text-primary); font-family: 'Orbitron', sans-serif; font-size: 0.9rem; }
+.maxis-entry-season-pulse > p { margin: 0.25rem 0 0.52rem; color: var(--text-tertiary); font-size: 0.54rem; line-height: 1.4; }
+.maxis-entry-pulse-line {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.45rem;
+    min-width: 0;
+    padding: 0.28rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.045);
+    font-size: 0.47rem;
+}
+.maxis-entry-pulse-line span { color: var(--text-tertiary); }
+.maxis-entry-pulse-line strong { overflow: hidden; color: color-mix(in srgb, var(--maxis-gold) 65%, var(--text-primary)); text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .maxis-entry-races { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.42rem; min-width: 0; }
 .maxis-entry-race { min-width: 0; padding: 0.5rem 0.55rem; border: 1px solid rgba(255, 255, 255, 0.055); border-radius: 8px; background: rgba(255, 255, 255, 0.02); }
 .maxis-entry-race span,
@@ -1881,6 +2112,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 
 [data-theme="clean"] .maxis-season-menu,
 [data-theme="clean"] .maxis-room-tabs,
+[data-theme="clean"] .maxis-identity-card,
 [data-theme="clean"] .maxis-lane-board,
 [data-theme="clean"] .maxis-honors-panel,
 [data-theme="clean"] .maxis-passport-shell,
@@ -1911,6 +2143,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-crown-grid,
     .maxis-champions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .maxis-entry-season-front { grid-template-columns: 1fr; }
+    .maxis-entry-season-pulse { min-height: 0; }
 }
 
 @media (max-width: 759px) {
@@ -1938,8 +2171,11 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-season-telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .maxis-room-tabs { grid-template-columns: repeat(4, max-content); justify-content: start; padding-left: 3.55rem; overflow-x: auto; }
     .maxis-room-tab { min-width: 7rem; min-height: 44px; }
+    .maxis-experience:not(.has-season-context) .maxis-room-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; }
+    .maxis-experience:not(.has-season-context) .maxis-room-tab { min-width: 0; }
     .maxis-lane-chip { min-height: 44px; }
     .maxis-row-menu-toggle { width: 44px; height: 44px; }
+    .maxis-season-to-maxis { min-height: 44px; }
     .maxis-podium-place .maxis-row-menu-toggle { width: 46px; height: 46px; }
     .maxis-passport-input,
     .maxis-passport-submit,
@@ -1961,10 +2197,17 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-passport-input { grid-column: 1 / -1; }
     .maxis-passport-identity { grid-template-columns: 3.4rem minmax(0, 1fr); }
     .maxis-passport-crest { width: 3.3rem; height: 3.3rem; }
+    .maxis-passport-season-head { display: block; }
     .maxis-passport-unicorn { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; text-align: left; }
+    .maxis-passport-season-head .maxis-passport-unicorn { margin-top: 0.62rem; }
     .maxis-passport-lanes { grid-template-columns: 1fr; }
     .maxis-crown-grid,
     .maxis-champions-grid { grid-template-columns: 1fr; }
+    .maxis-identity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .maxis-identity-card { min-height: 8.5rem; padding: 0.65rem; }
+    .maxis-detail-heading { grid-template-columns: minmax(0, 1fr) auto; }
+    .maxis-detail-heading > span { grid-column: 1 / -1; }
+    .maxis-governance-context { grid-template-columns: 1fr; gap: 0.38rem; }
     .maxis-footer > span:not(.chamber-footer-sep) {
         display: block;
         max-width: 100%;
@@ -1974,6 +2217,11 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     }
     #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide { min-height: 370px !important; }
     .maxis-entry-season-front { grid-template-columns: 1fr; gap: 0.6rem; }
+    .maxis-entry-maxis-front { gap: 0.35rem; padding-bottom: 0 !important; }
+    .maxis-entry-maxis-copy .maxis-entry-season-meta { display: none; }
+    .maxis-entry-season-pulse > p { display: none; }
+    .maxis-entry-pulse-line:nth-of-type(n + 2) { display: none; }
+    .maxis-entry-identity-strip > span:nth-child(n + 7) { display: none; }
     .maxis-entry-races { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -1984,7 +2232,10 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
         height: auto !important;
         min-height: 360px !important;
     }
-    .maxis-entry-season-front { padding-bottom: 3.7rem !important; }
+    .maxis-entry-season-front:not(.maxis-entry-maxis-front) { padding-bottom: 3.7rem !important; }
+    .maxis-entry-identity-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .maxis-entry-identity-strip > span:nth-child(n + 5) { display: none; }
+    .maxis-entry-season-pulse { padding: 0.56rem; }
     .maxis-entry-races { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .maxis-entry-race:nth-child(n + 3) { display: none; }
 }

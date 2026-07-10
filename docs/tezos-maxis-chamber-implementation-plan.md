@@ -2,9 +2,14 @@
 
 ## Outcome
 
-Turn Tezos Maxis from a static wall of winners into a protocol-season game that
-rewards movement, breadth, and repeat participation without weakening the hard
-on-chain truth of its crowns.
+Keep Tezos Maxis first and foremost as the canonical answer to “who are the
+Maxis?”, then add protocol seasons as a game layer that rewards movement,
+breadth, and repeat participation without replacing the enduring crowns.
+
+The default **Maxis** room is a scannable all-lane board. Each objective crown
+uses its honest natural clock—all-time, all-time-active, live, rolling, or
+cross-lane—and labels that clock beside the metric. These unlike clocks form a
+taxonomy of Tezos roles, not one falsely uniform all-time table.
 
 Every Tezos protocol activation starts a new Maxis season. The active season
 begins at that protocol's exact activation boundary and ends at the next exact
@@ -15,8 +20,8 @@ invent a date or countdown. Past seasons become permanent champion archives.
 The chamber remains inspectable rather than reputation-driven: no manually
 picked personalities, no opaque score, no identity merging, and no chain-wide
 winner when a source only exposes a sample. Every standing must say what was
-measured, under which frozen rules, over which protocol window, and with what
-source completeness.
+measured, over which declared natural or protocol window, under which applicable
+frozen rules, and with what source completeness.
 
 ## Product contract
 
@@ -24,14 +29,35 @@ source completeness.
 
 | Room | Purpose | Truth contract |
 | --- | --- | --- |
+| **Maxis** | The canonical all-lane overview of hard objective crowns | Reads the lane-native-clock snapshot; every all-time, all-time-active, live, rolling, or cross-lane window stays explicit |
 | **Season** | The active protocol's lane races, rank movement, cutoff pressure, and Honors | Only activation-bounded activity measured under this season's frozen rules |
-| **Passport** | One address's badges, lanes, near misses, supported streaks, personal bests, and path to Unicorn | Stable address identity; badges use frozen thresholds while rank cutoffs remain visibly live |
-| **Crown Hall** | Hard objective leaders whose natural clocks are live, rolling, or all-time | Reads the legacy mixed-clock snapshot and never relabels it as season performance |
+| **Passport** | One address's career identity plus current-season badges, lanes, near misses, supported streaks, personal bests, and path to Unicorn | Stable address identity; enduring receipts and season progress remain visibly separate |
 | **Champions** | Finalized winners and Honors from completed protocol seasons | Archives are immutable after a season transition |
 
-Season is the default room. The homepage launcher is a compact season doorway,
-not a mini copy of every leaderboard. Passport, Crown Hall, and Champions stay
-one interaction away through the chamber room tabs and shareable URL state.
+Maxis is the default room and the no-query `/maxis/` state. The homepage
+launcher restores the current all-lane crown overview and can add a smaller
+active-season race pulse without letting that event replace the enduring
+identity layer. Season, Passport, and Champions remain one interaction away
+through room tabs and shareable URL state.
+
+### Canonical crown clocks
+
+The canonical board does not force every lane into one period:
+
+| Crown | Canonical clock | Separate season question |
+| --- | --- | --- |
+| Transaction Maxi | Exhaustive all-time user transaction count | Who generated the most qualifying transactions during this protocol? |
+| Collector, Art, Mint, DeFi Maxis | Declared rolling recent-activity window | Who led the same activity inside this protocol window? |
+| Gaming Maxi | A longer declared rolling window appropriate to sparse activity | Who played most broadly inside this protocol window? |
+| Governance Maxi | All-time ballots plus proposals among currently active delegates, paired with current voting-period context | Who participated during this protocol season when an actionable governance window existed? |
+| Staking Maxi | Live absolute stake | Who increased stake most during this protocol season? |
+| Tezos Unicorn | Breadth across available canonical non-wealth lanes | Who crossed the most available lanes in this one season? |
+
+Governance has three deliberately separate truths. The all-time-active crown is
+the enduring Governance Maxi; current-period context says whether Tezos has an
+actionable proposal or ballot now; and the protocol-season governance result is
+an episodic race that may honestly be empty. An empty season never erases the
+career crown or implies that no governance contributors exist.
 
 ### Protocol-season boundary
 
@@ -73,7 +99,7 @@ coverage cannot be proven.
 | Mint Maxi | Who shipped successful new work? | Season-created tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and editions sold |
 | DeFi Maxi | Who used Tezos finance most broadly? | Distinct reviewed apps first, then successful top-level calls and recognized contracts |
 | Gaming Maxi | Who played across the reviewed game set? | Distinct reviewed games first, then successful calls |
-| Governance Maxi | Who kept showing up? | Qualifying ballots and proposals inside the protocol window, plus evidence-backed participation continuity |
+| Governance Season | Who participated during this protocol when governance was actionable? | Qualifying ballots and proposals inside the protocol window, plus evidence-backed participation continuity; this episodic race never replaces the all-time-active Governance Maxi or current-period context |
 | Staking Growth Maxi | Who increased stake most during the season? | Applied stake minus unstake operations in the protocol window; not the absolute live-stake crown |
 | Delegation Maxi | Which baker retained new in-season assignments? | Latest in-season baker changes that remain assigned with positive liquid balance at the snapshot or exact close; not marketing attribution |
 | Liquidity Maxi | Who touched liquidity most broadly? | Recognized contracts and apps reached through reviewed positive-supply entrypoints, then successful calls; amount and duration are not inferred |
@@ -125,9 +151,12 @@ counter. It never contributes to an on-chain crown or Unicorn score.
 - Display the live top-ten cutoff separately as a near miss: “+37 mints to
   guarantee #10,” “+420 ꜩ to guarantee #10,” or a clearly labeled conservative
   frozen-vector path when a scalar minimum cannot be proven.
-- Passport shows active lanes, qualifying badges, supported streaks, personal
-  bests, current ranks, near misses, and same-season Unicorn breadth. Missing or
-  unavailable lanes contribute neither progress nor penalties.
+- Passport has two visibly distinct ledgers. The career ledger keeps enduring
+  crown appearances, earned badges, cross-season personal bests, and finalized
+  champion receipts. The current-season ledger shows active lanes, moving
+  ranks, near misses, supported streaks, and same-season Unicorn breadth.
+  Missing or unavailable lanes contribute neither progress nor penalties, and
+  resetting a season never wipes the career ledger.
 - My Tezos exposes a direct Passport link for the active saved address and hides
   or returns it to an empty search state when no address is saved.
 
@@ -141,7 +170,9 @@ visitor's browser. The browser reads this generated hierarchy:
 ```text
 data/
 ├── maxis-leaders.json
-│   # Legacy mixed-clock objective leaders used only by Crown Hall
+│   # Canonical lane-native-clock objective leaders used by the Maxis room
+├── maxis-careers.json
+│   # Mutable exact all-history career facts, independent of season evaluators
 └── maxis/
     ├── manifest.json
     │   # Schema/rules versions, active season, season index, shard algorithm
@@ -159,13 +190,13 @@ data/
                 # Deterministic address buckets; only non-empty shards need emission
 ```
 
-`manifest.json` is the small entry point. Season and Crown Hall views do not
+`manifest.json` is the small season entry point. Maxis and Season views do not
 fetch Passport shards or the transaction checkpoint. Passport deterministically maps an address into one of
 64 hexadecimal buckets and fetches only that shard. A missing selected shard is
 an honest no-activity result when the manifest declares that bucket empty. A
 fetch, parse, or integrity failure for a declared non-empty shard is a local
 Passport error with retry; it must not blank the season summary, another shard,
-Crown Hall, or Champions.
+the canonical Maxis board, or Champions.
 
 The active summary may change as a season advances. `rules.json` must not.
 Finalized season summaries and rules are immutable archive inputs for
@@ -269,9 +300,19 @@ the selected protocol season, exposes expanded/controls state, and opens:
   the chamber.
 
 The selector lists only real generated seasons. It must not manufacture earlier
-season ordinals from the protocol count.
+season ordinals from the protocol count. It is room-aware: hide it in the
+canonical Maxis room because changing seasons cannot change lane-native crowns;
+show it only in Season, season-scoped Passport, or archive contexts where the
+selection changes the rendered result. Every room gets a context-appropriate
+hero instead of inheriting the active protocol hero unconditionally.
 
-### Season-first progressive disclosure
+### Canonical overview and season progressive disclosure
+
+The default Maxis room restores a scannable overview of every current lane
+holder. Each lane shows its metric and natural-clock badge at a glance, while
+the selected lane can expand into its top ten and receipts. The overview is the
+stable identity surface; it must not be labeled legacy or subordinate to the
+active season.
 
 The Season room shows:
 
@@ -295,13 +336,15 @@ Canonical in-room state is shareable without requiring a hash:
 
 - `/maxis/?view=season&season=<id>&lane=<lane>`;
 - `/maxis/?view=passport&address=<tz-or-KT1>`;
-- `/maxis/?view=crown&lane=<lane>`;
+- `/maxis/` or `/maxis/?view=maxis&lane=<lane>`;
 - `/maxis/?view=champions&season=<id>`.
 
 Unknown query values fall back safely without discarding valid room state. The
-homepage card opens the current Season. My Tezos opens the saved address's
-Passport. Ranked addresses retain exact Ledger Flow, My Tezos, and primary
-source handoffs.
+no-query route and homepage card open the canonical Maxis overview; the
+launcher also carries a subordinate active-season pulse. My Tezos opens the
+saved address's Passport. Ranked addresses retain exact Ledger Flow, My Tezos,
+and primary source handoffs. A former `view=crown` URL may normalize to Maxis
+for compatibility but must not remain the canonical route vocabulary.
 
 ## Testing
 
@@ -337,15 +380,20 @@ results.
 
 Static and smoke coverage proves:
 
-- `/maxis/` carries canonical/OG metadata and hydrates the Season room with an
-  empty hash;
+- `/maxis/` carries canonical/OG metadata and hydrates the default all-lane
+  Maxis room with an empty hash;
 - all four rooms and room/season/lane/address URLs survive refresh and back;
-- the selector's keyboard, touch, focus, and two-layer Escape contract;
+- the room-aware selector's visibility, keyboard, touch, focus, and two-layer
+  Escape contract;
+- the Maxis overview exposes every lane holder and each natural clock without a
+  protocol-season hero or selector;
 - only one Season lane is expanded, with podium, ranks four to ten, gaps,
   deltas, Honors, receipts, and row actions intact;
 - explicit Passport addresses do not mutate the saved My Tezos address;
 - saved, explicit, raw implicit, `KT1`, and no-address Passport states;
-- Crown Hall reads the mixed-clock legacy artifact only;
+- Maxis reads the canonical lane-native-clock artifact only;
+- Governance keeps its all-time-active crown, current-period state, and
+  possibly empty season race separate;
 - Champions renders immutable archives and the single-season empty state;
 - fresh, stale, unavailable lane, missing summary, missing shard, and total
   error states remain honest and isolated;
@@ -364,14 +412,15 @@ service-worker freshness.
 
 ## Implementation order
 
-1. Preserve unrelated worktree edits and record the existing mixed-clock Crown
-   Hall behavior.
+1. Preserve unrelated worktree edits and record the existing canonical
+   mixed-clock Maxis behavior.
 2. Validate source page limits and activation-window feasibility lane by lane.
 3. Add frozen season rules, deterministic rank/gap/badge helpers, receipts, and
    address sharding.
 4. Generate and validate the manifest, current summary/rules, Passport shards,
-   and legacy Crown Hall snapshot.
-5. Build the four-room chamber, circular selector, one-lane Season board, and
+   and canonical lane-native-clock Maxis snapshot.
+5. Build the four-room chamber with the default all-lane Maxis overview,
+   room-aware circular selector, one-lane Season board, and career-plus-season
    Passport progression surface.
 6. Wire shareable route state, My Tezos Passport handoff, search/site map,
    generated routes, cache stamps, README, QA, and changelog.
@@ -382,28 +431,42 @@ service-worker freshness.
 
 ## Acceptance gate
 
-The protocol-season chamber is complete only when every visible crown, Honor,
+The Maxis chamber is complete only when every visible crown, Honor,
 delta, gap, badge, cutoff, and Unicorn contribution is reproducible from its
 published frozen rules and complete source receipts; current-season end copy is
-honest; Passport identity never mutates or merges unexpectedly; Crown Hall
-remains mixed-clock; archives are immutable; failures stay isolated; all tests
-pass; and the full `QA.md` matrix survives without clipped or inaccessible UI.
+honest; the canonical board remains default, all-lane, and lane-native-clock;
+Governance's career/current-period/season scopes do not overwrite each other;
+Passport identity never mutates or merges unexpectedly; career records survive
+season changes; archives are immutable; failures stay isolated; all tests pass;
+and the full `QA.md` matrix survives without clipped or inaccessible UI.
 
-## Implementation status — 2026-07-09
+## Implementation status — 2026-07-10 enduring-layer correction
 
-The original nine-board snapshot remains available as **Crown Hall**, preserving
-its hard objective winners and mixed all-time/live/rolling clocks without
-pretending they form one season. The protocol-season expansion adds the Season,
-Passport, and Champions rooms around it.
+The original nine-board snapshot is restored as the default **Maxis** room,
+preserving its hard objective winners and explicitly mixed all-time,
+all-time-active, live, rolling, and cross-lane clocks without pretending they
+form one season.
+The homepage and no-query route lead with this all-lane identity surface. The
+protocol-season expansion remains available as the Season game, Passport
+progression, and finalized Champions archive rather than replacing it.
+
+The active season selector and protocol hero are room-aware. They do not appear
+above Maxis when choosing a season cannot affect the canonical board. Governance
+keeps an all-time-active crown and current-period context even when its distinct
+protocol-season race has no qualifying activity.
 
 The active season is activation-bounded and rules-frozen. Season rendering uses
 one-lane progressive disclosure with leader/challenger context, podium plus
 ranks four through ten, guaranteed primary targets, conservative vector paths,
 same-season movement, live cutoff pressure,
-and separate trajectory Honors. Unicorn is recalculated from available lanes in
-the same protocol window only. Stable Passport badges remain distinct from the
-moving cutoff, and the My Tezos drawer hands its saved address directly into the
-Passport without changing identity.
+and separate trajectory Honors. Season Unicorn is recalculated from available
+lanes in the same protocol window only and remains distinct from the enduring
+Tezos Unicorn. Passport separates the career ledger from current-season lanes,
+loads the address's verified shard across every manifest season, preserves
+repeatable season-scoped receipts, and derives rule-aware career high-water
+marks. Stable badges remain distinct from the moving cutoff, and the My Tezos
+drawer hands its saved address directly into the Passport without changing
+identity.
 
 Generated data is split into a small manifest, per-season summary and frozen
 rules, and deterministic `00`–`3f` Passport buckets. Finalized seasons become

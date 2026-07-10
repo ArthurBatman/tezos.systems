@@ -66,7 +66,8 @@ tezos.systems/
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
-│   ├── maxis-leaders.json              # Generated mixed-clock Crown Hall snapshot
+│   ├── maxis-careers.json              # Exact all-history governance career records
+│   ├── maxis-leaders.json              # Generated canonical lane-native-clock Maxis snapshot
 │   ├── maxis/
 │   │   ├── manifest.json               # Protocol-season index and active season
 │   │   └── seasons/<season-id>/
@@ -90,7 +91,8 @@ tezos.systems/
 │   └── smoke.mjs                      # Playwright browser smoke suites
 ├── scripts/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
-│   ├── refresh-maxis-data.mjs         # Crown Hall and protocol-season artifacts
+│   ├── refresh-maxis-data.mjs         # Canonical Maxis and protocol-season artifacts
+│   ├── refresh-maxis-careers.mjs      # Canonical governance career history
 │   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
 │   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
 │   ├── lib/maxis-source-v2.mjs        # Immutable v2 source/query and build adapter
@@ -290,27 +292,46 @@ inline modal styles in `js/core/app.js`.
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
 - Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access, organized into
-  four rooms: **Season**, **Passport**, **Crown Hall**, and **Champions**. Season
-  is bounded by protocol activation rather than an arbitrary rolling month; its
-  end is the next known activation, or honestly remains open-ended while that
-  activation is unscheduled. A circular season selector opens the protocol
-  archive, while one-lane progressive disclosure keeps the active race, podium,
-  ranks four through ten, nearest challenger, an actionable primary-metric
-  guarantee plus a clearly labeled conservative score-vector path, rank movement,
-  cutoff, and trajectory Honors readable instead of rendering every board at
-  once. Crown metrics remain objective standings; climb, debut, consistency,
-  and comeback Honors are a separate game layer.
+  four rooms: **Maxis**, **Season**, **Passport**, and **Champions**. **Maxis is
+  the default canonical identity layer**: its scannable all-lane overview answers
+  who holds each objective crown using that lane's honest natural clock, such as
+  all-time Transaction, all-time-active Governance, live Staking, rolling
+  Art/DeFi, or cross-lane Unicorn breadth. These unlike clocks are labeled
+  prominently and are never blended or relabeled as one time window. The
+  homepage launcher leads with the current lane holders and treats the active
+  protocol season as a smaller live
+  race pulse rather than replacing the enduring Maxis view.
+- Season is the protocol-bounded game layer. Its end is the next known
+  activation, or honestly remains open-ended while that activation is
+  unscheduled. A circular selector appears only in room contexts where choosing
+  a season changes the displayed result. One-lane progressive disclosure keeps
+  the active race, podium, ranks four through ten, nearest challenger, an
+  actionable primary-metric guarantee plus a clearly labeled conservative
+  score-vector path, rank movement, cutoff, and trajectory Honors readable.
+  Crown metrics remain objective standings; climb, debut, consistency, and
+  comeback Honors are a separate game layer.
+- Governance deliberately has three distinct clocks: the canonical Maxis crown
+  uses all-time participation among currently active delegates, the current
+  governance-period context explains whether an actionable vote exists now, and
+  the protocol-season lane is an episodic race that may honestly be quiet. An
+  empty seasonal interval never erases or replaces the enduring Governance Maxi.
+  `data/maxis-careers.json` independently reconstructs every applied ballot and
+  proposal against the complete voting-period ledger, exposing lifetime actions,
+  participated periods, longest/current ballot-period streaks, last activity,
+  and current active-delegate rank without changing any frozen season evaluator.
 - Maxi Passport is the address-level progression view. It accepts an explicit
   address or the saved My Tezos address without changing that saved identity,
-  and shows frozen-rule badges, live-cutoff near misses, active lanes, supported
-  streaks, personal bests, and same-season progress toward Unicorn. Stable badge
-  thresholds and the moving “pass #10” cutoff are deliberately distinct;
-  repeatable achievements carry season-scoped IDs so later protocol seasons do
-  not overwrite earlier receipts. My
-  Tezos exposes a direct Passport handoff for the active saved address.
-- Crown Hall keeps the generated `data/maxis-leaders.json` mixed-clock snapshot
-  for hard objective crowns such as live stake or all-time activity; it is not
-  relabeled as season performance. Champions reads finalized protocol-season
+  and separates enduring career badges, bests, and crown history from
+  current-season lanes, near misses, supported streaks, and progress toward Season
+  Unicorn. The career ledger loads this address's independently verified shard
+  from every season in the manifest, preserving repeated receipts by season and
+  deriving cross-season high-water marks without comparing raw scores across
+  changed rulesets. Stable badge thresholds and the moving “pass #10” cutoff are
+  deliberately distinct; repeatable achievements carry season-scoped IDs so
+  later protocol seasons do not overwrite earlier receipts. My Tezos exposes a
+  direct Passport handoff for the active saved address.
+- The canonical Maxis room reads the generated `data/maxis-leaders.json`
+  lane-native-clock snapshot. Champions reads finalized protocol-season
   archives and preserves past winners. At activation the new season opens at
   once while the prior season spends at least 24 hours concurrently in a
   non-champion settling state, then receives one exact-boundary rebuild under
@@ -527,10 +548,12 @@ Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
-the Maxis artifact family. `npm run refresh:maxis` forces both the legacy
-mixed-clock Crown Hall snapshot and the protocol-season manifest, active-season
+the Maxis artifact family. `npm run refresh:maxis` forces both the canonical
+lane-native-clock Maxis snapshot and the protocol-season manifest, active-season
 summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
-Normal pre-commit runs
+`npm run refresh:maxis-careers` refreshes the separate exact all-history
+Governance career artifact; `npm run check:maxis-careers` validates its source
+receipts and content hash without a network scan. Normal pre-commit runs
 validate committed Maxis artifacts without rescanning chain activity, while
 scheduled/full generated runs refresh them. After a protocol change, the ending
 season waits concurrently with the new active board through the declared
@@ -538,8 +561,8 @@ season waits concurrently with the new active board through the declared
 before becoming an immutable archive; its
 published rules and champions must not drift during later refreshes. Passport
 shards are addressed independently so a declared shard fetch failure produces
-a local Passport error rather than blanking the current Season, Crown Hall, or
-other addresses; a bucket declared empty is an honest no-activity state.
+a local Passport error rather than blanking the canonical Maxis board, current
+Season, or other addresses; a bucket declared empty is an honest no-activity state.
 Snapshot time lives in the summary rather than every Passport file, so an
 unchanged shard preserves its exact bytes and SHA-256 receipt across refreshes.
 Each active season also carries a recomputable UTF-8 serialization budget
@@ -623,6 +646,8 @@ npm run refresh:generated
 npm run refresh:milestones
 npm run refresh:maxis
 npm run check:maxis
+npm run refresh:maxis-careers
+npm run check:maxis-careers
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare
@@ -682,7 +707,7 @@ Current smoke suites:
 - `tezlink`
 - `network-health`
 - `ledger-flow`
-- `maxis` (covers the protocol-season selector, Season/Passport/Crown Hall/Champions views, address-scoped progression, rank receipts, and Ledger Flow handoff)
+- `maxis` (covers the default all-lane Maxis overview, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, career-plus-season address progression, rank receipts, and Ledger Flow handoff)
 - `tezos-domains`
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)

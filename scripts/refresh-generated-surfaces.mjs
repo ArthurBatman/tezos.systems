@@ -30,6 +30,7 @@ const SITEMAP_TARGETS = ['sitemap.xml'];
 const ROOT_OG_TARGETS = ['og-image.png'];
 const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
 const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
+const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -40,7 +41,8 @@ const GENERATED_TARGETS = unique([
   ...SITEMAP_TARGETS,
   ...ROOT_OG_TARGETS,
   ...MILESTONE_TARGETS,
-  ...MAXIS_TARGETS
+  ...MAXIS_TARGETS,
+  ...MAXIS_CAREER_TARGETS
 ]);
 
 function unique(values) {
@@ -209,10 +211,15 @@ async function main() {
   if (modeName === 'precommit') {
     nodeScript('scripts/refresh-maxis-data.mjs', ['--check']);
     ran.push('maxis-check');
+    nodeScript('scripts/refresh-maxis-careers.mjs', ['--check']);
+    ran.push('maxis-careers-check');
   } else if (modeName === 'all' || modeName === 'scheduled') {
     nodeScript('scripts/refresh-maxis-data.mjs');
     ran.push('maxis');
     if (shouldStage) stageTargets(MAXIS_TARGETS);
+    nodeScript('scripts/refresh-maxis-careers.mjs');
+    ran.push('maxis-careers');
+    if (shouldStage) stageTargets(MAXIS_CAREER_TARGETS);
   }
 
   const milestoneArgs = [];

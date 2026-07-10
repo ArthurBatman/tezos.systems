@@ -4978,6 +4978,10 @@ async function smokeMaxisChamber(browser, baseUrl) {
     localStorage.setItem('tezos-systems-my-baker-address', 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9');
   });
   const page = await context.newPage();
+  const passportShardRequests = [];
+  page.on('request', (request) => {
+    if (/\/data\/maxis\/seasons\/[^/]+\/passports\/[0-9a-f]{2}\.json(?:\?|$)/i.test(request.url())) passportShardRequests.push(request.url());
+  });
   attachIssueCollectors(page, 'tezos maxis chamber', issues);
 
   const response = await page.goto(`${baseUrl}/maxis/`, { waitUntil: 'domcontentloaded' });
@@ -4988,7 +4992,11 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.locator('#maxis-modal .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
 
   const artifact = await page.evaluate(async () => {
-    const manifest = await fetch('/data/maxis/manifest.json', { cache: 'no-store' }).then((response) => response.json());
+    const [manifest, ongoing, careers] = await Promise.all([
+      fetch('/data/maxis/manifest.json', { cache: 'no-store' }).then((response) => response.json()),
+      fetch('/data/maxis-leaders.json', { cache: 'no-store' }).then((response) => response.json()),
+      fetch('/data/maxis-careers.json', { cache: 'no-store' }).then((response) => response.json())
+    ]);
     const active = (manifest.seasons || []).find((season) => season.id === manifest.activeSeasonId);
     const summary = await fetch(active.summaryPath, { cache: 'no-store' }).then((response) => response.json());
     const laneRows = Object.entries(summary.rankings || {}).map(([category, rows]) => ({ category, rows: Array.isArray(rows) ? rows : [] }));
@@ -5000,22 +5008,36 @@ async function smokeMaxisChamber(browser, baseUrl) {
       activeSeasonId: manifest.activeSeasonId,
       seasonCount: manifest.seasons?.length || 0,
       finalizedCount: (manifest.seasons || []).filter((season) => season.status === 'finalized').length,
+      ongoingCategories: (ongoing.leaders || []).map((leader) => leader.category),
+      ongoingClocks: Object.fromEntries((ongoing.leaders || []).map((leader) => [leader.category, leader.windowKind])),
+      ongoingReadyCategory: (ongoing.leaders || []).find((leader) => leader.status === 'ready' && (ongoing.rankings?.[leader.category]?.length || 0) >= 2)?.category || '',
       readyCategory: ready?.category || '',
       readyRows: ready?.rows?.length || 0,
       passportAddress: ready?.rows?.[0]?.address || '',
       unavailableCategory: unavailable?.[0] || '',
       unavailableReason: unavailable?.[1]?.reason || '',
+      governanceSeasonStatus: summary.laneStatus?.governance?.status || '',
+      governanceSeasonReason: summary.laneStatus?.governance?.reason || '',
+      governanceActionablePeriods: summary.sourceReceipts?.governance?.votingPeriods?.length || 0,
+      governanceCareerState: careers.currentProtocolContext?.state || '',
+      governanceCareerSeasonId: careers.currentProtocolContext?.seasonId || '',
+      governanceCareerComplete: careers.currentProtocolContext?.complete === true,
       protocol: summary.season?.protocolName || summary.season?.protocol || '',
       indexedAddresses: summary.passports?.indexedAddresses || 0
     };
   });
-  assert(artifact.activeSeasonId && artifact.readyCategory && /^tz[1-4]/.test(artifact.passportAddress), `tezos maxis chamber: generated season fixture is incomplete ${JSON.stringify(artifact)}`);
+  assert(artifact.activeSeasonId && artifact.ongoingReadyCategory && artifact.readyCategory && /^tz[1-4]/.test(artifact.passportAddress), `tezos maxis chamber: generated crown/season fixture is incomplete ${JSON.stringify(artifact)}`);
+  assert(artifact.governanceCareerComplete && artifact.governanceCareerSeasonId === artifact.activeSeasonId, `tezos maxis chamber: independent Governance career/current-period artifact is incomplete ${JSON.stringify(artifact)}`);
 
   const shellState = await page.evaluate(() => ({
     title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
     ideaCredit: document.querySelector('.maxis-idea-credit')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     roomLabels: Array.from(document.querySelectorAll('.maxis-room-tab')).map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim()),
     selectedRooms: document.querySelectorAll('.maxis-room-tab[aria-selected="true"]').length,
+    selectedView: document.querySelector('.maxis-experience')?.dataset.maxisCurrentView || '',
+    contextHero: document.querySelector('.maxis-context-hero')?.className || '',
+    overviewCards: document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length,
+    overviewClocks: Array.from(document.querySelectorAll('#maxis-panel-maxis .maxis-identity-clock')).map((node) => node.textContent?.replace(/\s+/g, ' ').trim()),
     boards: document.querySelectorAll('.maxis-lane-board').length,
     seasonOrb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
     methodology: document.querySelector('.maxis-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -5023,13 +5045,37 @@ async function smokeMaxisChamber(browser, baseUrl) {
     bodyOverflow: document.body.style.overflow,
     horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
   }));
-  assert(new RegExp(artifact.protocol, 'i').test(shellState.title), `tezos maxis chamber: protocol season title mismatch ${JSON.stringify(shellState)}`);
+  assert(shellState.title === 'Who is a Maxi?' && /maxis-maxis-hero/.test(shellState.contextHero), `tezos maxis chamber: default hero is not neutral Maxis identity context ${JSON.stringify(shellState)}`);
   assert(shellState.ideaCredit === '✦ Chamber idea by opeculiar', `tezos maxis chamber: idea credit missing ${shellState.ideaCredit}`);
-  assert(shellState.roomLabels.map((label) => label.replace(/\s+/g, '')).join(',') === '◉Season,✺Passport,♛CrownHall,◇Champions' && shellState.selectedRooms === 1, `tezos maxis chamber: four-room contract failed ${JSON.stringify(shellState.roomLabels)}`);
-  assert(shellState.boards === 1, `tezos maxis chamber: only one lane board should render at a time, got ${shellState.boards}`);
-  assert(shellState.seasonOrb === 'Choose protocol season', `tezos maxis chamber: circular season selector missing ${shellState.seasonOrb}`);
+  assert(shellState.roomLabels.map((label) => label.replace(/\s+/g, '')).join(',') === '♛Maxis,◉Season,✺Passport,◇Champions' && shellState.selectedRooms === 1 && shellState.selectedView === 'maxis', `tezos maxis chamber: default four-room contract failed ${JSON.stringify(shellState)}`);
+  assert(shellState.overviewCards === artifact.ongoingCategories.length && shellState.overviewClocks.length === artifact.ongoingCategories.length, `tezos maxis chamber: canonical all-lane overview is incomplete ${JSON.stringify(shellState)}`);
+  assert(shellState.boards === 1, `tezos maxis chamber: canonical overview should expose one selected detailed board, got ${shellState.boards}`);
+  assert(shellState.seasonOrb === '', `tezos maxis chamber: season selector must not appear above canonical Maxis ${shellState.seasonOrb}`);
   assert(/crowns are objective activity metrics/i.test(shellState.methodology), `tezos maxis chamber: objective-crown disclosure missing ${shellState.methodology}`);
   assert(shellState.directHref === '/maxis/' && shellState.bodyOverflow === 'hidden' && shellState.horizontalOverflow <= 1, `tezos maxis chamber: route, scroll lock, or overflow mismatch ${JSON.stringify(shellState)}`);
+
+  const expectedClockLabels = new Set(['all time', 'all time · active', 'live', '30d', '90d', 'cross-lane']);
+  assert(Object.values(artifact.ongoingClocks).every((clock) => ['all-time', 'all-time-active', 'live', 'rolling-30d', 'rolling-90d', 'mixed'].includes(clock)), `tezos maxis chamber: canonical artifact contains an undeclared natural clock ${JSON.stringify(artifact.ongoingClocks)}`);
+  assert(shellState.overviewClocks.every((clock) => expectedClockLabels.has(clock.replace(/^◷\s*/, ''))), `tezos maxis chamber: overview clock labels are not explicit ${JSON.stringify(shellState.overviewClocks)}`);
+
+  await page.locator(`[data-maxis-overview-lane="${artifact.ongoingReadyCategory}"]`).click();
+  await page.locator(`#maxis-maxis-detail [data-maxis-board="${artifact.ongoingReadyCategory}"]`).waitFor({ state: 'visible', timeout: 10000 });
+  const ongoingDetail = await page.evaluate((category) => ({
+    selected: document.querySelector(`[data-maxis-overview-lane="${category}"]`)?.getAttribute('aria-pressed'),
+    boards: document.querySelectorAll('#maxis-panel-maxis .maxis-lane-board').length,
+    detail: document.querySelector('#maxis-maxis-detail')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }), artifact.ongoingReadyCategory);
+  assert(ongoingDetail.selected === 'true' && ongoingDetail.boards === 1 && /Detailed board/i.test(ongoingDetail.detail), `tezos maxis chamber: canonical lane did not open its detailed board ${JSON.stringify(ongoingDetail)}`);
+
+  await page.locator('[data-maxis-view="season"]').click();
+  await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'season');
+  const seasonShell = await page.evaluate(() => ({
+    title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
+    orb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
+    boards: document.querySelectorAll('#maxis-panel-season .maxis-lane-board').length,
+    overviewCards: document.querySelectorAll('[data-maxis-overview-lane]').length
+  }));
+  assert(new RegExp(artifact.protocol, 'i').test(seasonShell.title) && seasonShell.orb === 'Choose protocol season' && seasonShell.boards === 1 && seasonShell.overviewCards === 0, `tezos maxis chamber: Season did not restore protocol hero, orb, and one-lane board ${JSON.stringify(seasonShell)}`);
 
   await page.locator('.maxis-season-orb').focus();
   await page.keyboard.press('ArrowDown');
@@ -5090,17 +5136,39 @@ async function smokeMaxisChamber(browser, baseUrl) {
     assert(withheld.boards === 1 && withheld.podiums === 0 && /Winner withheld/i.test(withheld.text) && /Publication withheld/i.test(withheld.text) && /No crown or cut line/i.test(withheld.text), `tezos maxis chamber: unavailable lane inferred a result ${JSON.stringify(withheld)}`);
   }
 
-  await page.locator('[data-maxis-view="crown"]').click();
-  await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'crown');
-  const crownState = await page.evaluate(() => ({
-    boards: document.querySelectorAll('#maxis-panel-crown .maxis-lane-board').length,
-    pressed: document.querySelectorAll('#maxis-panel-crown .maxis-lane-chip[aria-pressed="true"]').length,
-    text: document.querySelector('#maxis-panel-crown')?.textContent?.replace(/\s+/g, ' ').trim() || ''
-  }));
-  assert(crownState.boards === 1 && crownState.pressed === 1 && /original live, rolling, and all-time boards/i.test(crownState.text), `tezos maxis chamber: Crown Hall did not preserve mixed-window truth ${JSON.stringify(crownState)}`);
+  if (artifact.governanceSeasonStatus === 'empty') {
+    await page.locator('[data-maxis-view="season"]').click();
+    await page.locator('[data-maxis-lane="governance"]').click();
+    const quietGovernance = await page.evaluate(() => ({
+      text: document.querySelector('#maxis-panel-season')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      handoffs: document.querySelectorAll('.maxis-season-to-maxis[data-maxis-handoff-lane="governance"]').length
+    }));
+    const governanceTruthful = artifact.governanceActionablePeriods === 0
+      ? /No actionable Governance window occurred in this protocol season/i.test(quietGovernance.text)
+      : new RegExp(`${artifact.governanceActionablePeriods} actionable Governance window${artifact.governanceActionablePeriods === 1 ? '' : 's'} occurred in this protocol season`, 'i').test(quietGovernance.text)
+        && /no qualifying ballot or proposal activity was recorded/i.test(quietGovernance.text);
+    assert(governanceTruthful && /no season crown is declared/i.test(quietGovernance.text), `tezos maxis chamber: quiet Governance season copy is ambiguous ${JSON.stringify({ quietGovernance, artifact })}`);
+    assert(quietGovernance.handoffs === 1 && /Open the ongoing Governance Maxi record/i.test(quietGovernance.text), `tezos maxis chamber: quiet Governance season does not point to the enduring record ${JSON.stringify(quietGovernance)}`);
+    await page.locator('.maxis-season-to-maxis[data-maxis-handoff-lane="governance"]').click();
+    await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'maxis');
+    const governanceHandoff = await page.evaluate(() => ({
+      selected: document.querySelector('[data-maxis-overview-lane="governance"]')?.getAttribute('aria-pressed'),
+      orb: document.querySelectorAll('.maxis-season-orb').length,
+      contexts: document.querySelectorAll('.maxis-governance-context').length,
+      text: document.querySelector('#maxis-maxis-detail')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    }));
+    assert(governanceHandoff.selected === 'true' && governanceHandoff.orb === 0 && governanceHandoff.contexts === 1 && /Governance Maxi/i.test(governanceHandoff.text), `tezos maxis chamber: quiet Governance handoff missed the enduring record ${JSON.stringify(governanceHandoff)}`);
+    assert(/Protocol pulse · separate clock/i.test(governanceHandoff.text) && /all-time-active Governance Maxi board remains the canonical crown/i.test(governanceHandoff.text), `tezos maxis chamber: Governance protocol pulse blurred the enduring crown ${JSON.stringify(governanceHandoff)}`);
+  }
 
   await page.locator('[data-maxis-view="champions"]').click();
   await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'champions');
+  const championsShell = await page.evaluate(() => ({
+    title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
+    hero: document.querySelector('.maxis-context-hero')?.className || '',
+    seasonOrbs: document.querySelectorAll('.maxis-season-orb').length
+  }));
+  assert(championsShell.title === 'Champions' && /maxis-champions-hero/.test(championsShell.hero) && championsShell.seasonOrbs === 0, `tezos maxis chamber: Champions is not a neutral finalized archive room ${JSON.stringify(championsShell)}`);
   if (artifact.finalizedCount === 0) {
     await page.waitForFunction(() => /first protocol season is still live/i.test(document.querySelector('#maxis-panel-champions')?.textContent || ''));
     assert(await page.locator('#maxis-panel-champions .maxis-champion-card').count() === 0, 'tezos maxis chamber: first live season must not invent finalized champions');
@@ -5114,6 +5182,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.locator('[data-maxis-view="passport"]').click();
   await page.locator('.maxis-passport-input').fill(artifact.passportAddress);
   await page.evaluate((savedAddress) => localStorage.setItem('tezos-systems-my-baker-address', savedAddress), SAMPLE_ADDRESS);
+  const passportShardRequestsBefore = passportShardRequests.length;
   await page.locator('.maxis-passport-submit').click();
   await page.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, artifact.passportAddress, { timeout: 15000 });
   const passportState = await page.evaluate(({ address, savedAddress }) => ({
@@ -5121,6 +5190,10 @@ async function smokeMaxisChamber(browser, baseUrl) {
     view: new URLSearchParams(window.location.search).get('view'),
     address: new URLSearchParams(window.location.search).get('address'),
     stored: localStorage.getItem('tezos-systems-my-baker-address'),
+    careerSections: document.querySelectorAll('.maxis-passport-career').length,
+    seasonSections: document.querySelectorAll('.maxis-passport-season').length,
+    governanceCareerCards: document.querySelectorAll('.maxis-governance-career').length,
+    seasonOrb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
     lanes: document.querySelectorAll('.maxis-passport-card .maxis-passport-lane').length,
     badges: document.querySelectorAll('.maxis-passport-badge').length,
     progress: Array.from(document.querySelectorAll('.maxis-progress-track')).map((node) => node.getAttribute('aria-label')),
@@ -5130,8 +5203,20 @@ async function smokeMaxisChamber(browser, baseUrl) {
   }), { address: artifact.passportAddress, savedAddress: SAMPLE_ADDRESS });
   assert(passportState.pathname === '/maxis/' && passportState.view === 'passport' && passportState.address === passportState.expectedAddress, `tezos maxis chamber: address-bound Passport route failed ${JSON.stringify(passportState)}`);
   assert(passportState.stored === passportState.expectedSaved, `tezos maxis chamber: opening a Passport mutated My Tezos ${JSON.stringify(passportState)}`);
+  assert(passportState.careerSections === 1 && passportState.seasonSections === 1 && passportState.seasonOrb === 'Choose protocol season', `tezos maxis chamber: Passport did not separate Career from This Season ${JSON.stringify(passportState)}`);
+  const openedPassportShardRequests = passportShardRequests.slice(passportShardRequestsBefore);
+  const selectedSeasonShardRequests = openedPassportShardRequests.filter((url) => url.includes(`/data/maxis/seasons/${artifact.activeSeasonId}/passports/`));
+  assert(new Set(openedPassportShardRequests).size === openedPassportShardRequests.length, `tezos maxis chamber: cross-season Passport aggregation duplicated a season shard request ${JSON.stringify(openedPassportShardRequests)}`);
+  assert(selectedSeasonShardRequests.length === 1, `tezos maxis chamber: selected profile and career aggregation duplicated the active-season Passport shard request ${JSON.stringify(openedPassportShardRequests)}`);
+  assert(passportState.governanceCareerCards === 1 && /Governance career[\s\S]*all history[\s\S]*Completed ballot-period streak/i.test(passportState.text), `tezos maxis chamber: Passport omitted its exact all-history civic record ${JSON.stringify(passportState)}`);
   assert(passportState.lanes > 0 && passportState.badges > 0 && passportState.progress.some((label) => /progress \d+%/.test(label || '')), `tezos maxis chamber: Passport lanes, badges, or frozen progress missing ${JSON.stringify(passportState)}`);
-  assert(/toward Unicorn/i.test(passportState.text) && /Near misses/i.test(passportState.text) && /Personal bests/i.test(passportState.text), `tezos maxis chamber: Passport motivation surfaces incomplete ${passportState.text}`);
+  assert(/Career[\s\S]*Earned identity/i.test(passportState.text)
+    && new RegExp(`Cross-season breadth[\\s\\S]*${artifact.seasonCount}/${artifact.seasonCount} season receipts verified`, 'i').test(passportState.text)
+    && /Career high-water marks/i.test(passportState.text)
+    && /This Season stamps/i.test(passportState.text)
+    && /Selected-season bests/i.test(passportState.text)
+    && /toward Unicorn/i.test(passportState.text)
+    && /Near misses/i.test(passportState.text), `tezos maxis chamber: Passport career/season motivation surfaces incomplete ${passportState.text}`);
 
   await page.locator('.maxis-passport-input').fill('KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT');
   await page.locator('.maxis-passport-submit').click();
@@ -5184,6 +5269,17 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.waitForFunction((target) => window.location.pathname === '/' && window.location.hash === `#ledger-flow=${encodeURIComponent(target)}`, ledgerTarget, { timeout: 10000 });
   await page.locator('#ledger-flow-modal.active .ledger-flow-content').waitFor({ state: 'visible', timeout: 15000 });
   assert(await page.locator('#ledger-flow-input').inputValue() === ledgerTarget, `tezos maxis chamber: Ledger Flow did not open ${ledgerTarget}`);
+
+  const crownAliasResponse = await page.goto(`${baseUrl}/maxis/?view=crown&lane=governance`, { waitUntil: 'domcontentloaded' });
+  assert(crownAliasResponse?.ok(), `tezos maxis chamber: legacy view=crown route failed with HTTP ${crownAliasResponse?.status()}`);
+  await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'maxis', null, { timeout: 15000 });
+  const crownAliasState = await page.evaluate(() => ({
+    view: new URLSearchParams(window.location.search).get('view'),
+    lane: new URLSearchParams(window.location.search).get('lane'),
+    selected: document.querySelector('[data-maxis-overview-lane="governance"]')?.getAttribute('aria-pressed'),
+    seasonOrbs: document.querySelectorAll('.maxis-season-orb').length
+  }));
+  assert(crownAliasState.view !== 'crown' && crownAliasState.lane === 'governance' && crownAliasState.selected === 'true' && crownAliasState.seasonOrbs === 0, `tezos maxis chamber: view=crown did not normalize to canonical Maxis ${JSON.stringify(crownAliasState)}`);
 
   await context.close();
 
@@ -5302,7 +5398,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await archivePage.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, SAMPLE_ADDRESS_2, { timeout: 15000 });
   const compactPassportText = await archivePage.locator('.maxis-passport-card').innerText();
   assert(/Compact Mover/.test(compactPassportText) && /33%[\s\S]*1\/3 qualifying lanes toward Unicorn/.test(compactPassportText) && /#17 · 42% badge/.test(compactPassportText) && /\+9 transactions to guarantee #10/.test(compactPassportText), `tezos maxis compact Passport: transaction lane adapter failed ${compactPassportText}`);
-  assert(/Personal bests[\s\S]*Transaction[\s\S]*#17/i.test(compactPassportText) && /2 consecutive completed weeks/i.test(compactPassportText), `tezos maxis compact Passport: best or streak was lost ${compactPassportText}`);
+  assert(/Selected-season bests[\s\S]*Transaction[\s\S]*#17/i.test(compactPassportText) && /2 consecutive completed weeks/i.test(compactPassportText), `tezos maxis compact Passport: best or streak was lost ${compactPassportText}`);
   assert(/Near misses[\s\S]*Transaction Top 10[\s\S]*\+9 transactions to guarantee #10/i.test(compactPassportText), `tezos maxis compact Passport: transaction near miss was lost ${compactPassportText}`);
   await archivePage.locator('.maxis-passport-input').fill(SAMPLE_ADDRESS);
   await archivePage.locator('.maxis-passport-submit').click();
@@ -5332,10 +5428,15 @@ async function smokeMaxisChamber(browser, baseUrl) {
   attachIssueCollectors(identityPage, 'tezos maxis summary identity', issues);
   const identityResponse = await identityPage.goto(`${baseUrl}/maxis/`, { waitUntil: 'domcontentloaded' });
   assert(identityResponse?.ok(), `tezos maxis summary identity: pretty route failed with HTTP ${identityResponse?.status()}`);
-  await identityPage.locator('#maxis-modal.active .maxis-error').waitFor({ state: 'visible', timeout: 15000 });
-  const identityErrorText = await identityPage.locator('#maxis-modal .maxis-error').innerText();
-  assert(/identity receipt/i.test(identityErrorText) && /protocol hash/i.test(identityErrorText), `tezos maxis summary identity: mismatched summary was not rejected ${identityErrorText}`);
-  assert(await identityPage.locator('#maxis-modal .maxis-experience').count() === 0, 'tezos maxis summary identity: wrong-season data rendered before rejection');
+  await identityPage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
+  assert(await identityPage.locator('#maxis-panel-maxis [data-maxis-overview-lane]').count() === artifact.ongoingCategories.length, 'tezos maxis summary identity: a broken season blanked the canonical Maxis room');
+  await identityPage.locator('[data-maxis-view="season"]').click();
+  await identityPage.waitForFunction(() => /Selected season is scoped unavailable/i.test(document.querySelector('#maxis-panel-season')?.textContent || ''), null, { timeout: 15000 });
+  const identityErrorText = await identityPage.locator('#maxis-panel-season').innerText();
+  assert(/identity receipt/i.test(identityErrorText) && /protocol hash/i.test(identityErrorText), `tezos maxis summary identity: mismatched summary was not rejected locally ${identityErrorText}`);
+  assert(await identityPage.locator('#maxis-panel-season [data-maxis-board]').count() === 0, 'tezos maxis summary identity: wrong-season data rendered before rejection');
+  await identityPage.locator('[data-maxis-view="maxis"]').click();
+  assert(await identityPage.locator('#maxis-panel-maxis [data-maxis-overview-lane]').count() === artifact.ongoingCategories.length, 'tezos maxis summary identity: canonical Maxis did not recover after inspecting the scoped season failure');
   await identityContext.close();
 
   const integrityContext = await browser.newContext({
@@ -8117,7 +8218,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
     { name: 'network-health', description: 'Network Health card opens #health chamber with block cadence, missed rights, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
-    { name: 'maxis', description: 'Protocol-season selector, one-lane race board, Maxi Passport, legacy Crown Hall, immutable Champions, mobile geometry, and address trails', run: () => smokeMaxisChamber(browser, baseUrl) },
+    { name: 'maxis', description: 'Default all-lane Maxis crowns, room-aware protocol seasons, career-plus-season Passport, immutable Champions, mobile geometry, and address trails', run: () => smokeMaxisChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },

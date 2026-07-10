@@ -99,7 +99,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=405';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=406';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -1500,7 +1500,7 @@ const CHAMBER_INFO_COPY = {
     },
     'maxis-entry-card': {
         title: 'Tezos Maxis',
-        body: 'Nine inspectable top-ten boards across art, DeFi, gaming, transactions, governance, staking, and the cross-lane Unicorn, with a tweet-ready receipt for every standing.',
+        body: 'Spot the enduring Tezos Maxis across honestly labeled all-time, live, and rolling crowns, then enter the current protocol season for movement, Honors, and wallet progression.',
         href: '/maxis/',
         link: 'Open Tezos Maxis ->'
     }

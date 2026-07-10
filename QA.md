@@ -60,12 +60,13 @@ Automated tests catch regressions, but still do this visual pass for UI-heavy ch
 9. Footer build marker shows build metadata and latest GitHub main commit.
 10. Hard refresh or unregister the service worker if edited JS/CSS looks stale.
 
-## Tezos Maxis protocol-season release matrix
+## Tezos Maxis crown-and-season release matrix
 
 Run the focused deterministic checks before the visual matrix:
 
 ```sh
 npm run check:maxis
+npm run check:maxis-careers
 node tests/smoke.mjs --only maxis,my-tezos-address-switch
 ```
 
@@ -77,23 +78,28 @@ room below. Do not substitute representative sampling for this release pass.
 | Themes | `aurora`, `matrix`, `hen`, `default`, `void`, `ember`, `signal`, `nerv`, `clean`, `dark`, `bubblegum`, `abyss`, `moss`, `warzone` |
 | Desktop viewports | `1440x1000`, `1280x900` |
 | Mobile viewports | `390x844`, `375x812`, `360x720` |
-| Rooms | Season, Passport, Crown Hall, Champions |
+| Rooms | Maxis, Season, Passport, Champions |
 
 At every theme × viewport × room combination, verify no horizontal escape,
 clipped identity, covered heading, unreadable contrast, accidental page scroll,
-or control below a 44 px mobile target. Season must show only one expanded lane
+or control below a 44 px mobile target. Maxis must remain the default room and
+show a scannable all-lane crown overview whose all-time, all-time-active, live,
+rolling, and cross-lane clocks are explicit. Season must show only one expanded lane
 at a time, with the protocol header and lane switcher still reachable. Passport
-must keep badge and near-miss progress legible. Crown Hall must remain visibly
-mixed-clock rather than masquerading as season data. Champions must render both
-archive cards and a useful first-season empty state.
+must keep career records visually distinct from current-season badges and
+near-miss progress. Champions must render both archive cards and a useful
+first-season empty state.
 
 ### Selector, routing, and focus
 
 Test once with a desktop keyboard and once with a touch-sized mobile viewport:
 
-1. Open `/maxis/` and confirm the circular selector identifies the current
-   protocol season without obscuring the modal title.
-2. Open the selector with Enter and Space. Confirm its menu semantics,
+1. Open `/maxis/` with no query and confirm Maxis is selected, the non-season
+   hero and all-lane overview are visible, and the circular season selector is
+   absent because it cannot change the canonical crown board.
+2. Switch to Season and confirm the circular selector identifies the current
+   protocol season without obscuring the room title. Open it with Enter and
+   Space. Confirm its menu semantics,
    `menuitemradio` selection state, and current-season announcement.
 3. Use Arrow Up, Arrow Down, Home, and End to move through available seasons;
    choose one with Enter and confirm the season, lane, and room query state is
@@ -101,11 +107,13 @@ Test once with a desktop keyboard and once with a touch-sized mobile viewport:
 4. Press Escape once while the selector is open: only the selector closes and
    focus returns to its circular toggle. Press Escape again: the Maxis chamber
    closes and focus returns to the launcher that opened it.
-5. Reopen the chamber and switch Season → Passport → Crown Hall → Champions →
-   Season. Confirm room state changes in place without resetting the selected
-   season/lane or jumping the page behind the modal.
-6. On mobile, confirm the selector becomes a contained toggle-anchored popover, closes by
-   outside tap, and leaves the chamber scroll position intact.
+5. Reopen the chamber and switch Maxis → Season → Passport → Champions →
+   Maxis. Confirm room state changes in place without resetting valid selected
+   season/lane/address state or jumping the page behind the modal. Confirm the
+   season selector appears only in a room where selecting a protocol season
+   changes the displayed result.
+6. On mobile, confirm the selector becomes a contained toggle-anchored popover,
+   closes by outside tap, and leaves the chamber scroll position intact.
 
 ### Passport identity cases
 
@@ -120,10 +128,13 @@ case explicitly requires it:
 | `KT1` input | Render supported contract data or an explicit unsupported-identity explanation; never merge it into a manager wallet. |
 | No address | Show the purposeful Passport search/empty state with a My Tezos handoff, not a failed leaderboard or fabricated progress. |
 
-For a populated Passport, check stable frozen-rule badges, current lane
-positions, moving top-ten cutoff near misses, supported streak evidence,
-personal bests, and same-season Unicorn breadth. Badge progress must not move
-merely because rank #10 changes. A newly ranked address is labeled as a debut,
+For a populated Passport, check enduring career badges, career personal bests
+and crown history separately from current-season lane positions, moving top-ten
+cutoff near misses, supported streak evidence, and same-season Unicorn breadth.
+The career receipt must state how many manifest season shards verified; a failed
+historical shard is scoped unavailable rather than silently erasing its season.
+Badge progress must not move merely because rank #10 changes. A newly ranked
+address is labeled as a debut,
 not as a climb from an invented previous rank. In a two-season fixture, earning
 the same repeatable top-ten, streak, or Unicorn achievement twice must preserve
 two season-scoped badge receipts rather than deduplicating the later season.
@@ -134,9 +145,12 @@ Exercise these states with deterministic fixtures or request interception:
 
 | State | Required result |
 | --- | --- |
+| Fresh canonical Maxis snapshot | All current lane holders are scannable together; each lane displays its own all-time, all-time-active, live, rolling, or cross-lane clock and exact method. No mixed-clock result is called a season score or a single all-time table. |
+| Governance clock split | The all-time-active Governance Maxi remains visible, current-period context states whether voting is actionable now, and a quiet/empty protocol-season governance lane does not erase or replace either enduring surface. |
+| Governance career integrity | `data/maxis-careers.json` validates its exact ballot/proposal counts, complete period ledger, active-delegate reconciliation, deterministic streaks, and content hash. A missing/invalid career artifact degrades only career context; it never rewrites a frozen season. |
 | Fresh active season | Protocol activation boundary, generated time, leader, nearest challenger, actionable primary-metric guarantee, conservative frozen-vector path, rank delta, cutoff, Honors, and per-source completeness receipts agree with the fixture. No conservative path is labeled as a live minimum. |
 | Stale active season | Last valid standings remain visible with an unmistakable stale label and unchanged source receipts. |
-| Declared Passport shard fetch/hash failure | Only that Passport reports the shard failure and offers retry; a manifest-declared empty bucket instead shows honest no activity. Season, Crown Hall, Champions, and another shard continue working. |
+| Declared Passport shard fetch/hash failure | Only that Passport reports the shard failure and offers retry; a manifest-declared empty bucket instead shows honest no activity. Maxis, Season, Champions, and another shard continue working. |
 | Single-season manifest | Selector remains usable, Champions explains that no prior champion archive exists, and the current season end stays open-ended when the next activation is unknown. |
 | Unavailable/incomplete lane | Explain the missing exhaustive coverage and publish no crown, cutoff, rank delta, badge, Honor, or Unicorn credit for that lane. |
 | Protocol rollover before settlement | New season opens and resets immediately while the ending season is concurrently `settling`; no champion archive or permanent crown badge is published before the 24-hour guard and exact-boundary rebuild. |
@@ -150,8 +164,9 @@ Exercise these states with deterministic fixtures or request interception:
 
 Finally, compare the active rules file before and after a refresh, then compare a
 finalized season archive before and after refreshing the next season. Frozen
-rules and archived champions must remain byte-for-byte stable. Verify the
-legacy `data/maxis-leaders.json` still feeds Crown Hall only, while season-wide
-Unicorn counts activity from one protocol window and one frozen ruleset.
+rules and archived champions must remain byte-for-byte stable. Verify
+`data/maxis-leaders.json` still feeds the canonical Maxis room only, while
+season-wide Unicorn counts activity from one protocol window and one frozen
+ruleset.
 
 Known noisy upstream conditions: TzKT `429`, CoinGecko `429/503`, and GoatCounter localhost warnings. Treat syntax errors, page errors, missing selectors, 404s, or blank widgets as blockers.

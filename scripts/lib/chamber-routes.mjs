@@ -30,10 +30,10 @@ export const CHAMBER_ROUTES = [
   {
     slug: 'maxis',
     hash: '#maxis',
-    title: 'Tezos Maxis - Protocol Seasons and Maxi Passports',
+    title: 'Tezos Maxis - On-Chain Crowns, Seasons, and Passports',
     shortTitle: 'Tezos Maxis',
-    description: 'Race through Tezos protocol seasons, inspect a wallet Maxi Passport, revisit permanent champions, and trace every on-chain leader in Ledger Flow.',
-    eyebrow: 'Protocol Seasons',
+    description: 'Spot Tezos activity leaders on their honest natural clocks, race through protocol seasons, inspect a wallet Maxi Passport, and trace every crown in Ledger Flow.',
+    eyebrow: 'On-Chain Crowns',
     accent: '#f5c451'
   },
   {

@@ -60,6 +60,10 @@ import {
   measureSeasonArtifactBudget
 } from '../scripts/lib/maxis-artifact-budget.mjs';
 import { validateTransactionAccumulator } from '../scripts/lib/maxis-transactions-v2.mjs';
+import {
+  buildGovernanceCareerArtifact,
+  validateGovernanceCareerArtifact
+} from '../scripts/lib/maxis-governance-career.mjs';
 import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -227,10 +231,12 @@ async function checkRequiredFiles() {
     'scripts/refresh-generated-surfaces.mjs',
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-maxis-data.mjs',
+    'scripts/refresh-maxis-careers.mjs',
     'scripts/lib/maxis-artifact-budget.mjs',
     'scripts/lib/maxis-coverage-v2.mjs',
     'scripts/lib/maxis-evaluator-v2-primitives.mjs',
     'scripts/lib/maxis-evaluator-v2.mjs',
+    'scripts/lib/maxis-governance-career.mjs',
     'scripts/lib/maxis-pagination.mjs',
     'scripts/lib/maxis-season.mjs',
     'scripts/lib/maxis-source.mjs',
@@ -240,6 +246,7 @@ async function checkRequiredFiles() {
     'data/governance-refresh-report.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
+    'data/maxis-careers.json',
     'data/maxis-leaders.json',
     'data/maxis/manifest.json',
     'maxis/index.html',
@@ -2472,6 +2479,7 @@ async function checkReadmeContracts() {
 
 async function checkMaxisContracts() {
   const config = JSON.parse(await readText('data/maxis-contracts.json'));
+  const careerArtifact = JSON.parse(await readText('data/maxis-careers.json'));
   const snapshot = JSON.parse(await readText('data/maxis-leaders.json'));
   const maxis = await readText('js/features/maxis.js');
   const maxisCss = await readText('css/maxis.css');
@@ -2481,6 +2489,34 @@ async function checkMaxisContracts() {
   const sw = await readText('sw.js');
   const myTezos = await readText('js/features/my-baker.js');
   const generatedSurfaces = await readText('scripts/refresh-generated-surfaces.mjs');
+  const packageJson = JSON.parse(await readText('package.json'));
+
+  const careerErrors = validateGovernanceCareerArtifact(careerArtifact);
+  if (careerErrors.length) fail(`maxis Governance career artifact invalid: ${careerErrors.join('; ')}`);
+  if (hoursSince(careerArtifact.generatedAt) > 72) fail('maxis Governance career artifact is older than 72 hours; run npm run refresh:maxis-careers');
+  if (careerArtifact?.coverage?.absenceMeansZero !== true || careerArtifact?.recordCount < 1) {
+    fail('maxis Governance career coverage must be complete enough for an absent address to mean zero');
+  }
+  const careerRecords = Object.values(careerArtifact?.records || {});
+  const reconstructedCareerBallots = careerRecords.reduce((sum, record) => sum + Number(record?.lifetimeBallots || 0), 0);
+  const reconstructedCareerProposals = careerRecords.reduce((sum, record) => sum + Number(record?.lifetimeProposals || 0), 0);
+  if (reconstructedCareerBallots !== Number(careerArtifact?.sourceReceipts?.ballots?.rows)
+    || reconstructedCareerProposals !== Number(careerArtifact?.sourceReceipts?.proposals?.rows)) {
+    fail('maxis Governance career record totals must reconcile to the exact source receipts');
+  }
+  if (careerRecords.some((record) => record?.activeDelegateCounters?.operationRowCountsMatch === false)) {
+    fail('maxis Governance career active-delegate counters disagree with reconstructed operation history');
+  }
+  const canonicalGovernanceRows = snapshot?.rankings?.governance || [];
+  const careerGovernanceRows = careerRecords
+    .filter((record) => Number(record?.activeDelegateGovernanceRank) > 0
+      && Number(record.activeDelegateGovernanceRank) <= canonicalGovernanceRows.length)
+    .sort((left, right) => Number(left.activeDelegateGovernanceRank) - Number(right.activeDelegateGovernanceRank));
+  if (careerGovernanceRows.length !== canonicalGovernanceRows.length
+    || canonicalGovernanceRows.some((row, index) => row.address !== careerGovernanceRows[index]?.address
+      || Number(row.score) !== Number(careerGovernanceRows[index]?.lifetimeActions))) {
+    fail('maxis canonical Governance board and exact active-delegate career ranks have drifted; refresh both artifacts together');
+  }
 
   const configErrors = validateMaxisConfig(config);
   if (configErrors.length) fail(`maxis contract taxonomy invalid: ${configErrors.join('; ')}`);
@@ -2515,11 +2551,182 @@ async function checkMaxisContracts() {
       if (!leader.scoreLabel || !leader.method || !/^https:\/\//.test(leader.sourceUrl || '')) fail(`maxis leader ${leader.category} is missing score, method, or source`);
     }
   }
+  const canonicalClockByCategory = {
+    transaction: 'all-time',
+    collector: 'rolling-30d',
+    artist: 'rolling-30d',
+    minter: 'rolling-30d',
+    defi: 'rolling-30d',
+    gaming: 'rolling-90d',
+    governance: 'all-time-active',
+    staking: 'live',
+    unicorn: 'mixed'
+  };
+  for (const [category, windowKind] of Object.entries(canonicalClockByCategory)) {
+    const leader = (snapshot.leaders || []).find((item) => item.category === category);
+    if (leader?.windowKind !== windowKind) {
+      fail(`maxis canonical ${category} crown must keep its lane-native ${windowKind} clock, got ${leader?.windowKind || 'missing'}`);
+    }
+  }
+  const canonicalGovernance = (snapshot.leaders || []).find((leader) => leader.category === 'governance');
+  if (canonicalGovernance?.status !== 'ready' || !/all-time ballots plus proposals among currently active/i.test(canonicalGovernance?.method || '')) {
+    fail('maxis canonical Governance crown must remain an all-time-active record independent of quiet protocol seasons');
+  }
   if (!snapshot.coverage?.caveat?.includes('Unknown or unlabeled contracts')) fail('maxis coverage must state the unknown-contract limitation');
 
   const addressA = 'tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4';
   const addressB = 'tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm';
   const addressC = 'tz1Yw8SgnsAmbQcJyaBbQokoYGxeeoX5AKYw';
+  const completeCareerSource = (rows) => ({
+    rows,
+    receipt: { complete: true, truncated: false, rows: rows.length, expectedRows: rows.length }
+  });
+  const careerPeriods = [
+    { index: 0, epoch: 0, kind: 'proposal', firstLevel: 100, lastLevel: 199 },
+    { index: 1, epoch: 0, kind: 'exploration', firstLevel: 200, lastLevel: 299 },
+    { index: 2, epoch: 0, kind: 'promotion', firstLevel: 300, lastLevel: 399 },
+    { index: 3, epoch: 0, kind: 'cooldown', firstLevel: 400, lastLevel: 499 },
+    { index: 4, epoch: 1, kind: 'proposal', firstLevel: 500, lastLevel: 599 },
+    { index: 5, epoch: 1, kind: 'exploration', firstLevel: 600, lastLevel: 699 },
+    { index: 6, epoch: 1, kind: 'promotion', firstLevel: 700, lastLevel: 799 },
+    { index: 7, epoch: 1, kind: 'adoption', firstLevel: 800, lastLevel: 899 },
+    { index: 8, epoch: 2, kind: 'proposal', firstLevel: 900, lastLevel: 999 }
+  ];
+  const careerBallots = [1, 2, 5, 6].map((period, index) => ({
+    id: String(1000 + index),
+    timestamp: `2026-01-0${index + 1}T00:00:00Z`,
+    delegate: { address: addressA, alias: 'Alpha' },
+    period: { index: period }
+  })).concat([1, 5].map((period, index) => ({
+    id: String(2000 + index),
+    timestamp: `2026-02-0${index + 1}T00:00:00Z`,
+    delegate: { address: addressB, alias: 'Beta' },
+    period: { index: period }
+  })));
+  const careerProposals = [{
+    id: '3000',
+    timestamp: '2026-01-01T12:00:00Z',
+    delegate: { address: addressA, alias: 'Alpha' },
+    period: { index: 0 }
+  }];
+  const careerDelegates = [
+    { address: addressA, alias: 'Alpha', numBallots: 4, numProposals: 1, lastActivityTime: '2026-03-01T00:00:00Z' },
+    { address: addressB, alias: 'Beta', numBallots: 2, numProposals: 0, lastActivityTime: '2026-02-01T00:00:00Z' },
+    { address: addressC, alias: 'Gamma', numBallots: 0, numProposals: 0, lastActivityTime: '2026-01-01T00:00:00Z' }
+  ];
+  const careerFixtureInput = {
+    generatedAt: '2026-07-10T00:00:00Z',
+    head: {
+      row: { level: 900, timestamp: '2026-07-10T00:00:00Z' },
+      receipt: { complete: true, level: 900, timestamp: '2026-07-10T00:00:00.000Z' }
+    },
+    ballots: completeCareerSource(careerBallots),
+    proposals: completeCareerSource(careerProposals),
+    votingPeriods: completeCareerSource(careerPeriods),
+    activeDelegates: completeCareerSource(careerDelegates),
+    season: { id: 'fixture-season', protocolName: 'Fixture', activationLevel: 900, activatedAt: '2026-01-01T00:00:00Z' },
+    seasonGovernanceReceipt: {
+      complete: true,
+      ballots: 0,
+      proposals: 0,
+      votingPeriods: [{ index: 8, epoch: 2, kind: 'proposal', firstLevel: 900, lastLevel: 999 }]
+    }
+  };
+  const careerFixture = buildGovernanceCareerArtifact(careerFixtureInput);
+  const shuffledCareerFixture = buildGovernanceCareerArtifact({
+    ...careerFixtureInput,
+    ballots: completeCareerSource([...careerBallots].reverse()),
+    proposals: completeCareerSource([...careerProposals].reverse()),
+    votingPeriods: completeCareerSource([...careerPeriods].reverse()),
+    activeDelegates: completeCareerSource([...careerDelegates].reverse())
+  });
+  const fixtureA = careerFixture.records[addressA];
+  const fixtureB = careerFixture.records[addressB];
+  if (fixtureA?.lifetimeActions !== 5 || fixtureA?.actionablePeriodsParticipated !== 5
+    || fixtureA?.longestBallotPeriodStreak !== 4 || fixtureA?.currentBallotPeriodStreak !== 4) {
+    fail(`maxis Governance career streak/action fixture is wrong: ${JSON.stringify(fixtureA)}`);
+  }
+  if (fixtureB?.longestBallotPeriodStreak !== 1 || fixtureB?.currentBallotPeriodStreak !== 0) {
+    fail(`maxis Governance career gap fixture is wrong: ${JSON.stringify(fixtureB)}`);
+  }
+  if (careerFixture.integrity.contentHash !== shuffledCareerFixture.integrity.contentHash) {
+    fail('maxis Governance career artifact must be deterministic under source-row reordering');
+  }
+  if (careerFixture.currentProtocolContext?.state !== 'no-actionable-governance-occurred') {
+    fail(`maxis Governance career current protocol context is ambiguous: ${JSON.stringify(careerFixture.currentProtocolContext)}`);
+  }
+  const tamperedCareerFixture = structuredClone(careerFixture);
+  tamperedCareerFixture.records[addressA].lifetimeActions += 1;
+  if (!validateGovernanceCareerArtifact(tamperedCareerFixture).length) fail('maxis Governance career validation must reject content tampering');
+  const rehashedStreakTamper = structuredClone(careerFixture);
+  rehashedStreakTamper.records[addressA].currentBallotPeriodStreak = 0;
+  {
+    const { integrity, ...unsigned } = rehashedStreakTamper;
+    rehashedStreakTamper.integrity.contentHash = stableJsonHash(unsigned);
+  }
+  if (!validateGovernanceCareerArtifact(rehashedStreakTamper).some((error) => /current ballot-period streak/i.test(error))) {
+    fail('maxis Governance career validation must semantically reject a rehashed false streak');
+  }
+  const rehashedPeriodOmission = structuredClone(careerFixture);
+  rehashedPeriodOmission.periodLedger.periods = rehashedPeriodOmission.periodLedger.periods
+    .filter((period) => period.index !== 3);
+  rehashedPeriodOmission.periodLedger.count = rehashedPeriodOmission.periodLedger.periods.length;
+  {
+    const { integrity, ...unsigned } = rehashedPeriodOmission;
+    rehashedPeriodOmission.integrity.contentHash = stableJsonHash(unsigned);
+  }
+  if (!validateGovernanceCareerArtifact(rehashedPeriodOmission).some((error) => /voting-period source receipt|voting-period index sequence/i.test(error))) {
+    fail('maxis Governance career validation must reject a rehashed omitted voting period');
+  }
+  const openPeriodFixture = buildGovernanceCareerArtifact({
+    ...careerFixtureInput,
+    season: null,
+    seasonGovernanceReceipt: null,
+    head: {
+      row: { level: 750, timestamp: '2026-06-10T00:00:00Z' },
+      receipt: { complete: true, level: 750, timestamp: '2026-06-10T00:00:00.000Z' }
+    }
+  });
+  if (openPeriodFixture.records[addressA]?.currentBallotPeriodStreak !== 3
+    || openPeriodFixture.records[addressA]?.longestBallotPeriodStreak !== 3) {
+    fail(`maxis Governance career streak must exclude an open ballot period: ${JSON.stringify(openPeriodFixture.records[addressA])}`);
+  }
+  let wrongPeriodRejected = false;
+  try {
+    const wrongPeriodBallots = [...careerBallots, { ...careerBallots[0], id: '4999', period: { index: 0 } }];
+    buildGovernanceCareerArtifact({
+      ...careerFixtureInput,
+      ballots: completeCareerSource(wrongPeriodBallots),
+      activeDelegates: completeCareerSource(careerDelegates.map((delegate) => delegate.address === addressA
+        ? { ...delegate, numBallots: 5 }
+        : delegate))
+    });
+  } catch {
+    wrongPeriodRejected = true;
+  }
+  if (!wrongPeriodRejected) fail('maxis Governance career build must reject ballots outside exploration/promotion periods');
+  let counterMismatchRejected = false;
+  try {
+    buildGovernanceCareerArtifact({
+      ...careerFixtureInput,
+      activeDelegates: completeCareerSource(careerDelegates.map((delegate) => delegate.address === addressA
+        ? { ...delegate, numBallots: 3 }
+        : delegate))
+    });
+  } catch {
+    counterMismatchRejected = true;
+  }
+  if (!counterMismatchRejected) fail('maxis Governance career build must reject active-delegate counter mismatches');
+  let incompleteCareerRejected = false;
+  try {
+    buildGovernanceCareerArtifact({
+      ...careerFixtureInput,
+      ballots: { rows: careerBallots, receipt: { complete: false, truncated: true, rows: careerBallots.length, expectedRows: careerBallots.length + 1 } }
+    });
+  } catch {
+    incompleteCareerRejected = true;
+  }
+  if (!incompleteCareerRejected) fail('maxis Governance career build must refuse incomplete source receipts');
   const coverage = compileContractCoverage([
     { address: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT', alias: '3Route v4', lastActivityTime: '2026-07-09T00:00:00Z' },
     { address: 'KT1R5dHqnpeKVFow9mErfN763RFfe51vmiB8', alias: 'Tezotopia Resource Collector', lastActivityTime: '2026-07-09T00:00:00Z' }
@@ -3020,6 +3227,14 @@ async function checkMaxisContracts() {
   const activeRulesPath = localArtifactPath(activeEntry?.rulesPath);
   const seasonSummary = activeSummaryPath ? JSON.parse(await readText(activeSummaryPath)) : null;
   const seasonRules = activeRulesPath ? JSON.parse(await readText(activeRulesPath)) : null;
+  const careerSeasonContext = careerArtifact?.currentProtocolContext;
+  const seasonGovernanceReceipt = seasonSummary?.sourceReceipts?.governance;
+  if (careerSeasonContext?.seasonId !== activeEntry?.id
+    || Number(careerSeasonContext?.ballots) !== Number(seasonGovernanceReceipt?.ballots || 0)
+    || Number(careerSeasonContext?.proposals) !== Number(seasonGovernanceReceipt?.proposals || 0)
+    || Number(careerSeasonContext?.actions) !== Number(seasonGovernanceReceipt?.ballots || 0) + Number(seasonGovernanceReceipt?.proposals || 0)) {
+    fail('maxis Governance career current-protocol context does not cross-link to the active season receipt');
+  }
   if (seasonRules?.version !== SEASON_RULES_VERSION || seasonRules?.evaluatorVersion !== SEASON_EVALUATOR_VERSION || seasonRules?.definition?.deepRankingLimit !== DEEP_RANKING_LIMIT) {
     fail('maxis active season rules do not match the frozen scorer version and deep ranking contract');
   }
@@ -3220,7 +3435,14 @@ async function checkMaxisContracts() {
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
     ['maxis protocol-season selector', 'class="maxis-season-orb"', maxis],
-    ['maxis four-room tab set', "const VIEW_KEYS = ['season', 'passport', 'crown', 'champions']", maxis],
+    ['maxis four-room tab set', "const VIEW_KEYS = ['maxis', 'season', 'passport', 'champions']", maxis],
+    ['maxis default canonical room', "view: 'maxis'", maxis],
+    ['maxis legacy Crown Hall route alias', "crown: 'maxis'", maxis],
+    ['maxis room-aware season selector', "seasonContext ? renderSeasonSelector() : ''", maxis],
+    ['maxis neutral canonical hero', 'maxis-context-hero maxis-maxis-hero', maxis],
+    ['maxis neutral Champions hero', 'maxis-context-hero maxis-champions-hero', maxis],
+    ['maxis all-lane canonical overview', 'data-maxis-overview-lane=', maxis],
+    ['maxis canonical detailed board', 'id="maxis-maxis-detail"', maxis],
     ['maxis single selected lane board', 'data-maxis-board=', maxis],
     ['maxis conservative pass-gap normalization', 'conservativeVectorPath', maxis],
     ['maxis archived pass-gap compatibility', ': gap.minimalKnownPath', maxis],
@@ -3233,7 +3455,24 @@ async function checkMaxisContracts() {
     ['maxis compact Unicorn progress adapter', 'profile?.unicornProgress?.breadth', maxis],
     ['maxis compact transaction near-miss adapter', 'function profileNearMisses', maxis],
     ['maxis Passport SHA-256 shard routing', "crypto.subtle.digest('SHA-256'", maxis],
+    ['maxis Passport in-flight shard deduplication', 'shardRequestCache.has(key)', maxis],
     ['maxis Passport explicit-address form', 'data-maxis-passport-form', maxis],
+    ['maxis Passport Career section', 'maxis-passport-career', maxis],
+    ['maxis Passport This Season section', 'maxis-passport-season', maxis],
+    ['maxis cross-season Passport loader', 'function loadPassportCareer', maxis],
+    ['maxis cross-season badge aggregation', 'function careerBadgeRecords', maxis],
+    ['maxis cross-season personal best aggregation', 'function careerPersonalBestRecords', maxis],
+    ['maxis cross-season breadth receipt', 'Cross-season breadth', maxis],
+    ['maxis selected-season badge separation', 'This Season stamps', maxis],
+    ['maxis scoped season summary failure', 'Selected season is scoped unavailable', maxis],
+    ['maxis stale summary request guard', 'refreshSerial !== summaryRequestSerial', maxis],
+    ['maxis independent Governance career artifact', "const CAREER_DATA_URL = '/data/maxis-careers.json'", maxis],
+    ['maxis Governance career integrity check', 'The Governance career artifact failed its SHA-256 integrity receipt.', maxis],
+    ['maxis Passport exact Governance career record', 'maxis-governance-career', maxis],
+    ['maxis current protocol Governance context', 'maxis-governance-context', maxis],
+    ['maxis quiet Governance season truth', 'No actionable Governance window occurred in this protocol season, so no season crown is declared.', maxis],
+    ['maxis quiet Governance no-ballot truth', 'no qualifying ballot or proposal activity was recorded, so no season crown is declared.', maxis],
+    ['maxis quiet Governance enduring-record handoff', 'data-maxis-handoff-lane=', maxis],
     ['maxis objective crown disclosure', 'Crowns are objective activity metrics, not endorsements.', maxis],
     ['maxis opeculiar idea credit', 'Chamber idea by <strong>opeculiar</strong>', maxis],
     ['maxis protocol-season stage', '.maxis-season-stage', maxisCss],
@@ -3248,11 +3487,21 @@ async function checkMaxisContracts() {
   for (const [label, snippet, source] of contracts) {
     if (!source.includes(snippet)) fail(`missing ${label}`);
   }
+  const maxisRoute = CHAMBER_ROUTES.find((route) => route.slug === 'maxis');
+  if (!/On-Chain Crowns/.test(maxisRoute?.title || '') || maxisRoute?.eyebrow !== 'On-Chain Crowns' || !/honest natural clocks/i.test(maxisRoute?.description || '')) {
+    fail(`maxis route metadata must lead with canonical crowns rather than season-only framing: ${JSON.stringify(maxisRoute)}`);
+  }
   if (/on the known tie path/i.test(maxis)) fail('maxis UI must not present a frozen score-vector path as a known dynamic minimum');
   const governanceRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-governance-data.mjs'");
   const maxisRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-maxis-data.mjs'");
-  if (governanceRefreshIndex < 0 || maxisRefreshIndex < 0 || governanceRefreshIndex > maxisRefreshIndex) {
-    fail('generated surfaces must refresh governance before Maxis because current-protocol truth is a Maxis input');
+  const maxisCareerRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-maxis-careers.mjs'");
+  if (governanceRefreshIndex < 0 || maxisRefreshIndex < 0 || maxisCareerRefreshIndex < 0
+    || governanceRefreshIndex > maxisRefreshIndex || maxisRefreshIndex > maxisCareerRefreshIndex) {
+    fail('generated surfaces must refresh governance, frozen-season Maxis data, and mutable career context in dependency order');
+  }
+  if (packageJson?.scripts?.['refresh:maxis-careers'] !== 'node scripts/refresh-maxis-careers.mjs'
+    || packageJson?.scripts?.['check:maxis-careers'] !== 'node scripts/refresh-maxis-careers.mjs --check') {
+    fail('package scripts must expose Maxis Governance career refresh and offline validation');
   }
   if (!/\.hot-today-progress\s*\{[^}]*margin:\s*0\.7rem auto 0;/s.test(shellExtrasCss)) {
     fail('What is hot today progress controls must stay centered');

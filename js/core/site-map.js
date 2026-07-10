@@ -42,8 +42,8 @@ export const SITE_MAP = [
         href: '/maxis/',
         hash: '#maxis',
         group: 'Live Rooms',
-        detail: 'Protocol-season races, Maxi Passports, permanent champions, and objective on-chain Crown Hall records',
-        keywords: ['maxis', 'protocol season', 'passport', 'champions', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'staking', 'unicorn']
+        detail: 'Canonical lane-native Tezos crowns, protocol-season races, career Passports, and permanent champions',
+        keywords: ['maxis', 'on-chain crowns', 'all time', 'live', 'protocol season', 'passport', 'champions', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'staking', 'unicorn']
     },
     {
         id: 'health',
