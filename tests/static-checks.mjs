@@ -2460,6 +2460,144 @@ async function checkMilestoneCatalogContracts() {
   }
 }
 
+async function checkVisitStreakBehavior() {
+  const originalGlobals = new Map();
+  const rememberGlobal = (key) => {
+    originalGlobals.set(key, {
+      exists: Object.prototype.hasOwnProperty.call(globalThis, key),
+      value: globalThis[key]
+    });
+  };
+  const restoreGlobals = () => {
+    for (const [key, original] of originalGlobals) {
+      if (original.exists) globalThis[key] = original.value;
+      else delete globalThis[key];
+    }
+  };
+  const createStorage = (seed = {}) => {
+    const values = new Map(Object.entries(seed).map(([key, value]) => [key, String(value)]));
+    return {
+      getItem: (key) => values.has(key) ? values.get(key) : null,
+      setItem: (key, value) => values.set(key, String(value))
+    };
+  };
+
+  for (const key of ['__visitStreakEnqueue', 'document', 'localStorage', 'requestAnimationFrame', 'setTimeout']) {
+    rememberGlobal(key);
+  }
+
+  try {
+    const source = await readText('js/features/streak.js');
+    const queueImport = "import { enqueueToast } from '../ui/toast-queue.js';";
+    assert.ok(source.includes(queueImport), 'visit streak must keep using the shared toast queue');
+    const testSource = source.replace(
+      queueImport,
+      'const enqueueToast = (item) => globalThis.__visitStreakEnqueue(item);'
+    );
+    const moduleUrl = `data:text/javascript;base64,${Buffer.from(testSource).toString('base64')}`;
+    const { initStreak } = await import(moduleUrl);
+    const now = new Date(2026, 6, 10, 12, 0, 0);
+    const today = '2026-07-10';
+    const yesterday = '2026-07-09';
+
+    const runVisit = (seed = {}) => {
+      const queued = [];
+      const current = { textContent: '' };
+      globalThis.localStorage = createStorage(seed);
+      globalThis.__visitStreakEnqueue = (item) => queued.push(item);
+      globalThis.document = {
+        getElementById: (id) => id === 'visit-streak-current' ? current : null
+      };
+      initStreak(now);
+      return { current, queued, storage: globalThis.localStorage };
+    };
+
+    const renderToast = (item) => {
+      const appended = [];
+      class FakeElement {
+        constructor(tagName) {
+          this.tagName = tagName;
+          this.children = [];
+          this.listeners = new Map();
+          this.classNames = new Set();
+          this.classList = {
+            add: (...names) => names.forEach((name) => this.classNames.add(name)),
+            remove: (...names) => names.forEach((name) => this.classNames.delete(name))
+          };
+          this.textContent = '';
+          this.isConnected = false;
+        }
+        setAttribute(name, value) { this[name] = String(value); }
+        addEventListener(name, listener) { this.listeners.set(name, listener); }
+        append(...children) { this.children.push(...children); }
+        remove() { this.isConnected = false; }
+      }
+      globalThis.document = {
+        createElement: (tagName) => new FakeElement(tagName),
+        body: {
+          appendChild: (node) => {
+            node.isConnected = true;
+            appended.push(node);
+          }
+        }
+      };
+      globalThis.requestAnimationFrame = (callback) => callback();
+      globalThis.setTimeout = (callback) => {
+        callback();
+        return 0;
+      };
+      item.show(() => {}, item.duration);
+      return appended[0];
+    };
+
+    const firstVisit = runVisit();
+    assert.deepEqual(firstVisit.queued.map((item) => item.priority), [1]);
+    assert.equal(firstVisit.current.textContent, 'Current streak: 1 day');
+    assert.equal(firstVisit.storage.getItem('tezos_streak_count'), '1');
+    assert.equal(firstVisit.storage.getItem('tezos_streak_last_visit'), today);
+
+    const sameDayReload = runVisit({
+      tezos_streak_count: 2,
+      tezos_streak_last_visit: today
+    });
+    assert.equal(sameDayReload.queued.length, 0, 'same-day reload must not replay the streak toast');
+    assert.equal(sameDayReload.current.textContent, 'Current streak: 2 days');
+
+    const nextDayVisit = runVisit({
+      tezos_streak_count: 1,
+      tezos_streak_last_visit: yesterday
+    });
+    assert.equal(nextDayVisit.queued.length, 1);
+    assert.equal(nextDayVisit.storage.getItem('tezos_streak_count'), '2');
+    const nextDayToast = renderToast(nextDayVisit.queued[0]);
+    assert.match(nextDayToast.textContent, /2-day visit streak/i);
+    assert.match(nextDayToast.textContent, /Browser-local/i);
+    assert.match(nextDayToast.textContent, /Settings → Visit streak/i);
+
+    const resetVisit = runVisit({
+      tezos_streak_count: 8,
+      tezos_streak_last_visit: '2026-07-01'
+    });
+    assert.equal(resetVisit.storage.getItem('tezos_streak_count'), '1');
+    assert.match(renderToast(resetVisit.queued[0]).textContent, /Day 1[\s\S]*Come back tomorrow to start a streak/i);
+
+    const milestoneVisit = runVisit({
+      tezos_streak_count: 6,
+      tezos_streak_last_visit: yesterday
+    });
+    const milestoneToast = renderToast(milestoneVisit.queued[0]);
+    assert.ok(milestoneToast.classNames.has('milestone'));
+    assert.match(milestoneToast.children[0]?.textContent || '', /One week in the bakery[\s\S]*Settings → Visit streak/i);
+    assert.equal(milestoneToast.children[1]?.textContent, 'Share');
+
+    pass('visit streak starts after day one, advances once per local calendar day, updates persistent help, and preserves milestone sharing');
+  } catch (error) {
+    fail(`visit streak behavior failed: ${error.message}`);
+  } finally {
+    restoreGlobals();
+  }
+}
+
 async function checkReadmeContracts() {
   const readme = await readText('README.md');
   const themeSource = await readText('js/ui/theme.js');
@@ -3618,6 +3756,7 @@ async function main() {
   await checkNetworkContextNavigationContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();
+  await checkVisitStreakBehavior();
   await checkMaxisContracts();
   await checkReadmeContracts();
 

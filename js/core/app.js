@@ -99,7 +99,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=412';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=413';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -3196,6 +3196,7 @@ function setupEventListeners() {
     setupModal('whale-info-btn', 'whale-modal', 'whale-modal-close');
     setupModal('giants-info-btn', 'giants-modal', 'giants-modal-close');
     setupModal('about-tezos-btn', 'about-tezos-modal', 'about-tezos-modal-close');
+    setupModal('visit-streak-info-btn', 'visit-streak-modal', 'visit-streak-modal-close');
 
     // Handle visibility change
     document.addEventListener('visibilitychange', handleVisibilityChange);

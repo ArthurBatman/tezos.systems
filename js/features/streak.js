@@ -9,6 +9,7 @@ const FIRST_VISIT_TOAST_DURATION = 7200;
 const STREAK_TOAST_DURATION = 6400;
 const MILESTONE_TOAST_DURATION = 11000;
 const MILESTONES = new Set([7, 14, 30, 60, 100, 365]);
+const STREAK_SCOPE_COPY = 'Browser-local · Details in Settings → Visit streak.';
 const MILESTONE_COPY = {
     7: '🍞 One week in the bakery.',
     14: '🍞 Two weeks. The oven knows you now.',
@@ -23,37 +24,37 @@ import { enqueueToast } from '../ui/toast-queue.js';
 /**
  * Get today's date string in user's local timezone (YYYY-MM-DD)
  */
-function getToday() {
-    const now = new Date();
+function getToday(now = new Date()) {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 /**
  * Get yesterday's date string in user's local timezone
  */
-function getYesterday() {
-    const now = new Date();
-    now.setDate(now.getDate() - 1);
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+function getYesterday(now = new Date()) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 }
 
 /**
- * Calculate and update the streak, returns { count, isNew }
+ * Calculate and update the streak.
+ * didAdvance is false for same-day reloads so they stay silent.
  */
-function updateStreak() {
-    const today = getToday();
+function updateStreak(now = new Date()) {
+    const today = getToday(now);
     const lastVisit = localStorage.getItem(STORAGE_KEY_LAST);
     let count = parseInt(localStorage.getItem(STORAGE_KEY_COUNT), 10) || 0;
-    let isNew = false;
+    let isFirstVisit = false;
 
     if (!lastVisit) {
         // First ever visit
-        isNew = true;
+        isFirstVisit = true;
         count = 1;
     } else if (lastVisit === today) {
         // Same day revisit — no change
-        return { count, isNew: false };
-    } else if (lastVisit === getYesterday()) {
+        return { count, isFirstVisit: false, didAdvance: false };
+    } else if (lastVisit === getYesterday(now)) {
         // Consecutive day
         count += 1;
     } else {
@@ -63,14 +64,28 @@ function updateStreak() {
 
     localStorage.setItem(STORAGE_KEY_COUNT, count);
     localStorage.setItem(STORAGE_KEY_LAST, today);
-    return { count, isNew };
+    return { count, isFirstVisit, didAdvance: true };
 }
 
 /**
  * Format the streak text
  */
 function formatStreak(count) {
-    return MILESTONE_COPY[count] || `🔥 ${count} day${count !== 1 ? ' streak' : ''}`;
+    if (count === 1) {
+        return `🔥 Day 1 · ${STREAK_SCOPE_COPY} Come back tomorrow to start a streak.`;
+    }
+    if (MILESTONE_COPY[count]) {
+        return `${MILESTONE_COPY[count]} ${STREAK_SCOPE_COPY}`;
+    }
+    return `🔥 ${count}-day visit streak · ${STREAK_SCOPE_COPY}`;
+}
+
+function renderCurrentStreak(count) {
+    const current = document.getElementById('visit-streak-current');
+    if (!current) return;
+    current.textContent = count > 0
+        ? `Current streak: ${count} day${count === 1 ? '' : 's'}`
+        : 'No visit streak yet';
 }
 
 async function shareStreakMilestone(count, copy, button) {
@@ -129,7 +144,7 @@ async function shareStreakMilestone(count, copy, button) {
     }
 }
 
-function showStreakToast({ text, count, isMilestone }, done, duration = 6000) {
+function showStreakToast({ text, shareText = text, count, isMilestone }, done, duration = 6000) {
     const badge = document.createElement('div');
     badge.className = 'visit-streak-toast';
     badge.setAttribute('role', 'status');
@@ -146,7 +161,7 @@ function showStreakToast({ text, count, isMilestone }, done, duration = 6000) {
         share.textContent = 'Share';
         share.addEventListener('click', (event) => {
             event.stopPropagation();
-            shareStreakMilestone(count, text, share);
+            shareStreakMilestone(count, shareText, share);
         });
         badge.append(copy, share);
     } else {
@@ -168,10 +183,11 @@ function showStreakToast({ text, count, isMilestone }, done, duration = 6000) {
 /**
  * Create and display the streak badge
  */
-export function initStreak() {
-    const { count, isNew } = updateStreak();
+export function initStreak(now = new Date()) {
+    const { count, isFirstVisit, didAdvance } = updateStreak(now);
+    renderCurrentStreak(count);
 
-    if (isNew) {
+    if (isFirstVisit) {
         enqueueToast({
             priority: 1,
             duration: FIRST_VISIT_TOAST_DURATION,
@@ -183,12 +199,17 @@ export function initStreak() {
         });
     }
 
+    // The welcome is enough on a first visit, and a full reload on the same
+    // calendar day should not replay a streak the visitor already saw.
+    if (isFirstVisit || !didAdvance) return;
+
     const isMilestone = MILESTONES.has(count);
     enqueueToast({
         priority: 3,
         duration: isMilestone ? MILESTONE_TOAST_DURATION : STREAK_TOAST_DURATION,
         show: (done, duration) => showStreakToast({
             text: formatStreak(count),
+            shareText: MILESTONE_COPY[count],
             count,
             isMilestone
         }, done, duration)

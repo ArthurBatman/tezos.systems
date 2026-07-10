@@ -656,7 +656,7 @@ export function init() {
     }
 
     // Feature 9: Multi-address support
-    function addToSavedAddresses(addr) {
+    function addToSavedAddresses(addr, label = null) {
         let saved;
         try {
             saved = JSON.parse(localStorage.getItem(SAVED_ADDRESSES_KEY) || '[]');
@@ -665,43 +665,127 @@ export function init() {
             saved = [];
             localStorage.setItem(SAVED_ADDRESSES_KEY, '[]');
         }
-        // Don't duplicate
-        if (saved.find(s => s.address === addr)) {
+        const existing = saved.find(s => s.address === addr);
+        if (existing) {
+            if (label && existing.label !== label) {
+                existing.label = label;
+                localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(saved));
+            }
             renderSavedAddresses();
             return;
         }
-        saved.unshift({ address: addr, label: null, addedAt: Date.now() });
+        saved.unshift({ address: addr, label, addedAt: Date.now() });
         // Max 10
         if (saved.length > 10) saved.pop();
         localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(saved));
         renderSavedAddresses();
     }
 
+    async function combineSavedBalances(saved, button, status) {
+        if (!button || !status || saved.length < 2) return;
+        button.disabled = true;
+        button.textContent = 'Combining...';
+        status.textContent = `Checking ${saved.length} saved addresses through TzKT...`;
+
+        const balances = await Promise.all(saved.map(async ({ address }) => {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
+            try {
+                const response = await fetch(`${TZKT}/accounts/${encodeURIComponent(address)}`, {
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                if (!response.ok) return null;
+                const account = await response.json();
+                const rawBalance = account?.balance;
+                const balance = Number(rawBalance);
+                return rawBalance != null && Number.isFinite(balance) && balance >= 0 ? balance : null;
+            } catch {
+                return null;
+            } finally {
+                clearTimeout(timeout);
+            }
+        }));
+
+        const loaded = balances.filter((balance) => balance !== null);
+        button.disabled = false;
+        button.textContent = 'Refresh total';
+        if (!loaded.length) {
+            status.textContent = `Saved-wallet total unavailable · 0/${saved.length} loaded`;
+            return;
+        }
+
+        const total = loaded.reduce((sum, balance) => sum + balance, 0);
+        const coverage = loaded.length === saved.length
+            ? `${loaded.length}/${saved.length} loaded`
+            : `${loaded.length}/${saved.length} loaded · partial`;
+        status.textContent = `Saved-wallet total: ${fmtXTZ(total)} · ${coverage}`;
+    }
+
     function renderSavedAddresses() {
         const container = document.getElementById('drawer-saved-addresses');
         if (!container) return;
-        const saved = JSON.parse(localStorage.getItem(SAVED_ADDRESSES_KEY) || '[]');
+        let saved = [];
+        try {
+            const parsed = JSON.parse(localStorage.getItem(SAVED_ADDRESSES_KEY) || '[]');
+            if (Array.isArray(parsed)) {
+                const seen = new Set();
+                saved = parsed.filter((item) => {
+                    if (!isValidAddress(item?.address) || seen.has(item.address)) return false;
+                    seen.add(item.address);
+                    return true;
+                }).slice(0, 10);
+            }
+        } catch {}
         const active = localStorage.getItem(STORAGE_KEY);
-        if (saved.length <= 1) { container.innerHTML = ''; return; }
+        if (!saved.length) { container.innerHTML = ''; return; }
 
-        container.innerHTML = saved.map(s => {
+        const savedButtons = saved.map(s => {
             const short = s.address.slice(0, 8) + '…' + s.address.slice(-4);
             const isActive = s.address === active;
-            return `<button class="saved-addr ${isActive ? 'active' : ''}" data-addr="${escapeHtml(s.address)}">
-                ${isActive ? '●' : '○'} ${escapeHtml(s.label || short)}
-                ${!isActive ? '<span class="saved-addr-remove" data-addr="' + escapeHtml(s.address) + '">✕</span>' : ''}
-            </button>`;
+            const rawLabel = String(s.label || short);
+            const displayLabel = rawLabel.length > 32 ? `${rawLabel.slice(0, 29)}…` : rawLabel;
+            const label = escapeHtml(displayLabel);
+            const fullLabel = escapeHtml(rawLabel);
+            const removeButton = isActive ? '' : `
+                <button type="button" class="glass-button wallet-connect-btn saved-addr-remove" data-addr="${escapeHtml(s.address)}" aria-label="Remove ${fullLabel} from saved wallets" title="Remove ${fullLabel}">✕</button>
+            `;
+            return `<span class="saved-addr-entry" role="group" aria-label="${fullLabel}">
+                <button type="button" class="glass-button wallet-connect-btn saved-addr ${isActive ? 'active' : ''}" data-addr="${escapeHtml(s.address)}" aria-pressed="${isActive ? 'true' : 'false'}" title="${isActive ? 'Current My Tezos wallet' : `Switch My Tezos to ${fullLabel}`}">
+                    ${isActive ? '●' : '○'} ${label}
+                </button>
+                ${removeButton}
+            </span>`;
         }).join('');
 
+        const combineAction = saved.length > 1 ? `
+            <div class="wallet-connect-row">
+                <button type="button" class="glass-button wallet-connect-btn" data-saved-wallet-combine>Combine balances</button>
+                <span class="wallet-connect-status" data-saved-wallet-total>Optional: asks TzKT for every listed address, then totals their XTZ account balances here (not tokens, NFTs, or DeFi).</span>
+            </div>
+        ` : '';
+
+        container.innerHTML = `
+            <div class="saved-wallet-heading">
+                <strong>Saved wallets</strong>
+                <span>${saved.length}/10 local</span>
+            </div>
+            <div class="wallet-connect-status" data-saved-wallet-note>Saved only in this browser · no wallet connection or on-chain claim required. Paste another address above, then Save.</div>
+            <div class="wallet-connect-row" role="group" aria-label="Saved My Tezos wallets">${savedButtons}</div>
+            ${combineAction}
+        `;
+
+        container.querySelectorAll('.saved-addr-remove').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const addr = btn.dataset.addr;
+                const newSaved = saved.filter(s => s.address !== addr);
+                localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(newSaved));
+                renderSavedAddresses();
+            });
+        });
+
         container.querySelectorAll('.saved-addr').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                if (e.target.classList.contains('saved-addr-remove')) {
-                    const addr = e.target.dataset.addr;
-                    const newSaved = saved.filter(s => s.address !== addr);
-                    localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(newSaved));
-                    renderSavedAddresses();
-                    return;
-                }
+            btn.addEventListener('click', () => {
                 const previousAddress = localStorage.getItem(STORAGE_KEY);
                 const addr = btn.dataset.addr;
                 localStorage.setItem(STORAGE_KEY, addr);
@@ -713,6 +797,12 @@ export function init() {
                 window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: addr, source: 'my-baker', previousAddress } }));
                 renderSavedAddresses();
             });
+        });
+
+        const combineButton = container.querySelector('[data-saved-wallet-combine]');
+        const totalStatus = container.querySelector('[data-saved-wallet-total]');
+        combineButton?.addEventListener('click', () => {
+            combineSavedBalances(saved, combineButton, totalStatus);
         });
     }
 
@@ -847,7 +937,7 @@ export function init() {
         updateShareLink(addr);
         updateLedgerFlowLink(addr);
         showCopyMode(addr);
-        addToSavedAddresses(addr);
+        addToSavedAddresses(addr, isTezDomain(raw) ? raw.trim().toLowerCase() : null);
         setDrawerConnectionState(true);
         if (openAfterSave) openDrawer(true);
         window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: addr, source: 'my-baker', previousAddress } }));
@@ -862,6 +952,8 @@ export function init() {
         updateShareLink(saved);
         updateLedgerFlowLink(saved);
         showCopyMode(saved);
+        // Preserve profiles saved before the local wallet switcher existed.
+        addToSavedAddresses(saved);
     } else {
         updateLedgerFlowLink(null);
     }

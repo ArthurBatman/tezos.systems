@@ -4118,6 +4118,7 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelector('#my-baker-save')?.textContent?.trim() === 'Save', null, { timeout: 3000 });
   await page.locator('#my-baker-save').click();
   await page.waitForFunction((address) => localStorage.getItem('tezos-systems-my-baker-address') === address, SAMPLE_ADDRESS_2, { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelectorAll('#drawer-saved-addresses .saved-addr').length === 2, null, { timeout: 5000 });
   try {
     await page.waitForFunction((address) => window._myTezosData?.fullAddress === address, SAMPLE_ADDRESS_2, { timeout: 15000 });
   } catch (error) {
@@ -4149,10 +4150,28 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     ));
   }, null, { timeout: 15000 });
 
+  await page.locator('[data-saved-wallet-combine]').click();
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-saved-wallet-total]')?.textContent || '';
+    return text.includes('Saved-wallet total:') && text.includes('2,100,000.00') && text.includes('2/2 loaded');
+  }, null, { timeout: 10000 });
+
+  await page.route(`**/accounts/${SAMPLE_ADDRESS}`, (route) => route.fulfill({ status: 503, body: 'partial aggregate smoke' }));
+  await page.locator('[data-saved-wallet-combine]').click();
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-saved-wallet-total]')?.textContent || '';
+    return text.includes('600,000.00') && text.includes('1/2 loaded') && text.includes('partial');
+  }, null, { timeout: 10000 });
+
   const state = await page.evaluate(() => ({
     stored: localStorage.getItem('tezos-systems-my-baker-address'),
+    connectedWallet: localStorage.getItem('tezos-systems-octez-wallet-address'),
+    savedWallets: JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]').map((item) => item.address),
     input: document.querySelector('#my-baker-input')?.value || '',
     button: document.querySelector('#my-baker-save')?.textContent?.trim() || '',
+    savedNote: document.querySelector('[data-saved-wallet-note]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    savedButtons: document.querySelectorAll('#drawer-saved-addresses .saved-addr').length,
+    savedTotal: document.querySelector('[data-saved-wallet-total]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     ledgerFlowHref: document.querySelector('#my-tezos-ledger-flow-link')?.getAttribute('href') || '',
     ledgerFlowHidden: document.querySelector('#my-tezos-ledger-flow-link')?.hidden === true,
     maxiPassportHref: document.querySelector('#my-tezos-maxi-passport-link')?.getAttribute('href') || '',
@@ -4165,8 +4184,12 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   }));
 
   assert(state.stored === SAMPLE_ADDRESS_2, `my tezos address switch: localStorage kept stale address ${state.stored}`);
+  assert(state.connectedWallet === null, `my tezos address switch: manually saved wallets should not require a connected wallet ${JSON.stringify(state)}`);
+  assert(state.savedWallets.includes(SAMPLE_ADDRESS) && state.savedWallets.includes(SAMPLE_ADDRESS_2), `my tezos address switch: pre-existing address was not retained in the local wallet set ${JSON.stringify(state)}`);
   assert(state.input === SAMPLE_ADDRESS_2, `my tezos address switch: connected input mismatch ${state.input}`);
   assert(state.button === '📋 Copy', `my tezos address switch: save button did not return to copy mode, saw ${state.button}`);
+  assert(state.savedButtons === 2 && /Saved only in this browser/i.test(state.savedNote) && /no wallet connection or on-chain claim required/i.test(state.savedNote), `my tezos address switch: local-only wallet switcher copy missing ${JSON.stringify(state)}`);
+  assert(state.savedTotal.includes('600,000.00') && state.savedTotal.includes('1/2 loaded') && state.savedTotal.includes('partial'), `my tezos address switch: partial combined balance did not preserve the available wallet ${JSON.stringify(state)}`);
   assert(!state.ledgerFlowHidden && state.ledgerFlowHref === `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Ledger Flow link not scoped to active address ${JSON.stringify(state)}`);
   assert(!state.maxiPassportHidden && state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Maxi Passport link not scoped to active address ${JSON.stringify(state)}`);
   assert(state.extDelegated.includes('220,000.00'), `my tezos address switch: drawer still shows stale baker metrics: ${state.extDelegated}`);
@@ -4213,6 +4236,8 @@ async function smokeMyTezosSubdomainInput(browser, baseUrl) {
 
   const state = await page.evaluate(() => ({
     stored: localStorage.getItem('tezos-systems-my-baker-address'),
+    savedLabels: JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]').map((item) => ({ address: item.address, label: item.label })),
+    savedListText: document.querySelector('#drawer-saved-addresses')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     input: document.querySelector('#my-baker-input')?.value || '',
     error: document.querySelector('#my-baker-error-msg')?.textContent?.trim() || '',
     button: document.querySelector('#my-baker-save')?.textContent?.trim() || '',
@@ -4222,6 +4247,7 @@ async function smokeMyTezosSubdomainInput(browser, baseUrl) {
   }));
 
   assert(state.stored === SAMPLE_ADDRESS_2, `my tezos subdomain input: localStorage did not save resolved address ${JSON.stringify(state)}`);
+  assert(state.savedLabels.some((item) => item.address === SAMPLE_ADDRESS_2 && item.label === domain) && state.savedListText.includes(domain), `my tezos subdomain input: local wallet set did not preserve the entered .tez label ${JSON.stringify(state)}`);
   assert(state.input === SAMPLE_ADDRESS_2, `my tezos subdomain input: drawer input did not switch to resolved address ${JSON.stringify(state)}`);
   assert(!/invalid address|domain not found/i.test(state.error), `my tezos subdomain input: subdomain was rejected: ${state.error}`);
   assert(state.button === '📋 Copy', `my tezos subdomain input: save button did not return to copy mode ${JSON.stringify(state)}`);
@@ -7654,6 +7680,15 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await assertLocatorCount(page.locator('#tour-overlay .tour-skip'), 1, 'first visit tour skip');
   await page.locator('#tour-overlay .tour-skip').click();
   await page.locator('#tour-overlay').waitFor({ state: 'detached', timeout: 5000 });
+  await openDropdown(page, '#settings-gear', '#settings-dropdown');
+  await page.locator('#visit-streak-info-btn').click();
+  await page.locator('#visit-streak-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+  const visitStreakHelp = await page.locator('#visit-streak-modal').innerText();
+  assert(/consecutive local calendar days/i.test(visitStreakHelp), `first visit tour: visit streak meaning missing: ${visitStreakHelp}`);
+  assert(/7, 14, 30, 60, 100, and 365 days/i.test(visitStreakHelp), `first visit tour: visit streak milestones missing: ${visitStreakHelp}`);
+  assert(/no currency or points/i.test(visitStreakHelp) && /does not affect Tezos Maxis ranks or Passport progress/i.test(visitStreakHelp), `first visit tour: visit streak competitive boundary missing: ${visitStreakHelp}`);
+  await page.locator('#visit-streak-modal-close').click();
+  await page.locator('#visit-streak-modal.active').waitFor({ state: 'detached', timeout: 5000 });
   await openDropdown(page, '#settings-gear', '#settings-dropdown');
   await page.locator('#shortcuts-btn').click();
   await page.locator('#keyboard-help.visible').waitFor({ state: 'visible', timeout: 5000 });
