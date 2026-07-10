@@ -18,7 +18,7 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=411';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=412';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -701,7 +701,37 @@ function entryPriceChangeDelta() {
 
 function entryMetricValue(metric, stats = {}) {
     if (typeof metric.value === 'function') return metric.value(stats, { rows: lastEntryHistoryRows }, metric);
-    return stats?.[metric.key];
+    const liveValue = stats?.[metric.key];
+    if (liveValue !== null && liveValue !== undefined && liveValue !== '') return liveValue;
+    // Keep boot passive: the history already loaded for sparklines can fill fields omitted by hero stats.
+    return metric.history ? latestMetricValue(lastEntryHistoryRows, metric.history) : liveValue;
+}
+
+function entryHistorySample(stats = {}) {
+    const usesHistory = ENTRY_METRICS.some((metric) => {
+        if (!metric.history || typeof metric.value === 'function') return false;
+        const liveValue = stats?.[metric.key];
+        return (liveValue === null || liveValue === undefined || liveValue === '')
+            && latestMetricValue(lastEntryHistoryRows, metric.history) !== null;
+    });
+    if (!usesHistory) return null;
+
+    const row = latestRow(lastEntryHistoryRows);
+    const timestamp = Date.parse(row?.timestamp || '');
+    if (!Number.isFinite(timestamp)) return null;
+    return {
+        timestamp: row.timestamp,
+        stale: Date.now() - timestamp > HISTORY_FRESHNESS_LIMITS.tezos_history
+    };
+}
+
+function entryFreshnessLabel(stats = {}) {
+    const sample = entryHistorySample(stats);
+    if (sample) {
+        const hasLiveStats = Boolean(stats && Object.keys(stats).length);
+        return `${hasLiveStats ? 'Live + ' : ''}${sample.stale ? 'stale ' : ''}history ${formatHistoryTime(sample.timestamp)}`;
+    }
+    return stats && Object.keys(stats).length ? `Pulse ${freshnessLabel()}` : '';
 }
 
 function entryMetricPresentation(metric, stats = {}) {
@@ -833,7 +863,7 @@ function updateEntryCard(stats = lastKnownStats()) {
 
     if (value) value.textContent = stats ? entryTopMover(stats, lastEntryHistoryRows) : 'Opening pulse';
     if (metrics) metrics.innerHTML = renderEntryMetrics(stats || {}, lastEntryHistoryRows);
-    if (freshness) freshness.textContent = stats ? `Pulse ${freshnessLabel()}` : '';
+    if (freshness) freshness.textContent = entryFreshnessLabel(stats || {});
     delete card.dataset.updatedLabel;
     window.syncChamberEntryFooters?.(card);
     scheduleEntryPriceObserver();
@@ -870,9 +900,13 @@ function scheduleEntryHistoryRefresh() {
 function handleStatsUpdated(event) {
     const stats = event?.detail?.stats || event?.detail;
     if (!stats || typeof stats !== 'object') return;
-    lastStats = stats;
+    const previous = lastKnownStats();
+    // A lightweight hero refresh must not erase richer cached or chamber-fetched fields.
+    lastStats = event?.detail?.source === 'hero'
+        ? { ...(previous || {}), ...stats }
+        : stats;
     lastStatsAt = loadStatsTimestamp() || Date.now();
-    updateEntryCard(stats);
+    updateEntryCard(lastStats);
 }
 
 function bindEntryStatsEvents() {

@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '🔧', text: 'Network Pulse now fills its lower launcher row from the latest collected history when the lightweight live refresh omits APY and activity totals' },
             { type: '🎨', text: 'Network Health now places Nakamoto Coefficients directly above the full-width Consensus Lens for earlier decentralization context' },
             { type: '✨', text: 'Network Health Consensus Lens now spans the full chamber and shows Teztale observer reception as a power-weighted histogram, exact two-thirds and 90% arrival averages, plus validation-to-quorum phase timing' },
             { type: '✨', text: 'Nakamoto Coefficients now include dedicated print and tweet-ready share cards with live thresholds, source context, and the address-versus-operator caveat preserved' },

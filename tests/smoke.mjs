@@ -3331,6 +3331,66 @@ async function smokeTzktThrottle(browser, baseUrl) {
   log('ok - TzKT throttle smoke');
 }
 
+async function smokeNetworkPulseLauncher(browser, baseUrl) {
+  const label = 'network pulse launcher';
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.removeItem('tezos-systems-stats-visible');
+    localStorage.removeItem('tezos-systems-stats');
+    localStorage.removeItem('tezos-systems-stats-version');
+    localStorage.removeItem('tezos-systems-lastUpdate');
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, label, issues);
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#network-pulse-entry-card').waitFor({ state: 'visible', timeout: 20000 });
+
+  const expected = {
+    stakeAPY: '8.8%',
+    transactionVolume24h: '120.80K',
+    contractCalls24h: '9.08K',
+    newAccounts24h: '808'
+  };
+  await page.waitForFunction((keys) => keys.every((key) => (
+    document.querySelector(`[data-pulse-entry-key="${key}"] .network-pulse-entry-sparkline-svg`)
+  )), Object.keys(expected), { timeout: 15000 });
+
+  const state = await page.evaluate((keys) => ({
+    statsVisible: localStorage.getItem('tezos-systems-stats-visible'),
+    modalOpen: Boolean(document.querySelector('#network-pulse-modal.active')),
+    metricCount: document.querySelectorAll('#network-pulse-entry-metrics [data-pulse-entry-key]').length,
+    freshness: document.querySelector('#network-pulse-entry-freshness')?.textContent?.trim() || '',
+    values: Object.fromEntries(keys.map((key) => [
+      key,
+      document.querySelector(`[data-pulse-entry-key="${key}"] .network-pulse-entry-cell-value`)?.textContent?.trim() || ''
+    ]))
+  }), Object.keys(expected));
+
+  assert(state.statsVisible === null, `${label}: legacy full-stats visibility must remain unset, saw ${state.statsVisible}`);
+  assert(!state.modalOpen, `${label}: regression must hydrate without opening the Network Pulse modal`);
+  assert(state.metricCount === 10, `${label}: expected 10 launcher metrics, saw ${state.metricCount}`);
+  assert(/history/i.test(state.freshness), `${label}: mixed-source freshness should disclose history fallback, saw ${state.freshness}`);
+  assert(
+    Object.entries(expected).every(([key, value]) => state.values[key] === value),
+    `${label}: history-backed lower row did not hydrate: ${JSON.stringify(state.values)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `${label}: browser issues:\n${issues.join('\n')}`);
+  log('ok - network pulse launcher smoke');
+}
+
 async function smokeDashboard(browser, baseUrl, viewport, label) {
   const issues = [];
   const context = await browser.newContext({
@@ -8846,6 +8906,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
+    { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
     { name: 'my-tezos-drawer-live-refresh', description: 'My Tezos opening drawer refreshes stale brief, header, and baker-grid stats together', run: () => smokeMyTezosDrawerLiveRefresh(browser, baseUrl) },

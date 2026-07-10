@@ -858,6 +858,8 @@ async function checkSelectorContracts() {
     ['Network Pulse entry delta chip', 'network-pulse-entry-delta', networkPulse],
     ['Network Pulse entry cell jumps', 'data-pulse-jump', networkPulse],
     ['Network Pulse entry header freshness', 'network-pulse-entry-freshness', networkPulse],
+    ['Network Pulse entry history value fallback', 'latestMetricValue(lastEntryHistoryRows, metric.history)', networkPulse],
+    ['Network Pulse partial hero merge', "event?.detail?.source === 'hero'", networkPulse],
     ['Network Pulse tiered top mover', "tier: 'structural'", networkPulse],
     ['Network Pulse quiet ballot guard', 'quietWhen: isGovernanceBallotQuiet', networkPulse],
     ['Network Pulse USD delta prefix', "deltaPrefix: '$'", networkPulse],
