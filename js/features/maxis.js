@@ -4,11 +4,12 @@
  */
 
 import { escapeHtml } from '../core/utils.js';
+import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
 
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=413';
+const MAXIS_CSS_URL = '/css/maxis.css?v=414';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -125,8 +126,10 @@ const chamberState = {
     passportProfile: null,
     passportCareer: null,
     passportLoading: false,
+    passportLoadingStage: '',
     passportError: '',
     passportNote: '',
+    passportRetryable: false,
     archives: null,
     archivesLoading: false,
     archivesError: ''
@@ -1400,7 +1403,7 @@ function implicitAddressStatus(raw) {
         return { address, error: 'KT1 contract passports are not supported. A contract can have many operators, so assigning its activity to one person would be misleading.' };
     }
     if (!/^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
-        return { address, error: 'Enter one implicit Tezos address beginning tz1, tz2, tz3, or tz4.' };
+        return { address, error: 'Enter one implicit Tezos address beginning tz1, tz2, tz3, or tz4, or a valid .tez name.' };
     }
     return { address, error: '' };
 }
@@ -2058,11 +2061,12 @@ function renderPassportCard(profile, note) {
         : scope.phase === 'settling'
             ? 'No provisional ranked lane receipt is present while source settlement completes.'
             : 'Touch a ranked lane and the next season snapshot will begin the trail.';
+    const resolvedDomain = normalizeTezDomainName(chamberState.passportInput);
     return `
         <article class="maxis-passport-card">
             <header class="maxis-passport-identity">
                 <span class="maxis-passport-crest">${escapeHtml(textValue(profile?.crest, '✺'))}</span>
-                <span class="maxis-passport-name"><span>Maxi Passport · address-bound</span><strong>${escapeHtml(textValue(profile?.alias, profile?.name, shortAddress(profile?.address)))}</strong><code>${escapeHtml(profile?.address)}</code></span>
+                <span class="maxis-passport-name"><span>Maxi Passport · address-bound${resolvedDomain ? ` · ${escapeHtml(resolvedDomain)} resolved` : ''}</span><strong>${escapeHtml(textValue(profile?.alias, profile?.name, shortAddress(profile?.address)))}</strong><code>${escapeHtml(profile?.address)}</code></span>
             </header>
             <section class="maxis-passport-scope maxis-passport-career" aria-labelledby="maxis-passport-career-title">
                 <div class="maxis-passport-scope-head"><span>Career</span><strong id="maxis-passport-career-title">Earned identity</strong><small>Verified season shards are aggregated for this address. Repeatable badges keep their original season receipts; ongoing crowns and exact governance history keep their own clocks.</small></div>
@@ -2113,17 +2117,19 @@ function renderPassportPanel() {
         ${renderRoomIntro(`Career + ${scope.passportScope.toLowerCase()}`, 'One address, two timelines', `Career keeps earned identity stamps. ${scope.passportScope} keeps the selected protocol’s ranks, gaps, streaks, and Unicorn breadth. Neither silently links wallets or changes the address saved in My Tezos.`)}
         <section class="maxis-passport-shell">
             <form class="maxis-passport-search" data-maxis-passport-form>
-                <input class="maxis-passport-input" name="address" aria-label="Tezos address for Maxi Passport" autocomplete="off" spellcheck="false" placeholder="tz1… tz2… tz3… or tz4…" value="${escapeHtml(chamberState.passportInput || chamberState.passportAddress)}">
+                <input class="maxis-passport-input" name="address" aria-label="Tezos address or .tez name for Maxi Passport" autocomplete="off" spellcheck="false" placeholder="tz1… tz4… or name.tez" value="${escapeHtml(chamberState.passportInput || chamberState.passportAddress)}">
                 <button class="maxis-passport-submit" type="submit">Open Passport</button>
                 <button class="maxis-passport-use-saved" type="button" data-maxis-use-saved ${saved ? '' : 'disabled'}>Use My Tezos</button>
             </form>
             <div aria-live="polite">
-                ${chamberState.passportLoading ? '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">✺</span><strong>Stamping the Passport…</strong><p>Reading only the deterministic shard for this address, then checking the loaded season ranks.</p></div></div>' : ''}
-                ${!chamberState.passportLoading && chamberState.passportError ? `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>Passport not opened</strong><p>${escapeHtml(chamberState.passportError)}</p>${chamberState.passportAddress && !/^KT1/.test(chamberState.passportAddress) ? '<button class="maxis-passport-submit" type="button" data-maxis-passport-retry>Retry this shard</button>' : ''}</div></div>` : ''}
+                ${chamberState.passportLoading ? (chamberState.passportLoadingStage === 'domain'
+                    ? '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">.tez</span><strong>Resolving the Tezos Domain…</strong><p>Finding the account this name currently points to before reading any address-bound Passport shards.</p></div></div>'
+                    : '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">✺</span><strong>Stamping the Passport…</strong><p>Reading only the deterministic shard for this address, then checking the loaded season ranks.</p></div></div>') : ''}
+                ${!chamberState.passportLoading && chamberState.passportError ? `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>Passport not opened</strong><p>${escapeHtml(chamberState.passportError)}</p>${chamberState.passportRetryable ? '<button class="maxis-passport-submit" type="button" data-maxis-passport-retry>Retry Passport</button>' : ''}</div></div>` : ''}
                 ${!chamberState.passportLoading && !chamberState.passportError && chamberState.passportProfile ? renderPassportCard(chamberState.passportProfile, chamberState.passportNote) : ''}
                 ${!chamberState.passportLoading && !chamberState.passportError && !chamberState.passportProfile ? (contextError
                     ? `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>The selected season Passport is unavailable</strong><p>${escapeHtml(contextError)} The canonical Maxis and available Champions records remain usable.</p><button class="maxis-passport-submit" type="button" data-maxis-season-retry>Retry season sheet</button></div></div>`
-                    : '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">✺</span><strong>Bring one wallet into focus</strong><p>Use the explicit address above or read the current My Tezos address. Neither action mutates saved wallet state.</p></div></div>') : ''}
+                    : '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">✺</span><strong>Bring one wallet into focus</strong><p>Enter an address or .tez name above, or read the current My Tezos address. None of these actions mutate saved wallet state.</p></div></div>') : ''}
             </div>
         </section>
     `;
@@ -2516,7 +2522,11 @@ async function selectSeason(seasonId) {
     chamberState.summaryError = '';
     chamberState.passportProfile = null;
     chamberState.passportCareer = null;
+    chamberState.passportLoading = false;
+    chamberState.passportLoadingStage = '';
+    chamberState.passportError = '';
     chamberState.passportNote = '';
+    chamberState.passportRetryable = false;
     closeOtherRowMenus();
     setSelectorOpen(false);
     syncRouteState();
@@ -2555,7 +2565,13 @@ async function selectSeason(seasonId) {
         chamberState.manifest,
         seasonId === entrySeasonId ? chamberState.summary : (summaryCache.get(entrySeasonId) || null)
     );
-    if (chamberState.view === 'passport' && chamberState.passportAddress) await openPassport(chamberState.passportAddress, { usesSaved: chamberState.passportUsesSaved });
+    const passportTarget = chamberState.passportAddress || chamberState.passportInput;
+    if (chamberState.view === 'passport' && passportTarget) {
+        await openPassport(passportTarget, {
+            usesSaved: chamberState.passportUsesSaved,
+            inputLabel: chamberState.passportInput
+        });
+    }
 }
 
 async function retrySeasonContext() {
@@ -2606,8 +2622,12 @@ async function retrySeasonContext() {
     chamberState.entrySummaryLoading = false;
     chamberState.entrySummaryError = seasonId === entrySeasonId ? chamberState.summaryError : '';
     updateEntryCard(chamberState.legacy, manifest, entrySummary);
-    if (chamberState.view === 'passport' && chamberState.summary && chamberState.passportAddress) {
-        await openPassport(chamberState.passportAddress, { usesSaved: chamberState.passportUsesSaved });
+    const passportTarget = chamberState.passportAddress || chamberState.passportInput;
+    if (chamberState.view === 'passport' && chamberState.summary && passportTarget) {
+        await openPassport(passportTarget, {
+            usesSaved: chamberState.passportUsesSaved,
+            inputLabel: chamberState.passportInput
+        });
     }
 }
 
@@ -2626,29 +2646,75 @@ async function selectView(view, { focus = true } = {}) {
     syncRouteState();
     renderExperience({ preserveScroll: false, focusSelector: focus ? `[data-maxis-view="${nextView}"]` : '' });
     if (nextView === 'passport' && !chamberState.passportProfile) {
-        const address = chamberState.passportAddress || safeLocalStorageGet(MY_TEZOS_ADDRESS_KEY);
-        if (address) await openPassport(address, { usesSaved: !chamberState.passportAddress });
+        const target = chamberState.passportAddress || chamberState.passportInput || safeLocalStorageGet(MY_TEZOS_ADDRESS_KEY);
+        if (target) {
+            await openPassport(target, {
+                usesSaved: !chamberState.passportAddress && !chamberState.passportInput,
+                inputLabel: chamberState.passportInput
+            });
+        }
     }
     if (nextView === 'champions') ensureArchivesLoaded();
 }
 
-async function openPassport(rawAddress, { usesSaved = false } = {}) {
-    const status = implicitAddressStatus(rawAddress);
-    chamberState.passportInput = status.address;
-    chamberState.passportAddress = status.address;
+async function openPassport(rawAddress, { usesSaved = false, inputLabel = '' } = {}) {
+    const serial = ++requestSerial;
+    const target = String(rawAddress || '').trim();
+    const domain = normalizeTezDomainName(target);
+    const displayInput = String(inputLabel || domain || target).trim();
+    chamberState.passportInput = isTezDomainName(displayInput) ? displayInput.toLowerCase() : displayInput;
+    chamberState.passportAddress = '';
     chamberState.passportUsesSaved = usesSaved;
     chamberState.passportProfile = null;
     chamberState.passportCareer = null;
     chamberState.passportNote = '';
-    chamberState.passportError = status.error;
+    chamberState.passportError = '';
+    chamberState.passportRetryable = false;
+    chamberState.passportLoadingStage = domain ? 'domain' : 'passport';
+    syncRouteState();
+
+    let resolvedAddress = target;
+    if (domain) {
+        chamberState.passportLoading = true;
+        renderExperience({ preserveScroll: true });
+        try {
+            resolvedAddress = await resolveTezDomainAddress(domain);
+        } catch (error) {
+            if (serial !== requestSerial) return;
+            chamberState.passportLoading = false;
+            chamberState.passportLoadingStage = '';
+            chamberState.passportRetryable = true;
+            chamberState.passportError = `${domain} could not be resolved through Tezos Domains. ${textValue(error?.message, 'Try the lookup again.')}`;
+            syncRouteState();
+            renderExperience({ preserveScroll: true, focusSelector: '[data-maxis-passport-retry]' });
+            return;
+        }
+        if (serial !== requestSerial) return;
+        if (!resolvedAddress) {
+            chamberState.passportLoading = false;
+            chamberState.passportLoadingStage = '';
+            chamberState.passportRetryable = true;
+            chamberState.passportError = `${domain} does not currently resolve to a Tezos account.`;
+            syncRouteState();
+            renderExperience({ preserveScroll: true, focusSelector: '[data-maxis-passport-retry]' });
+            return;
+        }
+    }
+
+    const status = implicitAddressStatus(resolvedAddress);
+    chamberState.passportAddress = status.address;
+    chamberState.passportError = status.error && domain
+        ? `${domain} resolves to ${status.address}, but ${status.error}`
+        : status.error;
     syncRouteState();
     if (status.error) {
         chamberState.passportLoading = false;
+        chamberState.passportLoadingStage = '';
         renderExperience({ preserveScroll: true, focusSelector: '.maxis-passport-input' });
         return;
     }
-    const serial = ++requestSerial;
     chamberState.passportLoading = true;
+    chamberState.passportLoadingStage = 'passport';
     renderExperience({ preserveScroll: true });
     let result;
     let career;
@@ -2661,8 +2727,10 @@ async function openPassport(rawAddress, { usesSaved = false } = {}) {
     } catch (error) {
         if (serial !== requestSerial) return;
         chamberState.passportLoading = false;
+        chamberState.passportLoadingStage = '';
         chamberState.passportError = textValue(error?.message, 'The deterministic Passport shard could not be loaded.');
         chamberState.passportNote = '';
+        chamberState.passportRetryable = true;
         renderExperience({ preserveScroll: true, focusSelector: '[data-maxis-passport-retry]' });
         return;
     }
@@ -2671,7 +2739,9 @@ async function openPassport(rawAddress, { usesSaved = false } = {}) {
     chamberState.passportCareer = career;
     chamberState.passportNote = result.note;
     chamberState.passportLoading = false;
+    chamberState.passportLoadingStage = '';
     chamberState.passportError = '';
+    chamberState.passportRetryable = false;
     renderExperience({ preserveScroll: true, focusSelector: '.maxis-passport-input' });
 }
 
@@ -2814,7 +2884,10 @@ function wireExperience(body) {
             event.preventDefault();
             shardCache.clear();
             shardRequestCache.clear();
-            openPassport(chamberState.passportAddress, { usesSaved: chamberState.passportUsesSaved });
+            openPassport(chamberState.passportAddress || chamberState.passportInput, {
+                usesSaved: chamberState.passportUsesSaved,
+                inputLabel: chamberState.passportInput
+            });
         }
     });
     body.dataset.maxisClickWired = '1';
@@ -3065,7 +3138,10 @@ async function refreshChamber({ force = false } = {}) {
     chamberState.passportUsesSaved = false;
     chamberState.passportProfile = null;
     chamberState.passportCareer = null;
+    chamberState.passportLoading = false;
+    chamberState.passportLoadingStage = '';
     chamberState.passportError = '';
+    chamberState.passportRetryable = false;
     chamberState.summaryError = '';
     syncRouteState();
     const manifestTask = loadManifest({ force });
@@ -3221,11 +3297,16 @@ function handleMyTezosUpdate(event) {
         return;
     }
     if (!address) {
+        requestSerial += 1;
         chamberState.passportAddress = '';
         chamberState.passportInput = '';
         chamberState.passportProfile = null;
+        chamberState.passportCareer = null;
+        chamberState.passportLoading = false;
+        chamberState.passportLoadingStage = '';
         chamberState.passportNote = '';
         chamberState.passportError = 'My Tezos was cleared. Enter an address explicitly or save another My Tezos address.';
+        chamberState.passportRetryable = false;
         syncRouteState();
         renderExperience({ preserveScroll: true, focusSelector: '.maxis-passport-input' });
     }

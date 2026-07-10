@@ -5326,6 +5326,127 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
   log('ok - ledger flow chamber smoke');
 }
 
+async function smokeMaxisDomainPassport(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript((savedAddress) => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', savedAddress);
+  }, SAMPLE_ADDRESS);
+
+  const page = await context.newPage();
+  const resolverCalls = [];
+  const domainRecords = new Map([
+    ['maxi-passport.tez', { address: SAMPLE_ADDRESS_2, owner: SAMPLE_ADDRESS }],
+    ['skllz.hack.tez', { address: null, owner: SAMPLE_DELEGATOR_ADDRESS }],
+    ['invalid-forward.maxi.tez', { address: `tz1${'O'.repeat(33)}`, owner: SAMPLE_REGULAR_DELEGATOR_ADDRESS }],
+    ['contract.maxi.tez', { address: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT', owner: SAMPLE_ADDRESS }],
+    ['error.maxi.tez', 'graphql-error'],
+    ['missing.maxi.tez', null]
+  ]);
+  await page.route('https://api.tezos.domains/graphql', async (route) => {
+    let body = {};
+    try {
+      body = JSON.parse(route.request().postData() || '{}');
+    } catch {
+      return route.fallback();
+    }
+    if (!/domain\(name:\s*\$name\)/.test(String(body.query || ''))) return route.fallback();
+    const name = String(body.variables?.name || '');
+    if (!domainRecords.has(name)) return route.fallback();
+    resolverCalls.push({ name, query: String(body.query || '') });
+    if (domainRecords.get(name) === 'graphql-error') return fulfillJson(route, { errors: [{ message: 'Resolver unavailable' }] });
+    return fulfillJson(route, { data: { domain: domainRecords.get(name) } });
+  });
+  attachIssueCollectors(page, 'maxis domain Passport', issues);
+
+  const response = await page.goto(`${baseUrl}/maxis/?view=passport&address=${encodeURIComponent('Maxi-Passport.TEZ')}`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `maxis domain Passport: pretty route failed with HTTP ${response?.status()}`);
+  await page.locator('#maxis-modal.active .maxis-passport-input').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, SAMPLE_ADDRESS_2, { timeout: 15000 });
+
+  const input = page.locator('.maxis-passport-input');
+  const directState = await page.evaluate(() => ({
+    input: document.querySelector('.maxis-passport-input')?.value || '',
+    placeholder: document.querySelector('.maxis-passport-input')?.getAttribute('placeholder') || '',
+    label: document.querySelector('.maxis-passport-input')?.getAttribute('aria-label') || '',
+    routeAddress: new URLSearchParams(window.location.search).get('address'),
+    identity: document.querySelector('.maxis-passport-identity')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    stored: localStorage.getItem('tezos-systems-my-baker-address')
+  }));
+  assert(directState.input === 'maxi-passport.tez' && /name\.tez/i.test(directState.placeholder) && /\.tez name/i.test(directState.label), `maxis domain Passport: .tez input affordance or normalization failed ${JSON.stringify(directState)}`);
+  assert(directState.routeAddress === SAMPLE_ADDRESS_2 && /maxi-passport\.tez resolved/i.test(directState.identity), `maxis domain Passport: direct address did not canonicalize while preserving the name ${JSON.stringify(directState)}`);
+  assert(directState.stored === SAMPLE_ADDRESS, `maxis domain Passport: lookup mutated My Tezos ${JSON.stringify(directState)}`);
+
+  await input.fill('skllz.hack.tez');
+  await page.locator('[data-maxis-passport-form]').evaluate((form) => form.requestSubmit());
+  await page.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, SAMPLE_DELEGATOR_ADDRESS, { timeout: 15000 });
+  const fallbackState = await page.evaluate(() => ({
+    routeAddress: new URLSearchParams(window.location.search).get('address'),
+    identity: document.querySelector('.maxis-passport-identity')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    stored: localStorage.getItem('tezos-systems-my-baker-address')
+  }));
+  assert(fallbackState.routeAddress === SAMPLE_DELEGATOR_ADDRESS && /skllz\.hack\.tez resolved/i.test(fallbackState.identity), `maxis domain Passport: subdomain owner fallback failed ${JSON.stringify(fallbackState)}`);
+  assert(fallbackState.stored === SAMPLE_ADDRESS, `maxis domain Passport: owner fallback mutated My Tezos ${JSON.stringify(fallbackState)}`);
+
+  await input.fill('invalid-forward.maxi.tez');
+  await page.locator('[data-maxis-passport-form]').evaluate((form) => form.requestSubmit());
+  await page.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, SAMPLE_REGULAR_DELEGATOR_ADDRESS, { timeout: 15000 });
+  const invalidForwardState = await page.evaluate(() => ({
+    routeAddress: new URLSearchParams(window.location.search).get('address'),
+    stored: localStorage.getItem('tezos-systems-my-baker-address')
+  }));
+  assert(invalidForwardState.routeAddress === SAMPLE_REGULAR_DELEGATOR_ADDRESS, `maxis domain Passport: invalid forward address blocked the valid owner fallback ${JSON.stringify(invalidForwardState)}`);
+  assert(invalidForwardState.stored === SAMPLE_ADDRESS, `maxis domain Passport: invalid-address fallback mutated My Tezos ${JSON.stringify(invalidForwardState)}`);
+
+  await input.fill('missing.maxi.tez');
+  await page.locator('[data-maxis-passport-form]').evaluate((form) => form.requestSubmit());
+  await page.waitForFunction(() => /does not currently resolve to a Tezos account/i.test(document.querySelector('#maxis-panel-passport')?.textContent || ''), null, { timeout: 5000 });
+  assert(await page.locator('#maxis-panel-passport .maxis-passport-card').count() === 0, 'maxis domain Passport: unresolved name retained a stale Passport card');
+
+  await input.fill('error.maxi.tez');
+  await page.locator('[data-maxis-passport-form]').evaluate((form) => form.requestSubmit());
+  await page.waitForFunction(() => /could not be resolved through Tezos Domains[\s\S]*could not complete the lookup/i.test(document.querySelector('#maxis-panel-passport')?.textContent || ''), null, { timeout: 5000 });
+  const errorState = await page.evaluate(() => ({
+    input: document.querySelector('.maxis-passport-input')?.value || '',
+    retryButtons: document.querySelectorAll('[data-maxis-passport-retry]').length,
+    cards: document.querySelectorAll('#maxis-panel-passport .maxis-passport-card').length,
+    stored: localStorage.getItem('tezos-systems-my-baker-address')
+  }));
+  assert(errorState.input === 'error.maxi.tez' && errorState.retryButtons === 1 && errorState.cards === 0, `maxis domain Passport: resolver failure did not preserve a retryable lookup ${JSON.stringify(errorState)}`);
+  assert(errorState.stored === SAMPLE_ADDRESS, `maxis domain Passport: resolver failure mutated My Tezos ${JSON.stringify(errorState)}`);
+
+  await input.fill('broken..tez');
+  await page.locator('[data-maxis-passport-form]').evaluate((form) => form.requestSubmit());
+  await page.waitForFunction(() => /or a valid \.tez name/i.test(document.querySelector('#maxis-panel-passport')?.textContent || ''), null, { timeout: 5000 });
+  assert(await page.locator('#maxis-panel-passport .maxis-passport-card').count() === 0, 'maxis domain Passport: malformed name retained a stale Passport card');
+
+  await input.fill('contract.maxi.tez');
+  await page.locator('[data-maxis-passport-form]').evaluate((form) => form.requestSubmit());
+  await page.waitForFunction(() => /resolves to KT1[\s\S]*KT1 contract passports are not supported/i.test(document.querySelector('#maxis-panel-passport')?.textContent || ''), null, { timeout: 5000 });
+  const contractState = await page.evaluate(() => ({
+    cards: document.querySelectorAll('#maxis-panel-passport .maxis-passport-card').length,
+    routeAddress: new URLSearchParams(window.location.search).get('address'),
+    stored: localStorage.getItem('tezos-systems-my-baker-address')
+  }));
+  assert(contractState.cards === 0 && contractState.routeAddress?.startsWith('KT1'), `maxis domain Passport: contract target was silently reassigned to its owner ${JSON.stringify(contractState)}`);
+  assert(contractState.stored === SAMPLE_ADDRESS, `maxis domain Passport: contract rejection mutated My Tezos ${JSON.stringify(contractState)}`);
+
+  assert(resolverCalls.length === 6 && resolverCalls.every(({ query }) => /domain\(name:\s*\$name\)\s*\{\s*address\s+owner\s*\}/s.test(query)), `maxis domain Passport: resolver did not request address plus owner ${JSON.stringify(resolverCalls)}`);
+  assert(resolverCalls[0]?.name === 'maxi-passport.tez' && resolverCalls[1]?.name === 'skllz.hack.tez', `maxis domain Passport: resolver names were not normalized ${JSON.stringify(resolverCalls)}`);
+
+  await context.close();
+  assert(issues.length === 0, `maxis domain Passport browser issues:\n${issues.join('\n')}`);
+  log('ok - maxis domain Passport smoke');
+}
+
 async function smokeMaxisChamber(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -8957,6 +9078,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
     { name: 'network-health', description: 'Network Health opens #health with block cadence, missed rights, live 33/66 Nakamoto coefficients, external reports, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
+    { name: 'maxis-domain-passport', description: 'Maxi Passport resolves .tez names and subdomains without mutating My Tezos or assigning KT1 activity to an owner', run: () => smokeMaxisDomainPassport(browser, baseUrl) },
     { name: 'maxis', description: 'Default all-lane Maxis crowns, room-aware protocol seasons, career-plus-season Passport, immutable Champions, mobile geometry, and address trails', run: () => smokeMaxisChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },

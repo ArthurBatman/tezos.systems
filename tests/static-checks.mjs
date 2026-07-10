@@ -2676,6 +2676,7 @@ async function checkMaxisContracts() {
   const app = await readText('js/core/app.js');
   const siteMap = await readText('js/core/site-map.js');
   const sw = await readText('sw.js');
+  const tezosDomainsCore = await readText('js/core/tezos-domains.js');
   const myTezos = await readText('js/features/my-baker.js');
   const generatedSurfaces = await readText('scripts/refresh-generated-surfaces.mjs');
   const packageJson = JSON.parse(await readText('package.json'));
@@ -3654,6 +3655,10 @@ async function checkMaxisContracts() {
     ['maxis Passport SHA-256 shard routing', "crypto.subtle.digest('SHA-256'", maxis],
     ['maxis Passport in-flight shard deduplication', 'shardRequestCache.has(key)', maxis],
     ['maxis Passport explicit-address form', 'data-maxis-passport-form', maxis],
+    ['maxis Passport Tezos Domains resolver import', 'resolveTezDomainAddress', maxis],
+    ['maxis Passport .tez input affordance', 'Tezos address or .tez name for Maxi Passport', maxis],
+    ['shared Tezos Domains GraphQL endpoint', 'https://api.tezos.domains/graphql', tezosDomainsCore],
+    ['shared Tezos Domains owner fallback', '[domain.address, domain.owner].find', tezosDomainsCore],
     ['maxis Passport Career section', 'maxis-passport-career', maxis],
     ['maxis Passport This Season section', 'maxis-passport-season', maxis],
     ['maxis cross-season Passport loader', 'function loadPassportCareer', maxis],
@@ -3687,10 +3692,14 @@ async function checkMaxisContracts() {
     ['maxis Passport progress track', '.maxis-progress-track', maxisCss],
     ['maxis Champions archive cards', '.maxis-champion-card', maxisCss],
     ['maxis service worker manifest', '/data/maxis/manifest.json', sw],
+    ['maxis service worker domain resolver', '/js/core/tezos-domains.js', sw],
     ['My Tezos Passport link', 'my-tezos-maxi-passport-link', myTezos]
   ];
   for (const [label, snippet, source] of contracts) {
     if (!source.includes(snippet)) fail(`missing ${label}`);
+  }
+  if (!/domain\(name:\s*\$name\)\s*\{\s*address\s+owner\s*\}/s.test(tezosDomainsCore)) {
+    fail('shared Tezos Domains resolver must request both address and owner');
   }
   if (!/#chambers-grid\s+#maxis-entry-card\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s.test(maxisCss)) {
     fail('maxis single-card launcher pair must span its full grid at every viewport');

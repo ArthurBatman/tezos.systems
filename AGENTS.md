@@ -55,6 +55,8 @@ the highest-risk gotchas.
 - `js/core/config.js`: endpoints, refresh intervals, constants, Supabase anon
   config, chain comparison data.
 - `js/core/storage.js`: localStorage/sessionStorage wrappers.
+- `js/core/tezos-domains.js`: shared multi-label `.tez` validation and forward
+  resolution with address-first, owner-fallback semantics.
 - `js/core/utils.js`: formatters, debounce/throttle, sanitization helpers.
 - `sw.js`: static/API cache logic.
 - `version.json`: build metadata.
@@ -118,7 +120,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v413`
+- Service worker cache name: `tezos-systems-v414`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 

@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '✨', text: 'Maxi Passport now opens from .tez names and subdomains, resolves address-first with the owner as a safe fallback, and leaves the saved My Tezos identity unchanged' },
             { type: '🔧', text: 'Visit streaks now appear only when a new local day is recorded, skip the redundant Day 1 toast, and explain their browser-local, just-for-fun rules from Settings' },
             { type: '✨', text: 'My Tezos now keeps a visible local wallet set and can explicitly combine saved XTZ balances with privacy context and partial-result handling' },
             { type: '🔧', text: 'Network Pulse now fills its lower launcher row from the latest collected history when the lightweight live refresh omits APY and activity totals' },

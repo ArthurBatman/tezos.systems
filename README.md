@@ -326,8 +326,11 @@ inline modal styles in `js/core/app.js`.
   participated periods, longest/current ballot-period streaks, last activity,
   and current active-delegate rank without changing any frozen season evaluator.
 - Maxi Passport is the address-level progression view. It accepts an explicit
-  address or the saved My Tezos address without changing that saved identity,
-  and separates enduring career badges, bests, and crown history from
+  address, a `.tez` name or subdomain, or the saved My Tezos address without
+  changing that saved identity. Domain lookups prefer the configured forward
+  address and fall back to the domain owner only when no valid address is set,
+  then canonicalize the Passport route to the resolved account. The view
+  separates enduring career badges, bests, and crown history from
   current-season lanes, near misses, supported streaks, and progress toward Season
   Unicorn. The career ledger loads this address's independently verified shard
   from every season in the manifest, preserving repeated receipts by season and
@@ -726,6 +729,9 @@ Current smoke suites:
 - `tezlink`
 - `network-health`
 - `ledger-flow`
+- `maxis-domain-passport` (covers normalized `.tez` names, multi-label owner
+  fallback, canonical resolved routes, unresolved names, KT1 rejection, and
+  unchanged My Tezos state)
 - `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
 - `tezos-domains`
 - `ctez`
@@ -751,7 +757,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v413`, including hero search, theme
+- Current aligned shell cache stamp: `v414`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
