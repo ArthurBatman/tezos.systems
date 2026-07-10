@@ -15,7 +15,10 @@ const TARGET_BLOCK_SECONDS = 6;
 const LAST_BLOCK_LIMIT = 5;
 const CHAMBER_BLOCK_LIMIT = 16;
 const TEZTALE_BLOCK_LOOKBACK = 12;
-const TEZTALE_QUORUM_TARGET = 0.66;
+const TEZTALE_QUORUM_TARGET = 2 / 3;
+const TEZTALE_RECEPTION_BIN_MS = 500;
+const TEZTALE_RECEPTION_MIN_WINDOW_MS = 3000;
+const TEZTALE_RECEPTION_MAX_WINDOW_MS = 6000;
 const TEZTALE_REPORT_URL = 'https://nomadic-labs.gitlab.io/teztale-dataviz/';
 const TEZTALE_SOURCE_URL = 'https://gitlab.com/nomadic-labs/teztale';
 const MISSED_BLOCK_LOOKBACK = 120;
@@ -48,7 +51,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=409';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=411';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -793,6 +796,14 @@ function averageFinite(values) {
     return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : null;
 }
 
+function averageTeztaleGap(rows, endKey, startKey) {
+    return averageFinite(rows.map((row) => {
+        const end = Number(row?.[endKey]);
+        const start = Number(row?.[startKey]);
+        return Number.isFinite(end) && Number.isFinite(start) && end >= start ? end - start : null;
+    }));
+}
+
 function teztaleReceptionMs(operation) {
     return minFinite((operation?.received_in_mempools || [])
         .map((item) => timestampMs(item.reception_time))
@@ -834,12 +845,21 @@ function teztaleSourceCount(data) {
     return sources.size;
 }
 
+function teztaleUniqueReceptionEntries(entries) {
+    const earliestByDelegate = new Map();
+    entries.forEach((entry) => {
+        if (!entry?.delegate || !Number.isFinite(entry.delayMs) || entry.delayMs < 0) return;
+        const previous = earliestByDelegate.get(entry.delegate);
+        if (!previous || entry.delayMs < previous.delayMs) earliestByDelegate.set(entry.delegate, entry);
+    });
+    return [...earliestByDelegate.values()];
+}
+
 function teztaleThresholdDelayMs(entries, powers, threshold) {
     const totalPower = [...powers.values()].reduce((sum, value) => sum + value, 0);
     if (!totalPower) return null;
     const target = totalPower * threshold;
-    const sorted = entries
-        .filter((entry) => Number.isFinite(entry.delayMs))
+    const sorted = teztaleUniqueReceptionEntries(entries)
         .sort((a, b) => a.delayMs - b.delayMs);
     let observedPower = 0;
     for (const entry of sorted) {
@@ -918,7 +938,11 @@ function summarizeTeztaleLevel(item) {
             const delayMs = receptionMs !== null && blockTimestampMs !== null
                 ? receptionMs - blockTimestampMs
                 : null;
-            const entry = { delegate: endorsement.delegate, delayMs };
+            const entry = {
+                delegate: endorsement.delegate,
+                delayMs,
+                power: Math.max(1, Number(endorsement.endorsing_power) || row.powers.get(endorsement.delegate) || 1)
+            };
             const hasErrors = (operation.received_in_mempools || []).some((item) => Boolean(item.errors));
             const included = (operation.included_in_blocks || []).length > 0;
 
@@ -953,11 +977,67 @@ function summarizeTeztaleLevel(item) {
             quorumMs,
             pre90Ms: teztaleThresholdDelayMs(row.preattestations, row.powers, 0.9),
             quorum90Ms: teztaleThresholdDelayMs(row.attestations, row.powers, 0.9),
+            propagationSamples: {
+                preattestations: teztaleUniqueReceptionEntries(row.preattestations)
+                    .map(({ delayMs, power }) => ({ delayMs, power })),
+                attestations: teztaleUniqueReceptionEntries(row.attestations)
+                    .map(({ delayMs, power }) => ({ delayMs, power }))
+            },
             powers: undefined,
             preattestations: undefined,
             attestations: undefined
         };
     });
+}
+
+function buildTeztaleReceptionHistogram(rows) {
+    const preattestations = rows.flatMap((row) => row.propagationSamples?.preattestations || []);
+    const attestations = rows.flatMap((row) => row.propagationSamples?.attestations || []);
+    const allSamples = [...preattestations, ...attestations];
+    if (!allSamples.length) {
+        return {
+            binMs: TEZTALE_RECEPTION_BIN_MS,
+            maxMs: TEZTALE_RECEPTION_MIN_WINDOW_MS,
+            maxPower: 0,
+            preattestationPower: 0,
+            attestationPower: 0,
+            bins: []
+        };
+    }
+
+    const observedMaxMs = Math.max(...allSamples.map((sample) => sample.delayMs));
+    const maxMs = Math.max(
+        TEZTALE_RECEPTION_MIN_WINDOW_MS,
+        Math.min(
+            TEZTALE_RECEPTION_MAX_WINDOW_MS,
+            Math.ceil(observedMaxMs / 1000) * 1000
+        )
+    );
+    const binCount = Math.max(1, Math.ceil(maxMs / TEZTALE_RECEPTION_BIN_MS));
+    const bins = Array.from({ length: binCount }, (_, index) => ({
+        startMs: index * TEZTALE_RECEPTION_BIN_MS,
+        endMs: (index + 1) * TEZTALE_RECEPTION_BIN_MS,
+        overflow: index === binCount - 1,
+        preattestationPower: 0,
+        attestationPower: 0
+    }));
+    const addSamples = (samples, key) => {
+        samples.forEach((sample) => {
+            const index = Math.min(binCount - 1, Math.max(0, Math.floor(sample.delayMs / TEZTALE_RECEPTION_BIN_MS)));
+            bins[index][key] += Math.max(1, Number(sample.power) || 1);
+        });
+    };
+    addSamples(preattestations, 'preattestationPower');
+    addSamples(attestations, 'attestationPower');
+
+    return {
+        binMs: TEZTALE_RECEPTION_BIN_MS,
+        maxMs,
+        maxPower: Math.max(...bins.flatMap((bin) => [bin.preattestationPower, bin.attestationPower]), 0),
+        preattestationPower: preattestations.reduce((sum, sample) => sum + Math.max(1, Number(sample.power) || 1), 0),
+        attestationPower: attestations.reduce((sum, sample) => sum + Math.max(1, Number(sample.power) || 1), 0),
+        bins
+    };
 }
 
 function teztaleFallback(error = '') {
@@ -1019,7 +1099,15 @@ function buildTeztaleLens(batch, teztaleHeadLevel) {
         pendingHeadLevel,
         latest,
         avgPreQuorumMs: averageFinite(recentRows.map((row) => row.preQuorumMs)),
+        avgPre90Ms: averageFinite(recentRows.map((row) => row.pre90Ms)),
         avgQuorumMs: averageFinite(recentRows.map((row) => row.quorumMs)),
+        avgQuorum90Ms: averageFinite(recentRows.map((row) => row.quorum90Ms)),
+        avgValidationMs: averageFinite(recentRows.map((row) => row.validationDelayMs)),
+        avgApplicationMs: averageFinite(recentRows.map((row) => row.applicationDelayMs)),
+        avgValidationToPreQuorumMs: averageTeztaleGap(recentRows, 'preQuorumMs', 'validationDelayMs'),
+        avgValidationToQuorumMs: averageTeztaleGap(recentRows, 'quorumMs', 'validationDelayMs'),
+        avgPreQuorumToQuorumMs: averageTeztaleGap(recentRows, 'quorumMs', 'preQuorumMs'),
+        receptionHistogram: buildTeztaleReceptionHistogram(recentRows),
         maxQuorumMs,
         maxValidationMs,
         maxRound,
@@ -2218,6 +2306,45 @@ function renderTeztaleReportRows(lens) {
     `).join('');
 }
 
+function formatTeztaleHistogramTick(value) {
+    if (!Number.isFinite(value)) return '--';
+    if (value % 1000 === 0) return `${value / 1000}s`;
+    return `${(value / 1000).toFixed(1)}s`;
+}
+
+function renderTeztaleReceptionHistogram(lens) {
+    const histogram = lens.receptionHistogram;
+    if (!histogram?.bins?.length || !histogram.maxPower) {
+        return '<div class="health-consensus-empty">Teztale is still collecting enough observer receptions for a propagation distribution.</div>';
+    }
+    const bins = histogram.bins.map((bin, index) => {
+        const preHeight = bin.preattestationPower
+            ? Math.max(5, (bin.preattestationPower / histogram.maxPower) * 100)
+            : 0;
+        const attHeight = bin.attestationPower
+            ? Math.max(5, (bin.attestationPower / histogram.maxPower) * 100)
+            : 0;
+        const showTick = index % 2 === 0 || index === histogram.bins.length - 1;
+        const range = bin.overflow
+            ? `${formatTeztaleHistogramTick(bin.startMs)}+`
+            : `${formatTeztaleHistogramTick(bin.startMs)}–${formatTeztaleHistogramTick(bin.endMs)}`;
+        return `
+            <div class="health-consensus-histogram-bin" role="listitem" aria-label="${escapeHtml(range)}: ${formatCount(bin.preattestationPower)} pre-attestation power, ${formatCount(bin.attestationPower)} attestation power">
+                <div class="health-consensus-histogram-pair" aria-hidden="true">
+                    <span class="pre" style="height:${preHeight.toFixed(2)}%"></span>
+                    <span class="att" style="height:${attHeight.toFixed(2)}%"></span>
+                </div>
+                <small>${showTick ? escapeHtml(formatTeztaleHistogramTick(bin.startMs)) : ''}</small>
+            </div>
+        `;
+    }).join('');
+    return `
+        <div class="health-consensus-histogram" role="list" aria-label="Earliest Teztale observer reception distribution in ${formatCount(histogram.binMs)} millisecond buckets" style="--health-consensus-bin-count:${histogram.bins.length}">
+            ${bins}
+        </div>
+    `;
+}
+
 function renderTeztaleConsensusPanel(data) {
     const lens = data.teztaleLens || teztaleFallback();
     if (!lens.available) {
@@ -2249,14 +2376,46 @@ function renderTeztaleConsensusPanel(data) {
     return `
         <section class="lb-panel health-panel health-consensus-panel chamber-anim-fade" id="health-teztale-consensus" style="animation-delay:120ms">
             <div class="lb-panel-title">Consensus Lens <span class="lb-live-pill">Teztale</span></div>
-            <div class="health-consensus-hero ${lens.className}">
-                <strong id="health-teztale-quorum">${formatMilliseconds(latest.quorumMs)}</strong>
-                <span id="health-teztale-status">${escapeHtml(lens.label)} · 66% attestation quorum at ${escapeHtml(levelLabel)}${escapeHtml(headStatus)}</span>
+            <div class="health-consensus-topline">
+                <div class="health-consensus-hero ${lens.className}">
+                    <strong id="health-teztale-quorum">${formatMilliseconds(latest.quorumMs)}</strong>
+                    <span id="health-teztale-status">${escapeHtml(lens.label)} · 66⅔% attestation quorum at ${escapeHtml(levelLabel)}${escapeHtml(headStatus)}</span>
+                </div>
+                <div class="health-consensus-latest" aria-label="Latest complete Teztale round">
+                    <div><span>Pre-quorum</span><strong id="health-teztale-prequorum">${formatMilliseconds(latest.preQuorumMs)}</strong></div>
+                    <div><span>Validation</span><strong id="health-teztale-validation">${formatMilliseconds(latest.validationDelayMs)}</strong></div>
+                    <div><span>Observers</span><strong id="health-teztale-source-count">${formatCount(latest.sourceCount)}</strong></div>
+                </div>
             </div>
-            <div class="lb-metric-grid health-metric-grid health-consensus-metrics">
-                <div><span>Pre-quorum</span><strong id="health-teztale-prequorum">${formatMilliseconds(latest.preQuorumMs)}</strong></div>
-                <div><span>Validation</span><strong id="health-teztale-validation">${formatMilliseconds(latest.validationDelayMs)}</strong></div>
-                <div><span>Sources</span><strong id="health-teztale-source-count">${formatCount(latest.sourceCount)}</strong></div>
+
+            <section class="health-consensus-propagation" id="health-teztale-propagation" aria-labelledby="health-teztale-propagation-title">
+                <div class="health-consensus-section-head">
+                    <div>
+                        <strong id="health-teztale-propagation-title">Attestation reception / propagation</strong>
+                        <span>Earliest Teztale observer reception · endorsing-power weighted · ${formatCount(lens.receptionHistogram?.binMs || TEZTALE_RECEPTION_BIN_MS)}ms buckets</span>
+                    </div>
+                    <div class="health-consensus-legend" aria-label="Reception distribution legend">
+                        <span class="pre">Pre-attestations</span>
+                        <span class="att">Attestations</span>
+                    </div>
+                </div>
+                <div class="health-consensus-propagation-body">
+                    ${renderTeztaleReceptionHistogram(lens)}
+                    <div class="health-consensus-threshold-grid" aria-label="Average weighted-power arrival thresholds">
+                        <div><span>Pre-att. 66⅔%</span><strong id="health-teztale-pre-66-avg">${formatMilliseconds(lens.avgPreQuorumMs)}</strong><small>window avg</small></div>
+                        <div><span>Pre-att. 90%</span><strong id="health-teztale-pre-90-avg">${formatMilliseconds(lens.avgPre90Ms)}</strong><small>window avg</small></div>
+                        <div><span>Att. 66⅔%</span><strong id="health-teztale-att-66-avg">${formatMilliseconds(lens.avgQuorumMs)}</strong><small>window avg</small></div>
+                        <div><span>Att. 90%</span><strong id="health-teztale-att-90-avg">${formatMilliseconds(lens.avgQuorum90Ms)}</strong><small>window avg</small></div>
+                    </div>
+                </div>
+                <p class="health-consensus-method">Observer lens, not a full peer-to-peer gossip trace: each operation is counted once at its earliest reception across the available Teztale observers.</p>
+            </section>
+
+            <div class="health-consensus-path" aria-label="Average consensus path timing">
+                <div><span>Validation observed</span><strong>${formatMilliseconds(lens.avgValidationMs)}</strong><small>block timestamp → validation</small></div>
+                <div><span>Validation → pre-quorum</span><strong>${formatMilliseconds(lens.avgValidationToPreQuorumMs)}</strong><small>66⅔% pre-attestation power</small></div>
+                <div><span>Pre-quorum → quorum</span><strong>${formatMilliseconds(lens.avgPreQuorumToQuorumMs)}</strong><small>pre-att. → att. threshold</small></div>
+                <div><span>Validation → quorum</span><strong>${formatMilliseconds(lens.avgValidationToQuorumMs)}</strong><small>66⅔% attestation power</small></div>
             </div>
             <div class="health-consensus-ops" id="health-teztale-ops">
                 <span>Coverage</span>
@@ -2399,6 +2558,182 @@ function renderNakamotoHelp() {
     `;
 }
 
+function renderNakamotoPrintDocument(nakamoto = {}) {
+    const live = nakamoto.live || nakamotoLiveFallback();
+    const oneThird = live.thresholds?.oneThird;
+    const twoThirds = live.thresholds?.twoThirds;
+    const sourceRows = (nakamoto.sources || []).map((source) => {
+        const metrics = (source.metrics || []).map((metric) => `
+            <span class="metric"><b>${escapeHtml(metric.label || 'Reported NC')} ${escapeHtml(metric.displayValue ?? metric.value ?? '--')}</b><small>${escapeHtml(metric.thresholdLabel || 'threshold unstated')}</small></span>
+        `).join('');
+        return `
+            <article>
+                <header><strong>${escapeHtml(source.name || 'Published source')}</strong><span>${escapeHtml(formatNakamotoDate(source.dataAsOf))}</span></header>
+                <div class="metrics">${metrics || '<span class="metric"><b>--</b><small>No metric returned</small></span>'}</div>
+                <p><b>Basis:</b> ${escapeHtml(source.resourceBasis || 'Not stated')} · <b>Actors:</b> ${escapeHtml(source.entityBasis || 'Not stated')} · <b>Window:</b> ${escapeHtml(source.window || 'Not stated')}</p>
+            </article>
+        `;
+    }).join('');
+    const liveStatus = live.available
+        ? `${live.stale ? 'Cached after RPC error' : 'Live current-cycle snapshot'} · ${formatCount(live.poweredDelegates)} powered delegate addresses · ${formatNakamotoObservedAt(live.observedAt)}`
+        : 'Current-cycle RPC calculation unavailable';
+    return `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Tezos Nakamoto Coefficients · Tezos Systems</title>
+    <style>
+        *{box-sizing:border-box}body{margin:0;padding:36px;color:#152033;background:#fff;font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:980px;margin:0 auto}header.brand{display:flex;justify-content:space-between;gap:20px;align-items:end;padding-bottom:16px;border-bottom:3px solid #0f8eb8}.eyebrow{color:#0f8eb8;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1{margin:6px 0 0;font-size:34px;line-height:1.05}header.brand a{color:#0f8eb8;text-decoration:none;font-weight:800}.live-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0 10px}.live-card{padding:20px;border:1px solid #cbd6e2;border-left:5px solid #d8a900;border-radius:8px}.live-card.quorum{border-left-color:#0f8eb8}.live-card span,.live-card em,.live-card small{display:block}.live-card span{font-size:12px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.live-card strong{display:block;margin:8px 0;font-size:54px;line-height:1}.live-card em{font-style:normal;font-weight:750}.meta{margin:0 0 20px;color:#526175;font-size:13px}.warning{padding:14px 16px;border:1px solid #e7c65d;border-radius:7px;background:#fff9dc}.sources{margin-top:26px}.sources>h2{font-size:20px}.sources article{padding:14px 0;border-top:1px solid #dbe3eb}.sources article header{display:flex;justify-content:space-between;gap:12px}.sources article header span,.sources article p{color:#526175;font-size:12px}.metrics{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.metric{min-width:132px;padding:8px 10px;border:1px solid #dbe3eb;border-radius:5px}.metric b,.metric small{display:block}.metric small{color:#66758a}footer{margin-top:28px;padding-top:12px;border-top:1px solid #cbd6e2;color:#66758a;font-size:12px}@media(max-width:650px){body{padding:20px}.live-grid{grid-template-columns:1fr}header.brand{align-items:start;flex-direction:column}}@media print{body{padding:0}.warning,.live-card,.metric{break-inside:avoid}a{color:inherit}}
+    </style>
+</head>
+<body>
+<main>
+    <header class="brand"><div><div class="eyebrow">Tezos Systems · Network Health</div><h1>Nakamoto Coefficients</h1></div><a href="https://tezos.systems/health/">tezos.systems/health/</a></header>
+    <section class="live-grid" aria-label="Live current-cycle Nakamoto coefficients">
+        <div class="live-card"><span>Halt / fault boundary</span><strong>${escapeHtml(oneThird?.count ?? '--')}</strong><em>&gt;33 1/3% of current-cycle power</em><small>${oneThird ? `${formatPct(oneThird.cumulativeShare)}% crossed by ${formatCount(oneThird.count)} addresses` : 'Live calculation unavailable'}</small></div>
+        <div class="live-card quorum"><span>Unilateral quorum control</span><strong>${escapeHtml(twoThirds?.count ?? '--')}</strong><em>&gt;66 2/3% of current-cycle power</em><small>${twoThirds ? `${formatPct(twoThirds.cumulativeShare)}% crossed by ${formatCount(twoThirds.count)} addresses` : 'Live calculation unavailable'}</small></div>
+    </section>
+    <p class="meta">${escapeHtml(liveStatus)}</p>
+    <p class="warning"><strong>Address-level result.</strong> This live calculation counts powered delegate addresses, not verified independent organizations. External values below retain their own threshold, resource, window, and entity basis and are not normalized.</p>
+    <section class="sources"><h2>Other published numbers</h2>${sourceRows || '<p>No external source snapshots available.</p>'}</section>
+    <footer>Generated from the Tezos Systems Network Health Chamber · Octez current-cycle baking-power distribution</footer>
+</main>
+</body>
+</html>`;
+}
+
+function printNakamotoCoefficient(nakamoto = {}) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        window.print();
+        return;
+    }
+    try {
+        printWindow.opener = null;
+    } catch {
+        // Some browsers expose a read-only opener reference.
+    }
+    printWindow.document.open();
+    printWindow.document.write(renderNakamotoPrintDocument(nakamoto));
+    printWindow.document.close();
+    window.setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+    }, 120);
+}
+
+async function shareNakamotoCoefficient(nakamoto = {}, button = null) {
+    const live = nakamoto.live || nakamotoLiveFallback();
+    const oneThird = live.thresholds?.oneThird;
+    const twoThirds = live.thresholds?.twoThirds;
+    const originalMarkup = button?.innerHTML || '';
+    let card = null;
+    try {
+        if (button) {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            button.innerHTML = '<span aria-hidden="true">…</span> Building';
+        }
+        const { appendCardSeal, loadHtml2Canvas, showShareModal } = await import('../ui/share.js');
+        await loadHtml2Canvas();
+        const liveStatus = !live.available
+            ? 'Current-cycle calculation unavailable'
+            : live.stale
+                ? 'Cached after current-cycle RPC error'
+                : 'Live Octez current-cycle snapshot';
+        const sourceCards = (nakamoto.sources || []).slice(0, 3).map((source) => {
+            const metric = source.metrics?.[0];
+            return `
+                <div style="min-width:0;padding:14px 15px;border:1px solid rgba(77,212,255,.15);border-radius:10px;background:rgba(255,255,255,.035);">
+                    <div style="color:rgba(220,235,249,.58);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(source.name || 'Published source')}</div>
+                    <div style="margin:7px 0 3px;color:#f7fbff;font-size:27px;font-weight:900;">${escapeHtml(metric?.displayValue ?? metric?.value ?? '--')}</div>
+                    <div style="color:rgba(220,235,249,.46);font-size:11px;line-height:1.3;">${escapeHtml(metric?.thresholdLabel || 'threshold unstated')} · ${escapeHtml(formatNakamotoDate(source.dataAsOf))}</div>
+                </div>
+            `;
+        }).join('');
+
+        card = document.createElement('div');
+        card.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1200px;height:630px;padding:44px 52px 54px;background:#08111d;color:#f7fbff;border:1px solid rgba(77,212,255,.2);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-sizing:border-box;overflow:hidden;';
+        card.innerHTML = `
+            <div style="position:absolute;inset:0;background:radial-gradient(circle at 12% 10%,rgba(77,212,255,.13),transparent 36%),radial-gradient(circle at 88% 86%,rgba(80,232,136,.1),transparent 34%);pointer-events:none;"></div>
+            <div style="position:relative;z-index:1;height:100%;display:grid;grid-template-columns:390px minmax(0,1fr);gap:42px;">
+                <section style="display:flex;min-width:0;flex-direction:column;">
+                    <div style="color:#4dd4ff;font-family:Orbitron,sans-serif;font-size:25px;font-weight:900;">TEZOS SYSTEMS</div>
+                    <div style="width:210px;height:1px;margin:14px 0 28px;background:#4dd4ff;opacity:.7;"></div>
+                    <div style="color:rgba(220,235,249,.48);font-size:12px;font-weight:850;text-transform:uppercase;">Network Health · Current cycle</div>
+                    <h1 style="margin:11px 0 16px;color:#f7fbff;font-size:48px;line-height:1.02;">Nakamoto<br>Coefficients</h1>
+                    <p style="margin:0;color:rgba(220,235,249,.66);font-size:18px;line-height:1.42;">How many of the largest delegate addresses cross Tezos consensus-power boundaries?</p>
+                    <div style="margin-top:auto;color:rgba(220,235,249,.48);font-size:14px;line-height:1.45;">${escapeHtml(liveStatus)}<br><span style="color:#4dd4ff;font-weight:850;">tezos.systems/health/</span></div>
+                </section>
+                <section style="display:flex;min-width:0;flex-direction:column;gap:16px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div style="padding:22px;border:1px solid rgba(245,214,91,.28);border-left:5px solid #f5d65b;border-radius:12px;background:rgba(245,214,91,.055);">
+                            <div style="color:#f5d65b;font-size:12px;font-weight:900;text-transform:uppercase;">Halt / fault · &gt;33 1/3%</div>
+                            <div style="margin:10px 0 8px;color:#f5d65b;font-size:68px;font-weight:900;line-height:1;">${escapeHtml(oneThird?.count ?? '--')}</div>
+                            <div style="color:rgba(220,235,249,.58);font-size:13px;">${oneThird ? `${formatPct(oneThird.cumulativeShare)}% by ${formatCount(oneThird.count)} addresses` : 'Live calculation unavailable'}</div>
+                        </div>
+                        <div style="padding:22px;border:1px solid rgba(77,212,255,.28);border-left:5px solid #4dd4ff;border-radius:12px;background:rgba(77,212,255,.055);">
+                            <div style="color:#4dd4ff;font-size:12px;font-weight:900;text-transform:uppercase;">Quorum control · &gt;66 2/3%</div>
+                            <div style="margin:10px 0 8px;color:#4dd4ff;font-size:68px;font-weight:900;line-height:1;">${escapeHtml(twoThirds?.count ?? '--')}</div>
+                            <div style="color:rgba(220,235,249,.58);font-size:13px;">${twoThirds ? `${formatPct(twoThirds.cumulativeShare)}% by ${formatCount(twoThirds.count)} addresses` : 'Live calculation unavailable'}</div>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;">${sourceCards}</div>
+                    <div style="margin-top:auto;padding:14px 16px;border:1px solid rgba(245,214,91,.18);border-radius:9px;background:rgba(245,214,91,.045);color:rgba(220,235,249,.64);font-size:13px;line-height:1.42;"><strong style="color:#f7fbff;">Address-level, not entity-clustered.</strong> Published numbers use different thresholds, windows, and actor definitions; they are shown separately, not blended.</div>
+                </section>
+            </div>
+        `;
+        appendCardSeal(card);
+        document.body.appendChild(card);
+        const canvas = await window.html2canvas(card, {
+            backgroundColor: '#08111d',
+            scale: 1,
+            useCORS: true,
+            logging: false,
+            width: 1200,
+            height: 630,
+            windowWidth: 1200
+        });
+        card.remove();
+        card = null;
+
+        const tweetOptions = live.available
+            ? [
+                { label: '🏛 Live thresholds', text: `Tezos live Nakamoto Coefficients: ${oneThird?.count ?? '--'} delegate addresses cross >33⅓% of current-cycle power; ${twoThirds?.count ?? '--'} cross >66⅔%. Address-level, not entity-clustered.\n\nhttps://tezos.systems/health/` },
+                { label: '🧭 Distribution lens', text: `How concentrated is Tezos consensus power right now? Current-cycle address-level Nakamoto thresholds, with the methodology caveat kept visible.\n\nhttps://tezos.systems/health/` }
+            ]
+            : [
+                { label: '🏛 Methodology view', text: 'Compare Tezos Nakamoto Coefficient reports without mixing thresholds, dates, windows, or address/entity definitions.\n\nhttps://tezos.systems/health/' }
+            ];
+        showShareModal(canvas, tweetOptions, 'Tezos Nakamoto Coefficients');
+    } catch (error) {
+        console.warn('Nakamoto coefficient share failed', error);
+    } finally {
+        if (card?.isConnected) card.remove();
+        if (button) {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            button.innerHTML = originalMarkup;
+        }
+    }
+}
+
+function wireNakamotoActions(panel, nakamoto = {}) {
+    if (!panel) return;
+    panel._nakamotoShareData = nakamoto;
+    if (panel.dataset.healthNcActionsWired) return;
+    panel.dataset.healthNcActionsWired = '1';
+    panel.querySelector('#health-nc-print')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        printNakamotoCoefficient(panel._nakamotoShareData || {});
+    });
+    panel.querySelector('#health-nc-share')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        shareNakamotoCoefficient(panel._nakamotoShareData || {}, event.currentTarget);
+    });
+}
+
 function renderNakamotoCoefficientPanel(data) {
     const nakamoto = data.nakamoto || {};
     const live = nakamoto.live || nakamotoLiveFallback();
@@ -2410,6 +2745,10 @@ function renderNakamotoCoefficientPanel(data) {
             <div class="lb-panel-title">
                 Nakamoto Coefficients
                 <span class="lb-live-pill">Octez current cycle</span>
+                <span class="health-nc-actions" aria-label="Nakamoto coefficient sharing actions">
+                    <button type="button" class="health-nc-action" id="health-nc-print" aria-label="Print the Nakamoto coefficient report"><span aria-hidden="true">⎙</span> Print</button>
+                    <button type="button" class="health-nc-action share" id="health-nc-share" aria-label="Create a tweet-ready Nakamoto coefficient card"><span aria-hidden="true">𝕏</span> Tweet</button>
+                </span>
                 ${renderNakamotoHelp()}
             </div>
             <p class="health-nc-intro">Two live Tezos thresholds answer two different consensus questions. Third-party values stay separate because their methods are not interchangeable.</p>
@@ -2474,6 +2813,7 @@ function updateNakamotoCoefficientPanel(data) {
         renderNakamotoSourceRows(nakamoto.sources || []),
         nakamotoSourceSignature(nakamoto.sources)
     );
+    wireNakamotoActions(panel, nakamoto);
 }
 
 function renderOctezVersionRows(rows) {
@@ -2798,8 +3138,8 @@ function renderNetworkHealthChamber(data, container) {
         <div class="lb-dashboard-grid health-dashboard-grid">
             ${renderHealthScorePanel(data)}
             ${renderTimingPanel(data)}
-            ${renderTeztaleConsensusPanel(data)}
             ${renderNakamotoCoefficientPanel(data)}
+            ${renderTeztaleConsensusPanel(data)}
             ${renderOctezVersionsPanel(data)}
             ${renderCycleTimingPanel(data)}
             ${renderIncidentMemoryPanel(data)}
@@ -2822,6 +3162,7 @@ function renderNetworkHealthChamber(data, container) {
         </div>
     `;
     container.dataset.healthRendered = 'true';
+    wireNakamotoActions(container.querySelector('#health-nakamoto-coefficient'), data.nakamoto || {});
     initHealthBakerProfileLinks(container);
     refreshHealthAgeLabels(container);
 }

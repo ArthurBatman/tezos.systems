@@ -43,7 +43,7 @@ tezos.systems/
 │   ├── styles.css                     # Source dashboard styles and themes
 │   ├── styles.min.css                 # Served base dashboard stylesheet
 │   ├── loading.css                    # Critical first-paint skeleton states
-│   ├── network-health.css             # Lazy Network Health Nakamoto panel styles
+│   ├── network-health.css             # Lazy Network Health detail-panel styles
 │   ├── themes/                        # Generated lazy-loaded theme bundles
 │   ├── hen-mode.css                   # HEN overlay styles
 │   └── landing.css                    # Landing and SEO page styles
@@ -362,10 +362,12 @@ inline modal styles in `js/core/app.js`.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
-  power, Teztale quorum/validation/source observations credited to Nomadic
+  power, a full-width Teztale observer-reception histogram plus exact
+  two-thirds/90% arrival and validation-to-quorum timing credited to Nomadic
   Labs, live current-cycle address-level Nakamoto coefficients at strict
   one-third and two-thirds thresholds, dated Chainspect/Edinburgh EDI/CoinClear
-  reports with their original methods intact, and a compact saved My Tezos
+  reports with their original methods intact, print/tweet-ready coefficient
+  cards that retain the address-versus-operator caveat, and a compact saved My Tezos
   baker summary. Its Chambers card spans two
   tiles and includes compact block-power bars plus a deduped throttled 1,000+
   XTZ live activity tape; the open chamber refreshes on the block cadence with
@@ -530,7 +532,7 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, and ctez oven discovery |
 | Octez RPC `https://eu.rpc.tez.capital` | Issuance, supply, constants, cycle/head metadata |
 | Official Octez mainnet RPC `https://tezos-mainnet.octez.io` | Current-cycle baking-power distribution used for Network Health's live one-third and two-thirds address coefficients |
-| Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including quorum delay, validation/application delay, source count, and operations-report observations; Teztale is by Nomadic Labs |
+| Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including earliest-observer, endorsing-power-weighted reception distributions, exact two-thirds and 90% arrival thresholds, validation-to-quorum phases, and observer count; Teztale is by Nomadic Labs |
 | `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
 | CoinGecko | XTZ price, market cap, 24h change, volume |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |

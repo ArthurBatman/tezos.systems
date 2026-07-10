@@ -7,6 +7,9 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '🎨', text: 'Network Health now places Nakamoto Coefficients directly above the full-width Consensus Lens for earlier decentralization context' },
+            { type: '✨', text: 'Network Health Consensus Lens now spans the full chamber and shows Teztale observer reception as a power-weighted histogram, exact two-thirds and 90% arrival averages, plus validation-to-quorum phase timing' },
+            { type: '✨', text: 'Nakamoto Coefficients now include dedicated print and tweet-ready share cards with live thresholds, source context, and the address-versus-operator caveat preserved' },
             { type: '✨', text: 'Network Health now compares live address-level Nakamoto coefficients at Tezos’ one-third and two-thirds thresholds with dated Chainspect, Edinburgh EDI, and CoinClear reports plus methodology context' },
             { type: '🎨', text: 'The Tezos Maxis Chamber now keeps its opeculiar concept credit once, centered in the footer instead of leaving it stranded inside the hero' },
             { type: '🎨', text: 'Maxis top-three standings now rise on gold, silver, and bronze metallic podiums, with the large polished crown reserved for the gold winner across themes and mobile' },

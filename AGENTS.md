@@ -45,7 +45,7 @@ the highest-risk gotchas.
   script loading, Chart.js CDN imports.
 - `css/styles.css`: source styles and theme rules.
 - `css/styles.min.css`: served stylesheet.
-- `css/network-health.css`: lazy Network Health Nakamoto panel styles.
+- `css/network-health.css`: lazy Network Health Consensus Lens and Nakamoto panel styles.
 - `css/hen-mode.css`: HEN overlay styles.
 - `css/landing.css`: landing and SEO page styles.
 - `js/core/app.js`: app orchestrator, DOM wiring, modals, refresh loop, feature
@@ -118,7 +118,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v409`
+- Service worker cache name: `tezos-systems-v411`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 

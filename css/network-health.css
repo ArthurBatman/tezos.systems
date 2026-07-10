@@ -1,4 +1,238 @@
-/* Network Health Nakamoto Coefficient panel — loaded with the chamber module. */
+/* Network Health detail panels — loaded with the chamber module. */
+
+.health-consensus-panel {
+    grid-column: 1 / -1;
+}
+
+[data-theme="clean"] .health-consensus-panel,
+[data-theme="clean"] .health-nakamoto-panel {
+    --text-primary: #f2f7ff;
+    --text-secondary: #b8c6d9;
+    --text-tertiary: #77869c;
+    color: #f2f7ff;
+}
+
+.health-consensus-topline {
+    display: grid;
+    grid-template-columns: minmax(270px, 0.82fr) minmax(0, 1.18fr);
+    gap: 12px;
+    align-items: stretch;
+    margin: 8px 0 14px;
+}
+
+.health-consensus-topline .health-consensus-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    margin: 0;
+}
+
+.health-consensus-topline .health-consensus-hero span {
+    text-align: left;
+}
+
+.health-consensus-latest {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.health-consensus-latest > div,
+.health-consensus-threshold-grid > div,
+.health-consensus-path > div {
+    display: grid;
+    align-content: center;
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.028);
+}
+
+.health-consensus-latest span,
+.health-consensus-threshold-grid span,
+.health-consensus-path span {
+    color: var(--text-tertiary, #666);
+    font-size: 0.59rem;
+    font-weight: 850;
+    letter-spacing: 0.07em;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.health-consensus-latest strong,
+.health-consensus-threshold-grid strong,
+.health-consensus-path strong {
+    margin-top: 5px;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.02rem;
+    font-weight: 850;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+}
+
+.health-consensus-propagation {
+    margin: 0 0 12px;
+    padding: 13px 14px 11px;
+    border: 1px solid rgba(77, 212, 255, 0.12);
+    border-radius: 7px;
+    background:
+        linear-gradient(135deg, rgba(91, 102, 230, 0.045), rgba(50, 210, 157, 0.028)),
+        rgba(0, 0, 0, 0.1);
+}
+
+.health-consensus-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 18px;
+}
+
+.health-consensus-section-head > div:first-child,
+.health-consensus-section-head strong,
+.health-consensus-section-head > div:first-child > span {
+    display: block;
+}
+
+.health-consensus-section-head strong {
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    font-weight: 850;
+}
+
+.health-consensus-section-head > div:first-child > span,
+.health-consensus-method {
+    margin-top: 3px;
+    color: var(--text-tertiary, #666);
+    font-size: 0.62rem;
+    line-height: 1.4;
+}
+
+.health-consensus-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px 12px;
+    color: var(--text-secondary, #888);
+    font-size: 0.62rem;
+    white-space: nowrap;
+}
+
+.health-consensus-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.health-consensus-legend span::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: #6f72e7;
+}
+
+.health-consensus-legend .att::before {
+    background: #32d29d;
+}
+
+.health-consensus-propagation-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(250px, 0.55fr);
+    gap: 15px;
+    align-items: stretch;
+    margin-top: 12px;
+}
+
+.health-consensus-histogram {
+    display: grid;
+    grid-template-columns: repeat(var(--health-consensus-bin-count, 12), minmax(0, 1fr));
+    gap: 4px;
+    min-height: 158px;
+    padding: 10px 9px 5px;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 5px;
+    background:
+        repeating-linear-gradient(to top, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 36px),
+        rgba(255, 255, 255, 0.018);
+}
+
+.health-consensus-histogram-bin {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 16px;
+    gap: 5px;
+    min-width: 0;
+}
+
+.health-consensus-histogram-pair {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    min-height: 124px;
+}
+
+.health-consensus-histogram-pair > span {
+    width: min(42%, 16px);
+    min-height: 0;
+    border-radius: 2px 2px 0 0;
+    background: linear-gradient(to top, rgba(91, 96, 212, 0.64), #7e82f4);
+    box-shadow: 0 0 8px rgba(111, 114, 231, 0.15);
+}
+
+.health-consensus-histogram-pair > .att {
+    background: linear-gradient(to top, rgba(40, 173, 130, 0.68), #36dea9);
+    box-shadow: 0 0 8px rgba(50, 210, 157, 0.14);
+}
+
+.health-consensus-histogram-bin small {
+    overflow: visible;
+    color: var(--text-tertiary, #666);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.51rem;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.health-consensus-threshold-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.health-consensus-threshold-grid > div:nth-child(-n + 2) {
+    border-color: rgba(111, 114, 231, 0.14);
+}
+
+.health-consensus-threshold-grid > div:nth-child(n + 3) {
+    border-color: rgba(50, 210, 157, 0.14);
+}
+
+.health-consensus-threshold-grid small,
+.health-consensus-path small {
+    margin-top: 3px;
+    color: var(--text-tertiary, #666);
+    font-size: 0.55rem;
+    line-height: 1.25;
+}
+
+.health-consensus-method {
+    margin-bottom: 0;
+}
+
+.health-consensus-path {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.health-consensus-events {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 
 .health-nakamoto-panel {
     grid-column: 1 / -1;
@@ -14,7 +248,51 @@
 }
 
 .health-nc-help {
+    margin-left: 0;
+}
+
+.health-nc-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin-left: auto;
+}
+
+.health-nc-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 4px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-secondary, #888);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.62rem;
+    font-weight: 850;
+    line-height: 1;
+    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.health-nc-action.share {
+    border-color: rgba(77, 212, 255, 0.2);
+    color: #4dd4ff;
+}
+
+.health-nc-action:hover,
+.health-nc-action:focus-visible {
+    border-color: rgba(80, 232, 136, 0.38);
+    background: rgba(80, 232, 136, 0.075);
+    color: #50e888;
+    outline: none;
+}
+
+.health-nc-action:disabled {
+    cursor: progress;
+    opacity: 0.62;
 }
 
 .health-nc-help .lb-help-trigger {
@@ -347,8 +625,54 @@
 }
 
 @media (max-width: 760px) {
+    .health-consensus-topline,
+    .health-consensus-propagation-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .health-consensus-section-head {
+        flex-direction: column;
+    }
+
+    .health-consensus-legend {
+        justify-content: flex-start;
+    }
+
+    .health-consensus-histogram {
+        min-height: 136px;
+        padding-inline: 5px;
+    }
+
+    .health-consensus-histogram-pair {
+        min-height: 102px;
+    }
+
+    .health-consensus-path {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .health-consensus-events {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .health-nakamoto-panel .lb-panel-title {
         flex-wrap: wrap;
+    }
+
+    .health-nc-actions {
+        order: 3;
+        flex: 1 0 auto;
+        margin-left: 0;
+    }
+
+    .health-nc-action {
+        min-height: 38px;
+        padding-inline: 11px;
+    }
+
+    .health-nc-help {
+        order: 4;
+        margin-left: auto;
     }
 
     .health-nc-help[open] {

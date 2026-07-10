@@ -652,7 +652,17 @@ function sampleTeztaleBlock(level) {
         endorsing_power: 700,
         operations: [
           {
+            kind: 'Preendorsement',
             round,
+            received_in_mempools: [
+              { source: 'NL-vigie-mainnet-full-gcp', reception_time: isoFrom(timestampMs, 2100 + offset * 20) }
+            ]
+          },
+          {
+            round,
+            received_in_mempools: [
+              { source: 'NL-vigie-mainnet-full-gcp', reception_time: isoFrom(timestampMs, 3600 + offset * 22) }
+            ],
             included_in_blocks: [successorHash]
           }
         ]
@@ -4414,6 +4424,49 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await installFeatureMocks(context, { blockHeadLagMs: 90000, networkHealthBlocksDelayMs: 500 });
   await context.addInitScript((myBakerAddress) => {
     window.__tezosSystemsIntervals = [];
+    window.__healthPrintState = { html: '', focused: false, printed: false };
+    const nativeWindowOpen = window.open.bind(window);
+    window.open = (url = '', target = '', features = '') => {
+      if (url && url !== 'about:blank') return nativeWindowOpen(url, target, features);
+
+      let printWindow = null;
+      const recordHtml = (value) => {
+        window.__healthPrintState.html += String(value || '');
+      };
+      const printableBody = {};
+      Object.defineProperty(printableBody, 'innerHTML', {
+        get: () => window.__healthPrintState.html,
+        set: (value) => {
+          window.__healthPrintState.html = String(value || '');
+        }
+      });
+      const printableDocument = {
+        body: printableBody,
+        documentElement: printableBody,
+        open() {
+          window.__healthPrintState.html = '';
+        },
+        write: recordHtml,
+        close() {
+          setTimeout(() => printWindow?.onload?.(), 0);
+        }
+      };
+      printWindow = {
+        document: printableDocument,
+        onload: null,
+        focus() {
+          window.__healthPrintState.focused = true;
+        },
+        print() {
+          window.__healthPrintState.printed = true;
+        },
+        close() {},
+        addEventListener(type, callback) {
+          if (type === 'load') setTimeout(callback, 0);
+        }
+      };
+      return printWindow;
+    };
     const originalSetInterval = window.setInterval.bind(window);
     window.setInterval = (handler, timeout, ...args) => {
       const id = originalSetInterval(handler, timeout, ...args);
@@ -4485,6 +4538,12 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
 
   const healthState = await page.evaluate(() => {
     const modal = document.querySelector('#network-health-modal');
+    const healthGrid = modal?.querySelector('.health-dashboard-grid');
+    const consensusPanel = modal?.querySelector('#health-teztale-consensus');
+    const nakamotoPanel = modal?.querySelector('#health-nakamoto-coefficient');
+    const consensusPropagation = modal?.querySelector('#health-teztale-propagation');
+    const healthGridRect = healthGrid?.getBoundingClientRect();
+    const consensusPanelRect = consensusPanel?.getBoundingClientRect();
     const header = document.querySelector('.header');
     const title = document.querySelector('.title');
     const topProof = document.querySelector('#top-continuity-panel');
@@ -4560,6 +4619,20 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       cycleTimingCells: modal?.querySelectorAll('#health-cycle-strip .health-cycle-cell').length || 0,
       cycleTimingStatus: modal?.querySelector('#health-cycle-status')?.textContent || '',
       teztale: modal?.querySelector('#health-teztale-consensus')?.textContent || '',
+      teztaleFullWidth: Boolean(
+        healthGridRect
+        && consensusPanelRect
+        && Math.abs(consensusPanelRect.left - healthGridRect.left) <= 1
+        && Math.abs(consensusPanelRect.right - healthGridRect.right) <= 1
+      ),
+      nakamotoImmediatelyBeforeTeztale: nakamotoPanel?.nextElementSibling === consensusPanel,
+      teztalePropagation: consensusPropagation?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      teztalePath: consensusPanel?.querySelector('.health-consensus-path')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      teztalePre66Avg: modal?.querySelector('#health-teztale-pre-66-avg')?.textContent || '',
+      teztalePre90Avg: modal?.querySelector('#health-teztale-pre-90-avg')?.textContent || '',
+      teztaleAtt66Avg: modal?.querySelector('#health-teztale-att-66-avg')?.textContent || '',
+      teztaleAtt90Avg: modal?.querySelector('#health-teztale-att-90-avg')?.textContent || '',
+      teztaleHistogramBins: consensusPropagation?.querySelectorAll('.health-consensus-histogram-bin').length || 0,
       teztaleQuorum: modal?.querySelector('#health-teztale-quorum')?.textContent || '',
       teztaleSources: modal?.querySelector('#health-teztale-source-count')?.textContent || '',
       teztaleOps: modal?.querySelector('#health-teztale-ops')?.textContent || '',
@@ -4573,6 +4646,10 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       nakamotoChainspectHref: modal?.querySelector('#health-nc-source-list a[href*="chainspect.app"]')?.href || '',
       nakamotoEdiHref: modal?.querySelector('#health-nc-source-list a[href*="blockchainlab.inf.ed.ac.uk"]')?.href || '',
       nakamotoHelpLabel: modal?.querySelector('.health-nc-help > summary')?.getAttribute('aria-label') || '',
+      nakamotoPrintButton: Boolean(modal?.querySelector('#health-nc-print')),
+      nakamotoPrintLabel: modal?.querySelector('#health-nc-print')?.getAttribute('aria-label') || '',
+      nakamotoShareButton: Boolean(modal?.querySelector('#health-nc-share')),
+      nakamotoShareLabel: modal?.querySelector('#health-nc-share')?.getAttribute('aria-label') || '',
       octezVersions: modal?.querySelector('#health-octez-versions')?.textContent || '',
       octezCurrent: modal?.querySelector('#health-octez-current')?.textContent || '',
       octezLatestPower: modal?.querySelector('#health-octez-latest-power')?.textContent || '',
@@ -4710,6 +4787,21 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.cycleTimingCells >= 4, `network health chamber: cycle timing strip too sparse: ${healthState.cycleTimingCells}`);
   assert(/Watch|slow|target/i.test(healthState.cycleTimingStatus), `network health chamber: cycle timing status missing drift context: ${healthState.cycleTimingStatus}`);
   assert(/Consensus Lens/.test(healthState.teztale) && /Teztale/.test(healthState.teztale) && /Nomadic Labs/.test(healthState.teztale), `network health chamber: Teztale consensus lens missing credit/context: ${healthState.teztale}`);
+  assert(healthState.teztaleFullWidth, 'network health chamber: Teztale Consensus Lens should span the full dashboard width');
+  assert(/66(?:⅔|\.7)%/.test(healthState.teztale), `network health chamber: Teztale quorum label must use the exact two-thirds threshold: ${healthState.teztale}`);
+  assert(!/\b66% attestation quorum\b/i.test(healthState.teztale), `network health chamber: Teztale quorum must not be labeled as an inexact 66% threshold: ${healthState.teztale}`);
+  assert(/Earliest Teztale observer reception/i.test(healthState.teztalePropagation) && /earliest reception/i.test(healthState.teztalePropagation), `network health chamber: Teztale propagation must disclose earliest-observer semantics: ${healthState.teztalePropagation}`);
+  assert(/endorsing[- ]power weighted/i.test(healthState.teztalePropagation) && /500\s*ms/i.test(healthState.teztalePropagation), `network health chamber: Teztale propagation bin methodology missing: ${healthState.teztalePropagation}`);
+  assert(/Validation observed/i.test(healthState.teztalePath) && /Validation → pre-quorum/i.test(healthState.teztalePath) && /Pre-quorum → quorum/i.test(healthState.teztalePath) && /Validation → quorum/i.test(healthState.teztalePath), `network health chamber: Teztale propagation path timing labels missing: ${healthState.teztalePath}`);
+  for (const [label, value] of [
+    ['pre-attestation 66⅔% average', healthState.teztalePre66Avg],
+    ['pre-attestation 90% average', healthState.teztalePre90Avg],
+    ['attestation 66⅔% average', healthState.teztaleAtt66Avg],
+    ['attestation 90% average', healthState.teztaleAtt90Avg]
+  ]) {
+    assert(/s$/.test(value), `network health chamber: Teztale ${label} timing missing: ${value}`);
+  }
+  assert(healthState.teztaleHistogramBins >= 2, `network health chamber: Teztale reception histogram too sparse: ${healthState.teztaleHistogramBins}`);
   assert(/head #12,345,678 collecting/.test(healthState.teztale), `network health chamber: partial Teztale head context missing: ${healthState.teztale}`);
   assert(/s$/.test(healthState.teztaleQuorum), `network health chamber: Teztale quorum timing missing: ${healthState.teztaleQuorum}`);
   assert(healthState.teztaleSources === '3', `network health chamber: Teztale source count mismatch: ${healthState.teztaleSources}`);
@@ -4717,6 +4809,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.teztaleEvents >= 1, `network health chamber: Teztale report rows missing: ${healthState.teztaleEvents}`);
   assert(healthState.teztaleCreditHref.includes('nomadic-labs.gitlab.io/teztale-dataviz'), `network health chamber: Teztale dataviz link missing: ${healthState.teztaleCreditHref}`);
   assert(healthState.teztaleNomadicHref.includes('gitlab.com/nomadic-labs/teztale'), `network health chamber: Teztale source credit link missing: ${healthState.teztaleNomadicHref}`);
+  assert(healthState.nakamotoImmediatelyBeforeTeztale, 'network health chamber: Nakamoto Coefficients should sit directly above the Teztale Consensus Lens');
   assert(healthState.nakamoto33 === '1' && healthState.nakamoto66 === '2', `network health chamber: live Nakamoto thresholds mismatch: ${healthState.nakamoto33}/${healthState.nakamoto66}`);
   assert(/Halt \/ fault boundary/.test(healthState.nakamotoText) && /Unilateral quorum control/.test(healthState.nakamotoText), `network health chamber: Nakamoto threshold labels missing: ${healthState.nakamotoText}`);
   assert(/Chainspect/.test(healthState.nakamotoText) && /Edinburgh EDI/.test(healthState.nakamotoText) && /CoinClear/.test(healthState.nakamotoText), `network health chamber: external Nakamoto sources missing: ${healthState.nakamotoText}`);
@@ -4726,6 +4819,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.nakamotoChainspectHref.includes('chainspect.app/dashboard/decentralization'), `network health chamber: Chainspect source link missing: ${healthState.nakamotoChainspectHref}`);
   assert(healthState.nakamotoEdiHref.includes('blockchainlab.inf.ed.ac.uk/edi-dashboard'), `network health chamber: EDI source link missing: ${healthState.nakamotoEdiHref}`);
   assert(/Explain the Nakamoto Coefficient/.test(healthState.nakamotoHelpLabel), `network health chamber: Nakamoto info control label missing: ${healthState.nakamotoHelpLabel}`);
+  assert(healthState.nakamotoPrintButton && /print.*Nakamoto/i.test(healthState.nakamotoPrintLabel), `network health chamber: Nakamoto print control missing or unlabeled: ${healthState.nakamotoPrintLabel}`);
+  assert(healthState.nakamotoShareButton && /(?:share|tweet|create).*Nakamoto/i.test(healthState.nakamotoShareLabel), `network health chamber: Nakamoto share control missing or unlabeled: ${healthState.nakamotoShareLabel}`);
   assert(/Octez Versions/.test(healthState.octezVersions) && /TzKT delegates/.test(healthState.octezVersions), `network health chamber: Octez versions panel missing source context: ${healthState.octezVersions}`);
   assert(healthState.octezCurrent === 'v25.1', `network health chamber: latest observed Octez version mismatch: ${healthState.octezCurrent}`);
   assert(/20\.8%/.test(healthState.octezLatestPower), `network health chamber: latest Octez power share mismatch: ${healthState.octezLatestPower}`);
@@ -4824,6 +4919,46 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.intervalDelays.includes(1000), `network health chamber: 1s freshness ticker was not registered: ${healthState.intervalDelays.join(', ')}`);
   assert(healthState.intervalDelays.includes(6000), `network health chamber: 6s refresh timer was not registered: ${healthState.intervalDelays.join(', ')}`);
 
+  await page.locator('#health-nc-share').click();
+  await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const image = document.querySelector('#share-modal .share-modal-preview img');
+    return Boolean(image?.complete && image.naturalWidth && image.naturalHeight);
+  }, null, { timeout: 5000 });
+  const nakamotoShareState = await page.evaluate(() => {
+    const image = document.querySelector('#share-modal .share-modal-preview img');
+    return {
+      captureText: window.__lastHtml2CanvasText || '',
+      captureSize: window.__lastHtml2CanvasSize || {},
+      imageWidth: image?.naturalWidth || 0,
+      imageHeight: image?.naturalHeight || 0,
+      tweet: document.querySelector('#share-modal #tweet-compose-text')?.value || ''
+    };
+  });
+  assert(nakamotoShareState.captureSize.width === 1200 && nakamotoShareState.captureSize.height === 630, `network health chamber: Nakamoto share capture must be 1200x630: ${JSON.stringify(nakamotoShareState.captureSize)}`);
+  assert(nakamotoShareState.imageWidth === 1200 && nakamotoShareState.imageHeight === 630, `network health chamber: Nakamoto share preview image must be 1200x630: ${nakamotoShareState.imageWidth}x${nakamotoShareState.imageHeight}`);
+  assert(/Nakamoto/i.test(nakamotoShareState.captureText), `network health chamber: Nakamoto share image is missing its subject: ${nakamotoShareState.captureText}`);
+  assert(/Nakamoto/i.test(nakamotoShareState.tweet) && /tezos\.systems\/health\/?/i.test(nakamotoShareState.tweet), `network health chamber: Nakamoto tweet copy missing subject or direct route: ${nakamotoShareState.tweet}`);
+  await page.locator('#share-modal .share-modal-close').click();
+  await page.locator('#share-modal').waitFor({ state: 'detached', timeout: 5000 });
+
+  await page.locator('#health-nc-print').click();
+  await page.waitForFunction(() => window.__healthPrintState?.printed === true, null, { timeout: 5000 });
+  const nakamotoPrintState = await page.evaluate(() => {
+    const html = window.__healthPrintState?.html || '';
+    const probe = document.createElement('div');
+    probe.innerHTML = html;
+    return {
+      html,
+      text: probe.textContent?.replace(/\s+/g, ' ').trim() || '',
+      printed: window.__healthPrintState?.printed || false
+    };
+  });
+  assert(nakamotoPrintState.printed, 'network health chamber: Nakamoto print control did not call print()');
+  assert(/Nakamoto/i.test(nakamotoPrintState.text), `network health chamber: Nakamoto print document is missing its title: ${nakamotoPrintState.text}`);
+  assert(/(?:33\s*1\/3|33⅓|33\.3)\s*%/.test(nakamotoPrintState.text), `network health chamber: Nakamoto print document is missing the one-third threshold: ${nakamotoPrintState.text}`);
+  assert(/(?:66\s*2\/3|66⅔|66\.7)\s*%/.test(nakamotoPrintState.text), `network health chamber: Nakamoto print document is missing the two-thirds threshold: ${nakamotoPrintState.text}`);
+
   const tickerFreshnessState = await page.evaluate(() => {
     const timers = (window.__tezosSystemsIntervals || []).filter((item) => item.timeout === 1000);
     const realNow = Date.now;
@@ -4862,6 +4997,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     window.__healthHeaderNode = document.querySelector('#network-health-modal .health-header');
     window.__healthScorePanelNode = document.querySelector('#network-health-modal .health-score-panel');
     window.__healthNcPanelNode = document.querySelector('#network-health-modal #health-nakamoto-coefficient');
+    window.__healthNcPrintNode = document.querySelector('#network-health-modal #health-nc-print');
+    window.__healthNcShareNode = document.querySelector('#network-health-modal #health-nc-share');
     return {
       hasTimer: Boolean(timer?.handler),
       firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
@@ -4889,6 +5026,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     headerSame: window.__healthHeaderNode === document.querySelector('#network-health-modal .health-header'),
     scorePanelSame: window.__healthScorePanelNode === document.querySelector('#network-health-modal .health-score-panel'),
     ncPanelSame: window.__healthNcPanelNode === document.querySelector('#network-health-modal #health-nakamoto-coefficient'),
+    ncPrintSame: window.__healthNcPrintNode === document.querySelector('#network-health-modal #health-nc-print'),
+    ncShareSame: window.__healthNcShareNode === document.querySelector('#network-health-modal #health-nc-share'),
     ncHelpOpen: document.querySelector('#network-health-modal .health-nc-help')?.open || false,
     mode: document.querySelector('#network-health-modal .health-body')?.dataset.healthRefreshMode || '',
     firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
@@ -4901,6 +5040,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(smoothRefreshState.headerSame, 'network health chamber: smooth refresh replaced the header instead of updating in place');
   assert(smoothRefreshState.scorePanelSame, 'network health chamber: smooth refresh replaced the score panel instead of updating in place');
   assert(smoothRefreshState.ncPanelSame, 'network health chamber: smooth refresh replaced the Nakamoto panel instead of updating in place');
+  assert(smoothRefreshState.ncPrintSame && smoothRefreshState.ncShareSame, 'network health chamber: smooth refresh replaced Nakamoto print/share controls');
   assert(smoothRefreshState.ncHelpOpen, 'network health chamber: smooth refresh closed the open Nakamoto info control');
   assert(smoothRefreshState.mode === 'in-place', `network health chamber: refresh mode mismatch: ${smoothRefreshState.mode}`);
   assert(smoothRefreshState.rowCount === beforeSmoothRefresh.rowCount, `network health chamber: passing block row count shifted after smooth refresh: ${smoothRefreshState.rowCount}`);
@@ -4915,12 +5055,21 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const help = panel?.querySelector('.health-nc-help .lb-help-popover');
     const intro = panel?.querySelector('.health-nc-intro');
     const trigger = panel?.querySelector('.health-nc-help-trigger, .health-nc-help > summary');
+    const actions = panel?.querySelector('.health-nc-actions');
+    const actionButtons = [...(actions?.querySelectorAll('button') || [])];
     const panelRect = panel?.getBoundingClientRect();
     const helpRect = help?.getBoundingClientRect();
     const introRect = intro?.getBoundingClientRect();
+    const actionsRect = actions?.getBoundingClientRect();
     return {
       panelContained: Boolean(panelRect && panelRect.left >= 0 && panelRect.right <= window.innerWidth),
       helpContained: Boolean(helpRect && helpRect.left >= 0 && helpRect.right <= window.innerWidth && helpRect.top >= 0 && helpRect.bottom <= window.innerHeight),
+      actionsContained: Boolean(panelRect && actionsRect && actionsRect.left >= panelRect.left && actionsRect.right <= panelRect.right),
+      actionButtonCount: actionButtons.length,
+      actionButtonMinSize: actionButtons.length ? Math.min(...actionButtons.map((button) => {
+        const rect = button.getBoundingClientRect();
+        return Math.min(rect.width, rect.height);
+      })) : 0,
       helpInFlow: Boolean(helpRect && introRect && introRect.top >= helpRect.bottom - 1),
       helpPosition: help ? getComputedStyle(help).position : '',
       triggerSize: trigger ? Math.min(trigger.getBoundingClientRect().width, trigger.getBoundingClientRect().height) : 0
@@ -4928,6 +5077,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   });
   assert(nakamotoMobileState.panelContained, 'network health chamber: Nakamoto panel overflows the mobile viewport');
   assert(nakamotoMobileState.helpContained, `network health chamber: Nakamoto info note escapes the mobile viewport: ${JSON.stringify(nakamotoMobileState)}`);
+  assert(nakamotoMobileState.actionsContained && nakamotoMobileState.actionButtonCount === 2, `network health chamber: Nakamoto print/share controls escape the mobile panel: ${JSON.stringify(nakamotoMobileState)}`);
+  assert(nakamotoMobileState.actionButtonMinSize >= 28, `network health chamber: Nakamoto mobile print/share controls are too small: ${JSON.stringify(nakamotoMobileState)}`);
   assert(nakamotoMobileState.helpInFlow && nakamotoMobileState.helpPosition === 'static', `network health chamber: Nakamoto mobile info should expand in flow: ${JSON.stringify(nakamotoMobileState)}`);
   assert(nakamotoMobileState.triggerSize >= 28, `network health chamber: Nakamoto info control is too small on mobile: ${nakamotoMobileState.triggerSize}`);
   await page.setViewportSize({ width: 1440, height: 1000 });

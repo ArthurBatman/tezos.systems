@@ -747,6 +747,7 @@ async function checkSelectorContracts() {
   const themeUi = await readText('js/ui/theme.js');
   const styles = await readText('css/styles.css');
   const networkHealthCss = await readText('css/network-health.css');
+  const healthStyles = `${styles}\n${networkHealthCss}`;
   const leaderboardCss = await readText('css/leaderboard.css');
   const networkPulseCss = await readText('css/network-pulse.css');
   const ledgerFlowCss = await readText('css/ledger-flow.css');
@@ -1173,12 +1174,33 @@ async function checkSelectorContracts() {
     ['health cycle timing panel', 'id="health-cycle-timing"', health],
     ['health cycle timing TzKT source', '/statistics/cyclic', health],
     ['health Teztale consensus panel', 'id="health-teztale-consensus"', health],
+    ['health Teztale exact quorum target', 'const TEZTALE_QUORUM_TARGET = 2 / 3', health],
+    ['health Teztale propagation builder', 'function buildTeztaleReceptionHistogram', health],
+    ['health Teztale propagation renderer', 'function renderTeztaleReceptionHistogram', health],
+    ['health Teztale propagation panel', 'id="health-teztale-propagation"', health],
+    ['health Teztale average pre-attestation 66 value', 'id="health-teztale-pre-66-avg"', health],
+    ['health Teztale average pre-attestation 90 value', 'id="health-teztale-pre-90-avg"', health],
+    ['health Teztale average attestation 66 value', 'id="health-teztale-att-66-avg"', health],
+    ['health Teztale average attestation 90 value', 'id="health-teztale-att-90-avg"', health],
+    ['health Teztale reception histogram bins', 'health-consensus-histogram-bin', health],
+    ['health Teztale histogram bin width', 'const TEZTALE_RECEPTION_BIN_MS = 500', health],
+    ['health Teztale earliest-observer disclosure', 'Earliest Teztale observer reception', health],
+    ['health Teztale endorsing-power weighting disclosure', 'endorsing-power weighted', health],
+    ['health Teztale validation-observed path label', 'Validation observed', health],
+    ['health Teztale validation-to-pre-quorum path label', 'Validation → pre-quorum', health],
+    ['health Teztale pre-quorum-to-quorum path label', 'Pre-quorum → quorum', health],
+    ['health Teztale validation-to-quorum path label', 'Validation → quorum', health],
     ['health Teztale source URL', 'TEZTALE_REPORT_URL', health],
     ['health Teztale Nomadic Labs credit', 'Teztale by Nomadic Labs', health],
     ['health Teztale config endpoint', "teztale: 'https://teztale-server-mainnet-ro-prd.octez.tech'", await readText('js/core/config.js')],
     ['health Nakamoto coefficient panel', 'id="health-nakamoto-coefficient"', health],
     ['health Nakamoto one-third value', 'id="health-nc-33"', health],
     ['health Nakamoto two-thirds value', 'id="health-nc-66"', health],
+    ['health Nakamoto print button', 'id="health-nc-print"', health],
+    ['health Nakamoto share button', 'id="health-nc-share"', health],
+    ['health Nakamoto print-document helper', 'function renderNakamotoPrintDocument', health],
+    ['health Nakamoto print helper', 'function printNakamotoCoefficient', health],
+    ['health Nakamoto share helper', 'function shareNakamotoCoefficient', health],
     ['health Nakamoto current-cycle RPC', 'baking_power_distribution_for_current_cycle', health],
     ['health Nakamoto explainer', 'Explain the Nakamoto Coefficient', health],
     ['health Nakamoto Chainspect disclosure', 'Chainspect', await readText('data/nakamoto-sources.json')],
@@ -1276,9 +1298,15 @@ async function checkSelectorContracts() {
     ['top continuity arrival hides pending pills only', '.top-continuity-panel.hero-arrival-pending .top-continuity-stat:not(.hero-arrived)', heroSearchCss],
     ['top continuity arrival reveal class', '.top-continuity-stat.hero-arrived', heroSearchCss],
     ['health cycle timing styles', '.health-cycle-panel', styles],
-    ['health Teztale consensus styles', '.health-consensus-panel', styles],
+    ['health Teztale consensus styles', '.health-consensus-panel', healthStyles],
+    ['health Teztale propagation styles', '.health-consensus-propagation', healthStyles],
+    ['health Teztale histogram styles', '.health-consensus-histogram', healthStyles],
+    ['health Teztale histogram-bin styles', '.health-consensus-histogram-bin', healthStyles],
+    ['health Clean-theme consensus contrast override', '[data-theme="clean"] .health-consensus-panel', networkHealthCss],
     ['health Nakamoto panel styles', '.health-nakamoto-panel', networkHealthCss],
     ['health Nakamoto source-row styles', '.health-nc-source-row', networkHealthCss],
+    ['health Nakamoto action-group styles', '.health-nc-actions', healthStyles],
+    ['health Nakamoto action-button styles', '.health-nc-action', healthStyles],
     ['health Octez versions styles', '.health-octez-panel', styles],
     ['My Tezos Octez warning styles', '.drawer-operator-watch', styles],
     ['My Baker Octez critical styles', '.my-baker-stat.my-baker-octez-critical', styles],
@@ -1299,6 +1327,9 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  if (!/\.health-consensus-panel[^\{]*\{[^}]*grid-column:\s*1\s*\/\s*-1\s*;/s.test(healthStyles)) {
+    fail('Network Health Consensus Lens must span the full dashboard width');
   }
   if (styles.includes('top-continuity-digits-') || app.includes('top-continuity-digits-')) {
     fail('top continuity runtime must use natural segment widths, not fixed digit slots');
