@@ -6,7 +6,7 @@
 import { escapeHtml } from '../core/utils.js';
 
 const MAXIS_DATA_URL = '/data/maxis-leaders.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=399';
+const MAXIS_CSS_URL = '/css/maxis.css?v=400';
 const CATEGORY_ORDER = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'staking', 'unicorn'];
 const CATEGORY_ICONS = {
     transaction: '↻',

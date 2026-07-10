@@ -4421,6 +4421,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const topProofFirstPill = topProof?.querySelector('.top-continuity-stat');
     const topProofHistoryRect = topProofHistory?.getBoundingClientRect();
     const topProofMilestoneRect = topProofMilestone?.getBoundingClientRect();
+    const topProofRuntime = topProofHistory?.querySelector('#hero-chain-uptime-counter');
+    const topProofHistoryZoom = topProofHistory ? (parseFloat(getComputedStyle(topProofHistory).zoom) || 1) : 1;
     const card = document.querySelector('[data-stat="network-health"]');
     const ticker = document.querySelector('#block-ticker-strip');
     const tickerButton = document.querySelector('#block-ticker-button');
@@ -4520,6 +4522,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofPairUnderTitle: Boolean(topProofUptimeCluster && title && topProofUptimeCluster.getBoundingClientRect().top >= title.getBoundingClientRect().bottom - 2),
       topProofPairLeftAligned: Boolean(topProofUptimeCluster && title && Math.abs(topProofUptimeCluster.getBoundingClientRect().left - title.getBoundingClientRect().left) <= 2),
       topProofBadgeHeight: topProofHistory?.getBoundingClientRect().height || 0,
+      topProofMilestoneHeight: topProofMilestoneRect?.height || 0,
+      topProofRuntimeVisualFontSize: topProofRuntime ? parseFloat(getComputedStyle(topProofRuntime).fontSize) * topProofHistoryZoom : 0,
+      topProofMilestoneFontSize: topProofMilestone ? parseFloat(getComputedStyle(topProofMilestone).fontSize) : 0,
       topProofPillHeight: topProofFirstPill?.getBoundingClientRect().height || 0,
       topProofBadgeRadius: topProofHistory ? parseFloat(getComputedStyle(topProofHistory).borderTopLeftRadius) : 0,
       topProofPillRadius: topProofFirstPill ? parseFloat(getComputedStyle(topProofFirstPill).borderTopLeftRadius) : 0,
@@ -4653,7 +4658,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(['total-bakers', 'finality', 'staking-ratio', 'issuance-rate'].every((key) => healthState.topProofPillCards.includes(key)) && healthState.topProofPillsWired, `network health chamber: continuity proof all-time pills missing or unwired: ${healthState.topProofPillCards.join(',')}/${healthState.topProofPillsWired}`);
   assert(/uptime/i.test(healthState.topProofHistoryText) && /since 2018/i.test(healthState.topProofHistoryText) && !/mainnet uptime|zero forks|zero outages/i.test(healthState.topProofHistoryText), `network health chamber: uptime badge should include the uptime identity/counter only: ${healthState.topProofHistoryText}`);
   assert(healthState.topProofPairUnderTitle && healthState.topProofPairLeftAligned, `network health chamber: milestone/year pair should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofPairUnderTitle, aligned: healthState.topProofPairLeftAligned })}`);
-  assert(healthState.topProofBadgeHeight > 0 && healthState.topProofPillHeight > 0 && healthState.topProofBadgeHeight <= healthState.topProofPillHeight * 0.82, `network health chamber: uptime badge should be about 70-80% of right pill height: ${healthState.topProofBadgeHeight}/${healthState.topProofPillHeight}`);
+  assert(healthState.topProofBadgeHeight >= healthState.topProofMilestoneHeight * 1.06, `network health chamber: uptime proof should remain visibly larger than its milestone marker: ${healthState.topProofBadgeHeight}/${healthState.topProofMilestoneHeight}`);
+  assert(healthState.topProofRuntimeVisualFontSize >= healthState.topProofMilestoneFontSize * 1.08, `network health chamber: uptime numerals should remain visibly larger than milestone text: ${healthState.topProofRuntimeVisualFontSize}/${healthState.topProofMilestoneFontSize}`);
+  assert(healthState.topProofBadgeHeight > 0 && healthState.topProofPillHeight > 0 && healthState.topProofBadgeHeight <= healthState.topProofPillHeight, `network health chamber: uptime proof should remain no taller than the right metric pills: ${healthState.topProofBadgeHeight}/${healthState.topProofPillHeight}`);
   assert(healthState.topProofBadgeRadius > 0 && healthState.topProofBadgeRadius < healthState.topProofPillRadius, `network health chamber: uptime badge should be squarer than right pills: ${healthState.topProofBadgeRadius}/${healthState.topProofPillRadius}`);
   assert(!/\|/.test(healthState.topProofHistoryText), `network health chamber: top uptime badge should not add a pipe: ${healthState.topProofHistoryText}`);
   assert(/\d+y\s+\d+d\s+\d+h\s+\d+m/.test(healthState.topProofCounter), `network health chamber: top proof runtime missing compact minutes: ${healthState.topProofCounter}`);
