@@ -49,8 +49,8 @@ function renderFooter() {
             ${SITE_MAP_NAV_GROUPS.map(footerGroupHtml).join('')}
         </div>
         <div class="landing-footer-base">
-            <a href="https://tez.capital">Powered by Tez Capital</a>
-            <span>Data from TzKT, Octez RPC, Teztale, OBJKT, and Supabase</span>
+            <span>Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a></span>
+            <span>Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital">Tez Capital</a></span>
             <a href="/feed.xml">Governance RSS</a>
         </div>
     `;

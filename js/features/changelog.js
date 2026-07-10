@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '🔧', text: 'Tezos Systems source now uses MPL-2.0 file-level copyleft, with Primate411 project authorship, Tez Capital co-founding affiliation and RPC credit, and public Source and license links in the footer' },
             { type: '✨', text: 'Maxi Passport now opens from .tez names and subdomains, resolves address-first with the owner as a safe fallback, and leaves the saved My Tezos identity unchanged' },
             { type: '🔧', text: 'Visit streaks now appear only when a new local day is recorded, skip the redundant Day 1 toast, and explain their browser-local, just-for-fun rules from Settings' },
             { type: '✨', text: 'My Tezos now keeps a visible local wallet set and can explicitly combine saved XTZ balances with privacy context and partial-result handling' },
@@ -351,7 +352,7 @@ const CHANGELOG = [
             { type: '🎨', text: 'The aurora title now keeps the same slow color-shift treatment on desktop and mobile even when global motion settings are conservative' },
             { type: '🎨', text: 'The footer now has a playful Tezos aura checkpoint that routes bottom-scrollers into widgets, My Tezos, HEN, the Chamber, or price intel' },
             { type: '🎨', text: 'Footer attribution and resource links now sit in a tighter balanced layout with clearer hierarchy and calmer build metadata' },
-            { type: '🎨', text: 'Footer chamber links now expose every public Chamber route while the Tez Capital credit gets a little more breathing room' },
+            { type: '🎨', text: 'Footer chamber links now expose every public Chamber route while the Tez Capital RPC credit gets a little more breathing room' },
         ]
     },
     {

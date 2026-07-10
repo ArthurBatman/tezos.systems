@@ -227,6 +227,8 @@ async function checkRequiredFiles() {
     'sw.js',
     'og-image.png',
     'version.json',
+    'LICENSE',
+    'NOTICE',
     'widgets/runtime.js',
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
@@ -2130,6 +2132,169 @@ async function checkPortableTooling() {
   pass('portable npm scripts, lockfile, and shared git hook checked');
 }
 
+async function checkRepositoryLicense() {
+  const license = await readText('LICENSE');
+  const notice = await readText('NOTICE');
+  const readme = await readText('README.md');
+  const agentMap = await readText('AGENTS.md');
+  const index = await readText('index.html');
+  const changelog = await readText('js/features/changelog.js');
+  const landing = await readText('landing.html');
+  const landingNav = await readText('js/landing/site-nav.js');
+  const share = await readText('js/ui/share.js');
+  const stateOfTezos = await readText('js/features/state-of-tezos.js');
+  const aiPlugin = JSON.parse(await readText('.well-known/ai-plugin.json'));
+  const packageJson = JSON.parse(await readText('package.json'));
+  const packageLock = JSON.parse(await readText('package-lock.json'));
+  const normalizedLicense = license
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n');
+  const officialMplHash = '1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5';
+  const actualMplHash = createHash('sha256').update(normalizedLicense).digest('hex');
+
+  if (actualMplHash !== officialMplHash) {
+    fail('LICENSE must remain the unmodified Mozilla Public License 2.0 text');
+  }
+  if (packageJson.license !== 'MPL-2.0' || packageLock?.packages?.['']?.license !== 'MPL-2.0') {
+    fail('package.json and the root package-lock entry must declare MPL-2.0');
+  }
+  if (packageJson.author !== 'Primate411') {
+    fail('package.json must preserve the Primate411 project authorship');
+  }
+
+  const noticeSnippets = [
+    'Tezos Systems',
+    'Copyright (c) 2026 Primate411',
+    'https://github.com/Primate411/tezos.systems',
+    'developed by Primate411',
+    'Mozilla Public License, v. 2.0',
+    'https://mozilla.org/MPL/2.0/',
+    'Third-party software',
+    'separately offered under CC BY 4.0',
+    'extent Primate411 owns those rights',
+    'co-founding member of',
+    'Tez Capital name and brand are',
+    "repository's current copyright holder",
+    'earlier revisions carried MIT or ISC declarations'
+  ];
+  for (const snippet of noticeSnippets) {
+    if (!notice.includes(snippet)) fail(`NOTICE missing license contract text: ${snippet}`);
+  }
+
+  const readmeSnippets = [
+    '## License',
+    'Mozilla Public License 2.0',
+    '`MPL-2.0`',
+    '[NOTICE](NOTICE)',
+    'file-level copyleft',
+    'modified covered files must remain available under MPL-2.0',
+    'Third-party software',
+    '[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)',
+    'Primate411 owns those rights',
+    'co-founding member of',
+    'Tez Capital brand is represented',
+    'RPC infrastructure: [Tez Capital](https://tez.capital)',
+    'Built by: [Primate411](https://github.com/Primate411)',
+    'copyright notice in [NOTICE](NOTICE)',
+    'current copyright holder',
+    'earlier revisions carried MIT or ISC declarations'
+  ];
+  for (const snippet of readmeSnippets) {
+    if (!readme.includes(snippet)) fail(`README missing license contract text: ${snippet}`);
+  }
+
+  const agentMapSnippets = [
+    'License: Mozilla Public License 2.0 (`MPL-2.0`)',
+    '`LICENSE`: unmodified Mozilla Public License 2.0 terms',
+    '`NOTICE`: Tezos Systems / Primate411 attribution',
+    'Tezos Systems is built by Primate411, a co-founding member',
+    'represent Tez Capital as the affiliated brand and RPC',
+    "keep Primate411 as the repository's current copyright holder",
+    'and site/schema creator, and as publisher where publisher metadata is present',
+    'live footer and document metadata must retain public Source and MPL-2.0'
+  ];
+  for (const snippet of agentMapSnippets) {
+    if (!agentMap.includes(snippet)) fail(`AGENTS.md missing license handoff text: ${snippet}`);
+  }
+
+  const deployedNoticeSnippets = [
+    '<link rel="license" href="/LICENSE">',
+    '<meta name="author" content="Primate411">',
+    'href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a>',
+    'href="/LICENSE" rel="license">MPL-2.0</a>',
+    'Built by <a href="https://github.com/Primate411" target="_blank" rel="noopener">Primate411</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
+    'RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
+    '"license": "https://creativecommons.org/licenses/by/4.0/"'
+  ];
+  for (const snippet of deployedNoticeSnippets) {
+    if (!index.includes(snippet)) fail(`index.html missing deployed license text: ${snippet}`);
+  }
+  if ((index.match(/"name": "Primate411"/g) || []).length < 2) {
+    fail('index.html must credit Primate411 as both WebApplication and Dataset creator');
+  }
+  if ((index.match(/"affiliation": \{/g) || []).length < 2
+    || (index.match(/"name": "Tez Capital"/g) || []).length < 2) {
+    fail('index.html must represent Tez Capital as Primate411\'s WebApplication and Dataset affiliation');
+  }
+  if (index.includes('Powered by <a href="https://tez.capital"') || index.includes('"sourceOrganization"')) {
+    fail('index.html must not present Tez Capital as the product owner or source organization');
+  }
+  for (const route of CHAMBER_ROUTES) {
+    const routeShell = await readText(`${route.slug}/index.html`);
+    for (const snippet of deployedNoticeSnippets) {
+      if (!routeShell.includes(snippet)) fail(`${route.slug}/index.html missing deployed license text: ${snippet}`);
+    }
+    if ((routeShell.match(/"name": "Primate411"/g) || []).length < 2
+      || (routeShell.match(/"affiliation": \{/g) || []).length < 2
+      || (routeShell.match(/"name": "Tez Capital"/g) || []).length < 2
+      || routeShell.includes('Powered by <a href="https://tez.capital"')
+      || routeShell.includes('"sourceOrganization"')) {
+      fail(`${route.slug}/index.html has stale product ownership attribution`);
+    }
+  }
+  if (!changelog.includes('Primate411 project authorship, Tez Capital co-founding affiliation and RPC credit')) {
+    fail('changelog must disclose the public MPL-2.0 source-license change');
+  }
+
+  const standalonePages = ['staking/index.html', 'governance/index.html', 'bakers/index.html'];
+  for (const file of standalonePages) {
+    const page = await readText(file);
+    if (!/"publisher":\s*\{\s*"@type": "Person",\s*"name": "Primate411",\s*"url": "https:\/\/github\.com\/Primate411",\s*"affiliation":\s*\{\s*"@type": "Organization",\s*"name": "Tez Capital",\s*"url": "https:\/\/tez\.capital"\s*\}\s*\}/s.test(page)) {
+      fail(`${file} must identify Primate411 as its publisher with Tez Capital affiliation`);
+    }
+    if (!page.includes('Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+      || !page.includes('<a href="https://tez.capital">RPC by Tez Capital</a>')
+      || page.includes('Powered by Tez Capital')) {
+      fail(`${file} must show Primate411 authorship, Tez Capital affiliation, and Tez Capital RPC credit`);
+    }
+  }
+  if (!landing.includes('Built by <a href="https://github.com/Primate411"')
+    || !landing.includes('a co-founding member of <a href="https://tez.capital"')
+    || !landing.includes('RPC by <a href="https://tez.capital"')
+    || landing.includes('Powered by <a href="https://tez.capital"')) {
+    fail('landing.html must show Primate411 authorship, Tez Capital affiliation, and Tez Capital RPC credit');
+  }
+  if (!landingNav.includes('Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+    || !landingNav.includes('RPC by <a href="https://tez.capital">Tez Capital</a>')) {
+    fail('landing footer runtime must show Primate411 authorship, Tez Capital affiliation, and Tez Capital RPC credit');
+  }
+  if (!share.includes('Built by <span style="color:${brandColor};font-weight:600;">Primate411</span> · RPC by')) {
+    fail('share cards must credit Primate411 and retain the Tez Capital RPC brand credit');
+  }
+  if (!stateOfTezos.includes("'PRIMATE411 · RPC BY TEZ CAPITAL'")) {
+    fail('State of Tezos cards must credit Primate411 and retain the Tez Capital RPC brand credit');
+  }
+  if (!aiPlugin.description_for_model.includes('co-founding member of Tez Capital')
+    || !aiPlugin.description_for_model.includes('Tez Capital RPC infrastructure')
+    || aiPlugin.legal_info_url !== 'https://tezos.systems/LICENSE') {
+    fail('AI plugin metadata must show Tez Capital affiliation and RPC infrastructure and link the repository license');
+  }
+
+  pass('MPL-2.0 text, package metadata, attribution, and repository docs agree');
+}
+
 async function checkSmokeSuiteCatalogContracts() {
   const smoke = await readText('tests/smoke.mjs');
 
@@ -3732,6 +3897,7 @@ async function checkMaxisContracts() {
 async function main() {
   if (process.argv.includes('--readme-only')) {
     await checkPortableTooling();
+    await checkRepositoryLicense();
     await checkReadmeContracts();
 
     for (const message of passes) console.log(`ok - ${message}`);
@@ -3759,6 +3925,7 @@ async function main() {
   await checkStylesheetFreshness();
   await checkAuroraDesktopTitleTreatment();
   await checkPortableTooling();
+  await checkRepositoryLicense();
   await checkSmokeSuiteCatalogContracts();
   await checkTourAndShareCaptureContracts();
   await checkDailyBriefingPriceContracts();

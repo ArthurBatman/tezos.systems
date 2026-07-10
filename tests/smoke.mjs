@@ -2870,6 +2870,7 @@ async function smokeAppShell(browser, baseUrl) {
     const manifest = await fetchJson('/site.webmanifest');
     const robots = await fetchText('/robots.txt');
     const sitemap = await fetchText('/sitemap.xml');
+    const license = await fetchText('/LICENSE');
     const shellAssets = Array.from(new Set(
       Array.from(sw.text.matchAll(/['"]((?:\/|\.\.?\/)[^'"]+)['"]/g))
         .map((match) => match[1])
@@ -2917,7 +2918,16 @@ async function smokeAppShell(browser, baseUrl) {
       csp,
       cssVersion,
       faviconCount: document.querySelectorAll('link[rel="icon"]').length,
+      footerAffiliationHref: document.querySelector('.powered-by a[href="https://tez.capital"]')?.getAttribute('href') || '',
+      footerBuilderHref: document.querySelector('.powered-by a[href="https://github.com/Primate411"]')?.getAttribute('href') || '',
+      footerBuilderText: document.querySelector('.powered-by')?.textContent?.trim() || '',
+      footerLicenseHref: document.querySelector('.footer-contribute a[href="/LICENSE"][rel~="license"]')?.getAttribute('href') || '',
+      footerRpcHref: document.querySelector('.footer-source-line a[href="https://eu.rpc.tez.capital"]')?.getAttribute('href') || '',
+      footerRpcText: document.querySelector('.footer-source-line')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      footerSourceHref: document.querySelector('.footer-contribute a[href="https://github.com/Primate411/tezos.systems"]')?.getAttribute('href') || '',
       iconResults,
+      license,
+      licenseMetaHref: document.querySelector('link[rel="license"]')?.getAttribute('href') || '',
       manifest,
       manifestHref: document.querySelector('link[rel="manifest"]')?.getAttribute('href') || '',
       robots,
@@ -2952,6 +2962,14 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.manifestHref === 'site.webmanifest', `app shell: manifest link mismatch: ${shell.manifestHref}`);
   assert(shell.faviconCount >= 3, `app shell: expected multiple favicon links, saw ${shell.faviconCount}`);
   assert(shell.canonical === 'https://tezos.systems/', `app shell: canonical URL mismatch: ${shell.canonical}`);
+  assert(shell.license.ok && shell.license.text.startsWith('Mozilla Public License Version 2.0'), `app shell: /LICENSE missing or invalid (${shell.license.status})`);
+  assert(shell.licenseMetaHref === '/LICENSE' && shell.footerLicenseHref === '/LICENSE', `app shell: MPL-2.0 metadata/footer links missing (${shell.licenseMetaHref}, ${shell.footerLicenseHref})`);
+  assert(shell.footerSourceHref === 'https://github.com/Primate411/tezos.systems', `app shell: public source link mismatch: ${shell.footerSourceHref}`);
+  assert(shell.footerBuilderHref === 'https://github.com/Primate411'
+    && shell.footerAffiliationHref === 'https://tez.capital'
+    && shell.footerBuilderText === 'Built by Primate411, a co-founding member of Tez Capital',
+  `app shell: Primate411 builder and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
+  assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');
   assert(shell.stylesheet && shell.appScript && shell.appPreload, `app shell: missing stamped stylesheet/app script (${shell.stylesheet}, ${shell.appPreload}, ${shell.appScript})`);
   assert(shell.cacheVersion && shell.cacheVersion === shell.cssVersion && shell.cacheVersion === shell.appPreloadVersion && shell.cacheVersion === shell.appScriptVersion, `app shell: cache stamps mismatch cache=${shell.cacheVersion} css=${shell.cssVersion} preload=${shell.appPreloadVersion} script=${shell.appScriptVersion}`);
@@ -8207,6 +8225,9 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await page.locator('[data-stat="total-bakers"]').scrollIntoViewIfNeeded();
   await page.locator('[data-stat="total-bakers"]').hover();
   await page.evaluate(() => document.querySelector('[data-stat="total-bakers"] .card-share-btn')?.click());
+  await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
+  const cardShareCredit = await page.evaluate(() => String(window.__lastHtml2CanvasText || ''));
+  assert(cardShareCredit.includes('Built by Primate411') && cardShareCredit.includes('RPC by Tez Capital'), `feature workflows card share: ownership credit mismatch: ${cardShareCredit}`);
   await expectShareModal(page, 'feature workflows card share', issues);
   log('ok - feature workflow: card share');
 
@@ -8224,6 +8245,9 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
 
   await ensureDropdownOpen(page, '#features-gear', '#features-dropdown');
   await page.locator('#state-of-tezos-btn').click();
+  await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
+  const stateShareCredit = await page.evaluate(() => String(window.__lastHtml2CanvasText || ''));
+  assert(stateShareCredit.includes('PRIMATE411 · RPC BY TEZ CAPITAL'), `feature workflows state of tezos: ownership credit mismatch: ${stateShareCredit}`);
   await expectShareModal(page, 'feature workflows state of tezos share', issues);
   log('ok - feature workflow: state of tezos share');
 

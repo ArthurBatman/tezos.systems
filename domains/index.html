@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Track fresh .tez registrations, renewals, expiring names, auctions, offers, and reverse-record identity moves.">
     <meta name="keywords" content="Tezos, XTZ, blockchain, proof-of-stake, baking, staking, governance, self-amending, cryptocurrency, DeFi, NFT, network statistics, baker dashboard">
+    <meta name="author" content="Primate411">
     <title>Tezos Domains Chamber - Live .tez Name Market | tezos.systems</title>
     <link rel="canonical" href="https://tezos.systems/domains/">
+    <link rel="license" href="/LICENSE">
 
     <!-- Open Graph / Social -->
     <meta property="og:type" content="website">
@@ -50,15 +52,15 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=414">
-    <link rel="stylesheet" href="/css/loading.css?v=414">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=414">
+    <link rel="stylesheet" href="/css/styles.min.css?v=415">
+    <link rel="stylesheet" href="/css/loading.css?v=415">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=415">
     <link rel="stylesheet" href="/css/hen-mode.css?v=94">
     <script src="/js/core/hen-init.js?v=78" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=414">
+    <link rel="modulepreload" href="/js/core/app.js?v=415">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/utils.js">
@@ -90,23 +92,22 @@
       "screenshot": "https://tezos.systems/og-image.png",
       "featureList": "Live network statistics, Baker performance tracking, Staking gauge, Protocol upgrade timeline, Governance monitoring, 14 visual themes, Personalized My Tezos mode, Shareable stat cards, Embeddable widgets",
       "creator": {
-        "@type": "Organization",
-        "name": "Tez Capital",
-        "url": "https://tez.capital",
+        "@type": "Person",
+        "name": "Primate411",
+        "url": "https://github.com/Primate411",
         "sameAs": [
-          "https://github.com/tez-capital",
-          "https://x.com/TezCapital",
-          "https://docs.tez.capital"
-        ]
+          "https://github.com/Primate411"
+        ],
+        "affiliation": {
+          "@type": "Organization",
+          "name": "Tez Capital",
+          "url": "https://tez.capital"
+        }
       },
       "offers": {
         "@type": "Offer",
         "price": "0",
         "priceCurrency": "USD"
-      },
-      "sourceOrganization": {
-        "@type": "Organization",
-        "name": "Tez Capital"
       }
     }
     </script>
@@ -141,9 +142,14 @@
         "encodingFormat": "application/json"
       },
       "creator": {
-        "@type": "Organization",
-        "name": "Tez Capital",
-        "url": "https://tez.capital"
+        "@type": "Person",
+        "name": "Primate411",
+        "url": "https://github.com/Primate411",
+        "affiliation": {
+          "@type": "Organization",
+          "name": "Tez Capital",
+          "url": "https://tez.capital"
+        }
       },
       "about": {
         "@type": "Thing",
@@ -217,7 +223,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=414"></script>
+    <script src="/js/core/theme-preload.js?v=415"></script>
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
         <button id="corner-gift-toggle" class="corner-gift-toggle" type="button" aria-label="Open corner tools: HEN, ctez, and TzSafe" aria-expanded="false" aria-controls="corner-gift-items" title="Corner tools">
             <span aria-hidden="true">🎁</span>
@@ -1959,13 +1965,11 @@
 
         </div>
         <div class="footer-meta" aria-label="Site attribution and links">
-            <p class="powered-by">
-                Powered by <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>
-            </p>
+            <p class="powered-by">Built by <a href="https://github.com/Primate411" target="_blank" rel="noopener">Primate411</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></p>
             <p class="footer-source-line">
                 Data from <a href="https://tzkt.io" target="_blank" rel="noopener">TzKT</a>
                 <span aria-hidden="true">+</span>
-                <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez.Capital</a>
+                RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a>
             </p>
             <nav class="footer-link-rail" aria-label="Footer links" data-site-footer-tools>
                 <a class="footer-link footer-link-feature" href="/widgets/builder.html">
@@ -1994,6 +1998,10 @@
                 Feedback? <a href="https://github.com/Primate411/tezos.systems/issues" target="_blank" rel="noopener">Open an Issue</a>
                 <span aria-hidden="true">·</span>
                 <a href="https://github.com/Primate411/tezos.systems/pulls" target="_blank" rel="noopener">Submit a PR</a>
+                <span aria-hidden="true">·</span>
+                <a href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a>
+                <span aria-hidden="true">·</span>
+                <a href="/LICENSE" rel="license">MPL-2.0</a>
             </p>
         </div>
         <p id="build-version" class="build-version"></p>
@@ -2280,7 +2288,7 @@
 
     <!-- Load app as module -->
     <script src="/js/features/hen-mode.js?v=93"></script>
-    <script type="module" src="/js/core/app.js?v=414"></script>
+    <script type="module" src="/js/core/app.js?v=415"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content">

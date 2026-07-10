@@ -113,6 +113,8 @@ tezos.systems/
 │   ├── collect-data.js                # 2-hour global Supabase history row
 │   └── collect-chamber-history.js     # 30-minute chamber/domain snapshots
 ├── .githooks/pre-commit               # Shared local hook wrapper
+├── LICENSE                             # Mozilla Public License 2.0 terms
+├── NOTICE                              # Project attribution and license scope
 ├── sw.js                              # Service worker cache and offline strategy
 ├── version.json                       # Served build metadata
 ├── site.webmanifest
@@ -757,7 +759,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v414`, including hero search, theme
+- Current aligned shell cache stamp: `v415`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
@@ -869,10 +871,47 @@ site-owner language and heartbeat affordance from the dashboard polish pass.
   fundraiser genesis, not the mainnet launch date used by the app.
 - Adding a new network source requires a CSP update in `index.html`.
 
+## License
+
+Except where a file or directory expressly states otherwise, the original
+source code and repository-authored documentation in this repository are
+available under the [Mozilla Public License 2.0](LICENSE). The package license
+identifier is `MPL-2.0`; the project attribution and scope notice live in
+[NOTICE](NOTICE).
+
+MPL-2.0 is file-level copyleft. You may use, modify, and distribute the covered
+work, including as part of a larger work. When you distribute covered source or
+executable forms, modified covered files must remain available under MPL-2.0,
+the corresponding covered source must be available, and the license and
+attribution notices must remain intact. Separate new files in a larger work may
+use other terms.
+
+Third-party software, fonts, API-sourced data, images, trademarks, service
+marks, and logos remain under their respective terms. MPL-2.0 does not grant a
+right to use contributor branding except as needed to identify and attribute
+the project.
+
+The Tezos Network Statistics dataset advertised in the site's structured data
+is separately offered under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+only for original selection, arrangement, and commentary to the extent
+Primate411 owns those rights. Underlying facts and third-party API data remain
+subject to their source terms.
+
+Tezos Systems is built by Primate411, a co-founding member of
+[Tez Capital](https://tez.capital). The Tez Capital brand is represented
+through that affiliation, and Tez Capital provides RPC infrastructure used by
+the site. The copyright notice in [NOTICE](NOTICE) identifies the repository's
+current copyright holder.
+
+Some earlier revisions carried MIT or ISC declarations. This section governs
+the current distribution and does not purport to rewrite the terms under which
+historical copies were received.
+
 ## Credits
 
-- Data: [TzKT](https://tzkt.io), [Tez Capital](https://tez.capital), Octez RPC,
-  CoinGecko, Tezos Domains, OBJKT, and Supabase.
-- Built by: [Tez Capital](https://tez.capital).
+- Data: [TzKT](https://tzkt.io), CoinGecko, Tezos Domains, OBJKT, and Supabase.
+- Built by: [Primate411](https://github.com/Primate411), a co-founding member
+  of [Tez Capital](https://tez.capital).
+- RPC infrastructure: [Tez Capital](https://tez.capital).
 
 Built for the Tezos ecosystem.

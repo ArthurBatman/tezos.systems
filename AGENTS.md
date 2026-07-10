@@ -11,6 +11,8 @@ the highest-risk gotchas.
 - Remote: `git@github.com:Primate411/tezos.systems.git`
 - Branch: `main`
 - Hosting: GitHub Pages with custom domain from `CNAME`
+- License: Mozilla Public License 2.0 (`MPL-2.0`); preserve `LICENSE` and
+  `NOTICE` when distributing covered source.
 - Stack: static client-side dashboard, vanilla HTML/CSS/JavaScript, ES modules,
   no framework, no bundler
 - Runtime is framework-free, but the repo has tooling dependencies such as
@@ -60,6 +62,9 @@ the highest-risk gotchas.
 - `js/core/utils.js`: formatters, debounce/throttle, sanitization helpers.
 - `sw.js`: static/API cache logic.
 - `version.json`: build metadata.
+- `LICENSE`: unmodified Mozilla Public License 2.0 terms.
+- `NOTICE`: Tezos Systems / Primate411 attribution, covered-work scope, and
+  third-party/trademark boundary.
 - `data/*.json`: protocol history, governance refresh artifacts, protocol
   debates, and tweet/share templates.
 - `widgets/*.html`: standalone embeddable widgets.
@@ -84,6 +89,23 @@ the highest-risk gotchas.
 Treat the Supabase anon key as public client configuration, not as a secret.
 If adding new network domains, update the CSP in `index.html` or fetches,
 scripts, images, and frames can fail in-browser.
+
+Licensing boundaries:
+
+- Original source code and repository-authored documentation are covered by
+  MPL-2.0 through the root `LICENSE` and `NOTICE`.
+- The Tezos Network Statistics dataset schema advertises CC BY 4.0 only for
+  original selection, arrangement, and commentary to the extent Primate411
+  owns those rights; underlying facts and third-party API data retain their
+  source terms.
+- Public identity: Tezos Systems is built by Primate411, a co-founding member
+  of Tez Capital; represent Tez Capital as the affiliated brand and RPC
+  infrastructure provider.
+- Legal metadata: keep Primate411 as the repository's current copyright holder
+  and site/schema creator, and as publisher where publisher metadata is present,
+  unless ownership actually changes.
+- The live footer and document metadata must retain public Source and MPL-2.0
+  links when `index.html` or generated chamber shells are refreshed.
 
 ## Runtime Flow
 
@@ -120,7 +142,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v414`
+- Service worker cache name: `tezos-systems-v415`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 

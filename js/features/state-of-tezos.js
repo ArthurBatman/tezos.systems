@@ -509,7 +509,7 @@ function buildSnapshotDOM(data) {
         flex: 1;
         min-width: 0;
     `;
-    footerCenter.textContent = 'POWERED BY TEZ CAPITAL';
+    footerCenter.textContent = 'PRIMATE411 · RPC BY TEZ CAPITAL';
 
     footer.appendChild(footerLeft);
     footer.appendChild(footerCenter);
