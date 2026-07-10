@@ -4511,8 +4511,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofHistoryTag: topProofHistory?.tagName || '',
       topProofHistoryType: topProofHistory?.getAttribute('type') || '',
       topProofHistoryAriaControls: topProofHistory?.getAttribute('aria-controls') || '',
-      topProofMilestoneBeforeHistory: Boolean(topProofMilestone && topProofHistory && (topProofMilestone.compareDocumentPosition(topProofHistory) & Node.DOCUMENT_POSITION_FOLLOWING)),
-      topProofMilestoneGap: topProofHistoryRect && topProofMilestoneRect ? topProofHistoryRect.left - topProofMilestoneRect.right : null,
+      topProofMilestoneAfterHistory: Boolean(topProofMilestone && topProofHistory && (topProofHistory.compareDocumentPosition(topProofMilestone) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      topProofMilestoneGap: topProofHistoryRect && topProofMilestoneRect ? topProofMilestoneRect.left - topProofHistoryRect.right : null,
       topProofHistoryWired: topProof?.dataset.historyWired || '',
       topProofPillCards: Array.from(topProof?.querySelectorAll('.top-continuity-stat[data-card-history]') || []).map((pill) => pill.dataset.cardHistory || ''),
       topProofPillsWired: Array.from(topProof?.querySelectorAll('.top-continuity-stat[data-card-history]') || []).every((pill) => pill.dataset.topContinuityHistoryPillWired === '1'),
@@ -4649,7 +4649,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.topProofInHeader && healthState.topProofHistoryInHeader, 'network health chamber: continuity stats and uptime badge should live in the top header');
   assert(healthState.topProofTag === 'DIV' && healthState.topProofHistoryTag === 'BUTTON' && healthState.topProofHistoryType === 'button', `network health chamber: continuity surface should use a stat container with a button uptime launcher, saw ${healthState.topProofTag}/${healthState.topProofHistoryTag}/${healthState.topProofHistoryType}`);
   assert(healthState.topProofHistoryAriaControls === 'protocol-history-chamber-modal' && healthState.topProofHistoryWired === '1', `network health chamber: continuity proof Protocol Anthology launcher missing: ${healthState.topProofHistoryAriaControls}/${healthState.topProofHistoryWired}`);
-  assert(healthState.topProofMilestoneBeforeHistory && healthState.topProofMilestoneGap >= 0 && healthState.topProofMilestoneGap <= 24, `network health chamber: milestone marker must sit directly left of the uptime/year counter: ${JSON.stringify({ before: healthState.topProofMilestoneBeforeHistory, gap: healthState.topProofMilestoneGap })}`);
+  assert(healthState.topProofMilestoneAfterHistory && healthState.topProofMilestoneGap >= 0 && healthState.topProofMilestoneGap <= 24, `network health chamber: milestone marker must sit directly right of the uptime/year counter: ${JSON.stringify({ after: healthState.topProofMilestoneAfterHistory, gap: healthState.topProofMilestoneGap })}`);
   assert(['total-bakers', 'finality', 'staking-ratio', 'issuance-rate'].every((key) => healthState.topProofPillCards.includes(key)) && healthState.topProofPillsWired, `network health chamber: continuity proof all-time pills missing or unwired: ${healthState.topProofPillCards.join(',')}/${healthState.topProofPillsWired}`);
   assert(/uptime/i.test(healthState.topProofHistoryText) && /since 2018/i.test(healthState.topProofHistoryText) && !/mainnet uptime|zero forks|zero outages/i.test(healthState.topProofHistoryText), `network health chamber: uptime badge should include the uptime identity/counter only: ${healthState.topProofHistoryText}`);
   assert(healthState.topProofPairUnderTitle && healthState.topProofPairLeftAligned, `network health chamber: milestone/year pair should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofPairUnderTitle, aligned: healthState.topProofPairLeftAligned })}`);
