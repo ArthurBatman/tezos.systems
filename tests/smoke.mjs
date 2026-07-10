@@ -8034,18 +8034,27 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
     const popover = document.querySelector('#top-continuity-explain');
     return popover && !popover.classList.contains('is-visible') && popover.getAttribute('aria-hidden') === 'true';
   }, null, { timeout: 5000 });
+  await page.waitForFunction(() => {
+    const popover = document.querySelector('#top-continuity-explain');
+    if (!popover) return false;
+    const style = getComputedStyle(popover);
+    return Number.parseFloat(style.opacity) <= 0.01 && style.pointerEvents === 'none';
+  }, null, { timeout: 5000 });
   const escapeState = await page.evaluate(() => {
     const pill = document.querySelector('#top-continuity-panel .top-continuity-stat[data-card-history="total-bakers"]');
     const popover = document.querySelector('#top-continuity-explain');
+    const popoverStyle = popover ? getComputedStyle(popover) : null;
     return {
       activeElementKey: document.activeElement?.dataset?.cardHistory || '',
       ariaExpanded: pill?.getAttribute('aria-expanded') || '',
       inert: popover?.inert || false,
+      opacity: Number.parseFloat(popoverStyle?.opacity || '1'),
+      pointerEvents: popoverStyle?.pointerEvents || '',
       selected: pill?.classList.contains('is-explaining') || false,
       tabStopsDisabled: Array.from(popover?.querySelectorAll('button') || []).every((button) => button.tabIndex === -1)
     };
   });
-  assert(escapeState.activeElementKey === 'total-bakers' && escapeState.ariaExpanded === 'false' && !escapeState.selected && escapeState.inert && escapeState.tabStopsDisabled, `feature workflows top pill Escape close mismatch: ${JSON.stringify(escapeState)}`);
+  assert(escapeState.activeElementKey === 'total-bakers' && escapeState.ariaExpanded === 'false' && !escapeState.selected && escapeState.inert && escapeState.opacity <= 0.01 && escapeState.pointerEvents === 'none' && escapeState.tabStopsDisabled, `feature workflows top pill Escape close mismatch: ${JSON.stringify(escapeState)}`);
   await topBakersPill.click();
   await page.locator('#top-continuity-panel > #top-continuity-explain.is-visible [data-open-card-history="total-bakers"]').click();
   await page.locator('#card-history-modal.active').waitFor({ state: 'visible', timeout: 10000 });
