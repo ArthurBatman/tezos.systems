@@ -5182,24 +5182,35 @@ async function smokeMaxisChamber(browser, baseUrl) {
   assert(artifact.activeSeasonId && artifact.ongoingReadyCategory && artifact.readyCategory && /^tz[1-4]/.test(artifact.passportAddress), `tezos maxis chamber: generated crown/season fixture is incomplete ${JSON.stringify(artifact)}`);
   assert(artifact.governanceCareerComplete && artifact.governanceCareerSeasonId === artifact.activeSeasonId, `tezos maxis chamber: independent Governance career/current-period artifact is incomplete ${JSON.stringify(artifact)}`);
 
-  const shellState = await page.evaluate(() => ({
-    title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
-    ideaCredit: document.querySelector('.maxis-idea-credit')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    roomLabels: Array.from(document.querySelectorAll('.maxis-room-tab')).map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim()),
-    selectedRooms: document.querySelectorAll('.maxis-room-tab[aria-selected="true"]').length,
-    selectedView: document.querySelector('.maxis-experience')?.dataset.maxisCurrentView || '',
-    contextHero: document.querySelector('.maxis-context-hero')?.className || '',
-    overviewCards: document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length,
-    overviewClocks: Array.from(document.querySelectorAll('#maxis-panel-maxis .maxis-identity-clock')).map((node) => node.textContent?.replace(/\s+/g, ' ').trim()),
-    boards: document.querySelectorAll('.maxis-lane-board').length,
-    seasonOrb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
-    methodology: document.querySelector('.maxis-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    directHref: document.querySelector('.maxis-footer a[href="/maxis/"]')?.getAttribute('href') || '',
-    bodyOverflow: document.body.style.overflow,
-    horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
-  }));
+  const shellState = await page.evaluate(() => {
+    const footer = document.querySelector('.maxis-footer');
+    const ideaCredit = footer?.querySelector('.maxis-idea-credit');
+    const footerRect = footer?.getBoundingClientRect();
+    const creditRect = ideaCredit?.getBoundingClientRect();
+    return {
+      title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
+      ideaCredit: ideaCredit?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      ideaCredits: document.querySelectorAll('.maxis-idea-credit').length,
+      heroIdeaCredits: document.querySelectorAll('.maxis-context-hero .maxis-idea-credit').length,
+      ideaCreditCenterDelta: footerRect && creditRect
+        ? Math.abs((footerRect.left + (footerRect.width / 2)) - (creditRect.left + (creditRect.width / 2)))
+        : Number.POSITIVE_INFINITY,
+      roomLabels: Array.from(document.querySelectorAll('.maxis-room-tab')).map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim()),
+      selectedRooms: document.querySelectorAll('.maxis-room-tab[aria-selected="true"]').length,
+      selectedView: document.querySelector('.maxis-experience')?.dataset.maxisCurrentView || '',
+      contextHero: document.querySelector('.maxis-context-hero')?.className || '',
+      overviewCards: document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length,
+      overviewClocks: Array.from(document.querySelectorAll('#maxis-panel-maxis .maxis-identity-clock')).map((node) => node.textContent?.replace(/\s+/g, ' ').trim()),
+      boards: document.querySelectorAll('.maxis-lane-board').length,
+      seasonOrb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
+      methodology: document.querySelector('.maxis-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      directHref: document.querySelector('.maxis-footer a[href="/maxis/"]')?.getAttribute('href') || '',
+      bodyOverflow: document.body.style.overflow,
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
   assert(shellState.title === 'Who is a Maxi?' && /maxis-maxis-hero/.test(shellState.contextHero), `tezos maxis chamber: default hero is not neutral Maxis identity context ${JSON.stringify(shellState)}`);
-  assert(shellState.ideaCredit === '✦ Chamber idea by opeculiar', `tezos maxis chamber: idea credit missing ${shellState.ideaCredit}`);
+  assert(shellState.ideaCredit === '✦ Chamber idea by opeculiar' && shellState.ideaCredits === 1 && shellState.heroIdeaCredits === 0 && shellState.ideaCreditCenterDelta <= 2, `tezos maxis chamber: centered footer idea credit contract failed ${JSON.stringify(shellState)}`);
   assert(shellState.roomLabels.map((label) => label.replace(/\s+/g, '')).join(',') === '♛Maxis,◉Season,✺Passport,◇Champions' && shellState.selectedRooms === 1 && shellState.selectedView === 'maxis', `tezos maxis chamber: default four-room contract failed ${JSON.stringify(shellState)}`);
   assert(shellState.overviewCards === artifact.ongoingCategories.length && shellState.overviewClocks.length === artifact.ongoingCategories.length, `tezos maxis chamber: canonical all-lane overview is incomplete ${JSON.stringify(shellState)}`);
   assert(shellState.boards === 1, `tezos maxis chamber: canonical overview should expose one selected detailed board, got ${shellState.boards}`);

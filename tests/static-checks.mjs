@@ -3504,6 +3504,8 @@ async function checkMaxisContracts() {
     ['maxis quiet Governance enduring-record handoff', 'data-maxis-handoff-lane=', maxis],
     ['maxis objective crown disclosure', 'Crowns are objective activity metrics, not endorsements.', maxis],
     ['maxis opeculiar idea credit', 'Chamber idea by <strong>opeculiar</strong>', maxis],
+    ['maxis footer idea credit', '<span class="maxis-idea-credit">', maxis],
+    ['maxis centered footer idea credit styles', '.maxis-footer > .maxis-idea-credit', maxisCss],
     ['maxis protocol-season stage', '.maxis-season-stage', maxisCss],
     ['maxis mirrored corner inset', '--maxis-corner-inset', maxisCss],
     ['maxis HEN circular corner exception', '[data-theme="hen"] #maxis-modal .maxis-season-orb', maxisCss],
