@@ -61,6 +61,12 @@ function routeDetails(route, report) {
       chips: ['consensus', 'economy', 'activity'],
       body: 'Scan Tezos bakers, staking, governance, transactions, contracts, supply, and adjacent chambers in one live operations room.'
     },
+    stake: {
+      kicker: 'Staking Flow',
+      value: 'Stake + unstake tape',
+      chips: ['>10K XTZ moves', 'staking ratio', 'complete history'],
+      body: 'Track the latest large Tezos stake and unstake operations, current network staking share, and every historical move above the same threshold.'
+    },
     maxis: {
       kicker: 'On-Chain Crowns',
       value: 'Spot. Race. Become.',
@@ -283,13 +289,31 @@ async function optimizePng(file) {
   return { before, after: Math.min(before, optimized.length) };
 }
 
+function selectedRoutes() {
+  const inline = process.argv.find((arg) => arg.startsWith('--only='));
+  const flagIndex = process.argv.indexOf('--only');
+  if (!inline && flagIndex < 0) return CHAMBER_ROUTES;
+
+  const raw = inline?.slice('--only='.length)
+    || (flagIndex >= 0 ? process.argv[flagIndex + 1] : '');
+  if (!raw || raw.startsWith('--')) throw new Error('--only requires at least one chamber route slug');
+
+  const requested = new Set(raw.split(',').map((slug) => slug.trim()).filter(Boolean));
+  const routes = CHAMBER_ROUTES.filter((route) => requested.has(route.slug));
+  const found = new Set(routes.map((route) => route.slug));
+  const missing = [...requested].filter((slug) => !found.has(slug));
+  if (missing.length) throw new Error(`Unknown chamber route slug(s): ${missing.join(', ')}`);
+  return routes;
+}
+
 async function main() {
   const report = await readGovernanceReport();
+  const routes = selectedRoutes();
   await fs.mkdir(OUT_DIR, { recursive: true });
   const browser = await launchChromium(chromium, { headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-    for (const route of CHAMBER_ROUTES) {
+    for (const route of routes) {
       await page.setContent(renderCard(route, report), { waitUntil: 'load' });
       const out = path.join(OUT_DIR, `${route.slug}.png`);
       await page.screenshot({ path: out, type: 'png' });

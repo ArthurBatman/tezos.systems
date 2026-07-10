@@ -82,7 +82,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ maxis/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ stake/ maxis/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -244,7 +244,7 @@ inline modal styles in `js/core/app.js`.
 ## Main Surfaces
 
 - Chambers section is visible by default and orders the chamber rows as Network
-  Pulse, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
+  Pulse, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
   tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis, then
   a full-width Tezos Domains strip at the bottom. ctez Oven Exit and KT1
   Multisig Recovery stay off the
@@ -296,6 +296,15 @@ inline modal styles in `js/core/app.js`.
   consensus, economy, governance, network activity, ecosystem, and adjacent
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
+- Staking Chamber with direct `#staking` and `/stake/` access, while the existing
+  `/staking/` guide remains the explanatory staking page. Its narrow launcher
+  keeps one latest applied stake and one latest applied unstake strictly over
+  10,000 tez visible. The opened room shows the canonical current staking ratio,
+  seven-day direction, threshold-scoped 24-hour gross/net flow, a cursor-scanned
+  complete history of qualifying TzKT receipts, and full per-mover stake/unstake
+  trails with Ledger Flow and TzKT links. It uses each operation's processed
+  `amount`; `requestedAmount`, finalize operations, rewards, slashes, and baker
+  autostaking are not presented as new user staking decisions.
 - Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access, organized into
   four rooms: **Maxis**, **Season**, **Passport**, and **Champions**. **Maxis is
   the default canonical identity layer**: its scannable all-lane overview answers
@@ -509,6 +518,7 @@ Useful deep links include:
 - `#price`
 - `#chambers`
 - `#pulse`
+- `#staking`
 - `#maxis`
 - `#l2chamber`
 - `#tezosx`
@@ -521,7 +531,7 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/chamber/`, `/pulse/`, `/maxis/`, `/health/`,
+Public share routes are also available at `/chamber/`, `/pulse/`, `/stake/`, `/maxis/`, `/health/`,
 `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
 `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -730,6 +740,9 @@ Current smoke suites:
 - `my-tezos-deep-link-override`
 - `tezlink`
 - `network-health`
+- `staking-chamber` (covers the narrow latest stake/unstake tape, strict >10K
+  boundary, complete applied-operation scan, current ratio, flow summaries,
+  mover trails, receipts, `/stake/`, and preservation of the `/staking/` guide)
 - `ledger-flow`
 - `maxis-domain-passport` (covers normalized `.tez` names, multi-label owner
   fallback, canonical resolved routes, unresolved names, KT1 rejection, and
@@ -759,8 +772,8 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v417`, including hero search, theme
-  bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
+- Current aligned shell cache stamp: `v418`, including hero search, theme
+  bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated

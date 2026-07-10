@@ -3,7 +3,7 @@
  * Cache-first for shell assets, network-first for API data
  */
 
-const CACHE_NAME = 'tezos-systems-v417';
+const CACHE_NAME = 'tezos-systems-v418';
 
 // Shell assets to precache
 const SHELL_ASSETS = [
@@ -12,6 +12,7 @@ const SHELL_ASSETS = [
     '/anthology/',
     '/chamber/',
     '/pulse/',
+    '/stake/',
     '/maxis/',
     '/health/',
     '/tezosx/',
@@ -29,6 +30,7 @@ const SHELL_ASSETS = [
     '/css/leaderboard.css',
     '/css/shell-extras.css',
     '/css/network-pulse.css',
+    '/css/staking-chamber.css',
     '/css/network-health.css',
     '/css/maxis.css',
     '/css/ledger-flow.css',
@@ -60,6 +62,7 @@ const SHELL_ASSETS = [
     '/js/features/native-explorer.js',
     '/js/features/network-health.js',
     '/js/features/network-pulse.js',
+    '/js/features/staking-chamber.js',
     '/js/features/maxis.js',
     '/js/features/tezlink.js',
     '/js/features/ctez.js',

@@ -37,6 +37,15 @@ export const SITE_MAP = [
         keywords: ['network pulse', 'live stats', 'consensus', 'economy', 'activity']
     },
     {
+        id: 'staking-chamber',
+        title: 'Staking Chamber',
+        href: '/stake/',
+        hash: '#staking',
+        group: 'Live Rooms',
+        detail: 'Large stake and unstake moves, current staking share, and the complete >10K history',
+        keywords: ['staking chamber', 'stake', 'unstake', 'stakers', 'staking ratio', 'large stake', 'staking moves']
+    },
+    {
         id: 'maxis',
         title: 'Tezos Maxis',
         href: '/maxis/',

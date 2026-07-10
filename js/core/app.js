@@ -45,6 +45,7 @@ import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
 import { initNetworkPulseChamber, openNetworkPulseChamber } from '../features/network-pulse.js';
 import { initMaxisChamber } from '../features/maxis.js';
+import { initStakingChamber } from '../features/staking-chamber.js';
 
 const SPARKLINE_LIVE_METRICS = [
     ['tz4_percentage', 'tz4Percentage'],
@@ -99,7 +100,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=417';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=418';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -242,6 +243,7 @@ async function init() {
     safe('etherlinkGovernanceChamber', initEtherlinkGovernanceChamber);
     safe('tz4AdoptionChamber', initTz4AdoptionChamber);
     safe('networkPulseChamber', initNetworkPulseChamber);
+    safe('stakingChamber', initStakingChamber);
     safe('ctezChamber', initCtezChamber);
     safe('ledgerFlowChamber', initLedgerFlowChamber);
     safe('tezosDomainsChamber', initTezosDomainsChamber);
@@ -1410,6 +1412,10 @@ const CHAMBER_CARD_PAIRS = [
         selectors: ['#network-pulse-entry-card']
     },
     {
+        key: 'staking',
+        selectors: ['#staking-entry-card']
+    },
+    {
         key: 'health-governance',
         selectors: ['[data-stat="network-health"]', '#chamber-entry-card']
     },
@@ -1443,6 +1449,12 @@ const CHAMBER_INFO_COPY = {
         body: 'A categorized chamber for the live consensus, economy, governance, activity, and ecosystem stats that power the dashboard.',
         href: '/pulse/',
         link: 'Open Network Pulse ->'
+    },
+    'staking-entry-card': {
+        title: 'Staking Chamber',
+        body: 'The latest applied stake and unstake moves over 10,000 tez, plus the complete qualifying history and mover-level receipts.',
+        href: '/stake/',
+        link: 'Open Staking Chamber ->'
     },
     'chamber-entry-card': {
         title: 'Tezos L1 Governance',
@@ -2484,6 +2496,7 @@ function initUptimeClock() {
     function uptimeMilestoneDestinationLabel(destination, signal) {
         const labels = {
             '#pulse': 'Open Network Pulse',
+            '#staking': 'Open Staking Chamber',
             '#health': 'Open Network Health',
             '#leaderboard': 'Open Baker Leaderboard',
             '#calculator': 'Open staking calculator',
@@ -4718,6 +4731,8 @@ function initDeepLinkAffordances() {
         const prettyRoutes = {
             '#pulse': '/pulse/',
             '#network-pulse': '/pulse/',
+            '#staking': '/stake/',
+            '#stake': '/stake/',
             '#chamber': '/chamber/',
             '#health': '/health/',
             '#tezosx': '/tezosx/',
@@ -4881,6 +4896,7 @@ function initOfflineIndicator() {
 //   #history           → open history modal
 //   #chamber           → open Tezos L1 Governance modal
 //   #pulse             -> open Network Pulse Chamber
+//   #staking           -> open Staking Chamber
 //   #tezosx           -> open Tezos X Chamber
 //   #tezlink          -> legacy alias for Tezos X Chamber
 //   #l2chamber         -> open Tezos X Governance Chamber
@@ -4897,6 +4913,7 @@ function initOfflineIndicator() {
 // Pretty chamber routes:
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
+//   /stake/            -> open Staking Chamber
 //   /anthology/        → open Protocol History Chamber
 //   /health/           → open Network Health Chamber
 //   /tezosx/           → open Tezos X Chamber
@@ -4911,6 +4928,7 @@ function getPrettyChamberPathRoute() {
     const routes = {
         anthology: 'protocol-history',
         pulse: 'pulse',
+        stake: 'staking',
         chamber: 'chamber',
         health: 'health',
         tezosx: 'tezosx',
@@ -5174,6 +5192,7 @@ function applyDeepLink() {
             import('../features/etherlink-governance.js').then((module) => module.closeEtherlinkGovernanceChamber?.()),
             import('../features/network-health.js').then((module) => module.closeNetworkHealthChamber?.()),
             import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
+            import('../features/staking-chamber.js').then((module) => module.closeStakingChamber?.()),
             import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
             import('../features/tz4-adoption.js').then((module) => module.closeTz4AdoptionChamber?.()),
             import('../features/ctez.js').then((module) => module.closeCtezChamber?.()),
@@ -5208,6 +5227,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
                     'Failed to open Network Pulse Chamber'
+                );
+                break;
+            case 'staking':
+                openHashModal(
+                    () => import('../features/staking-chamber.js').then(({ openStakingChamber }) => openStakingChamber()),
+                    'Failed to open Staking Chamber'
                 );
                 break;
             case 'health':
@@ -5330,6 +5355,14 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
             'Failed to open Network Pulse Chamber'
+        );
+    }
+
+    // #staking / #stake
+    if (params.has('staking') || hash === 'staking' || params.has('stake') || hash === 'stake') {
+        openHashModal(
+            () => import('../features/staking-chamber.js').then(({ openStakingChamber }) => openStakingChamber()),
+            'Failed to open Staking Chamber'
         );
     }
 

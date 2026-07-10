@@ -10,7 +10,7 @@ import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=417';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=418';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -55,6 +55,7 @@ const COMMANDS = [
 
 const CHAMBERS = [
     { id: 'pulse', title: 'Network Pulse', detail: 'Consensus, economy, governance, activity, and ecosystem cards in one room', hash: '#pulse', aliases: ['/pulse', 'live pulse', 'network pulse', 'stats'] },
+    { id: 'staking-chamber', title: 'Staking Chamber', detail: 'Large stake and unstake moves, staking ratio, and the complete >10K history', hash: '#staking', aliases: ['/stake', 'stake', 'unstake', 'stakers', 'staking moves'] },
     { id: 'health', title: 'Network Health', detail: 'Blocks, Octez versions, missed rights, consensus lens', hash: '#health', aliases: ['/health', 'network', 'blocks'] },
     { id: 'chamber', title: 'Tezos L1 Governance', detail: 'Current vote room and protocol governance history', hash: '#chamber', aliases: ['/chamber', 'governance', 'vote'] },
     { id: 'tezosx', title: 'Tezos X Chamber', detail: 'Etherlink TVL, L2 transaction tape, gas oracle, tokens', hash: '#tezosx', aliases: ['/tezosx', 'tezlink', 'l2'] },

@@ -18,7 +18,7 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=417';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=418';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -93,9 +93,9 @@ const GROUPS = [
         metrics: [
             { label: 'Issuance Rate', key: 'currentIssuanceRate', format: formatPercentage, detail: formatIssuanceDetail, route: '#section=economy', history: 'current_issuance_rate', historyCard: 'issuance-rate', deltaDecimals: 1, deltaSuffix: '%' },
             { label: 'Stake APY', key: 'stakeAPY', format: formatPercentage, detail: (stats) => `Delegate estimate ${formatPct(stats.delegateAPY)}.`, route: '#calculator', history: 'staking_apy_stake', historyCard: 'staking-apy', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Staking Ratio', key: 'stakingRatio', format: formatPercentage, detail: 'Share of XTZ reported as staked by TzKT.', route: '#section=economy', history: 'staking_ratio', historyCard: 'staking-ratio', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Staking Ratio', key: 'stakingRatio', format: formatPercentage, detail: 'Share of XTZ reported as staked by TzKT.', route: '#staking', history: 'staking_ratio', historyCard: 'staking-ratio', deltaDecimals: 1, deltaSuffix: '%' },
             { label: 'Delegated Ratio', key: 'delegatedRatio', format: formatPercentage, detail: 'Liquid delegation footprint across bakers.', route: '#section=economy', history: 'delegated_ratio', historyCard: 'delegated', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Total Staked', key: 'totalStaked', format: formatSupply, detail: formatTotalStakedDetail, route: '#section=economy', history: 'total_staked', historyCard: 'total-staked', deltaDecimals: 2 },
+            { label: 'Total Staked', key: 'totalStaked', format: formatSupply, detail: formatTotalStakedDetail, route: '#staking', history: 'total_staked', historyCard: 'total-staked', deltaDecimals: 2 },
             { label: 'LB EMA', key: 'lbEmaPct', format: formatNullablePct, detail: formatLbEmaDetail, route: '#lb', history: 'lb_ema_pct', historyCard: 'lb-entry-card', deltaDecimals: 1, deltaSuffix: '%' },
             { label: 'Baking Power', key: 'bakingPower', format: formatSupply, detail: 'Effective consensus weight for baking and attestation rights.', route: '#section=economy', history: 'total_baking_power', historyCard: 'baking-power', deltaDecimals: 2 },
             { label: 'Reward Accounts', key: 'rewardAccounts', format: formatLarge, detail: formatRewardDetail, route: '#section=economy' },
@@ -187,6 +187,7 @@ const ROOM_VALUE_SELECTORS = {
     health: '#network-health-status',
     'l2-governance': '#etherlink-governance-entry-value',
     'liquidity-baking': '#lb-entry-ema',
+    'staking-chamber': '#staking-entry-ratio',
     tezosx: '#tezlink-entry-tvl',
     tz4: '#tz4-entry-preview'
 };
@@ -200,6 +201,7 @@ const ROOM_FALLBACKS = {
     'l2-governance': 'FAST / SLOW',
     'ledger-flow': 'Account paths',
     'liquidity-baking': 'EMA monitor',
+    'staking-chamber': 'Staking moves >10K',
     tezosx: 'L2 activity',
     tz4: 'BLS keys'
 };

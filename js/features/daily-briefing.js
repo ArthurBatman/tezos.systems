@@ -69,7 +69,7 @@ const CATEGORY_META = {
 };
 
 const NETWORK_FEATURE_SITE_MAP_IDS = {
-  staking: 'calculator',
+  staking: 'staking-chamber',
   governance: 'chamber',
   collector: 'hen',
   creator: 'hen',
@@ -87,7 +87,7 @@ const NETWORK_FEATURE_SITE_MAP_IDS = {
 const NETWORK_FEATURE_FALLBACK_ROUTES = {
   baker: '#my-baker',
   portfolio: '#price',
-  staking: '#calculator',
+  staking: '#staking',
   governance: '#chamber',
   collector: '?hen=1',
   creator: '?hen=1',
@@ -105,7 +105,7 @@ const NETWORK_FEATURE_FALLBACK_ROUTES = {
 const NETWORK_FEATURE_FALLBACK_LABELS = {
   baker: 'Open My Tezos baker stats',
   portfolio: 'Open price intelligence',
-  staking: 'Open rewards calculator',
+  staking: 'Open Staking Chamber',
   governance: 'Enter The Chamber',
   collector: 'Open HEN profile',
   creator: 'Open NFT profile',
@@ -497,7 +497,7 @@ const MILESTONE_TRACKS = [
     targetSuffix: 'staked',
     currentSuffix: 'of supply staked',
     detail: 'Staking ratio',
-    route: '#calculator',
+    route: '#staking',
     priority: 18,
     snapshotField: 'stakingRatio',
     nearWindow: 1.25,
@@ -1674,7 +1674,7 @@ function addDailyDeltaSignals(signals, stats = {}) {
       id: 'daily-staker-flow',
       title: 'Staker flow',
       detail: 'Staking movement',
-      route: '#calculator',
+      route: '#staking',
       delta: signedDelta(stakerDelta, 'count'),
       live: true
     }));
@@ -2092,6 +2092,7 @@ function milestoneShareUrl(signal) {
     '#health': 'tezos.systems/health/',
     '#leaderboard': 'tezos.systems/#leaderboard',
     '#calculator': 'tezos.systems/#calculator',
+    '#staking': 'tezos.systems/stake/',
     '#pulse': 'tezos.systems/pulse/'
   };
   if (route.startsWith('/')) return `tezos.systems${route}`;

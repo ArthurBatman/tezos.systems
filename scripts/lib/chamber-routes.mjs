@@ -28,6 +28,15 @@ export const CHAMBER_ROUTES = [
     accent: '#38bdf8'
   },
   {
+    slug: 'stake',
+    hash: '#staking',
+    title: 'Staking Chamber - Large Tezos Stake and Unstake Moves',
+    shortTitle: 'Staking Chamber',
+    description: 'Track large Tezos stake and unstake operations, the current staking share, and the complete history above 10,000 tez.',
+    eyebrow: 'Stake / Unstake',
+    accent: '#a78bfa'
+  },
+  {
     slug: 'maxis',
     hash: '#maxis',
     title: 'Tezos Maxis - On-Chain Crowns, Seasons, and Passports',

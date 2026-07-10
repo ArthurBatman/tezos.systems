@@ -52,15 +52,15 @@
     <link rel="mask-icon" href="safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=417">
-    <link rel="stylesheet" href="css/loading.css?v=417">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=417">
+    <link rel="stylesheet" href="css/styles.min.css?v=418">
+    <link rel="stylesheet" href="css/loading.css?v=418">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=418">
     <link rel="stylesheet" href="css/hen-mode.css?v=94">
     <script src="js/core/hen-init.js?v=78" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=417">
+    <link rel="modulepreload" href="js/core/app.js?v=418">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/utils.js">
@@ -223,7 +223,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=417"></script>
+    <script src="js/core/theme-preload.js?v=418"></script>
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
         <button id="corner-gift-toggle" class="corner-gift-toggle" type="button" aria-label="Open corner tools: HEN, ctez, and TzSafe" aria-expanded="false" aria-controls="corner-gift-items" title="Corner tools">
             <span aria-hidden="true">🎁</span>
@@ -311,7 +311,7 @@
                             <div class="feature-launcher-row feature-launcher-hero">
                                 <button id="chambers-toggle" class="glass-button feature-launcher-item feature-toggle active" aria-label="Show or hide Tezos Chambers" aria-pressed="true" title="Tezos Chambers: Showing" data-status-on="Start here" data-status-off="Start here">
                                     <span class="chambers-toggle-icon">🏛️</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Tezos Chambers</span><span class="dropdown-hint">Protocol, governance, health, Domains, Tezos X, and Anthology.</span><span class="dropdown-hint feature-hero-live" id="explore-chambers-live">Running Tezos</span></span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Tezos Chambers</span><span class="dropdown-hint">Protocol, staking, governance, health, Domains, Tezos X, and Anthology.</span><span class="dropdown-hint feature-hero-live" id="explore-chambers-live">Running Tezos</span></span>
                                     <span class="feature-status feature-status-start">Start here</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#chambers" aria-label="Copy Chambers link" title="Copy direct link">🔗</button>
@@ -355,6 +355,14 @@
 
                         <div class="feature-launcher-group">
                             <div class="dropdown-section-label">Bakers &amp; Staking</div>
+                            <div class="feature-launcher-row">
+                                <a id="staking-chamber-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/stake/" aria-label="Open live Staking Chamber" title="Open Staking Chamber">
+                                    <span class="tezos-stats-toggle-icon">↕</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Staking Chamber</span><span class="dropdown-hint">Latest &gt;10K stake and unstake receipts, with complete history.</span><span class="dropdown-hint feature-live-crumb">TzKT capital tape</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </a>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#staking" aria-label="Copy Staking Chamber link" title="Copy direct link">🔗</button>
+                            </div>
                             <div class="feature-launcher-row">
                                 <button id="leaderboard-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide Baker Directory" aria-pressed="false" title="Baker Directory: Hidden" data-status-on="Showing" data-status-off="Tool">
                                     <span class="leaderboard-toggle-icon">🏆</span>
@@ -1984,6 +1992,7 @@
                 <span class="footer-rail-label">Chambers</span>
                 <a class="footer-link" href="/chamber/">Tezos L1 Governance</a>
                 <a class="footer-link" href="/pulse/">Network Pulse</a>
+                <a class="footer-link" href="/stake/">Staking Chamber</a>
                 <a class="footer-link" href="/maxis/">Tezos Maxis</a>
                 <a class="footer-link" href="/health/">Network Health</a>
                 <a class="footer-link" href="/tezosx/">Tezos X</a>
@@ -2288,7 +2297,7 @@
 
     <!-- Load app as module -->
     <script src="js/features/hen-mode.js?v=93"></script>
-    <script type="module" src="js/core/app.js?v=417"></script>
+    <script type="module" src="js/core/app.js?v=418"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content">

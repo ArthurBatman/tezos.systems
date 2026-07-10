@@ -53,6 +53,7 @@ const browserRoutes = [
   '/landing.html',
   '/anthology/',
   '/staking/',
+  '/stake/',
   '/governance/',
   '/chamber/',
   '/pulse/',
@@ -103,6 +104,9 @@ const SAMPLE_REGULAR_DELEGATOR_ADDRESS = 'tz1iKT2pvdbEHuVC3zugnJfVoQZbbyUzgToW';
 const SAMPLE_SMALL_DELEGATOR_ADDRESS = 'tz1hh3pqYnm3umz3U7zJ6xkaCmpXbnKA7aAm';
 const SAMPLE_STAKER_ADDRESS = 'tz1XrutuvkFRG15HmV2gdon86F38NMMGMAXr';
 const SAMPLE_HEAVY_STAKER_ADDRESS = 'tz1dKGGEVmYrm6V8hBKexLQLdWCapoEAZb1i';
+const SAMPLE_LARGE_STAKER_ADDRESS = 'tz1dCgGWymGmVefmNTHSBhSYXXfeJ2aprCLv';
+const SAMPLE_STAKING_BAKER_ADDRESS = 'tz1StakingBaker11111111111111111111111';
+const SAMPLE_UNSTAKER_ADDRESS = 'tz1Unstaker11111111111111111111111111';
 const OVERDELEGATED_ADDRESS = 'tz1bA9zZpouVgtMRLijvw5safwDKSxg62r1x';
 const ETHERLINK_FAST_CONTRACT = 'KT19oUVQPnVLuUBYXrBVd46WJnNAMpqkKSwo';
 const ETHERLINK_SLOW_CONTRACT = 'KT1AXRU3wLc87WNhLhVGrgqDGubLACUMUgPb';
@@ -119,6 +123,7 @@ const ETHERLINK_UPVOTERS_BIGMAP = '990002';
 const ETHERLINK_UPVOTE_COUNTS_BIGMAP = '990003';
 const EXPECTED_CHAMBER_ORDER = [
   'network-pulse-entry-card',
+  'staking-entry-card',
   'network-health',
   'chamber-entry-card',
   'tezlink-entry-card',
@@ -964,6 +969,92 @@ function sampleLedgerFlowFirstRow() {
     sender: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Genesis Fund' },
     target: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
   }];
+}
+
+function createStakingChamberFixture() {
+  const now = Date.now();
+  const baker = { address: SAMPLE_STAKING_BAKER_ADDRESS, alias: 'Kraken Baker' };
+  const largeStaker = { address: SAMPLE_LARGE_STAKER_ADDRESS, alias: null };
+  const otherStaker = { address: SAMPLE_UNSTAKER_ADDRESS, alias: 'Unstake QA' };
+  const rich = (id, action, amount, ageMs, staker = largeStaker) => ({
+    id,
+    level: 14000000 + id,
+    hash: `opStakingSmoke${id}111111111111111111111111111`,
+    timestamp: new Date(now - ageMs).toISOString(),
+    status: 'applied',
+    action,
+    amount,
+    staker,
+    baker
+  });
+  const richRows = [
+    { ...rich(50000, 'stake', 9_000_000_000, 8 * 60 * 1000), requestedAmount: Number.MAX_SAFE_INTEGER },
+    rich(49999, 'stake', 10_000_000_000, 9 * 60 * 1000),
+    rich(49998, 'stake', 25_500_000_000, 10 * 60 * 1000),
+    rich(40000, 'stake', 50_000_000_000, 48 * 60 * 60 * 1000),
+    { ...rich(70000, 'unstake', 7_000_000_000, 4 * 60 * 1000), requestedAmount: Number.MAX_SAFE_INTEGER },
+    rich(69999, 'unstake', 10_000_000_000, 5 * 60 * 1000),
+    rich(69998, 'unstake', 32_000_000_000, 6 * 60 * 1000),
+    rich(60000, 'unstake', 20_000_000_000, 72 * 60 * 60 * 1000, otherStaker)
+  ];
+  const byId = new Map(richRows.map((row) => [row.id, row]));
+  const pageFor = (action) => {
+    const start = action === 'stake' ? 50000 : 70000;
+    const latest = action === 'stake' ? richRows.slice(0, 3) : richRows.slice(4, 7);
+    return Array.from({ length: 10_000 }, (_, index) => {
+      if (index < latest.length) {
+        const row = latest[index];
+        return {
+          id: row.id,
+          timestamp: row.timestamp,
+          amount: row.amount,
+          ...(row.requestedAmount ? { requestedAmount: row.requestedAmount } : {})
+        };
+      }
+      return {
+        id: start - index,
+        timestamp: new Date(now - (index + 20) * 60 * 1000).toISOString(),
+        amount: 1_000_000
+      };
+    });
+  };
+  const firstPages = {
+    stake: pageFor('stake'),
+    unstake: pageFor('unstake')
+  };
+  const secondPages = {
+    stake: [richRows[3]],
+    unstake: [richRows[7]]
+  };
+  return { byId, firstPages, richRows, secondPages };
+}
+
+async function installStakingChamberMocks(page, requestLog) {
+  const fixture = createStakingChamberFixture();
+  await page.route('https://api.tzkt.io/v1/operations/staking**', async (route) => {
+    const parsed = new URL(route.request().url());
+    const params = parsed.searchParams;
+    const action = params.get('action') || '';
+    const cursor = params.get('offset.cr') || '';
+    const select = params.get('select') || '';
+    const staker = params.get('staker') || '';
+    const idIn = params.get('id.in') || '';
+    const limit = Number(params.get('limit')) || 0;
+    requestLog.push({ action, cursor, idIn, limit, select, staker });
+
+    if (idIn) {
+      return fulfillJson(route, idIn.split(',').map((id) => fixture.byId.get(Number(id))).filter(Boolean));
+    }
+    if (staker) {
+      return fulfillJson(route, fixture.richRows.filter((row) => row.action === action && row.staker?.address === staker));
+    }
+    if (!['stake', 'unstake'].includes(action)) return fulfillJson(route, []);
+    if (select.includes('hash')) return fulfillJson(route, fixture.firstPages[action].slice(0, 3));
+    if (limit === 1000) return fulfillJson(route, fixture.firstPages[action].slice(0, 3));
+    if (cursor) return fulfillJson(route, fixture.secondPages[action]);
+    return fulfillJson(route, fixture.firstPages[action]);
+  });
+  return fixture;
 }
 
 async function installFeatureMocks(context, options = {}) {
@@ -2154,6 +2245,7 @@ async function assertChamberOrder(page, label) {
   );
   const expectedPairs = [
     ['network-pulse-entry-card'],
+    ['staking-entry-card'],
     ['network-health', 'chamber-entry-card'],
     ['tezlink-entry-card', 'etherlink-governance-entry-card'],
     ['tz4-adoption', 'lb-entry-card'],
@@ -2170,6 +2262,10 @@ async function assertChamberOrder(page, label) {
     `${label}: Network Pulse must stay as its own top strip, saw ${JSON.stringify(chamberState.pairs.at(0))}`
   );
   assert(
+    chamberState.pairs.at(1)?.length === 1 && chamberState.pairs.at(1)?.[0] === 'staking-entry-card',
+    `${label}: Staking Chamber must stay as its own narrow strip below Network Pulse, saw ${JSON.stringify(chamberState.pairs.at(1))}`
+  );
+  assert(
     chamberState.pairs.at(-1)?.length === 1 && chamberState.pairs.at(-1)?.[0] === 'tezos-domains-entry-card',
     `${label}: Tezos Domains must stay as its own bottom strip, saw ${JSON.stringify(chamberState.pairs.at(-1))}`
   );
@@ -2179,6 +2275,7 @@ async function assertChamberControlGeometry(page, label) {
   const issues = await page.evaluate(() => {
     const cardSelectors = [
       '#chamber-entry-card',
+      '#staking-entry-card',
       '#tezlink-entry-card',
       '#etherlink-governance-entry-card',
       '#lb-entry-card',
@@ -2196,6 +2293,9 @@ async function assertChamberControlGeometry(page, label) {
       '.card-front .chamber-entry-status',
       '.card-front .chamber-entry-metrics',
       '.card-front .chamber-entry-metric',
+      '.card-front .staking-entry-head',
+      '.card-front .staking-entry-tape',
+      '.card-front .staking-entry-move',
       '.card-front .tezlink-entry-main',
       '.card-front .tezlink-entry-metrics',
       '.card-front .tezlink-entry-metric',
@@ -3350,6 +3450,140 @@ async function smokeTzktThrottle(browser, baseUrl) {
   log('ok - TzKT throttle smoke');
 }
 
+async function smokeStakingChamber(browser, baseUrl) {
+  const label = 'staking chamber';
+  const issues = [];
+  const requests = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const page = await context.newPage();
+  await installStakingChamberMocks(page, requests);
+  attachIssueCollectors(page, label, issues);
+
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#staking-entry-card').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => {
+    const card = document.querySelector('#staking-entry-card');
+    const ratio = document.querySelector('#staking-entry-ratio')?.textContent?.trim() || '';
+    return card?.querySelectorAll('.staking-entry-move').length === 2
+      && /25\.5K/.test(card.textContent || '')
+      && /32\.0K/.test(card.textContent || '')
+      && ratio !== '—';
+  }, null, { timeout: 20000 });
+
+  const cardState = await page.evaluate(() => {
+    const card = document.querySelector('#staking-entry-card');
+    const pair = card?.closest('.chamber-card-pair');
+    const grid = document.querySelector('#chambers-grid');
+    const rect = card?.getBoundingClientRect();
+    const pairRect = pair?.getBoundingClientRect();
+    const gridRect = grid?.getBoundingClientRect();
+    return {
+      actions: Array.from(card?.querySelectorAll('.staking-entry-move') || []).map((row) => row.dataset.stakingAction),
+      amounts: Array.from(card?.querySelectorAll('.staking-entry-move') || []).map((row) => row.dataset.stakingAmount),
+      cardWidth: rect?.width || 0,
+      gridWidth: gridRect?.width || 0,
+      pair: pair?.dataset.chamberPair || '',
+      pairWidth: pairRect?.width || 0,
+      ratio: document.querySelector('#staking-entry-ratio')?.textContent?.trim() || '',
+      rows: card?.querySelectorAll('.staking-entry-move').length || 0,
+      wide: card?.classList.contains('chamber-entry-wide') || false
+    };
+  });
+  assert(cardState.rows === 2 && cardState.actions.join(',') === 'stake,unstake', `${label}: launcher must be a fixed two-row stake/unstake tape ${JSON.stringify(cardState)}`);
+  assert(cardState.amounts.join(',') === '25500000000,32000000000', `${label}: launcher selected exact actual amounts instead of strict >10K receipts ${JSON.stringify(cardState)}`);
+  assert(cardState.ratio === '27.62%', `${label}: launcher must show the canonical current staking ratio, saw ${cardState.ratio}`);
+  assert(!cardState.wide && cardState.pair === 'staking' && cardState.cardWidth <= 466 && cardState.cardWidth < cardState.gridWidth * 0.5, `${label}: launcher is not the requested narrow standalone chamber ${JSON.stringify(cardState)}`);
+
+  await page.locator('#staking-entry-card').click();
+  await page.locator('#staking-chamber-modal.active .staking-chamber-content').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => /Showing 4 of 4 complete >10K moves/.test(document.querySelector('#staking-archive-count')?.textContent || ''), null, { timeout: 30000 });
+
+  const roomState = await page.evaluate(() => ({
+    actionIds: Array.from(document.querySelectorAll('#staking-archive-rows .staking-operation-row')).map((row) => Number(row.dataset.stakingOperation)),
+    amounts: Array.from(document.querySelectorAll('#staking-archive-rows .staking-operation-amount')).map((node) => node.textContent?.trim()),
+    archiveHead: document.querySelector('.staking-archive-panel .staking-panel-head')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    currentRatio: document.querySelector('.staking-overview-card.is-primary > strong')?.textContent?.trim() || '',
+    directHref: document.querySelector('.staking-method-panel a[href="/stake/"]')?.getAttribute('href') || '',
+    flow: Object.fromEntries(Array.from(document.querySelectorAll('[data-staking-flow]')).map((node) => [node.dataset.stakingFlow, node.textContent?.replace(/\s+/g, ' ').trim()])),
+    method: document.querySelector('.staking-method-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    title: document.querySelector('#staking-chamber-title')?.textContent?.trim() || ''
+  }));
+  assert(roomState.title === 'Staking Chamber' && roomState.currentRatio === '27.62%', `${label}: opened room is missing its title or current ratio ${JSON.stringify(roomState)}`);
+  assert(roomState.actionIds.length === 4 && new Set(roomState.actionIds).size === 4, `${label}: complete archive should contain the four unique strict-threshold fixtures ${JSON.stringify(roomState.actionIds)}`);
+  assert(!roomState.amounts.includes('10,000 ꜩ') && !roomState.amounts.includes('9,000 ꜩ') && !roomState.amounts.includes('7,000 ꜩ'), `${label}: exact 10K or requestedAmount-only moves leaked into the archive ${JSON.stringify(roomState.amounts)}`);
+  assert(/4 matching receipts · 2 stakes \/ 2 unstakes/.test(roomState.archiveHead), `${label}: complete archive receipt summary is wrong ${roomState.archiveHead}`);
+  assert(/25\.5K ꜩ.*1 operations/.test(roomState.flow.stake || '') && /32\.0K ꜩ.*1 operations/.test(roomState.flow.unstake || '') && /−6\.5K ꜩ.*Explicit operations only/.test(roomState.flow.net || ''), `${label}: 24h gross/net operation flow is wrong ${JSON.stringify(roomState.flow)}`);
+  assert(/Strictly over 10,000 ꜩ/.test(roomState.method) && /actual processed amount/.test(roomState.method) && /Exactly 10,000 ꜩ is excluded/.test(roomState.method), `${label}: strict actual-amount method disclosure is incomplete ${roomState.method}`);
+  assert(roomState.directHref === '/stake/', `${label}: direct pretty route link is wrong ${roomState.directHref}`);
+
+  const compactRequests = requests.filter((entry) => entry.select === 'id,timestamp,amount');
+  assert(compactRequests.length >= 6 && compactRequests.every((entry) => !entry.select.includes('requestedAmount')), `${label}: archive/launcher must request compact actual-amount receipts ${JSON.stringify(compactRequests)}`);
+  assert(requests.some((entry) => entry.action === 'stake' && entry.cursor === '40001') && requests.some((entry) => entry.action === 'unstake' && entry.cursor === '60001'), `${label}: complete archive did not cursor beyond the first 10,000 rows ${JSON.stringify(requests.filter((entry) => entry.cursor))}`);
+  const hydratedIds = new Set(requests.flatMap((entry) => entry.idIn ? entry.idIn.split(',').map(Number) : []));
+  assert([49998, 40000, 69998, 60000].every((id) => hydratedIds.has(id)), `${label}: qualifying compact receipts were not hydrated by id.in ${JSON.stringify([...hydratedIds])}`);
+
+  await page.locator('[data-staking-filter="unstake"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#staking-archive-rows [data-staking-action="unstake"]').length === 2 && document.querySelectorAll('#staking-archive-rows .staking-operation-row').length === 2);
+  await page.locator('[data-staking-filter="all"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#staking-archive-rows .staking-operation-row').length === 4);
+
+  await page.locator(`#staking-archive-rows [data-staking-mover="${SAMPLE_LARGE_STAKER_ADDRESS}"]`).first().click();
+  await page.waitForFunction(() => /Operations\s*7/.test(document.querySelector('#staking-mover-panel')?.textContent?.replace(/\s+/g, ' ') || ''), null, { timeout: 10000 });
+  const moverState = await page.evaluate((address) => ({
+    flowHref: document.querySelector('#staking-mover-panel .staking-mover-summary > a')?.getAttribute('href') || '',
+    rows: document.querySelectorAll('#staking-mover-panel .staking-operation-row').length,
+    text: document.querySelector('#staking-mover-panel')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }), SAMPLE_LARGE_STAKER_ADDRESS);
+  assert(moverState.rows === 7 && /Gross staked\s*94\.5K ꜩ/.test(moverState.text) && /Gross unstaked\s*49\.0K ꜩ/.test(moverState.text), `${label}: complete mover trail did not include this actor's full explicit history ${JSON.stringify(moverState)}`);
+  assert(moverState.flowHref === `#ledger-flow=${SAMPLE_LARGE_STAKER_ADDRESS}`, `${label}: mover Ledger Flow route is wrong ${moverState.flowHref}`);
+  assert(requests.some((entry) => entry.staker === SAMPLE_LARGE_STAKER_ADDRESS && entry.action === 'stake') && requests.some((entry) => entry.staker === SAMPLE_LARGE_STAKER_ADDRESS && entry.action === 'unstake'), `${label}: mover trail did not scan both explicit actions`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const mobileState = await page.evaluate(() => {
+    const modal = document.querySelector('#staking-chamber-modal .staking-chamber-content');
+    const modalRect = modal?.getBoundingClientRect();
+    const rows = Array.from(document.querySelectorAll('#staking-archive-rows .staking-operation-row'));
+    const filterControls = Array.from(document.querySelectorAll('.staking-action-filter button'));
+    const inside = (rect) => rect && rect.left >= -1 && rect.right <= innerWidth + 1;
+    return {
+      controlsMinHeight: Math.min(...filterControls.map((node) => node.getBoundingClientRect().height)),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      modalInside: inside(modalRect),
+      modalWidth: modalRect?.width || 0,
+      operationRowsInside: rows.every((row) => inside(row.getBoundingClientRect()))
+    };
+  });
+  assert(mobileState.modalInside && mobileState.modalWidth <= 382 && mobileState.operationRowsInside && mobileState.horizontalOverflow <= 1, `${label}: mobile modal or receipt rows escape the viewport ${JSON.stringify(mobileState)}`);
+  assert(mobileState.controlsMinHeight >= 44, `${label}: mobile filter controls are smaller than 44px ${JSON.stringify(mobileState)}`);
+
+  await page.locator('#staking-chamber-modal .chamber-close').click();
+  await page.waitForFunction(() => !document.querySelector('#staking-chamber-modal')?.classList.contains('active'));
+  const scrollState = await page.evaluate(() => ({ body: document.body.style.overflow, html: document.documentElement.style.overflow }));
+  assert(scrollState.body === '' && scrollState.html === '', `${label}: close did not restore page scrolling ${JSON.stringify(scrollState)}`);
+
+  const prettyResponse = await page.goto(`${baseUrl}/stake/`, { waitUntil: 'domcontentloaded' });
+  assert(prettyResponse?.ok(), `${label}: /stake/ failed with HTTP ${prettyResponse?.status()}`);
+  await page.locator('#staking-chamber-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  const prettyState = await page.evaluate(() => ({ hash: location.hash, pathname: location.pathname, title: document.querySelector('#staking-chamber-title')?.textContent?.trim() || '' }));
+  assert(prettyState.pathname === '/stake/' && prettyState.hash === '' && prettyState.title === 'Staking Chamber', `${label}: pretty route should open the room without hash redirection ${JSON.stringify(prettyState)}`);
+
+  await context.close();
+  assert(issues.length === 0, `${label}: browser issues:\n${issues.join('\n')}`);
+  log('ok - staking chamber smoke');
+}
+
 async function smokeNetworkPulseLauncher(browser, baseUrl) {
   const label = 'network pulse launcher';
   const issues = [];
@@ -3434,8 +3668,8 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await expectCount(page, 'header.header', 1, label);
   await expectCount(page, '#price-bar', 1, label);
   await expectCount(page, '#upgrade-clock', 1, label);
-  await expectCount(page, '.stat-card', 19, label);
-  await expectCount(page, '.card-share-btn, #share-btn, #comparison-share-all-btn', 4, label);
+  await expectCount(page, '.stat-card', 20, label);
+  await expectCount(page, '.card-share-btn, #share-btn, #comparison-share-all-btn', 5, label);
   await expectCount(page, '#build-version', 1, label);
   await expectCount(page, '#widgets-gallery', 1, label);
   await expectCount(page, '#chambers-section', 1, label);
@@ -4163,11 +4397,21 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     }));
     throw new Error(`my tezos address switch: My Tezos data did not refresh after save (${error.message}); debug=${JSON.stringify(debug)}; issues=${issues.join(' | ')}`);
   }
-  await page.waitForFunction(() => {
-    return Array.from(document.querySelectorAll('#my-baker-results .my-baker-stat')).some((stat) => (
-      stat.textContent.includes('Ext. Delegated') && stat.textContent.includes('220,000.00')
-    ));
-  }, null, { timeout: 15000 });
+  try {
+    await page.waitForFunction(() => {
+      return Array.from(document.querySelectorAll('#my-baker-results .my-baker-stat')).some((stat) => (
+        stat.textContent.includes('Ext. Delegated') && stat.textContent.includes('220,000.00')
+      ));
+    }, null, { timeout: 30000 });
+  } catch (error) {
+    const debug = await page.evaluate(() => ({
+      results: document.querySelector('#my-baker-results')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      stats: Array.from(document.querySelectorAll('#my-baker-results .my-baker-stat')).map((stat) => stat.textContent?.replace(/\s+/g, ' ').trim()),
+      stored: localStorage.getItem('tezos-systems-my-baker-address'),
+      data: window._myTezosData || null
+    }));
+    throw new Error(`my tezos address switch: external delegation stat did not settle (${error.message}); debug=${JSON.stringify(debug)}; issues=${issues.join(' | ')}`);
+  }
 
   await page.locator('[data-saved-wallet-combine]').click();
   await page.waitForFunction(() => {
@@ -9237,6 +9481,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
+    { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
     { name: 'my-tezos-drawer-live-refresh', description: 'My Tezos opening drawer refreshes stale brief, header, and baker-grid stats together', run: () => smokeMyTezosDrawerLiveRefresh(browser, baseUrl) },

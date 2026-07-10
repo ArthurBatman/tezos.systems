@@ -212,6 +212,7 @@ async function checkRequiredFiles() {
     'css/hero-search.css',
     'css/leaderboard.css',
     'css/network-pulse.css',
+    'css/staking-chamber.css',
     'css/network-health.css',
     'css/maxis.css',
     'js/core/app.js',
@@ -221,11 +222,14 @@ async function checkRequiredFiles() {
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
     'js/features/governance-alerts.js',
+    'js/features/staking-chamber.js',
     'js/features/milestone-catalog.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
     'sw.js',
     'og-image.png',
+    'stake/index.html',
+    'og/stake.png',
     'version.json',
     'LICENSE',
     'NOTICE',
@@ -422,6 +426,7 @@ async function checkCacheBustAlignment() {
   const leaderboard = await readText('js/features/leaderboard.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
   const networkPulse = await readText('js/features/network-pulse.js');
+  const stakingChamber = await readText('js/features/staking-chamber.js');
   const networkHealth = await readText('js/features/network-health.js');
   const maxis = await readText('js/features/maxis.js');
   const themePreload = await readText('js/core/theme-preload.js');
@@ -437,6 +442,7 @@ async function checkCacheBustAlignment() {
   const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
   const networkPulseCssMatch = networkPulse.match(/NETWORK_PULSE_CSS_URL\s*=\s*['"]\/css\/network-pulse\.css\?v=(\d+)['"]/);
+  const stakingChamberCssMatch = stakingChamber.match(/STAKING_CSS_URL\s*=\s*['"]\/css\/staking-chamber\.css\?v=(\d+)['"]/);
   const networkHealthCssMatch = networkHealth.match(/NETWORK_HEALTH_CSS_URL\s*=\s*['"]\/css\/network-health\.css\?v=(\d+)['"]/);
   const maxisCssMatch = maxis.match(/MAXIS_CSS_URL\s*=\s*['"]\/css\/maxis\.css\?v=(\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
@@ -453,6 +459,7 @@ async function checkCacheBustAlignment() {
   if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
   if (!networkPulseCssMatch) fail('network-pulse.js network-pulse.css loader must carry a ?v= cache stamp');
+  if (!stakingChamberCssMatch) fail('staking-chamber.js staking-chamber.css loader must carry a ?v= cache stamp');
   if (!networkHealthCssMatch) fail('network-health.js network-health.css loader must carry a ?v= cache stamp');
   if (!maxisCssMatch) fail('maxis.js maxis.css loader must carry a ?v= cache stamp');
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
@@ -470,12 +477,13 @@ async function checkCacheBustAlignment() {
     leaderboardCssMatch?.[1],
     ledgerFlowCssMatch?.[1],
     networkPulseCssMatch?.[1],
+    stakingChamberCssMatch?.[1],
     networkHealthCssMatch?.[1],
     maxisCssMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 13) {
+  } else if (versions.length === 14) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -752,6 +760,8 @@ async function checkSelectorContracts() {
   const healthStyles = `${styles}\n${networkHealthCss}`;
   const leaderboardCss = await readText('css/leaderboard.css');
   const networkPulseCss = await readText('css/network-pulse.css');
+  const stakingChamber = await readText('js/features/staking-chamber.js');
+  const stakingChamberCss = await readText('css/staking-chamber.css');
   const ledgerFlowCss = await readText('css/ledger-flow.css');
   const maxisCss = await readText('css/maxis.css');
   const tezosDomainsCss = await readText('css/tezos-domains.css');
@@ -890,6 +900,40 @@ async function checkSelectorContracts() {
     ['Network Pulse XTZ price card history', "'xtz-price'", history],
     ['Network Pulse market cap card history', "'market-cap'", history],
     ['Network Pulse L2 transactions card history', "'l2-transactions'", history],
+    ['Staking Chamber feature import', 'initStakingChamber', app],
+    ['Staking Chamber hash route', "hash === 'staking'", app],
+    ['Staking Chamber legacy short hash route', "hash === 'stake'", app],
+    ['Staking Chamber pretty route opens without hash redirect', "stake: 'staking'", app],
+    ['Staking Chamber modal cleanup', 'closeStakingChamber', app],
+    ['Staking Chamber card pair', "key: 'staking'", app],
+    ['Staking Chamber card copy link', 'data-copy-hash="#staking"', stakingChamber],
+    ['Staking Chamber card ratio', 'id="staking-entry-ratio"', stakingChamber],
+    ['Staking Chamber two-action tape', "renderEntryMove('stake', data?.stake)}${renderEntryMove('unstake', data?.unstake)", stakingChamber],
+    ['Staking Chamber modal', "overlay.id = 'staking-chamber-modal'", stakingChamber],
+    ['Staking Chamber canonical current ratio', 'fetchStakingRatio()', stakingChamber],
+    ['Staking Chamber 7-day ratio context', "fetchHistoricalData('7d')", stakingChamber],
+    ['Staking Chamber strict actual-amount threshold', 'return amountMutez(row) > LARGE_MOVE_THRESHOLD_MUTEZ', stakingChamber],
+    ['Staking Chamber applied-operation filter', "params.set('status', 'applied')", stakingChamber],
+    ['Staking Chamber cursor archive scan', "params.set('offset.cr', String(cursor))", stakingChamber],
+    ['Staking Chamber compact archive select', "'id,timestamp,amount'", stakingChamber],
+    ['Staking Chamber visible receipt hydration', "params.set('id.in', ids.join(','))", stakingChamber],
+    ['Staking Chamber 24-hour gross and net flow', 'data-staking-flow="net"', stakingChamber],
+    ['Staking Chamber mover trail', 'id="staking-mover-panel"', stakingChamber],
+    ['Staking Chamber Ledger Flow drilldown', 'href="#ledger-flow=${encodeURIComponent(moverTrail.address)}"', stakingChamber],
+    ['Staking Chamber complete-history disclosure', 'All applied moves over 10,000 ꜩ', stakingChamber],
+    ['Staking Chamber exact-10K exclusion disclosure', 'Exactly 10,000 ꜩ is excluded.', stakingChamber],
+    ['Staking Chamber direct footer link', 'Direct: /stake/', stakingChamber],
+    ['Staking Chamber crawlable route source', "slug: 'stake'", chamberRoutes],
+    ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
+    ['Staking Chamber hero-search command', "id: 'staking-chamber'", search],
+    ['Staking Chamber share route', "'#staking': '/stake/'", share],
+    ['Staking Chamber service worker JS', '/js/features/staking-chamber.js', await readText('sw.js')],
+    ['Staking Chamber service worker CSS', '/css/staking-chamber.css', await readText('sw.js')],
+    ['Staking Chamber service worker route', "'/stake/'", await readText('sw.js')],
+    ['Staking Chamber narrow desktop pair', 'grid-template-columns: minmax(0, 29rem)', stakingChamberCss],
+    ['Staking Chamber narrow desktop cap', 'max-width: 29rem', stakingChamberCss],
+    ['Staking Chamber mobile single-column pair', 'grid-template-columns: minmax(0, 1fr)', stakingChamberCss],
+    ['Staking Chamber mobile operation rows', '.staking-operation-row {', stakingChamberCss],
     ['Chamber card copy link', 'data-copy-hash="#chamber"', chamber],
     ['Tezos L1 Governance card label', 'Tezos L1 Governance', chamber],
     ['Chamber current state panel', 'id="chamber-now-panel"', chamber],
@@ -1343,6 +1387,16 @@ async function checkSelectorContracts() {
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
   }
+  if (stakingChamber.includes('requestedAmount')) {
+    fail('Staking Chamber must filter TzKT actual processed amount, never requestedAmount');
+  }
+  if (/amountMutez\(row\)\s*>=\s*LARGE_MOVE_THRESHOLD_MUTEZ/.test(stakingChamber)) {
+    fail('Staking Chamber threshold must stay strictly greater than 10,000 tez');
+  }
+  if (!/@media\s*\(max-width:\s*759px\)[\s\S]*?\.staking-chamber-content\s*\{[\s\S]*?width:\s*calc\(100vw\s*-\s*0\.875rem\)/.test(stakingChamberCss)) {
+    fail('Staking Chamber mobile modal must remain viewport-contained');
+  }
+  pass('Staking Chamber strict amount, archive, route, and responsive contracts checked');
   if (!/\.health-consensus-panel[^\{]*\{[^}]*grid-column:\s*1\s*\/\s*-1\s*;/s.test(healthStyles)) {
     fail('Network Health Consensus Lens must span the full dashboard width');
   }
@@ -2432,7 +2486,7 @@ async function checkDailyBriefingPriceContracts() {
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
   const requiredSiteMapRoutes = {
-    staking: 'calculator',
+    staking: 'staking-chamber',
     governance: 'chamber',
     collector: 'hen',
     creator: 'hen',

@@ -677,7 +677,7 @@ async function fetchRecentActivityCutoffLevel() {
  * Fetch staking ratio and delegated percentage
  * Matches TzKT's Proof-of-Stake totals: own staked + external staked.
  */
-async function fetchStakingRatio() {
+export async function fetchStakingRatio() {
     try {
         const [statsResult, frozenStakeResult, supplyResult] = await Promise.allSettled([
             fetchSharedStats(),

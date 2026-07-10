@@ -129,6 +129,7 @@ Licensing boundaries:
   - `#theme=...`
   - `#section=...`
   - `#price`
+  - `#staking` (Staking Chamber; pretty route `/stake/`)
 
 ## Refresh and Cache Settings
 
@@ -142,7 +143,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v417`
+- Service worker cache name: `tezos-systems-v418`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -251,6 +252,9 @@ Stamping gotchas:
   `comparison.js`
 - Activity feeds: `whales.js`, `sleeping-giants.js`, `moments.js`,
   `cycle-pulse.js`, `daily-briefing.js`
+- Staking Chamber: `js/features/staking-chamber.js`; strict applied explicit
+  stake/unstake moves over 10,000 tez, with `/stake/` as the chamber route.
+  Preserve `/staking/` for the existing explanatory guide.
 - OBJKT/HEN: `objkt.js`, `objkt-ui.js`, `hen-mode.js`
 - Extras: `streak.js`, `state-of-tezos.js`, `upgrade-effect.js`,
   `tooltip-tour.js`, `changelog.js`

@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '✨', text: 'The new Staking Chamber shows the latest stake and unstake moves over 10,000 tez, the current staking ratio and 7-day direction, a complete applied-operation archive, and per-mover Ledger Flow and receipt trails' },
             { type: '🔧', text: 'Header stat explainers now fully disappear after dismissal instead of lingering as translucent panels over the live ticker and search controls' },
             { type: '🎨', text: 'Themes now carry their own UI, display, and data typefaces, with a larger dedicated uptime counter and a truly centered mobile uptime line even during milestone celebrations' },
             { type: '🔧', text: 'Tezos Systems source now uses MPL-2.0 file-level copyleft, with Primate411 project authorship, Tez Capital co-founding affiliation and RPC credit, and public Source and license links in the footer' },
