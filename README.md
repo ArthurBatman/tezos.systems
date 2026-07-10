@@ -65,8 +65,16 @@ tezos.systems/
 │   ├── governance-votes.json          # Generated governance vote history
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
-│   ├── maxis-contracts.json            # Reviewed TzKT-alias app taxonomy
-│   ├── maxis-leaders.json              # Generated Tezos Maxis snapshot
+│   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
+│   ├── maxis-leaders.json              # Generated mixed-clock Crown Hall snapshot
+│   ├── maxis/
+│   │   ├── manifest.json               # Protocol-season index and active season
+│   │   └── seasons/<season-id>/
+│   │       ├── summary.json            # Season lanes, standings, deltas, and Honors
+│   │       ├── rules.json              # Frozen season scoring and badge rules
+│   │       ├── transaction-state.json  # Last complete signed accumulator; not a browser payload
+│   │       ├── transaction-state.building.json # Optional signed resume sidecar; never publishable
+│   │       └── passports/00.json..3f.json # 64 deterministic address buckets
 │   └── tweets.json                    # Share-copy templates
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
@@ -82,7 +90,11 @@ tezos.systems/
 │   └── smoke.mjs                      # Playwright browser smoke suites
 ├── scripts/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
-│   ├── refresh-maxis-data.mjs         # Generated on-chain activity leaders
+│   ├── refresh-maxis-data.mjs         # Crown Hall and protocol-season artifacts
+│   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
+│   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
+│   ├── lib/maxis-source-v2.mjs        # Immutable v2 source/query and build adapter
+│   ├── lib/maxis-transactions-v2.mjs  # Immutable v2 transaction checkpoint semantics
 │   ├── refresh-generated-surfaces.mjs  # Commit/scheduled generated-surface orchestrator
 │   ├── generate-chamber-routes.mjs    # Pretty Chamber route generator
 │   ├── generate-chamber-og-images.mjs # Per-Chamber OG image generator
@@ -277,18 +289,47 @@ inline modal styles in `js/core/app.js`.
   consensus, economy, governance, network activity, ecosystem, and adjacent
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
-- Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access. Its generated
-  TzKT + OBJKT snapshot names the top ten inspectable accounts for transactions,
-  collecting, art sales, minting, DeFi, gaming, governance, and staking, plus
-  the top ten cross-lane Unicorns. The homepage launcher keeps the current
-  winner from each lane compact; the full chamber gives every ranked account
-  its scoring window, method, primary source, exact Ledger Flow route, and a
-  tweet-ready receipt for that category standing. A sticky category rail jumps
-  directly to each board without covering its title, every category leader
-  carries a crown, and the chamber visibly credits opeculiar for the original
-  idea. DeFi and Gaming cover successful top-level wallet calls to recently active
-  contracts recognized by `data/maxis-contracts.json`; unknown or unlabeled
-  contracts are not presented as classified coverage.
+- Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access, organized into
+  four rooms: **Season**, **Passport**, **Crown Hall**, and **Champions**. Season
+  is bounded by protocol activation rather than an arbitrary rolling month; its
+  end is the next known activation, or honestly remains open-ended while that
+  activation is unscheduled. A circular season selector opens the protocol
+  archive, while one-lane progressive disclosure keeps the active race, podium,
+  ranks four through ten, nearest challenger, an actionable primary-metric
+  guarantee plus a clearly labeled conservative score-vector path, rank movement,
+  cutoff, and trajectory Honors readable instead of rendering every board at
+  once. Crown metrics remain objective standings; climb, debut, consistency,
+  and comeback Honors are a separate game layer.
+- Maxi Passport is the address-level progression view. It accepts an explicit
+  address or the saved My Tezos address without changing that saved identity,
+  and shows frozen-rule badges, live-cutoff near misses, active lanes, supported
+  streaks, personal bests, and same-season progress toward Unicorn. Stable badge
+  thresholds and the moving “pass #10” cutoff are deliberately distinct;
+  repeatable achievements carry season-scoped IDs so later protocol seasons do
+  not overwrite earlier receipts. My
+  Tezos exposes a direct Passport handoff for the active saved address.
+- Crown Hall keeps the generated `data/maxis-leaders.json` mixed-clock snapshot
+  for hard objective crowns such as live stake or all-time activity; it is not
+  relabeled as season performance. Champions reads finalized protocol-season
+  archives and preserves past winners. At activation the new season opens at
+  once while the prior season spends at least 24 hours concurrently in a
+  non-champion settling state, then receives one exact-boundary rebuild under
+  its frozen evaluator; temporary active leaders never receive permanent
+  champion badges and there is no rollover board blackout. Current season data is indexed by
+  `data/maxis/manifest.json`, with frozen rules and standings under
+  `data/maxis/seasons/<season-id>/` and deep Passport coverage split across 64
+  deterministic `00`–`3f` address shards. Every lane publishes its method and
+  per-source completeness receipt; a lane that cannot be measured exhaustively
+  renders as unavailable rather than promoting a sampled winner. Curated app
+  lanes use `data/maxis-contracts.json`, and same-season Unicorn breadth never
+  mixes activity from different protocol windows. Transaction Maxi uses a
+  season-owned, strict-ID resumable accumulator with a fixed exclusive block
+  boundary and replacement tail; its raw TzKT count must reconcile before the
+  lane can publish. Long scans checkpoint into a signed
+  `transaction-state.building.json` sidecar without changing the last published
+  manifest, summary, or Passport shards; only a complete reconciled scan is
+  atomically promoted to `transaction-state.json`. Neither file is a browser
+  payload.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
@@ -485,10 +526,35 @@ snapshot across dashboard consumers.
 Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
-crawlable compare content, generated CSS bundles, the milestone catalog, and the
-Maxis snapshot. `npm run refresh:maxis` forces the Maxis ranking refresh; normal
-pre-commit runs validate the committed snapshot without rescanning chain
-activity, while scheduled/full generated runs refresh it.
+crawlable compare content, generated CSS bundles, the milestone catalog, and
+the Maxis artifact family. `npm run refresh:maxis` forces both the legacy
+mixed-clock Crown Hall snapshot and the protocol-season manifest, active-season
+summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
+Normal pre-commit runs
+validate committed Maxis artifacts without rescanning chain activity, while
+scheduled/full generated runs refresh them. After a protocol change, the ending
+season waits concurrently with the new active board through the declared
+24-hour source-settlement guard and is rebuilt to the exact activation boundary
+before becoming an immutable archive; its
+published rules and champions must not drift during later refreshes. Passport
+shards are addressed independently so a declared shard fetch failure produces
+a local Passport error rather than blanking the current Season, Crown Hall, or
+other addresses; a bucket declared empty is an honest no-activity state.
+Snapshot time lives in the summary rather than every Passport file, so an
+unchanged shard preserves its exact bytes and SHA-256 receipt across refreshes.
+Each active season also carries a recomputable UTF-8 serialization budget
+receipt. Auditable rules, summary, and state stay pretty-printed while high-volume
+Passport shards use stable compact JSON with raw SHA-256 receipts. The
+transaction state may not exceed 16 MiB, any Passport shard may not exceed 1
+MiB, and rules + summary + state + shards may not exceed 64 MiB. If the
+complete Transaction Passport tree would cross those limits, that lane is
+withheld and the other exhaustive lanes publish from the already collected
+source data rather than silently truncating wallets.
+The evaluator used by a settling season must remain executable and unchanged
+until close; a future scoring upgrade must live in a separately versioned
+evaluator rather than reinterpreting an old season through new code. Finalized
+archives validate and render against their own frozen lane catalog, not the
+current evaluator's category constants.
 The milestone generator is cadence-gated: scheduled runs refresh it after 14
 days, while pre-commit runs refresh it after 100 commits, whichever happens
 first. `npm run refresh:milestones` forces a manual refresh. The browser consumes
@@ -615,6 +681,9 @@ Current smoke suites:
 - `my-tezos-deep-link-override`
 - `tezlink`
 - `network-health`
+- `ledger-flow`
+- `maxis` (covers the protocol-season selector, Season/Passport/Crown Hall/Champions views, address-scoped progression, rank receipts, and Ledger Flow handoff)
+- `tezos-domains`
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)
 - `ux-regressions`

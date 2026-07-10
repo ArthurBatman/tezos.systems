@@ -4018,6 +4018,8 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     button: document.querySelector('#my-baker-save')?.textContent?.trim() || '',
     ledgerFlowHref: document.querySelector('#my-tezos-ledger-flow-link')?.getAttribute('href') || '',
     ledgerFlowHidden: document.querySelector('#my-tezos-ledger-flow-link')?.hidden === true,
+    maxiPassportHref: document.querySelector('#my-tezos-maxi-passport-link')?.getAttribute('href') || '',
+    maxiPassportHidden: document.querySelector('#my-tezos-maxi-passport-link')?.hidden === true,
     extDelegated: Array.from(document.querySelectorAll('#my-baker-results .my-baker-stat')).find((stat) => (
       stat.textContent.includes('Ext. Delegated')
     ))?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -4029,6 +4031,7 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   assert(state.input === SAMPLE_ADDRESS_2, `my tezos address switch: connected input mismatch ${state.input}`);
   assert(state.button === '📋 Copy', `my tezos address switch: save button did not return to copy mode, saw ${state.button}`);
   assert(!state.ledgerFlowHidden && state.ledgerFlowHref === `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Ledger Flow link not scoped to active address ${JSON.stringify(state)}`);
+  assert(!state.maxiPassportHidden && state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Maxi Passport link not scoped to active address ${JSON.stringify(state)}`);
   assert(state.extDelegated.includes('220,000.00'), `my tezos address switch: drawer still shows stale baker metrics: ${state.extDelegated}`);
   assert(!state.header.includes(SAMPLE_ADDRESS.slice(0, 6)), `my tezos address switch: header still points at old baker: ${state.header}`);
   assert(state.heroCount === 0, `my tezos address switch: homepage address tracker should not render ${JSON.stringify(state)}`);
@@ -4077,6 +4080,7 @@ async function smokeMyTezosSubdomainInput(browser, baseUrl) {
     error: document.querySelector('#my-baker-error-msg')?.textContent?.trim() || '',
     button: document.querySelector('#my-baker-save')?.textContent?.trim() || '',
     ledgerFlowHref: document.querySelector('#my-tezos-ledger-flow-link')?.getAttribute('href') || '',
+    maxiPassportHref: document.querySelector('#my-tezos-maxi-passport-link')?.getAttribute('href') || '',
     header: document.querySelector('#my-tezos-btn .nav-label')?.textContent || ''
   }));
 
@@ -4085,6 +4089,7 @@ async function smokeMyTezosSubdomainInput(browser, baseUrl) {
   assert(!/invalid address|domain not found/i.test(state.error), `my tezos subdomain input: subdomain was rejected: ${state.error}`);
   assert(state.button === '📋 Copy', `my tezos subdomain input: save button did not return to copy mode ${JSON.stringify(state)}`);
   assert(state.ledgerFlowHref === `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos subdomain input: Ledger Flow link not scoped to resolved address ${JSON.stringify(state)}`);
+  assert(state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos subdomain input: Maxi Passport link not scoped to resolved address ${JSON.stringify(state)}`);
   assert(!state.header.includes(SAMPLE_ADDRESS.slice(0, 6)), `my tezos subdomain input: header still shows stale address: ${state.header}`);
 
   await context.close();
@@ -4970,6 +4975,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9');
   });
   const page = await context.newPage();
   attachIssueCollectors(page, 'tezos maxis chamber', issues);
@@ -4979,137 +4985,395 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.waitForFunction(() => window.location.pathname === '/maxis/' && window.location.hash === '', null, { timeout: 7000 });
   await page.locator('#maxis-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#maxis-modal.active .maxis-content').waitFor({ state: 'visible', timeout: 15000 });
-  await page.waitForFunction(() => document.querySelectorAll('#maxis-modal .maxis-rank-row').length === 90, null, { timeout: 10000 });
+  await page.locator('#maxis-modal .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
 
-  const state = await page.evaluate(() => {
-    const modal = document.querySelector('#maxis-modal');
-    const ready = Array.from(modal?.querySelectorAll('.maxis-card:not(.maxis-card-empty)') || []);
-    const rankedRows = Array.from(modal?.querySelectorAll('.maxis-rank-row') || []);
-    const ledgerLinks = rankedRows.map((row) => row.querySelector('.maxis-ledger-action')?.getAttribute('href') || '');
-    const tweetLinks = rankedRows.map((row) => row.querySelector('.maxis-tweet-action')?.getAttribute('href') || '');
-    const jumpButtons = Array.from(modal?.querySelectorAll('.maxis-category-jump') || []);
-    const crowns = Array.from(modal?.querySelectorAll('.maxis-rank-crown') || []);
-    const entry = document.querySelector('#maxis-entry-card');
-    const unicorn = modal?.querySelector('.maxis-card[data-maxi-category="unicorn"]');
-    const categoryCounts = Object.fromEntries(Array.from(modal?.querySelectorAll('.maxis-card[data-maxi-category]') || []).map((card) => [
-      card.dataset.maxiCategory,
-      card.querySelectorAll('.maxis-rank-row').length
-    ]));
+  const artifact = await page.evaluate(async () => {
+    const manifest = await fetch('/data/maxis/manifest.json', { cache: 'no-store' }).then((response) => response.json());
+    const active = (manifest.seasons || []).find((season) => season.id === manifest.activeSeasonId);
+    const summary = await fetch(active.summaryPath, { cache: 'no-store' }).then((response) => response.json());
+    const laneRows = Object.entries(summary.rankings || {}).map(([category, rows]) => ({ category, rows: Array.isArray(rows) ? rows : [] }));
+    const ready = laneRows
+      .filter(({ category, rows }) => summary.laneStatus?.[category]?.status === 'ready' && rows.length)
+      .sort((left, right) => right.rows.length - left.rows.length)[0];
+    const unavailable = Object.entries(summary.laneStatus || {}).find(([, status]) => status?.status === 'unavailable');
     return {
-      title: modal?.querySelector('#maxis-title')?.textContent?.trim() || '',
-      ideaCredit: modal?.querySelector('.maxis-idea-credit')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-      cardCount: modal?.querySelectorAll('.maxis-card').length || 0,
-      readyCount: ready.length,
-      rankedCount: rankedRows.length,
-      categoryCounts,
-      rankSequences: Array.from(modal?.querySelectorAll('.maxis-ranking-list') || []).map((list) => Array.from(list.querySelectorAll('[data-maxi-rank]')).map((row) => Number(row.dataset.maxiRank))),
-      ledgerLinks,
-      tweetLinks,
-      jumpCategories: jumpButtons.map((button) => button.dataset.maxisJump || ''),
-      jumpTargets: jumpButtons.map((button) => button.getAttribute('aria-controls') || ''),
-      jumpTargetMatches: jumpButtons.filter((button) => document.getElementById(button.getAttribute('aria-controls') || '')).length,
-      crownCount: crowns.length,
-      crownedRanks: crowns.map((crown) => crown.closest('[data-maxi-rank]')?.dataset.maxiRank || ''),
-      sourceLinks: modal?.querySelectorAll('.maxis-source-action[target="_blank"]').length || 0,
-      entryLeaderCount: entry?.querySelectorAll('.maxis-entry-leader').length || 0,
-      unicornText: unicorn?.textContent?.replace(/\s+/g, ' ').trim() || '',
-      methodology: modal?.querySelector('.maxis-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-      directHref: modal?.querySelector('a[href="/maxis/"]')?.getAttribute('href') || '',
-      bodyOverflow: document.body.style.overflow,
-      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      activeSeasonId: manifest.activeSeasonId,
+      seasonCount: manifest.seasons?.length || 0,
+      finalizedCount: (manifest.seasons || []).filter((season) => season.status === 'finalized').length,
+      readyCategory: ready?.category || '',
+      readyRows: ready?.rows?.length || 0,
+      passportAddress: ready?.rows?.[0]?.address || '',
+      unavailableCategory: unavailable?.[0] || '',
+      unavailableReason: unavailable?.[1]?.reason || '',
+      protocol: summary.season?.protocolName || summary.season?.protocol || '',
+      indexedAddresses: summary.passports?.indexedAddresses || 0
     };
   });
-  assert(state.title === 'Tezos Maxis', `tezos maxis chamber: title mismatch ${state.title}`);
-  assert(state.ideaCredit === '✦ Chamber idea by opeculiar', `tezos maxis chamber: opeculiar idea credit missing ${state.ideaCredit}`);
-  assert(state.cardCount === 9 && state.readyCount === 9, `tezos maxis chamber: expected nine ready leaderboards ${JSON.stringify(state)}`);
-  assert(state.rankedCount === 90 && Object.values(state.categoryCounts).every((count) => count === 10), `tezos maxis chamber: every category must show top ten ${JSON.stringify(state.categoryCounts)}`);
-  assert(state.rankSequences.every((ranks) => ranks.join(',') === '1,2,3,4,5,6,7,8,9,10'), `tezos maxis chamber: visible rank sequences are invalid ${JSON.stringify(state.rankSequences)}`);
-  assert(state.entryLeaderCount === 9, `tezos maxis chamber: entry card must preview every category ${state.entryLeaderCount}`);
-  assert(state.ledgerLinks.length === state.rankedCount && state.ledgerLinks.every((href) => /^\/#ledger-flow=tz/.test(href)), `tezos maxis chamber: address-scoped Ledger Flow links missing ${JSON.stringify(state.ledgerLinks)}`);
-  assert(state.tweetLinks.length === state.rankedCount && state.tweetLinks.every((href) => /^https:\/\/twitter\.com\/intent\/tweet\?text=/.test(href) && /%23(?:[1-9]|10)/.test(href) && /%23Tezos/.test(href)), `tezos maxis chamber: tweet-ready rank receipts missing ${JSON.stringify(state.tweetLinks)}`);
-  assert(state.jumpCategories.join(',') === 'unicorn,transaction,collector,artist,minter,defi,gaming,governance,staking', `tezos maxis chamber: category jump order mismatch ${JSON.stringify(state.jumpCategories)}`);
-  assert(state.jumpTargets.length === 9 && state.jumpTargetMatches === 9, `tezos maxis chamber: category jump targets missing ${JSON.stringify(state.jumpTargets)}`);
-  assert(state.jumpTargets.every((id) => id.startsWith('maxis-category-')), `tezos maxis chamber: category jump target ids invalid ${JSON.stringify(state.jumpTargets)}`);
-  assert(state.crownCount === 9 && state.crownedRanks.every((rank) => rank === '1'), `tezos maxis chamber: every category leader must have one crown ${JSON.stringify({ crownCount: state.crownCount, crownedRanks: state.crownedRanks })}`);
-  assert(state.sourceLinks === state.rankedCount, `tezos maxis chamber: source links missing ${state.sourceLinks}/${state.rankedCount}`);
-  assert(/lanes crossed/i.test(state.unicornText), `tezos maxis chamber: Unicorn breadth missing ${state.unicornText}`);
-  assert(/Unknown or unlabeled contracts/i.test(state.methodology), `tezos maxis chamber: coverage caveat missing ${state.methodology}`);
-  assert(state.directHref === '/maxis/' && state.bodyOverflow === 'hidden', `tezos maxis chamber: route or scroll lock mismatch ${JSON.stringify(state)}`);
-  assert(state.horizontalOverflow <= 1, `tezos maxis chamber: horizontal overflow ${state.horizontalOverflow}`);
+  assert(artifact.activeSeasonId && artifact.readyCategory && /^tz[1-4]/.test(artifact.passportAddress), `tezos maxis chamber: generated season fixture is incomplete ${JSON.stringify(artifact)}`);
 
-  await page.locator('#maxis-modal [data-maxis-jump="governance"]').click();
-  await page.waitForFunction(() => {
-    const content = document.querySelector('#maxis-modal .maxis-content');
-    const nav = document.querySelector('#maxis-modal .maxis-category-nav');
-    const target = document.querySelector('#maxis-category-governance');
-    if (!content || !nav || !target) return false;
-    const gap = target.getBoundingClientRect().top - content.getBoundingClientRect().top;
-    const navBottomGap = nav.getBoundingClientRect().bottom - content.getBoundingClientRect().top;
-    return content.scrollTop > 0 && gap >= navBottomGap + 8 && gap <= navBottomGap + 24;
-  }, null, { timeout: 10000 });
-  const governanceJumpState = await page.evaluate(() => {
-    const content = document.querySelector('#maxis-modal .maxis-content');
-    const nav = document.querySelector('#maxis-modal .maxis-category-nav');
-    const target = document.querySelector('#maxis-category-governance');
-    const contentRect = content?.getBoundingClientRect();
-    const navRect = nav?.getBoundingClientRect();
-    const targetRect = target?.getBoundingClientRect();
+  const shellState = await page.evaluate(() => ({
+    title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
+    ideaCredit: document.querySelector('.maxis-idea-credit')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    roomLabels: Array.from(document.querySelectorAll('.maxis-room-tab')).map((tab) => tab.textContent?.replace(/\s+/g, ' ').trim()),
+    selectedRooms: document.querySelectorAll('.maxis-room-tab[aria-selected="true"]').length,
+    boards: document.querySelectorAll('.maxis-lane-board').length,
+    seasonOrb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
+    methodology: document.querySelector('.maxis-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    directHref: document.querySelector('.maxis-footer a[href="/maxis/"]')?.getAttribute('href') || '',
+    bodyOverflow: document.body.style.overflow,
+    horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+  }));
+  assert(new RegExp(artifact.protocol, 'i').test(shellState.title), `tezos maxis chamber: protocol season title mismatch ${JSON.stringify(shellState)}`);
+  assert(shellState.ideaCredit === '✦ Chamber idea by opeculiar', `tezos maxis chamber: idea credit missing ${shellState.ideaCredit}`);
+  assert(shellState.roomLabels.map((label) => label.replace(/\s+/g, '')).join(',') === '◉Season,✺Passport,♛CrownHall,◇Champions' && shellState.selectedRooms === 1, `tezos maxis chamber: four-room contract failed ${JSON.stringify(shellState.roomLabels)}`);
+  assert(shellState.boards === 1, `tezos maxis chamber: only one lane board should render at a time, got ${shellState.boards}`);
+  assert(shellState.seasonOrb === 'Choose protocol season', `tezos maxis chamber: circular season selector missing ${shellState.seasonOrb}`);
+  assert(/crowns are objective activity metrics/i.test(shellState.methodology), `tezos maxis chamber: objective-crown disclosure missing ${shellState.methodology}`);
+  assert(shellState.directHref === '/maxis/' && shellState.bodyOverflow === 'hidden' && shellState.horizontalOverflow <= 1, `tezos maxis chamber: route, scroll lock, or overflow mismatch ${JSON.stringify(shellState)}`);
+
+  await page.locator('.maxis-season-orb').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => document.querySelector('.maxis-season-tray')?.classList.contains('is-open'));
+  const selectorState = await page.evaluate(() => ({
+    expanded: document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded'),
+    options: document.querySelectorAll('.maxis-season-option[role="menuitemradio"]').length,
+    focusedRole: document.activeElement?.getAttribute('role') || ''
+  }));
+  assert(selectorState.expanded === 'true' && selectorState.options === artifact.seasonCount && selectorState.focusedRole === 'menuitemradio', `tezos maxis chamber: selector keyboard contract failed ${JSON.stringify(selectorState)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded') === 'false');
+  assert(await page.locator('#maxis-modal').evaluate((modal) => modal.classList.contains('active')), 'tezos maxis chamber: Escape should close the selector before the chamber');
+
+  await page.locator(`[data-maxis-lane="${artifact.readyCategory}"]`).click();
+  await page.locator(`[data-maxis-board="${artifact.readyCategory}"]`).waitFor({ state: 'visible', timeout: 10000 });
+  const readyState = await page.evaluate(({ category, total }) => {
+    const board = document.querySelector(`[data-maxis-board="${category}"]`);
+    const telemetry = document.querySelector(`.maxis-honors-panel[aria-label*="${category === 'artist' ? 'Art' : ''}"]`) || document.querySelector('.maxis-honors-panel');
     return {
-      scrollTop: content?.scrollTop || 0,
-      navTop: navRect?.top || 0,
-      contentTop: contentRect?.top || 0,
-      targetGap: targetRect && contentRect ? targetRect.top - contentRect.top : -1,
-      navBottomGap: navRect && contentRect ? navRect.bottom - contentRect.top : -1,
-      navHeight: nav?.offsetHeight || 0,
-      focusedCategory: document.activeElement?.dataset?.maxiCategory || ''
+      boardCount: document.querySelectorAll('.maxis-lane-board').length,
+      lanePressed: document.querySelector(`[data-maxis-lane="${category}"]`)?.getAttribute('aria-pressed'),
+      podium: board?.querySelectorAll('.maxis-podium-place').length || 0,
+      compact: board?.querySelectorAll('.maxis-compact-row').length || 0,
+      rowMenus: board?.querySelectorAll('.maxis-row-menu-toggle').length || 0,
+      telemetry: telemetry?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      expectedVisible: Math.min(10, total)
     };
-  });
-  assert(governanceJumpState.scrollTop > 0 && governanceJumpState.targetGap >= governanceJumpState.navBottomGap + 8 && governanceJumpState.targetGap <= governanceJumpState.navBottomGap + 24, `tezos maxis chamber: governance jump left its title under the category rail ${JSON.stringify(governanceJumpState)}`);
-  assert(governanceJumpState.navTop >= governanceJumpState.contentTop, `tezos maxis chamber: sticky category rail escaped the modal ${JSON.stringify(governanceJumpState)}`);
-  assert(governanceJumpState.focusedCategory === 'governance', `tezos maxis chamber: category jump did not focus Governance ${JSON.stringify(governanceJumpState)}`);
+  }, { category: artifact.readyCategory, total: artifact.readyRows });
+  assert(readyState.boardCount === 1 && readyState.lanePressed === 'true', `tezos maxis chamber: selected lane state failed ${JSON.stringify(readyState)}`);
+  assert(readyState.podium === 3 && readyState.compact === Math.max(0, readyState.expectedVisible - 3) && readyState.rowMenus === readyState.expectedVisible, `tezos maxis chamber: podium/top-ten composition failed ${JSON.stringify(readyState)}`);
+  assert(/Current leader/i.test(readyState.telemetry) && /Nearest challenger/i.test(readyState.telemetry) && /Top 10 cut line/i.test(readyState.telemetry), `tezos maxis chamber: race telemetry incomplete ${readyState.telemetry}`);
+  if (readyState.expectedVisible >= 2) assert(/\+\s*[\d,.]+/.test(readyState.telemetry), `tezos maxis chamber: nearest-challenger gap is not actionable ${readyState.telemetry}`);
 
+  const gapReceiptToggle = page.locator('[data-maxis-board] .maxis-row-menu-toggle').nth(1);
+  await gapReceiptToggle.focus();
+  await page.keyboard.press('Enter');
+  const rowActions = await page.evaluate(() => ({
+    count: document.querySelectorAll('.maxis-row-actions [role="menuitem"]').length,
+    ledger: document.querySelector('.maxis-row-actions .maxis-ledger-action')?.getAttribute('href') || '',
+    myTezos: Array.from(document.querySelectorAll('.maxis-row-actions a')).find((link) => /My Tezos/.test(link.textContent || ''))?.getAttribute('href') || '',
+    source: document.querySelector('.maxis-row-actions .maxis-source-action')?.getAttribute('href') || '',
+    share: document.querySelector('.maxis-row-actions .maxis-tweet-action')?.getAttribute('href') || '',
+    receipt: document.querySelector('.maxis-row-actions [aria-label="Frozen score receipt"]')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(rowActions.count === 4 && /^\/#ledger-flow=tz/.test(rowActions.ledger) && /^\/#my-baker=tz/.test(rowActions.myTezos), `tezos maxis chamber: address trails missing ${JSON.stringify(rowActions)}`);
+  assert(/^https:\/\//.test(rowActions.source) && /^https:\/\/twitter\.com\/intent\/tweet\?text=/.test(rowActions.share), `tezos maxis chamber: source/share actions missing ${JSON.stringify(rowActions)}`);
+  assert(/Frozen score receipt/i.test(rowActions.receipt) && /rank #2/i.test(rowActions.receipt), `tezos maxis chamber: row score receipt missing ${JSON.stringify(rowActions)}`);
+  assert(/actionable guarantee/i.test(rowActions.receipt) && /conservative static-vector path/i.test(rowActions.receipt) && /not a live minimum/i.test(rowActions.receipt), `tezos maxis chamber: pass-gap certainty labels are missing ${JSON.stringify(rowActions)}`);
+
+  if (artifact.unavailableCategory) {
+    await page.locator(`[data-maxis-lane="${artifact.unavailableCategory}"]`).click();
+    const withheld = await page.evaluate(() => ({
+      text: document.querySelector('#maxis-panel-season')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      podiums: document.querySelectorAll('#maxis-panel-season .maxis-podium').length,
+      boards: document.querySelectorAll('#maxis-panel-season .maxis-lane-board').length
+    }));
+    assert(withheld.boards === 1 && withheld.podiums === 0 && /Winner withheld/i.test(withheld.text) && /Publication withheld/i.test(withheld.text) && /No crown or cut line/i.test(withheld.text), `tezos maxis chamber: unavailable lane inferred a result ${JSON.stringify(withheld)}`);
+  }
+
+  await page.locator('[data-maxis-view="crown"]').click();
+  await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'crown');
+  const crownState = await page.evaluate(() => ({
+    boards: document.querySelectorAll('#maxis-panel-crown .maxis-lane-board').length,
+    pressed: document.querySelectorAll('#maxis-panel-crown .maxis-lane-chip[aria-pressed="true"]').length,
+    text: document.querySelector('#maxis-panel-crown')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(crownState.boards === 1 && crownState.pressed === 1 && /original live, rolling, and all-time boards/i.test(crownState.text), `tezos maxis chamber: Crown Hall did not preserve mixed-window truth ${JSON.stringify(crownState)}`);
+
+  await page.locator('[data-maxis-view="champions"]').click();
+  await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'champions');
+  if (artifact.finalizedCount === 0) {
+    await page.waitForFunction(() => /first protocol season is still live/i.test(document.querySelector('#maxis-panel-champions')?.textContent || ''));
+    assert(await page.locator('#maxis-panel-champions .maxis-champion-card').count() === 0, 'tezos maxis chamber: first live season must not invent finalized champions');
+  } else {
+    await page.waitForFunction((count) => document.querySelectorAll('#maxis-panel-champions .maxis-champion-card').length === count, artifact.finalizedCount, { timeout: 15000 });
+    const archivedText = await page.locator('#maxis-panel-champions').innerText();
+    assert(/Season Honors/i.test(archivedText), `tezos maxis chamber: finalized Champions omitted Season Honors ${archivedText}`);
+  }
+
+  await page.evaluate(() => localStorage.removeItem('tezos-systems-my-baker-address'));
+  await page.locator('[data-maxis-view="passport"]').click();
+  await page.locator('.maxis-passport-input').fill(artifact.passportAddress);
+  await page.evaluate((savedAddress) => localStorage.setItem('tezos-systems-my-baker-address', savedAddress), SAMPLE_ADDRESS);
+  await page.locator('.maxis-passport-submit').click();
+  await page.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, artifact.passportAddress, { timeout: 15000 });
+  const passportState = await page.evaluate(({ address, savedAddress }) => ({
+    pathname: window.location.pathname,
+    view: new URLSearchParams(window.location.search).get('view'),
+    address: new URLSearchParams(window.location.search).get('address'),
+    stored: localStorage.getItem('tezos-systems-my-baker-address'),
+    lanes: document.querySelectorAll('.maxis-passport-card .maxis-passport-lane').length,
+    badges: document.querySelectorAll('.maxis-passport-badge').length,
+    progress: Array.from(document.querySelectorAll('.maxis-progress-track')).map((node) => node.getAttribute('aria-label')),
+    text: document.querySelector('.maxis-passport-card')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    expectedAddress: address,
+    expectedSaved: savedAddress
+  }), { address: artifact.passportAddress, savedAddress: SAMPLE_ADDRESS });
+  assert(passportState.pathname === '/maxis/' && passportState.view === 'passport' && passportState.address === passportState.expectedAddress, `tezos maxis chamber: address-bound Passport route failed ${JSON.stringify(passportState)}`);
+  assert(passportState.stored === passportState.expectedSaved, `tezos maxis chamber: opening a Passport mutated My Tezos ${JSON.stringify(passportState)}`);
+  assert(passportState.lanes > 0 && passportState.badges > 0 && passportState.progress.some((label) => /progress \d+%/.test(label || '')), `tezos maxis chamber: Passport lanes, badges, or frozen progress missing ${JSON.stringify(passportState)}`);
+  assert(/toward Unicorn/i.test(passportState.text) && /Near misses/i.test(passportState.text) && /Personal bests/i.test(passportState.text), `tezos maxis chamber: Passport motivation surfaces incomplete ${passportState.text}`);
+
+  await page.locator('.maxis-passport-input').fill('KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT');
+  await page.locator('.maxis-passport-submit').click();
+  await page.waitForFunction(() => /KT1 contract passports are not supported/i.test(document.querySelector('#maxis-panel-passport')?.textContent || ''));
+  assert(await page.locator('#maxis-panel-passport .maxis-passport-card').count() === 0, 'tezos maxis chamber: KT1 must not be assigned a person Passport');
+
+  await page.locator('[data-maxis-view="season"]').click();
+  await page.locator(`[data-maxis-lane="${artifact.readyCategory}"]`).click();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator('#maxis-modal [data-maxis-jump="governance"]').click();
-  await page.waitForFunction(() => {
-    const content = document.querySelector('#maxis-modal .maxis-content');
-    const nav = document.querySelector('#maxis-modal .maxis-category-nav');
-    const target = document.querySelector('#maxis-category-governance');
-    if (!content || !nav || !target) return false;
-    const targetTop = target.getBoundingClientRect().top;
-    return targetTop >= nav.getBoundingClientRect().bottom + 8 && targetTop <= nav.getBoundingClientRect().bottom + 24;
-  }, null, { timeout: 10000 });
-  const mobileGovernanceKicker = await page.evaluate(() => {
-    const kicker = document.querySelector('.maxis-card[data-maxi-category="governance"] .maxis-card-kicker');
-    const rect = kicker?.getBoundingClientRect();
-    const textRange = kicker ? document.createRange() : null;
-    if (textRange) textRange.selectNodeContents(kicker);
+  const mobileState = await page.evaluate(() => {
+    const heights = (selector) => Array.from(document.querySelectorAll(selector)).filter((node) => node.getClientRects().length).map((node) => Math.round(node.getBoundingClientRect().height));
+    const content = document.querySelector('.maxis-content')?.getBoundingClientRect();
+    const hero = document.querySelector('.maxis-protocol-hero');
+    const kicker = document.querySelector('.maxis-protocol-kicker');
     return {
-      text: kicker?.textContent?.trim() || '',
-      clientWidth: kicker?.clientWidth || 0,
-      scrollWidth: kicker?.scrollWidth || 0,
-      textWidth: textRange?.getBoundingClientRect().width || 0,
-      right: rect?.right || 0,
-      navBottom: document.querySelector('.maxis-category-nav')?.getBoundingClientRect().bottom || 0,
-      cardTop: document.querySelector('.maxis-card[data-maxi-category="governance"]')?.getBoundingClientRect().top || 0,
+      roomHeights: heights('.maxis-room-tab'),
+      laneHeights: heights('.maxis-lane-chip'),
+      rowMenuHeights: heights('.maxis-row-menu-toggle'),
+      orbHeight: Math.round(document.querySelector('.maxis-season-orb')?.getBoundingClientRect().height || 0),
+      closeHeight: Math.round(document.querySelector('#maxis-modal .chamber-close')?.getBoundingClientRect().height || 0),
+      contentLeft: content?.left || 0,
+      contentRight: content?.right || 0,
       viewportWidth: window.innerWidth,
-      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      heroOverflow: (hero?.scrollWidth || 0) - (hero?.clientWidth || 0),
+      kickerOverflow: (kicker?.scrollWidth || 0) - (kicker?.clientWidth || 0)
     };
   });
-  assert(mobileGovernanceKicker.text === 'Governance Maxi', `tezos maxis chamber: governance label text mismatch ${JSON.stringify(mobileGovernanceKicker)}`);
-  assert(mobileGovernanceKicker.cardTop >= mobileGovernanceKicker.navBottom + 8, `tezos maxis chamber: mobile category rail covers Governance title ${JSON.stringify(mobileGovernanceKicker)}`);
-  assert(mobileGovernanceKicker.scrollWidth <= mobileGovernanceKicker.clientWidth + 1 && mobileGovernanceKicker.textWidth <= mobileGovernanceKicker.clientWidth - 2, `tezos maxis chamber: governance label lacks mobile paint room ${JSON.stringify(mobileGovernanceKicker)}`);
-  assert(mobileGovernanceKicker.right <= mobileGovernanceKicker.viewportWidth && mobileGovernanceKicker.horizontalOverflow <= 1, `tezos maxis chamber: mobile governance label escapes viewport ${JSON.stringify(mobileGovernanceKicker)}`);
+  assert(mobileState.roomHeights.every((height) => height >= 44) && mobileState.laneHeights.every((height) => height >= 44) && mobileState.rowMenuHeights.every((height) => height >= 44), `tezos maxis chamber: mobile targets are below 44px ${JSON.stringify(mobileState)}`);
+  assert(mobileState.orbHeight >= 44 && mobileState.closeHeight >= 44 && mobileState.contentLeft >= 0 && mobileState.contentRight <= mobileState.viewportWidth && mobileState.horizontalOverflow <= 1, `tezos maxis chamber: mobile modal geometry failed ${JSON.stringify(mobileState)}`);
+  assert(mobileState.heroOverflow <= 1 && mobileState.kickerOverflow <= 1, `tezos maxis chamber: mobile protocol hero clips its kicker ${JSON.stringify(mobileState)}`);
 
-  const firstLedgerLink = page.locator('#maxis-modal .maxis-ledger-action').first();
+  await page.locator('#maxis-modal .chamber-close').click();
+  await page.waitForFunction(() => !document.querySelector('#maxis-modal')?.classList.contains('active'));
+  const entryState = await page.evaluate(() => {
+    const rect = document.querySelector('#maxis-entry-card')?.getBoundingClientRect();
+    return { height: rect?.height || 0, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, bodyOverflow: document.body.style.overflow };
+  });
+  assert(entryState.height > 0 && entryState.height <= 400 && entryState.overflow <= 1 && entryState.bodyOverflow !== 'hidden', `tezos maxis chamber: compact mobile entry/scroll restore failed ${JSON.stringify(entryState)}`);
+
+  await page.evaluate(() => window.openMaxisChamber());
+  await page.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('[data-maxis-view="season"]').click();
+  await page.locator(`[data-maxis-lane="${artifact.readyCategory}"]`).click();
+  await page.locator('[data-maxis-board] .maxis-row-menu-toggle').first().click();
+  const firstLedgerLink = page.locator('.maxis-row-actions .maxis-ledger-action');
   const ledgerHref = await firstLedgerLink.getAttribute('href');
   const ledgerTarget = decodeURIComponent((ledgerHref || '').split('=').slice(1).join('='));
   await firstLedgerLink.click();
   await page.waitForFunction((target) => window.location.pathname === '/' && window.location.hash === `#ledger-flow=${encodeURIComponent(target)}`, ledgerTarget, { timeout: 10000 });
   await page.locator('#ledger-flow-modal.active .ledger-flow-content').waitFor({ state: 'visible', timeout: 15000 });
-  const ledgerInput = await page.locator('#ledger-flow-input').inputValue();
-  assert(ledgerInput === ledgerTarget, `tezos maxis chamber: Ledger Flow opened ${ledgerInput} instead of ${ledgerTarget}`);
+  assert(await page.locator('#ledger-flow-input').inputValue() === ledgerTarget, `tezos maxis chamber: Ledger Flow did not open ${ledgerTarget}`);
 
   await context.close();
+
+  const archiveContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(archiveContext);
+  await archiveContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  await archiveContext.route('**/data/maxis/manifest.json', async (route) => {
+    const response = await route.fetch();
+    const manifest = await response.json();
+    manifest.archives = [
+      ...(Array.isArray(manifest.archives) ? manifest.archives : []),
+      {
+        id: 'protocol-legacy-frozen-lanes',
+        season: {
+          id: 'protocol-legacy-frozen-lanes',
+          seasonOrdinal: 0,
+          protocolName: 'Legacy Protocol',
+          displayLabel: 'Legacy Protocol Season',
+          status: 'finalized',
+          activatedAt: '2025-01-01T00:00:00.000Z',
+          endsAt: '2025-02-01T00:00:00.000Z'
+        },
+        laneCatalog: [
+          { category: 'transaction', title: 'Original Motion Crown', order: 5 },
+          { category: 'legacy_relics', title: 'Heritage Curator', order: 20 }
+        ],
+        champions: [
+          { category: 'legacy_relics', title: 'Heritage Curator', laneOrder: 20, rank: 1, address: SAMPLE_ADDRESS_2, alias: 'Archive Keeper' },
+          { category: 'transaction', title: 'Original Motion Crown', laneOrder: 5, rank: 1, address: SAMPLE_ADDRESS, alias: 'First Mover' }
+        ],
+        honors: {}
+      }
+    ];
+    manifest.inlinePassports = {
+      ...(manifest.inlinePassports || {}),
+      [SAMPLE_ADDRESS_2]: {
+        format: 'transaction-only-v1',
+        address: SAMPLE_ADDRESS_2,
+        alias: 'Compact Mover',
+        transaction: {
+          rank: 17,
+          eligibleCount: 600,
+          outsidePublishedDepth: false,
+          scoreLabel: '42 season transactions',
+          scoreVector: [{ metric: 'transactions', label: 'season transactions', unit: 'transactions', value: 42 }],
+          delta: 3,
+          previousRank: 20,
+          topTenGap: {
+            targetRank: 10,
+            guaranteedPrimary: { metric: 'transactions', label: 'season transactions', unit: 'transactions', amount: 9 },
+            conservativeVectorPath: [{ metric: 'transactions', label: 'season transactions', unit: 'transactions', amount: 8 }]
+          },
+          badgeProgress: { label: 'Transaction Maxi', metric: 'transactions', unit: 'transactions', value: 42, target: 100, remaining: 58, percent: 42, earned: false },
+          activeWeeks: [1, 2],
+          personalBestRank: 17,
+          sourceUrl: `https://tzkt.io/${SAMPLE_ADDRESS_2}`
+        },
+        personalBest: { rank: 17, scoreLabel: '42 season transactions' },
+        badges: [{ id: 'opaque-season-badge', label: 'Transaction Maxi lane touched' }],
+        activeWeeks: [1, 2],
+        activeWeekStreak: 2,
+        unicornProgress: {
+          qualifyingLanes: [{ category: 'transaction', rank: 17 }],
+          breadth: 1,
+          lanesNeeded: 2,
+          progressPercent: 33,
+          badgeProgress: { label: 'Season Unicorn', unit: 'lanes', value: 1, target: 3, remaining: 2, percent: 33, earned: false }
+        }
+      },
+      [SAMPLE_ADDRESS]: {
+        format: 'transaction-only-v1',
+        address: SAMPLE_ADDRESS,
+        alias: 'Outside Hundred',
+        transaction: {
+          rank: 117,
+          eligibleCount: 600,
+          outsidePublishedDepth: false,
+          scoreLabel: '12 season transactions',
+          scoreVector: [{ metric: 'transactions', label: 'season transactions', unit: 'transactions', value: 12 }],
+          delta: null,
+          previousRank: null,
+          topTenGap: null,
+          badgeProgress: { label: 'Transaction Maxi', metric: 'transactions', unit: 'transactions', value: 12, target: 100, remaining: 88, percent: 12, earned: false },
+          activeWeeks: [1],
+          personalBestRank: 117,
+          sourceUrl: `https://tzkt.io/${SAMPLE_ADDRESS}`
+        },
+        personalBest: { rank: 117, scoreLabel: '12 season transactions' },
+        badges: [{ id: 'another-opaque-season-badge', label: 'Transaction Maxi lane touched' }],
+        activeWeeks: [1],
+        activeWeekStreak: 1
+      }
+    };
+    return fulfillJson(route, manifest);
+  });
+  const archivePage = await archiveContext.newPage();
+  attachIssueCollectors(archivePage, 'tezos maxis frozen archive', issues);
+  const archiveResponse = await archivePage.goto(`${baseUrl}/maxis/?view=champions`, { waitUntil: 'domcontentloaded' });
+  assert(archiveResponse?.ok(), `tezos maxis frozen archive: pretty route failed with HTTP ${archiveResponse?.status()}`);
+  const legacyArchiveCard = archivePage.locator('#maxis-panel-champions .maxis-champion-card').filter({ hasText: 'Legacy Protocol' });
+  await legacyArchiveCard.waitFor({ state: 'visible', timeout: 15000 });
+  const frozenLaneLabels = await legacyArchiveCard.locator('.maxis-champion-row > span').allTextContents();
+  assert(frozenLaneLabels.slice(0, 2).join('|') === 'Original Motion Crown|Heritage Curator', `tezos maxis frozen archive: current taxonomy rewrote frozen lane title/order ${JSON.stringify(frozenLaneLabels)}`);
+  assert(!frozenLaneLabels.includes('Legacy Relics'), `tezos maxis frozen archive: unknown old lane fell through to the current labeler ${JSON.stringify(frozenLaneLabels)}`);
+  await archivePage.locator('[data-maxis-view="passport"]').click();
+  await archivePage.locator('.maxis-passport-input').fill(SAMPLE_ADDRESS_2);
+  await archivePage.locator('.maxis-passport-submit').click();
+  await archivePage.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, SAMPLE_ADDRESS_2, { timeout: 15000 });
+  const compactPassportText = await archivePage.locator('.maxis-passport-card').innerText();
+  assert(/Compact Mover/.test(compactPassportText) && /33%[\s\S]*1\/3 qualifying lanes toward Unicorn/.test(compactPassportText) && /#17 · 42% badge/.test(compactPassportText) && /\+9 transactions to guarantee #10/.test(compactPassportText), `tezos maxis compact Passport: transaction lane adapter failed ${compactPassportText}`);
+  assert(/Personal bests[\s\S]*Transaction[\s\S]*#17/i.test(compactPassportText) && /2 consecutive completed weeks/i.test(compactPassportText), `tezos maxis compact Passport: best or streak was lost ${compactPassportText}`);
+  assert(/Near misses[\s\S]*Transaction Top 10[\s\S]*\+9 transactions to guarantee #10/i.test(compactPassportText), `tezos maxis compact Passport: transaction near miss was lost ${compactPassportText}`);
+  await archivePage.locator('.maxis-passport-input').fill(SAMPLE_ADDRESS);
+  await archivePage.locator('.maxis-passport-submit').click();
+  await archivePage.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, SAMPLE_ADDRESS, { timeout: 15000 });
+  const outsideHundredPassportText = await archivePage.locator('.maxis-passport-card').innerText();
+  assert(/Outside Hundred/.test(outsideHundredPassportText) && /0\/3 qualifying lanes toward Unicorn/.test(outsideHundredPassportText) && /#117 · 12% badge/.test(outsideHundredPassportText), `tezos maxis compact Passport: outside-top-100 breadth was inflated ${outsideHundredPassportText}`);
+  await archiveContext.close();
+
+  const identityContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(identityContext);
+  await identityContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  await identityContext.route('**/data/maxis/seasons/**/summary.json', async (route) => {
+    const response = await route.fetch();
+    const summary = await response.json();
+    summary.season = { ...(summary.season || {}), protocolHash: 'PsMixedDeploySummaryReceipt' };
+    return fulfillJson(route, summary);
+  });
+  const identityPage = await identityContext.newPage();
+  attachIssueCollectors(identityPage, 'tezos maxis summary identity', issues);
+  const identityResponse = await identityPage.goto(`${baseUrl}/maxis/`, { waitUntil: 'domcontentloaded' });
+  assert(identityResponse?.ok(), `tezos maxis summary identity: pretty route failed with HTTP ${identityResponse?.status()}`);
+  await identityPage.locator('#maxis-modal.active .maxis-error').waitFor({ state: 'visible', timeout: 15000 });
+  const identityErrorText = await identityPage.locator('#maxis-modal .maxis-error').innerText();
+  assert(/identity receipt/i.test(identityErrorText) && /protocol hash/i.test(identityErrorText), `tezos maxis summary identity: mismatched summary was not rejected ${identityErrorText}`);
+  assert(await identityPage.locator('#maxis-modal .maxis-experience').count() === 0, 'tezos maxis summary identity: wrong-season data rendered before rejection');
+  await identityContext.close();
+
+  const integrityContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(integrityContext);
+  await integrityContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  await integrityContext.route('**/data/maxis/seasons/**/passports/*.json', async (route) => {
+    const response = await route.fetch();
+    const raw = await response.text();
+    await route.fulfill({ response, body: `${raw}\n ` });
+  });
+  const integrityPage = await integrityContext.newPage();
+  attachIssueCollectors(integrityPage, 'tezos maxis Passport integrity', issues);
+  const integrityResponse = await integrityPage.goto(`${baseUrl}/maxis/`, { waitUntil: 'domcontentloaded' });
+  assert(integrityResponse?.ok(), `tezos maxis Passport integrity: pretty route failed with HTTP ${integrityResponse?.status()}`);
+  await integrityPage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
+  await integrityPage.locator('[data-maxis-view="passport"]').click();
+  await integrityPage.locator('.maxis-passport-input').fill(artifact.passportAddress);
+  await integrityPage.locator('.maxis-passport-submit').click();
+  await integrityPage.locator('[data-maxis-passport-retry]').waitFor({ state: 'visible', timeout: 15000 });
+  const integrityState = await integrityPage.evaluate(() => ({
+    text: document.querySelector('#maxis-panel-passport')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    retryButtons: document.querySelectorAll('[data-maxis-passport-retry]').length,
+    passportCards: document.querySelectorAll('.maxis-passport-card').length
+  }));
+  assert(integrityState.retryButtons === 1 && integrityState.passportCards === 0 && /failed its SHA-256 integrity receipt/i.test(integrityState.text), `tezos maxis Passport integrity: altered shard was not rejected ${JSON.stringify(integrityState)}`);
+  await integrityPage.locator('[data-maxis-view="season"]').click();
+  await integrityPage.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'season');
+  assert(await integrityPage.locator('#maxis-panel-season .maxis-lane-board').count() === 1, 'tezos maxis Passport integrity: a rejected shard must not break the other rooms');
+  await integrityContext.close();
+
   assert(issues.length === 0, `tezos maxis chamber browser issues:\n${issues.join('\n')}`);
   log('ok - tezos maxis chamber smoke');
 }
@@ -7853,7 +8117,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
     { name: 'network-health', description: 'Network Health card opens #health chamber with block cadence, missed rights, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
-    { name: 'maxis', description: 'Tezos Maxis opens /maxis/ with nine top-ten leaderboards, tweet-ready rank receipts, and address-scoped Ledger Flow trails', run: () => smokeMaxisChamber(browser, baseUrl) },
+    { name: 'maxis', description: 'Protocol-season selector, one-lane race board, Maxi Passport, legacy Crown Hall, immutable Champions, mobile geometry, and address trails', run: () => smokeMaxisChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },

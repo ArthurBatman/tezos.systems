@@ -42,8 +42,8 @@ export const SITE_MAP = [
         href: '/maxis/',
         hash: '#maxis',
         group: 'Live Rooms',
-        detail: 'Top art, DeFi, gaming, transaction, governance, staking, and cross-lane activity leaders',
-        keywords: ['maxis', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'staking', 'unicorn']
+        detail: 'Protocol-season races, Maxi Passports, permanent champions, and objective on-chain Crown Hall records',
+        keywords: ['maxis', 'protocol season', 'passport', 'champions', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'staking', 'unicorn']
     },
     {
         id: 'health',

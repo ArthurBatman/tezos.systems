@@ -2,6 +2,7 @@
 
 import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHAMBER_ROUTES, routeUrl } from '../scripts/lib/chamber-routes.mjs';
@@ -23,6 +24,43 @@ import {
   rankUnicorn,
   validateMaxisConfig
 } from '../scripts/lib/maxis-ranking.mjs';
+import { fetchKeysetPages, fetchOffsetPages } from '../scripts/lib/maxis-pagination.mjs';
+import {
+  CURRENT_MAXIS_EVALUATOR_VERSION,
+  DEEP_RANKING_LIMIT,
+  PASSPORT_SHARD_ALGORITHM,
+  PASSPORT_SHARD_COUNT,
+  SEASON_CATEGORY_ORDER,
+  SEASON_EVALUATOR_VERSION,
+  SEASON_LANE_RULES,
+  SEASON_RULES_VERSION,
+  addressShard,
+  buildSeasonCompetition,
+  expandPassportRecord,
+  getMaxisEvaluator,
+  maxisEvaluatorVersions,
+  rankSeasonBuilders,
+  rankSeasonDelegation,
+  rankSeasonGovernance,
+  rankSeasonLiquidity,
+  rankSeasonMints,
+  rankSeasonNftSales,
+  resolveProtocolSeason,
+  truncationCoverageErrors,
+  validateSeasonCatalog,
+  registerMaxisEvaluator
+} from '../scripts/lib/maxis-season.mjs';
+import {
+  getMaxisSource,
+  maxisSourceVersions,
+  registerMaxisSource
+} from '../scripts/lib/maxis-source.mjs';
+import {
+  artifactBudgetErrors,
+  measureSeasonArtifactBudget
+} from '../scripts/lib/maxis-artifact-budget.mjs';
+import { validateTransactionAccumulator } from '../scripts/lib/maxis-transactions-v2.mjs';
+import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -43,6 +81,16 @@ function warn(message) {
 
 async function readText(file) {
   return fs.readFile(path.join(ROOT, file), 'utf8');
+}
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]));
+}
+
+function stableJsonHash(value) {
+  return createHash('sha256').update(JSON.stringify(stableJsonValue(value))).digest('hex');
 }
 
 async function pathExists(file) {
@@ -179,11 +227,21 @@ async function checkRequiredFiles() {
     'scripts/refresh-generated-surfaces.mjs',
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-maxis-data.mjs',
+    'scripts/lib/maxis-artifact-budget.mjs',
+    'scripts/lib/maxis-coverage-v2.mjs',
+    'scripts/lib/maxis-evaluator-v2-primitives.mjs',
+    'scripts/lib/maxis-evaluator-v2.mjs',
+    'scripts/lib/maxis-pagination.mjs',
+    'scripts/lib/maxis-season.mjs',
+    'scripts/lib/maxis-source.mjs',
+    'scripts/lib/maxis-source-v2.mjs',
+    'scripts/lib/maxis-transactions-v2.mjs',
     'data/governance-votes.json',
     'data/governance-refresh-report.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-leaders.json',
+    'data/maxis/manifest.json',
     'maxis/index.html',
     'og/maxis.png',
     'data/protocol-data.json',
@@ -2421,6 +2479,8 @@ async function checkMaxisContracts() {
   const app = await readText('js/core/app.js');
   const siteMap = await readText('js/core/site-map.js');
   const sw = await readText('sw.js');
+  const myTezos = await readText('js/features/my-baker.js');
+  const generatedSurfaces = await readText('scripts/refresh-generated-surfaces.mjs');
 
   const configErrors = validateMaxisConfig(config);
   if (configErrors.length) fail(`maxis contract taxonomy invalid: ${configErrors.join('; ')}`);
@@ -2498,6 +2558,659 @@ async function checkMaxisContracts() {
   }, 3);
   if (unicornRank[0]?.address !== addressA || unicornRank[0]?.breadth !== 3) fail('maxis unicorn ranking must prefer qualifying breadth');
 
+  const paginationOffsets = [];
+  const pagedFixture = await fetchOffsetPages(async ({ offset, limit }) => {
+    paginationOffsets.push({ offset, limit });
+    if (offset === 0 || offset === 500) return Array.from({ length: 500 }, (_, index) => offset + index);
+    if (offset === 1000) return Array.from({ length: 42 }, (_, index) => offset + index);
+    return [];
+  }, { pageSize: 500, maxPages: 10 });
+  if (pagedFixture.rows.length !== 1042 || pagedFixture.pages !== 3 || pagedFixture.truncated || pagedFixture.nextOffset !== 1042) {
+    fail(`maxis offset pagination must consume 500 + 500 + 42 rows, got ${JSON.stringify({ rows: pagedFixture.rows.length, pages: pagedFixture.pages, truncated: pagedFixture.truncated, nextOffset: pagedFixture.nextOffset })}`);
+  }
+  if (paginationOffsets.map((page) => `${page.offset}:${page.limit}`).join(',') !== '0:500,500:500,1000:500') {
+    fail(`maxis offset pagination advanced incorrectly: ${JSON.stringify(paginationOffsets)}`);
+  }
+
+  const keysetCursors = [];
+  const keysetFixture = await fetchKeysetPages(async ({ after, limit }) => {
+    keysetCursors.push(`${after}:${limit}`);
+    const start = Number(after) + 1;
+    const length = after === '0' || after === '500' ? 500 : after === '1000' ? 42 : 0;
+    return Array.from({ length }, (_, index) => ({ id: start + index }));
+  }, { pageSize: 500, maxPages: 10 });
+  if (
+    keysetFixture.rows.length !== 1042
+    || keysetFixture.pages !== 3
+    || keysetFixture.truncated
+    || keysetFixture.firstCursor !== '1'
+    || keysetFixture.lastCursor !== '1042'
+    || keysetFixture.cursorOrderVerified !== true
+    || keysetCursors.join(',') !== '0:500,500:500,1000:500'
+  ) {
+    fail(`maxis keyset pagination must consume unique 500 + 500 + 42 rows: ${JSON.stringify({ keysetFixture, keysetCursors })}`);
+  }
+  let duplicateCursorRejected = false;
+  try {
+    await fetchKeysetPages(async () => [{ id: 1 }, { id: 1 }], { pageSize: 2, maxPages: 1 });
+  } catch {
+    duplicateCursorRejected = true;
+  }
+  if (!duplicateCursorRejected) fail('maxis keyset pagination must reject duplicate or non-increasing source ids');
+
+  const seasonStart = '2026-07-01T00:00:00.000Z';
+  const nftSales = rankSeasonNftSales([
+    {
+      id: 101,
+      timestamp: '2026-07-08T00:00:00Z',
+      price_xtz: 10_000_000,
+      amount: 1,
+      buyer_address: addressA,
+      buyer: { flag: 'none' },
+      token_pk: 1,
+      token: {
+        fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT',
+        creators: [
+          { creator_address: addressA, holder: { flag: 'none' } },
+          { creator_address: addressB, holder: { flag: 'none' } }
+        ]
+      }
+    },
+    {
+      id: 101,
+      timestamp: '2026-07-08T00:00:00Z',
+      price_xtz: 10_000_000,
+      amount: 1,
+      buyer_address: addressA,
+      buyer: { flag: 'none' },
+      token_pk: 1,
+      token: {
+        fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT',
+        creators: [
+          { creator_address: addressA, holder: { flag: 'none' } },
+          { creator_address: addressB, holder: { flag: 'none' } }
+        ]
+      }
+    },
+    {
+      id: 102,
+      timestamp: '2026-07-09T00:00:00Z',
+      price_xtz: 20_000_000,
+      amount: 1,
+      buyer_address: addressC,
+      buyer: { flag: 'none' },
+      token_pk: 2,
+      token: {
+        fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT',
+        creators: [
+          { creator_address: addressA, holder: { flag: 'none' } },
+          { creator_address: addressB, holder: { flag: 'none' } }
+        ]
+      }
+    }
+  ], seasonStart);
+  const collectorA = nftSales.collector.find((row) => row.address === addressA);
+  const collectorC = nftSales.collector.find((row) => row.address === addressC);
+  const artistA = nftSales.artist.find((row) => row.address === addressA);
+  const artistB = nftSales.artist.find((row) => row.address === addressB);
+  if (
+    collectorA?.artistCount !== 1 || collectorA?.purchases !== 1 || collectorA?.volume !== 5_000_000
+    || collectorC?.artistCount !== 2 || collectorC?.purchases !== 1 || collectorC?.volume !== 20_000_000
+    || artistA?.collectorCount !== 1 || artistA?.sales !== 1 || artistA?.volume !== 10_000_000
+    || artistB?.collectorCount !== 2 || artistB?.sales !== 2 || artistB?.volume !== 15_000_000
+  ) {
+    fail(`maxis NFT scoring must dedupe listing ids and exclude only self-creator legs: ${JSON.stringify({ collectorA, collectorC, artistA, artistB })}`);
+  }
+
+  const mintSeason = rankSeasonMints([
+    {
+      id: 1,
+      creator_address: addressA,
+      creator: { flag: 'none' },
+      token_pk: 11,
+      fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT',
+      amount: 1,
+      ophash: 'old-remint',
+      timestamp: '2026-07-08T00:00:00Z',
+      token: { timestamp: '2025-01-01T00:00:00Z' }
+    },
+    {
+      id: 2,
+      creator_address: addressB,
+      creator: { flag: 'none' },
+      token_pk: 12,
+      fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT',
+      amount: 5,
+      ophash: 'new-mint',
+      timestamp: '2026-07-08T01:00:00Z',
+      token: { timestamp: '2026-07-08T01:00:00Z' }
+    }
+  ], [
+    { id: 201, token_pk: 12, token: { fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT' }, timestamp: '2026-07-08T02:00:00Z', buyer_address: addressC, buyer: { flag: 'none' }, seller_address: addressB, price_xtz: 2_000_000, amount: 2 },
+    { id: 201, token_pk: 12, token: { fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT' }, timestamp: '2026-07-08T02:00:00Z', buyer_address: addressC, buyer: { flag: 'none' }, seller_address: addressB, price_xtz: 2_000_000, amount: 2 },
+    { id: 202, token_pk: 12, token: { fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT' }, timestamp: '2026-07-08T03:00:00Z', buyer_address: addressA, buyer: { flag: 'none' }, seller_address: addressC, price_xtz: 3_000_000, amount: 1 },
+    { id: 203, token_pk: 12, token: { fa_contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT' }, timestamp: '2026-07-08T04:00:00Z', buyer_address: addressB, buyer: { flag: 'none' }, seller_address: addressB, price_xtz: 4_000_000, amount: 1 }
+  ], seasonStart);
+  if (
+    mintSeason.length !== 1
+    || mintSeason[0]?.address !== addressB
+    || mintSeason[0]?.tokens !== 1
+    || mintSeason[0]?.successfulDrops !== 1
+    || mintSeason[0]?.independentCollectors !== 1
+    || mintSeason[0]?.editionsSold !== 2
+  ) {
+    fail(`maxis Mint must exclude old-token remints, secondary sales, self-sales, and duplicate sale ids: ${JSON.stringify(mintSeason)}`);
+  }
+
+  const governanceSeason = rankSeasonGovernance([
+    { id: 301, hash: 'ballot-testing', counter: 1, nonce: null, timestamp: '2026-07-08T00:00:00Z', delegate: { address: addressA }, period: { index: 2 } },
+    { id: 302, hash: 'ballot-promotion', counter: 2, nonce: null, timestamp: '2026-07-09T00:00:00Z', delegate: { address: addressA }, period: { index: 3 } }
+  ], [
+    { id: 303, hash: 'proposal', counter: 3, nonce: null, timestamp: '2026-07-07T00:00:00Z', delegate: { address: addressA }, period: { index: 1 } }
+  ], seasonStart, [
+    { index: 1, kind: 'proposal', firstLevel: 1 },
+    { index: 2, kind: 'testing', firstLevel: 2 },
+    { index: 3, kind: 'promotion', firstLevel: 3 }
+  ]);
+  if (governanceSeason[0]?.periods !== 2 || governanceSeason[0]?.governanceActions !== 2 || governanceSeason[0]?.participationStreak !== 2) {
+    fail(`maxis Governance must score only the ordered actionable period sequence: ${JSON.stringify(governanceSeason[0])}`);
+  }
+
+  const delegationSeason = rankSeasonDelegation([
+    { id: 401, timestamp: '2026-07-08T00:00:00Z', sender: { address: addressA }, prevDelegate: { address: addressC }, newDelegate: { address: addressB } }
+  ], [
+    { address: addressA, delegate: { address: addressB }, balance: 100, stakedBalance: 999 }
+  ], seasonStart);
+  if (delegationSeason[0]?.address !== addressB || delegationSeason[0]?.retainedAssignments !== 1 || delegationSeason[0]?.retainedBalance !== 100) {
+    fail(`maxis Delegation must use the same positive liquid-balance basis live and at exact close: ${JSON.stringify(delegationSeason[0])}`);
+  }
+
+  const liquidityContract = 'KT1R5dHqnpeKVFow9mErfN763RFfe51vmiB8';
+  const liquidityApp = { id: 'fixture-liquidity', category: 'defi' };
+  const liquiditySeason = rankSeasonLiquidity([
+    { id: 501, hash: 'liquidity-add', counter: 1, nonce: null, timestamp: '2026-07-08T00:00:00Z', sender: { address: addressA }, target: { address: liquidityContract }, parameter: { entrypoint: 'addLiquidity' } },
+    { id: 502, hash: 'ambiguous-position', counter: 2, nonce: null, timestamp: '2026-07-09T00:00:00Z', sender: { address: addressA }, target: { address: liquidityContract }, parameter: { entrypoint: 'setPosition' } }
+  ], new Map([[liquidityContract, liquidityApp]]), [{ ...liquidityApp, liquidityEntrypoints: ['addLiquidity'] }], seasonStart);
+  if (liquiditySeason[0]?.venueCount !== 1 || liquiditySeason[0]?.appCount !== 1 || liquiditySeason[0]?.calls !== 1 || liquiditySeason[0]?.entrypoints?.join(',') !== 'addLiquidity') {
+    fail(`maxis Liquidity must count only frozen positive-supply entrypoints: ${JSON.stringify(liquiditySeason[0])}`);
+  }
+
+  const directContract = 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT';
+  const internalContract = 'KT1R5dHqnpeKVFow9mErfN763RFfe51vmiB8';
+  const builderSeason = rankSeasonBuilders([
+    { id: 601, nonce: null, timestamp: '2026-07-08T00:00:00Z', sender: { address: addressB }, originatedContract: { address: directContract } },
+    { id: 602, nonce: 1, timestamp: '2026-07-08T00:00:00Z', sender: { address: addressA }, originatedContract: { address: internalContract } }
+  ], [
+    { id: 603, hash: 'direct-use', counter: 1, nonce: null, timestamp: '2026-07-09T00:00:00Z', sender: { address: addressC }, initiator: { address: addressC }, target: { address: directContract } },
+    { id: 604, hash: 'internal-use', counter: 2, nonce: null, timestamp: '2026-07-09T00:00:00Z', sender: { address: addressC }, initiator: { address: addressC }, target: { address: internalContract } }
+  ], seasonStart);
+  if (builderSeason.length !== 1 || builderSeason[0]?.address !== addressB || builderSeason[0]?.activeDeployments !== 1 || builderSeason[0]?.independentUsers !== 1) {
+    fail(`maxis Builder must exclude factory/internal originations and require independent use: ${JSON.stringify(builderSeason)}`);
+  }
+
+  const protocolHash = 'PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY';
+  const protocolSeason = resolveProtocolSeason({
+    meta: { currentProtocol: 'Ushuaia' },
+    protocols: [{ number: 25, name: 'Ushuaia', hash: protocolHash, date: '2026-06-30', block: 13857889 }]
+  }, {
+    currentProtocol: { code: 25, name: 'Ushuaia', hash: protocolHash, firstLevel: 13857889, startTime: '2026-06-30T00:31:52Z' },
+    currentGovernance: { startTime: '2026-07-08T09:00:00Z' }
+  }, new Date('2026-07-09T12:00:00Z'));
+  if (protocolSeason.protocolNumber !== 25 || protocolSeason.activationLevel !== 13857889 || protocolSeason.activatedAt !== '2026-06-30T00:31:52.000Z') {
+    fail(`maxis protocol season must use the current protocol activation receipt, never the current voting-period start: ${JSON.stringify(protocolSeason)}`);
+  }
+  if (protocolSeason.endsAt !== null || !/next Tezos protocol activation/i.test(protocolSeason.endsWhen || '')) {
+    fail('maxis active protocol season must stay honestly open-ended before the next activation is known');
+  }
+  let maliciousProtocolHashRejected = false;
+  try {
+    resolveProtocolSeason({
+      protocols: [{ number: 25, name: 'Ushuaia', hash: protocolHash, date: '2026-06-30', block: 13857889 }]
+    }, {
+      currentProtocol: {
+        code: 25,
+        name: 'Ushuaia',
+        hash: `${protocolHash}/../../../../escape`,
+        firstLevel: 13857889,
+        startTime: '2026-06-30T00:31:52Z'
+      }
+    }, new Date('2026-07-09T12:00:00Z'));
+  } catch {
+    maliciousProtocolHashRejected = true;
+  }
+  if (!maliciousProtocolHashRejected) fail('maxis protocol identity must reject path-bearing or non-canonical protocol hashes');
+
+  const seasonFixture = {
+    ...protocolSeason,
+    id: `protocol-25-${protocolHash}`,
+    seasonOrdinal: 1,
+    phase: 'season',
+    displayLabel: 'Ushuaia Season',
+    status: 'active'
+  };
+  const previousSeasonFixture = {
+    schema: 1,
+    generatedAt: '2026-07-10T00:00:00.000Z',
+    season: seasonFixture,
+    rankings: {
+      transaction: [
+        { address: addressB, rank: 1 },
+        { address: addressA, rank: 2 }
+      ],
+      collector: [{ address: addressA, rank: 1 }],
+      defi: [{ address: addressA, rank: 1 }]
+    },
+    history: {
+      snapshotCount: 1,
+      topTenByLane: {
+        transaction: [addressA, addressB],
+        collector: [addressA],
+        defi: [addressA]
+      }
+    },
+    passportIndex: {
+      byAddress: {
+        [addressA]: {
+          address: addressA,
+          alias: 'Alpha',
+          activeWeeks: [1],
+          badges: [{ id: 'top-10-governance', label: 'Governance Maxi top 10', earnedSeasonId: seasonFixture.id, earnedAt: '2026-07-10T00:00:00.000Z' }],
+          lanes: { transaction: { rank: 2, personalBestRank: 2 } }
+        }
+      }
+    }
+  };
+  const seasonCompetition = buildSeasonCompetition({
+    season: seasonFixture,
+    generatedAt: '2026-07-22T00:00:00.000Z',
+    previousSnapshot: previousSeasonFixture,
+    rawRankings: {
+      transaction: [
+        { address: addressA, alias: 'Alpha', transactions: 12, activeDays: 4, activeWeeks: [1, 2], lastActivity: '2026-07-14T00:00:00.000Z' },
+        { address: addressB, alias: 'Beta', transactions: 10, activeDays: 3, activeWeeks: [1, 2], lastActivity: '2026-07-13T00:00:00.000Z' },
+        { address: addressC, alias: 'Debut', transactions: 9, activeDays: 3, activeWeeks: [2], lastActivity: '2026-07-12T00:00:00.000Z' }
+      ],
+      collector: [
+        { address: addressA, alias: 'Alpha', artistCount: 4, volume: 8_000_000, purchases: 6, activeWeeks: [1, 2], lastActivity: '2026-07-14T00:00:00.000Z' }
+      ],
+      defi: [
+        { address: addressA, alias: 'Alpha', appCount: 3, calls: 7, contractCount: 4, activeWeeks: [1, 2], lastActivity: '2026-07-15T00:00:00.000Z' }
+      ]
+    }
+  });
+  const alphaTransaction = seasonCompetition.rankings.transaction.find((row) => row.address === addressA);
+  const betaTransaction = seasonCompetition.rankings.transaction.find((row) => row.address === addressB);
+  const debutTransaction = seasonCompetition.rankings.transaction.find((row) => row.address === addressC);
+  const alphaPassport = seasonCompetition.passportIndex.byAddress[addressA];
+  if (alphaTransaction?.rank !== 1 || alphaTransaction?.delta !== 1 || betaTransaction?.delta !== -1 || debutTransaction?.delta !== null) {
+    fail('maxis season deltas must compare only wallets present in a prior snapshot from the same protocol season');
+  }
+  if (betaTransaction?.passGap?.next?.guaranteedPrimary?.amount !== 3) {
+    fail(`maxis pass gap must strictly exceed the leader's primary metric, got ${JSON.stringify(betaTransaction?.passGap?.next)}`);
+  }
+  if (seasonCompetition.honors.rankClimb?.winner?.address !== addressA || seasonCompetition.honors.rankClimb?.candidates?.some((candidate) => candidate.address === addressC)) {
+    fail('maxis Climber honor must not turn a first appearance into invented rank movement');
+  }
+  if (!seasonCompetition.honors.topTenDebut?.winners?.some((winner) => winner.address === addressC)) {
+    fail('maxis first recorded top-ten entry must be represented as a debut');
+  }
+  if (seasonCompetition.rankings.unicorn[0]?.address !== addressA || seasonCompetition.rankings.unicorn[0]?.breadth !== 3) {
+    fail('maxis Season Unicorn must use breadth from the same protocol-season rankings only');
+  }
+  if (!alphaPassport?.badges?.some((badge) => badge.id === 'top-10-governance') || alphaPassport?.lanes?.transaction?.personalBestRank !== 1) {
+    fail('maxis Passport must preserve earned badges while advancing personal bests');
+  }
+  if (alphaPassport?.badges?.some((badge) => String(badge.id || '').startsWith('champion-'))) {
+    fail('maxis active-season rank one must remain provisional and cannot mint a permanent champion badge');
+  }
+  if (alphaPassport?.activeWeekStreak !== 2 || alphaPassport?.unicorn?.progressPercent !== 100) {
+    fail('maxis Passport must derive supported completed-week streaks and same-season Unicorn progress');
+  }
+
+  const base58Alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  const fixtureAddress = (index) => {
+    let cursor = index + 1;
+    let suffix = '';
+    while (cursor > 0) {
+      suffix = base58Alphabet[cursor % base58Alphabet.length] + suffix;
+      cursor = Math.floor(cursor / base58Alphabet.length);
+    }
+    return `tz1${suffix.padStart(33, '1')}`;
+  };
+  const deepCompetition = buildSeasonCompetition({
+    season: seasonFixture,
+    generatedAt: '2026-07-22T00:00:00.000Z',
+    rawRankings: {
+      transaction: Array.from({ length: 600 }, (_, index) => ({
+        address: fixtureAddress(index),
+        transactions: 10_000 - index,
+        activeDays: 8,
+        activeWeeks: [1, 2],
+        lastActivity: '2026-07-21T00:00:00.000Z'
+      }))
+    }
+  });
+  const deepAddress = fixtureAddress(599);
+  const deepLane = expandPassportRecord(deepCompetition.passportIndex.byAddress[deepAddress])?.lanes?.transaction;
+  if (
+    deepCompetition.passportIndex.indexedAddresses !== 600
+    || deepCompetition.rankings.transaction.length !== DEEP_RANKING_LIMIT
+    || deepCompetition.laneStatus.transaction.eligibleCount !== 600
+    || deepLane?.rank !== 600
+    || deepLane?.outsidePublishedDepth !== true
+    || !deepLane?.passGap?.topTen
+    || deepLane?.passGap?.next !== null
+  ) {
+    fail(`maxis Passports must cover every eligible wallet beyond the 500-row public standings depth: ${JSON.stringify({ indexed: deepCompetition.passportIndex.indexedAddresses, published: deepCompetition.rankings.transaction.length, eligible: deepCompetition.laneStatus.transaction.eligibleCount, deepLane })}`);
+  }
+
+  const compactTopHundred = expandPassportRecord({
+    format: 'transaction-only-v1',
+    address: addressA,
+    transaction: { rank: 17, scoreVector: [{ metric: 'transactions', value: 42 }] },
+    badges: [],
+    activeWeeks: [1, 2],
+    activeWeekStreak: 2
+  });
+  const compactOutsideHundred = expandPassportRecord({
+    format: 'transaction-only-v1',
+    address: addressB,
+    transaction: { rank: 117, scoreVector: [{ metric: 'transactions', value: 12 }] },
+    badges: []
+  });
+  if (
+    compactTopHundred?.unicorn?.breadth !== 1
+    || compactTopHundred?.unicorn?.qualifyingLanes?.[0]?.category !== 'transaction'
+    || compactTopHundred?.unicorn?.progressPercent !== 33
+    || compactOutsideHundred?.unicorn?.breadth !== 0
+    || compactOutsideHundred?.unicorn?.progressPercent !== 0
+  ) {
+    fail(`maxis compact Transaction Passport must preserve top-100 Unicorn breadth without inflating deeper ranks: ${JSON.stringify({ compactTopHundred, compactOutsideHundred })}`);
+  }
+
+  const shardA = addressShard(addressA);
+  if (!/^[0-3][0-9a-f]$/.test(shardA) || shardA !== addressShard(addressA) || PASSPORT_SHARD_COUNT !== 64 || PASSPORT_SHARD_ALGORITHM !== 'sha256-first-byte-mask-3f-v1') {
+    fail('maxis Passport sharding must be deterministic across 64 two-digit hexadecimal buckets');
+  }
+
+  const v2EvaluatorBefore = getMaxisEvaluator(SEASON_EVALUATOR_VERSION);
+  const v2SourceBefore = getMaxisSource(SEASON_EVALUATOR_VERSION);
+  const v2HashBeforeMockV3 = await maxisImplementationHash(SEASON_EVALUATOR_VERSION);
+  const v2RulesBeforeMockV3 = v2EvaluatorBefore.buildRuleDefinition(v2HashBeforeMockV3);
+  const mockV3Version = 'maxis-evaluator-v3-static-fixture';
+  const mockV3Evaluator = {
+    SEASON_EVALUATOR_VERSION: mockV3Version,
+    buildRuleDefinition: (implementationHash) => ({ evaluator: { version: mockV3Version, implementationHash } }),
+    buildSeasonCompetition: () => ({ mock: 'v3-evaluator' }),
+    validateSeasonSnapshot: () => []
+  };
+  const mockV3Source = {
+    EVALUATOR_VERSION: mockV3Version,
+    MAXIS_SOURCE_VERSION: 'maxis-source-v3-static-fixture',
+    IMMUTABLE_IMPLEMENTATION_FILES: ['fixture-only'],
+    buildFullSeasonSnapshot: async () => ({ mock: 'v3-source' }),
+    rebuildWithoutTransactionLane: () => ({ mock: 'v3-fallback' })
+  };
+  registerMaxisEvaluator(mockV3Version, mockV3Evaluator);
+  registerMaxisSource(mockV3Version, mockV3Source);
+  const mockV3Selection = await getMaxisSource(mockV3Version).buildFullSeasonSnapshot();
+  const v2HashAfterMockV3 = await maxisImplementationHash(SEASON_EVALUATOR_VERSION);
+  const v2RulesAfterMockV3 = getMaxisEvaluator(SEASON_EVALUATOR_VERSION).buildRuleDefinition(v2HashAfterMockV3);
+  let mismatchedRegistryRejected = false;
+  let duplicateRegistryRejected = false;
+  try {
+    registerMaxisEvaluator('maxis-evaluator-v3-mismatch', { SEASON_EVALUATOR_VERSION: 'wrong-version' });
+  } catch {
+    mismatchedRegistryRejected = true;
+  }
+  try {
+    registerMaxisSource(mockV3Version, mockV3Source);
+  } catch {
+    duplicateRegistryRejected = true;
+  }
+  if (
+    CURRENT_MAXIS_EVALUATOR_VERSION !== SEASON_EVALUATOR_VERSION
+    || !maxisEvaluatorVersions().includes(mockV3Version)
+    || !maxisSourceVersions().includes(mockV3Version)
+    || mockV3Selection?.mock !== 'v3-source'
+    || getMaxisEvaluator(SEASON_EVALUATOR_VERSION) !== v2EvaluatorBefore
+    || getMaxisSource(SEASON_EVALUATOR_VERSION) !== v2SourceBefore
+    || v2HashAfterMockV3 !== v2HashBeforeMockV3
+    || JSON.stringify(v2RulesAfterMockV3) !== JSON.stringify(v2RulesBeforeMockV3)
+    || !mismatchedRegistryRejected
+    || !duplicateRegistryRejected
+  ) {
+    fail(`maxis v3 registration must coexist without changing frozen v2 execution/hash: ${JSON.stringify({
+      current: CURRENT_MAXIS_EVALUATOR_VERSION,
+      evaluatorVersions: maxisEvaluatorVersions(),
+      sourceVersions: maxisSourceVersions(),
+      mockV3Selection,
+      hashStable: v2HashAfterMockV3 === v2HashBeforeMockV3,
+      rulesStable: JSON.stringify(v2RulesAfterMockV3) === JSON.stringify(v2RulesBeforeMockV3),
+      mismatchedRegistryRejected,
+      duplicateRegistryRejected
+    })}`);
+  }
+
+  const buildingTransactionStates = await walk(
+    'data/maxis/seasons',
+    (file) => file.endsWith('/transaction-state.building.json')
+  ).catch(() => []);
+  for (const statePath of buildingTransactionStates) {
+    const state = JSON.parse(await readText(statePath));
+    const { integrity, ...unsigned } = state;
+    const stateErrors = validateTransactionAccumulator(state, { allowBuilding: true });
+    if (
+      state?.status !== 'building'
+      || integrity?.algorithm !== 'sha256-stable-json-v1'
+      || integrity?.contentHash !== stableJsonHash(unsigned)
+      || stateErrors.length
+    ) {
+      fail(`maxis deferred Transaction sidecar is not a valid signed building state: ${statePath} ${stateErrors.join('; ')}`);
+    }
+  }
+
+  const manifest = JSON.parse(await readText('data/maxis/manifest.json'));
+  const manifestErrors = validateSeasonCatalog(manifest);
+  if (manifestErrors.length) fail(`maxis season manifest invalid: ${manifestErrors.join('; ')}`);
+  const activeEntry = (manifest.seasons || []).find((entry) => entry.id === manifest.activeSeasonId);
+  if (!activeEntry) fail('maxis season manifest has no matching active entry');
+  const localArtifactPath = (value) => String(value || '').replace(/^\/+/, '');
+  const activeSummaryPath = localArtifactPath(activeEntry?.summaryPath);
+  const activeRulesPath = localArtifactPath(activeEntry?.rulesPath);
+  const seasonSummary = activeSummaryPath ? JSON.parse(await readText(activeSummaryPath)) : null;
+  const seasonRules = activeRulesPath ? JSON.parse(await readText(activeRulesPath)) : null;
+  if (seasonRules?.version !== SEASON_RULES_VERSION || seasonRules?.evaluatorVersion !== SEASON_EVALUATOR_VERSION || seasonRules?.definition?.deepRankingLimit !== DEEP_RANKING_LIMIT) {
+    fail('maxis active season rules do not match the frozen scorer version and deep ranking contract');
+  }
+  if (seasonRules?.seasonId !== activeEntry?.id || seasonRules?.protocolHash !== activeEntry?.protocolHash || seasonRules?.rulesHash !== activeEntry?.rulesHash || seasonRules?.taxonomyHash !== activeEntry?.taxonomyHash) {
+    fail('maxis manifest and active frozen rules identity are out of sync');
+  }
+  const frozenConfigErrors = validateMaxisConfig(seasonRules?.taxonomySnapshot || {});
+  if (frozenConfigErrors.length) fail(`maxis frozen season taxonomy invalid: ${frozenConfigErrors.join('; ')}`);
+  if (seasonSummary?.season?.id !== activeEntry?.id || seasonSummary?.season?.protocolHash !== activeEntry?.protocolHash || seasonSummary?.rules?.rulesHash !== activeEntry?.rulesHash) {
+    fail('maxis active summary identity or rules receipt does not match the manifest');
+  }
+  if (seasonSummary?.season?.status !== 'active' || seasonSummary?.season?.endsAt != null || !/next Tezos protocol activation/i.test(seasonSummary?.season?.endsWhen || '')) {
+    fail('maxis active summary must declare an open protocol-season end until the next activation exists');
+  }
+  if (!seasonSummary?.sourceReceipts?.activation?.tzktBlock) fail('maxis active summary must carry an exact activation receipt');
+  const transactionStatePath = localArtifactPath(
+    activeEntry?.transactionStatePath || seasonSummary?.sourceReceipts?.transaction?.statePath
+  );
+  let transactionState = null;
+  if (transactionStatePath) {
+    transactionState = JSON.parse(await readText(transactionStatePath));
+    const { integrity, ...unsigned } = transactionState;
+    const transactionStateErrors = validateTransactionAccumulator(transactionState);
+    if (
+      integrity?.algorithm !== 'sha256-stable-json-v1'
+      || integrity?.contentHash !== stableJsonHash(unsigned)
+      || transactionStateErrors.length
+    ) {
+      fail(`maxis complete Transaction state is invalid: ${transactionStateErrors.join('; ')}`);
+    }
+    if (
+      transactionState?.season?.id !== activeEntry?.id
+      || transactionState?.rules?.evaluatorVersion !== seasonRules?.evaluatorVersion
+      || transactionState?.rules?.rulesHash !== seasonRules?.rulesHash
+      || integrity?.contentHash !== activeEntry?.transactionStateHash
+      || integrity?.contentHash !== seasonSummary?.sourceReceipts?.transaction?.stateHash
+    ) {
+      fail('maxis complete Transaction state receipts do not cross-link to manifest, rules, and summary');
+    }
+  } else if (seasonSummary?.artifactBudget) {
+    fail('maxis budgeted season summary is missing its complete Transaction state path');
+  }
+  const summaryTruncationErrors = truncationCoverageErrors(seasonSummary);
+  if (summaryTruncationErrors.length) fail(`maxis source truncation is not isolated to unavailable dependent lanes: ${summaryTruncationErrors.join('; ')}`);
+  if (Number(seasonSummary?.deepRankingLimit) !== DEEP_RANKING_LIMIT || Number(seasonSummary?.passports?.shardCount) !== PASSPORT_SHARD_COUNT || seasonSummary?.passports?.shardAlgorithm !== PASSPORT_SHARD_ALGORITHM) {
+    fail('maxis active summary deep-rank or Passport shard metadata is invalid');
+  }
+
+  const summaryCategories = Object.keys(seasonSummary?.laneStatus || {});
+  if (summaryCategories.slice().sort().join(',') !== SEASON_CATEGORY_ORDER.slice().sort().join(',')) {
+    fail(`maxis active summary lane catalog mismatch: ${summaryCategories.join(',')}`);
+  }
+  for (const category of SEASON_CATEGORY_ORDER) {
+    const status = seasonSummary?.laneStatus?.[category];
+    const ranking = seasonSummary?.rankings?.[category];
+    const cutoff = seasonSummary?.cutoffs?.[category];
+    if (!status || !['ready', 'empty', 'unavailable'].includes(status.status)) fail(`maxis season ${category} has an invalid status`);
+    if (!Array.isArray(ranking) || ranking.length > 10) fail(`maxis season ${category} summary ranking is invalid`);
+    if (status?.status === 'ready' && !ranking?.length) fail(`maxis season ${category} is ready without published standings`);
+    if (status?.status === 'unavailable' && (ranking?.length || !status.reason)) fail(`maxis unavailable ${category} must publish no winner and explain why`);
+    for (const [index, row] of (ranking || []).entries()) {
+      if (row.rank !== index + 1 || !Array.isArray(row.scoreVector) || !row.scoreVector.length || !Object.hasOwn(row, 'delta')) {
+        fail(`maxis season ${category} rank ${index + 1} lacks deterministic score/movement data`);
+      }
+    }
+    if (ranking?.[0]?.address !== cutoff?.leader?.address) fail(`maxis season ${category} leader and cutoff receipt disagree`);
+    if (ranking?.length >= 2 && ranking[1].address !== cutoff?.nearestChallenger?.address) fail(`maxis season ${category} nearest challenger receipt disagrees`);
+    if (ranking?.length >= 10 && ranking[9].address !== cutoff?.topTen?.address) fail(`maxis season ${category} top-ten cutoff receipt disagrees`);
+  }
+
+  const summaryShards = seasonSummary?.passports?.nonemptyShards || [];
+  const manifestShards = activeEntry?.availableShards || [];
+  if (summaryShards.join(',') !== manifestShards.join(',')) fail('maxis summary and manifest disagree on non-empty Passport shards');
+  const seenPassportAddresses = new Set();
+  const passportLaneCounts = Object.fromEntries(SEASON_CATEGORY_ORDER.map((category) => [category, 0]));
+  const verifiedShardHashes = {};
+  const passportShardPayloads = new Map();
+  for (const shard of manifestShards) {
+    if (!/^[0-3][0-9a-f]$/.test(shard)) {
+      fail(`maxis manifest contains invalid Passport shard ${shard}`);
+      continue;
+    }
+    const shardPath = localArtifactPath(activeEntry.passportPathTemplate?.replace('{shard}', shard));
+    const rawShard = await readText(shardPath);
+    const expectedShardHash = seasonSummary?.passports?.shardHashes?.[shard];
+    const actualShardHash = createHash('sha256').update(rawShard).digest('hex');
+    if (!/^[0-9a-f]{64}$/.test(expectedShardHash || '') || actualShardHash !== expectedShardHash) {
+      fail(`maxis Passport shard ${shard} does not match its SHA-256 receipt`);
+    }
+    verifiedShardHashes[shard] = actualShardHash;
+    const payload = JSON.parse(rawShard);
+    if (seasonSummary?.passports?.algorithm === 'sha256-compact-json-v1' && rawShard !== `${JSON.stringify(payload)}\n`) {
+      fail(`maxis Passport shard ${shard} is not canonical compact JSON`);
+    }
+    passportShardPayloads.set(shard, payload);
+    const expectedShardSchema = seasonSummary?.artifactBudget ? 2 : Number(payload.schema);
+    if (![1, 2].includes(Number(payload.schema)) || expectedShardSchema !== Number(payload.schema) || payload.seasonId !== activeEntry.id || payload.shard !== shard || payload.shardAlgorithm !== PASSPORT_SHARD_ALGORITHM) {
+      fail(`maxis Passport shard ${shard} metadata is incompatible`);
+    }
+    for (const [address, storedPassport] of Object.entries(payload.passports || {})) {
+      const passport = expandPassportRecord(storedPassport);
+      if (addressShard(address) !== shard || passport?.address !== address || seenPassportAddresses.has(address)) {
+        fail(`maxis Passport ${address} is duplicated, misidentified, or in the wrong shard`);
+      }
+      seenPassportAddresses.add(address);
+      const badgeIds = (passport?.badges || []).map((badge) => badge.id);
+      if (badgeIds.length !== new Set(badgeIds).size) fail(`maxis Passport ${address} repeats an earned badge`);
+      for (const [category, lane] of Object.entries(passport?.lanes || {})) {
+        if (!SEASON_CATEGORY_ORDER.includes(category) || (lane.rank != null && Number(lane.rank) < 1) || Number(lane.personalBestRank) < 1) {
+          fail(`maxis Passport ${address} has an invalid ${category} lane record`);
+        }
+        if (SEASON_CATEGORY_ORDER.includes(category)) passportLaneCounts[category] += 1;
+        const milestone = seasonRules?.definition?.lanes?.[category]?.passportMilestone;
+        const progress = lane?.badgeProgress;
+        const scoreValue = (lane?.scoreVector || []).find((metric) => metric.metric === milestone?.metric)?.value;
+        const expectedPercent = milestone?.target > 0 ? Math.min(100, Math.round((Number(scoreValue || 0) / Number(milestone.target)) * 100)) : null;
+        if (
+          !milestone
+          || progress?.version !== milestone.version
+          || progress?.metric !== milestone.metric
+          || Number(progress?.target) !== Number(milestone.target)
+          || Number(progress?.value) !== Number(scoreValue || 0)
+          || Number(progress?.percent) !== expectedPercent
+          || Boolean(progress?.earned) !== (Number(scoreValue || 0) >= Number(milestone.target))
+        ) {
+          fail(`maxis Passport ${address} ${category} badge progress is not derived from its frozen milestone`);
+        }
+      }
+      const qualifyingLanes = passport?.unicorn?.qualifyingLanes || [];
+      if (passport?.unicorn?.rank != null) passportLaneCounts.unicorn += 1;
+      const unicornMilestone = seasonRules?.definition?.lanes?.unicorn?.passportMilestone;
+      const unicornProgress = passport?.unicorn?.badgeProgress;
+      const expectedUnicornPercent = unicornMilestone?.target > 0
+        ? Math.min(100, Math.round((qualifyingLanes.length / Number(unicornMilestone.target)) * 100))
+        : null;
+      if (
+        !unicornMilestone
+        || unicornProgress?.version !== unicornMilestone.version
+        || unicornProgress?.metric !== unicornMilestone.metric
+        || Number(unicornProgress?.target) !== Number(unicornMilestone.target)
+        || Number(unicornProgress?.value) !== qualifyingLanes.length
+        || Number(unicornProgress?.percent) !== expectedUnicornPercent
+        || Boolean(unicornProgress?.earned) !== (qualifyingLanes.length >= Number(unicornMilestone.target))
+      ) {
+        fail(`maxis Passport ${address} Unicorn progress is not derived from its frozen milestone`);
+      }
+      if (Number(passport?.unicorn?.breadth || 0) !== qualifyingLanes.length) fail(`maxis Passport ${address} Unicorn breadth disagrees with its lane receipts`);
+      for (const lane of qualifyingLanes) {
+        if (seasonSummary?.laneStatus?.[lane.category]?.status !== 'ready' || Number(lane.rank) > 100) {
+          fail(`maxis Passport ${address} receives Unicorn credit from an unavailable or non-qualifying lane`);
+        }
+      }
+    }
+  }
+  if (seenPassportAddresses.size !== Number(seasonSummary?.passports?.indexedAddresses || 0)) {
+    fail(`maxis Passport shard index count mismatch: ${seenPassportAddresses.size}/${seasonSummary?.passports?.indexedAddresses}`);
+  }
+  const verifiedContentRootInput = Object.entries(verifiedShardHashes)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([shard, hash]) => `${shard}:${hash}`)
+    .join('\n');
+  const verifiedContentRoot = createHash('sha256').update(verifiedContentRootInput).digest('hex');
+  if (verifiedContentRoot !== seasonSummary?.passports?.contentRoot) {
+    fail('maxis Passport shard catalog does not match its season content root');
+  }
+  if (seasonSummary?.artifactBudget && transactionState) {
+    const measuredBudget = measureSeasonArtifactBudget({
+      rules: seasonRules,
+      summary: seasonSummary,
+      transactionState,
+      shardPayloads: passportShardPayloads,
+      limits: seasonSummary.artifactBudget.limits
+    });
+    const budgetErrors = artifactBudgetErrors(measuredBudget);
+    if (JSON.stringify(measuredBudget) !== JSON.stringify(seasonSummary.artifactBudget) || budgetErrors.length) {
+      fail(`maxis active artifact budget receipt does not match committed bytes: ${budgetErrors.join('; ')}`);
+    }
+  }
+  for (const category of SEASON_CATEGORY_ORDER) {
+    const eligibleCount = Number(seasonSummary?.laneStatus?.[category]?.eligibleCount || 0);
+    if (passportLaneCounts[category] !== eligibleCount) {
+      fail(`maxis Passport ${category} coverage count mismatch: ${passportLaneCounts[category]}/${eligibleCount}`);
+    }
+  }
+  for (const archivedEntry of (manifest.seasons || []).filter((entry) => entry.status === 'finalized')) {
+    const archivedSummary = JSON.parse(await readText(localArtifactPath(archivedEntry.summaryPath)));
+    if (!archivedEntry.archiveUrl || archivedSummary?.season?.status !== 'finalized' || !archivedSummary?.integrity?.contentHash || !archivedSummary?.finalization) {
+      fail(`maxis finalized season ${archivedEntry.id} lacks an immutable archive receipt`);
+    }
+  }
+
   const contracts = [
     ['maxis app import', 'initMaxisChamber', app],
     ['maxis pretty path map', "maxis: 'maxis'", app],
@@ -2506,17 +3219,40 @@ async function checkMaxisContracts() {
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
-    ['maxis category jump wiring', 'wireCategoryJumps(body)', maxis],
+    ['maxis protocol-season selector', 'class="maxis-season-orb"', maxis],
+    ['maxis four-room tab set', "const VIEW_KEYS = ['season', 'passport', 'crown', 'champions']", maxis],
+    ['maxis single selected lane board', 'data-maxis-board=', maxis],
+    ['maxis conservative pass-gap normalization', 'conservativeVectorPath', maxis],
+    ['maxis archived pass-gap compatibility', ': gap.minimalKnownPath', maxis],
+    ['maxis pass-gap certainty disclosure', 'conservative static-vector path:', maxis],
+    ['maxis frozen archive lane catalog', 'archiveLaneCatalog', maxis],
+    ['maxis frozen archive lane title', 'frozenLaneTitle', maxis],
+    ['maxis frozen archive lane order', 'frozenLaneOrder', maxis],
+    ['maxis compact transaction Passport adapter', "profile?.format === 'transaction-only-v1'", maxis],
+    ['maxis compact transaction top-ten adapter', 'record?.topTenGap', maxis],
+    ['maxis compact Unicorn progress adapter', 'profile?.unicornProgress?.breadth', maxis],
+    ['maxis compact transaction near-miss adapter', 'function profileNearMisses', maxis],
+    ['maxis Passport SHA-256 shard routing', "crypto.subtle.digest('SHA-256'", maxis],
+    ['maxis Passport explicit-address form', 'data-maxis-passport-form', maxis],
+    ['maxis objective crown disclosure', 'Crowns are objective activity metrics, not endorsements.', maxis],
     ['maxis opeculiar idea credit', 'Chamber idea by <strong>opeculiar</strong>', maxis],
-    ['maxis direct route', 'Direct: /maxis/', maxis],
-    ['maxis entry grid', '.maxis-entry-grid', maxisCss],
-    ['maxis top-ten ranking list', '.maxis-ranking-list', maxisCss],
-    ['maxis category jump rail', '.maxis-category-nav', maxisCss],
-    ['maxis category leader crowns', '.maxis-rank-crown', maxisCss],
-    ['maxis service worker data', '/data/maxis-leaders.json', sw]
+    ['maxis protocol-season stage', '.maxis-season-stage', maxisCss],
+    ['maxis four-room tabs', '.maxis-room-tabs', maxisCss],
+    ['maxis podium', '.maxis-podium', maxisCss],
+    ['maxis compact ranks four through ten', '.maxis-compact-ranking', maxisCss],
+    ['maxis Passport progress track', '.maxis-progress-track', maxisCss],
+    ['maxis Champions archive cards', '.maxis-champion-card', maxisCss],
+    ['maxis service worker manifest', '/data/maxis/manifest.json', sw],
+    ['My Tezos Passport link', 'my-tezos-maxi-passport-link', myTezos]
   ];
   for (const [label, snippet, source] of contracts) {
     if (!source.includes(snippet)) fail(`missing ${label}`);
+  }
+  if (/on the known tie path/i.test(maxis)) fail('maxis UI must not present a frozen score-vector path as a known dynamic minimum');
+  const governanceRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-governance-data.mjs'");
+  const maxisRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-maxis-data.mjs'");
+  if (governanceRefreshIndex < 0 || maxisRefreshIndex < 0 || governanceRefreshIndex > maxisRefreshIndex) {
+    fail('generated surfaces must refresh governance before Maxis because current-protocol truth is a Maxis input');
   }
   if (!/\.hot-today-progress\s*\{[^}]*margin:\s*0\.7rem auto 0;/s.test(shellExtrasCss)) {
     fail('What is hot today progress controls must stay centered');

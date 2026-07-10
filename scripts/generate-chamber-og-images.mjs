@@ -62,10 +62,10 @@ function routeDetails(route, report) {
       body: 'Scan Tezos bakers, staking, governance, transactions, contracts, supply, and adjacent chambers in one live operations room.'
     },
     maxis: {
-      kicker: 'Spot the Maxis',
-      value: 'On-chain activity leaders',
-      chips: ['art + minting', 'DeFi + gaming', 'Ledger Flow trails'],
-      body: 'Meet the leading Tezos accounts across declared activity lanes, inspect every scoring method, and trace each winner through Ledger Flow.'
+      kicker: 'Protocol Seasons',
+      value: 'Race. Progress. Become.',
+      chips: ['Maxi Passports', 'Crown Hall', 'Permanent champions'],
+      body: 'Race across activation-bounded Tezos seasons, track every wallet lane and near miss, and preserve objective crowns without turning the chamber into a whale wall.'
     },
     chamber: {
       kicker: `${proposal} ${kind}`,

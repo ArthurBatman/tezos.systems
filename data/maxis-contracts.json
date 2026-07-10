@@ -13,13 +13,15 @@
       "id": "quipuswap",
       "label": "QuipuSwap",
       "category": "defi",
-      "aliasPatterns": ["^QuipuSwap v2 Vault ", "^QuipuSwap .+ DEX$", "^Quipuswap v3 DEX"]
+      "aliasPatterns": ["^QuipuSwap v2 Vault ", "^QuipuSwap .+ DEX$", "^Quipuswap v3 DEX", "^Quipu[Ss]wap .+ Stableswap"],
+      "liquidityEntrypoints": ["addLiquidity", "add_liquidity", "invest"]
     },
     {
       "id": "plenty",
       "label": "Plenty",
       "category": "defi",
-      "aliasPatterns": ["^Plenty v2 .+ DEX$", " Plenty Network (?:Tez|Volatile|Stable) Swap$", "^PLENTY / .+ Swap$", "^Plenty swap router"]
+      "aliasPatterns": ["^Plenty v2 .+ DEX$", " Plenty Network (?:Tez|Volatile|Stable) Swap$", "^PLENTY / .+ Swap$", "^Plenty swap router"],
+      "liquidityEntrypoints": ["AddLiquidity", "addLiquidity", "add_liquidity", "invest", "invest_liquidity"]
     },
     {
       "id": "youves",
@@ -37,13 +39,22 @@
       "id": "spicyswap",
       "label": "SpicySwap",
       "category": "defi",
-      "aliasPatterns": ["^SpicySwap Router"]
+      "aliasPatterns": ["^SpicySwap Router"],
+      "liquidityEntrypoints": ["addLiquidity", "add_liquidity"]
     },
     {
       "id": "vortex",
       "label": "Vortex",
       "category": "defi",
-      "aliasPatterns": ["^Vortex .+ DEX"]
+      "aliasPatterns": ["^Vortex .+ DEX"],
+      "liquidityEntrypoints": ["addLiquidity", "add_liquidity"]
+    },
+    {
+      "id": "sirius",
+      "label": "Sirius DEX",
+      "category": "defi",
+      "aliasPatterns": ["^Sirius DEX"],
+      "liquidityEntrypoints": ["addLiquidity"]
     },
     {
       "id": "tezotopia",

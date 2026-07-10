@@ -114,7 +114,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v372`
+- Service worker cache name: `tezos-systems-v405`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -209,6 +209,8 @@ Stamping gotchas:
 ## Feature Modules
 
 - Governance: `js/features/governance.js`, `js/features/chamber.js`
+- Tezos Maxis: `js/features/maxis.js`; source presentation lives in
+  `css/maxis.css` rather than the main minified bundle.
 - Protocol history: `js/features/history.js`
 - Baker tools: `leaderboard.js`, `my-baker.js`, `my-tezos.js`,
   `rewards-tracker.js`, `baker-report-card.js`
@@ -233,7 +235,9 @@ Stamping gotchas:
 
 Verified theme list in `theme.js`:
 
+- `aurora`
 - `matrix`
+- `hen`
 - `default`
 - `void`
 - `ember`
@@ -263,6 +267,16 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
 - `data/governance-refresh-report.json`: generated stale-data audit with live
   current protocol/period, lore coverage, active proposal watch notes, and
   blocker/warning status.
+- `data/maxis-leaders.json`: legacy mixed-clock Crown Hall snapshot.
+- `data/maxis/manifest.json`: protocol-season catalog and active/settling/final
+  lifecycle entry point. Each `data/maxis/seasons/<season-id>/` directory keeps
+  its frozen rules, summary, integrity-checked Passport shards, and resumable
+  season-owned `transaction-state.json`. A long first scan may also leave a
+  signed `transaction-state.building.json` resume sidecar; it is never a
+  publishable receipt and must not advance the manifest, summary, or Passport
+  hashes until atomically promoted. Both checkpoints are generator input, not
+  browser payloads. Final archives must validate from their own
+  frozen lane catalog rather than current category constants.
 - `data/tweets.json`: share-copy templates used by the share system.
 
 ## Version History Log
@@ -307,6 +321,23 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   staged-source outputs for CSS bundles, pretty chamber route shells, sitemap,
   chamber OG images, and compare pages; scheduled/manual mode refreshes the full
   generated set.
+- `scripts/refresh-maxis-data.mjs`: generates the mixed-clock Crown Hall and
+  frozen protocol-season artifacts. It must run after governance refresh,
+  preserve active rules and finalized archives byte-for-byte, open a new season
+  at activation while the prior one settles for 24 hours, and fail closed on a
+  non-adjacent protocol jump rather than assigning an ending season the wrong
+  boundary. `npm run check:maxis` validates without rescanning live sources.
+- `scripts/lib/maxis-evaluator-v2.mjs` and
+  `scripts/lib/maxis-source-v2.mjs`: immutable v2 scoring plus source/build
+  semantics. `scripts/lib/maxis-transactions-v2.mjs` owns the resumable exact
+  transaction state, and `scripts/lib/maxis-artifact-budget.mjs` measures the
+  committed UTF-8 envelope (pretty core artifacts, compact Passport shards).
+  Future evaluators must register as new
+  versioned modules; changing a v2 semantic dependency invalidates
+  active/settling v2 rules and is not a routine refactor. Active artifacts are
+  capped at 16 MiB for the transaction state, 1 MiB per Passport shard, and 64
+  MiB for rules + summary + state + shards; a budget fallback may withhold
+  Transaction but must never truncate its eligible-wallet Passport set.
 - `scripts/generate-milestone-catalog.mjs`: refreshes
   `data/milestone-catalog.json` from a compact TzKT snapshot when either 14 days
   or 100 commits have elapsed. The pre-commit path projects the pending commit;
@@ -371,5 +402,8 @@ Check at least:
 - live stats render without CSP errors
 - share capture opens and produces a sane image
 - protocol history modal remains readable
+- Tezos Maxis keeps one lane visible in all four rooms, the circular season
+  selector remains contained on mobile, Passport shard/hash errors stay local,
+  and no active/settling result appears as a finalized champion
 - My Baker / My Tezos drawer still opens
 - service worker/cache does not serve stale edited assets

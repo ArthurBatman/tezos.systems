@@ -629,6 +629,7 @@ export function init() {
     const clearBtn = document.getElementById('my-baker-clear');
     const shareLinkBtn = document.getElementById('my-baker-share-link');
     const ledgerFlowLink = document.getElementById('my-tezos-ledger-flow-link');
+    const maxiPassportLink = document.getElementById('my-tezos-maxi-passport-link');
     const results = document.getElementById('my-baker-results');
     const errorMsg = document.getElementById('my-baker-error-msg');
 
@@ -748,20 +749,39 @@ export function init() {
     }
 
     function updateLedgerFlowLink(addr) {
-        if (!ledgerFlowLink) return;
+        if (!ledgerFlowLink && !maxiPassportLink) return;
         if (!addr) {
-            ledgerFlowLink.hidden = true;
-            ledgerFlowLink.style.display = 'none';
-            ledgerFlowLink.href = '#ledger-flow';
-            ledgerFlowLink.removeAttribute('title');
-            ledgerFlowLink.removeAttribute('aria-label');
+            if (ledgerFlowLink) {
+                ledgerFlowLink.hidden = true;
+                ledgerFlowLink.style.display = 'none';
+                ledgerFlowLink.href = '#ledger-flow';
+                ledgerFlowLink.removeAttribute('title');
+                ledgerFlowLink.removeAttribute('aria-label');
+            }
+            if (maxiPassportLink) {
+                maxiPassportLink.hidden = true;
+                maxiPassportLink.style.display = 'none';
+                maxiPassportLink.href = '/maxis/?view=passport';
+                maxiPassportLink.removeAttribute('title');
+                maxiPassportLink.removeAttribute('aria-label');
+            }
             return;
         }
-        ledgerFlowLink.hidden = false;
-        ledgerFlowLink.style.display = 'grid';
-        ledgerFlowLink.href = `#ledger-flow=${encodeURIComponent(addr)}`;
-        ledgerFlowLink.title = `Open Ledger Flow transfer map for ${addr}`;
-        ledgerFlowLink.setAttribute('aria-label', `Open Ledger Flow transfer map for ${addr}`);
+        if (ledgerFlowLink) {
+            ledgerFlowLink.hidden = false;
+            ledgerFlowLink.style.display = 'grid';
+            ledgerFlowLink.href = `#ledger-flow=${encodeURIComponent(addr)}`;
+            ledgerFlowLink.title = `Open Ledger Flow transfer map for ${addr}`;
+            ledgerFlowLink.setAttribute('aria-label', `Open Ledger Flow transfer map for ${addr}`);
+        }
+        if (maxiPassportLink) {
+            const passportUrl = `/maxis/?view=passport&address=${encodeURIComponent(addr)}`;
+            maxiPassportLink.hidden = false;
+            maxiPassportLink.style.display = 'grid';
+            maxiPassportLink.href = passportUrl;
+            maxiPassportLink.title = `Open Maxi Passport for ${addr}`;
+            maxiPassportLink.setAttribute('aria-label', `Open Maxi Passport for ${addr}`);
+        }
     }
 
     function setDrawerConnectionState(hasAddress) {

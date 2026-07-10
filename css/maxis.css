@@ -1028,3 +1028,973 @@
     .maxis-card::before { opacity: 0.45; }
     .maxis-rank-crown::after { animation: none; opacity: 0.72; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROTOCOL SEASONS — season orbit, room switcher, lane drilldown + Passport
+   ═══════════════════════════════════════════════════════════════════════════ */
+.maxis-experience {
+    position: relative;
+    min-height: 32rem;
+    --maxis-panel: color-mix(in srgb, var(--bg-secondary, #101524) 88%, transparent);
+    --maxis-line: color-mix(in srgb, var(--maxis-gold) 18%, rgba(255, 255, 255, 0.07));
+}
+
+.maxis-season-tray {
+    position: sticky;
+    top: 0.55rem;
+    z-index: 72;
+    width: 0;
+    height: 0;
+    margin-left: 0.55rem;
+    overflow: visible;
+}
+
+.maxis-season-orb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 62%, transparent);
+    border-radius: 50%;
+    color: #fff5ce;
+    background:
+        radial-gradient(circle at 31% 24%, rgba(255, 255, 255, 0.32), transparent 28%),
+        radial-gradient(circle at 50% 105%, color-mix(in srgb, var(--maxis-violet) 40%, transparent), transparent 58%),
+        color-mix(in srgb, #131327 91%, transparent);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--maxis-gold) 12%, transparent),
+        0 9px 25px rgba(0, 0, 0, 0.34),
+        0 0 28px color-mix(in srgb, var(--maxis-gold) 17%, transparent);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    cursor: pointer;
+    isolation: isolate;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.maxis-season-orb::before,
+.maxis-season-orb::after {
+    content: '';
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.maxis-season-orb::before {
+    inset: -5px;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 24%, transparent);
+    border-top-color: color-mix(in srgb, var(--maxis-cyan) 58%, transparent);
+    animation: maxis-season-orbit 9s linear infinite;
+}
+
+.maxis-season-orb::after {
+    inset: 3px;
+    border: 1px dashed color-mix(in srgb, var(--maxis-violet) 30%, transparent);
+}
+
+.maxis-season-orb:is(:hover, :focus-visible),
+.maxis-season-tray.is-open .maxis-season-orb {
+    outline: none;
+    transform: translateY(-1px) scale(1.045);
+    border-color: color-mix(in srgb, var(--maxis-gold) 88%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--maxis-gold) 10%, transparent), 0 12px 30px rgba(0, 0, 0, 0.38), 0 0 34px color-mix(in srgb, var(--maxis-gold) 24%, transparent);
+}
+
+.maxis-season-orb-mark {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0;
+    color: inherit;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    font-weight: 950;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    text-align: center;
+}
+
+.maxis-season-orb-mark small {
+    margin-top: 0.12rem;
+    color: color-mix(in srgb, var(--maxis-cyan) 72%, #fff);
+    font-size: 0.36rem;
+    letter-spacing: 0.08em;
+}
+
+.maxis-season-menu {
+    position: absolute;
+    top: 0;
+    left: 54px;
+    width: min(20rem, calc(100vw - 8rem));
+    max-height: min(70vh, 34rem);
+    overflow: auto;
+    padding: 0.55rem;
+    border: 1px solid var(--maxis-line);
+    border-radius: 13px;
+    background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--maxis-gold) 12%, transparent), transparent 34%),
+        color-mix(in srgb, var(--bg-primary, #070b14) 95%, transparent);
+    box-shadow: 0 20px 55px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-8px) scale(0.97);
+    transform-origin: left top;
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+/* Keep the hidden selector from enlarging the modal's scrollable canvas. */
+.maxis-season-tray:not(.is-open) .maxis-season-menu {
+    width: 0;
+    max-height: 0;
+    padding: 0;
+    border-width: 0;
+}
+
+.maxis-season-tray.is-open .maxis-season-menu {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0) scale(1);
+    transition-delay: 0s;
+}
+
+.maxis-season-menu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0.45rem 0.55rem;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.5rem;
+    font-weight: 850;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.maxis-season-menu-head strong { color: var(--maxis-gold); }
+
+.maxis-season-option {
+    display: grid;
+    grid-template-columns: 2.35rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.62rem;
+    width: 100%;
+    min-height: 48px;
+    padding: 0.48rem 0.55rem;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: var(--text-secondary);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.maxis-season-option + .maxis-season-option { margin-top: 0.28rem; }
+.maxis-season-option:is(:hover, :focus-visible),
+.maxis-season-option[aria-checked="true"] {
+    outline: none;
+    border-color: color-mix(in srgb, var(--maxis-gold) 32%, transparent);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--maxis-gold) 9%, transparent), color-mix(in srgb, var(--maxis-violet) 6%, transparent));
+    transform: translateX(2px);
+}
+
+.maxis-season-seal {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 42%, transparent);
+    border-radius: 50%;
+    color: var(--maxis-gold);
+    background: color-mix(in srgb, var(--maxis-gold) 7%, transparent);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 900;
+}
+
+.maxis-season-option-copy { min-width: 0; }
+.maxis-season-option-copy strong,
+.maxis-season-option-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-season-option-copy strong { color: var(--text-primary); font-size: 0.72rem; }
+.maxis-season-option-copy small { margin-top: 0.12rem; color: var(--text-tertiary); font-size: 0.56rem; }
+.maxis-season-option-state {
+    padding: 0.2rem 0.34rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-cyan) 30%, transparent);
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--maxis-cyan) 70%, var(--text-primary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.4rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.maxis-protocol-hero {
+    position: relative;
+    overflow: hidden;
+    margin: 0 0 0.75rem;
+    padding: 1.1rem 4.25rem 1.15rem;
+    border: 1px solid var(--maxis-line);
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--maxis-gold) 14%, transparent), transparent 30%),
+        radial-gradient(circle at 92% 20%, color-mix(in srgb, var(--maxis-violet) 14%, transparent), transparent 34%),
+        linear-gradient(130deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.012));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.maxis-protocol-hero::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: -8rem;
+    width: 18rem;
+    height: 18rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 10%, transparent);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2rem color-mix(in srgb, var(--maxis-violet) 3%, transparent), 0 0 0 5rem color-mix(in srgb, var(--maxis-cyan) 2%, transparent);
+    pointer-events: none;
+}
+
+.maxis-protocol-kicker {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    color: color-mix(in srgb, var(--maxis-gold) 70%, var(--text-secondary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.maxis-protocol-kicker span {
+    padding: 0.22rem 0.42rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-cyan) 32%, transparent);
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--maxis-cyan) 72%, var(--text-primary));
+    letter-spacing: 0.06em;
+}
+
+.maxis-protocol-title {
+    position: relative;
+    z-index: 1;
+    margin: 0.55rem 0 0;
+    color: color-mix(in srgb, var(--maxis-gold) 72%, var(--text-primary));
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.35rem, 3vw, 2.2rem);
+    font-weight: 900;
+    letter-spacing: 0.025em;
+    line-height: 1.08;
+    text-align: center;
+    text-wrap: balance;
+    text-shadow: 0 0 26px color-mix(in srgb, var(--maxis-gold) 22%, transparent);
+}
+
+.maxis-protocol-lead {
+    position: relative;
+    z-index: 1;
+    max-width: 48rem;
+    margin: 0.48rem auto 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    text-align: center;
+    text-wrap: balance;
+}
+
+.maxis-season-telemetry {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.45rem;
+    max-width: 52rem;
+    margin: 0.9rem auto 0;
+}
+
+.maxis-season-telemetry span {
+    min-width: 0;
+    padding: 0.48rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 8px;
+    color: var(--text-tertiary);
+    background: rgba(255, 255, 255, 0.022);
+    font-size: 0.56rem;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.maxis-season-telemetry strong {
+    display: block;
+    overflow: hidden;
+    margin-bottom: 0.12rem;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.maxis-room-tabs {
+    position: sticky;
+    top: 0.38rem;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.32rem;
+    margin: 0 0 0.72rem;
+    padding: 0.42rem 0.42rem 0.42rem 3.55rem;
+    border: 1px solid var(--maxis-line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bg-primary, #080c16) 92%, transparent);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+.maxis-room-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.38rem;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text-tertiary);
+    background: transparent;
+    font: inherit;
+    font-size: 0.62rem;
+    font-weight: 850;
+    cursor: pointer;
+    transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.maxis-room-tab span { color: color-mix(in srgb, var(--maxis-gold) 72%, var(--text-primary)); }
+.maxis-room-tab:is(:hover, :focus-visible) { outline: none; color: var(--text-primary); transform: translateY(-1px); }
+.maxis-room-tab[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--maxis-gold) 30%, transparent);
+    color: var(--text-primary);
+    background: linear-gradient(110deg, color-mix(in srgb, var(--maxis-gold) 9%, transparent), color-mix(in srgb, var(--maxis-violet) 7%, transparent));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.maxis-room-panel { animation: maxis-room-enter 0.2s ease both; }
+
+.maxis-room-intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.65rem;
+    padding: 0.15rem 0.1rem;
+}
+
+.maxis-room-intro-copy { min-width: 0; }
+.maxis-room-intro .maxis-room-kicker {
+    display: block;
+    color: color-mix(in srgb, var(--maxis-gold) 72%, var(--text-tertiary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.48rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.maxis-room-intro h3 { margin: 0.25rem 0 0; color: var(--text-primary); font-size: 1rem; }
+.maxis-room-intro p { max-width: 48rem; margin: 0.24rem 0 0; color: var(--text-tertiary); font-size: 0.66rem; line-height: 1.45; }
+
+.maxis-lane-rail {
+    display: flex;
+    gap: 0.36rem;
+    margin-bottom: 0.7rem;
+    padding: 0.12rem 0.08rem 0.42rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+}
+
+.maxis-lane-chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.34rem;
+    min-height: 34px;
+    padding: 0.37rem 0.58rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 999px;
+    color: var(--text-tertiary);
+    background: rgba(255, 255, 255, 0.022);
+    font: inherit;
+    font-size: 0.56rem;
+    font-weight: 850;
+    scroll-snap-align: start;
+    cursor: pointer;
+}
+.maxis-lane-chip span { color: var(--maxis-gold); }
+.maxis-lane-chip:is(:hover, :focus-visible),
+.maxis-lane-chip[aria-pressed="true"] {
+    outline: none;
+    border-color: color-mix(in srgb, var(--maxis-gold) 38%, transparent);
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--maxis-gold) 8%, transparent);
+}
+
+.maxis-season-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(16rem, 0.6fr);
+    gap: 0.72rem;
+    align-items: start;
+}
+
+.maxis-lane-board,
+.maxis-honors-panel,
+.maxis-passport-shell,
+.maxis-champions-shell {
+    min-width: 0;
+    border: 1px solid var(--maxis-line);
+    border-radius: 13px;
+    background:
+        linear-gradient(130deg, color-mix(in srgb, var(--maxis-violet) 3%, transparent), transparent 42%),
+        var(--maxis-panel);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.maxis-lane-board { overflow: hidden; }
+.maxis-lane-board-head {
+    --maxis-card-accent: var(--maxis-gold);
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.72rem;
+    padding: 0.82rem 0.9rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--maxis-card-accent) 18%, rgba(255, 255, 255, 0.05));
+    background: linear-gradient(110deg, color-mix(in srgb, var(--maxis-card-accent) 8%, transparent), transparent 55%);
+}
+
+.maxis-lane-board-head::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, var(--maxis-card-accent), transparent);
+}
+
+.maxis-lane-mark {
+    display: grid;
+    place-items: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-card-accent) 38%, transparent);
+    border-radius: 50%;
+    color: var(--maxis-card-accent);
+    background: color-mix(in srgb, var(--maxis-card-accent) 7%, transparent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+}
+
+.maxis-lane-title { min-width: 0; }
+.maxis-lane-title small,
+.maxis-lane-title strong { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-lane-title small { color: var(--text-tertiary); font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.maxis-lane-title strong { margin-top: 0.14rem; color: var(--text-primary); font-size: 0.84rem; }
+.maxis-lane-window {
+    padding: 0.24rem 0.42rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.45rem;
+    font-weight: 850;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.maxis-lane-method {
+    margin: 0;
+    padding: 0.62rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+    color: var(--text-tertiary);
+    font-size: 0.58rem;
+    line-height: 1.45;
+}
+
+.maxis-podium {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+    gap: 0.42rem;
+    padding: 0.72rem 0.72rem 0.55rem;
+}
+
+.maxis-podium-place {
+    position: relative;
+    min-width: 0;
+    padding: 0.65rem 0.55rem 0.58rem;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.022);
+    text-align: center;
+    animation: maxis-podium-enter 0.28s ease both;
+}
+.maxis-podium-place[data-place="1"] {
+    order: 2;
+    min-height: 7.3rem;
+    padding-top: 0.9rem;
+    border-color: color-mix(in srgb, var(--maxis-gold) 34%, transparent);
+    background: linear-gradient(145deg, color-mix(in srgb, var(--maxis-gold) 10%, transparent), color-mix(in srgb, var(--maxis-violet) 5%, transparent));
+}
+.maxis-podium-place[data-place="2"] { order: 1; animation-delay: 0.04s; }
+.maxis-podium-place[data-place="3"] { order: 3; animation-delay: 0.08s; }
+.maxis-podium-number { color: var(--maxis-gold); font-family: 'JetBrains Mono', monospace; font-size: 0.5rem; font-weight: 950; }
+.maxis-podium-place strong,
+.maxis-podium-place code,
+.maxis-podium-place small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-podium-place strong { margin-top: 0.28rem; color: var(--text-primary); font-size: 0.7rem; }
+.maxis-podium-place code { margin-top: 0.15rem; color: var(--text-tertiary); font-size: 0.45rem; }
+.maxis-podium-place small { margin-top: 0.34rem; color: color-mix(in srgb, var(--maxis-gold) 64%, var(--text-secondary)); font-family: 'JetBrains Mono', monospace; font-size: 0.52rem; }
+
+.maxis-compact-ranking { margin: 0; padding: 0 0.72rem 0.72rem; list-style: none; }
+.maxis-compact-row {
+    display: grid;
+    grid-template-columns: 1.75rem minmax(0, 1fr) minmax(7rem, auto) auto;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 48px;
+    padding: 0.44rem 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.045);
+}
+.maxis-compact-rank { color: var(--text-tertiary); font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; font-weight: 900; }
+.maxis-compact-identity { min-width: 0; }
+.maxis-compact-identity strong,
+.maxis-compact-identity code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-compact-identity strong { color: var(--text-primary); font-size: 0.65rem; }
+.maxis-compact-identity code { margin-top: 0.08rem; color: var(--text-tertiary); font-size: 0.45rem; }
+.maxis-compact-score { min-width: 0; overflow: hidden; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.52rem; font-weight: 800; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-rank-delta { color: #75e5b2; font-family: 'JetBrains Mono', monospace; font-size: 0.48rem; font-weight: 900; }
+.maxis-rank-delta.down { color: #ff8fa6; }
+.maxis-rank-delta.flat { color: var(--text-tertiary); }
+
+.maxis-row-menu-wrap { position: relative; display: inline-grid; place-items: center; vertical-align: middle; }
+.maxis-row-menu-toggle {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.025);
+    cursor: pointer;
+}
+.maxis-row-menu-toggle:is(:hover, :focus-visible) { outline: none; border-color: color-mix(in srgb, var(--maxis-gold) 40%, transparent); color: var(--text-primary); }
+.maxis-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.28rem;
+    padding: 0.5rem 0.72rem 0.65rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.maxis-honors-panel { padding: 0.78rem; }
+.maxis-side-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.55rem; }
+.maxis-side-heading strong { color: var(--text-primary); font-size: 0.72rem; }
+.maxis-side-heading span { color: var(--text-tertiary); font-family: 'JetBrains Mono', monospace; font-size: 0.44rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.maxis-honor-list { display: grid; gap: 0.42rem; }
+.maxis-honor-card {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.55rem;
+    align-items: center;
+    min-width: 0;
+    padding: 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.maxis-honor-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; color: var(--maxis-gold); background: color-mix(in srgb, var(--maxis-gold) 8%, transparent); }
+.maxis-honor-copy { min-width: 0; }
+.maxis-honor-copy span,
+.maxis-honor-copy strong,
+.maxis-honor-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-honor-copy span { color: var(--text-tertiary); font-size: 0.46rem; text-transform: uppercase; letter-spacing: 0.07em; }
+.maxis-honor-copy strong { margin-top: 0.1rem; color: var(--text-primary); font-size: 0.66rem; }
+.maxis-honor-copy small { margin-top: 0.1rem; color: color-mix(in srgb, var(--maxis-gold) 58%, var(--text-tertiary)); font-size: 0.5rem; }
+
+.maxis-cutline-card {
+    margin-top: 0.55rem;
+    padding: 0.62rem;
+    border: 1px dashed color-mix(in srgb, var(--maxis-cyan) 24%, transparent);
+    border-radius: 9px;
+    color: var(--text-tertiary);
+    background: color-mix(in srgb, var(--maxis-cyan) 3%, transparent);
+    font-size: 0.56rem;
+    line-height: 1.45;
+}
+.maxis-cutline-card strong { display: block; margin-bottom: 0.16rem; color: var(--text-primary); font-size: 0.64rem; }
+
+.maxis-passport-shell,
+.maxis-champions-shell { padding: 0.85rem; }
+.maxis-passport-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.42rem;
+    max-width: 48rem;
+    margin: 0 auto 0.8rem;
+}
+.maxis-passport-input {
+    min-width: 0;
+    min-height: 42px;
+    padding: 0.58rem 0.7rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9px;
+    outline: none;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.18);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+}
+.maxis-passport-input:focus { border-color: color-mix(in srgb, var(--maxis-gold) 48%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--maxis-gold) 9%, transparent); }
+.maxis-passport-submit,
+.maxis-passport-use-saved,
+.maxis-lane-back {
+    min-height: 42px;
+    padding: 0.54rem 0.72rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 25%, rgba(255, 255, 255, 0.08));
+    border-radius: 9px;
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--maxis-gold) 7%, rgba(255, 255, 255, 0.02));
+    font: inherit;
+    font-size: 0.58rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+.maxis-passport-submit:is(:hover, :focus-visible),
+.maxis-passport-use-saved:is(:hover, :focus-visible),
+.maxis-lane-back:is(:hover, :focus-visible) { outline: none; border-color: color-mix(in srgb, var(--maxis-gold) 55%, transparent); transform: translateY(-1px); }
+
+.maxis-passport-card {
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--maxis-violet) 22%, rgba(255, 255, 255, 0.06));
+    border-radius: 13px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--maxis-violet) 7%, transparent), color-mix(in srgb, var(--maxis-gold) 4%, transparent));
+}
+.maxis-passport-identity {
+    display: grid;
+    grid-template-columns: 4.25rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.78rem;
+    padding: 0.85rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+.maxis-passport-crest {
+    display: grid;
+    place-items: center;
+    width: 4.1rem;
+    height: 4.1rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 46%, transparent);
+    border-radius: 50%;
+    color: var(--maxis-gold);
+    background:
+        radial-gradient(circle, color-mix(in srgb, var(--maxis-gold) 11%, transparent), transparent 68%),
+        color-mix(in srgb, var(--maxis-violet) 6%, transparent);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--maxis-gold) 12%, transparent);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 900;
+}
+.maxis-passport-name { min-width: 0; }
+.maxis-passport-name span,
+.maxis-passport-name strong,
+.maxis-passport-name code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-passport-name span { color: color-mix(in srgb, var(--maxis-gold) 72%, var(--text-secondary)); font-size: 0.48rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.maxis-passport-name strong { margin-top: 0.18rem; color: var(--text-primary); font-size: 0.92rem; }
+.maxis-passport-name code { margin-top: 0.15rem; color: var(--text-tertiary); font-size: 0.55rem; }
+.maxis-passport-unicorn { min-width: 7rem; text-align: right; }
+.maxis-passport-unicorn strong { display: block; color: var(--maxis-gold); font-family: 'Orbitron', sans-serif; font-size: 1.2rem; }
+.maxis-passport-unicorn small { display: block; margin-top: 0.1rem; color: var(--text-tertiary); font-size: 0.5rem; }
+
+.maxis-passport-badges {
+    display: flex;
+    gap: 0.45rem;
+    padding: 0.68rem 0.85rem;
+    overflow-x: auto;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+.maxis-passport-badge {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 1.7rem auto;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.38rem 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.023);
+    font-size: 0.52rem;
+}
+.maxis-passport-badge b { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; border-radius: 50%; color: var(--maxis-gold); background: color-mix(in srgb, var(--maxis-gold) 8%, transparent); }
+.maxis-passport-badge.is-locked { opacity: 0.48; filter: grayscale(0.55); }
+
+.maxis-passport-lanes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.52rem;
+    padding: 0.78rem 0.85rem 0.85rem;
+}
+.maxis-passport-lane {
+    min-width: 0;
+    padding: 0.62rem;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.018);
+}
+.maxis-passport-lane-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.maxis-passport-lane-head strong { color: var(--text-primary); font-size: 0.62rem; }
+.maxis-passport-lane-head span { color: var(--text-tertiary); font-family: 'JetBrains Mono', monospace; font-size: 0.48rem; }
+.maxis-progress-track { height: 5px; margin-top: 0.48rem; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, 0.065); }
+.maxis-progress-fill { display: block; height: 100%; width: var(--maxis-progress, 0%); border-radius: inherit; background: linear-gradient(90deg, var(--maxis-violet), var(--maxis-gold)); box-shadow: 0 0 12px color-mix(in srgb, var(--maxis-gold) 28%, transparent); }
+.maxis-passport-lane p { margin: 0.38rem 0 0; color: var(--text-tertiary); font-size: 0.52rem; line-height: 1.4; }
+.maxis-passport-lane p strong { color: color-mix(in srgb, var(--maxis-gold) 65%, var(--text-primary)); }
+
+.drawer-maxi-passport-card {
+    grid-template-columns: 3.1rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.72rem;
+    width: 100%;
+    min-height: 94px;
+    margin-top: 0.55rem;
+    padding: 0.72rem 0.76rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 22%, rgba(255, 255, 255, 0.07));
+    border-radius: 9px;
+    color: var(--text-primary);
+    background:
+        radial-gradient(circle at 8% 50%, color-mix(in srgb, var(--maxis-gold) 14%, transparent), transparent 28%),
+        linear-gradient(125deg, color-mix(in srgb, var(--maxis-violet) 8%, transparent), rgba(255, 255, 255, 0.02));
+    text-decoration: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.drawer-maxi-passport-card:is(:hover, :focus-visible) {
+    outline: none;
+    border-color: color-mix(in srgb, var(--maxis-gold) 48%, transparent);
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 26px rgba(0, 0, 0, 0.16);
+}
+.drawer-maxi-passport-seal { display: grid; place-items: center; width: 3rem; height: 3rem; border: 1px solid color-mix(in srgb, var(--maxis-gold) 42%, transparent); border-radius: 50%; color: var(--maxis-gold); background: color-mix(in srgb, var(--maxis-gold) 8%, transparent); box-shadow: 0 0 20px color-mix(in srgb, var(--maxis-gold) 12%, transparent); font-size: 1rem; }
+.drawer-maxi-passport-copy { min-width: 0; }
+.drawer-maxi-passport-copy span,
+.drawer-maxi-passport-copy strong,
+.drawer-maxi-passport-copy small { display: block; }
+.drawer-maxi-passport-copy span { color: var(--maxis-gold); font-size: 0.58rem; font-weight: 900; letter-spacing: 0.09em; text-transform: uppercase; }
+.drawer-maxi-passport-copy strong { margin-top: 0.18rem; color: var(--text-primary); font-size: 0.78rem; line-height: 1.25; }
+.drawer-maxi-passport-copy small { margin-top: 0.2rem; color: var(--text-secondary); font-size: 0.64rem; line-height: 1.36; }
+.drawer-maxi-passport-arrow { color: color-mix(in srgb, var(--maxis-gold) 68%, var(--text-secondary)); font-size: 0.86rem; }
+
+.maxis-crown-grid,
+.maxis-champions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.maxis-crown-card,
+.maxis-champion-card {
+    position: relative;
+    min-width: 0;
+    padding: 0.7rem;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0.012));
+}
+button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+.maxis-crown-card:is(:hover, :focus-visible) { outline: none; border-color: color-mix(in srgb, var(--maxis-gold) 35%, transparent); transform: translateY(-1px); }
+.maxis-crown-card span,
+.maxis-crown-card strong,
+.maxis-crown-card code,
+.maxis-crown-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-crown-card span { color: var(--maxis-gold); font-size: 0.48rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.maxis-crown-card strong { margin-top: 0.32rem; color: var(--text-primary); font-size: 0.72rem; }
+.maxis-crown-card code { margin-top: 0.13rem; color: var(--text-tertiary); font-size: 0.48rem; }
+.maxis-crown-card small { margin-top: 0.4rem; color: color-mix(in srgb, var(--maxis-gold) 60%, var(--text-secondary)); font-family: 'JetBrains Mono', monospace; font-size: 0.53rem; }
+
+.maxis-champion-card { overflow: hidden; padding: 0; }
+.maxis-champion-banner { padding: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.05); background: linear-gradient(120deg, color-mix(in srgb, var(--maxis-gold) 9%, transparent), color-mix(in srgb, var(--maxis-violet) 6%, transparent)); }
+.maxis-champion-banner span { display: block; color: var(--text-tertiary); font-size: 0.48rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.maxis-champion-banner strong { display: block; margin-top: 0.2rem; color: var(--text-primary); font-size: 0.82rem; }
+.maxis-champion-list { display: grid; gap: 0.38rem; padding: 0.65rem 0.75rem; }
+.maxis-champion-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; min-width: 0; font-size: 0.55rem; }
+.maxis-champion-row span { overflow: hidden; color: var(--text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
+.maxis-champion-row strong { overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
+
+.maxis-empty-stage {
+    display: grid;
+    place-items: center;
+    min-height: 18rem;
+    padding: 2rem;
+    border: 1px dashed var(--maxis-line);
+    border-radius: 12px;
+    color: var(--text-tertiary);
+    text-align: center;
+}
+.maxis-empty-stage-mark { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; margin: 0 auto; border: 1px solid color-mix(in srgb, var(--maxis-gold) 30%, transparent); border-radius: 50%; color: var(--maxis-gold); background: color-mix(in srgb, var(--maxis-gold) 6%, transparent); font-size: 1.15rem; }
+.maxis-empty-stage strong { display: block; margin-top: 0.65rem; color: var(--text-primary); font-size: 0.8rem; }
+.maxis-empty-stage p { max-width: 30rem; margin: 0.35rem auto 0; font-size: 0.62rem; line-height: 1.5; }
+
+/* The launcher becomes a season doorway instead of a nine-board wall. */
+#chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide {
+    height: auto !important;
+    min-height: 286px !important;
+}
+.maxis-entry-season-front { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr); gap: 0.72rem; height: 100%; min-height: 0; padding-bottom: 3.35rem !important; }
+.maxis-entry-season-copy { min-width: 0; }
+.maxis-entry-season-label { display: inline-flex; align-items: center; gap: 0.34rem; color: var(--maxis-gold); font-family: 'JetBrains Mono', monospace; font-size: 0.5rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.maxis-entry-season-title { margin-top: 0.28rem; color: var(--text-primary); font-family: 'Orbitron', sans-serif; font-size: clamp(1.1rem, 2vw, 1.55rem); font-weight: 900; line-height: 1.15; }
+.maxis-entry-season-copy p { max-width: 33rem; margin: 0.32rem 0 0; color: var(--text-secondary); font-size: 0.68rem; line-height: 1.45; }
+.maxis-entry-season-meta { display: flex; flex-wrap: wrap; gap: 0.34rem; margin-top: 0.62rem; }
+.maxis-entry-season-meta span { padding: 0.25rem 0.42rem; border: 1px solid rgba(255, 255, 255, 0.065); border-radius: 999px; color: var(--text-tertiary); background: rgba(255, 255, 255, 0.022); font-size: 0.48rem; }
+.maxis-entry-season-meta strong { color: var(--maxis-gold); }
+.maxis-entry-races { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.42rem; min-width: 0; }
+.maxis-entry-race { min-width: 0; padding: 0.5rem 0.55rem; border: 1px solid rgba(255, 255, 255, 0.055); border-radius: 8px; background: rgba(255, 255, 255, 0.02); }
+.maxis-entry-race span,
+.maxis-entry-race strong,
+.maxis-entry-race small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.maxis-entry-race span { color: var(--text-tertiary); font-size: 0.44rem; text-transform: uppercase; letter-spacing: 0.07em; }
+.maxis-entry-race strong { margin-top: 0.12rem; color: var(--text-primary); font-size: 0.62rem; }
+.maxis-entry-race small { margin-top: 0.12rem; color: color-mix(in srgb, var(--maxis-gold) 58%, var(--text-tertiary)); font-family: 'JetBrains Mono', monospace; font-size: 0.47rem; }
+
+[data-theme="clean"] .maxis-season-menu,
+[data-theme="clean"] .maxis-room-tabs,
+[data-theme="clean"] .maxis-lane-board,
+[data-theme="clean"] .maxis-honors-panel,
+[data-theme="clean"] .maxis-passport-shell,
+[data-theme="clean"] .maxis-champions-shell {
+    background-color: rgba(252, 253, 255, 0.97);
+    box-shadow: 0 14px 36px rgba(32, 45, 72, 0.13);
+}
+[data-theme="clean"] .maxis-season-orb { background-color: rgba(31, 39, 62, 0.95); }
+[data-theme="clean"] .maxis-passport-input { background: rgba(255, 255, 255, 0.9); }
+
+@keyframes maxis-season-orbit {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes maxis-room-enter {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes maxis-podium-enter {
+    from { opacity: 0; transform: translateY(7px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 900px) {
+    .maxis-season-stage { grid-template-columns: 1fr; }
+    .maxis-honors-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.55fr); gap: 0.65rem; }
+    .maxis-crown-grid,
+    .maxis-champions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .maxis-entry-season-front { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 759px) {
+    .maxis-experience { min-height: 28rem; }
+    .maxis-season-tray { top: 0.38rem; margin-left: 0.42rem; }
+    .maxis-season-orb { width: 44px; height: 44px; }
+    .maxis-season-menu {
+        position: absolute;
+        top: 54px;
+        right: auto;
+        bottom: auto;
+        left: 0;
+        width: min(20rem, calc(100vw - 5rem));
+        max-height: min(68vh, 34rem);
+        padding: 0.7rem;
+        border-radius: 16px;
+        transform: translateY(-8px) scale(0.985);
+        transform-origin: left top;
+    }
+    .maxis-season-tray.is-open .maxis-season-menu { transform: translateY(0) scale(1); }
+    .maxis-protocol-hero { padding: 1rem 0.75rem 0.9rem; }
+    .maxis-protocol-kicker { box-sizing: border-box; width: 100%; max-width: 100%; padding-inline: 2.8rem; flex-wrap: wrap; gap: 0.28rem 0.45rem; overflow-wrap: anywhere; text-align: center; }
+    .maxis-protocol-title { font-size: 1.3rem; }
+    .maxis-protocol-lead { font-size: 0.7rem; }
+    .maxis-season-telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .maxis-room-tabs { grid-template-columns: repeat(4, max-content); justify-content: start; padding-left: 3.55rem; overflow-x: auto; }
+    .maxis-room-tab { min-width: 7rem; min-height: 44px; }
+    .maxis-lane-chip { min-height: 44px; }
+    .maxis-row-menu-toggle { width: 44px; height: 44px; }
+    .maxis-podium-place .maxis-row-menu-toggle { width: 46px; height: 46px; }
+    .maxis-passport-input,
+    .maxis-passport-submit,
+    .maxis-passport-use-saved,
+    .maxis-lane-back { min-height: 44px; }
+    .maxis-room-intro { align-items: flex-start; flex-direction: column; }
+    .maxis-lane-board-head { grid-template-columns: auto minmax(0, 1fr); }
+    .maxis-lane-window { grid-column: 2; justify-self: start; }
+    .maxis-podium { gap: 0.28rem; padding-inline: 0.48rem; }
+    .maxis-podium-place { padding-inline: 0.35rem; }
+    .maxis-podium-place[data-place="1"] { min-height: 7rem; }
+    .maxis-compact-ranking { padding-inline: 0.48rem; }
+    .maxis-compact-row { grid-template-columns: 1.55rem minmax(0, 1fr) auto; gap: 0.38rem; padding-inline: 0.28rem; }
+    .maxis-compact-score { grid-column: 2; grid-row: 2; text-align: left; }
+    .maxis-row-menu-wrap { grid-column: 3; grid-row: 1 / span 2; }
+    .maxis-honors-panel { display: block; }
+    .maxis-cutline-card { margin-top: 0.6rem; }
+    .maxis-passport-search { grid-template-columns: 1fr 1fr; }
+    .maxis-passport-input { grid-column: 1 / -1; }
+    .maxis-passport-identity { grid-template-columns: 3.4rem minmax(0, 1fr); }
+    .maxis-passport-crest { width: 3.3rem; height: 3.3rem; }
+    .maxis-passport-unicorn { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; text-align: left; }
+    .maxis-passport-lanes { grid-template-columns: 1fr; }
+    .maxis-crown-grid,
+    .maxis-champions-grid { grid-template-columns: 1fr; }
+    .maxis-footer > span:not(.chamber-footer-sep) {
+        display: block;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        text-align: center;
+    }
+    #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide { min-height: 370px !important; }
+    .maxis-entry-season-front { grid-template-columns: 1fr; gap: 0.6rem; }
+    .maxis-entry-races { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 420px) {
+    #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide,
+    #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide .card-inner,
+    #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide .card-front {
+        height: auto !important;
+        min-height: 360px !important;
+    }
+    .maxis-entry-season-front { padding-bottom: 3.7rem !important; }
+    .maxis-entry-races { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .maxis-entry-race:nth-child(n + 3) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .maxis-season-orb::before,
+    .maxis-room-panel,
+    .maxis-podium-place { animation: none !important; }
+    .maxis-season-menu,
+    .maxis-season-orb,
+    .maxis-room-tab,
+    .maxis-season-option { transition-duration: 0.01ms !important; }
+}

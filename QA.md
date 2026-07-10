@@ -60,4 +60,98 @@ Automated tests catch regressions, but still do this visual pass for UI-heavy ch
 9. Footer build marker shows build metadata and latest GitHub main commit.
 10. Hard refresh or unregister the service worker if edited JS/CSS looks stale.
 
+## Tezos Maxis protocol-season release matrix
+
+Run the focused deterministic checks before the visual matrix:
+
+```sh
+npm run check:maxis
+node tests/smoke.mjs --only maxis,my-tezos-address-switch
+```
+
+The Maxis visual gate is the Cartesian product of every theme, viewport, and
+room below. Do not substitute representative sampling for this release pass.
+
+| Axis | Required cases |
+| --- | --- |
+| Themes | `aurora`, `matrix`, `hen`, `default`, `void`, `ember`, `signal`, `nerv`, `clean`, `dark`, `bubblegum`, `abyss`, `moss`, `warzone` |
+| Desktop viewports | `1440x1000`, `1280x900` |
+| Mobile viewports | `390x844`, `375x812`, `360x720` |
+| Rooms | Season, Passport, Crown Hall, Champions |
+
+At every theme × viewport × room combination, verify no horizontal escape,
+clipped identity, covered heading, unreadable contrast, accidental page scroll,
+or control below a 44 px mobile target. Season must show only one expanded lane
+at a time, with the protocol header and lane switcher still reachable. Passport
+must keep badge and near-miss progress legible. Crown Hall must remain visibly
+mixed-clock rather than masquerading as season data. Champions must render both
+archive cards and a useful first-season empty state.
+
+### Selector, routing, and focus
+
+Test once with a desktop keyboard and once with a touch-sized mobile viewport:
+
+1. Open `/maxis/` and confirm the circular selector identifies the current
+   protocol season without obscuring the modal title.
+2. Open the selector with Enter and Space. Confirm its menu semantics,
+   `menuitemradio` selection state, and current-season announcement.
+3. Use Arrow Up, Arrow Down, Home, and End to move through available seasons;
+   choose one with Enter and confirm the season, lane, and room query state is
+   preserved in a shareable `/maxis/?view=...&season=...&lane=...` URL.
+4. Press Escape once while the selector is open: only the selector closes and
+   focus returns to its circular toggle. Press Escape again: the Maxis chamber
+   closes and focus returns to the launcher that opened it.
+5. Reopen the chamber and switch Season → Passport → Crown Hall → Champions →
+   Season. Confirm room state changes in place without resetting the selected
+   season/lane or jumping the page behind the modal.
+6. On mobile, confirm the selector becomes a contained toggle-anchored popover, closes by
+   outside tap, and leaves the chamber scroll position intact.
+
+### Passport identity cases
+
+Verify each identity case independently; clear local storage only where the
+case explicitly requires it:
+
+| Case | Required result |
+| --- | --- |
+| Saved My Tezos address | Passport opens from the drawer handoff with the saved address and does not alter it. |
+| Explicit `?view=passport&address=tz...` | The explicit address wins for this view but does not overwrite the saved My Tezos address. |
+| Raw implicit account input | A valid `tz1`/`tz2`/`tz3`/`tz4` address loads the deterministic shard and preserves the raw address as identity even when an alias resolves. |
+| `KT1` input | Render supported contract data or an explicit unsupported-identity explanation; never merge it into a manager wallet. |
+| No address | Show the purposeful Passport search/empty state with a My Tezos handoff, not a failed leaderboard or fabricated progress. |
+
+For a populated Passport, check stable frozen-rule badges, current lane
+positions, moving top-ten cutoff near misses, supported streak evidence,
+personal bests, and same-season Unicorn breadth. Badge progress must not move
+merely because rank #10 changes. A newly ranked address is labeled as a debut,
+not as a climb from an invented previous rank. In a two-season fixture, earning
+the same repeatable top-ten, streak, or Unicorn achievement twice must preserve
+two season-scoped badge receipts rather than deduplicating the later season.
+
+### Artifact and failure states
+
+Exercise these states with deterministic fixtures or request interception:
+
+| State | Required result |
+| --- | --- |
+| Fresh active season | Protocol activation boundary, generated time, leader, nearest challenger, actionable primary-metric guarantee, conservative frozen-vector path, rank delta, cutoff, Honors, and per-source completeness receipts agree with the fixture. No conservative path is labeled as a live minimum. |
+| Stale active season | Last valid standings remain visible with an unmistakable stale label and unchanged source receipts. |
+| Declared Passport shard fetch/hash failure | Only that Passport reports the shard failure and offers retry; a manifest-declared empty bucket instead shows honest no activity. Season, Crown Hall, Champions, and another shard continue working. |
+| Single-season manifest | Selector remains usable, Champions explains that no prior champion archive exists, and the current season end stays open-ended when the next activation is unknown. |
+| Unavailable/incomplete lane | Explain the missing exhaustive coverage and publish no crown, cutoff, rank delta, badge, Honor, or Unicorn credit for that lane. |
+| Protocol rollover before settlement | New season opens and resets immediately while the ending season is concurrently `settling`; no champion archive or permanent crown badge is published before the 24-hour guard and exact-boundary rebuild. |
+| Missed protocol refresh | A non-adjacent protocol jump fails closed or backfills every intervening activation in order; it never closes the old season at the wrong boundary or omits a protocol season. |
+| Older frozen lane catalog | A finalized older season validates and renders from its own frozen lane definitions after a later evaluator adds, removes, or renames a lane. |
+| Resumed Transaction checkpoint | Resuming from the stored strict ID cursor produces the same counts, active days, and last activity as a one-pass fixture; duplicate/non-increasing IDs and boundary leakage are rejected. |
+| Deferred Transaction build | A bounded run writes only a signed `transaction-state.building.json`; the prior manifest, summary, complete state, and Passport bytes remain unchanged until the raw count reconciles and the sidecar is promoted. The frozen rules file exists before the first sidecar write. |
+| No-change Passport refresh | A shard whose Passport content did not change remains byte-for-byte identical with the same SHA-256 hash even though the active summary receives a newer snapshot time. |
+| Mixed-deploy summary | A summary whose season, protocol, evaluator, or rules receipts do not match its manifest entry fails closed before any board or Passport shard is accepted. |
+| Finalization crash retry | Retrying after the finalized summary/shards were written but before the manifest preserves the summary's original `finalizedAt` and produces the same manifest identity. |
+
+Finally, compare the active rules file before and after a refresh, then compare a
+finalized season archive before and after refreshing the next season. Frozen
+rules and archived champions must remain byte-for-byte stable. Verify the
+legacy `data/maxis-leaders.json` still feeds Crown Hall only, while season-wide
+Unicorn counts activity from one protocol window and one frozen ruleset.
+
 Known noisy upstream conditions: TzKT `429`, CoinGecko `429/503`, and GoatCounter localhost warnings. Treat syntax errors, page errors, missing selectors, 404s, or blank widgets as blockers.

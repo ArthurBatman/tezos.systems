@@ -30,10 +30,10 @@ export const CHAMBER_ROUTES = [
   {
     slug: 'maxis',
     hash: '#maxis',
-    title: 'Tezos Maxis - On-Chain Activity Leaders',
+    title: 'Tezos Maxis - Protocol Seasons and Maxi Passports',
     shortTitle: 'Tezos Maxis',
-    description: 'Spot the leading Tezos art, DeFi, gaming, transaction, governance, and staking accounts, then trace every winner in Ledger Flow.',
-    eyebrow: 'Activity Leaders',
+    description: 'Race through Tezos protocol seasons, inspect a wallet Maxi Passport, revisit permanent champions, and trace every on-chain leader in Ledger Flow.',
+    eyebrow: 'Protocol Seasons',
     accent: '#f5c451'
   },
   {

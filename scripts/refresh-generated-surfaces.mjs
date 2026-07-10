@@ -29,7 +29,7 @@ const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`)
 const SITEMAP_TARGETS = ['sitemap.xml'];
 const ROOT_OG_TARGETS = ['og-image.png'];
 const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
-const MAXIS_TARGETS = ['data/maxis-leaders.json'];
+const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -201,6 +201,11 @@ async function main() {
   const initialStaged = modeName === 'precommit' ? stagedFiles() : [];
   const ran = [];
 
+  // Protocol identity is an input to Maxis seasons. Refresh it first so a
+  // protocol activation cannot leave Maxis one scheduled run behind.
+  nodeScript('scripts/refresh-governance-data.mjs', shouldStage ? ['--stage'] : []);
+  ran.push('governance');
+
   if (modeName === 'precommit') {
     nodeScript('scripts/refresh-maxis-data.mjs', ['--check']);
     ran.push('maxis-check');
@@ -217,8 +222,6 @@ async function main() {
   ran.push('milestones');
   if (shouldStage) stageTargets(MILESTONE_TARGETS);
 
-  nodeScript('scripts/refresh-governance-data.mjs', shouldStage ? ['--stage'] : []);
-  ran.push('governance');
   const touched = unique([...initialStaged, ...(modeName === 'precommit' ? stagedFiles() : [])]);
 
   if (shouldRun(modeName, touched, [/^css\/styles\.css$/, /^scripts\/build-css\.mjs$/, /^package(?:-lock)?\.json$/])) {

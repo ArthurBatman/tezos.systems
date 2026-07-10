@@ -7,6 +7,15 @@ const CHANGELOG = [
     {
         date: '2026-07-09',
         entries: [
+            { type: '✨', text: 'Tezos Maxis seasons now run from one protocol activation to the next, with a circular season selector, one-lane race views, rank movement, exact cutoff gaps, and honest open-ended timing before the next activation is known' },
+            { type: '✨', text: 'Maxi Passport now turns a Tezos address into a progression page for stable badges, active lanes, near misses, supported streaks, personal bests, and same-season progress toward Unicorn' },
+            { type: '✨', text: 'Crown Hall now preserves hard mixed-clock objective leaders while Champions archives completed seasons and Honors reward climb, consistency, debut, breadth, and comeback separately from crowns' },
+            { type: '🔧', text: 'Maxis OBJKT mint and sale collection now paginates at the supported page size, excludes old-token remints from new drops, and publishes completeness receipts so a capped response cannot masquerade as a complete ranking' },
+            { type: '🔧', text: 'Transaction Maxi now uses a resumable exact protocol-window scan with a fixed block boundary, replacement-tail replay, and a reconciled TzKT row count before it can publish a crown or Passport progress' },
+            { type: '🔒', text: 'New Maxis seasons now open immediately at activation while the prior season passes a concurrent 24-hour index-settlement guard and exact-boundary frozen-evaluator rebuild before permanent champion badges or archives are published' },
+            { type: '🔒', text: 'Frozen evaluator versions, lane catalogs, stable Passport shard receipts, and season-scoped repeat badges now keep old champions and achievements intact as later Maxis seasons evolve' },
+            { type: '⚡', text: 'Maxi Passport shards now use stable compact JSON behind the same raw SHA-256 integrity checks, cutting the current season envelope from roughly 49 MB to 31 MB and restoring safe protocol-season growth room' },
+            { type: '✨', text: 'My Tezos now hands the active saved address directly into Maxi Passport without overwriting that saved identity' },
             { type: '🔧', text: 'Tezos Maxis now credits opeculiar for the chamber idea and keeps selected category titles clear of the sticky jump rail' },
             { type: '✨', text: 'Tezos Maxis now opens with a sticky category jump rail and gives every category leader a gleaming crown' },
             { type: '🎨', text: 'Approaching network milestones now sit directly to the right of the uptime year counter while the larger uptime proof keeps visual priority' },

@@ -1,4 +1,7 @@
-const TEZOS_IMPLICIT_ADDRESS = /^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/;
+import { compareCodePoint, compareRanked, isImplicitAddress } from './maxis-evaluator-v2-primitives.mjs';
+
+export { compareCodePoint, compareRanked, isImplicitAddress } from './maxis-evaluator-v2-primitives.mjs';
+export { compileContractCoverage, validateMaxisConfig } from './maxis-coverage-v2.mjs';
 
 function number(value) {
   const parsed = Number(value);
@@ -19,24 +22,6 @@ function latestIso(left, right) {
 function alias(value) {
   const normalized = String(value || '').trim();
   return normalized || null;
-}
-
-export function isImplicitAddress(value) {
-  return TEZOS_IMPLICIT_ADDRESS.test(String(value || ''));
-}
-
-export function compareRanked(left, right, fields) {
-  for (const field of fields) {
-    const direction = field.direction === 'asc' ? 1 : -1;
-    const leftValue = typeof field.value === 'function' ? field.value(left) : left[field.value];
-    const rightValue = typeof field.value === 'function' ? field.value(right) : right[field.value];
-    if (leftValue === rightValue) continue;
-    if (typeof leftValue === 'string' || typeof rightValue === 'string') {
-      return String(leftValue || '').localeCompare(String(rightValue || '')) * direction;
-    }
-    return (number(leftValue) - number(rightValue)) * direction;
-  }
-  return String(left.address || '').localeCompare(String(right.address || ''));
 }
 
 export function rankAccounts(rows = []) {
@@ -235,51 +220,4 @@ export function rankUnicorn(categoryRows = {}, minimumBreadth = 3, scopeLimit = 
       { value: 'points' },
       { value: (item) => Date.parse(item.lastActivity || '') || 0 }
     ]));
-}
-
-export function compileContractCoverage(contracts = [], apps = [], fromIso = null) {
-  const from = Date.parse(fromIso || '') || 0;
-  const coverage = [];
-  const seen = new Set();
-  for (const contract of contracts) {
-    if (!contract?.address || !contract?.alias) continue;
-    if (from && (Date.parse(contract.lastActivityTime || '') || 0) < from) continue;
-    const matches = apps.filter((app) => (app.aliasPatterns || []).some((pattern) => new RegExp(pattern, 'i').test(contract.alias)));
-    for (const app of matches) {
-      const key = `${app.category}:${contract.address}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      coverage.push({
-        address: contract.address,
-        alias: contract.alias,
-        lastActivityTime: isoTime(contract.lastActivityTime),
-        app: { id: app.id, label: app.label, category: app.category }
-      });
-    }
-  }
-  return coverage.sort((left, right) => left.address.localeCompare(right.address));
-}
-
-export function validateMaxisConfig(config) {
-  const errors = [];
-  if (number(config?.schema) !== 1) errors.push('schema must be 1');
-  if (number(config?.windowDays) < 1) errors.push('windowDays must be positive');
-  const ids = new Set();
-  for (const app of config?.apps || []) {
-    if (!app?.id || !app?.label || !['defi', 'gaming'].includes(app?.category)) {
-      errors.push(`invalid app entry ${app?.id || '<missing id>'}`);
-      continue;
-    }
-    if (ids.has(app.id)) errors.push(`duplicate app id ${app.id}`);
-    ids.add(app.id);
-    if (!Array.isArray(app.aliasPatterns) || !app.aliasPatterns.length) errors.push(`missing alias patterns for ${app.id}`);
-    for (const pattern of app.aliasPatterns || []) {
-      try {
-        new RegExp(pattern, 'i');
-      } catch {
-        errors.push(`invalid alias pattern for ${app.id}: ${pattern}`);
-      }
-    }
-  }
-  return errors;
 }
