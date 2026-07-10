@@ -7,6 +7,11 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '🎨', text: 'Maxis top-three standings now rise on gold, silver, and bronze metallic podiums, with the large polished crown reserved for the gold winner across themes and mobile' },
+            { type: '🎨', text: 'The Tezos Maxis launcher now fills its Chamber card with readable lane chips and a compact season pulse, while the open room uses cleaner mobile gutters and tab geometry' },
+            { type: '🔧', text: 'Maxis now distinguishes unavailable season data from a genuinely empty season and labels active, settling, and finalized results with phase-accurate boundaries, cutlines, and honors' },
+            { type: '✨', text: 'Finalized Champions now expose each winner’s address, score, Ledger Flow trail, source receipt, final standings, and frozen rules' },
+            { type: '🔧', text: 'Maxis rank shares now preserve their room, season, and lane context; standings actions open inline and scroll fully into view with unique accessible controls; and device-local sharing rituals stay separate from verified career records' },
             { type: '🎨', text: 'Maxis season and close controls now share one balanced corner system, matching 44 px circular treatment, and mirrored desktop/mobile insets instead of straddling the hero border' },
             { type: '✨', text: 'Tezos Maxis now opens on the canonical crown board, restoring the all-lane overview and each lane’s honest all-time, all-time-active, live, rolling, or cross-lane clock before the protocol-season game layer' },
             { type: '🔧', text: 'Governance Maxi now keeps its enduring all-time-active crown and current voting-period context, while protocol-season governance is labeled as a separate episodic race rather than replacing the career record' },

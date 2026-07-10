@@ -2187,6 +2187,13 @@ async function assertChamberControlGeometry(page, label) {
       '.card-front .maxis-entry-head',
       '.card-front .maxis-entry-grid',
       '.card-front .maxis-entry-leader',
+      '.card-front .maxis-entry-season-front',
+      '.card-front .maxis-entry-season-copy',
+      '.card-front .maxis-entry-identity-strip',
+      '.card-front .maxis-entry-identity-strip > span',
+      '.card-front .maxis-entry-season-meta',
+      '.card-front .maxis-entry-season-pulse',
+      '.card-front .maxis-entry-pulse-line',
       '.card-front .network-health-blocks',
       '.card-front .network-health-block',
       '.card-front .health-live-tape',
@@ -2334,6 +2341,55 @@ async function assertChamberControlGeometry(page, label) {
     return found;
   });
   assert(issues.length === 0, `${label}: chamber controls should not overlap content or each other: ${JSON.stringify(issues)}`);
+}
+
+async function readMaxisLauncherGeometry(page) {
+  return page.locator('#maxis-entry-card').evaluate((card) => {
+    const visible = (node) => {
+      if (!node) return false;
+      const style = getComputedStyle(node);
+      return style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number(style.opacity) !== 0
+        && node.getClientRects().length > 0;
+    };
+    const box = (node) => {
+      const bounds = node?.getBoundingClientRect();
+      return bounds ? {
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top,
+        bottom: bounds.bottom,
+        width: bounds.width,
+        height: bounds.height
+      } : null;
+    };
+    const front = card.querySelector('.maxis-entry-front');
+    const stage = card.querySelector('.maxis-entry-season-front');
+    const pair = card.closest('.chamber-card-pair');
+    const frontBox = box(front);
+    const frontStyle = front ? getComputedStyle(front) : null;
+    const paddingLeft = Number.parseFloat(frontStyle?.paddingLeft || '0') || 0;
+    const paddingRight = Number.parseFloat(frontStyle?.paddingRight || '0') || 0;
+    const identityCells = Array.from(card.querySelectorAll('.maxis-entry-identity-strip > span')).filter(visible);
+    return {
+      card: box(card),
+      pair: box(pair),
+      stage: box(stage),
+      contentLeft: frontBox ? frontBox.left + paddingLeft : null,
+      contentRight: frontBox ? frontBox.right - paddingRight : null,
+      contentWidth: front ? front.clientWidth - paddingLeft - paddingRight : 0,
+      identityCount: identityCells.length,
+      clippedIdentityCells: identityCells
+        .filter((node) => node.scrollWidth > node.clientWidth + 1)
+        .map((node) => ({
+          text: node.textContent?.replace(/\s+/g, ' ').trim() || '',
+          clientWidth: node.clientWidth,
+          scrollWidth: node.scrollWidth
+        })),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
 }
 
 async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, mockOptions = {}) {
@@ -4991,6 +5047,33 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.locator('#maxis-modal.active .maxis-content').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#maxis-modal .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
 
+  const desktopLauncher = await readMaxisLauncherGeometry(page);
+  assert(
+    desktopLauncher.card
+      && desktopLauncher.stage
+      && Math.abs(desktopLauncher.stage.left - desktopLauncher.contentLeft) <= 2
+      && Math.abs(desktopLauncher.stage.right - desktopLauncher.contentRight) <= 2
+      && Math.abs(desktopLauncher.stage.width - desktopLauncher.contentWidth) <= 2,
+    `tezos maxis launcher: desktop composition does not fill the card content box ${JSON.stringify(desktopLauncher)}`
+  );
+  assert(desktopLauncher.identityCount === 9 && desktopLauncher.clippedIdentityCells.length === 0, `tezos maxis launcher: desktop identity chips clip or disappear ${JSON.stringify(desktopLauncher)}`);
+  assert(desktopLauncher.card.height <= 360 && desktopLauncher.horizontalOverflow <= 1, `tezos maxis launcher: desktop card is oversized or overflows ${JSON.stringify(desktopLauncher)}`);
+
+  await page.setViewportSize({ width: 900, height: 1000 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const tabletLauncher = await readMaxisLauncherGeometry(page);
+  assert(
+    tabletLauncher.card
+      && tabletLauncher.pair
+      && Math.abs(tabletLauncher.card.left - tabletLauncher.pair.left) <= 2
+      && Math.abs(tabletLauncher.card.right - tabletLauncher.pair.right) <= 2
+      && Math.abs(tabletLauncher.card.width - tabletLauncher.pair.width) <= 2,
+    `tezos maxis launcher: single-card tablet pair leaves an empty grid column ${JSON.stringify(tabletLauncher)}`
+  );
+  assert(tabletLauncher.horizontalOverflow <= 1, `tezos maxis launcher: tablet card overflows ${JSON.stringify(tabletLauncher)}`);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
   const artifact = await page.evaluate(async () => {
     const [manifest, ongoing, careers] = await Promise.all([
       fetch('/data/maxis/manifest.json', { cache: 'no-store' }).then((response) => response.json()),
@@ -5128,30 +5211,137 @@ async function smokeMaxisChamber(browser, baseUrl) {
       boardCount: document.querySelectorAll('.maxis-lane-board').length,
       lanePressed: document.querySelector(`[data-maxis-lane="${category}"]`)?.getAttribute('aria-pressed'),
       podium: board?.querySelectorAll('.maxis-podium-place').length || 0,
+      podiumCrowns: Array.from(board?.querySelectorAll('.maxis-podium-place .maxis-podium-crown') || []).map((crown) => crown.closest('.maxis-podium-place')?.getAttribute('data-place') || ''),
       compact: board?.querySelectorAll('.maxis-compact-row').length || 0,
       rowMenus: board?.querySelectorAll('.maxis-row-menu-toggle').length || 0,
+      rowControls: Array.from(board?.querySelectorAll('.maxis-row-menu-toggle') || []).map((button) => {
+        const controlledId = button.getAttribute('aria-controls') || '';
+        return {
+          expanded: button.getAttribute('aria-expanded') || '',
+          controlledId,
+          targetCount: controlledId ? document.querySelectorAll(`#${CSS.escape(controlledId)}`).length : 0
+        };
+      }),
       telemetry: telemetry?.textContent?.replace(/\s+/g, ' ').trim() || '',
       expectedVisible: Math.min(10, total)
     };
   }, { category: artifact.readyCategory, total: artifact.readyRows });
   assert(readyState.boardCount === 1 && readyState.lanePressed === 'true', `tezos maxis chamber: selected lane state failed ${JSON.stringify(readyState)}`);
   assert(readyState.podium === 3 && readyState.compact === Math.max(0, readyState.expectedVisible - 3) && readyState.rowMenus === readyState.expectedVisible, `tezos maxis chamber: podium/top-ten composition failed ${JSON.stringify(readyState)}`);
+  assert(readyState.podiumCrowns.length === 1 && readyState.podiumCrowns[0] === '1', `tezos maxis chamber: the ceremonial crown must belong only to the gold winner ${JSON.stringify(readyState.podiumCrowns)}`);
+  assert(
+    readyState.rowControls.length === readyState.expectedVisible
+      && readyState.rowControls.every(({ expanded, controlledId, targetCount }) => expanded === 'false'
+        && (!controlledId || (/^maxis-row-actions-[a-z0-9_-]+-[a-z0-9_-]+$/.test(controlledId) && targetCount === 1))),
+    `tezos maxis chamber: a closed rank toggle points at a missing or duplicate action group ${JSON.stringify(readyState.rowControls)}`
+  );
   assert(/Current leader/i.test(readyState.telemetry) && /Nearest challenger/i.test(readyState.telemetry) && /Top 10 cut line/i.test(readyState.telemetry), `tezos maxis chamber: race telemetry incomplete ${readyState.telemetry}`);
   if (readyState.expectedVisible >= 2) assert(/\+\s*[\d,.]+/.test(readyState.telemetry), `tezos maxis chamber: nearest-challenger gap is not actionable ${readyState.telemetry}`);
+
+  await page.waitForTimeout(350);
+  const podiumMenuClearance = await page.evaluate((category) => {
+    const board = document.querySelector(`[data-maxis-board="${category}"]`);
+    return Array.from(board?.querySelectorAll('.maxis-podium-place') || []).map((place) => {
+      const score = place.querySelector('small');
+      const toggle = place.querySelector('.maxis-row-menu-toggle');
+      const scoreRect = score?.getBoundingClientRect();
+      const toggleRect = toggle?.getBoundingClientRect();
+      return {
+        place: place.getAttribute('data-place') || '',
+        gap: scoreRect && toggleRect ? Number((toggleRect.top - scoreRect.bottom).toFixed(2)) : null
+      };
+    }).filter(({ gap }) => gap !== null);
+  }, artifact.readyCategory);
+  assert(
+    podiumMenuClearance.length === Math.min(3, readyState.expectedVisible)
+      && podiumMenuClearance.every(({ gap }) => gap >= 8),
+    `tezos maxis chamber: podium action toggles crowd the score line ${JSON.stringify(podiumMenuClearance)}`
+  );
+
+  const compactToggleCount = await page.locator(`[data-maxis-board="${artifact.readyCategory}"] .maxis-compact-row .maxis-row-menu-toggle`).count();
+  const compactActionGeometry = [];
+  for (let index = 0; index < compactToggleCount; index += 1) {
+    const compactToggle = page.locator(`[data-maxis-board="${artifact.readyCategory}"] .maxis-compact-row .maxis-row-menu-toggle`).nth(index);
+    await compactToggle.scrollIntoViewIfNeeded();
+    await compactToggle.click();
+    await page.waitForFunction((category) => Boolean(document.querySelector(`[data-maxis-board="${category}"] .maxis-compact-row .maxis-row-menu-toggle[aria-expanded="true"]`)), artifact.readyCategory);
+    await page.waitForFunction((category) => {
+      const toggle = document.querySelector(`[data-maxis-board="${category}"] .maxis-compact-row .maxis-row-menu-toggle[aria-expanded="true"]`);
+      const group = toggle?.getAttribute('aria-controls') ? document.getElementById(toggle.getAttribute('aria-controls')) : null;
+      const scrollport = document.querySelector('#maxis-modal .maxis-content');
+      const groupRect = group?.getBoundingClientRect();
+      const scrollRect = scrollport?.getBoundingClientRect();
+      return Boolean(groupRect && scrollRect && groupRect.top >= scrollRect.top && groupRect.bottom <= scrollRect.bottom);
+    }, artifact.readyCategory, { timeout: 2000 });
+    compactActionGeometry.push(await page.evaluate((category) => {
+      const board = document.querySelector(`[data-maxis-board="${category}"]`);
+      const toggle = board?.querySelector('.maxis-compact-row .maxis-row-menu-toggle[aria-expanded="true"]');
+      const row = toggle?.closest('.maxis-compact-row');
+      const controlledId = toggle?.getAttribute('aria-controls') || '';
+      const group = controlledId ? document.getElementById(controlledId) : null;
+      const scrollport = document.querySelector('#maxis-modal .maxis-content');
+      const toggleRect = toggle?.getBoundingClientRect();
+      const groupRect = group?.getBoundingClientRect();
+      const scrollRect = scrollport?.getBoundingClientRect();
+      return {
+        rank: row?.querySelector('.maxis-compact-rank')?.textContent?.trim() || '',
+        expanded: toggle?.getAttribute('aria-expanded') || '',
+        controlledId,
+        groupId: group?.id || '',
+        ownedByRow: Boolean(row && group && (row.contains(group) || row.nextElementSibling === group)),
+        distanceFromToggle: toggleRect && groupRect
+          ? Number(Math.max(0, groupRect.top - toggleRect.bottom, toggleRect.top - groupRect.bottom).toFixed(2))
+          : null,
+        groupBounds: groupRect ? { top: Number(groupRect.top.toFixed(2)), bottom: Number(groupRect.bottom.toFixed(2)) } : null,
+        scrollBounds: scrollRect ? { top: Number(scrollRect.top.toFixed(2)), bottom: Number(scrollRect.bottom.toFixed(2)) } : null,
+        visibleInsideScrollport: Boolean(groupRect && scrollRect && groupRect.top >= scrollRect.top && groupRect.bottom <= scrollRect.bottom)
+      };
+    }, artifact.readyCategory));
+  }
+  assert(
+    compactToggleCount === Math.max(0, readyState.expectedVisible - 3)
+      && compactActionGeometry.every((geometry) => geometry.expanded === 'true'
+        && geometry.controlledId === geometry.groupId
+        && geometry.ownedByRow
+        && geometry.distanceFromToggle !== null
+        && geometry.distanceFromToggle <= 16
+        && geometry.visibleInsideScrollport),
+    `tezos maxis chamber: compact rank actions are detached from their standing or open outside the visible chamber ${JSON.stringify(compactActionGeometry)}`
+  );
 
   const gapReceiptToggle = page.locator('[data-maxis-board] .maxis-row-menu-toggle').nth(1);
   await gapReceiptToggle.focus();
   await page.keyboard.press('Enter');
-  const rowActions = await page.evaluate(() => ({
-    count: document.querySelectorAll('.maxis-row-actions [role="menuitem"]').length,
-    ledger: document.querySelector('.maxis-row-actions .maxis-ledger-action')?.getAttribute('href') || '',
-    myTezos: Array.from(document.querySelectorAll('.maxis-row-actions a')).find((link) => /My Tezos/.test(link.textContent || ''))?.getAttribute('href') || '',
-    source: document.querySelector('.maxis-row-actions .maxis-source-action')?.getAttribute('href') || '',
-    share: document.querySelector('.maxis-row-actions .maxis-tweet-action')?.getAttribute('href') || '',
-    receipt: document.querySelector('.maxis-row-actions [aria-label="Frozen score receipt"]')?.textContent?.replace(/\s+/g, ' ').trim() || ''
-  }));
-  assert(rowActions.count === 4 && /^\/#ledger-flow=tz/.test(rowActions.ledger) && /^\/#my-baker=tz/.test(rowActions.myTezos), `tezos maxis chamber: address trails missing ${JSON.stringify(rowActions)}`);
+  const rowActions = await page.evaluate(() => {
+    const group = document.querySelector('.maxis-row-actions[role="group"]');
+    const toggle = document.querySelector('.maxis-row-menu-toggle[aria-expanded="true"]');
+    const share = group?.querySelector('.maxis-tweet-action')?.getAttribute('href') || '';
+    let shareText = '';
+    try {
+      shareText = new URL(share).searchParams.get('text') || '';
+    } catch {
+      // A malformed intent URL is asserted below with the rest of the rank actions.
+    }
+    return {
+      count: group?.querySelectorAll('.maxis-rank-action').length || 0,
+      menuitemRoles: group?.querySelectorAll('[role="menuitem"]').length || 0,
+      groupId: group?.id || '',
+      controlledId: toggle?.getAttribute('aria-controls') || '',
+      toggleLabel: toggle?.getAttribute('aria-label') || '',
+      matchingGroupIds: group?.id ? document.querySelectorAll(`#${CSS.escape(group.id)}`).length : 0,
+      ledger: group?.querySelector('.maxis-ledger-action')?.getAttribute('href') || '',
+      myTezos: Array.from(group?.querySelectorAll('a') || []).find((link) => /My Tezos/.test(link.textContent || ''))?.getAttribute('href') || '',
+      source: group?.querySelector('.maxis-source-action')?.getAttribute('href') || '',
+      share,
+      shareText,
+      receipt: group?.querySelector('[aria-label="Frozen score receipt"]')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(rowActions.count === 4 && rowActions.menuitemRoles === 0 && /^\/#ledger-flow=tz/.test(rowActions.ledger) && /^\/#my-baker=tz/.test(rowActions.myTezos), `tezos maxis chamber: address trails or action semantics missing ${JSON.stringify(rowActions)}`);
+  assert(rowActions.groupId === rowActions.controlledId && rowActions.matchingGroupIds === 1 && /^Close score receipt and trails/.test(rowActions.toggleLabel), `tezos maxis chamber: open rank action group is not uniquely controlled ${JSON.stringify(rowActions)}`);
   assert(/^https:\/\//.test(rowActions.source) && /^https:\/\/twitter\.com\/intent\/tweet\?text=/.test(rowActions.share), `tezos maxis chamber: source/share actions missing ${JSON.stringify(rowActions)}`);
+  const expectedRankUrl = `https://tezos.systems/maxis/?view=season&season=${encodeURIComponent(artifact.activeSeasonId)}&lane=${encodeURIComponent(artifact.readyCategory)}`;
+  assert(rowActions.shareText.includes(expectedRankUrl), `tezos maxis chamber: rank share does not preserve the selected season and lane ${JSON.stringify({ expectedRankUrl, shareText: rowActions.shareText })}`);
   assert(/Frozen score receipt/i.test(rowActions.receipt) && /rank #2/i.test(rowActions.receipt), `tezos maxis chamber: row score receipt missing ${JSON.stringify(rowActions)}`);
   assert(/actionable guarantee/i.test(rowActions.receipt) && /conservative static-vector path/i.test(rowActions.receipt) && /not a live minimum/i.test(rowActions.receipt), `tezos maxis chamber: pass-gap certainty labels are missing ${JSON.stringify(rowActions)}`);
 
@@ -5199,7 +5389,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   }));
   assert(championsShell.title === 'Champions' && /maxis-champions-hero/.test(championsShell.hero) && championsShell.seasonOrbs === 0, `tezos maxis chamber: Champions is not a neutral finalized archive room ${JSON.stringify(championsShell)}`);
   if (artifact.finalizedCount === 0) {
-    await page.waitForFunction(() => /first protocol season is still live/i.test(document.querySelector('#maxis-panel-champions')?.textContent || ''));
+    await page.waitForFunction(() => /first (?:Maxis|protocol) season is still live/i.test(document.querySelector('#maxis-panel-champions')?.textContent || ''));
     assert(await page.locator('#maxis-panel-champions .maxis-champion-card').count() === 0, 'tezos maxis chamber: first live season must not invent finalized champions');
   } else {
     await page.waitForFunction((count) => document.querySelectorAll('#maxis-panel-champions .maxis-champion-card').length === count, artifact.finalizedCount, { timeout: 15000 });
@@ -5258,6 +5448,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   const mobileState = await page.evaluate(() => {
     const heights = (selector) => Array.from(document.querySelectorAll(selector)).filter((node) => node.getClientRects().length).map((node) => Math.round(node.getBoundingClientRect().height));
     const content = document.querySelector('.maxis-content')?.getBoundingClientRect();
+    const experience = document.querySelector('.maxis-experience')?.getBoundingClientRect();
     const hero = document.querySelector('.maxis-protocol-hero');
     const heroBounds = hero?.getBoundingClientRect();
     const orbBounds = document.querySelector('.maxis-season-orb')?.getBoundingClientRect();
@@ -5271,6 +5462,8 @@ async function smokeMaxisChamber(browser, baseUrl) {
       closeHeight: Math.round(document.querySelector('#maxis-modal .chamber-close')?.getBoundingClientRect().height || 0),
       contentLeft: content?.left || 0,
       contentRight: content?.right || 0,
+      contentWidth: content?.width || 0,
+      experienceWidth: experience?.width || 0,
       viewportWidth: window.innerWidth,
       horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       heroOverflow: (hero?.scrollWidth || 0) - (hero?.clientWidth || 0),
@@ -5286,6 +5479,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   });
   assert(mobileState.roomHeights.every((height) => height >= 44) && mobileState.laneHeights.every((height) => height >= 44) && mobileState.rowMenuHeights.every((height) => height >= 44), `tezos maxis chamber: mobile targets are below 44px ${JSON.stringify(mobileState)}`);
   assert(mobileState.orbHeight >= 44 && mobileState.closeHeight >= 44 && mobileState.contentLeft >= 0 && mobileState.contentRight <= mobileState.viewportWidth && mobileState.horizontalOverflow <= 1, `tezos maxis chamber: mobile modal geometry failed ${JSON.stringify(mobileState)}`);
+  assert(mobileState.contentWidth >= mobileState.viewportWidth - 16 && mobileState.experienceWidth >= mobileState.viewportWidth - 64, `tezos maxis chamber: mobile modal gutters waste the usable viewport ${JSON.stringify(mobileState)}`);
   assert(mobileState.heroOverflow <= 1 && mobileState.kickerOverflow <= 1, `tezos maxis chamber: mobile protocol hero clips its kicker ${JSON.stringify(mobileState)}`);
   assert(mobileState.cornerTopDelta <= 2 && mobileState.cornerInsetDelta <= 2 && mobileState.cornerLeftInset >= 6 && mobileState.cornerRightInset >= 6 && mobileState.controlsInsideHero, `tezos maxis chamber: mobile corner controls are not aligned and contained ${JSON.stringify(mobileState)}`);
 
@@ -5349,6 +5543,52 @@ async function smokeMaxisChamber(browser, baseUrl) {
 
   await context.close();
 
+  const championsRetryContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(championsRetryContext);
+  await championsRetryContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  let championsManifestRequests = 0;
+  let championsManifestAvailable = false;
+  await championsRetryContext.route('**/data/maxis/manifest.json', async (route) => {
+    championsManifestRequests += 1;
+    if (!championsManifestAvailable) return route.abort('failed');
+    const response = await route.fetch();
+    return route.fulfill({ response });
+  });
+  const championsRetryPage = await championsRetryContext.newPage();
+  const championsRetryResponse = await championsRetryPage.goto(`${baseUrl}/maxis/?view=champions`, { waitUntil: 'domcontentloaded' });
+  assert(championsRetryResponse?.ok(), `tezos maxis Champions retry: pretty route failed with HTTP ${championsRetryResponse?.status()}`);
+  await championsRetryPage.locator('#maxis-panel-champions [data-maxis-archives-retry]').waitFor({ state: 'visible', timeout: 15000 });
+  const championsFailureState = await championsRetryPage.evaluate(() => ({
+    text: document.querySelector('#maxis-panel-champions')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    retryButtons: document.querySelectorAll('#maxis-panel-champions [data-maxis-archives-retry]').length,
+    championCards: document.querySelectorAll('#maxis-panel-champions .maxis-champion-card').length
+  }));
+  assert(championsManifestRequests >= 1 && championsFailureState.retryButtons === 1 && championsFailureState.championCards === 0 && /final archives are scoped unavailable|final archive receipts did not load/i.test(championsFailureState.text), `tezos maxis Champions retry: the initial manifest failure was not scoped and retryable ${JSON.stringify({ championsManifestRequests, championsFailureState })}`);
+  championsManifestAvailable = true;
+  await championsRetryPage.locator('#maxis-panel-champions [data-maxis-archives-retry]').click();
+  await championsRetryPage.waitForFunction((expectArchives) => {
+    const panel = document.querySelector('#maxis-panel-champions');
+    const text = panel?.textContent || '';
+    const cards = panel?.querySelectorAll('.maxis-champion-card').length || 0;
+    const retry = panel?.querySelector('[data-maxis-archives-retry]');
+    return !retry && (expectArchives ? cards > 0 : cards === 0 && /first (?:Maxis|protocol) season is still live/i.test(text));
+  }, artifact.finalizedCount > 0, { timeout: 15000 });
+  const championsRecoveryState = await championsRetryPage.evaluate(() => ({
+    text: document.querySelector('#maxis-panel-champions')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    retryButtons: document.querySelectorAll('#maxis-panel-champions [data-maxis-archives-retry]').length,
+    championCards: document.querySelectorAll('#maxis-panel-champions .maxis-champion-card').length
+  }));
+  assert(championsManifestRequests >= 2 && championsRecoveryState.retryButtons === 0 && (artifact.finalizedCount > 0 ? championsRecoveryState.championCards > 0 : championsRecoveryState.championCards === 0 && /first (?:Maxis|protocol) season is still live/i.test(championsRecoveryState.text)), `tezos maxis Champions retry: a successful manifest retry did not restore the honest archive state ${JSON.stringify({ championsManifestRequests, championsRecoveryState })}`);
+  await championsRetryContext.close();
+
   const archiveContext = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     serviceWorkers: 'block'
@@ -5367,6 +5607,9 @@ async function smokeMaxisChamber(browser, baseUrl) {
       ...(Array.isArray(manifest.archives) ? manifest.archives : []),
       {
         id: 'protocol-legacy-frozen-lanes',
+        summaryPath: '/data/maxis/seasons/archive-test/summary.json',
+        archiveUrl: '/data/maxis/seasons/archive-test/summary.json',
+        rulesPath: '/data/maxis/seasons/archive-test/rules.json',
         season: {
           id: 'protocol-legacy-frozen-lanes',
           seasonOrdinal: 0,
@@ -5381,8 +5624,8 @@ async function smokeMaxisChamber(browser, baseUrl) {
           { category: 'legacy_relics', title: 'Heritage Curator', order: 20 }
         ],
         champions: [
-          { category: 'legacy_relics', title: 'Heritage Curator', laneOrder: 20, rank: 1, address: SAMPLE_ADDRESS_2, alias: 'Archive Keeper' },
-          { category: 'transaction', title: 'Original Motion Crown', laneOrder: 5, rank: 1, address: SAMPLE_ADDRESS, alias: 'First Mover' }
+          { category: 'legacy_relics', title: 'Heritage Curator', laneOrder: 20, rank: 1, address: SAMPLE_ADDRESS_2, alias: 'Archive Keeper', scoreLabel: '88 heritage transfers', sourceUrl: `https://tzkt.io/${SAMPLE_ADDRESS_2}/operations/` },
+          { category: 'transaction', title: 'Original Motion Crown', laneOrder: 5, rank: 1, address: SAMPLE_ADDRESS, alias: 'First Mover', scoreLabel: '144 season transactions', sourceUrl: `https://tzkt.io/${SAMPLE_ADDRESS}/operations/` }
         ],
         honors: {}
       }
@@ -5455,9 +5698,30 @@ async function smokeMaxisChamber(browser, baseUrl) {
   assert(archiveResponse?.ok(), `tezos maxis frozen archive: pretty route failed with HTTP ${archiveResponse?.status()}`);
   const legacyArchiveCard = archivePage.locator('#maxis-panel-champions .maxis-champion-card').filter({ hasText: 'Legacy Protocol' });
   await legacyArchiveCard.waitFor({ state: 'visible', timeout: 15000 });
-  const frozenLaneLabels = await legacyArchiveCard.locator('.maxis-champion-row > span').allTextContents();
+  const frozenLaneLabels = await legacyArchiveCard.locator('.maxis-champion-row > span:first-child').allTextContents();
   assert(frozenLaneLabels.slice(0, 2).join('|') === 'Original Motion Crown|Heritage Curator', `tezos maxis frozen archive: current taxonomy rewrote frozen lane title/order ${JSON.stringify(frozenLaneLabels)}`);
   assert(!frozenLaneLabels.includes('Legacy Relics'), `tezos maxis frozen archive: unknown old lane fell through to the current labeler ${JSON.stringify(frozenLaneLabels)}`);
+  const archiveReceiptState = await legacyArchiveCard.evaluate((card, expectedAddress) => {
+    const record = Array.from(card.querySelectorAll('.maxis-champion-record')).find((node) => /Heritage Curator/.test(node.textContent || ''));
+    const archiveActions = card.querySelector('.maxis-archive-actions[role="group"]');
+    return {
+      records: card.querySelectorAll('.maxis-champion-record').length,
+      address: record?.querySelector('.maxis-champion-identity code')?.getAttribute('title') || '',
+      score: record?.querySelector('.maxis-champion-identity small')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      ledger: record?.querySelector('.maxis-champion-actions .maxis-ledger-action')?.getAttribute('href') || '',
+      source: record?.querySelector('.maxis-champion-actions .maxis-source-action')?.getAttribute('href') || '',
+      actionGroups: record?.querySelectorAll('.maxis-champion-actions[role="group"]').length || 0,
+      finalReceiptText: archiveActions?.querySelector('.maxis-archive-summary-action')?.textContent?.trim() || '',
+      finalReceiptHref: archiveActions?.querySelector('.maxis-archive-summary-action')?.getAttribute('href') || '',
+      frozenRulesText: archiveActions?.querySelector('.maxis-archive-rules-action')?.textContent?.trim() || '',
+      frozenRulesHref: archiveActions?.querySelector('.maxis-archive-rules-action')?.getAttribute('href') || '',
+      expectedAddress
+    };
+  }, SAMPLE_ADDRESS_2);
+  assert(archiveReceiptState.records === 2 && archiveReceiptState.address === archiveReceiptState.expectedAddress && archiveReceiptState.score === '88 heritage transfers', `tezos maxis frozen archive: champion identity or final score was lost ${JSON.stringify(archiveReceiptState)}`);
+  assert(archiveReceiptState.actionGroups === 1 && archiveReceiptState.ledger === `/#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}` && archiveReceiptState.source === `https://tzkt.io/${SAMPLE_ADDRESS_2}/operations/`, `tezos maxis frozen archive: champion on-chain trails are incomplete ${JSON.stringify(archiveReceiptState)}`);
+  assert(/^Final receipt/.test(archiveReceiptState.finalReceiptText) && archiveReceiptState.finalReceiptHref.endsWith('/data/maxis/seasons/archive-test/summary.json'), `tezos maxis frozen archive: final summary receipt is missing ${JSON.stringify(archiveReceiptState)}`);
+  assert(/^Frozen rules/.test(archiveReceiptState.frozenRulesText) && archiveReceiptState.frozenRulesHref.endsWith('/data/maxis/seasons/archive-test/rules.json'), `tezos maxis frozen archive: frozen rules receipt is missing ${JSON.stringify(archiveReceiptState)}`);
   await archivePage.locator('[data-maxis-view="passport"]').click();
   await archivePage.locator('.maxis-passport-input').fill(SAMPLE_ADDRESS_2);
   await archivePage.locator('.maxis-passport-submit').click();
@@ -5540,6 +5804,87 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await integrityPage.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'season');
   assert(await integrityPage.locator('#maxis-panel-season .maxis-lane-board').count() === 1, 'tezos maxis Passport integrity: a rejected shard must not break the other rooms');
   await integrityContext.close();
+
+  const seasonFaultContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(seasonFaultContext);
+  await seasonFaultContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  await seasonFaultContext.route('**/data/maxis/seasons/**/summary.json', (route) => route.abort('failed'));
+  const seasonFaultPage = await seasonFaultContext.newPage();
+  const seasonFaultResponse = await seasonFaultPage.goto(`${baseUrl}/maxis/?view=season`, { waitUntil: 'domcontentloaded' });
+  assert(seasonFaultResponse?.ok(), `tezos maxis season fault: pretty route failed with HTTP ${seasonFaultResponse?.status()}`);
+  await seasonFaultPage.locator('#maxis-panel-season [data-maxis-season-retry]').waitFor({ state: 'visible', timeout: 15000 });
+  const seasonFaultState = await seasonFaultPage.evaluate(() => ({
+    text: document.querySelector('#maxis-panel-season')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    retryButtons: document.querySelectorAll('#maxis-panel-season [data-maxis-season-retry]').length,
+    seasonBoards: document.querySelectorAll('#maxis-panel-season [data-maxis-board]').length
+  }));
+  assert(seasonFaultState.retryButtons === 1 && seasonFaultState.seasonBoards === 0 && /Selected season is scoped unavailable/i.test(seasonFaultState.text) && /selected season sheet did not pass its receipt/i.test(seasonFaultState.text), `tezos maxis season fault: declared summary failure is not scoped and retryable ${JSON.stringify(seasonFaultState)}`);
+  assert(!/first (?:Maxis )?season is forming|first protocol season is still live/i.test(seasonFaultState.text), `tezos maxis season fault: a failed declared summary was misreported as a pre-season state ${JSON.stringify(seasonFaultState)}`);
+  await seasonFaultPage.locator('[data-maxis-view="maxis"]').click();
+  await seasonFaultPage.waitForFunction((count) => document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length === count, artifact.ongoingCategories.length, { timeout: 10000 });
+  assert(await seasonFaultPage.locator('#maxis-panel-maxis [data-maxis-overview-lane]').count() === artifact.ongoingCategories.length, `tezos maxis season fault: scoped failure blanked canonical Maxis ${JSON.stringify(seasonFaultState)}`);
+  await seasonFaultContext.close();
+
+  const finalizedContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(finalizedContext);
+  await finalizedContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  await finalizedContext.route('**/data/maxis/manifest.json', async (route) => {
+    const response = await route.fetch();
+    const manifest = await response.json();
+    const finalizedAt = '2026-07-09T12:00:00.000Z';
+    manifest.seasons = (manifest.seasons || []).map((season) => season.id === manifest.activeSeasonId
+      ? { ...season, status: 'finalized', phase: 'finalized', endsAt: finalizedAt, archiveUrl: season.summaryPath }
+      : season);
+    return fulfillJson(route, manifest);
+  });
+  await finalizedContext.route('**/data/maxis/seasons/**/summary.json', async (route) => {
+    const response = await route.fetch();
+    const summary = await response.json();
+    summary.season = { ...(summary.season || {}), status: 'finalized', phase: 'finalized', endsAt: '2026-07-09T12:00:00.000Z' };
+    return fulfillJson(route, summary);
+  });
+  const finalizedPage = await finalizedContext.newPage();
+  attachIssueCollectors(finalizedPage, 'tezos maxis finalized phase', issues);
+  const finalizedResponse = await finalizedPage.goto(`${baseUrl}/maxis/?view=season&lane=${encodeURIComponent(artifact.readyCategory)}`, { waitUntil: 'domcontentloaded' });
+  assert(finalizedResponse?.ok(), `tezos maxis finalized phase: pretty route failed with HTTP ${finalizedResponse?.status()}`);
+  await finalizedPage.waitForFunction((category) => {
+    const experience = document.querySelector('.maxis-experience');
+    const panel = document.querySelector('#maxis-panel-season');
+    const board = panel?.querySelector(`[data-maxis-board="${CSS.escape(category)}"]`);
+    const finalTelemetry = panel?.querySelector('.maxis-honors-panel[aria-label="Finalized season record"]');
+    return experience?.dataset.maxisSeasonPhase === 'finalized'
+      && Boolean(board)
+      && Boolean(finalTelemetry)
+      && /Finalized protocol archive/i.test(panel?.textContent || '');
+  }, artifact.readyCategory, { timeout: 15000 });
+  const finalizedSeasonText = await finalizedPage.locator('#maxis-panel-season').innerText();
+  assert(/Finalized protocol archive[\s\S]*Frozen season standings/i.test(finalizedSeasonText) && /frozen at finalization/i.test(finalizedSeasonText), `tezos maxis finalized phase: Season retained live race copy ${finalizedSeasonText}`);
+  assert(/Final leader/i.test(finalizedSeasonText) && /Final runner-up/i.test(finalizedSeasonText), `tezos maxis finalized phase: final telemetry retained live leader labels ${finalizedSeasonText}`);
+  assert(!/Live protocol season|Movement makes the chamber|Season in progress|(?:^|\n)(?:Current leader|Nearest challenger|Moving Top 10 cutoff)(?:\n|$)|next(?: season)? snapshot|A second snapshot|\bpending\b|active(?: protocol-bounded)? ruleset|line moves with every snapshot/im.test(finalizedSeasonText), `tezos maxis finalized phase: Season presents a frozen archive as live or moving ${finalizedSeasonText}`);
+  await finalizedPage.locator('[data-maxis-view="passport"]').click();
+  await finalizedPage.locator('.maxis-passport-input').fill(artifact.passportAddress);
+  await finalizedPage.locator('.maxis-passport-submit').click();
+  await finalizedPage.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, artifact.passportAddress, { timeout: 15000 });
+  const finalizedPassportText = await finalizedPage.locator('#maxis-panel-passport').innerText();
+  assert(/Selected Archive[\s\S]*Archived lanes[\s\S]*frozen cut lines/i.test(finalizedPassportText), `tezos maxis finalized phase: Passport did not preserve archive scope ${finalizedPassportText}`);
+  assert(!/This Season stamps|Season in progress|Current leader|Nearest challenger|Moving Top 10 cutoff|next(?: season)? snapshot|active(?: protocol-bounded)? ruleset/i.test(finalizedPassportText), `tezos maxis finalized phase: Passport presents a frozen archive as live ${finalizedPassportText}`);
+  await finalizedContext.close();
 
   assert(issues.length === 0, `tezos maxis chamber browser issues:\n${issues.join('\n')}`);
   log('ok - tezos maxis chamber smoke');

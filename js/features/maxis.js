@@ -8,7 +8,7 @@ import { escapeHtml } from '../core/utils.js';
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=407';
+const MAXIS_CSS_URL = '/css/maxis.css?v=408';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -107,9 +107,13 @@ const chamberState = {
     careers: null,
     careerError: '',
     manifest: null,
+    manifestLoading: false,
+    manifestError: '',
     summary: null,
     summaryLoading: false,
     summaryError: '',
+    entrySummaryLoading: false,
+    entrySummaryError: '',
     selectorOpen: false,
     selectorFocusReturn: false,
     selectorWasOpenAtPointerDown: false,
@@ -124,7 +128,8 @@ const chamberState = {
     passportError: '',
     passportNote: '',
     archives: null,
-    archivesLoading: false
+    archivesLoading: false,
+    archivesError: ''
 };
 
 function ensureMaxisStyles() {
@@ -369,11 +374,17 @@ async function loadCareerData({ force = false } = {}) {
 }
 
 async function loadManifest({ force = false } = {}) {
-    if (lastManifest && !force) return lastManifest;
+    if (lastManifest && !force) {
+        chamberState.manifestError = '';
+        return lastManifest;
+    }
     if (manifestPromise && !force) return manifestPromise;
-    manifestPromise = fetchJson(MANIFEST_URL, { force, quiet: true })
+    chamberState.manifestLoading = true;
+    manifestPromise = fetchJson(MANIFEST_URL, { force })
         .then((manifest) => {
-            if (!manifest || typeof manifest !== 'object') return null;
+            if (!manifest || typeof manifest !== 'object') {
+                throw new Error('The Maxis season manifest has an unsupported schema.');
+            }
             if (lastManifest?.generatedAt && manifest.generatedAt && lastManifest.generatedAt !== manifest.generatedAt) {
                 archiveRequestSerial += 1;
                 summaryCache.clear();
@@ -381,12 +392,22 @@ async function loadManifest({ force = false } = {}) {
                 shardRequestCache.clear();
                 chamberState.archives = null;
                 chamberState.archivesLoading = false;
+                chamberState.archivesError = '';
             }
             lastManifest = manifest;
             chamberState.manifest = manifest;
+            chamberState.manifestError = '';
             return manifest;
         })
-        .finally(() => { manifestPromise = null; });
+        .catch((error) => {
+            chamberState.manifestError = textValue(error?.message, 'The Maxis season manifest is temporarily unavailable.');
+            console.warn('Maxis season manifest unavailable', error);
+            return null;
+        })
+        .finally(() => {
+            manifestPromise = null;
+            chamberState.manifestLoading = false;
+        });
     return manifestPromise;
 }
 
@@ -527,8 +548,10 @@ async function loadSeasonSummary(seasonId, { force = false } = {}) {
     }
     const url = summaryUrlFor(chamberState.manifest, season);
     if (!url) return null;
-    const summary = await fetchJson(url, { force, quiet: true });
-    if (!summary || typeof summary !== 'object') return summary;
+    const summary = await fetchJson(url, { force });
+    if (!summary || typeof summary !== 'object') {
+        throw new Error(`The declared ${season?.displayLabel || 'Maxis season'} summary did not contain a valid result sheet.`);
+    }
     const verified = assertSeasonSummaryIdentity(summary, season);
     summaryCache.set(seasonId, verified);
     return verified;
@@ -662,6 +685,49 @@ function seasonEndCopy(season, { compact = false } = {}) {
     return compact ? 'Ends at next protocol' : 'Ends at the next protocol activation · date not scheduled';
 }
 
+function seasonPhase(season = seasonById()) {
+    const status = String(season?.status || '').toLowerCase();
+    if (['final', 'finalized', 'complete', 'archived'].includes(status)) return 'finalized';
+    if (['settling', 'finalizing'].includes(status)) return 'settling';
+    return 'active';
+}
+
+function seasonContextError() {
+    return textValue(chamberState.summaryError, chamberState.manifestError);
+}
+
+function seasonScopeLabels(season = seasonById()) {
+    const phase = seasonPhase(season);
+    if (phase === 'finalized') {
+        return {
+            phase,
+            kicker: 'Finalized protocol archive',
+            passportScope: 'Selected Archive',
+            passportLaneHeading: 'Archived lanes',
+            passportCutLines: 'frozen cut lines',
+            passportCopy: 'The selected archive preserves its final ranks, cut lines, streaks, and Season Unicorn result under the frozen ruleset.'
+        };
+    }
+    if (phase === 'settling') {
+        return {
+            phase,
+            kicker: 'Closed season · provisional',
+            passportScope: 'Settling Season',
+            passportLaneHeading: 'Provisional lanes',
+            passportCutLines: 'settling cut lines',
+            passportCopy: 'This closed season remains provisional while its declared sources settle; final ranks and champion stamps are not permanent yet.'
+        };
+    }
+    return {
+        phase,
+        kicker: 'Live protocol season',
+        passportScope: 'This Season',
+        passportLaneHeading: 'Current lanes',
+        passportCutLines: 'moving cut lines',
+        passportCopy: 'This Season tracks ranks, moving gaps, streaks, and Season Unicorn progress inside the active protocol arena.'
+    };
+}
+
 function seasonNumberLabel(season) {
     const numeric = Number(season?.number);
     return Number.isFinite(numeric) ? String(numeric).padStart(2, '0') : textValue(season?.number, '—');
@@ -765,27 +831,42 @@ function renderMaxisHero() {
 function renderSeasonHero() {
     const season = seasonById();
     const data = activeDataForSeason();
-    const fresh = freshness(data || chamberState.legacy);
-    const settling = season?.status === 'settling';
-    const final = ['final', 'finalized', 'complete', 'archived'].includes(season?.status);
+    const fresh = freshness(data);
+    const phase = seasonPhase(season);
+    const settling = phase === 'settling';
+    const final = phase === 'finalized';
+    const contextError = seasonContextError();
     const sheetState = settling
         ? 'closed · source settlement in progress · champions pending'
-        : (final ? 'permanent champion sheet' : (data ? (fresh.stale ? 'previous valid sheet' : 'current sheet') : 'season sheet preparing'));
+        : (final ? 'permanent champion sheet' : (data ? (fresh.stale ? 'previous valid sheet' : 'current sheet') : contextError ? 'season sheet unavailable' : 'season sheet preparing'));
     const categories = data ? categoriesFor(data) : [];
     const passportRecords = data ? numberValue(data?.passports?.indexedAddresses, data?.coverage?.indexedAddresses) : null;
     const wallets = data ? (passportRecords ?? uniqueRankedWallets(data)) : 0;
     const starts = formatDate(season?.startsAt);
+    const boundaryCopy = contextError && !chamberState.manifest
+        ? 'Season boundary unavailable'
+        : seasonEndCopy(season, { compact: true });
+    const boundarySentence = contextError && !chamberState.manifest
+        ? 'Its activation boundary is unavailable'
+        : seasonEndCopy(season);
+    const lead = settling
+        ? 'This season is closed. Its provisional standings remain inspectable while the declared sources settle; champions are not permanent yet.'
+        : final
+            ? 'This season is finalized. Its standings, lane names, rules, and cut lines are frozen as a permanent protocol record.'
+            : contextError
+                ? 'The selected protocol-season sheet is scoped unavailable. Ongoing Maxis identities remain usable on their own declared clocks.'
+                : 'Every Maxis protocol season opens a new arena. Crowns stay objective; movement, breadth, and season honors give every wallet a path forward.';
     return `
         <header class="maxis-protocol-hero maxis-context-hero maxis-season-hero chamber-anim-fade">
             <div class="maxis-protocol-kicker"><span>Season ${escapeHtml(seasonNumberLabel(season))}</span> Tezos protocol arena · ${escapeHtml(sheetState)}</div>
-            <h2 id="maxis-title" class="maxis-protocol-title">${escapeHtml(season?.displayLabel || `${season?.protocol || 'Tezos'} Season`)}</h2>
-            <p class="maxis-protocol-lead">${settling ? 'This season is closed. Its provisional standings remain inspectable while the declared sources settle; champions are not permanent yet.' : 'Every protocol opens a new arena. Crowns stay objective; movement, breadth, and season honors give every wallet a path forward.'} ${escapeHtml(seasonEndCopy(season))}.</p>
+            <h2 id="maxis-title" class="maxis-protocol-title">${escapeHtml(contextError && !chamberState.manifest ? 'Maxis season sheet unavailable' : (season?.displayLabel || `${season?.protocol || 'Tezos'} Season`))}</h2>
+            <p class="maxis-protocol-lead">${escapeHtml(lead)} ${escapeHtml(boundarySentence)}. Maxis seasons begin with Ushuaia; earlier Tezos protocols are not retroactively scored.</p>
             <p class="maxis-idea-credit"><span aria-hidden="true">✦</span> Chamber idea by <strong>opeculiar</strong></p>
             <div class="maxis-season-telemetry" aria-label="Protocol season status">
-                <span><strong>${escapeHtml(starts || (season?.isCurrent ? 'Live now' : 'Date unavailable'))}</strong>season activation</span>
-                <span><strong>${escapeHtml(seasonEndCopy(season, { compact: true }))}</strong>season boundary</span>
+                <span><strong>${escapeHtml(starts || (contextError ? 'Unavailable' : season?.isCurrent ? 'Live now' : 'Date unavailable'))}</strong>season activation</span>
+                <span><strong>${escapeHtml(boundaryCopy)}</strong>season boundary</span>
                 <span><strong>${escapeHtml(String(wallets || '—'))}</strong>${passportRecords !== null ? 'wallet Passports indexed' : 'wallets on loaded ranks'}</span>
-                <span><strong>${escapeHtml(fresh.label)}</strong>${categories.length ? `${categories.length} lanes` : 'season data preparing'}</span>
+                <span><strong>${escapeHtml(data ? fresh.label : contextError ? 'Unavailable' : 'Preparing')}</strong>${categories.length ? `${categories.length} lanes` : contextError ? 'selected season sheet' : 'season data preparing'}</span>
             </div>
         </header>
     `;
@@ -794,19 +875,24 @@ function renderSeasonHero() {
 function renderPassportHero() {
     const season = seasonById();
     const data = activeDataForSeason();
-    const fresh = freshness(data || chamberState.legacy);
+    const fresh = freshness(data);
+    const scope = seasonScopeLabels(season);
+    const contextError = seasonContextError();
     const passportRecords = data ? numberValue(data?.passports?.indexedAddresses, data?.coverage?.indexedAddresses) : null;
     const starts = formatDate(season?.startsAt);
+    const boundaryCopy = contextError && !chamberState.manifest
+        ? 'Season boundary unavailable'
+        : seasonEndCopy(season, { compact: true });
     return `
         <header class="maxis-protocol-hero maxis-context-hero maxis-passport-hero chamber-anim-fade">
-            <div class="maxis-protocol-kicker"><span>Season ${escapeHtml(seasonNumberLabel(season))}</span> ${escapeHtml(season?.protocol || 'Tezos')} Passport scope</div>
+            <div class="maxis-protocol-kicker"><span>Season ${escapeHtml(seasonNumberLabel(season))}</span> ${escapeHtml(season?.protocol || 'Tezos')} Passport scope · ${escapeHtml(scope.passportScope)}</div>
             <h2 id="maxis-title" class="maxis-protocol-title">Maxi Passport</h2>
-            <p class="maxis-protocol-lead">Career achievements stay stamped to this address. This Season tracks ranks, moving gaps, streaks, and Season Unicorn progress inside the selected protocol arena.</p>
+            <p class="maxis-protocol-lead">Career achievements stay stamped to this address. ${escapeHtml(contextError ? 'The selected season receipt is scoped unavailable; verified career and ongoing records remain separate and usable.' : scope.passportCopy)}</p>
             <div class="maxis-season-telemetry" aria-label="Selected Passport season scope">
-                <span><strong>${escapeHtml(starts || 'Live now')}</strong>season activation</span>
-                <span><strong>${escapeHtml(seasonEndCopy(season, { compact: true }))}</strong>season boundary</span>
+                <span><strong>${escapeHtml(starts || (contextError ? 'Unavailable' : scope.phase === 'active' ? 'Live now' : 'Date unavailable'))}</strong>season activation</span>
+                <span><strong>${escapeHtml(boundaryCopy)}</strong>season boundary</span>
                 <span><strong>${escapeHtml(String(passportRecords ?? '—'))}</strong>Passports indexed</span>
-                <span><strong>${escapeHtml(fresh.label)}</strong>selected season sheet</span>
+                <span><strong>${escapeHtml(data ? fresh.label : contextError ? 'Unavailable' : 'Preparing')}</strong>${escapeHtml(scope.phase === 'finalized' ? 'finalized season sheet' : scope.phase === 'settling' ? 'provisional season sheet' : 'selected season sheet')}</span>
             </div>
         </header>
     `;
@@ -820,7 +906,7 @@ function renderChampionsHero() {
         <header class="maxis-protocol-hero maxis-context-hero maxis-champions-hero chamber-anim-fade">
             <div class="maxis-protocol-kicker"><span>Permanent record</span> finalized protocol seasons</div>
             <h2 id="maxis-title" class="maxis-protocol-title">Champions</h2>
-            <p class="maxis-protocol-lead">Every finalized season keeps the lane names, rules, honors, and winners it closed with. The live arena can add history; it can never rewrite it.</p>
+            <p class="maxis-protocol-lead">Every finalized Maxis season keeps the lane names, rules, honors, and winners it closed with. The live arena can add history; it can never rewrite it. Maxis seasons begin with Ushuaia.</p>
             <div class="maxis-season-telemetry" aria-label="Champions archive status">
                 <span><strong>${escapeHtml(String(Math.max(finalized.length, archivedCards)))}</strong>finalized seasons</span>
                 <span><strong>Frozen rules</strong>per-season evaluator identity</span>
@@ -891,19 +977,44 @@ function rowKey(entry, category) {
     return `${canonicalCategory(category)}:${String(entry?.address || entry?.rank || '').toLowerCase()}`;
 }
 
+function rowActionId(entry, category) {
+    const identity = String(entry?.address || entry?.rank || 'row')
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-');
+    return `maxis-row-actions-${canonicalCategory(category)}-${identity}`;
+}
+
+function rankShareUrl(category) {
+    const url = new URL(MAXIS_SHARE_URL);
+    const lane = canonicalCategory(category);
+    if (chamberState.view === 'maxis') {
+        if (lane) url.searchParams.set('lane', lane);
+        return url.toString();
+    }
+    url.searchParams.set('view', 'season');
+    if (chamberState.seasonId) url.searchParams.set('season', chamberState.seasonId);
+    if (lane) url.searchParams.set('lane', lane);
+    return url.toString();
+}
+
 function rankTweetText(entry, category) {
     const season = seasonById();
     const place = entry?.rank || 1;
-    const room = chamberState.view === 'maxis' ? `${windowLabel(entry?.windowKind)} ongoing Maxis board` : `${season?.protocol || 'Tezos'} season`;
-    return `🏆 ${leaderName(entry)} is #${place} in ${categoryLabel(category)} — ${scoreLabel(entry)} (${room}). Inspect the race: ${MAXIS_SHARE_URL} #Tezos`;
+    const phase = seasonPhase(season);
+    const room = chamberState.view === 'maxis'
+        ? `${windowLabel(entry?.windowKind)} ongoing Maxis board`
+        : `${season?.protocol || 'Tezos'} ${phase === 'finalized' ? 'finalized season' : phase === 'settling' ? 'settling season' : 'season'}`;
+    return `🏆 ${leaderName(entry)} is #${place} in ${categoryLabel(category)} — ${scoreLabel(entry)} (${room}). Inspect this board: ${rankShareUrl(category)} #Tezos`;
 }
 
 function renderRowMenuToggle(entry, category) {
     const key = rowKey(entry, category);
     const open = chamberState.rowDetail === key;
+    const actionsId = rowActionId(entry, category);
+    const controls = open ? ` aria-controls="${escapeHtml(actionsId)}"` : '';
     return `
         <span class="maxis-row-menu-wrap">
-            <button class="maxis-row-menu-toggle" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-controls="maxis-row-actions" aria-label="Open score receipt and trails for rank ${escapeHtml(String(entry.rank))} ${escapeHtml(leaderName(entry))}" data-maxis-row-menu="${escapeHtml(key)}">•••</button>
+            <button class="maxis-row-menu-toggle" type="button" aria-expanded="${open ? 'true' : 'false'}"${controls} aria-label="${open ? 'Close' : 'Open'} score receipt and trails for rank ${escapeHtml(String(entry.rank))} ${escapeHtml(leaderName(entry))}" data-maxis-row-menu="${escapeHtml(key)}">•••</button>
         </span>
     `;
 }
@@ -955,25 +1066,32 @@ function renderRowActions(entry, category) {
     const address = encodeURIComponent(entry.address);
     const tweetText = encodeURIComponent(rankTweetText(entry, category));
     return `
-        <div class="maxis-row-actions" id="maxis-row-actions" role="group" aria-label="Score receipt and on-chain trails for ${escapeHtml(leaderName(entry))}">
+        <div class="maxis-row-actions" id="${escapeHtml(rowActionId(entry, category))}" role="group" aria-label="Score receipt and on-chain trails for ${escapeHtml(leaderName(entry))}">
             ${renderScoreReceipt(entry)}
-            <span role="menu" aria-label="On-chain trails" style="display:contents">
-                <a class="maxis-rank-action maxis-ledger-action" role="menuitem" href="/#ledger-flow=${address}">Ledger Flow</a>
-                <a class="maxis-rank-action" role="menuitem" href="/#my-baker=${address}">My Tezos</a>
-                ${entry.sourceUrl ? `<a class="maxis-rank-action maxis-source-action" role="menuitem" href="${escapeHtml(entry.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a>` : ''}
-                <a class="maxis-rank-action maxis-tweet-action" role="menuitem" data-maxis-share="${escapeHtml(entry.address)}" data-maxis-share-lane="${escapeHtml(category)}" href="https://twitter.com/intent/tweet?text=${tweetText}" target="_blank" rel="noopener">Share rank #${escapeHtml(String(entry.rank))}</a>
-            </span>
+            <a class="maxis-rank-action maxis-ledger-action" href="/#ledger-flow=${address}">Ledger Flow</a>
+            <a class="maxis-rank-action" href="/#my-baker=${address}">My Tezos</a>
+            ${entry.sourceUrl ? `<a class="maxis-rank-action maxis-source-action" href="${escapeHtml(entry.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a>` : ''}
+            <a class="maxis-rank-action maxis-tweet-action" data-maxis-share="${escapeHtml(entry.address)}" data-maxis-share-lane="${escapeHtml(category)}" href="https://twitter.com/intent/tweet?text=${tweetText}" target="_blank" rel="noopener">Share rank #${escapeHtml(String(entry.rank))}</a>
         </div>
     `;
 }
 
 function renderPodiumPlace(entry, place, category) {
     if (!entry) {
-        return `<div class="maxis-podium-place" data-place="${place}"><span class="maxis-podium-number">#${place}</span><strong>Open place</strong><code>${chamberState.view === 'maxis' ? 'Ongoing board' : 'Season in progress'}</code><small>No qualifier yet</small></div>`;
+        const phase = seasonPhase();
+        const scope = chamberState.view === 'maxis'
+            ? 'Ongoing board'
+            : phase === 'finalized'
+                ? 'Finalized season'
+                : phase === 'settling'
+                    ? 'Closed · settling'
+                    : 'Season in progress';
+        return `<div class="maxis-podium-place" data-place="${place}"><span class="maxis-podium-number">#${place}</span><strong>Open place</strong><code>${scope}</code><small>No qualifier recorded</small></div>`;
     }
     return `
         <div class="maxis-podium-place" data-place="${place}">
-            <span class="maxis-podium-number">${place === 1 ? '♛ ' : ''}#${place}</span>
+            ${place === 1 ? '<span class="maxis-podium-crown" aria-hidden="true">♛</span>' : ''}
+            <span class="maxis-podium-number">#${place}</span>
             <strong title="${escapeHtml(leaderName(entry))}">${escapeHtml(leaderName(entry))}</strong>
             <code title="${escapeHtml(entry.address)}">${escapeHtml(shortAddress(entry.address))}</code>
             <small>${escapeHtml(scoreLabel(entry))} · ${renderRankDelta(entry)}</small>
@@ -1005,12 +1123,15 @@ function emptyLaneReason(data, lane, category) {
 function renderLaneBoard(data, category) {
     const ranking = normalizedRanking(data, category).slice(0, 10);
     const lane = leaderForCategory(data, category);
+    const phase = chamberState.view === 'season' ? seasonPhase() : 'active';
+    const finalized = phase === 'finalized';
+    const settling = phase === 'settling';
     if (!ranking.length) {
         const emptyReason = emptyLaneReason(data, lane, category);
         return `
             <article class="maxis-lane-board">
-                <div class="maxis-lane-board-head"><span class="maxis-lane-mark">${CATEGORY_ICONS[category] || '•'}</span><span class="maxis-lane-title"><small>${escapeHtml(categoryLabel(category))} lane</small><strong>${escapeHtml(lane?.status === 'unavailable' ? 'No winner published' : 'No qualifying wallets yet')}</strong></span><span class="maxis-lane-window">${escapeHtml(windowLabel(lane?.windowKind))}</span></div>
-                <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">${CATEGORY_ICONS[category] || '•'}</span><strong>${escapeHtml(lane?.status === 'unavailable' ? 'Winner withheld' : 'This crown is still open')}</strong><p>${escapeHtml(emptyReason)}</p>${renderSeasonToMaxisHandoff(category)}</div></div>
+                <div class="maxis-lane-board-head"><span class="maxis-lane-mark">${CATEGORY_ICONS[category] || '•'}</span><span class="maxis-lane-title"><small>${escapeHtml(categoryLabel(category))} lane</small><strong>${escapeHtml(lane?.status === 'unavailable' ? 'No winner published' : finalized ? 'No season winner' : settling ? 'No provisional winner' : 'No qualifying wallets yet')}</strong></span><span class="maxis-lane-window">${escapeHtml(windowLabel(lane?.windowKind))}</span></div>
+                <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">${CATEGORY_ICONS[category] || '•'}</span><strong>${escapeHtml(lane?.status === 'unavailable' ? 'Winner withheld' : finalized ? 'This crown closed unawarded' : settling ? 'This crown closed without a qualifier' : 'This crown is still open')}</strong><p>${escapeHtml(emptyReason)}</p>${renderSeasonToMaxisHandoff(category)}</div></div>
             </article>
         `;
     }
@@ -1028,16 +1149,19 @@ function renderLaneBoard(data, category) {
             </div>
             ${selected && Number(selected.rank) <= 3 ? renderRowActions(selected, category) : ''}
             <ol class="maxis-compact-ranking" start="4" aria-label="${escapeHtml(categoryLabel(category))} ranks four through ten">
-                ${ranking.slice(3).map((entry) => `
-                    <li class="maxis-compact-row">
-                        <span class="maxis-compact-rank">#${escapeHtml(String(entry.rank))}</span>
-                        <span class="maxis-compact-identity"><strong title="${escapeHtml(leaderName(entry))}">${escapeHtml(leaderName(entry))}</strong><code title="${escapeHtml(entry.address)}">${escapeHtml(shortAddress(entry.address))}</code></span>
-                        <span class="maxis-compact-score">${escapeHtml(scoreLabel(entry))} ${renderRankDelta(entry)}</span>
-                        ${renderRowMenuToggle(entry, category)}
-                    </li>
-                `).join('')}
+                ${ranking.slice(3).map((entry) => {
+                    const expanded = rowKey(entry, category) === chamberState.rowDetail;
+                    return `
+                        <li class="maxis-compact-row${expanded ? ' is-expanded' : ''}" data-maxis-compact-rank="${escapeHtml(String(entry.rank))}">
+                            <span class="maxis-compact-rank">#${escapeHtml(String(entry.rank))}</span>
+                            <span class="maxis-compact-identity"><strong title="${escapeHtml(leaderName(entry))}">${escapeHtml(leaderName(entry))}</strong><code title="${escapeHtml(entry.address)}">${escapeHtml(shortAddress(entry.address))}</code></span>
+                            <span class="maxis-compact-score">${escapeHtml(scoreLabel(entry))} ${renderRankDelta(entry)}</span>
+                            ${renderRowMenuToggle(entry, category)}
+                            ${expanded ? renderRowActions(entry, category) : ''}
+                        </li>
+                    `;
+                }).join('')}
             </ol>
-            ${selected && Number(selected.rank) > 3 ? renderRowActions(selected, category) : ''}
         </article>
     `;
 }
@@ -1095,7 +1219,7 @@ function honorDetail(honor) {
     );
 }
 
-function renderHonorsPanel(data, category, { ongoing = false } = {}) {
+function renderHonorsPanel(data, category, { ongoing = false, settling = false, finalized = false } = {}) {
     const ranking = normalizedRanking(data, category);
     const lane = leaderForCategory(data, category);
     const leader = ranking[0];
@@ -1109,6 +1233,8 @@ function renderHonorsPanel(data, category, { ongoing = false } = {}) {
     const exactLeaderGap = passGapLabel(fullLeaderGap ? { passGap: fullLeaderGap } : challenger);
     const closestGap = textValue(race?.gapToLeaderLabel, race?.leaderGapLabel, race?.gap, exactLeaderGap, raceChallenger ? `${scoreLabel(raceChallenger)} at #2` : 'No challenger yet');
     const cutoffCopy = textValue(race?.cutoffLabel, race?.topTenCutoffLabel, raceCutoff ? scoreLabel(raceCutoff) : 'Cut line not established');
+    const leaderLabel = finalized ? 'Final leader' : settling ? 'Provisional leader' : 'Current leader';
+    const challengerLabel = finalized ? 'Final runner-up' : settling ? 'Provisional runner-up' : 'Nearest challenger';
     if (lane?.status === 'unavailable') {
         return `
             <aside class="maxis-honors-panel" aria-label="${escapeHtml(categoryLabel(category))} publication status">
@@ -1122,24 +1248,41 @@ function renderHonorsPanel(data, category, { ongoing = false } = {}) {
     }
     if (!ranking.length) {
         return `
-            <aside class="maxis-honors-panel" aria-label="${escapeHtml(categoryLabel(category))} empty lane status">
-                <div class="maxis-side-heading"><strong>No qualifiers</strong><span>complete empty lane</span></div>
-                <div class="maxis-honor-list"><div class="maxis-honor-card"><span class="maxis-honor-mark">◇</span><span class="maxis-honor-copy"><span>Season result</span><strong>Open crown</strong><small>${escapeHtml(emptyLaneReason(data, lane, category))}</small></span></div></div>
+            <aside class="maxis-honors-panel" aria-label="${escapeHtml(categoryLabel(category))} ${finalized ? 'final empty lane' : settling ? 'closed provisional empty lane' : 'empty lane status'}">
+                <div class="maxis-side-heading"><strong>${finalized ? 'Final empty lane' : settling ? 'Closed · no qualifiers' : 'No qualifiers'}</strong><span>${finalized ? 'final result' : settling ? 'provisional result' : 'complete empty lane'}</span></div>
+                <div class="maxis-honor-list"><div class="maxis-honor-card"><span class="maxis-honor-mark">◇</span><span class="maxis-honor-copy"><span>Season result</span><strong>${finalized ? 'Unawarded crown' : settling ? 'Closed provisional crown' : 'Open crown'}</strong><small>${escapeHtml(emptyLaneReason(data, lane, category))}</small></span></div></div>
                 <div class="maxis-cutline-card"><strong>Coverage</strong>${escapeHtml(textValue(lane?.coverage, lane?.coverageState, 'No cut line exists until a wallet qualifies.'))}</div>
             </aside>
         `;
     }
     return `
-        <aside class="maxis-honors-panel" aria-label="${ongoing ? 'Ongoing Maxis board facts' : 'Season honors'}">
-            <div class="maxis-side-heading"><strong>${ongoing ? 'Objective record' : 'Race telemetry'}</strong><span>${escapeHtml(categoryLabel(category))}</span></div>
+        <aside class="maxis-honors-panel" aria-label="${ongoing ? 'Ongoing Maxis board facts' : finalized ? 'Finalized season record' : settling ? 'Closed provisional season record' : 'Season honors'}">
+            <div class="maxis-side-heading"><strong>${ongoing ? 'Objective record' : finalized ? 'Final record' : settling ? 'Settlement telemetry' : 'Race telemetry'}</strong><span>${escapeHtml(categoryLabel(category))}</span></div>
             <div class="maxis-honor-list">
-                <div class="maxis-honor-card"><span class="maxis-honor-mark">♛</span><span class="maxis-honor-copy"><span>Current leader</span><strong>${escapeHtml(leaderName(leader))}</strong><small>${escapeHtml(scoreLabel(leader))}</small></span></div>
-                <div class="maxis-honor-card"><span class="maxis-honor-mark">↟</span><span class="maxis-honor-copy"><span>Nearest challenger</span><strong>${escapeHtml(leaderName(raceChallenger))}</strong><small>${escapeHtml(closestGap)}</small></span></div>
-                ${honors.map((honor) => `
-                    <div class="maxis-honor-card"><span class="maxis-honor-mark">${escapeHtml(textValue(honor?.icon, honor?.status === 'ready' ? '✦' : '◇'))}</span><span class="maxis-honor-copy"><span>${escapeHtml(textValue(honor?.title, honor?.type, honor?.label, 'Season honor').replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span><strong>${escapeHtml(honor?.status === 'ready' ? leaderName(honorRecipient(honor)) : textValue(honor?.status, 'pending'))}</strong><small>${escapeHtml(honorDetail(honor))}</small></span></div>
-                `).join('')}
+                <div class="maxis-honor-card"><span class="maxis-honor-mark">♛</span><span class="maxis-honor-copy"><span>${leaderLabel}</span><strong>${escapeHtml(leaderName(leader))}</strong><small>${escapeHtml(scoreLabel(leader))}</small></span></div>
+                <div class="maxis-honor-card"><span class="maxis-honor-mark">↟</span><span class="maxis-honor-copy"><span>${challengerLabel}</span><strong>${escapeHtml(leaderName(raceChallenger))}</strong><small>${escapeHtml(closestGap)}</small></span></div>
+                ${honors.map((honor) => {
+                    const ready = honor?.status === 'ready';
+                    const result = ready
+                        ? leaderName(honorRecipient(honor))
+                        : finalized
+                            ? 'not awarded'
+                            : settling
+                                ? 'provisional'
+                                : textValue(honor?.status, 'pending');
+                    const detail = ready
+                        ? honorDetail(honor)
+                        : finalized
+                            ? 'No final receipt established a winner for this honor.'
+                            : settling
+                                ? 'Awaiting source settlement before this honor can be finalized.'
+                                : honorDetail(honor);
+                    return `
+                        <div class="maxis-honor-card"><span class="maxis-honor-mark">${escapeHtml(textValue(honor?.icon, ready ? '✦' : '◇'))}</span><span class="maxis-honor-copy"><span>${escapeHtml(textValue(honor?.title, honor?.type, honor?.label, 'Season honor').replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span><strong>${escapeHtml(result)}</strong><small>${escapeHtml(detail)}</small></span></div>
+                    `;
+                }).join('')}
             </div>
-            <div class="maxis-cutline-card"><strong>Top 10 cut line</strong>${escapeHtml(cutoffCopy)}${ongoing ? ` · ${escapeHtml(windowLabel(leader?.windowKind))}` : ' · the line moves with every snapshot.'}</div>
+            <div class="maxis-cutline-card"><strong>Top 10 cut line</strong>${escapeHtml(cutoffCopy)}${ongoing ? ` · ${escapeHtml(windowLabel(leader?.windowKind))}` : finalized ? ' · frozen at finalization.' : settling ? ' · closed provisional line; the source-settlement rebuild is pending.' : ' · the line moves with every snapshot.'}</div>
         </aside>
     `;
 }
@@ -1148,20 +1291,26 @@ function renderSeasonPanel() {
     const data = activeDataForSeason();
     if (!data) {
         const loading = chamberState.summaryLoading;
-        const failed = !loading && Boolean(chamberState.summaryError);
+        const contextError = seasonContextError();
+        const failed = !loading && Boolean(contextError);
         return `
             ${renderRoomIntro('Protocol arena', loading ? 'Opening the season sheet…' : failed ? 'Selected season is scoped unavailable' : 'Season rankings are not published yet', 'The ongoing Maxis boards remain available on their own live, rolling, and all-time-active clocks; they are never relabeled as protocol-season results.')}
-            <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">${failed ? '!' : '◉'}</span><strong>${loading ? 'Loading protocol-bounded scores' : failed ? 'This season sheet did not pass its receipt' : 'The first season is forming'}</strong><p>${loading ? 'Fetching the selected season summary while the ongoing Maxis boards stay usable.' : failed ? `${escapeHtml(chamberState.summaryError)} The canonical Maxis room remains available.` : 'A season only appears here when its activation boundary, score window, and source coverage can be stated honestly.'}</p></div></div>
+            <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">${failed ? '!' : '◉'}</span><strong>${loading ? 'Loading protocol-bounded scores' : failed ? 'The selected season sheet did not pass its receipt' : 'The first Maxis season is forming'}</strong><p>${loading ? 'Fetching the selected season summary while the ongoing Maxis boards stay usable.' : failed ? `${escapeHtml(contextError)} The canonical Maxis room remains available.` : 'A Maxis season only appears here when its activation boundary, score window, and source coverage can be stated honestly.'}</p>${failed ? '<button class="maxis-passport-submit" type="button" data-maxis-season-retry>Retry season sheet</button>' : ''}</div></div>
         `;
     }
     const category = ensureValidLane(data);
-    const settling = seasonById()?.status === 'settling';
+    const scope = seasonScopeLabels();
+    const settling = scope.phase === 'settling';
+    const finalized = scope.phase === 'finalized';
+    const intro = finalized
+        ? renderRoomIntro('Finalized protocol archive', 'Frozen season standings', 'This board is permanent. Winners, nearest challengers, cut lines, Honors, and lane rules remain fixed at finalization.')
+        : renderRoomIntro(settling ? 'Closed season · provisional' : 'Live protocol season', settling ? 'Source settlement in progress' : 'Movement makes the chamber', settling ? 'These standings are inspectable but not final. Champions publish only after the declared source-settlement rebuild completes.' : 'One lane at a time: current crown, closest chase, rank movement, cut line, and human-playable honors without diluting the objective metric.');
     return `
-        ${renderRoomIntro(settling ? 'Closed season · provisional' : 'Live protocol season', settling ? 'Source settlement in progress' : 'Movement makes the chamber', settling ? 'These standings are inspectable but not final. Champions publish only after the declared source-settlement rebuild completes.' : 'One lane at a time: current crown, closest chase, rank movement, cut line, and human-playable honors without diluting the objective metric.')}
+        ${intro}
         ${renderLaneRail(data, category, 'Choose a protocol-season lane')}
         <div class="maxis-season-stage">
             ${renderLaneBoard(data, category)}
-            ${renderHonorsPanel(data, category)}
+            ${renderHonorsPanel(data, category, { settling, finalized })}
         </div>
     `;
 }
@@ -1236,7 +1385,7 @@ function renderMaxisPanel() {
         <section class="maxis-crown-grid maxis-identity-grid" aria-label="Ongoing Tezos Maxis identities">
             ${categoriesFor(data).map((identity) => renderMaxisIdentityCard(data, identity, category)).join('')}
         </section>
-        <div class="maxis-maxis-detail" id="maxis-maxis-detail" tabindex="-1" aria-live="polite" aria-label="${escapeHtml(categoryLabel(category))} detailed board">
+        <div class="maxis-maxis-detail" id="maxis-maxis-detail" tabindex="-1" aria-label="${escapeHtml(categoryLabel(category))} detailed board">
             <div class="maxis-detail-heading"><span>Detailed board</span><strong>${escapeHtml(textValue(lane?.title, `${categoryLabel(category)} Maxi`))}</strong><small>◷ ${escapeHtml(windowLabel(lane?.windowKind || lane?.window))}</small></div>
             ${category === 'governance' ? renderGovernanceProtocolContext() : ''}
             <div class="maxis-season-stage">
@@ -1518,6 +1667,9 @@ function derivePassport(address, data) {
 }
 
 async function loadPassportProfile(address) {
+    if (!chamberState.manifest && chamberState.manifestError) {
+        throw new Error(`The selected season Passport is unavailable: ${chamberState.manifestError}`);
+    }
     if (chamberState.manifest && !chamberState.summary && chamberState.summaryError) {
         throw new Error(`The selected season Passport is unavailable: ${chamberState.summaryError}`);
     }
@@ -1624,7 +1776,7 @@ function profileNearMisses(profile) {
     }];
 }
 
-function badgeRecords(profile, { includeLocal = true, includeFallback = true } = {}) {
+function badgeRecords(profile, { includeFallback = true } = {}) {
     const source = profile?.badges || profile?.achievements || [];
     let badges = [];
     if (Array.isArray(source)) {
@@ -1634,8 +1786,6 @@ function badgeRecords(profile, { includeLocal = true, includeFallback = true } =
             ? { title, earned: badge }
             : { ...badge, title: textValue(badge?.title, title) });
     }
-    const shares = includeLocal ? Number(readShareLedger()[String(profile?.address || '').toLowerCase()]?.count || 0) : 0;
-    if (shares > 0) badges.push({ id: 'local-social-proof', title: `Social Proof · ${shares}`, icon: '↗', earned: true, detail: 'Rank shares opened locally' });
     const lanes = profileLanes(profile);
     const { qualifying, required } = passportUnicornProgress(profile, lanes);
     if (qualifying >= required && !badges.some((badge) => String(badge?.title || '').toLowerCase().includes('unicorn'))) {
@@ -1653,7 +1803,7 @@ function careerBadgeRecords(address) {
     const badges = [];
     const seen = new Set();
     careerSeasonRecords().forEach((record) => {
-        badgeRecords(record.profile, { includeLocal: false, includeFallback: false }).forEach((badge) => {
+        badgeRecords(record.profile, { includeFallback: false }).forEach((badge) => {
             const title = textValue(badge?.title, badge?.label, 'Season badge');
             const key = `${record.seasonId}:${textValue(badge?.id, title)}`;
             if (seen.has(key)) return;
@@ -1667,9 +1817,7 @@ function careerBadgeRecords(address) {
             });
         });
     });
-    const localBadges = badgeRecords({ address, badges: [] }, { includeFallback: false })
-        .filter((badge) => String(badge?.id || '').startsWith('local-'));
-    return [...badges, ...localBadges];
+    return badges;
 }
 
 function careerPersonalBestRecords() {
@@ -1750,6 +1898,9 @@ function milestoneCopy(lane) {
 
 function renderPassportLane(lane) {
     const category = canonicalCategory(lane?.category || lane?.lane || lane?.id);
+    const phase = seasonPhase();
+    const finalized = phase === 'finalized';
+    const settling = phase === 'settling';
     const rank = numberValue(lane?.rank, lane?.currentRank);
     const progress = Math.round(progressPercent(lane));
     const stableBadge = lane?.badgeProgress || lane?.passportMilestone || lane?.milestoneProgress;
@@ -1759,16 +1910,30 @@ function renderPassportLane(lane) {
     const statusLabel = rank
         ? `#${rank}${stablePercent !== null ? ` · ${progress}% badge` : ''}`
         : (stablePercent !== null ? `${progress}% badge` : 'unranked');
-    const next = textValue(milestoneCopy(lane), lane?.nextStep, lane?.description, rank ? `Current season rank #${rank}; frozen milestone progress is not available for this lane.` : 'Progress is recorded at the next snapshot.');
+    const milestone = milestoneCopy(lane);
+    const next = finalized
+        ? milestone
+            ? `${milestone} · frozen at finalization.`
+            : rank
+                ? `Final season rank #${rank}; no separate milestone receipt was published for this lane.`
+                : 'No final ranked receipt was recorded for this lane.'
+        : settling
+            ? milestone
+                ? `${milestone} · closed provisional result.`
+                : rank
+                    ? `Provisional season rank #${rank}; source settlement remains pending.`
+                    : 'No provisional ranked receipt is currently recorded for this lane.'
+            : textValue(milestone, lane?.nextStep, lane?.description, rank ? `Current season rank #${rank}; frozen milestone progress is not available for this lane.` : 'Progress is recorded at the next snapshot.');
     const topTenGap = rank && rank > 10 && lane?.passGap?.topTen
         ? passGapLabel({ passGap: lane.passGap.topTen })
         : '';
+    const cutoffLabel = finalized ? 'Final Top 10 cutoff' : settling ? 'Provisional Top 10 cutoff' : 'Moving Top 10 cutoff';
     return `
         <div class="maxis-passport-lane">
             <div class="maxis-passport-lane-head"><strong>${CATEGORY_ICONS[category] || '•'} ${escapeHtml(categoryLabel(category))}</strong><span>${escapeHtml(statusLabel)}</span></div>
             ${stablePercent !== null ? `<div class="maxis-progress-track" aria-label="${escapeHtml(categoryLabel(category))} stable badge progress ${progress}%"><span class="maxis-progress-fill" style="--maxis-progress: ${progress}%"></span></div>` : ''}
             <p><strong>${escapeHtml(scoreLabel(lane))}</strong> · ${escapeHtml(next)}</p>
-            ${topTenGap ? `<p><strong>Moving Top 10 cutoff</strong> · ${escapeHtml(topTenGap)}</p>` : ''}
+            ${topTenGap ? `<p><strong>${cutoffLabel}</strong> · ${escapeHtml(topTenGap)}</p>` : ''}
         </div>
     `;
 }
@@ -1805,6 +1970,20 @@ function renderOngoingCrownRecords(address) {
             <p><strong>#${escapeHtml(String(entry.rank))} · ${escapeHtml(scoreLabel(entry))}</strong> on the current canonical board.</p>
         </div>
     `).join('');
+}
+
+function renderLocalPassportRitual(address) {
+    const shares = Number(readShareLedger()[String(address || '').toLowerCase()]?.count || 0);
+    if (shares <= 0) return '';
+    return `
+        <div class="maxis-side-heading maxis-passport-section-heading"><strong>Device-local ritual</strong><span>not verified</span></div>
+        <div class="maxis-passport-lanes maxis-career-records">
+            <div class="maxis-passport-lane maxis-local-ritual">
+                <div class="maxis-passport-lane-head"><strong>↗ Rank-share clicks</strong><span>${escapeHtml(formatNumber(shares))} on this device</span></div>
+                <p>This counter is stored only in this browser. It is not an on-chain receipt, a verified share, or part of Career stamps, crown scores, or Unicorn breadth.</p>
+            </div>
+        </div>
+    `;
 }
 
 function governanceCareerRecord(address) {
@@ -1862,14 +2041,25 @@ function renderGovernanceCareer(address) {
 
 function renderPassportCard(profile, note) {
     const season = seasonById();
+    const scope = seasonScopeLabels(season);
     const lanes = profileLanes(profile);
     const nearMisses = profileNearMisses(profile);
     const streaks = normalizeNamedRecords(profile?.streaks || (profile?.activeWeekStreak ? [{ title: 'Active-week streak', count: profile.activeWeekStreak, detail: `${profile.activeWeekStreak} consecutive completed week${profile.activeWeekStreak === 1 ? '' : 's'} · active in ${asArray(profile.activeWeeks).length} season weeks` }] : []), 'Streak');
     const personalBests = profilePersonalBests(profile);
     const { qualifying, required, percent: unicornPercent } = passportUnicornProgress(profile, lanes);
-    const seasonBadges = badgeRecords(profile, { includeLocal: false, includeFallback: false });
+    const seasonBadges = badgeRecords(profile, { includeFallback: false });
     const careerBadges = careerBadgeRecords(profile?.address);
     const careerBests = careerPersonalBestRecords();
+    const unicornScope = scope.phase === 'finalized'
+        ? `${qualifying}/${required} final qualifying lanes for Unicorn`
+        : scope.phase === 'settling'
+            ? `${qualifying}/${required} provisional qualifying lanes for Unicorn`
+            : `${qualifying}/${required} qualifying lanes toward Unicorn`;
+    const emptyLaneCopy = scope.phase === 'finalized'
+        ? 'No ranked lane receipt was recorded in this final archive.'
+        : scope.phase === 'settling'
+            ? 'No provisional ranked lane receipt is present while source settlement completes.'
+            : 'Touch a ranked lane and the next season snapshot will begin the trail.';
     return `
         <article class="maxis-passport-card">
             <header class="maxis-passport-identity">
@@ -1890,21 +2080,22 @@ function renderPassportCard(profile, note) {
                 <div class="maxis-passport-lanes maxis-career-records">${renderOngoingCrownRecords(profile?.address)}</div>
                 <div class="maxis-side-heading maxis-passport-section-heading"><strong>Civic record</strong><span>exact applied history</span></div>
                 <div class="maxis-passport-lanes maxis-career-records">${renderGovernanceCareer(profile?.address)}</div>
+                ${renderLocalPassportRitual(profile?.address)}
             </section>
             <section class="maxis-passport-scope maxis-passport-season" aria-labelledby="maxis-passport-season-title">
                 <div class="maxis-passport-scope-head maxis-passport-season-head">
-                    <span>This Season</span>
+                    <span>${escapeHtml(scope.passportScope)}</span>
                     <strong id="maxis-passport-season-title">${escapeHtml(season?.displayLabel || `${season?.protocol || 'Tezos'} Season`)}</strong>
-                    <small>Ranks, cut lines, streaks, and personal bests compare only inside this protocol-bounded ruleset.</small>
-                    <span class="maxis-passport-unicorn"><strong>${unicornPercent}%</strong><small>${qualifying}/${required} qualifying lanes toward Unicorn</small></span>
+                    <small>${escapeHtml(scope.phase === 'finalized' ? 'Final ranks, frozen cut lines, streaks, and personal bests belong only to this archived protocol ruleset.' : scope.phase === 'settling' ? 'Provisional ranks and cut lines remain scoped to this closed protocol ruleset until source settlement completes.' : 'Ranks, cut lines, streaks, and personal bests compare only inside this active protocol-bounded ruleset.')}</small>
+                    <span class="maxis-passport-unicorn"><strong>${unicornPercent}%</strong><small>${escapeHtml(unicornScope)}</small></span>
                 </div>
-                <div class="maxis-side-heading maxis-passport-section-heading"><strong>This Season stamps</strong><span>${seasonBadges.length} earned</span></div>
+                <div class="maxis-side-heading maxis-passport-section-heading"><strong>${escapeHtml(scope.passportScope)} stamps</strong><span>${seasonBadges.length} earned</span></div>
                 <div class="maxis-passport-badges" aria-label="Selected season Passport badges">
                     ${seasonBadges.length ? seasonBadges.map((badge) => `<span class="maxis-passport-badge${badge?.earned === false || badge?.locked ? ' is-locked' : ''}" title="${escapeHtml(textValue(badge?.detail, badge?.description))}"><b>${escapeHtml(textValue(badge?.icon, badge?.earned === false ? '○' : '✦'))}</b>${escapeHtml(textValue(badge?.title, badge?.label, 'Badge'))}</span>`).join('') : '<span class="maxis-passport-badge is-locked"><b>◇</b>No season stamps yet</span>'}
                 </div>
-                <div class="maxis-side-heading maxis-passport-section-heading"><strong>Current lanes</strong><span>${lanes.length} touched</span></div>
-                <div class="maxis-passport-lanes">${lanes.length ? lanes.map(renderPassportLane).join('') : renderRecordCards([], 'Touch a ranked lane and the next season snapshot will begin the trail.', '◇')}</div>
-                <div class="maxis-side-heading maxis-passport-section-heading"><strong>Near misses</strong><span>moving cut lines</span></div>
+                <div class="maxis-side-heading maxis-passport-section-heading"><strong>${escapeHtml(scope.passportLaneHeading)}</strong><span>${lanes.length} touched</span></div>
+                <div class="maxis-passport-lanes">${lanes.length ? lanes.map(renderPassportLane).join('') : renderRecordCards([], emptyLaneCopy, '◇')}</div>
+                <div class="maxis-side-heading maxis-passport-section-heading"><strong>Near misses</strong><span>${escapeHtml(scope.passportCutLines)}</span></div>
                 <div class="maxis-passport-lanes">${renderRecordCards(nearMisses, 'No trustworthy near-miss is present in the loaded depth yet.', '↟')}</div>
                 <div class="maxis-side-heading maxis-passport-section-heading"><strong>Streaks</strong><span>season ritual</span></div>
                 <div class="maxis-passport-lanes">${renderRecordCards(streaks, 'A streak begins after activity is observed across declared checkpoints.', '⌁')}</div>
@@ -1918,8 +2109,10 @@ function renderPassportCard(profile, note) {
 
 function renderPassportPanel() {
     const saved = safeLocalStorageGet(MY_TEZOS_ADDRESS_KEY);
+    const scope = seasonScopeLabels();
+    const contextError = seasonContextError();
     return `
-        ${renderRoomIntro('Career + this season', 'One address, two timelines', 'Career keeps earned identity stamps. This Season keeps the selected protocol’s ranks, gaps, streaks, and Unicorn breadth. Neither silently links wallets or changes the address saved in My Tezos.')}
+        ${renderRoomIntro(`Career + ${scope.passportScope.toLowerCase()}`, 'One address, two timelines', `Career keeps earned identity stamps. ${scope.passportScope} keeps the selected protocol’s ranks, gaps, streaks, and Unicorn breadth. Neither silently links wallets or changes the address saved in My Tezos.`)}
         <section class="maxis-passport-shell">
             <form class="maxis-passport-search" data-maxis-passport-form>
                 <input class="maxis-passport-input" name="address" aria-label="Tezos address for Maxi Passport" autocomplete="off" spellcheck="false" placeholder="tz1… tz2… tz3… or tz4…" value="${escapeHtml(chamberState.passportInput || chamberState.passportAddress)}">
@@ -1930,8 +2123,8 @@ function renderPassportPanel() {
                 ${chamberState.passportLoading ? '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">✺</span><strong>Stamping the Passport…</strong><p>Reading only the deterministic shard for this address, then checking the loaded season ranks.</p></div></div>' : ''}
                 ${!chamberState.passportLoading && chamberState.passportError ? `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>Passport not opened</strong><p>${escapeHtml(chamberState.passportError)}</p>${chamberState.passportAddress && !/^KT1/.test(chamberState.passportAddress) ? '<button class="maxis-passport-submit" type="button" data-maxis-passport-retry>Retry this shard</button>' : ''}</div></div>` : ''}
                 ${!chamberState.passportLoading && !chamberState.passportError && chamberState.passportProfile ? renderPassportCard(chamberState.passportProfile, chamberState.passportNote) : ''}
-                ${!chamberState.passportLoading && !chamberState.passportError && !chamberState.passportProfile ? (chamberState.summaryError
-                    ? `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>The selected season Passport is unavailable</strong><p>${escapeHtml(chamberState.summaryError)} The canonical Maxis and Champions rooms remain usable.</p></div></div>`
+                ${!chamberState.passportLoading && !chamberState.passportError && !chamberState.passportProfile ? (contextError
+                    ? `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>The selected season Passport is unavailable</strong><p>${escapeHtml(contextError)} The canonical Maxis and available Champions records remain usable.</p><button class="maxis-passport-submit" type="button" data-maxis-season-retry>Retry season sheet</button></div></div>`
                     : '<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">✺</span><strong>Bring one wallet into focus</strong><p>Use the explicit address above or read the current My Tezos address. Neither action mutates saved wallet state.</p></div></div>') : ''}
             </div>
         </section>
@@ -2003,6 +2196,45 @@ function normalizeArchiveHonors(source) {
     });
 }
 
+function renderChampionRecord(champion) {
+    const address = textValue(champion?.address);
+    const encodedAddress = encodeURIComponent(address);
+    return `
+        <div class="maxis-champion-record">
+            <div class="maxis-champion-row">
+                <span>${escapeHtml(archivedChampionLaneTitle(champion))}</span>
+                <span class="maxis-champion-identity">
+                    <strong title="${escapeHtml(address)}">${escapeHtml(leaderName(champion))}</strong>
+                    <code title="${escapeHtml(address)}">${escapeHtml(shortAddress(address))}</code>
+                    <small>${escapeHtml(scoreLabel(champion))}</small>
+                </span>
+            </div>
+            <div class="maxis-row-actions maxis-champion-actions" role="group" aria-label="Final champion trails for ${escapeHtml(leaderName(champion))}">
+                <a class="maxis-rank-action maxis-ledger-action" href="/#ledger-flow=${encodedAddress}">Ledger Flow</a>
+                ${champion?.sourceUrl ? `<a class="maxis-rank-action maxis-source-action" href="${escapeHtml(champion.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function archiveReceiptUrls(archive, season, rawSeason) {
+    return {
+        summary: resolveDataUrl(textValue(
+            archive?.summaryUrl,
+            archive?.archiveUrl,
+            season?.summaryUrl,
+            rawSeason?.archiveUrl,
+            rawSeason?.summaryPath
+        )),
+        rules: resolveDataUrl(textValue(
+            archive?.rulesUrl,
+            archive?.rulesPath,
+            rawSeason?.rulesUrl,
+            rawSeason?.rulesPath
+        ))
+    };
+}
+
 function archivesFromCurrentState() {
     const manifest = chamberState.manifest || {};
     const inline = manifest.archives || manifest.champions || manifest.hallOfChampions;
@@ -2018,37 +2250,74 @@ function archivesFromCurrentState() {
     return [...unique.values()];
 }
 
-async function ensureArchivesLoaded() {
+async function ensureArchivesLoaded({ force = false } = {}) {
+    if (force) {
+        archiveRequestSerial += 1;
+        chamberState.archives = null;
+        chamberState.archivesLoading = false;
+        chamberState.archivesError = '';
+    }
+    if (force && !chamberState.manifest) {
+        chamberState.archivesLoading = true;
+        renderExperience({ preserveScroll: true });
+        const manifest = await loadManifest({ force: true });
+        chamberState.archivesLoading = false;
+        if (!manifest) {
+            chamberState.archives = [];
+            chamberState.archivesError = textValue(chamberState.manifestError, 'The Maxis season manifest is temporarily unavailable.');
+            renderExperience({ preserveScroll: true, focusSelector: '[data-maxis-archives-retry]' });
+            return;
+        }
+    }
     if (chamberState.archivesLoading || chamberState.archives) return;
     const serial = ++archiveRequestSerial;
     const completed = normalizedSeasons(chamberState.manifest, chamberState.summary).filter((season) => !season.isCurrent && ['final', 'finalized', 'complete', 'archived'].includes(season.status));
     if (!completed.length) {
         chamberState.archives = [];
+        chamberState.archivesError = !chamberState.manifest && chamberState.manifestError
+            ? chamberState.manifestError
+            : '';
+        renderExperience({ preserveScroll: true });
         return;
     }
     chamberState.archivesLoading = true;
+    chamberState.archivesError = '';
     renderExperience({ preserveScroll: true });
     const rows = await Promise.all(completed.map(async (season) => {
         let summary;
         try {
-            summary = await loadSeasonSummary(season.id);
+            summary = await loadSeasonSummary(season.id, { force });
         } catch (error) {
             console.warn('Maxis archive identity receipt rejected', season.id, error);
-            return null;
+            return {
+                archive: null,
+                error: `${season.displayLabel || season.protocol || season.id}: ${textValue(error?.message, 'final archive unavailable')}`
+            };
         }
-        if (!summary) return null;
+        if (!summary) {
+            return {
+                archive: null,
+                error: `${season.displayLabel || season.protocol || season.id}: no verified final summary answered`
+            };
+        }
         const laneCatalog = summary.laneCatalog || summary.frozenLaneCatalog || summary?.rules?.laneCatalog;
         return {
-            id: season.id,
-            season,
-            champions: summary.champions || summary.finalChampions || summary.winners || summary.leaders,
-            ...(laneCatalog ? { laneCatalog } : {}),
-            honors: summary.honors || summary.seasonHonors || null,
-            finalizedAt: summary.finalizedAt || summary.generatedAt
+            archive: {
+                id: season.id,
+                season,
+                champions: summary.champions || summary.finalChampions || summary.winners || summary.leaders,
+                ...(laneCatalog ? { laneCatalog } : {}),
+                honors: summary.honors || summary.seasonHonors || null,
+                finalizedAt: summary.finalizedAt || summary?.season?.finalizedAt || summary.generatedAt,
+                summaryUrl: summaryUrlFor(chamberState.manifest, season),
+                rulesUrl: resolveDataUrl(textValue(summary?.rules?.rulesPath, season?.rulesPath))
+            },
+            error: ''
         };
     }));
     if (serial !== archiveRequestSerial) return;
-    chamberState.archives = rows.filter(Boolean);
+    chamberState.archives = rows.map((row) => row.archive).filter(Boolean);
+    chamberState.archivesError = rows.map((row) => row.error).filter(Boolean).join(' · ');
     chamberState.archivesLoading = false;
     renderExperience({ preserveScroll: true });
 }
@@ -2056,19 +2325,28 @@ async function ensureArchivesLoaded() {
 function renderChampionsPanel() {
     const archives = archivesFromCurrentState();
     if (chamberState.archivesLoading) return `<div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">◇</span><strong>Opening the permanent record…</strong><p>Reading finalized season sheets only.</p></div></div>`;
+    const archiveError = textValue(chamberState.archivesError, !chamberState.manifest ? chamberState.manifestError : '');
     if (!archives.length) {
+        if (archiveError) {
+            return `
+                ${renderRoomIntro('Permanent protocol record', 'Final archives are scoped unavailable', 'The canonical Maxis room and current verified Season remain independent of this archive-loading failure.')}
+                <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">!</span><strong>The final archive receipts did not load</strong><p>${escapeHtml(archiveError)}</p><button class="maxis-passport-submit" type="button" data-maxis-archives-retry>Retry final archives</button></div></div>
+            `;
+        }
         return `
             ${renderRoomIntro('Permanent protocol record', 'Champions outlive the season', 'Boards close at activation and become permanent only after the declared source-settlement rebuild. The current arena must finish before its first archive can exist.')}
-            <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">◇</span><strong>The first protocol season is still live</strong><p>No champion is invented early. This hall opens when a season has a final boundary and an immutable result sheet.</p></div></div>
+            <div class="maxis-empty-stage"><div><span class="maxis-empty-stage-mark">◇</span><strong>The first Maxis season is still live</strong><p>Maxis seasons begin with Ushuaia. No champion is invented early; this hall opens when a Maxis season has a final boundary and an immutable result sheet.</p></div></div>
         `;
     }
     return `
         ${renderRoomIntro('Immutable archives', 'Champions', 'Every card is a finalized protocol season. Later scoring-rule changes belong to later seasons; they do not rewrite old winners.')}
+        ${archiveError ? `<div class="maxis-cutline-card" role="status"><strong>Some final archives are scoped unavailable</strong>${escapeHtml(archiveError)}<button class="maxis-passport-submit" type="button" data-maxis-archives-retry>Retry final archives</button></div>` : ''}
         <section class="maxis-champions-shell">
             <div class="maxis-champions-grid">
                 ${archives.map((archive) => {
                     const rawSeason = archive.season || archive;
                     const season = normalizeSeason(rawSeason, 0, chamberState.manifest);
+                    const receiptUrls = archiveReceiptUrls(archive, season, rawSeason);
                     const allRows = normalizeChampionRows(archive.champions || archive.winners || archive.leaders, archive.laneCatalog || archive.frozenLaneCatalog);
                     const order = new Map(CATEGORY_ORDER.map((category, index) => [category, index]));
                     const rows = allRows
@@ -2084,8 +2362,9 @@ function renderChampionsPanel() {
                     return `
                         <article class="maxis-champion-card">
                             <header class="maxis-champion-banner"><span>Season ${escapeHtml(seasonNumberLabel(season))} · final</span><strong>${escapeHtml(season.protocol)}</strong></header>
+                            ${receiptUrls.summary || receiptUrls.rules ? `<div class="maxis-row-actions maxis-archive-actions" role="group" aria-label="${escapeHtml(season.protocol)} final receipts">${receiptUrls.summary ? `<a class="maxis-rank-action maxis-archive-summary-action" href="${escapeHtml(receiptUrls.summary)}" target="_blank" rel="noopener">Final receipt ↗</a>` : ''}${receiptUrls.rules ? `<a class="maxis-rank-action maxis-archive-rules-action" href="${escapeHtml(receiptUrls.rules)}" target="_blank" rel="noopener">Frozen rules ↗</a>` : ''}</div>` : ''}
                             <div class="maxis-champion-list">
-                                ${rows.map((champion) => `<div class="maxis-champion-row"><span>${escapeHtml(archivedChampionLaneTitle(champion))}</span><strong title="${escapeHtml(textValue(champion?.address))}">${escapeHtml(leaderName(champion))}</strong></div>`).join('') || '<div class="maxis-champion-row"><span>Final sheet</span><strong>No qualifying crowns</strong></div>'}
+                                ${rows.map(renderChampionRecord).join('') || '<div class="maxis-champion-row"><span>Final sheet</span><strong>No qualifying crowns</strong></div>'}
                                 ${unawardedCount ? `<div class="maxis-champion-row"><span>Unawarded lanes</span><strong>${escapeHtml(String(unawardedCount))} · see final receipts</strong></div>` : ''}
                                 ${finalHonors.length ? `<div class="maxis-side-heading"><strong>Season Honors</strong><span>final</span></div>${finalHonors.map(({ honor, recipient }) => `<div class="maxis-champion-row"><span>✦ ${escapeHtml(textValue(honor?.title, honor?.label, 'Season honor').replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span><strong title="${escapeHtml(textValue(recipient?.address))}">${escapeHtml(leaderName(recipient))}${numberValue(recipient?.rank) ? ` · #${escapeHtml(String(recipient.rank))}` : ''}</strong></div>`).join('')}` : ''}
                             </div>
@@ -2142,16 +2421,18 @@ function renderCurrentRoom() {
 function renderChamberExperience() {
     const selectedView = chamberState.view;
     const seasonContext = viewUsesSeasonContext();
-    const state = freshness(selectedView === 'maxis' ? chamberState.legacy : chamberState.summary || chamberState.legacy);
+    const selectedSeasonPhase = seasonPhase();
+    const contextError = seasonContextError();
+    const state = freshness(selectedView === 'maxis' ? chamberState.legacy : chamberState.summary);
     const footerDataLabel = selectedView === 'maxis'
         ? (state.stale ? 'previous valid ongoing snapshot' : 'ongoing snapshot')
         : selectedView === 'champions'
             ? 'finalized season sheets'
             : selectedView === 'passport'
-                ? 'career stamps + selected season'
-                : (state.stale ? 'previous valid season data' : 'protocol-season data');
+                ? (contextError ? 'career records + selected season unavailable' : `career stamps + ${selectedSeasonPhase === 'finalized' ? 'selected archive' : selectedSeasonPhase === 'settling' ? 'settling season' : 'selected season'}`)
+                : (contextError ? 'selected protocol-season data unavailable' : state.stale ? 'previous valid season data' : selectedSeasonPhase === 'finalized' ? 'finalized protocol-season data' : selectedSeasonPhase === 'settling' ? 'provisional protocol-season data' : 'protocol-season data');
     return `
-        <div class="maxis-experience${seasonContext ? ' has-season-context' : ''}" data-maxis-current-view="${selectedView}">
+        <div class="maxis-experience${seasonContext ? ' has-season-context' : ''}" data-maxis-current-view="${selectedView}" data-maxis-season-phase="${escapeHtml(selectedSeasonPhase)}">
             ${seasonContext ? renderSeasonSelector() : ''}
             ${renderContextHero()}
             ${renderRoomTabs()}
@@ -2210,6 +2491,19 @@ function revealMaxisDetail(body) {
     });
 }
 
+function revealRowActions(body, key) {
+    requestAnimationFrame(() => {
+        const toggle = body.querySelector(`[data-maxis-row-menu="${CSS.escape(key)}"]`);
+        const controls = toggle?.getAttribute('aria-controls');
+        if (!controls) return;
+        body.querySelector(`#${CSS.escape(controls)}`)?.scrollIntoView({
+            block: 'center',
+            inline: 'nearest',
+            behavior: 'auto'
+        });
+    });
+}
+
 async function selectSeason(seasonId) {
     if (!seasonId || seasonId === chamberState.seasonId) {
         setSelectorOpen(false, { focus: true });
@@ -2239,6 +2533,11 @@ async function selectSeason(seasonId) {
         await careerTask;
         if (serial !== summaryRequestSerial || chamberState.seasonId !== seasonId) return;
         renderExperience({ preserveScroll: false, focusSelector: '.maxis-season-orb' });
+        if (seasonId === currentSeasonId(chamberState.manifest)) {
+            chamberState.entrySummaryLoading = false;
+            chamberState.entrySummaryError = chamberState.summaryError;
+            updateEntryCard(chamberState.legacy, chamberState.manifest, null);
+        }
         return;
     }
     if (serial !== summaryRequestSerial || chamberState.seasonId !== seasonId) return;
@@ -2249,8 +2548,68 @@ async function selectSeason(seasonId) {
     chamberState.summaryError = '';
     ensureValidLane(chamberState.view === 'maxis' ? chamberState.legacy || {} : chamberState.summary || {});
     renderExperience({ preserveScroll: false, focusSelector: '.maxis-season-orb' });
-    updateEntryCard(chamberState.legacy, chamberState.manifest, chamberState.summary);
+    const entrySeasonId = currentSeasonId(chamberState.manifest);
+    chamberState.entrySummaryLoading = false;
+    if (seasonId === entrySeasonId) chamberState.entrySummaryError = '';
+    updateEntryCard(
+        chamberState.legacy,
+        chamberState.manifest,
+        seasonId === entrySeasonId ? chamberState.summary : (summaryCache.get(entrySeasonId) || null)
+    );
     if (chamberState.view === 'passport' && chamberState.passportAddress) await openPassport(chamberState.passportAddress, { usesSaved: chamberState.passportUsesSaved });
+}
+
+async function retrySeasonContext() {
+    requestSerial += 1;
+    const serial = ++summaryRequestSerial;
+    chamberState.summaryLoading = true;
+    chamberState.summaryError = '';
+    if (!chamberState.manifest) chamberState.manifestError = '';
+    renderExperience({ preserveScroll: true });
+
+    let manifest = chamberState.manifest;
+    if (!manifest) manifest = await loadManifest({ force: true });
+    if (serial !== summaryRequestSerial) return;
+    chamberState.manifest = manifest;
+    if (!manifest) {
+        chamberState.summary = null;
+        chamberState.summaryLoading = false;
+        chamberState.summaryError = textValue(chamberState.manifestError, 'The Maxis season manifest is temporarily unavailable.');
+        chamberState.entrySummaryLoading = false;
+        chamberState.entrySummaryError = chamberState.summaryError;
+        renderExperience({ preserveScroll: true, focusSelector: '[data-maxis-season-retry]' });
+        updateEntryCard(chamberState.legacy, null, null);
+        return;
+    }
+
+    const seasons = normalizedSeasons(manifest);
+    if (!seasons.some((season) => season.id === chamberState.seasonId)) {
+        chamberState.seasonId = textValue(currentSeasonId(manifest), seasons[0]?.id);
+    }
+    const seasonId = chamberState.seasonId;
+    try {
+        const summary = await loadSeasonSummary(seasonId, { force: true });
+        if (serial !== summaryRequestSerial || chamberState.seasonId !== seasonId) return;
+        chamberState.summary = summary;
+        chamberState.summaryError = '';
+    } catch (error) {
+        if (serial !== summaryRequestSerial || chamberState.seasonId !== seasonId) return;
+        chamberState.summary = null;
+        chamberState.summaryError = textValue(error?.message, 'The selected season summary could not be verified.');
+    }
+    chamberState.summaryLoading = false;
+    ensureValidLane(chamberState.summary || {});
+    syncRouteState();
+    renderExperience({ preserveScroll: true, focusSelector: chamberState.summary ? '.maxis-room-panel' : '[data-maxis-season-retry]' });
+
+    const entrySeasonId = currentSeasonId(manifest);
+    const entrySummary = seasonId === entrySeasonId ? chamberState.summary : (summaryCache.get(entrySeasonId) || null);
+    chamberState.entrySummaryLoading = false;
+    chamberState.entrySummaryError = seasonId === entrySeasonId ? chamberState.summaryError : '';
+    updateEntryCard(chamberState.legacy, manifest, entrySummary);
+    if (chamberState.view === 'passport' && chamberState.summary && chamberState.passportAddress) {
+        await openPassport(chamberState.passportAddress, { usesSaved: chamberState.passportUsesSaved });
+    }
 }
 
 async function selectView(view, { focus = true } = {}) {
@@ -2402,6 +2761,16 @@ function wireExperience(body) {
             selectView(viewButton.dataset.maxisView);
             return;
         }
+        if (source.closest('[data-maxis-season-retry]')) {
+            event.preventDefault();
+            retrySeasonContext();
+            return;
+        }
+        if (source.closest('[data-maxis-archives-retry]')) {
+            event.preventDefault();
+            ensureArchivesLoaded({ force: true });
+            return;
+        }
         const handoffButton = source.closest('[data-maxis-handoff-lane]');
         if (handoffButton) {
             event.preventDefault();
@@ -2426,6 +2795,7 @@ function wireExperience(body) {
             const key = rowButton.dataset.maxisRowMenu;
             chamberState.rowDetail = chamberState.rowDetail === key ? null : key;
             renderExperience({ preserveScroll: true, focusSelector: `[data-maxis-row-menu="${CSS.escape(key)}"]` });
+            if (chamberState.rowDetail) revealRowActions(body, key);
             return;
         }
         const share = source.closest('[data-maxis-share]');
@@ -2492,6 +2862,40 @@ function renderEntryContents(legacy, manifest, summary) {
     const ongoingUnicorn = normalizedRanking(legacyData, 'unicorn')[0];
     const seasonUnicorn = normalizedRanking(seasonData || {}, 'unicorn')[0];
     const seasonLanes = categoriesFor(seasonData || {}).length;
+    const hasSeasonIdentity = Boolean(manifest && season?.id && season.id !== 'live');
+    const seasonError = textValue(chamberState.entrySummaryError, chamberState.manifestError);
+    const seasonPending = chamberState.manifestLoading || chamberState.entrySummaryLoading || (!manifest && !seasonError);
+    const pulseState = seasonError
+        ? 'unavailable'
+        : seasonPending
+            ? 'loading'
+            : seasonData
+                ? (season?.isCurrent ? 'live' : season?.status)
+                : 'not published';
+    const pulseTitle = seasonError
+        ? (hasSeasonIdentity ? season?.displayLabel || `${season?.protocol || 'Tezos'} Season` : 'Season sheet unavailable')
+        : hasSeasonIdentity
+            ? season?.displayLabel || `${season?.protocol || 'Tezos'} Season`
+            : 'Loading the Maxis season index';
+    const boundaryCopy = seasonError && !hasSeasonIdentity
+        ? 'Unavailable'
+        : hasSeasonIdentity
+            ? seasonEndCopy(season, { compact: true })
+            : 'Loading…';
+    const unicornCopy = seasonError
+        ? 'Not shown'
+        : seasonPending
+            ? 'Loading…'
+            : seasonData
+                ? leaderName(seasonUnicorn)
+                : 'Not published';
+    const sheetCopy = seasonError
+        ? 'Season pulse unavailable'
+        : seasonPending
+            ? 'Loading Passports · lanes'
+            : seasonData
+                ? `${formatNumber(passportRecords ?? 0)} Passports · ${formatNumber(seasonLanes)} lanes`
+                : 'Season sheet not published';
     return `
         <div class="maxis-entry-season-front maxis-entry-maxis-front">
             <div class="maxis-entry-season-copy maxis-entry-maxis-copy">
@@ -2499,7 +2903,7 @@ function renderEntryContents(legacy, manifest, summary) {
                 <div class="maxis-entry-season-title">Tezos Maxis</div>
                 <p>Live, rolling, and all-time records for the chain’s collectors, creators, builders, voters, stakers, transactors, and cross-lane Unicorns.</p>
                 <div class="maxis-entry-identity-strip" aria-label="Tezos Maxi identities">
-                    ${identities.map((category) => `<span><b aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b>${escapeHtml(categoryLabel(category))}<small>${escapeHtml(windowLabel(leaderForCategory(legacyData, category)?.windowKind))}</small></span>`).join('')}
+                    ${identities.map((category) => `<span><b aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b><span class="maxis-entry-identity-name">${escapeHtml(categoryLabel(category))}</span><small>${escapeHtml(windowLabel(leaderForCategory(legacyData, category)?.windowKind))}</small></span>`).join('')}
                 </div>
                 <div class="maxis-entry-season-meta">
                     <span><strong>${escapeHtml(String(identities.length || '—'))}</strong> identities</span>
@@ -2508,12 +2912,12 @@ function renderEntryContents(legacy, manifest, summary) {
                 </div>
             </div>
             <aside class="maxis-entry-season-pulse" aria-label="Current protocol season pulse">
-                <span class="maxis-entry-season-label">◉ Season ${escapeHtml(seasonNumberLabel(season))} · ${escapeHtml(season?.isCurrent ? 'live' : season?.status)}</span>
-                <strong>${escapeHtml(season?.displayLabel || `${season?.protocol || 'Tezos'} Season`)}</strong>
-                <p>Protocol-bounded movement, honors, and Passport progress.</p>
-                <div class="maxis-entry-pulse-line"><span>Boundary</span><strong>${escapeHtml(seasonEndCopy(season, { compact: true }))}</strong></div>
-                <div class="maxis-entry-pulse-line"><span>Season Unicorn</span><strong>${escapeHtml(leaderName(seasonUnicorn))}</strong></div>
-                <div class="maxis-entry-pulse-line"><span>Season sheet</span><strong>${escapeHtml(String(passportRecords ?? '—'))} Passports · ${escapeHtml(String(seasonLanes || '—'))} lanes</strong></div>
+                <span class="maxis-entry-season-label">◉ Season ${escapeHtml(hasSeasonIdentity ? seasonNumberLabel(season) : '—')} · ${escapeHtml(pulseState)}</span>
+                <strong>${escapeHtml(pulseTitle)}</strong>
+                <p>${escapeHtml(seasonError ? 'The ongoing Maxis identities above remain valid. Open the Chamber to retry the scoped season sheet.' : 'Protocol-bounded movement, honors, and Passport progress.')}</p>
+                <div class="maxis-entry-pulse-line"><span>Boundary</span><strong>${escapeHtml(boundaryCopy)}</strong></div>
+                <div class="maxis-entry-pulse-line"><span>Season Unicorn</span><strong>${escapeHtml(unicornCopy)}</strong></div>
+                <div class="maxis-entry-pulse-line"><span>Season sheet</span><strong>${escapeHtml(sheetCopy)}</strong></div>
             </aside>
         </div>
     `;
@@ -2647,8 +3051,11 @@ async function refreshChamber({ force = false } = {}) {
         shardRequestCache.clear();
         chamberState.careers = null;
         chamberState.careerError = '';
+        chamberState.manifestError = '';
         chamberState.archives = null;
         chamberState.archivesLoading = false;
+        chamberState.archivesError = '';
+        chamberState.entrySummaryError = '';
     }
     const route = readRouteState();
     chamberState.view = route.view;
@@ -2691,7 +3098,9 @@ async function refreshChamber({ force = false } = {}) {
     if (refreshSerial !== summaryRequestSerial || chamberState.seasonId !== requestedSeasonId) return;
     chamberState.summary = summary;
     chamberState.summaryLoading = false;
-    chamberState.summaryError = summaryError ? textValue(summaryError?.message, 'The selected season summary could not be verified.') : '';
+    chamberState.summaryError = summaryError
+        ? textValue(summaryError?.message, 'The selected season summary could not be verified.')
+        : (!manifest && chamberState.manifestError ? chamberState.manifestError : '');
     await careerTask;
     if (!chamberState.legacy && !chamberState.summary) {
         renderError(body, legacyError || summaryError || new Error('No valid Maxis data source answered.'));
@@ -2700,7 +3109,17 @@ async function refreshChamber({ force = false } = {}) {
     ensureValidLane(chamberState.view === 'maxis' ? chamberState.legacy : chamberState.summary || {});
     syncRouteState();
     renderExperience({ preserveScroll: false });
-    updateEntryCard(chamberState.legacy, chamberState.manifest, chamberState.summary);
+    const entrySeasonId = currentSeasonId(chamberState.manifest);
+    const entrySummary = requestedSeasonId === entrySeasonId
+        ? chamberState.summary
+        : (summaryCache.get(entrySeasonId) || null);
+    chamberState.entrySummaryLoading = false;
+    chamberState.entrySummaryError = !chamberState.manifest
+        ? chamberState.manifestError
+        : requestedSeasonId === entrySeasonId
+            ? chamberState.summaryError
+            : '';
+    updateEntryCard(chamberState.legacy, chamberState.manifest, entrySummary);
     if (chamberState.view === 'passport') {
         const address = chamberState.passportAddress || safeLocalStorageGet(MY_TEZOS_ADDRESS_KEY);
         if (address) await openPassport(address, { usesSaved: !route.address });
@@ -2771,11 +3190,28 @@ async function progressiveEntryLoad() {
         console.debug('Tezos Maxis ongoing snapshot unavailable', error);
     }
     const manifest = await manifestTask;
-    if (!manifest) return;
+    if (!manifest) {
+        chamberState.entrySummaryLoading = false;
+        chamberState.entrySummaryError = chamberState.manifestError;
+        updateEntryCard(lastLegacy, null, null);
+        return;
+    }
     const seasons = normalizedSeasons(manifest);
     const id = textValue(currentSeasonId(manifest), seasons[0]?.id);
-    const summary = await loadSeasonSummary(id);
-    updateEntryCard(lastLegacy, manifest, summary);
+    chamberState.entrySummaryLoading = true;
+    chamberState.entrySummaryError = '';
+    updateEntryCard(lastLegacy, manifest, null);
+    try {
+        const summary = await loadSeasonSummary(id);
+        chamberState.entrySummaryError = '';
+        updateEntryCard(lastLegacy, manifest, summary);
+    } catch (error) {
+        chamberState.entrySummaryError = textValue(error?.message, 'The current Maxis season sheet is temporarily unavailable.');
+        updateEntryCard(lastLegacy, manifest, null);
+    } finally {
+        chamberState.entrySummaryLoading = false;
+        updateEntryCard(lastLegacy, manifest, summaryCache.get(id) || null);
+    }
 }
 
 function handleMyTezosUpdate(event) {

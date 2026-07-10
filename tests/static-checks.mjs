@@ -3434,6 +3434,9 @@ async function checkMaxisContracts() {
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
+    ['maxis route-scoped rank shares', 'function rankShareUrl(category)', maxis],
+    ['maxis unique row action ids', 'function rowActionId(entry, category)', maxis],
+    ['maxis row toggle action ownership', 'aria-controls="${escapeHtml(actionsId)}"', maxis],
     ['maxis protocol-season selector', 'class="maxis-season-orb"', maxis],
     ['maxis shared corner trays', 'maxis-corner-tray', maxis],
     ['maxis four-room tab set', "const VIEW_KEYS = ['maxis', 'season', 'passport', 'champions']", maxis],
@@ -3451,6 +3454,10 @@ async function checkMaxisContracts() {
     ['maxis frozen archive lane catalog', 'archiveLaneCatalog', maxis],
     ['maxis frozen archive lane title', 'frozenLaneTitle', maxis],
     ['maxis frozen archive lane order', 'frozenLaneOrder', maxis],
+    ['maxis final champion identity receipt', 'maxis-champion-record', maxis],
+    ['maxis final champion on-chain trails', 'maxis-champion-actions', maxis],
+    ['maxis final archive summary receipt', 'maxis-archive-summary-action', maxis],
+    ['maxis frozen archive rules receipt', 'maxis-archive-rules-action', maxis],
     ['maxis compact transaction Passport adapter', "profile?.format === 'transaction-only-v1'", maxis],
     ['maxis compact transaction top-ten adapter', 'record?.topTenGap', maxis],
     ['maxis compact Unicorn progress adapter', 'profile?.unicornProgress?.breadth', maxis],
@@ -3464,8 +3471,11 @@ async function checkMaxisContracts() {
     ['maxis cross-season badge aggregation', 'function careerBadgeRecords', maxis],
     ['maxis cross-season personal best aggregation', 'function careerPersonalBestRecords', maxis],
     ['maxis cross-season breadth receipt', 'Cross-season breadth', maxis],
-    ['maxis selected-season badge separation', 'This Season stamps', maxis],
+    ['maxis phase-aware selected-season badge separation', '${escapeHtml(scope.passportScope)} stamps', maxis],
     ['maxis scoped season summary failure', 'Selected season is scoped unavailable', maxis],
+    ['maxis scoped season retry', 'data-maxis-season-retry', maxis],
+    ['maxis scoped final archive retry', 'data-maxis-archives-retry', maxis],
+    ['maxis explicit season phase', 'data-maxis-season-phase=', maxis],
     ['maxis stale summary request guard', 'refreshSerial !== summaryRequestSerial', maxis],
     ['maxis independent Governance career artifact', "const CAREER_DATA_URL = '/data/maxis-careers.json'", maxis],
     ['maxis Governance career integrity check', 'The Governance career artifact failed its SHA-256 integrity receipt.', maxis],
@@ -3490,6 +3500,12 @@ async function checkMaxisContracts() {
   ];
   for (const [label, snippet, source] of contracts) {
     if (!source.includes(snippet)) fail(`missing ${label}`);
+  }
+  if (!/#chambers-grid\s+#maxis-entry-card\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s.test(maxisCss)) {
+    fail('maxis single-card launcher pair must span its full grid at every viewport');
+  }
+  if (!/\.maxis-entry-front\s*>\s*\.maxis-entry-season-front\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s.test(maxisCss)) {
+    fail('maxis launcher composition must span the full card content grid');
   }
   const maxisRoute = CHAMBER_ROUTES.find((route) => route.slug === 'maxis');
   if (!/On-Chain Crowns/.test(maxisRoute?.title || '') || maxisRoute?.eyebrow !== 'On-Chain Crowns' || !/honest natural clocks/i.test(maxisRoute?.description || '')) {

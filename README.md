@@ -298,10 +298,10 @@ inline modal styles in `js/core/app.js`.
   all-time Transaction, all-time-active Governance, live Staking, rolling
   Art/DeFi, or cross-lane Unicorn breadth. These unlike clocks are labeled
   prominently and are never blended or relabeled as one time window. The
-  homepage launcher leads with the current lane holders and treats the active
-  protocol season as a smaller live
-  race pulse rather than replacing the enduring Maxis view.
-- Season is the protocol-bounded game layer. Its end is the next known
+  full-width homepage launcher keeps the current lane holders readable and
+  treats the active protocol season as a smaller race pulse rather than
+  replacing the enduring Maxis view.
+- Season is the protocol-bounded game layer, beginning with Ushuaia. Its end is the next known
   activation, or honestly remains open-ended while that activation is
   unscheduled. A circular selector appears only in room contexts where choosing
   a season changes the displayed result. One-lane progressive disclosure keeps
@@ -310,6 +310,9 @@ inline modal styles in `js/core/app.js`.
   score-vector path, rank movement, cutoff, and trajectory Honors readable.
   Crown metrics remain objective standings; climb, debut, consistency, and
   comeback Honors are a separate game layer.
+  A manifest or summary fetch failure renders as a scoped unavailable state
+  with retry affordance; it must never masquerade as an empty or pre-season
+  result.
 - Governance deliberately has three distinct clocks: the canonical Maxis crown
   uses all-time participation among currently active delegates, the current
   governance-period context explains whether an actionable vote exists now, and
@@ -332,7 +335,9 @@ inline modal styles in `js/core/app.js`.
   direct Passport handoff for the active saved address.
 - The canonical Maxis room reads the generated `data/maxis-leaders.json`
   lane-native-clock snapshot. Champions reads finalized protocol-season
-  archives and preserves past winners. At activation the new season opens at
+  archives and preserves past winners, exposing the champion address and score,
+  Ledger Flow trail, source receipt, final standings, and frozen rules for each
+  result. At activation the new season opens at
   once while the prior season spends at least 24 hours concurrently in a
   non-champion settling state, then receives one exact-boundary rebuild under
   its frozen evaluator; temporary active leaders never receive permanent
@@ -707,7 +712,7 @@ Current smoke suites:
 - `tezlink`
 - `network-health`
 - `ledger-flow`
-- `maxis` (covers the default all-lane Maxis overview, room-aware protocol-season selector, mirrored desktop/mobile corner-control geometry, Maxis/Season/Passport/Champions views, career-plus-season address progression, rank receipts, and Ledger Flow handoff)
+- `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
 - `tezos-domains`
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)
@@ -732,7 +737,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v391`, including hero search, theme
+- Current aligned shell cache stamp: `v408`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, and Network Pulse lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v316`.
 - `version.json` is stamped by `.githooks/pre-commit`.
