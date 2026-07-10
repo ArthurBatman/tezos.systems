@@ -4987,6 +4987,8 @@ async function smokeMaxisChamber(browser, baseUrl) {
     const rankedRows = Array.from(modal?.querySelectorAll('.maxis-rank-row') || []);
     const ledgerLinks = rankedRows.map((row) => row.querySelector('.maxis-ledger-action')?.getAttribute('href') || '');
     const tweetLinks = rankedRows.map((row) => row.querySelector('.maxis-tweet-action')?.getAttribute('href') || '');
+    const jumpButtons = Array.from(modal?.querySelectorAll('.maxis-category-jump') || []);
+    const crowns = Array.from(modal?.querySelectorAll('.maxis-rank-crown') || []);
     const entry = document.querySelector('#maxis-entry-card');
     const unicorn = modal?.querySelector('.maxis-card[data-maxi-category="unicorn"]');
     const categoryCounts = Object.fromEntries(Array.from(modal?.querySelectorAll('.maxis-card[data-maxi-category]') || []).map((card) => [
@@ -4995,6 +4997,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
     ]));
     return {
       title: modal?.querySelector('#maxis-title')?.textContent?.trim() || '',
+      ideaCredit: modal?.querySelector('.maxis-idea-credit')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       cardCount: modal?.querySelectorAll('.maxis-card').length || 0,
       readyCount: ready.length,
       rankedCount: rankedRows.length,
@@ -5002,6 +5005,11 @@ async function smokeMaxisChamber(browser, baseUrl) {
       rankSequences: Array.from(modal?.querySelectorAll('.maxis-ranking-list') || []).map((list) => Array.from(list.querySelectorAll('[data-maxi-rank]')).map((row) => Number(row.dataset.maxiRank))),
       ledgerLinks,
       tweetLinks,
+      jumpCategories: jumpButtons.map((button) => button.dataset.maxisJump || ''),
+      jumpTargets: jumpButtons.map((button) => button.getAttribute('aria-controls') || ''),
+      jumpTargetMatches: jumpButtons.filter((button) => document.getElementById(button.getAttribute('aria-controls') || '')).length,
+      crownCount: crowns.length,
+      crownedRanks: crowns.map((crown) => crown.closest('[data-maxi-rank]')?.dataset.maxiRank || ''),
       sourceLinks: modal?.querySelectorAll('.maxis-source-action[target="_blank"]').length || 0,
       entryLeaderCount: entry?.querySelectorAll('.maxis-entry-leader').length || 0,
       unicornText: unicorn?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -5012,19 +5020,64 @@ async function smokeMaxisChamber(browser, baseUrl) {
     };
   });
   assert(state.title === 'Tezos Maxis', `tezos maxis chamber: title mismatch ${state.title}`);
+  assert(state.ideaCredit === '✦ Chamber idea by opeculiar', `tezos maxis chamber: opeculiar idea credit missing ${state.ideaCredit}`);
   assert(state.cardCount === 9 && state.readyCount === 9, `tezos maxis chamber: expected nine ready leaderboards ${JSON.stringify(state)}`);
   assert(state.rankedCount === 90 && Object.values(state.categoryCounts).every((count) => count === 10), `tezos maxis chamber: every category must show top ten ${JSON.stringify(state.categoryCounts)}`);
   assert(state.rankSequences.every((ranks) => ranks.join(',') === '1,2,3,4,5,6,7,8,9,10'), `tezos maxis chamber: visible rank sequences are invalid ${JSON.stringify(state.rankSequences)}`);
   assert(state.entryLeaderCount === 9, `tezos maxis chamber: entry card must preview every category ${state.entryLeaderCount}`);
   assert(state.ledgerLinks.length === state.rankedCount && state.ledgerLinks.every((href) => /^\/#ledger-flow=tz/.test(href)), `tezos maxis chamber: address-scoped Ledger Flow links missing ${JSON.stringify(state.ledgerLinks)}`);
   assert(state.tweetLinks.length === state.rankedCount && state.tweetLinks.every((href) => /^https:\/\/twitter\.com\/intent\/tweet\?text=/.test(href) && /%23(?:[1-9]|10)/.test(href) && /%23Tezos/.test(href)), `tezos maxis chamber: tweet-ready rank receipts missing ${JSON.stringify(state.tweetLinks)}`);
+  assert(state.jumpCategories.join(',') === 'unicorn,transaction,collector,artist,minter,defi,gaming,governance,staking', `tezos maxis chamber: category jump order mismatch ${JSON.stringify(state.jumpCategories)}`);
+  assert(state.jumpTargets.length === 9 && state.jumpTargetMatches === 9, `tezos maxis chamber: category jump targets missing ${JSON.stringify(state.jumpTargets)}`);
+  assert(state.jumpTargets.every((id) => id.startsWith('maxis-category-')), `tezos maxis chamber: category jump target ids invalid ${JSON.stringify(state.jumpTargets)}`);
+  assert(state.crownCount === 9 && state.crownedRanks.every((rank) => rank === '1'), `tezos maxis chamber: every category leader must have one crown ${JSON.stringify({ crownCount: state.crownCount, crownedRanks: state.crownedRanks })}`);
   assert(state.sourceLinks === state.rankedCount, `tezos maxis chamber: source links missing ${state.sourceLinks}/${state.rankedCount}`);
   assert(/lanes crossed/i.test(state.unicornText), `tezos maxis chamber: Unicorn breadth missing ${state.unicornText}`);
   assert(/Unknown or unlabeled contracts/i.test(state.methodology), `tezos maxis chamber: coverage caveat missing ${state.methodology}`);
   assert(state.directHref === '/maxis/' && state.bodyOverflow === 'hidden', `tezos maxis chamber: route or scroll lock mismatch ${JSON.stringify(state)}`);
   assert(state.horizontalOverflow <= 1, `tezos maxis chamber: horizontal overflow ${state.horizontalOverflow}`);
 
+  await page.locator('#maxis-modal [data-maxis-jump="governance"]').click();
+  await page.waitForFunction(() => {
+    const content = document.querySelector('#maxis-modal .maxis-content');
+    const nav = document.querySelector('#maxis-modal .maxis-category-nav');
+    const target = document.querySelector('#maxis-category-governance');
+    if (!content || !nav || !target) return false;
+    const gap = target.getBoundingClientRect().top - content.getBoundingClientRect().top;
+    const navBottomGap = nav.getBoundingClientRect().bottom - content.getBoundingClientRect().top;
+    return content.scrollTop > 0 && gap >= navBottomGap + 8 && gap <= navBottomGap + 24;
+  }, null, { timeout: 10000 });
+  const governanceJumpState = await page.evaluate(() => {
+    const content = document.querySelector('#maxis-modal .maxis-content');
+    const nav = document.querySelector('#maxis-modal .maxis-category-nav');
+    const target = document.querySelector('#maxis-category-governance');
+    const contentRect = content?.getBoundingClientRect();
+    const navRect = nav?.getBoundingClientRect();
+    const targetRect = target?.getBoundingClientRect();
+    return {
+      scrollTop: content?.scrollTop || 0,
+      navTop: navRect?.top || 0,
+      contentTop: contentRect?.top || 0,
+      targetGap: targetRect && contentRect ? targetRect.top - contentRect.top : -1,
+      navBottomGap: navRect && contentRect ? navRect.bottom - contentRect.top : -1,
+      navHeight: nav?.offsetHeight || 0,
+      focusedCategory: document.activeElement?.dataset?.maxiCategory || ''
+    };
+  });
+  assert(governanceJumpState.scrollTop > 0 && governanceJumpState.targetGap >= governanceJumpState.navBottomGap + 8 && governanceJumpState.targetGap <= governanceJumpState.navBottomGap + 24, `tezos maxis chamber: governance jump left its title under the category rail ${JSON.stringify(governanceJumpState)}`);
+  assert(governanceJumpState.navTop >= governanceJumpState.contentTop, `tezos maxis chamber: sticky category rail escaped the modal ${JSON.stringify(governanceJumpState)}`);
+  assert(governanceJumpState.focusedCategory === 'governance', `tezos maxis chamber: category jump did not focus Governance ${JSON.stringify(governanceJumpState)}`);
+
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#maxis-modal [data-maxis-jump="governance"]').click();
+  await page.waitForFunction(() => {
+    const content = document.querySelector('#maxis-modal .maxis-content');
+    const nav = document.querySelector('#maxis-modal .maxis-category-nav');
+    const target = document.querySelector('#maxis-category-governance');
+    if (!content || !nav || !target) return false;
+    const targetTop = target.getBoundingClientRect().top;
+    return targetTop >= nav.getBoundingClientRect().bottom + 8 && targetTop <= nav.getBoundingClientRect().bottom + 24;
+  }, null, { timeout: 10000 });
   const mobileGovernanceKicker = await page.evaluate(() => {
     const kicker = document.querySelector('.maxis-card[data-maxi-category="governance"] .maxis-card-kicker');
     const rect = kicker?.getBoundingClientRect();
@@ -5036,11 +5089,14 @@ async function smokeMaxisChamber(browser, baseUrl) {
       scrollWidth: kicker?.scrollWidth || 0,
       textWidth: textRange?.getBoundingClientRect().width || 0,
       right: rect?.right || 0,
+      navBottom: document.querySelector('.maxis-category-nav')?.getBoundingClientRect().bottom || 0,
+      cardTop: document.querySelector('.maxis-card[data-maxi-category="governance"]')?.getBoundingClientRect().top || 0,
       viewportWidth: window.innerWidth,
       horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
     };
   });
   assert(mobileGovernanceKicker.text === 'Governance Maxi', `tezos maxis chamber: governance label text mismatch ${JSON.stringify(mobileGovernanceKicker)}`);
+  assert(mobileGovernanceKicker.cardTop >= mobileGovernanceKicker.navBottom + 8, `tezos maxis chamber: mobile category rail covers Governance title ${JSON.stringify(mobileGovernanceKicker)}`);
   assert(mobileGovernanceKicker.scrollWidth <= mobileGovernanceKicker.clientWidth + 1 && mobileGovernanceKicker.textWidth <= mobileGovernanceKicker.clientWidth - 2, `tezos maxis chamber: governance label lacks mobile paint room ${JSON.stringify(mobileGovernanceKicker)}`);
   assert(mobileGovernanceKicker.right <= mobileGovernanceKicker.viewportWidth && mobileGovernanceKicker.horizontalOverflow <= 1, `tezos maxis chamber: mobile governance label escapes viewport ${JSON.stringify(mobileGovernanceKicker)}`);
 

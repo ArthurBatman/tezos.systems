@@ -2506,9 +2506,13 @@ async function checkMaxisContracts() {
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
+    ['maxis category jump wiring', 'wireCategoryJumps(body)', maxis],
+    ['maxis opeculiar idea credit', 'Chamber idea by <strong>opeculiar</strong>', maxis],
     ['maxis direct route', 'Direct: /maxis/', maxis],
     ['maxis entry grid', '.maxis-entry-grid', maxisCss],
     ['maxis top-ten ranking list', '.maxis-ranking-list', maxisCss],
+    ['maxis category jump rail', '.maxis-category-nav', maxisCss],
+    ['maxis category leader crowns', '.maxis-rank-crown', maxisCss],
     ['maxis service worker data', '/data/maxis-leaders.json', sw]
   ];
   for (const [label, snippet, source] of contracts) {

@@ -283,8 +283,10 @@ inline modal styles in `js/core/app.js`.
   the top ten cross-lane Unicorns. The homepage launcher keeps the current
   winner from each lane compact; the full chamber gives every ranked account
   its scoring window, method, primary source, exact Ledger Flow route, and a
-  tweet-ready receipt for that category standing. DeFi
-  and Gaming cover successful top-level wallet calls to recently active
+  tweet-ready receipt for that category standing. A sticky category rail jumps
+  directly to each board without covering its title, every category leader
+  carries a crown, and the chamber visibly credits opeculiar for the original
+  idea. DeFi and Gaming cover successful top-level wallet calls to recently active
   contracts recognized by `data/maxis-contracts.json`; unknown or unlabeled
   contracts are not presented as classified coverage.
 - Network Health Chamber with direct `#health` access, recent block cadence,

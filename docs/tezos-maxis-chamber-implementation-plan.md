@@ -261,3 +261,6 @@ generated snapshot declares coverage, freshness, and truncation state. Every
 ranked account links its exact address into Ledger Flow and carries a
 category-specific tweet receipt for its standing. Unicorn breadth includes the
 Transaction lane while continuing to exclude the pure-wealth Staking lane.
+The full chamber also keeps a sticky, hash-free category jump rail above the
+boards without obscuring the selected heading, marks the rank-one account in
+every category with a crown, and visibly credits opeculiar for the chamber idea.
