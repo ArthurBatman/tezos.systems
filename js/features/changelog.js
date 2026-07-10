@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '✨', text: 'Network Health now compares live address-level Nakamoto coefficients at Tezos’ one-third and two-thirds thresholds with dated Chainspect, Edinburgh EDI, and CoinClear reports plus methodology context' },
             { type: '🎨', text: 'Maxis top-three standings now rise on gold, silver, and bronze metallic podiums, with the large polished crown reserved for the gold winner across themes and mobile' },
             { type: '🎨', text: 'The Tezos Maxis launcher now fills its Chamber card with readable lane chips and a compact season pulse, while the open room uses cleaner mobile gutters and tab geometry' },
             { type: '🔧', text: 'Maxis now distinguishes unavailable season data from a genuinely empty season and labels active, settling, and finalized results with phase-accurate boundaries, cutlines, and honors' },

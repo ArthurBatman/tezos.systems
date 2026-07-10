@@ -1062,6 +1062,17 @@ async function installFeatureMocks(context, options = {}) {
       });
     }
 
+    if (url.includes('tezos-mainnet.octez.io') && url.includes('/helpers/baking_power_distribution_for_current_cycle')) {
+      return fulfillJson(route, [
+        '300',
+        [
+          [{ delegate: SAMPLE_ADDRESS, consensus_pkh: 'tz4SmokeConsensus111111111111111111111' }, '110'],
+          [{ delegate: SAMPLE_ADDRESS_2, consensus_pkh: 'tz4SmokeConsensus222222222222222222222' }, '100'],
+          [{ delegate: SAMPLE_ADDRESS_3, consensus_pkh: 'tz4SmokeConsensus333333333333333333333' }, '90']
+        ]
+      ]);
+    }
+
     if (url.includes('teztale-server-mainnet-ro-prd.octez.tech')) {
       const pathname = parsedUrl.pathname.replace(/^\/+/, '');
       if (pathname === 'head.json') {
@@ -4467,6 +4478,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelectorAll('#health-missed-attester-list .health-attester-row').length >= 2, null, { timeout: 10000 });
   await page.waitForFunction(() => document.querySelectorAll('#health-activity-list .health-activity-row').length >= 1, null, { timeout: 10000 });
   await page.waitForFunction(() => /Teztale/.test(document.querySelector('#health-teztale-consensus')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('#health-nc-33')?.textContent === '1' && document.querySelector('#health-nc-66')?.textContent === '2', null, { timeout: 10000 });
   await page.waitForFunction(() => /Octez Versions/.test(document.querySelector('#health-octez-versions')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /Block/.test(document.querySelector('#block-ticker-line')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent || ''), null, { timeout: 10000 });
@@ -4554,6 +4566,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       teztaleCreditHref: modal?.querySelector('#health-teztale-credit a[href*="teztale-dataviz"]')?.href || '',
       teztaleNomadicHref: modal?.querySelector('#health-teztale-credit a[href*="nomadic-labs/teztale"]')?.href || '',
       teztaleEvents: modal?.querySelectorAll('#health-teztale-events .health-consensus-event').length || 0,
+      nakamotoText: modal?.querySelector('#health-nakamoto-coefficient')?.textContent || '',
+      nakamoto33: modal?.querySelector('#health-nc-33')?.textContent || '',
+      nakamoto66: modal?.querySelector('#health-nc-66')?.textContent || '',
+      nakamotoSourceRows: modal?.querySelectorAll('#health-nc-source-list .health-nc-source-row').length || 0,
+      nakamotoChainspectHref: modal?.querySelector('#health-nc-source-list a[href*="chainspect.app"]')?.href || '',
+      nakamotoEdiHref: modal?.querySelector('#health-nc-source-list a[href*="blockchainlab.inf.ed.ac.uk"]')?.href || '',
+      nakamotoHelpLabel: modal?.querySelector('.health-nc-help > summary')?.getAttribute('aria-label') || '',
       octezVersions: modal?.querySelector('#health-octez-versions')?.textContent || '',
       octezCurrent: modal?.querySelector('#health-octez-current')?.textContent || '',
       octezLatestPower: modal?.querySelector('#health-octez-latest-power')?.textContent || '',
@@ -4698,6 +4717,15 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.teztaleEvents >= 1, `network health chamber: Teztale report rows missing: ${healthState.teztaleEvents}`);
   assert(healthState.teztaleCreditHref.includes('nomadic-labs.gitlab.io/teztale-dataviz'), `network health chamber: Teztale dataviz link missing: ${healthState.teztaleCreditHref}`);
   assert(healthState.teztaleNomadicHref.includes('gitlab.com/nomadic-labs/teztale'), `network health chamber: Teztale source credit link missing: ${healthState.teztaleNomadicHref}`);
+  assert(healthState.nakamoto33 === '1' && healthState.nakamoto66 === '2', `network health chamber: live Nakamoto thresholds mismatch: ${healthState.nakamoto33}/${healthState.nakamoto66}`);
+  assert(/Halt \/ fault boundary/.test(healthState.nakamotoText) && /Unilateral quorum control/.test(healthState.nakamotoText), `network health chamber: Nakamoto threshold labels missing: ${healthState.nakamotoText}`);
+  assert(/Chainspect/.test(healthState.nakamotoText) && /Edinburgh EDI/.test(healthState.nakamotoText) && /CoinClear/.test(healthState.nakamotoText), `network health chamber: external Nakamoto sources missing: ${healthState.nakamotoText}`);
+  assert(/33% claimed/.test(healthState.nakamotoText) && /50%/.test(healthState.nakamotoText) && /threshold unstated/.test(healthState.nakamotoText), `network health chamber: external threshold context missing: ${healthState.nakamotoText}`);
+  assert(/Current provider snapshot/.test(healthState.nakamotoText) && /30-day block-production window/.test(healthState.nakamotoText), `network health chamber: external method windows missing: ${healthState.nakamotoText}`);
+  assert(healthState.nakamotoSourceRows >= 3, `network health chamber: external Nakamoto source rows missing: ${healthState.nakamotoSourceRows}`);
+  assert(healthState.nakamotoChainspectHref.includes('chainspect.app/dashboard/decentralization'), `network health chamber: Chainspect source link missing: ${healthState.nakamotoChainspectHref}`);
+  assert(healthState.nakamotoEdiHref.includes('blockchainlab.inf.ed.ac.uk/edi-dashboard'), `network health chamber: EDI source link missing: ${healthState.nakamotoEdiHref}`);
+  assert(/Explain the Nakamoto Coefficient/.test(healthState.nakamotoHelpLabel), `network health chamber: Nakamoto info control label missing: ${healthState.nakamotoHelpLabel}`);
   assert(/Octez Versions/.test(healthState.octezVersions) && /TzKT delegates/.test(healthState.octezVersions), `network health chamber: Octez versions panel missing source context: ${healthState.octezVersions}`);
   assert(healthState.octezCurrent === 'v25.1', `network health chamber: latest observed Octez version mismatch: ${healthState.octezCurrent}`);
   assert(/20\.8%/.test(healthState.octezLatestPower), `network health chamber: latest Octez power share mismatch: ${healthState.octezLatestPower}`);
@@ -4815,11 +4843,25 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(tickerFreshnessState.hasTimer, 'network health chamber: freshness ticker handler missing');
   assert(tickerFreshnessState.state === 'stale' && tickerFreshnessState.stale, `network health chamber: stale state should update from ticker after fetch silence: ${tickerFreshnessState.state}/${tickerFreshnessState.stale}`);
 
+  await page.locator('#health-nakamoto-coefficient .health-nc-help > summary').click();
+  const nakamotoHelpState = await page.evaluate(() => {
+    const details = document.querySelector('#health-nakamoto-coefficient .health-nc-help');
+    return {
+      open: details?.open || false,
+      text: details?.querySelector('.lb-help-popover')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(nakamotoHelpState.open, 'network health chamber: Nakamoto info control did not open');
+  assert(/33 1\/3%/.test(nakamotoHelpState.text) && /66 2\/3%/.test(nakamotoHelpState.text), `network health chamber: Nakamoto info threshold explanation missing: ${nakamotoHelpState.text}`);
+  assert(/delegate addresses/.test(nakamotoHelpState.text) && /clustered/.test(nakamotoHelpState.text), `network health chamber: Nakamoto info address/entity caveat missing: ${nakamotoHelpState.text}`);
+  assert(/snapshot dates/.test(nakamotoHelpState.text) && /historical block production/.test(nakamotoHelpState.text), `network health chamber: Nakamoto info methodology explanation missing: ${nakamotoHelpState.text}`);
+
   const beforeSmoothRefresh = await page.evaluate(() => {
     const timer = (window.__tezosSystemsIntervals || []).filter((item) => item.timeout === 6000).at(-1);
     window.__healthBodyNode = document.querySelector('#network-health-modal .health-body');
     window.__healthHeaderNode = document.querySelector('#network-health-modal .health-header');
     window.__healthScorePanelNode = document.querySelector('#network-health-modal .health-score-panel');
+    window.__healthNcPanelNode = document.querySelector('#network-health-modal #health-nakamoto-coefficient');
     return {
       hasTimer: Boolean(timer?.handler),
       firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
@@ -4846,6 +4888,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     bodySame: window.__healthBodyNode === document.querySelector('#network-health-modal .health-body'),
     headerSame: window.__healthHeaderNode === document.querySelector('#network-health-modal .health-header'),
     scorePanelSame: window.__healthScorePanelNode === document.querySelector('#network-health-modal .health-score-panel'),
+    ncPanelSame: window.__healthNcPanelNode === document.querySelector('#network-health-modal #health-nakamoto-coefficient'),
+    ncHelpOpen: document.querySelector('#network-health-modal .health-nc-help')?.open || false,
     mode: document.querySelector('#network-health-modal .health-body')?.dataset.healthRefreshMode || '',
     firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
     rowCount: document.querySelectorAll('#health-recent-block-list .health-block-row').length,
@@ -4856,11 +4900,37 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(smoothRefreshState.bodySame, 'network health chamber: smooth refresh replaced the chamber body');
   assert(smoothRefreshState.headerSame, 'network health chamber: smooth refresh replaced the header instead of updating in place');
   assert(smoothRefreshState.scorePanelSame, 'network health chamber: smooth refresh replaced the score panel instead of updating in place');
+  assert(smoothRefreshState.ncPanelSame, 'network health chamber: smooth refresh replaced the Nakamoto panel instead of updating in place');
+  assert(smoothRefreshState.ncHelpOpen, 'network health chamber: smooth refresh closed the open Nakamoto info control');
   assert(smoothRefreshState.mode === 'in-place', `network health chamber: refresh mode mismatch: ${smoothRefreshState.mode}`);
   assert(smoothRefreshState.rowCount === beforeSmoothRefresh.rowCount, `network health chamber: passing block row count shifted after smooth refresh: ${smoothRefreshState.rowCount}`);
   assert(smoothRefreshState.newRows >= 1, 'network health chamber: smooth refresh did not animate newly arriving block rows');
   assert(smoothRefreshState.tickerTransitionCount >= 1, `network health chamber: live block ticker did not mark a transition after refresh: ${smoothRefreshState.tickerTransitionCount}`);
   assert(parseFloat(smoothRefreshState.tablePadding) >= 8, `network health chamber: passing blocks row padding too tight: ${smoothRefreshState.tablePadding}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#health-nakamoto-coefficient .health-nc-help .lb-help-popover').scrollIntoViewIfNeeded();
+  const nakamotoMobileState = await page.evaluate(() => {
+    const panel = document.querySelector('#health-nakamoto-coefficient');
+    const help = panel?.querySelector('.health-nc-help .lb-help-popover');
+    const intro = panel?.querySelector('.health-nc-intro');
+    const trigger = panel?.querySelector('.health-nc-help-trigger, .health-nc-help > summary');
+    const panelRect = panel?.getBoundingClientRect();
+    const helpRect = help?.getBoundingClientRect();
+    const introRect = intro?.getBoundingClientRect();
+    return {
+      panelContained: Boolean(panelRect && panelRect.left >= 0 && panelRect.right <= window.innerWidth),
+      helpContained: Boolean(helpRect && helpRect.left >= 0 && helpRect.right <= window.innerWidth && helpRect.top >= 0 && helpRect.bottom <= window.innerHeight),
+      helpInFlow: Boolean(helpRect && introRect && introRect.top >= helpRect.bottom - 1),
+      helpPosition: help ? getComputedStyle(help).position : '',
+      triggerSize: trigger ? Math.min(trigger.getBoundingClientRect().width, trigger.getBoundingClientRect().height) : 0
+    };
+  });
+  assert(nakamotoMobileState.panelContained, 'network health chamber: Nakamoto panel overflows the mobile viewport');
+  assert(nakamotoMobileState.helpContained, `network health chamber: Nakamoto info note escapes the mobile viewport: ${JSON.stringify(nakamotoMobileState)}`);
+  assert(nakamotoMobileState.helpInFlow && nakamotoMobileState.helpPosition === 'static', `network health chamber: Nakamoto mobile info should expand in flow: ${JSON.stringify(nakamotoMobileState)}`);
+  assert(nakamotoMobileState.triggerSize >= 28, `network health chamber: Nakamoto info control is too small on mobile: ${nakamotoMobileState.triggerSize}`);
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   await page.locator('#network-health-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 5000 });
@@ -8627,7 +8697,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-proposal-attribution', description: 'My Tezos Story distinguishes a delegator from their baker when accepted proposals are shown', run: () => smokeMyTezosProposalAttribution(browser, baseUrl) },
     { name: 'my-tezos-deep-link-override', description: 'My Tezos direct address links override a stale saved baker on first load', run: () => smokeMyTezosDeepLinkOverridesStale(browser, baseUrl) },
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
-    { name: 'network-health', description: 'Network Health card opens #health chamber with block cadence, missed rights, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
+    { name: 'network-health', description: 'Network Health opens #health with block cadence, missed rights, live 33/66 Nakamoto coefficients, external reports, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
     { name: 'maxis', description: 'Default all-lane Maxis crowns, room-aware protocol seasons, career-plus-season Passport, immutable Champions, mobile geometry, and address trails', run: () => smokeMaxisChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },

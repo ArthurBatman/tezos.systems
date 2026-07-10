@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-10T14:20:37.000Z",
+  "sources": [
+    {
+      "id": "chainspect",
+      "name": "Chainspect",
+      "provenance": "publisher",
+      "sourceUrl": "https://chainspect.app/dashboard/decentralization",
+      "dataAsOf": "2026-07-10",
+      "window": "Current provider snapshot",
+      "resourceBasis": "Validator stake or voting power (provider wording)",
+      "entityBasis": "Validators; operator clustering is not disclosed",
+      "methodologyStatus": "opaque",
+      "metrics": [
+        {
+          "key": "reported_nc",
+          "label": "Reported NC",
+          "value": 13,
+          "displayValue": "13",
+          "approximate": false,
+          "thresholdPct": 33,
+          "thresholdBasis": "source-claimed",
+          "thresholdLabel": "33% claimed",
+          "population": 198,
+          "populationLabel": "validators"
+        }
+      ],
+      "historicalSnapshots": [
+        {
+          "publisher": "Merlin",
+          "value": 14,
+          "dataAsOf": "2026-04-28",
+          "derivedFrom": "chainspect",
+          "sourceUrl": "https://www.merlincrypto.com/blog/the-most-decentralized-cryptocurrencies-in-2026/"
+        },
+        {
+          "publisher": "ThriveInMarkets",
+          "value": 13,
+          "dataAsOf": "2026-07-07",
+          "derivedFrom": "chainspect",
+          "sourceUrl": "https://thriveinmarkets.com/market-insights/top-blockchains-by-nakamoto-coefficient-2026-07/"
+        }
+      ],
+      "retrievedAt": "2026-07-10T14:20:37.000Z"
+    },
+    {
+      "id": "edinburgh-edi",
+      "name": "Edinburgh EDI",
+      "provenance": "research-dataset",
+      "sourceUrl": "https://blockchainlab.inf.ed.ac.uk/edi-dashboard/output/consensus/tezos/output_clustered.csv",
+      "methodologyUrl": "https://blockchainlab.inf.ed.ac.uk/edi-dashboard/",
+      "dataAsOf": "2022-12-20",
+      "window": "30-day block-production window",
+      "resourceBasis": "Blocks produced",
+      "entityBasis": "Clustered block producers",
+      "methodologyStatus": "published",
+      "metrics": [
+        {
+          "key": "tau_33",
+          "label": "tau 33",
+          "value": 3,
+          "displayValue": "3",
+          "approximate": false,
+          "thresholdPct": 33,
+          "thresholdBasis": "calculated",
+          "thresholdLabel": "33%",
+          "population": 294,
+          "populationLabel": "clustered entities"
+        },
+        {
+          "key": "nakamoto_50",
+          "label": "NC 50",
+          "value": 6,
+          "displayValue": "6",
+          "approximate": false,
+          "thresholdPct": 50,
+          "thresholdBasis": "calculated",
+          "thresholdLabel": "50%",
+          "population": 294,
+          "populationLabel": "clustered entities"
+        },
+        {
+          "key": "tau_66",
+          "label": "tau 66",
+          "value": 14,
+          "displayValue": "14",
+          "approximate": false,
+          "thresholdPct": 66,
+          "thresholdBasis": "calculated",
+          "thresholdLabel": "66%",
+          "population": 294,
+          "populationLabel": "clustered entities"
+        }
+      ],
+      "retrievedAt": "2026-07-10T14:20:37.000Z"
+    },
+    {
+      "id": "coinclear",
+      "name": "CoinClear",
+      "provenance": "secondary-report",
+      "sourceUrl": "https://coinclear.io/layer1/tezos",
+      "dataAsOf": "2026-02-16",
+      "window": "Not stated",
+      "resourceBasis": "Not stated",
+      "entityBasis": "Not stated",
+      "methodologyStatus": "unspecified",
+      "metrics": [
+        {
+          "key": "reported_nc",
+          "label": "Estimate",
+          "value": 8,
+          "displayValue": "~8",
+          "approximate": true,
+          "thresholdPct": null,
+          "thresholdBasis": "unspecified",
+          "thresholdLabel": "threshold unstated",
+          "population": null,
+          "populationLabel": ""
+        }
+      ],
+      "retrievedAt": "2026-07-10T14:20:37.000Z"
+    }
+  ]
+}

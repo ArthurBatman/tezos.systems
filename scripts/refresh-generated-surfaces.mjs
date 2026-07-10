@@ -29,6 +29,7 @@ const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`)
 const SITEMAP_TARGETS = ['sitemap.xml'];
 const ROOT_OG_TARGETS = ['og-image.png'];
 const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
+const NAKAMOTO_TARGETS = ['data/nakamoto-sources.json'];
 const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 
@@ -41,6 +42,7 @@ const GENERATED_TARGETS = unique([
   ...SITEMAP_TARGETS,
   ...ROOT_OG_TARGETS,
   ...MILESTONE_TARGETS,
+  ...NAKAMOTO_TARGETS,
   ...MAXIS_TARGETS,
   ...MAXIS_CAREER_TARGETS
 ]);
@@ -213,6 +215,8 @@ async function main() {
     ran.push('maxis-check');
     nodeScript('scripts/refresh-maxis-careers.mjs', ['--check']);
     ran.push('maxis-careers-check');
+    nodeScript('scripts/refresh-nakamoto-sources.mjs', ['--check']);
+    ran.push('nakamoto-check');
   } else if (modeName === 'all' || modeName === 'scheduled') {
     nodeScript('scripts/refresh-maxis-data.mjs');
     ran.push('maxis');
@@ -220,6 +224,9 @@ async function main() {
     nodeScript('scripts/refresh-maxis-careers.mjs');
     ran.push('maxis-careers');
     if (shouldStage) stageTargets(MAXIS_CAREER_TARGETS);
+    nodeScript('scripts/refresh-nakamoto-sources.mjs');
+    ran.push('nakamoto');
+    if (shouldStage) stageTargets(NAKAMOTO_TARGETS);
   }
 
   const milestoneArgs = [];

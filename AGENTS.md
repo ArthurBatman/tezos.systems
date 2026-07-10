@@ -45,6 +45,7 @@ the highest-risk gotchas.
   script loading, Chart.js CDN imports.
 - `css/styles.css`: source styles and theme rules.
 - `css/styles.min.css`: served stylesheet.
+- `css/network-health.css`: lazy Network Health Nakamoto panel styles.
 - `css/hen-mode.css`: HEN overlay styles.
 - `css/landing.css`: landing and SEO page styles.
 - `js/core/app.js`: app orchestrator, DOM wiring, modals, refresh loop, feature
@@ -65,6 +66,9 @@ the highest-risk gotchas.
 
 - TzKT: `https://api.tzkt.io/v1`
 - Octez RPC: `https://eu.rpc.tez.capital`
+- Official Octez mainnet RPC: `https://tezos-mainnet.octez.io`
+  - current-cycle baking-power distribution for live one-third and two-thirds
+    address-level Nakamoto coefficients
 - Teztale: `https://teztale-server-mainnet-ro-prd.octez.tech`
   - used as an extra Network Health consensus lens for quorum timing,
     validation/application delay, source count, and operations-report context
@@ -114,7 +118,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v408`
+- Service worker cache name: `tezos-systems-v409`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -295,6 +299,8 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   is an episodic race. A quiet season must not erase the enduring Governance
   Maxi or be presented as evidence that governance participation does not exist.
 - `data/tweets.json`: share-copy templates used by the share system.
+- `data/nakamoto-sources.json`: dated external Nakamoto reports with their
+  original thresholds, windows, entity bases, and source provenance.
 
 ## Version History Log
 
@@ -363,6 +369,9 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   `data/milestone-catalog.json` from a compact TzKT snapshot when either 14 days
   or 100 commits have elapsed. The pre-commit path projects the pending commit;
   scheduled runs use wall-clock age, and `--force` bypasses both gates.
+- `scripts/refresh-nakamoto-sources.mjs`: refreshes reproducible Chainspect and
+  Edinburgh EDI rows server-side, preserves manual/secondary reports and
+  last-known-good data, and validates locally with `--check` during pre-commit.
 - `scripts/update-governance-votes.mjs`: compatibility wrapper around
   `scripts/refresh-governance-data.mjs`.
 - `scripts/stamp-version.sh`: updates `version.json` and stages it.

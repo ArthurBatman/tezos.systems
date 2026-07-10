@@ -43,6 +43,7 @@ tezos.systems/
 │   ├── styles.css                     # Source dashboard styles and themes
 │   ├── styles.min.css                 # Served base dashboard stylesheet
 │   ├── loading.css                    # Critical first-paint skeleton states
+│   ├── network-health.css             # Lazy Network Health Nakamoto panel styles
 │   ├── themes/                        # Generated lazy-loaded theme bundles
 │   ├── hen-mode.css                   # HEN overlay styles
 │   └── landing.css                    # Landing and SEO page styles
@@ -65,6 +66,7 @@ tezos.systems/
 │   ├── governance-votes.json          # Generated governance vote history
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
+│   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
 │   ├── maxis-leaders.json              # Generated canonical lane-native-clock Maxis snapshot
@@ -93,6 +95,7 @@ tezos.systems/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
 │   ├── refresh-maxis-data.mjs         # Canonical Maxis and protocol-season artifacts
 │   ├── refresh-maxis-careers.mjs      # Canonical governance career history
+│   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
 │   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
 │   ├── lib/maxis-source-v2.mjs        # Immutable v2 source/query and build adapter
@@ -360,7 +363,10 @@ inline modal styles in `js/core/app.js`.
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
   power, Teztale quorum/validation/source observations credited to Nomadic
-  Labs, and a compact saved My Tezos baker summary. Its Chambers card spans two
+  Labs, live current-cycle address-level Nakamoto coefficients at strict
+  one-third and two-thirds thresholds, dated Chainspect/Edinburgh EDI/CoinClear
+  reports with their original methods intact, and a compact saved My Tezos
+  baker summary. Its Chambers card spans two
   tiles and includes compact block-power bars plus a deduped throttled 1,000+
   XTZ live activity tape; the open chamber refreshes on the block cadence with
   in-place row updates instead of a full rerender, and now adds incident memory,
@@ -523,7 +529,9 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 |--------|---------|
 | TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, and ctez oven discovery |
 | Octez RPC `https://eu.rpc.tez.capital` | Issuance, supply, constants, cycle/head metadata |
+| Official Octez mainnet RPC `https://tezos-mainnet.octez.io` | Current-cycle baking-power distribution used for Network Health's live one-third and two-thirds address coefficients |
 | Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including quorum delay, validation/application delay, source count, and operations-report observations; Teztale is by Nomadic Labs |
+| `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
 | CoinGecko | XTZ price, market cap, 24h change, volume |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
 | OBJKT GraphQL | HEN mode's live Teia + OBJKT feed, collector and creator profile stats, and Maxis 30-day buyer/artist ranks plus mint events |
@@ -553,7 +561,11 @@ Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
-the Maxis artifact family. `npm run refresh:maxis` forces both the canonical
+the Maxis artifact family. It also refreshes the reproducible Chainspect and
+Edinburgh EDI rows in `data/nakamoto-sources.json`; normal pre-commit runs only
+validate that ledger, while scheduled/full runs preserve last-known-good data
+if a third-party parser is temporarily unavailable. `npm run refresh:nakamoto`
+forces that source refresh directly. `npm run refresh:maxis` forces both the canonical
 lane-native-clock Maxis snapshot and the protocol-season manifest, active-season
 summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
 `npm run refresh:maxis-careers` refreshes the separate exact all-history

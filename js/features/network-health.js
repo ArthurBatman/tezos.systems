@@ -9,6 +9,7 @@ import { fetchWithRetry } from '../core/api.js';
 
 const TZKT = API_URLS.tzkt;
 const TEZTALE = API_URLS.teztale;
+const OCTEZ_MAINNET = API_URLS.octezMainnet;
 const POWER_PER_BLOCK = 7000;
 const TARGET_BLOCK_SECONDS = 6;
 const LAST_BLOCK_LIMIT = 5;
@@ -42,6 +43,12 @@ const CYCLE_DRIFT_DEGRADED_PCT = 4;
 const PROTOCOL_CONSTANTS_TTL = 30 * 60 * 1000;
 const OCTEZ_VERSIONS_TTL = 30 * 60 * 1000;
 const OCTEZ_VERSION_PAGE_LIMIT = 500;
+const NAKAMOTO_TTL = 10 * 60 * 1000;
+const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
+const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
+const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
+const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=409';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -79,6 +86,21 @@ let protocolConstantsCacheAt = 0;
 let octezVersionsCache = null;
 let octezVersionsCacheAt = 0;
 let octezVersionsInFlight = null;
+let nakamotoCache = null;
+let nakamotoCacheAt = 0;
+let nakamotoInFlight = null;
+let nakamotoSourcesCache = null;
+let nakamotoSourcesCacheAt = 0;
+let nakamotoSourcesInFlight = null;
+
+function ensureNetworkHealthCss() {
+    if (document.getElementById('network-health-css')) return;
+    const link = document.createElement('link');
+    link.id = 'network-health-css';
+    link.rel = 'stylesheet';
+    link.href = NETWORK_HEALTH_CSS_URL;
+    document.head.appendChild(link);
+}
 
 function formatCount(value) {
     return Number(value || 0).toLocaleString('en-US');
@@ -607,6 +629,137 @@ function summarizeMyTezosBaker(data) {
 
 async function fetchJson(url, retries = 2) {
     return fetchWithRetry(url, { cache: 'no-store', memoryCache: false }, retries + 1);
+}
+
+function nakamotoLiveFallback(error = '') {
+    return {
+        available: false,
+        stale: false,
+        error,
+        observedAt: null,
+        sourceUrl: `${OCTEZ_MAINNET}${NAKAMOTO_RPC_PATH}`,
+        poweredDelegates: 0,
+        totalPower: '0',
+        thresholds: {
+            oneThird: null,
+            twoThirds: null
+        }
+    };
+}
+
+function calculateNakamotoThreshold(powers, totalPower, numerator, denominator) {
+    const sorted = [...powers].sort((a, b) => (a === b ? 0 : a > b ? -1 : 1));
+    let cumulativePower = 0n;
+    let count = 0;
+    for (const power of sorted) {
+        cumulativePower += power;
+        count += 1;
+        if (cumulativePower * BigInt(denominator) > totalPower * BigInt(numerator)) break;
+    }
+    if (!count || cumulativePower * BigInt(denominator) <= totalPower * BigInt(numerator)) return null;
+    return {
+        count,
+        cumulativePower: cumulativePower.toString(),
+        cumulativeShare: Number((cumulativePower * 10000n) / totalPower) / 100,
+        numerator,
+        denominator
+    };
+}
+
+function buildNakamotoCoefficients(payload) {
+    if (!Array.isArray(payload) || payload.length < 2 || !/^\d+$/.test(String(payload[0]))) {
+        throw new Error('Unexpected current-cycle baking power response');
+    }
+    const totalPower = BigInt(payload[0]);
+    if (totalPower <= 0n || !Array.isArray(payload[1])) {
+        throw new Error('Current-cycle baking power is empty');
+    }
+
+    const powerByDelegate = new Map();
+    for (const row of payload[1]) {
+        const identity = Array.isArray(row) ? row[0] : null;
+        const rawPower = Array.isArray(row) ? row[1] : null;
+        const delegate = String(identity?.delegate || '');
+        if (!delegate || !/^\d+$/.test(String(rawPower))) continue;
+        const power = BigInt(rawPower);
+        if (power <= 0n) continue;
+        powerByDelegate.set(delegate, (powerByDelegate.get(delegate) || 0n) + power);
+    }
+    const powers = [...powerByDelegate.values()];
+    if (!powers.length) throw new Error('No powered delegates were returned');
+
+    return {
+        available: true,
+        stale: false,
+        error: '',
+        observedAt: new Date().toISOString(),
+        sourceUrl: `${OCTEZ_MAINNET}${NAKAMOTO_RPC_PATH}`,
+        poweredDelegates: powers.length,
+        totalPower: totalPower.toString(),
+        thresholds: {
+            oneThird: calculateNakamotoThreshold(powers, totalPower, 1, 3),
+            twoThirds: calculateNakamotoThreshold(powers, totalPower, 2, 3)
+        }
+    };
+}
+
+async function fetchNakamotoSources({ force = false } = {}) {
+    if (!force && nakamotoSourcesCache && Date.now() - nakamotoSourcesCacheAt < NAKAMOTO_SOURCES_TTL) {
+        return nakamotoSourcesCache;
+    }
+    if (nakamotoSourcesInFlight) return nakamotoSourcesInFlight;
+
+    nakamotoSourcesInFlight = fetchJson(NAKAMOTO_SOURCES_URL, 1)
+        .then((artifact) => {
+            if (artifact?.schemaVersion !== 1 || !Array.isArray(artifact.sources)) {
+                throw new Error('Unexpected Nakamoto source artifact');
+            }
+            nakamotoSourcesCache = artifact;
+            nakamotoSourcesCacheAt = Date.now();
+            return artifact;
+        })
+        .catch((error) => {
+            console.warn('Network Health Nakamoto source ledger failed:', error);
+            return nakamotoSourcesCache || { schemaVersion: 1, updatedAt: null, sources: [], error: error?.message || 'Source ledger unavailable' };
+        })
+        .finally(() => {
+            nakamotoSourcesInFlight = null;
+        });
+
+    return nakamotoSourcesInFlight;
+}
+
+export async function fetchNakamotoCoefficients({ force = false } = {}) {
+    if (!force && nakamotoCache && Date.now() - nakamotoCacheAt < NAKAMOTO_TTL) {
+        return nakamotoCache;
+    }
+    if (nakamotoInFlight) return nakamotoInFlight;
+
+    nakamotoInFlight = (async () => {
+        const [live, sourceArtifact] = await Promise.all([
+            fetchJson(`${OCTEZ_MAINNET}${NAKAMOTO_RPC_PATH}`, 1)
+                .then(buildNakamotoCoefficients)
+                .catch((error) => {
+                    console.warn('Network Health Nakamoto calculation failed:', error);
+                    return nakamotoCache?.live?.available
+                        ? { ...nakamotoCache.live, stale: true, error: error?.message || 'Current-cycle RPC unavailable' }
+                        : nakamotoLiveFallback(error?.message || 'Current-cycle RPC unavailable');
+                }),
+            fetchNakamotoSources({ force })
+        ]);
+        nakamotoCache = {
+            live,
+            sourcesUpdatedAt: sourceArtifact.updatedAt || null,
+            sources: sourceArtifact.sources || [],
+            sourcesError: sourceArtifact.error || ''
+        };
+        nakamotoCacheAt = Date.now();
+        return nakamotoCache;
+    })().finally(() => {
+        nakamotoInFlight = null;
+    });
+
+    return nakamotoInFlight;
 }
 
 function formatMilliseconds(value) {
@@ -1682,9 +1835,10 @@ function updateHealthVerdictPanel(data) {
 }
 
 async function fetchNetworkHealthChamberData() {
-    const [blocks, cycleTiming] = await Promise.all([
+    const [blocks, cycleTiming, nakamoto] = await Promise.all([
         fetchRecentBlocks(CHAMBER_BLOCK_LIMIT),
-        fetchCycleTiming()
+        fetchCycleTiming(),
+        fetchNakamotoCoefficients()
     ]);
     const summary = summarizeBlocks(blocks);
     const timing = summarizeTiming(blocks);
@@ -1725,6 +1879,7 @@ async function fetchNetworkHealthChamberData() {
         activityTape,
         teztaleLens,
         octezVersions,
+        nakamoto,
         periods: cachedData?.periods || [],
         cycleTiming: cycleTiming || cachedData?.cycleTiming || null
     };
@@ -2119,6 +2274,208 @@ function renderTeztaleConsensusPanel(data) {
     `;
 }
 
+function safeHttpsUrl(value) {
+    try {
+        const url = new URL(String(value || ''));
+        return url.protocol === 'https:' ? url.href : '#';
+    } catch {
+        return '#';
+    }
+}
+
+function formatNakamotoDate(value) {
+    if (!value) return 'date unavailable';
+    const timestamp = new Date(`${String(value).slice(0, 10)}T00:00:00Z`).getTime();
+    if (!Number.isFinite(timestamp)) return String(value);
+    return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+    }).format(timestamp);
+}
+
+function formatNakamotoObservedAt(value) {
+    if (!value) return 'observation unavailable';
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'observation unavailable';
+    return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+function nakamotoSourceSignature(sources) {
+    return (sources || []).map((source) => [
+        source.id,
+        source.dataAsOf,
+        ...(source.metrics || []).map((metric) => `${metric.key}:${metric.displayValue}:${metric.thresholdLabel}`)
+    ].join(':')).join('|');
+}
+
+function renderNakamotoMetric(metric) {
+    const population = Number.isFinite(Number(metric?.population)) && Number(metric.population) > 0
+        ? `${formatCount(metric.population)} ${metric.populationLabel || 'participants'}`
+        : '';
+    return `
+        <div class="health-nc-source-metric">
+            <span>${escapeHtml(metric?.label || 'Reported NC')}</span>
+            <strong>${escapeHtml(metric?.displayValue ?? metric?.value ?? '--')}</strong>
+            <em>${escapeHtml(metric?.thresholdLabel || 'threshold unstated')}${population ? ` · ${escapeHtml(population)}` : ''}</em>
+        </div>
+    `;
+}
+
+function renderNakamotoHistoricalSnapshots(snapshots) {
+    if (!snapshots?.length) return '';
+    const links = snapshots.map((snapshot) => `
+        <a href="${escapeHtml(safeHttpsUrl(snapshot.sourceUrl))}" target="_blank" rel="noopener">
+            ${escapeHtml(snapshot.publisher)} ${escapeHtml(snapshot.value)} (${escapeHtml(formatNakamotoDate(snapshot.dataAsOf))})
+        </a>
+    `).join('<span aria-hidden="true">·</span>');
+    return `
+        <div class="health-nc-derived">
+            <span>Chainspect-derived historical citations — not independent measurements:</span>
+            ${links}
+        </div>
+    `;
+}
+
+function renderNakamotoSourceRows(sources) {
+    if (!sources?.length) {
+        return '<div class="lb-empty-inline">External Nakamoto source snapshots are unavailable; the live Tezos.Systems calculation remains independent.</div>';
+    }
+    return sources.map((source) => {
+        const methodology = source.methodologyStatus === 'published'
+            ? 'published method'
+            : source.methodologyStatus === 'opaque'
+                ? 'method opaque'
+                : 'method unstated';
+        return `
+            <article class="health-nc-source-row">
+                <div class="health-nc-source-identity">
+                    <a href="${escapeHtml(safeHttpsUrl(source.sourceUrl))}" target="_blank" rel="noopener">${escapeHtml(source.name)} ↗</a>
+                    <span>Snapshot ${escapeHtml(formatNakamotoDate(source.dataAsOf))}</span>
+                    <em class="health-nc-method ${escapeHtml(source.methodologyStatus || 'unspecified')}">${escapeHtml(methodology)}</em>
+                </div>
+                <div class="health-nc-source-metrics">
+                    ${(source.metrics || []).map(renderNakamotoMetric).join('')}
+                </div>
+                <div class="health-nc-source-basis">
+                    <span><strong>Basis</strong> ${escapeHtml(source.resourceBasis || 'Not stated')}</span>
+                    <span><strong>Actors</strong> ${escapeHtml(source.entityBasis || 'Not stated')}</span>
+                    <span><strong>Window</strong> ${escapeHtml(source.window || 'Not stated')}</span>
+                </div>
+                ${renderNakamotoHistoricalSnapshots(source.historicalSnapshots)}
+            </article>
+        `;
+    }).join('');
+}
+
+function renderNakamotoLiveMeta(live) {
+    if (!live?.available) {
+        return `<span>Current-cycle RPC unavailable; external snapshots are still shown.</span>`;
+    }
+    const status = live.stale ? 'cached after RPC error' : 'live current-cycle snapshot';
+    return `
+        <span>${formatCount(live.poweredDelegates)} powered delegate addresses · ${escapeHtml(status)} · ${escapeHtml(formatNakamotoObservedAt(live.observedAt))}</span>
+        <a href="${escapeHtml(safeHttpsUrl(live.sourceUrl))}" target="_blank" rel="noopener">Octez RPC response ↗</a>
+    `;
+}
+
+function renderNakamotoHelp() {
+    return `
+        <details class="lb-help health-nc-help">
+            <summary class="lb-help-trigger" aria-label="Explain the Nakamoto Coefficient and why sources differ">?</summary>
+            <div class="lb-help-popover" role="note">
+                <strong>What this coefficient means</strong>
+                <span>The Nakamoto Coefficient is the smallest number of the largest participants whose combined consensus power crosses a chosen threshold.</span>
+                <strong>Why Tezos.Systems shows two</strong>
+                <span><b>More than 33 1/3%</b> can withhold enough power to prevent a two-thirds quorum and halt finality; one-third is also Tenderbake's Byzantine fault bound.</span>
+                <span><b>More than 66 2/3%</b> can form a quorum without honest participation. This is the stronger unilateral-control threshold often associated with conflicting-finality or double-spend scenarios.</span>
+                <strong>Why the reports differ</strong>
+                <span>Thresholds vary (33%, 50%, or 66%), as do snapshot dates, current-cycle power versus historical block production, and whether addresses are clustered into real operators.</span>
+                <span>Our live result counts delegate addresses. It is not a verified count of independent organizations, so compare it only with that limitation visible.</span>
+                <a href="${TENDERBAKE_DOCS_URL}" target="_blank" rel="noopener">Tenderbake consensus documentation →</a>
+            </div>
+        </details>
+    `;
+}
+
+function renderNakamotoCoefficientPanel(data) {
+    const nakamoto = data.nakamoto || {};
+    const live = nakamoto.live || nakamotoLiveFallback();
+    const oneThird = live.thresholds?.oneThird;
+    const twoThirds = live.thresholds?.twoThirds;
+    const sourceRows = renderNakamotoSourceRows(nakamoto.sources || []);
+    return `
+        <section class="lb-panel health-panel health-nakamoto-panel lb-panel-has-help chamber-anim-fade${live.available ? '' : ' unavailable'}" id="health-nakamoto-coefficient" style="animation-delay:130ms">
+            <div class="lb-panel-title">
+                Nakamoto Coefficients
+                <span class="lb-live-pill">Octez current cycle</span>
+                ${renderNakamotoHelp()}
+            </div>
+            <p class="health-nc-intro">Two live Tezos thresholds answer two different consensus questions. Third-party values stay separate because their methods are not interchangeable.</p>
+            <div class="health-nc-current-grid" aria-label="Live Tezos.Systems Nakamoto coefficients">
+                <div class="health-nc-current-card halt">
+                    <span>Halt / fault boundary</span>
+                    <strong id="health-nc-33">${oneThird?.count ?? '--'}</strong>
+                    <em>&gt;33 1/3% of current-cycle power</em>
+                    <small>${oneThird ? `${formatPct(oneThird.cumulativeShare)}% crossed by ${formatCount(oneThird.count)} addresses` : 'Live calculation unavailable'}</small>
+                </div>
+                <div class="health-nc-current-card quorum">
+                    <span>Unilateral quorum control</span>
+                    <strong id="health-nc-66">${twoThirds?.count ?? '--'}</strong>
+                    <em>&gt;66 2/3% of current-cycle power</em>
+                    <small>${twoThirds ? `${formatPct(twoThirds.cumulativeShare)}% crossed by ${formatCount(twoThirds.count)} addresses` : 'Live calculation unavailable'}</small>
+                </div>
+            </div>
+            <div class="health-nc-live-meta" id="health-nc-live-meta">${renderNakamotoLiveMeta(live)}</div>
+            <div class="health-nc-sources-head">
+                <div>
+                    <strong>Other published numbers</strong>
+                    <span>Dated snapshots, shown with their own threshold and basis</span>
+                </div>
+                <span class="health-nc-snapshot-pill">not normalized</span>
+            </div>
+            <div class="health-nc-source-list" id="health-nc-source-list" data-health-signature="${escapeHtml(nakamotoSourceSignature(nakamoto.sources))}">
+                ${sourceRows}
+            </div>
+            <p class="health-nc-footnote">Higher means more distributed only when threshold, resource, time window, and entity grouping match. These rows deliberately preserve the differences.</p>
+        </section>
+    `;
+}
+
+function updateNakamotoCoefficientPanel(data) {
+    const panel = document.getElementById('health-nakamoto-coefficient');
+    if (!panel) return;
+    const nakamoto = data.nakamoto || {};
+    const live = nakamoto.live || nakamotoLiveFallback();
+    const oneThird = live.thresholds?.oneThird;
+    const twoThirds = live.thresholds?.twoThirds;
+    panel.classList.toggle('unavailable', !live.available);
+    setTextIfChanged('#health-nc-33', oneThird?.count ?? '--');
+    setTextIfChanged('#health-nc-66', twoThirds?.count ?? '--');
+    const currentCards = panel.querySelectorAll('.health-nc-current-card');
+    const currentValues = [oneThird, twoThirds];
+    currentCards.forEach((card, index) => {
+        const threshold = currentValues[index];
+        const small = card.querySelector('small');
+        if (small) {
+            setTextIfChanged(small, threshold
+                ? `${formatPct(threshold.cumulativeShare)}% crossed by ${formatCount(threshold.count)} addresses`
+                : 'Live calculation unavailable', { pulse: false });
+        }
+    });
+    setHtmlIfSignatureChanged(
+        '#health-nc-live-meta',
+        renderNakamotoLiveMeta(live),
+        `${live.available}:${live.stale}:${live.observedAt}:${live.poweredDelegates}`
+    );
+    setHtmlIfSignatureChanged(
+        '#health-nc-source-list',
+        renderNakamotoSourceRows(nakamoto.sources || []),
+        nakamotoSourceSignature(nakamoto.sources)
+    );
+}
+
 function renderOctezVersionRows(rows) {
     if (!rows?.length) return '<div class="health-consensus-empty">No Octez version distribution returned.</div>';
     return rows.slice(0, 5).map((row) => {
@@ -2442,6 +2799,7 @@ function renderNetworkHealthChamber(data, container) {
             ${renderHealthScorePanel(data)}
             ${renderTimingPanel(data)}
             ${renderTeztaleConsensusPanel(data)}
+            ${renderNakamotoCoefficientPanel(data)}
             ${renderOctezVersionsPanel(data)}
             ${renderCycleTimingPanel(data)}
             ${renderIncidentMemoryPanel(data)}
@@ -2597,6 +2955,7 @@ function updateRecentBlockRows(blocks) {
 }
 
 function updateHealthStoryPanels(data) {
+    updateNakamotoCoefficientPanel(data);
     const consensus = document.getElementById('health-teztale-consensus');
     if (consensus) consensus.outerHTML = renderTeztaleConsensusPanel(data);
     const octez = document.getElementById('health-octez-versions');
@@ -2741,6 +3100,7 @@ function stopChamberRefresh() {
 }
 
 export async function openNetworkHealthChamber() {
+    ensureNetworkHealthCss();
     document.getElementById('tooltip-network-health')?.classList.remove('is-open');
     let overlay = document.getElementById('network-health-modal');
     if (!overlay) {
@@ -2853,6 +3213,7 @@ export async function refreshNetworkHealth({ force = false } = {}) {
 export function initNetworkHealth() {
     if (!document.querySelector('[data-stat="network-health"]')) return;
 
+    ensureNetworkHealthCss();
     wireCycleChipHealthLauncher();
     wireNetworkHealthCard();
     startHealthAgeTicker();

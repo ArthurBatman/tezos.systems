@@ -3,7 +3,7 @@
  * Cache-first for shell assets, network-first for API data
  */
 
-const CACHE_NAME = 'tezos-systems-v408';
+const CACHE_NAME = 'tezos-systems-v409';
 
 // Shell assets to precache
 const SHELL_ASSETS = [
@@ -29,6 +29,7 @@ const SHELL_ASSETS = [
     '/css/leaderboard.css',
     '/css/shell-extras.css',
     '/css/network-pulse.css',
+    '/css/network-health.css',
     '/css/maxis.css',
     '/css/ledger-flow.css',
     '/css/tezos-domains.css',
@@ -108,6 +109,7 @@ const SHELL_ASSETS = [
     '/widgets/baker-card.html',
     '/widgets/builder.html',
     '/data/governance-votes.json',
+    '/data/nakamoto-sources.json',
     '/data/governance-refresh-report.json',
     '/data/maxis-leaders.json',
     '/data/maxis/manifest.json',
@@ -119,7 +121,7 @@ const SHELL_ASSETS = [
 ];
 
 // API domains — network-first with cache fallback
-const API_HOSTS = ['api.tzkt.io', 'eu.rpc.tez.capital', 'api.coingecko.com', 'iijpfczftroespicmufb.supabase.co', 'data.objkt.com'];
+const API_HOSTS = ['api.tzkt.io', 'eu.rpc.tez.capital', 'tezos-mainnet.octez.io', 'api.coingecko.com', 'iijpfczftroespicmufb.supabase.co', 'data.objkt.com'];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(

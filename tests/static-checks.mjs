@@ -212,6 +212,7 @@ async function checkRequiredFiles() {
     'css/hero-search.css',
     'css/leaderboard.css',
     'css/network-pulse.css',
+    'css/network-health.css',
     'css/maxis.css',
     'js/core/app.js',
     'js/core/api.js',
@@ -230,6 +231,7 @@ async function checkRequiredFiles() {
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
     'scripts/generate-milestone-catalog.mjs',
+    'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-maxis-data.mjs',
     'scripts/refresh-maxis-careers.mjs',
     'scripts/lib/maxis-artifact-budget.mjs',
@@ -243,6 +245,7 @@ async function checkRequiredFiles() {
     'scripts/lib/maxis-source-v2.mjs',
     'scripts/lib/maxis-transactions-v2.mjs',
     'data/governance-votes.json',
+    'data/nakamoto-sources.json',
     'data/governance-refresh-report.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
@@ -417,6 +420,7 @@ async function checkCacheBustAlignment() {
   const leaderboard = await readText('js/features/leaderboard.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
   const networkPulse = await readText('js/features/network-pulse.js');
+  const networkHealth = await readText('js/features/network-health.js');
   const maxis = await readText('js/features/maxis.js');
   const themePreload = await readText('js/core/theme-preload.js');
   const themeUi = await readText('js/ui/theme.js');
@@ -431,6 +435,7 @@ async function checkCacheBustAlignment() {
   const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
   const networkPulseCssMatch = networkPulse.match(/NETWORK_PULSE_CSS_URL\s*=\s*['"]\/css\/network-pulse\.css\?v=(\d+)['"]/);
+  const networkHealthCssMatch = networkHealth.match(/NETWORK_HEALTH_CSS_URL\s*=\s*['"]\/css\/network-health\.css\?v=(\d+)['"]/);
   const maxisCssMatch = maxis.match(/MAXIS_CSS_URL\s*=\s*['"]\/css\/maxis\.css\?v=(\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
   const themeUiMatch = themeUi.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
@@ -446,6 +451,7 @@ async function checkCacheBustAlignment() {
   if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
   if (!networkPulseCssMatch) fail('network-pulse.js network-pulse.css loader must carry a ?v= cache stamp');
+  if (!networkHealthCssMatch) fail('network-health.js network-health.css loader must carry a ?v= cache stamp');
   if (!maxisCssMatch) fail('maxis.js maxis.css loader must carry a ?v= cache stamp');
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
   if (!themeUiMatch) fail('theme.js must expose THEME_CSS_VERSION');
@@ -462,11 +468,12 @@ async function checkCacheBustAlignment() {
     leaderboardCssMatch?.[1],
     ledgerFlowCssMatch?.[1],
     networkPulseCssMatch?.[1],
+    networkHealthCssMatch?.[1],
     maxisCssMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 12) {
+  } else if (versions.length === 13) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -739,6 +746,7 @@ async function checkSelectorContracts() {
   const chamberRouteGenerator = await readText('scripts/generate-chamber-routes.mjs');
   const themeUi = await readText('js/ui/theme.js');
   const styles = await readText('css/styles.css');
+  const networkHealthCss = await readText('css/network-health.css');
   const leaderboardCss = await readText('css/leaderboard.css');
   const networkPulseCss = await readText('css/network-pulse.css');
   const ledgerFlowCss = await readText('css/ledger-flow.css');
@@ -1168,6 +1176,13 @@ async function checkSelectorContracts() {
     ['health Teztale source URL', 'TEZTALE_REPORT_URL', health],
     ['health Teztale Nomadic Labs credit', 'Teztale by Nomadic Labs', health],
     ['health Teztale config endpoint', "teztale: 'https://teztale-server-mainnet-ro-prd.octez.tech'", await readText('js/core/config.js')],
+    ['health Nakamoto coefficient panel', 'id="health-nakamoto-coefficient"', health],
+    ['health Nakamoto one-third value', 'id="health-nc-33"', health],
+    ['health Nakamoto two-thirds value', 'id="health-nc-66"', health],
+    ['health Nakamoto current-cycle RPC', 'baking_power_distribution_for_current_cycle', health],
+    ['health Nakamoto explainer', 'Explain the Nakamoto Coefficient', health],
+    ['health Nakamoto Chainspect disclosure', 'Chainspect', await readText('data/nakamoto-sources.json')],
+    ['health Nakamoto Edinburgh disclosure', 'Edinburgh EDI', await readText('data/nakamoto-sources.json')],
     ['health Octez versions panel', 'id="health-octez-versions"', health],
     ['health Octez versions TzKT source', '/delegates?active=true', health],
     ['health Octez versions cache TTL', 'OCTEZ_VERSIONS_TTL', health],
@@ -1262,6 +1277,8 @@ async function checkSelectorContracts() {
     ['top continuity arrival reveal class', '.top-continuity-stat.hero-arrived', heroSearchCss],
     ['health cycle timing styles', '.health-cycle-panel', styles],
     ['health Teztale consensus styles', '.health-consensus-panel', styles],
+    ['health Nakamoto panel styles', '.health-nakamoto-panel', networkHealthCss],
+    ['health Nakamoto source-row styles', '.health-nc-source-row', networkHealthCss],
     ['health Octez versions styles', '.health-octez-panel', styles],
     ['My Tezos Octez warning styles', '.drawer-operator-watch', styles],
     ['My Baker Octez critical styles', '.my-baker-stat.my-baker-octez-critical', styles],
@@ -2006,6 +2023,7 @@ async function checkPortableTooling() {
     'refresh:generated:commit': 'node scripts/refresh-generated-surfaces.mjs --mode precommit',
     'refresh:generated:scheduled': 'node scripts/refresh-generated-surfaces.mjs --mode scheduled',
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
+    'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
     'test:static': 'node tests/static-checks.mjs',
     'test:smoke': 'node tests/smoke.mjs',
@@ -2039,7 +2057,7 @@ async function checkPortableTooling() {
     fail('.githooks/pre-commit must guard README sync and run focused README contract checks');
   }
   const generatedRefresh = await readText('scripts/refresh-generated-surfaces.mjs');
-  for (const expected of ['refresh-governance-data.mjs', 'generate-milestone-catalog.mjs', 'data/milestone-catalog.json', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
+  for (const expected of ['refresh-governance-data.mjs', 'generate-milestone-catalog.mjs', 'data/milestone-catalog.json', 'refresh-nakamoto-sources.mjs', 'data/nakamoto-sources.json', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
     if (!generatedRefresh.includes(expected)) {
       fail(`scripts/refresh-generated-surfaces.mjs must coordinate ${expected}`);
     }
