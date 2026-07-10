@@ -24,7 +24,8 @@ const PAGE_SIZE = 1000;
 const TZKT_PAGE_SIZE = 10000;
 const MAX_PAGES = 60;
 const CONTRACT_BATCH = 40;
-const RANKING_LIMIT = 5;
+const RANKING_LIMIT = 10;
+const GAMING_WINDOW_DAYS = 90;
 const EXPECTED_CATEGORIES = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'staking', 'unicorn'];
 
 function chunks(values, size) {
@@ -60,7 +61,7 @@ function validateSnapshot(snapshot) {
       errors.push(`snapshot missing ${category} ranking`);
       continue;
     }
-    if (ranking.length !== RANKING_LIMIT) errors.push(`${category} ranking must contain ${RANKING_LIMIT} accounts`);
+    if (ranking.length !== RANKING_LIMIT) errors.push(`${category} ranking contains ${ranking.length}/${RANKING_LIMIT} accounts`);
     const addresses = new Set();
     ranking.forEach((entry, index) => {
       if (entry?.status !== 'ready') errors.push(`${category} rank ${index + 1} is not ready`);
@@ -220,6 +221,7 @@ function buildSnapshot({ now, fromIso, config, accounts, delegates, sales, mints
     return [category, rankAppActivity(appRows.filter((row) => lookup.has(row?.target?.address)), lookup)];
   }));
   const unicorns = rankUnicorn({
+    transaction: transactions,
     collector: collectors,
     artist: artists,
     minter: minters,
@@ -257,7 +259,7 @@ function buildSnapshot({ now, fromIso, config, accounts, delegates, sales, mints
     {
       category: 'gaming', title: 'Gaming Maxi', rows: categoryLookup.gaming,
       display: (row) => ({ scoreLabel: `${formatInteger(row.appCount)} games · ${formatInteger(row.calls)} calls`, context: [appLabels(row, config.apps), `${formatInteger(row.contractCount)} recognized contracts`] }),
-      method: 'Most distinct recognized Tezos games used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.', windowKind: 'rolling-30d'
+      method: 'Most distinct recognized Tezos games used, then successful top-level wallet calls, across the curated TzKT alias taxonomy.', windowKind: 'rolling-90d'
     },
     {
       category: 'governance', title: 'Governance Maxi', rows: governance,
@@ -272,7 +274,7 @@ function buildSnapshot({ now, fromIso, config, accounts, delegates, sales, mints
     {
       category: 'unicorn', title: 'Tezos Unicorn', rows: unicorns,
       display: (row) => ({ scoreLabel: `${formatInteger(row.breadth)} lanes crossed`, context: [row.categories.map((item) => `${item.category} #${item.rank}`).join(' · ')] }),
-      method: 'Breadth first across the top 500 available Collector, Art, Mint, DeFi, Gaming, and Governance ranks; normalized rank points break ties. Requires three lanes.', windowKind: 'mixed'
+      method: 'Breadth first across the top 500 available Transaction, Collector, Art, Mint, DeFi, Gaming, and Governance ranks; normalized rank points break ties. Requires three lanes.', windowKind: 'mixed'
     }
   ];
   const rankings = Object.fromEntries(specs.map((spec) => [spec.category, buildRanking(spec)]));
@@ -283,7 +285,7 @@ function buildSnapshot({ now, fromIso, config, accounts, delegates, sales, mints
     schema: 2,
     rankingLimit: RANKING_LIMIT,
     generatedAt: now.toISOString(),
-    window: { kind: 'rolling', days: config.windowDays, from: fromIso, to: now.toISOString() },
+    window: { kind: 'rolling', days: config.windowDays, gamingDays: GAMING_WINDOW_DAYS, from: fromIso, to: now.toISOString() },
     staleAfterHours: 48,
     sources: [
       { name: 'TzKT', url: 'https://api.tzkt.io/', role: 'accounts, delegates, contract labels, successful contract calls' },
@@ -318,6 +320,7 @@ async function main() {
 
   const now = new Date();
   const fromIso = new Date(now.getTime() - config.windowDays * 24 * 60 * 60 * 1000).toISOString();
+  const gamingFromIso = new Date(now.getTime() - GAMING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const catalogQuery = new URLSearchParams({
     kind: 'smart_contract',
     select: 'address,alias,lastActivityTime',
@@ -328,7 +331,7 @@ async function main() {
     type: 'user',
     'sort.desc': 'numTransactions',
     select: 'address,alias,numTransactions,lastActivityTime',
-    limit: '100'
+    limit: '500'
   });
   const delegatesQuery = new URLSearchParams({
     active: 'true',
@@ -343,8 +346,13 @@ async function main() {
     fetchObjktSales(config.windowDays),
     fetchObjktMints(fromIso)
   ]);
-  const coverage = compileContractCoverage(contracts, config.apps, fromIso);
-  const appResult = await fetchAppTransactions(coverage, fromIso);
+  const defiCoverage = compileContractCoverage(contracts, config.apps.filter((app) => app.category === 'defi'), fromIso);
+  const gamingCoverage = compileContractCoverage(contracts, config.apps.filter((app) => app.category === 'gaming'), gamingFromIso);
+  const coverage = [...defiCoverage, ...gamingCoverage];
+  const [defiAppResult, gamingAppResult] = await Promise.all([
+    fetchAppTransactions(defiCoverage, fromIso),
+    fetchAppTransactions(gamingCoverage, gamingFromIso)
+  ]);
   const snapshot = buildSnapshot({
     now,
     fromIso,
@@ -354,8 +362,11 @@ async function main() {
     sales,
     mints: mintResult.rows,
     coverage,
-    appRows: appResult.rows,
-    truncation: { mints: mintResult.truncated, appTransactions: appResult.truncated }
+    appRows: [...defiAppResult.rows, ...gamingAppResult.rows],
+    truncation: {
+      mints: mintResult.truncated,
+      appTransactions: defiAppResult.truncated || gamingAppResult.truncated
+    }
   });
 
   if (Object.values(snapshot.truncation).some(Boolean)) {

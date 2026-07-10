@@ -8,7 +8,8 @@ const CHANGELOG = [
         date: '2026-07-09',
         entries: [
             { type: '🎨', text: 'Approaching network milestones now sit directly to the right of the uptime year counter while the larger uptime proof keeps visual priority' },
-            { type: '✨', text: 'Tezos Maxis now expands every category into a top-five leaderboard, with exact Ledger Flow trails for every ranked account' },
+            { type: '✨', text: 'Tezos Maxis now expands every category into a top-ten leaderboard, with tweet-ready rank receipts and exact Ledger Flow trails for every account' },
+            { type: '🎨', text: 'The Tezos Maxis launcher now uses its full card for a trophy-style Unicorn stage and a fuller nine-lane hall of current winners' },
             { type: '🎨', text: 'What is hot today now centers its live progress controls beneath the signal carousel' },
             { type: '✨', text: 'Tezos Maxis now spots the leading art, mint, DeFi, gaming, transaction, governance, and staking accounts, with a cross-lane Unicorn and direct Ledger Flow trails' },
             { type: '⚡', text: 'Network Pulse now keeps cached launcher stats visible while background refreshes warm in with quieter sync states' },

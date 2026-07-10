@@ -2425,7 +2425,7 @@ async function checkMaxisContracts() {
   const configErrors = validateMaxisConfig(config);
   if (configErrors.length) fail(`maxis contract taxonomy invalid: ${configErrors.join('; ')}`);
   if (snapshot.schema !== 2) fail('maxis snapshot schema must be 2');
-  if (snapshot.rankingLimit !== 5) fail('maxis snapshot ranking limit must be 5');
+  if (snapshot.rankingLimit !== 10) fail('maxis snapshot ranking limit must be 10');
   if (hoursSince(snapshot.generatedAt) > 72) fail('maxis snapshot is older than 72 hours; run npm run refresh:maxis');
   if (snapshot.truncation?.mints || snapshot.truncation?.appTransactions) {
     fail(`maxis snapshot must not publish truncated rankings: ${JSON.stringify(snapshot.truncation)}`);
@@ -2437,7 +2437,7 @@ async function checkMaxisContracts() {
   for (const category of expectedCategories) {
     if (!categories.includes(category)) fail(`maxis snapshot missing ${category} leader`);
     const ranking = snapshot.rankings?.[category];
-    if (!Array.isArray(ranking) || ranking.length !== 5) fail(`maxis snapshot ${category} ranking must contain five accounts`);
+    if (!Array.isArray(ranking) || ranking.length !== 10) fail(`maxis snapshot ${category} ranking must contain ten accounts`);
     const addresses = new Set();
     for (const [index, ranked] of (ranking || []).entries()) {
       if (ranked.rank !== index + 1) fail(`maxis snapshot ${category} rank order is invalid at ${index + 1}`);
@@ -2505,9 +2505,10 @@ async function checkMaxisContracts() {
     ['maxis site map', "id: 'maxis'", siteMap],
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
+    ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
     ['maxis direct route', 'Direct: /maxis/', maxis],
     ['maxis entry grid', '.maxis-entry-grid', maxisCss],
-    ['maxis top-five ranking list', '.maxis-ranking-list', maxisCss],
+    ['maxis top-ten ranking list', '.maxis-ranking-list', maxisCss],
     ['maxis service worker data', '/data/maxis-leaders.json', sw]
   ];
   for (const [label, snippet, source] of contracts) {

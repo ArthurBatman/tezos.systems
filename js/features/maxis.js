@@ -1,12 +1,13 @@
 /**
  * Tezos Maxis Chamber
- * Five inspectable on-chain leaders per declared activity lane.
+ * Ten inspectable on-chain leaders per declared activity lane.
  */
 
 import { escapeHtml } from '../core/utils.js';
 
 const MAXIS_DATA_URL = '/data/maxis-leaders.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=400';
+const MAXIS_CSS_URL = '/css/maxis.css?v=402';
+const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const CATEGORY_ORDER = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'staking', 'unicorn'];
 const CATEGORY_ICONS = {
     transaction: '↻',
@@ -73,6 +74,12 @@ function rankingForCategory(snapshot, category) {
     return fallback?.status === 'ready' ? [{ ...fallback, rank: 1 }] : [];
 }
 
+function rankTweetText(leader, index) {
+    const position = index + 1;
+    const boardTitle = String(leader.title || 'Maxi').startsWith('Tezos ') ? leader.title : `Tezos ${leader.title}`;
+    return `🏆 ${leaderName(leader)} ranks #${position} on the ${boardTitle} board — ${leader.scoreLabel || 'qualified'} (${windowLabel(leader.windowKind)}). See the on-chain top 10: ${MAXIS_SHARE_URL} #Tezos`;
+}
+
 async function loadSnapshot({ force = false } = {}) {
     if (lastSnapshot && !force) return lastSnapshot;
     if (snapshotPromise && !force) return snapshotPromise;
@@ -96,6 +103,7 @@ async function loadSnapshot({ force = false } = {}) {
 function renderRankedLeader(leader, index) {
     const address = encodeURIComponent(leader.address);
     const context = (leader.context || []).filter(Boolean).join(' · ');
+    const tweetText = encodeURIComponent(rankTweetText(leader, index));
     return `
         <li class="maxis-rank-row${index === 0 ? ' is-category-leader' : ''}" data-maxi-rank="${index + 1}">
             <span class="maxis-rank-position" aria-label="Rank ${index + 1}">#${index + 1}</span>
@@ -110,6 +118,7 @@ function renderRankedLeader(leader, index) {
                     <a class="maxis-rank-action maxis-ledger-action" href="/#ledger-flow=${address}" aria-label="Trace rank ${index + 1} ${escapeHtml(leaderName(leader))} in Ledger Flow">Ledger Flow</a>
                     <a class="maxis-rank-action" href="/#my-baker=${address}" aria-label="Open ${escapeHtml(leaderName(leader))} in My Tezos">My Tezos</a>
                     ${leader.sourceUrl ? `<a class="maxis-rank-action maxis-source-action" href="${escapeHtml(leader.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a>` : ''}
+                    <a class="maxis-rank-action maxis-tweet-action" href="https://twitter.com/intent/tweet?text=${tweetText}" target="_blank" rel="noopener" aria-label="Tweet ${escapeHtml(leaderName(leader))}'s rank ${index + 1} on the ${escapeHtml(leader.title)} board">Tweet #${index + 1}</a>
                 </div>
             </div>
         </li>
@@ -147,6 +156,7 @@ function renderRankingCard(snapshot, leader, { featured = false } = {}) {
 function windowLabel(kind) {
     const labels = {
         'rolling-30d': '30d',
+        'rolling-90d': '90d',
         'all-time': 'all time',
         'all-time-active': 'all time · active',
         live: 'live',
@@ -163,7 +173,7 @@ function renderMethodology(snapshot) {
         <details class="maxis-methodology">
             <summary>How “maxi” is measured</summary>
             <div class="maxis-methodology-body">
-                <p>Each card has its own declared metric. Recent activity uses the rolling ${escapeHtml(String(snapshot.window?.days || 30))}-day window; governance counters are all-time among active bakers; staking is live. Ties resolve by the secondary score, recent activity, then address.</p>
+                <p>Each card has its own declared metric. Art, mint, and DeFi activity use the rolling ${escapeHtml(String(snapshot.window?.days || 30))}-day window; the sparser Gaming lane uses ${escapeHtml(String(snapshot.window?.gamingDays || 90))} days; governance counters are all-time among active bakers; staking is live. Ties resolve by the secondary score, recent activity, then address.</p>
                 <p>${escapeHtml(coverage.caveat || '')}</p>
                 <div class="maxis-methodology-facts">
                     <span><strong>${escapeHtml(String(coverage.recognizedApps || 0))}</strong> recognized apps</span>
@@ -185,6 +195,9 @@ function renderChamber(snapshot) {
     const readyCount = leaders.filter((leader) => leader.status === 'ready').length;
     const rankingLimit = Number(snapshot.rankingLimit || 1);
     const rankedCount = CATEGORY_ORDER.reduce((sum, category) => sum + rankingForCategory(snapshot, category).length, 0);
+    const baseWindowDays = Number(snapshot.window?.days || 30);
+    const gamingWindowDays = Number(snapshot.window?.gamingDays || baseWindowDays);
+    const recentWindowLabel = gamingWindowDays > baseWindowDays ? `${baseWindowDays}–${gamingWindowDays}d` : `${baseWindowDays}d`;
     return `
         <header class="maxis-hero chamber-anim-fade">
             <div class="maxis-system-strip"><span>TEZOS.SYSTEMS</span><span>SPOT THE MAXIS</span><span>TZKT + OBJKT SNAPSHOT</span></div>
@@ -196,7 +209,7 @@ function renderChamber(snapshot) {
             <div class="maxis-hero-meta" aria-label="Maxis snapshot status">
                 <span><strong>${readyCount}</strong> leaderboards</span>
                 <span><strong>${rankedCount}</strong> ranked accounts</span>
-                <span><strong>${escapeHtml(String(snapshot.window?.days || 30))}d</strong> activity window</span>
+                <span><strong>${escapeHtml(recentWindowLabel)}</strong> recent windows</span>
                 <span><strong>${escapeHtml(state.label)}</strong> generated</span>
             </div>
         </header>
@@ -205,7 +218,7 @@ function renderChamber(snapshot) {
             ${renderRankingCard(snapshot, unicorn || { category: 'unicorn', title: 'Tezos Unicorn', status: 'empty' }, { featured: true })}
         </section>
 
-        <section class="maxis-grid chamber-anim-fade" aria-label="Tezos maxi category top five leaderboards">
+        <section class="maxis-grid chamber-anim-fade" aria-label="Tezos maxi category top ${rankingLimit} leaderboards">
             ${rest.map((leader) => renderRankingCard(snapshot, leader)).join('')}
         </section>
 
@@ -225,7 +238,7 @@ function entryLeaderCell(leader) {
     const ready = leader?.status === 'ready';
     return `
         <div class="maxis-entry-leader" data-maxi-category="${escapeHtml(leader?.category || '')}">
-            <span class="maxis-entry-icon" aria-hidden="true">${CATEGORY_ICONS[leader?.category] || '•'}</span>
+            <span class="maxis-entry-icon" aria-hidden="true"><b>${CATEGORY_ICONS[leader?.category] || '•'}</b><small>#1</small></span>
             <span class="maxis-entry-lane">${escapeHtml((leader?.title || 'Maxi').replace(' Maxi', ''))}</span>
             <strong title="${ready ? escapeHtml(leaderName(leader)) : 'No qualifier'}">${ready ? escapeHtml(leaderName(leader)) : 'No qualifier'}</strong>
             <small>${ready ? escapeHtml(leader.scoreLabel || '') : escapeHtml(windowLabel(leader?.windowKind))}</small>
@@ -236,21 +249,34 @@ function entryLeaderCell(leader) {
 function renderEntryContents(snapshot) {
     const leaders = sortedLeaders(snapshot);
     const unicorn = leaders.find((leader) => leader.category === 'unicorn');
+    const rankingLimit = Number(snapshot.rankingLimit || 10);
+    const unicornContext = (unicorn?.context || []).filter(Boolean).join(' · ');
     return `
         <div class="maxis-entry-head">
-            <div>
+            <div class="maxis-entry-copy">
                 <h2 class="stat-label">Tezos Maxis</h2>
                 <div class="maxis-entry-value">Spot the maxis</div>
-                <p class="stat-description">Current winners here. Open for the top five in every lane.</p>
+                <p class="stat-description">Nine objective on-chain lanes. Every winner comes with a metric, a window, and a trail.</p>
+                <div class="maxis-entry-meta" aria-label="Tezos Maxis board size">
+                    <span><strong>${leaders.length}</strong> live lanes</span>
+                    <span><strong>Top ${rankingLimit}</strong> inside</span>
+                </div>
             </div>
             <div class="maxis-entry-unicorn">
-                <span>Current unicorn</span>
-                <strong>${escapeHtml(leaderName(unicorn))}</strong>
-                <small>${escapeHtml(unicorn?.scoreLabel || 'No three-lane qualifier')}</small>
+                <div class="maxis-entry-unicorn-mark" aria-hidden="true"><b>✺</b><small>#1</small></div>
+                <div class="maxis-entry-unicorn-copy">
+                    <span>Current unicorn</span>
+                    <strong>${escapeHtml(leaderName(unicorn))}</strong>
+                    <small>${escapeHtml(unicorn?.scoreLabel || 'No three-lane qualifier')}</small>
+                    ${unicornContext ? `<em title="${escapeHtml(unicornContext)}">${escapeHtml(unicornContext)}</em>` : ''}
+                </div>
             </div>
         </div>
-        <div class="maxis-entry-grid" aria-label="Current Tezos maxi leaders">
-            ${leaders.map(entryLeaderCell).join('')}
+        <div class="maxis-entry-board">
+            <div class="maxis-entry-board-head"><span>Current lane holders</span><small>All rank #1</small></div>
+            <div class="maxis-entry-grid" aria-label="Current Tezos maxi leaders">
+                ${leaders.map(entryLeaderCell).join('')}
+            </div>
         </div>
     `;
 }

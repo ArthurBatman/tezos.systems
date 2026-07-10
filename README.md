@@ -278,11 +278,12 @@ inline modal styles in `js/core/app.js`.
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
 - Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access. Its generated
-  TzKT + OBJKT snapshot names the top five inspectable accounts for transactions,
+  TzKT + OBJKT snapshot names the top ten inspectable accounts for transactions,
   collecting, art sales, minting, DeFi, gaming, governance, and staking, plus
-  the top five cross-lane Unicorns. The homepage launcher keeps the current
+  the top ten cross-lane Unicorns. The homepage launcher keeps the current
   winner from each lane compact; the full chamber gives every ranked account
-  its scoring window, method, primary source, and exact Ledger Flow route. DeFi
+  its scoring window, method, primary source, exact Ledger Flow route, and a
+  tweet-ready receipt for that category standing. DeFi
   and Gaming cover successful top-level wallet calls to recently active
   contracts recognized by `data/maxis-contracts.json`; unknown or unlabeled
   contracts are not presented as classified coverage.

@@ -99,7 +99,7 @@ import { initNetworkHealth, refreshNetworkHealth } from '../features/network-hea
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=400';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=402';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -1500,7 +1500,7 @@ const CHAMBER_INFO_COPY = {
     },
     'maxis-entry-card': {
         title: 'Tezos Maxis',
-        body: 'One inspectable leader per Tezos activity lane, including art, DeFi, gaming, transactions, governance, staking, and the cross-lane Unicorn.',
+        body: 'Nine inspectable top-ten boards across art, DeFi, gaming, transactions, governance, staking, and the cross-lane Unicorn, with a tweet-ready receipt for every standing.',
         href: '/maxis/',
         link: 'Open Tezos Maxis ->'
     }
