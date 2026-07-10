@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="clean"]{
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-data: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-runtime: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
     --bg-primary: #F8F9FC;
     --bg-secondary: #FFFFFF;
     --bg-tertiary: #F0F2F8;
@@ -934,3 +938,21 @@
 [data-theme="clean"] ::-webkit-scrollbar-track{ background: rgba(0,0,50,0.05); }
 [data-theme="clean"] ::-webkit-scrollbar-thumb{ background: rgba(37,99,235,0.3); }
 [data-theme="clean"] .about-tezos-stats{ background: rgba(37,99,235,0.05); }
+[data-theme="clean"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content){
+    font-family: var(--font-ui);
+}
+[data-theme="clean"] .title{
+    font-family: var(--font-display) !important;
+}
+[data-theme="clean"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong){
+    font-family: var(--font-display) !important;
+}
+[data-theme="clean"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value){
+    font-family: var(--font-data);
+}
+[data-theme="clean"] .header .title{
+    font-family: var(--font-display) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+    text-transform: none !important;
+}

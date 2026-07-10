@@ -753,6 +753,7 @@ async function checkSelectorContracts() {
   const leaderboardCss = await readText('css/leaderboard.css');
   const networkPulseCss = await readText('css/network-pulse.css');
   const ledgerFlowCss = await readText('css/ledger-flow.css');
+  const maxisCss = await readText('css/maxis.css');
   const tezosDomainsCss = await readText('css/tezos-domains.css');
   const deepLinkContracts = [
     ['Chamber hash route', "hash === 'chamber'", app],
@@ -1259,9 +1260,17 @@ async function checkSelectorContracts() {
     ['top continuity rail is borderless tape', 'border: 0;', styles],
     ['top continuity identity claim styles', '.top-continuity-claim', heroSearchCss],
     ['top continuity statement runtime scale', 'font-size: clamp(1.5rem, 2.15vw, 2rem);', heroSearchCss],
+    ['top continuity dedicated runtime font role', 'font-family: var(--font-runtime);', heroSearchCss],
+    ['recipe console display font role', 'font-family: var(--font-display, Orbitron', heroSearchCss],
+    ['hot-today display font role', 'font-family: var(--font-display, Orbitron', shellExtrasCss],
+    ['Maxis display font role', "font-family: var(--font-display, 'Orbitron'", maxisCss],
+    ['top continuity runtime readability scale', 'font-size: 1.08em;', heroSearchCss],
+    ['top continuity runtime real font weight', 'font-weight: 700;', heroSearchCss],
     ['top continuity statement caption scale', 'font-size: clamp(0.72rem, 0.92vw, 0.875rem);', heroSearchCss],
     ['top continuity statement separator scale', 'font-size: clamp(0.7rem, 0.85vw, 0.82rem);', heroSearchCss],
-    ['top continuity mobile shared runtime cap', 'font-size: clamp(1.25rem, 5.6vw, 1.55rem);', heroSearchCss],
+    ['top continuity mobile direct runtime scale', 'font-size: clamp(1.05rem, 4.1vw, 1.2rem);', heroSearchCss],
+    ['top continuity mobile removes zoom offset', 'zoom: 1;', styles],
+    ['mobile title and protocol stack independently', 'grid-template-columns: minmax(0, 1fr);', heroSearchCss],
     ['top continuity runtime natural segment gap', 'gap: 0.5ch;', heroSearchCss],
     ['top continuity hover affordance', '.top-continuity-history:is(:hover, :focus-visible) .top-continuity-arrow', heroSearchCss],
     ['top continuity segmented runtime renderer', 'renderTopContinuityRuntime(years, days, hours, mins)', app],
@@ -1282,6 +1291,8 @@ async function checkSelectorContracts() {
     ['top continuity nullable milestone expiry guard', "if (value == null || value === '') return null;", app],
     ['top continuity milestone glow styles', '.top-uptime-cluster.has-milestone-signal :is(.top-continuity-primary-line, .top-continuity-milestone-info)', shellExtrasCss],
     ['top continuity milestone info styles', '.top-continuity-milestone-info', shellExtrasCss],
+    ['top continuity mobile centered milestone stack', 'grid-template-columns: minmax(0, 1fr);', shellExtrasCss],
+    ['top continuity mobile hidden marker collapse', '.top-continuity-milestone-info[hidden]', shellExtrasCss],
     ['milestone card DOM status styles', '.hot-today-milestone-status', shellExtrasCss],
     ['milestone card protocol trace styles', '.hot-today-milestone-trace', shellExtrasCss],
     ['milestone card active-only sustained trace', '.is-milestone-crossed.is-hot-active .hot-today-milestone-trace', shellExtrasCss],
@@ -1429,6 +1440,10 @@ async function checkSelectorContracts() {
     fail('theme registry should expose the active THEMES list');
   }
   const headerPaletteTokens = [
+    '--font-ui',
+    '--font-display',
+    '--font-data',
+    '--font-runtime',
     '--header-title-color',
     '--header-title-glow',
     '--uptime-badge-bg',
@@ -1461,6 +1476,16 @@ async function checkSelectorContracts() {
     if (!auroraBlock.includes(color)) {
       fail(`Aurora uptime palette should keep the recommended teal-to-violet token ${color}`);
     }
+  }
+  if (!/family=Nunito:wght@400;500;600;700;800;900/.test(index)) {
+    fail('theme font request should load the rounded Nunito family used by Bubblegum and Moss');
+  }
+  const bubblegumTypography = styles.match(/\[data-theme="bubblegum"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  if (!bubblegumTypography.includes("--font-ui: 'Nunito'") || !bubblegumTypography.includes("--font-runtime: 'Nunito'")) {
+    fail('Bubblegum should use the rounded Nunito UI and runtime roles');
+  }
+  if (!styles.includes('[data-theme="nerv"] .title') || !styles.includes("--font-display: 'Archivo Black'")) {
+    fail('NERV should pair its IBM console UI with the Archivo Black display role');
   }
   pass(`top header theme palette tokens checked: ${registeredThemes.length} themes`);
   const removedProtocolPromptContracts = [

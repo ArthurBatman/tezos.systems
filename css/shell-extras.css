@@ -542,7 +542,7 @@
 .hot-today-head h2 {
     margin: 0.12rem 0 0;
     color: var(--text-primary);
-    font-family: Orbitron, 'JetBrains Mono', monospace;
+    font-family: var(--font-display, Orbitron, 'JetBrains Mono', monospace);
     font-size: clamp(1.05rem, 2vw, 1.45rem);
     line-height: 1.15;
 }
@@ -1446,6 +1446,29 @@
 }
 
 @media (max-width: 640px) {
+    .top-uptime-cluster {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: center;
+        gap: 0.42rem;
+        width: 100%;
+    }
+
+    .top-continuity-history {
+        grid-row: 1;
+        justify-self: center;
+    }
+
+    .top-continuity-milestone-info {
+        grid-row: 2;
+        justify-self: center;
+        margin-top: 0;
+    }
+
+    .top-continuity-milestone-info[hidden] {
+        display: none !important;
+    }
+
     .top-continuity-explain {
         width: 100%;
     }
@@ -2373,7 +2396,7 @@
 
 .protocol-alphabet-letter,
 .protocol-alphabet-dot {
-    font-family: 'Orbitron', ui-monospace, monospace;
+    font-family: var(--font-display, 'Orbitron', ui-monospace, monospace);
     font-size: clamp(0.62rem, 2.5vw, 0.86rem);
     line-height: 1.4;
 }

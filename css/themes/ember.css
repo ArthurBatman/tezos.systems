@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="ember"]{
+    --font-ui: 'Chakra Petch', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Chakra Petch', 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Chakra Petch', 'JetBrains Mono', sans-serif;
     --bg-primary: #0D0806;
     --bg-secondary: #1A0F0A;
     --bg-tertiary: #241610;
@@ -248,3 +252,22 @@
     color: #ffa032;
 }
 [data-theme="ember"] .my-tezos-drawer{ background: #0d0806; border-left-color: rgba(255,159,67,0.15); }
+[data-theme="ember"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content){
+    font-family: var(--font-ui);
+}
+[data-theme="ember"] .title{
+    font-family: var(--font-display) !important;
+}
+[data-theme="ember"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong){
+    font-family: var(--font-display) !important;
+}
+[data-theme="ember"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value){
+    font-family: var(--font-data);
+}
+
+
+@media (max-width: 420px) {[data-theme="ember"] .title{
+        font-size: clamp(1.38rem, 7vw, 1.72rem) !important;
+        letter-spacing: 0.055em !important;
+    }
+}

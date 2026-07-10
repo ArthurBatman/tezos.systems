@@ -838,7 +838,7 @@
 .maxis-entry-value {
     margin-top: 0.16rem;
     color: var(--text-primary);
-    font-family: 'Orbitron', sans-serif;
+    font-family: var(--font-display, 'Orbitron', sans-serif);
     font-size: clamp(1.08rem, 1.8vw, 1.48rem);
     font-weight: 850;
     letter-spacing: 0.02em;
@@ -1280,7 +1280,7 @@
     border-radius: 50%;
     color: var(--maxis-gold);
     background: color-mix(in srgb, var(--maxis-gold) 7%, transparent);
-    font-family: 'Orbitron', sans-serif;
+    font-family: var(--font-display, 'Orbitron', sans-serif);
     font-size: 0.7rem;
     font-weight: 900;
 }
@@ -1383,7 +1383,7 @@
     z-index: 1;
     margin: 0.55rem 0 0;
     color: color-mix(in srgb, var(--maxis-gold) 72%, var(--text-primary));
-    font-family: 'Orbitron', sans-serif;
+    font-family: var(--font-display, 'Orbitron', sans-serif);
     font-size: clamp(1.35rem, 3vw, 2.2rem);
     font-weight: 900;
     letter-spacing: 0.025em;
@@ -1914,7 +1914,7 @@
         radial-gradient(circle, color-mix(in srgb, var(--maxis-gold) 11%, transparent), transparent 68%),
         color-mix(in srgb, var(--maxis-violet) 6%, transparent);
     box-shadow: 0 0 26px color-mix(in srgb, var(--maxis-gold) 12%, transparent);
-    font-family: 'Orbitron', sans-serif;
+    font-family: var(--font-display, 'Orbitron', sans-serif);
     font-size: 1.2rem;
     font-weight: 900;
 }
@@ -1926,7 +1926,7 @@
 .maxis-passport-name strong { margin-top: 0.18rem; color: var(--text-primary); font-size: 0.92rem; }
 .maxis-passport-name code { margin-top: 0.15rem; color: var(--maxis-readable-muted); font-size: 0.62rem; }
 .maxis-passport-unicorn { min-width: 7rem; text-align: right; }
-.maxis-passport-unicorn strong { display: block; color: var(--maxis-gold); font-family: 'Orbitron', sans-serif; font-size: 1.2rem; }
+.maxis-passport-unicorn strong { display: block; color: var(--maxis-gold); font-family: var(--font-display, 'Orbitron', sans-serif); font-size: 1.2rem; }
 .maxis-passport-unicorn small { display: block; margin-top: 0.1rem; color: var(--maxis-readable-muted); font-size: 0.62rem; }
 
 .maxis-passport-scope + .maxis-passport-scope { border-top: 1px solid rgba(255, 255, 255, 0.055); }
@@ -2262,7 +2262,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-entry-season-front { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr); gap: 0.72rem; height: 100%; min-height: 0; padding-bottom: 3.35rem !important; }
 .maxis-entry-season-copy { min-width: 0; }
 .maxis-entry-season-label { display: inline-flex; align-items: center; gap: 0.34rem; color: var(--maxis-gold); font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
-.maxis-entry-season-title { margin-top: 0.28rem; color: var(--text-primary); font-family: 'Orbitron', sans-serif; font-size: clamp(1.1rem, 2vw, 1.55rem); font-weight: 900; line-height: 1.15; }
+.maxis-entry-season-title { margin-top: 0.28rem; color: var(--text-primary); font-family: var(--font-display, 'Orbitron', sans-serif); font-size: clamp(1.1rem, 2vw, 1.55rem); font-weight: 900; line-height: 1.15; }
 .maxis-entry-season-copy p { max-width: 33rem; margin: 0.32rem 0 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.45; }
 .maxis-entry-season-meta { display: flex; flex-wrap: wrap; gap: 0.34rem; margin-top: 0.62rem; }
 .maxis-entry-season-meta span { padding: 0.25rem 0.42rem; border: 1px solid rgba(255, 255, 255, 0.065); border-radius: 999px; color: var(--maxis-readable-muted); background: rgba(255, 255, 255, 0.022); font-size: 0.6rem; }
@@ -2301,7 +2301,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
         radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--maxis-violet) 9%, transparent), transparent 46%),
         rgba(255, 255, 255, 0.018);
 }
-.maxis-entry-season-pulse > strong { display: block; margin-top: 0.38rem; color: var(--text-primary); font-family: 'Orbitron', sans-serif; font-size: 0.9rem; }
+.maxis-entry-season-pulse > strong { display: block; margin-top: 0.38rem; color: var(--text-primary); font-family: var(--font-display, 'Orbitron', sans-serif); font-size: 0.9rem; }
 .maxis-entry-season-pulse > p { margin: 0.25rem 0 0.52rem; color: var(--maxis-readable-muted); font-size: 0.66rem; line-height: 1.4; }
 .maxis-entry-pulse-line {
     display: grid;
@@ -2457,6 +2457,9 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide .card-front {
         height: auto !important;
         min-height: 360px !important;
+    }
+    #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide > .card-inner > .maxis-entry-front {
+        padding-bottom: 3.5rem !important;
     }
     .maxis-entry-season-front:not(.maxis-entry-maxis-front) { padding-bottom: 3.7rem !important; }
     .maxis-entry-identity-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }

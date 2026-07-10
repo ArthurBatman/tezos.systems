@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="abyss"]{
+    --font-ui: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Exo 2', 'Orbitron', sans-serif;
+    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-runtime: 'Exo 2', 'IBM Plex Mono', sans-serif;
     --bg-primary: #020A1E;
     --bg-secondary: #081430;
     --bg-tertiary: #0E1E44;
@@ -98,7 +102,7 @@
 }
 
 
-@media (max-width: 420px) {[data-theme="abyss"] .title{
+@media (max-width: 480px) {[data-theme="abyss"] .title{
         font-size: 1.68rem !important;
         letter-spacing: 0.12em !important;
     }
@@ -111,3 +115,15 @@
     }
 }
 [data-theme="abyss"] .my-tezos-drawer{ background: #040e28; border-left-color: rgba(0,229,255,0.15); }
+[data-theme="abyss"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content){
+    font-family: var(--font-ui);
+}
+[data-theme="abyss"] .title{
+    font-family: var(--font-display) !important;
+}
+[data-theme="abyss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong){
+    font-family: var(--font-display) !important;
+}
+[data-theme="abyss"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value){
+    font-family: var(--font-data);
+}

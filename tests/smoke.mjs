@@ -3183,6 +3183,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.location.hash === '#protocol-history', null, { timeout: 5000 });
   await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => /Curator's desk/i.test(document.querySelector('#protocol-history-chamber-modal')?.textContent || ''), null, { timeout: 10000 });
   const historyChamberText = await page.locator('#protocol-history-chamber-modal').innerText();
   assert(/Protocol History Chamber/i.test(historyChamberText) && /Impact/i.test(historyChamberText), `hero command bar: Protocol History Chamber did not preserve timeline/impact surface: ${historyChamberText.slice(0, 320)}`);
   assert(/Curator's desk/i.test(historyChamberText) && /Long reads/i.test(historyChamberText) && /Economic governance shelf/i.test(historyChamberText), `hero command bar: Protocol Anthology board missing real archive context: ${historyChamberText.slice(0, 420)}`);
@@ -3485,7 +3486,7 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await openDropdown(page, '#settings-gear', '#settings-dropdown');
   await page.locator('#theme-toggle').click();
   await page.locator('#theme-picker-dropdown').waitFor({ state: 'visible', timeout: 5000 });
-  await expectCount(page, '#theme-picker-dropdown .theme-row', 12, label);
+  await expectCount(page, '#theme-picker-dropdown .theme-row', 14, label);
   await page.keyboard.press('Escape');
 
   await openDropdown(page, '#features-gear', '#features-dropdown');
@@ -4948,7 +4949,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.topProofPairUnderTitle && healthState.topProofPairLeftAligned, `network health chamber: milestone/year pair should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofPairUnderTitle, aligned: healthState.topProofPairLeftAligned })}`);
   assert(healthState.topProofBadgeHeight >= healthState.topProofMilestoneHeight * 1.06, `network health chamber: uptime proof should remain visibly larger than its milestone marker: ${healthState.topProofBadgeHeight}/${healthState.topProofMilestoneHeight}`);
   assert(healthState.topProofRuntimeVisualFontSize >= healthState.topProofMilestoneFontSize * 1.08, `network health chamber: uptime numerals should remain visibly larger than milestone text: ${healthState.topProofRuntimeVisualFontSize}/${healthState.topProofMilestoneFontSize}`);
-  assert(healthState.topProofBadgeHeight > 0 && healthState.topProofPillHeight > 0 && healthState.topProofBadgeHeight <= healthState.topProofPillHeight, `network health chamber: uptime proof should remain no taller than the right metric pills: ${healthState.topProofBadgeHeight}/${healthState.topProofPillHeight}`);
+  assert(healthState.topProofBadgeHeight > 0 && healthState.topProofPillHeight > 0 && healthState.topProofBadgeHeight <= healthState.topProofPillHeight * 1.08, `network health chamber: larger uptime proof should stay compact beside the right metric pills: ${healthState.topProofBadgeHeight}/${healthState.topProofPillHeight}`);
   assert(healthState.topProofBadgeRadius > 0 && healthState.topProofBadgeRadius < healthState.topProofPillRadius, `network health chamber: uptime badge should be squarer than right pills: ${healthState.topProofBadgeRadius}/${healthState.topProofPillRadius}`);
   assert(!/\|/.test(healthState.topProofHistoryText), `network health chamber: top uptime badge should not add a pipe: ${healthState.topProofHistoryText}`);
   assert(/\d+y\s+\d+d\s+\d+h\s+\d+m/.test(healthState.topProofCounter), `network health chamber: top proof runtime missing compact minutes: ${healthState.topProofCounter}`);
@@ -7683,7 +7684,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   async function advanceTour(currentPage) {
     const next = currentPage.locator('#tour-overlay .tour-next');
     await next.waitFor({ state: 'visible', timeout: 5000 });
-    await next.click({ force: true });
+    await next.click();
   }
 
   const tourSteps = [
@@ -8444,10 +8445,27 @@ async function smokeInfoModals(browser, baseUrl) {
 
 async function smokeThemeSelection(browser, baseUrl) {
   const issues = [];
+  const fontExpectations = {
+    aurora: { ui: '-apple-system', display: 'Orbitron', data: 'JetBrains Mono', runtime: 'Chakra Petch' },
+    matrix: { ui: 'Share Tech Mono', display: 'Share Tech Mono', data: 'JetBrains Mono', runtime: 'Share Tech Mono' },
+    hen: { ui: 'JetBrains Mono', display: 'JetBrains Mono', data: 'JetBrains Mono', runtime: 'JetBrains Mono' },
+    default: { ui: '-apple-system', display: 'Orbitron', data: 'JetBrains Mono', runtime: 'Chakra Petch' },
+    void: { ui: 'Exo 2', display: 'Exo 2', data: 'JetBrains Mono', runtime: 'Exo 2' },
+    ember: { ui: 'Chakra Petch', display: 'Chakra Petch', data: 'JetBrains Mono', runtime: 'Chakra Petch' },
+    signal: { ui: 'IBM Plex Mono', display: 'IBM Plex Mono', data: 'IBM Plex Mono', runtime: 'IBM Plex Mono' },
+    nerv: { ui: 'IBM Plex Mono', display: 'Archivo Black', data: 'IBM Plex Mono', runtime: 'IBM Plex Mono' },
+    clean: { ui: '-apple-system', display: '-apple-system', data: '-apple-system', runtime: 'JetBrains Mono' },
+    dark: { ui: '-apple-system', display: '-apple-system', data: '-apple-system', runtime: 'JetBrains Mono' },
+    bubblegum: { ui: 'Nunito', display: 'Nunito', data: 'Nunito', runtime: 'Nunito' },
+    abyss: { ui: 'Exo 2', display: 'Exo 2', data: 'IBM Plex Mono', runtime: 'Exo 2' },
+    moss: { ui: 'Nunito', display: 'Major Mono Display', data: 'Nunito', runtime: 'Nunito' },
+    warzone: { ui: 'Chakra Petch', display: 'Silkscreen', data: 'IBM Plex Mono', runtime: 'IBM Plex Mono' }
+  };
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     serviceWorkers: 'block'
   });
+  await installFeatureMocks(context);
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
@@ -8464,6 +8482,16 @@ async function smokeThemeSelection(browser, baseUrl) {
   const themes = await page.evaluate(() => Array.from(document.querySelectorAll('#theme-picker-dropdown .theme-row')).map((row) => row.dataset.theme)).catch(() => []);
   assert(themes.length === 0, 'theme picker should not exist before opening');
 
+  await ensureDropdownOpen(page, '#settings-gear', '#settings-dropdown');
+  await page.locator('#theme-toggle').click();
+  await page.locator('#theme-picker-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
+  const registeredThemes = await page.evaluate(() => Array.from(document.querySelectorAll('#theme-picker-dropdown .theme-row'))
+    .map((row) => row.dataset.theme || '')
+    .filter(Boolean));
+  assert(registeredThemes.length === 14 && new Set(registeredThemes).size === 14, `theme picker should expose 14 unique themes: ${registeredThemes.join(', ')}`);
+  assert(registeredThemes.every((theme) => fontExpectations[theme]), `theme font expectations missing registry entries: ${registeredThemes.filter((theme) => !fontExpectations[theme]).join(', ')}`);
+  await page.keyboard.press('Escape');
+
   for (const theme of ['clean', 'dark', 'bubblegum', 'warzone']) {
     await ensureDropdownOpen(page, '#settings-gear', '#settings-dropdown');
     await page.locator('#theme-toggle').click();
@@ -8474,9 +8502,122 @@ async function smokeThemeSelection(browser, baseUrl) {
     await page.waitForFunction((expected) => document.body.getAttribute('data-theme') === expected, theme, { timeout: 5000 });
   }
 
+  for (const theme of registeredThemes) {
+    const themeResponse = await page.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });
+    assert(themeResponse?.ok(), `theme ${theme}: dashboard failed with HTTP ${themeResponse?.status()}`);
+    await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+    await page.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
+    const state = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const title = document.querySelector('.title');
+      const runtime = document.querySelector('.top-continuity-runtime');
+      const dataRail = document.querySelector('.top-continuity-panel');
+      const specialtyDisplay = ['.hot-today-head h2', '.tezos-loop-title']
+        .map((selector) => document.querySelector(selector))
+        .filter(Boolean);
+      const typographyFixture = document.createElement('div');
+      typographyFixture.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none';
+      typographyFixture.innerHTML = '<span class="calc-breakdown-value">123</span><span class="my-tezos-value">456</span>';
+      document.body.appendChild(typographyFixture);
+      const specialtyDataFonts = Array.from(typographyFixture.children, (node) => getComputedStyle(node).fontFamily);
+      typographyFixture.remove();
+      return {
+        bodyFont: getComputedStyle(document.body).fontFamily,
+        dataFont: dataRail ? getComputedStyle(dataRail).fontFamily : '',
+        documentOverflow: document.documentElement.scrollWidth - innerWidth,
+        runtimeFont: runtime ? getComputedStyle(runtime).fontFamily : '',
+        runtimeOverflow: runtime ? runtime.scrollWidth - runtime.clientWidth : 0,
+        specialtyDataFonts,
+        specialtyDisplayFonts: specialtyDisplay.map((node) => getComputedStyle(node).fontFamily),
+        titleFont: title ? getComputedStyle(title).fontFamily : '',
+        titleOverflow: title ? title.scrollWidth - title.clientWidth : 0
+      };
+    });
+    const expected = fontExpectations[theme];
+    const specialtyDataExpected = ['aurora', 'default'].includes(theme) ? 'Orbitron' : expected.data;
+    assert(state.bodyFont.includes(expected.ui), `theme ${theme}: UI font mismatch ${state.bodyFont} (expected ${expected.ui})`);
+    assert(state.titleFont.includes(expected.display), `theme ${theme}: display font mismatch ${state.titleFont} (expected ${expected.display})`);
+    assert(state.dataFont.includes(expected.data), `theme ${theme}: data font mismatch ${state.dataFont} (expected ${expected.data})`);
+    assert(state.runtimeFont.includes(expected.runtime), `theme ${theme}: runtime font mismatch ${state.runtimeFont} (expected ${expected.runtime})`);
+    assert(state.specialtyDisplayFonts.length === 2 && state.specialtyDisplayFonts.every((font) => font.includes(expected.display)), `theme ${theme}: specialty display font mismatch ${JSON.stringify(state.specialtyDisplayFonts)} (expected ${expected.display})`);
+    assert(state.specialtyDataFonts.length === 2 && state.specialtyDataFonts.every((font) => font.includes(specialtyDataExpected)), `theme ${theme}: specialty data font mismatch ${JSON.stringify(state.specialtyDataFonts)} (expected ${specialtyDataExpected})`);
+    assert(state.titleOverflow <= 1 && state.runtimeOverflow <= 1 && state.documentOverflow <= 1, `theme ${theme}: desktop typography overflow ${JSON.stringify(state)}`);
+  }
+
   await context.close();
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(mobileContext);
+  await mobileContext.addInitScript(() => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const mobilePage = await mobileContext.newPage();
+  attachIssueCollectors(mobilePage, 'theme typography mobile', issues);
+
+  for (const theme of registeredThemes) {
+    const themeResponse = await mobilePage.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });
+    assert(themeResponse?.ok(), `theme ${theme} mobile: dashboard failed with HTTP ${themeResponse?.status()}`);
+    await mobilePage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+    await mobilePage.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
+    const state = await mobilePage.evaluate(async () => {
+      await document.fonts.ready;
+      const title = document.querySelector('.title');
+      const uptime = document.querySelector('#top-continuity-history');
+      const runtime = document.querySelector('.top-continuity-runtime');
+      const titleRect = title?.getBoundingClientRect();
+      const uptimeRect = uptime?.getBoundingClientRect();
+      const runtimeStyle = runtime ? getComputedStyle(runtime) : null;
+      const uptimeZoom = uptime ? Number.parseFloat(getComputedStyle(uptime).zoom || '1') || 1 : 1;
+      const ledgerMetricOverflow = Math.max(0, ...Array.from(document.querySelectorAll('.ledger-flow-entry-metrics strong'))
+        .map((node) => node.scrollWidth - node.clientWidth));
+      return {
+        centerDelta: titleRect && uptimeRect
+          ? Math.abs((titleRect.left + titleRect.width / 2) - (uptimeRect.left + uptimeRect.width / 2))
+          : 999,
+        documentOverflow: document.documentElement.scrollWidth - innerWidth,
+        ledgerMetricOverflow,
+        runtimeFont: runtimeStyle?.fontFamily || '',
+        runtimeNoWrap: runtimeStyle?.whiteSpace === 'nowrap',
+        runtimeVisualFontSize: runtimeStyle ? Number.parseFloat(runtimeStyle.fontSize) * uptimeZoom : 0,
+        titleOverflow: title ? title.scrollWidth - title.clientWidth : 999,
+        uptimeInsideViewport: Boolean(uptimeRect && uptimeRect.left >= -1 && uptimeRect.right <= innerWidth + 1)
+      };
+    });
+    assert(state.runtimeFont.includes(fontExpectations[theme].runtime), `theme ${theme} mobile: runtime font mismatch ${state.runtimeFont}`);
+    assert(state.centerDelta <= 2, `theme ${theme} mobile: uptime should share the title center (${state.centerDelta}px)`);
+    assert(state.runtimeVisualFontSize >= 17, `theme ${theme} mobile: runtime should remain comfortably readable (${state.runtimeVisualFontSize}px)`);
+    assert(state.runtimeNoWrap && state.uptimeInsideViewport, `theme ${theme} mobile: runtime escaped or wrapped ${JSON.stringify(state)}`);
+    assert(state.ledgerMetricOverflow <= 1, `theme ${theme} mobile: Ledger Flow metric labels should not clip (${state.ledgerMetricOverflow}px)`);
+    assert(state.titleOverflow <= 1 && state.documentOverflow <= 1, `theme ${theme} mobile: typography overflow ${JSON.stringify(state)}`);
+
+    const milestoneState = await mobilePage.evaluate(() => {
+      const cluster = document.querySelector('.top-uptime-cluster');
+      const uptime = document.querySelector('#top-continuity-history');
+      const marker = document.querySelector('.top-continuity-milestone-info');
+      const title = document.querySelector('.title');
+      if (!cluster || !uptime || !marker || !title) return { centerDelta: 999, markerBelow: false };
+      marker.hidden = false;
+      marker.textContent = '14M blocks';
+      cluster.classList.add('has-milestone-signal', 'is-milestone-crossed');
+      const titleRect = title.getBoundingClientRect();
+      const uptimeRect = uptime.getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
+      return {
+        centerDelta: Math.abs((titleRect.left + titleRect.width / 2) - (uptimeRect.left + uptimeRect.width / 2)),
+        markerBelow: markerRect.top >= uptimeRect.bottom - 1
+      };
+    });
+    assert(milestoneState.centerDelta <= 2 && milestoneState.markerBelow, `theme ${theme} mobile: active milestone should stack below a centered uptime line ${JSON.stringify(milestoneState)}`);
+  }
+
+  await mobileContext.close();
   assert(issues.length === 0, `theme selection browser issues:\n${issues.join('\n')}`);
-  log('ok - theme selection smoke');
+  log('ok - all-theme typography and selection smoke');
 }
 
 async function smokeWidgetBuilder(browser, baseUrl) {

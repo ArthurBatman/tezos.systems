@@ -21,7 +21,7 @@
     right: 1.1rem;
     bottom: 2.1rem;
     color: color-mix(in srgb, var(--td-cyan) 14%, transparent);
-    font-family: 'Orbitron', 'JetBrains Mono', monospace;
+    font-family: var(--font-display, 'Orbitron', 'JetBrains Mono', monospace);
     font-size: clamp(4.5rem, 11vw, 8rem);
     font-weight: 900;
     line-height: 0.8;
@@ -81,7 +81,7 @@
     min-width: 0;
     overflow: hidden;
     color: var(--text-primary);
-    font-family: 'Orbitron', 'JetBrains Mono', monospace;
+    font-family: var(--font-display, 'Orbitron', 'JetBrains Mono', monospace);
     font-size: clamp(1.35rem, 3vw, 2.25rem);
     font-weight: 900;
     letter-spacing: 0;
@@ -436,7 +436,7 @@
     min-width: 0;
     overflow-wrap: anywhere;
     color: var(--text-primary);
-    font-family: 'Orbitron', 'JetBrains Mono', monospace;
+    font-family: var(--font-display, 'Orbitron', 'JetBrains Mono', monospace);
     font-size: clamp(1.1rem, 2vw, 1.55rem);
     font-weight: 950;
     letter-spacing: 0;

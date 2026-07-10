@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '🎨', text: 'Themes now carry their own UI, display, and data typefaces, with a larger dedicated uptime counter and a truly centered mobile uptime line even during milestone celebrations' },
             { type: '🔧', text: 'Tezos Systems source now uses MPL-2.0 file-level copyleft, with Primate411 project authorship, Tez Capital co-founding affiliation and RPC credit, and public Source and license links in the footer' },
             { type: '✨', text: 'Maxi Passport now opens from .tez names and subdomains, resolves address-first with the owner as a safe fallback, and leaves the saved My Tezos identity unchanged' },
             { type: '🔧', text: 'Visit streaks now appear only when a new local day is recorded, skip the redundant Day 1 toast, and explain their browser-local, just-for-fun rules from Settings' },

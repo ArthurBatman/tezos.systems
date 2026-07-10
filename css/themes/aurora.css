@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="aurora"]{
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-display: 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
     --bg-primary: #070B1A;
     --bg-secondary: #0C1230;
     --bg-tertiary: #141C44;
@@ -85,4 +89,7 @@ body[data-theme="aurora"]::after{
     --streak-toast-color: #EAF0FF;
     --streak-toast-glow: rgba(69, 224, 200, 0.18);
     --streak-toast-pop-glow: rgba(124, 140, 255, 0.42);
+}
+[data-theme="aurora"] .title{
+    font-family: var(--font-display) !important;
 }

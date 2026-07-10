@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="bubblegum"]{
+    --font-ui: 'Nunito', ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Nunito', ui-rounded, 'SF Pro Rounded', sans-serif;
+    --font-data: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
+    --font-runtime: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
     --bg-primary: #1F0E18;
     --bg-secondary: #2D1524;
     --bg-tertiary: #3D1C30;
@@ -56,7 +60,7 @@
 }
 
 
-@media (max-width: 420px) {[data-theme="bubblegum"] .title{
+@media (max-width: 480px) {[data-theme="bubblegum"] .title{
         font-size: 1.78rem !important;
         letter-spacing: 0.06em !important;
     }
@@ -267,3 +271,20 @@
     color: #FF69B4;
 }
 [data-theme="bubblegum"] .my-tezos-drawer{ background: #1f0e18; border-left-color: rgba(255,105,180,0.15); }
+[data-theme="bubblegum"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content){
+    font-family: var(--font-ui);
+}
+[data-theme="bubblegum"] .title{
+    font-family: var(--font-display) !important;
+}
+[data-theme="bubblegum"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong){
+    font-family: var(--font-display) !important;
+}
+[data-theme="bubblegum"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value){
+    font-family: var(--font-data);
+}
+[data-theme="bubblegum"] .title{
+    font-weight: 900 !important;
+    letter-spacing: 0.035em !important;
+    text-transform: none !important;
+}

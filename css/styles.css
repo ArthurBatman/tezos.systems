@@ -46,6 +46,13 @@
 :root {
     --page-col: min(1464px, calc(100% - 32px));
 
+    /* Theme typography roles. Aurora/default intentionally keep the existing
+       system UI + Orbitron identity; only the large runtime gets a new face. */
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-display: 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
+
     /* Refined dark theme */
     --bg-primary: #0A0E1A;
     --bg-secondary: #12182E;
@@ -103,6 +110,10 @@
 }
 
 [data-theme="default"] {
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-display: 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
     --header-title-color: #7BA4F4;
     --header-title-glow: rgba(91, 141, 239, 0.3);
     --uptime-badge-bg: linear-gradient(180deg, #070B18 0%, #0C1328 100%);
@@ -127,6 +138,10 @@
    Deep indigo base, drifting aurora glow, full-spectrum accents.
    ═══════════════════════════════════════════ */
 [data-theme="aurora"] {
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-display: 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
     --bg-primary: #070B1A;
     --bg-secondary: #0C1230;
     --bg-tertiary: #141C44;
@@ -214,6 +229,10 @@ body[data-theme="aurora"]::after {
 [data-theme="aurora"] ::-webkit-scrollbar-thumb:hover { background: rgba(124, 140, 255, 0.55); box-shadow: 0 0 6px rgba(124, 140, 255, 0.4); }
 
 [data-theme="matrix"] {
+    --font-ui: 'Share Tech Mono', 'JetBrains Mono', monospace;
+    --font-display: 'Share Tech Mono', 'JetBrains Mono', monospace;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Share Tech Mono', 'JetBrains Mono', monospace;
     /* Matrix green theme - The code is everywhere */
     --bg-primary: #030a03;
     --bg-secondary: #061206;
@@ -250,6 +269,10 @@ body[data-theme="aurora"]::after {
 }
 
 [data-theme="void"] {
+    --font-ui: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Exo 2', 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Exo 2', 'JetBrains Mono', sans-serif;
     --bg-primary: #06060C;
     --bg-secondary: #0C0C18;
     --bg-tertiary: #121224;
@@ -284,6 +307,10 @@ body[data-theme="aurora"]::after {
 }
 
 [data-theme="ember"] {
+    --font-ui: 'Chakra Petch', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Chakra Petch', 'Orbitron', sans-serif;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'Chakra Petch', 'JetBrains Mono', sans-serif;
     --bg-primary: #0D0806;
     --bg-secondary: #1A0F0A;
     --bg-tertiary: #241610;
@@ -317,6 +344,10 @@ body[data-theme="aurora"]::after {
 }
 
 [data-theme="signal"] {
+    --font-ui: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-display: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
     --bg-primary: #060A08;
     --bg-secondary: #0C1410;
     --bg-tertiary: #121E18;
@@ -352,6 +383,10 @@ body[data-theme="aurora"]::after {
 
 /* --- Clean: Professional light theme — Apple Finance aesthetic --- */
 [data-theme="clean"] {
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-data: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-runtime: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
     --bg-primary: #F8F9FC;
     --bg-secondary: #FFFFFF;
     --bg-tertiary: #F0F2F8;
@@ -393,6 +428,10 @@ body[data-theme="aurora"]::after {
 
 /* --- Bubblegum: Pink/purple candy theme --- */
 [data-theme="bubblegum"] {
+    --font-ui: 'Nunito', ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Nunito', ui-rounded, 'SF Pro Rounded', sans-serif;
+    --font-data: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
+    --font-runtime: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
     --bg-primary: #1F0E18;
     --bg-secondary: #2D1524;
     --bg-tertiary: #3D1C30;
@@ -427,6 +466,10 @@ body[data-theme="aurora"]::after {
 
 /* --- NERV: Evangelion Operations Console --- */
 [data-theme="nerv"] {
+    --font-ui: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-display: 'Archivo Black', 'Arial Black', sans-serif;
+    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
     --bg-primary: #000000;
     --bg-secondary: #0A0804;
     --bg-tertiary: #141008;
@@ -464,6 +507,10 @@ body[data-theme="aurora"]::after {
 
 /* --- Dark: Achromatic zen theme — pure data, no distractions --- */
 [data-theme="dark"] {
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-data: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-runtime: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
     --bg-primary: #161616;
     --bg-secondary: #1E1E1E;
     --bg-tertiary: #262626;
@@ -501,6 +548,10 @@ body[data-theme="aurora"]::after {
 /* --- Abyss: Bioluminescent deep ocean --- */
 /* Total commitment: cold cyan-blue monochrome */
 [data-theme="abyss"] {
+    --font-ui: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Exo 2', 'Orbitron', sans-serif;
+    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-runtime: 'Exo 2', 'IBM Plex Mono', sans-serif;
     --bg-primary: #020A1E;
     --bg-secondary: #081430;
     --bg-tertiary: #0E1E44;
@@ -537,6 +588,10 @@ body[data-theme="aurora"]::after {
 /* --- Moss: Organic living network --- */
 /* Total commitment: warm organic green — NOT neon like Matrix */
 [data-theme="moss"] {
+    --font-ui: 'Nunito', ui-rounded, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Major Mono Display', 'Orbitron', monospace;
+    --font-data: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
+    --font-runtime: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
     --bg-primary: #040C02;
     --bg-secondary: #0A1806;
     --bg-tertiary: #12260C;
@@ -573,6 +628,10 @@ body[data-theme="aurora"]::after {
 /* --- Warzone: Military HUD command --- */
 /* Total commitment: amber/gold monochrome HUD */
 [data-theme="warzone"] {
+    --font-ui: 'Chakra Petch', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Silkscreen', 'Orbitron', monospace;
+    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
     --bg-primary: #080A02;
     --bg-secondary: #121608;
     --bg-tertiary: #1E2410;
@@ -624,7 +683,7 @@ html {
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-family: var(--font-ui);
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
@@ -5332,6 +5391,7 @@ body::before {
         min-height: 34px;
         padding: 0;
         text-align: center;
+        zoom: 1;
     }
 
     .top-continuity-stats {
@@ -10906,7 +10966,7 @@ body.high-combo .stat-card {
     animation: none !important;
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
     [data-theme="default"] .title,
     [data-theme="void"] .title,
     [data-theme="abyss"] .title {
@@ -20989,7 +21049,7 @@ body {
         display: block;
         grid-column: 2;
         grid-row: 1 / span 3;
-        align-self: stretch;
+        align-self: start;
         padding-top: 0.15rem;
         padding-bottom: 0.55rem;
     }
@@ -21004,6 +21064,8 @@ body {
 
     .tz4-entry-card.chamber-entry-wide .sparkline-container {
         width: min(100%, 150px);
+        height: 32px;
+        min-height: 32px;
         margin: 0;
     }
 
@@ -22401,6 +22463,10 @@ body[data-theme="nerv"]::after {
    ========================================== */
 
 [data-theme="hen"] {
+    --font-ui: 'JetBrains Mono', monospace;
+    --font-display: 'JetBrains Mono', monospace;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'JetBrains Mono', monospace;
     /* Palette derived from the shared --hen-* tokens (defined in css/hen-mode.css :root)
        so HEN mode (overlay) and HEN theme (dashboard) can never drift apart. */
     --bg-primary: var(--hen-bg-deep);
@@ -23031,5 +23097,119 @@ body[data-theme="hen"]::after {
         transition: none !important;
         animation-duration: 0.001ms !important;
         animation-iteration-count: 1 !important;
+    }
+}
+
+/* ==========================================
+   THEME TYPOGRAPHY ROLES
+   Keep dense copy readable while letting brand, UI chrome, and live data pick
+   up the character of the active theme.
+   ========================================== */
+
+[data-theme="matrix"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="hen"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="void"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="ember"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="signal"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="nerv"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="clean"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="dark"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="bubblegum"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="abyss"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="moss"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content),
+[data-theme="warzone"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content) {
+    font-family: var(--font-ui);
+}
+
+[data-theme="aurora"] .title,
+[data-theme="default"] .title,
+[data-theme="matrix"] .title,
+[data-theme="hen"] .title,
+[data-theme="void"] .title,
+[data-theme="ember"] .title,
+[data-theme="signal"] .title,
+[data-theme="nerv"] .title,
+[data-theme="clean"] .title,
+[data-theme="dark"] .title,
+[data-theme="bubblegum"] .title,
+[data-theme="abyss"] .title,
+[data-theme="moss"] .title,
+[data-theme="warzone"] .title {
+    font-family: var(--font-display) !important;
+}
+
+[data-theme="matrix"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="hen"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="void"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="ember"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="signal"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="nerv"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="clean"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="dark"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="bubblegum"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="abyss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="moss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="warzone"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong) {
+    font-family: var(--font-display) !important;
+}
+
+[data-theme="matrix"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="hen"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="void"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="ember"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="signal"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="nerv"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="clean"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="dark"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="bubblegum"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="abyss"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="moss"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value),
+[data-theme="warzone"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value) {
+    font-family: var(--font-data);
+}
+
+[data-theme="matrix"] .title,
+[data-theme="nerv"] .title {
+    font-weight: 400 !important;
+}
+
+[data-theme="clean"] .header .title {
+    font-family: var(--font-display) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+    text-transform: none !important;
+}
+
+[data-theme="bubblegum"] .title {
+    font-weight: 900 !important;
+    letter-spacing: 0.035em !important;
+    text-transform: none !important;
+}
+
+@media (max-width: 420px) {
+    [data-theme="matrix"] .title {
+        font-size: clamp(1.48rem, 7.4vw, 1.86rem) !important;
+        letter-spacing: 0.06em !important;
+    }
+
+    [data-theme="ember"] .title,
+    [data-theme="signal"] .title {
+        font-size: clamp(1.38rem, 7vw, 1.72rem) !important;
+        letter-spacing: 0.055em !important;
+    }
+
+    [data-theme="nerv"] .title {
+        font-size: clamp(1.32rem, 6.8vw, 1.65rem) !important;
+        letter-spacing: 0.07em !important;
+    }
+
+    [data-theme="moss"] .title {
+        font-size: clamp(1.34rem, 6.8vw, 1.68rem) !important;
+        letter-spacing: 0.045em !important;
+    }
+
+    [data-theme="warzone"] .title {
+        font-size: clamp(1.22rem, 6.25vw, 1.52rem) !important;
+        letter-spacing: 0.06em !important;
     }
 }

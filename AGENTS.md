@@ -142,7 +142,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v415`
+- Service worker cache name: `tezos-systems-v416`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 

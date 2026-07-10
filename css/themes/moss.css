@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="moss"]{
+    --font-ui: 'Nunito', ui-rounded, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Major Mono Display', 'Orbitron', monospace;
+    --font-data: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
+    --font-runtime: 'Nunito', ui-rounded, 'JetBrains Mono', sans-serif;
     --bg-primary: #040C02;
     --bg-secondary: #0A1806;
     --bg-tertiary: #12260C;
@@ -97,3 +101,22 @@
     animation: none !important;
 }
 [data-theme="moss"] .my-tezos-drawer{ background: #040c02; border-left-color: rgba(80,232,80,0.15); }
+[data-theme="moss"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content){
+    font-family: var(--font-ui);
+}
+[data-theme="moss"] .title{
+    font-family: var(--font-display) !important;
+}
+[data-theme="moss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong){
+    font-family: var(--font-display) !important;
+}
+[data-theme="moss"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value){
+    font-family: var(--font-data);
+}
+
+
+@media (max-width: 420px) {[data-theme="moss"] .title{
+        font-size: clamp(1.34rem, 6.8vw, 1.68rem) !important;
+        letter-spacing: 0.045em !important;
+    }
+}

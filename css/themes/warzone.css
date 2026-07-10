@@ -1,5 +1,9 @@
 /* Generated from css/styles.css by scripts/build-css.mjs. Do not edit directly. */
 [data-theme="warzone"]{
+    --font-ui: 'Chakra Petch', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Silkscreen', 'Orbitron', monospace;
+    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
     --bg-primary: #080A02;
     --bg-secondary: #121608;
     --bg-tertiary: #1E2410;
@@ -98,3 +102,22 @@
     animation: none !important;
 }
 [data-theme="warzone"] .my-tezos-drawer{ background: #0e1206; border-left-color: rgba(255,192,0,0.15); }
+[data-theme="warzone"] :is(button, input, select, textarea, .settings-dropdown, .theme-picker-dropdown, .modal-content, .modal-large, .chamber-content){
+    font-family: var(--font-ui);
+}
+[data-theme="warzone"] .title{
+    font-family: var(--font-display) !important;
+}
+[data-theme="warzone"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong){
+    font-family: var(--font-display) !important;
+}
+[data-theme="warzone"] :is(.top-continuity-panel, .price-bar-content, .block-ticker-segment, .stat-value, .metric-value, .upgrade-number, .current-name, .chain-value, .comparison-value, .baker-stat-value, .reward-amount, .drawer-operator-value, .leaderboard-table, .calc-breakdown-value, .calc-apy-value, .calc-result-xtz, .calc-compound-year, .calc-compound-xtz, .my-tezos-value, .health-nc-source-metric strong, .maxis-entry-value){
+    font-family: var(--font-data);
+}
+
+
+@media (max-width: 420px) {[data-theme="warzone"] .title{
+        font-size: clamp(1.22rem, 6.25vw, 1.52rem) !important;
+        letter-spacing: 0.06em !important;
+    }
+}
