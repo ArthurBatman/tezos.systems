@@ -82,7 +82,11 @@ room below. Do not substitute representative sampling for this release pass.
 
 At every theme × viewport × room combination, verify no horizontal escape,
 clipped identity, covered heading, unreadable contrast, accidental page scroll,
-or control below a 44 px mobile target. Maxis must remain the default room and
+or control below a 44 px mobile target. At the chamber top in Season and
+Passport, the 44 px season and close controls must share one baseline, remain
+fully inside the hero, and use mirrored corner insets; the open selector must
+not collide with the close control, clip against the modal, or leave the
+viewport. Maxis must remain the default room and
 show a scannable all-lane crown overview whose all-time, all-time-active, live,
 rolling, and cross-lane clocks are explicit. Season must show only one expanded lane
 at a time, with the protocol header and lane switcher still reachable. Passport
@@ -98,9 +102,10 @@ Test once with a desktop keyboard and once with a touch-sized mobile viewport:
    hero and all-lane overview are visible, and the circular season selector is
    absent because it cannot change the canonical crown board.
 2. Switch to Season and confirm the circular selector identifies the current
-   protocol season without obscuring the room title. Open it with Enter and
-   Space. Confirm its menu semantics,
-   `menuitemradio` selection state, and current-season announcement.
+   protocol season without obscuring the room title. Confirm it is aligned with
+   the circular close control on the opposite corner, with neither control
+   straddling the hero border. Open it with Enter and Space. Confirm its menu
+   semantics, `menuitemradio` selection state, and current-season announcement.
 3. Use Arrow Up, Arrow Down, Home, and End to move through available seasons;
    choose one with Enter and confirm the season, lane, and room query state is
    preserved in a shareable `/maxis/?view=...&season=...&lane=...` URL.

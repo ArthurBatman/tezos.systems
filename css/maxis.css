@@ -6,6 +6,7 @@
 }
 
 .maxis-content {
+    --maxis-corner-inset: 0.75rem;
     width: min(1180px, calc(100vw - 28px));
     max-height: min(92vh, 980px) !important;
     border-color: color-mix(in srgb, var(--maxis-gold) 30%, transparent) !important;
@@ -13,6 +14,44 @@
         radial-gradient(circle at 85% 5%, color-mix(in srgb, var(--maxis-violet) 13%, transparent), transparent 34%),
         radial-gradient(circle at 8% 22%, color-mix(in srgb, var(--maxis-gold) 10%, transparent), transparent 32%),
         linear-gradient(180deg, rgba(10, 10, 22, 0.99), rgba(6, 8, 17, 0.99)) !important;
+}
+
+#maxis-modal .maxis-close-tray > .chamber-close {
+    position: relative;
+    top: 0;
+    right: auto;
+    border: 1px solid color-mix(in srgb, var(--maxis-gold) 34%, transparent);
+    border-radius: 50%;
+    color: color-mix(in srgb, var(--maxis-gold) 68%, var(--text-secondary));
+    background:
+        radial-gradient(circle at 31% 24%, rgba(255, 255, 255, 0.13), transparent 30%),
+        color-mix(in srgb, var(--bg-primary, #070b14) 88%, transparent);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    font-size: 1.2rem;
+    line-height: 1;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+#maxis-modal .maxis-close-tray > .chamber-close:is(:hover, :focus-visible) {
+    outline: 2px solid color-mix(in srgb, var(--maxis-cyan) 55%, transparent);
+    outline-offset: 3px;
+    border-color: color-mix(in srgb, var(--maxis-gold) 72%, transparent);
+    color: var(--text-primary);
+    background:
+        radial-gradient(circle at 31% 24%, rgba(255, 255, 255, 0.18), transparent 30%),
+        color-mix(in srgb, var(--maxis-gold) 10%, var(--bg-primary, #070b14));
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34), 0 0 24px color-mix(in srgb, var(--maxis-gold) 12%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.075);
+}
+
+#maxis-modal .maxis-close-tray > .chamber-close:focus:not(:focus-visible) { outline: none; }
+
+[data-theme="hen"] #maxis-modal .maxis-season-orb,
+[data-theme="hen"] #maxis-modal .maxis-close-tray > .chamber-close,
+[data-theme="nerv"] #maxis-modal .maxis-season-orb,
+[data-theme="nerv"] #maxis-modal .maxis-close-tray > .chamber-close {
+    border-radius: 50% !important;
 }
 
 .maxis-body { padding-bottom: 0.5rem; }
@@ -954,7 +993,11 @@
 }
 
 @media (max-width: 759px) {
-    .maxis-content { width: min(100vw - 14px, 100%); max-height: 94vh !important; }
+    .maxis-content {
+        --maxis-corner-inset: 0.5rem;
+        width: min(100vw - 14px, 100%);
+        max-height: 94vh !important;
+    }
     .maxis-hero { padding-inline: 0; }
     .maxis-system-strip { flex-wrap: wrap; gap: 0.24rem 0.5rem; }
     .maxis-system-strip span + span::before { margin-right: 0.5rem; }
@@ -1039,14 +1082,20 @@
     --maxis-line: color-mix(in srgb, var(--maxis-gold) 18%, rgba(255, 255, 255, 0.07));
 }
 
-.maxis-season-tray {
+.maxis-corner-tray {
     position: sticky;
-    top: 0.55rem;
+    top: var(--maxis-corner-inset);
     z-index: 72;
     width: 0;
     height: 0;
-    margin-left: 0.55rem;
     overflow: visible;
+}
+
+.maxis-season-tray { margin-left: var(--maxis-corner-inset); }
+
+.maxis-close-tray {
+    z-index: 121;
+    margin-left: calc(100% - 44px - var(--maxis-corner-inset));
 }
 
 .maxis-season-orb {
@@ -2148,7 +2197,6 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 
 @media (max-width: 759px) {
     .maxis-experience { min-height: 28rem; }
-    .maxis-season-tray { top: 0.38rem; margin-left: 0.42rem; }
     .maxis-season-orb { width: 44px; height: 44px; }
     .maxis-season-menu {
         position: absolute;
@@ -2156,7 +2204,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
         right: auto;
         bottom: auto;
         left: 0;
-        width: min(20rem, calc(100vw - 5rem));
+        width: min(17.5rem, calc(100vw - 6.5rem));
         max-height: min(68vh, 34rem);
         padding: 0.7rem;
         border-radius: 16px;

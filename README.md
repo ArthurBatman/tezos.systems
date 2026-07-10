@@ -707,7 +707,7 @@ Current smoke suites:
 - `tezlink`
 - `network-health`
 - `ledger-flow`
-- `maxis` (covers the default all-lane Maxis overview, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, career-plus-season address progression, rank receipts, and Ledger Flow handoff)
+- `maxis` (covers the default all-lane Maxis overview, room-aware protocol-season selector, mirrored desktop/mobile corner-control geometry, Maxis/Season/Passport/Champions views, career-plus-season address progression, rank receipts, and Ledger Flow handoff)
 - `tezos-domains`
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)

@@ -5069,23 +5069,52 @@ async function smokeMaxisChamber(browser, baseUrl) {
 
   await page.locator('[data-maxis-view="season"]').click();
   await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'season');
-  const seasonShell = await page.evaluate(() => ({
-    title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
-    orb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
-    boards: document.querySelectorAll('#maxis-panel-season .maxis-lane-board').length,
-    overviewCards: document.querySelectorAll('[data-maxis-overview-lane]').length
-  }));
-  assert(new RegExp(artifact.protocol, 'i').test(seasonShell.title) && seasonShell.orb === 'Choose protocol season' && seasonShell.boards === 1 && seasonShell.overviewCards === 0, `tezos maxis chamber: Season did not restore protocol hero, orb, and one-lane board ${JSON.stringify(seasonShell)}`);
+  await page.waitForTimeout(600);
+  const seasonShell = await page.evaluate(() => {
+    const bounds = (selector) => {
+      const rect = document.querySelector(selector)?.getBoundingClientRect();
+      return rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height } : null;
+    };
+    const hero = bounds('.maxis-protocol-hero');
+    const orb = bounds('.maxis-season-orb');
+    const close = bounds('#maxis-modal .chamber-close');
+    return {
+      title: document.querySelector('#maxis-title')?.textContent?.trim() || '',
+      orbLabel: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
+      boards: document.querySelectorAll('#maxis-panel-season .maxis-lane-board').length,
+      overviewCards: document.querySelectorAll('[data-maxis-overview-lane]').length,
+      corners: hero && orb && close ? {
+        topDelta: Math.abs(orb.top - close.top),
+        insetDelta: Math.abs((orb.left - hero.left) - (hero.right - close.right)),
+        leftInset: orb.left - hero.left,
+        rightInset: hero.right - close.right,
+        orbInside: orb.left >= hero.left && orb.top >= hero.top && orb.right <= hero.right && orb.bottom <= hero.bottom,
+        closeInside: close.left >= hero.left && close.top >= hero.top && close.right <= hero.right && close.bottom <= hero.bottom,
+        orbSize: Math.min(orb.width, orb.height),
+        closeSize: Math.min(close.width, close.height)
+      } : null
+    };
+  });
+  assert(new RegExp(artifact.protocol, 'i').test(seasonShell.title) && seasonShell.orbLabel === 'Choose protocol season' && seasonShell.boards === 1 && seasonShell.overviewCards === 0, `tezos maxis chamber: Season did not restore protocol hero, orb, and one-lane board ${JSON.stringify(seasonShell)}`);
+  assert(seasonShell.corners?.topDelta <= 2 && seasonShell.corners?.insetDelta <= 2 && seasonShell.corners?.leftInset >= 8 && seasonShell.corners?.rightInset >= 8 && seasonShell.corners?.orbInside && seasonShell.corners?.closeInside && seasonShell.corners?.orbSize >= 44 && seasonShell.corners?.closeSize >= 44, `tezos maxis chamber: desktop corner controls are not aligned and contained ${JSON.stringify(seasonShell.corners)}`);
 
   await page.locator('.maxis-season-orb').focus();
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(() => document.querySelector('.maxis-season-tray')?.classList.contains('is-open'));
-  const selectorState = await page.evaluate(() => ({
-    expanded: document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded'),
-    options: document.querySelectorAll('.maxis-season-option[role="menuitemradio"]').length,
-    focusedRole: document.activeElement?.getAttribute('role') || ''
-  }));
+  const selectorState = await page.evaluate(() => {
+    const menu = document.querySelector('.maxis-season-menu')?.getBoundingClientRect();
+    const close = document.querySelector('#maxis-modal .chamber-close')?.getBoundingClientRect();
+    const overlaps = menu && close && menu.left < close.right && menu.right > close.left && menu.top < close.bottom && menu.bottom > close.top;
+    return {
+      expanded: document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded'),
+      options: document.querySelectorAll('.maxis-season-option[role="menuitemradio"]').length,
+      focusedRole: document.activeElement?.getAttribute('role') || '',
+      menuInsideViewport: Boolean(menu && menu.left >= 0 && menu.top >= 0 && menu.right <= window.innerWidth && menu.bottom <= window.innerHeight),
+      menuOverlapsClose: Boolean(overlaps)
+    };
+  });
   assert(selectorState.expanded === 'true' && selectorState.options === artifact.seasonCount && selectorState.focusedRole === 'menuitemradio', `tezos maxis chamber: selector keyboard contract failed ${JSON.stringify(selectorState)}`);
+  assert(selectorState.menuInsideViewport && !selectorState.menuOverlapsClose, `tezos maxis chamber: season menu collides with the corner controls or viewport ${JSON.stringify(selectorState)}`);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded') === 'false');
   assert(await page.locator('#maxis-modal').evaluate((modal) => modal.classList.contains('active')), 'tezos maxis chamber: Escape should close the selector before the chamber');
@@ -5230,6 +5259,9 @@ async function smokeMaxisChamber(browser, baseUrl) {
     const heights = (selector) => Array.from(document.querySelectorAll(selector)).filter((node) => node.getClientRects().length).map((node) => Math.round(node.getBoundingClientRect().height));
     const content = document.querySelector('.maxis-content')?.getBoundingClientRect();
     const hero = document.querySelector('.maxis-protocol-hero');
+    const heroBounds = hero?.getBoundingClientRect();
+    const orbBounds = document.querySelector('.maxis-season-orb')?.getBoundingClientRect();
+    const closeBounds = document.querySelector('#maxis-modal .chamber-close')?.getBoundingClientRect();
     const kicker = document.querySelector('.maxis-protocol-kicker');
     return {
       roomHeights: heights('.maxis-room-tab'),
@@ -5242,12 +5274,46 @@ async function smokeMaxisChamber(browser, baseUrl) {
       viewportWidth: window.innerWidth,
       horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       heroOverflow: (hero?.scrollWidth || 0) - (hero?.clientWidth || 0),
-      kickerOverflow: (kicker?.scrollWidth || 0) - (kicker?.clientWidth || 0)
+      kickerOverflow: (kicker?.scrollWidth || 0) - (kicker?.clientWidth || 0),
+      cornerTopDelta: heroBounds && orbBounds && closeBounds ? Math.abs(orbBounds.top - closeBounds.top) : Infinity,
+      cornerInsetDelta: heroBounds && orbBounds && closeBounds ? Math.abs((orbBounds.left - heroBounds.left) - (heroBounds.right - closeBounds.right)) : Infinity,
+      cornerLeftInset: heroBounds && orbBounds ? orbBounds.left - heroBounds.left : -1,
+      cornerRightInset: heroBounds && closeBounds ? heroBounds.right - closeBounds.right : -1,
+      controlsInsideHero: Boolean(heroBounds && orbBounds && closeBounds
+        && orbBounds.left >= heroBounds.left && orbBounds.top >= heroBounds.top && orbBounds.right <= heroBounds.right && orbBounds.bottom <= heroBounds.bottom
+        && closeBounds.left >= heroBounds.left && closeBounds.top >= heroBounds.top && closeBounds.right <= heroBounds.right && closeBounds.bottom <= heroBounds.bottom)
     };
   });
   assert(mobileState.roomHeights.every((height) => height >= 44) && mobileState.laneHeights.every((height) => height >= 44) && mobileState.rowMenuHeights.every((height) => height >= 44), `tezos maxis chamber: mobile targets are below 44px ${JSON.stringify(mobileState)}`);
   assert(mobileState.orbHeight >= 44 && mobileState.closeHeight >= 44 && mobileState.contentLeft >= 0 && mobileState.contentRight <= mobileState.viewportWidth && mobileState.horizontalOverflow <= 1, `tezos maxis chamber: mobile modal geometry failed ${JSON.stringify(mobileState)}`);
   assert(mobileState.heroOverflow <= 1 && mobileState.kickerOverflow <= 1, `tezos maxis chamber: mobile protocol hero clips its kicker ${JSON.stringify(mobileState)}`);
+  assert(mobileState.cornerTopDelta <= 2 && mobileState.cornerInsetDelta <= 2 && mobileState.cornerLeftInset >= 6 && mobileState.cornerRightInset >= 6 && mobileState.controlsInsideHero, `tezos maxis chamber: mobile corner controls are not aligned and contained ${JSON.stringify(mobileState)}`);
+
+  await page.locator('.maxis-season-orb').click();
+  await page.waitForFunction(() => document.querySelector('.maxis-season-tray')?.classList.contains('is-open'));
+  const mobileMenuState = await page.evaluate(() => {
+    const menu = document.querySelector('.maxis-season-menu')?.getBoundingClientRect();
+    const content = document.querySelector('.maxis-content');
+    const contentBounds = content?.getBoundingClientRect();
+    const contentStyle = content ? getComputedStyle(content) : null;
+    const clipLeft = contentBounds && contentStyle ? contentBounds.left + parseFloat(contentStyle.paddingLeft || '0') : 0;
+    const clipRight = contentBounds && contentStyle ? contentBounds.right - parseFloat(contentStyle.paddingRight || '0') : 0;
+    const close = document.querySelector('#maxis-modal .chamber-close')?.getBoundingClientRect();
+    const overlapsClose = menu && close && menu.left < close.right && menu.right > close.left && menu.top < close.bottom && menu.bottom > close.top;
+    return {
+      menuLeft: menu?.left || 0,
+      menuRight: menu?.right || 0,
+      clipLeft,
+      clipRight,
+      insideContentClip: Boolean(menu && menu.left >= clipLeft - 1 && menu.right <= clipRight + 1),
+      insideViewport: Boolean(menu && menu.left >= 0 && menu.top >= 0 && menu.right <= window.innerWidth && menu.bottom <= window.innerHeight),
+      overlapsClose: Boolean(overlapsClose),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(mobileMenuState.insideContentClip && mobileMenuState.insideViewport && !mobileMenuState.overlapsClose && mobileMenuState.horizontalOverflow <= 1, `tezos maxis chamber: mobile season menu is clipped or collides with a corner control ${JSON.stringify(mobileMenuState)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded') === 'false');
 
   await page.locator('#maxis-modal .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#maxis-modal')?.classList.contains('active'));

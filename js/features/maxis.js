@@ -8,7 +8,7 @@ import { escapeHtml } from '../core/utils.js';
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=406';
+const MAXIS_CSS_URL = '/css/maxis.css?v=407';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -723,7 +723,7 @@ function renderSeasonSelector() {
     const seasons = normalizedSeasons(chamberState.manifest, chamberState.summary);
     const selected = seasonById();
     return `
-        <div class="maxis-season-tray${chamberState.selectorOpen ? ' is-open' : ''}">
+        <div class="maxis-corner-tray maxis-season-tray${chamberState.selectorOpen ? ' is-open' : ''}">
             <button class="maxis-season-orb" type="button" aria-haspopup="menu" aria-controls="maxis-season-menu" aria-expanded="${chamberState.selectorOpen ? 'true' : 'false'}" aria-label="Choose protocol season">
                 <span class="maxis-season-orb-mark">S${escapeHtml(seasonNumberLabel(selected))}<small>${escapeHtml(String(selected?.protocol || 'TZ').slice(0, 3).toUpperCase())}</small></span>
             </button>
@@ -2718,7 +2718,9 @@ export async function openMaxisChamber() {
         overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
             <div class="modal-content modal-large chamber-content maxis-content" role="dialog" aria-modal="true" aria-label="Tezos Maxis Chamber" aria-labelledby="maxis-title" tabindex="-1">
-                <button class="modal-close chamber-close" type="button" aria-label="Close Tezos Maxis Chamber">&times;</button>
+                <div class="maxis-corner-tray maxis-close-tray">
+                    <button class="modal-close chamber-close" type="button" aria-label="Close Tezos Maxis Chamber">&times;</button>
+                </div>
                 <div class="chamber-body maxis-body"></div>
             </div>
         `;

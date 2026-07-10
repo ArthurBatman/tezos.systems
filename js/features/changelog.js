@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '🎨', text: 'Maxis season and close controls now share one balanced corner system, matching 44 px circular treatment, and mirrored desktop/mobile insets instead of straddling the hero border' },
             { type: '✨', text: 'Tezos Maxis now opens on the canonical crown board, restoring the all-lane overview and each lane’s honest all-time, all-time-active, live, rolling, or cross-lane clock before the protocol-season game layer' },
             { type: '🔧', text: 'Governance Maxi now keeps its enduring all-time-active crown and current voting-period context, while protocol-season governance is labeled as a separate episodic race rather than replacing the career record' },
             { type: '✨', text: 'Maxi Passport now aggregates verified season shards into enduring badges, career high-water marks, and cross-season breadth while keeping current-season progress separate' }
