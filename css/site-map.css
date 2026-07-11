@@ -1,0 +1,460 @@
+.site-map-shell,
+.site-map-related {
+    --site-map-accent: var(--accent, #45e0c8);
+    --site-map-text: var(--text, var(--text-primary, #e8edf7));
+    --site-map-dim: var(--text-dim, var(--text-secondary, #93a0b5));
+    --site-map-border: var(--border, rgba(255, 255, 255, 0.12));
+    --site-map-panel: var(--surface, var(--bg-card, rgba(255, 255, 255, 0.035)));
+    width: min(1120px, calc(100% - 32px));
+    margin: 32px auto;
+    box-sizing: border-box;
+    color: var(--site-map-text);
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    text-align: left;
+}
+
+.site-map-shell *,
+.site-map-related * {
+    box-sizing: border-box;
+}
+
+.site-map-shell .site-map-head,
+.site-map-related .site-map-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 16px;
+}
+
+.site-map-shell .site-map-head h2,
+.site-map-related .site-map-head h2 {
+    margin: 3px 0 0;
+    color: var(--site-map-text);
+    font-family: Orbitron, Inter, system-ui, sans-serif;
+    font-size: clamp(1rem, 2.2vw, 1.35rem);
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+}
+
+.site-map-shell .site-map-kicker,
+.site-map-related .site-map-kicker {
+    display: block;
+    margin: 0;
+    color: var(--site-map-accent);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.site-map-shell .site-map-head > div > p:not(.site-map-kicker),
+.site-map-related .site-map-head > div > p:not(.site-map-kicker) {
+    margin: 6px 0 0;
+    color: var(--site-map-dim);
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
+.site-map-shell .site-map-cta,
+.site-map-related .site-map-cta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.site-map-shell .site-map-cta a,
+.site-map-related .site-map-cta a,
+.site-map-shell a.site-map-cta,
+.site-map-related a.site-map-cta {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 13px;
+    border: 1px solid var(--site-map-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--site-map-panel) 86%, transparent);
+    color: var(--site-map-text);
+    font-size: 0.76rem;
+    font-weight: 750;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.site-map-shell .site-map-cta a:hover,
+.site-map-related .site-map-cta a:hover,
+.site-map-shell a.site-map-cta:hover,
+.site-map-related a.site-map-cta:hover,
+.site-map-shell .site-map-cta a:focus-visible,
+.site-map-related .site-map-cta a:focus-visible,
+.site-map-shell a.site-map-cta:focus-visible,
+.site-map-related a.site-map-cta:focus-visible {
+    border-color: var(--site-map-accent);
+    color: var(--site-map-accent);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.site-map-related .site-map-related-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    gap: 10px;
+}
+
+.site-map-related .site-wayfinder-card {
+    min-width: 0;
+    min-height: 148px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 15px;
+    border: 1px solid var(--site-map-border);
+    border-radius: 12px;
+    background: var(--site-map-panel);
+    color: var(--site-map-text);
+    text-decoration: none;
+    transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.site-map-related .site-wayfinder-card:hover,
+.site-map-related .site-wayfinder-card:focus-visible {
+    border-color: color-mix(in srgb, var(--site-map-accent) 70%, var(--site-map-border));
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--site-map-accent) 9%, transparent);
+    outline: none;
+    transform: translateY(-2px);
+}
+
+.site-map-related .site-wayfinder-card > span {
+    color: var(--site-map-accent);
+    font-size: 0.63rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.site-map-related .site-wayfinder-card > strong {
+    margin-top: 5px;
+    color: var(--site-map-text);
+    font-size: 0.95rem;
+    line-height: 1.25;
+}
+
+.site-map-related .site-wayfinder-card > small {
+    margin-top: 6px;
+    color: var(--site-map-dim);
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
+.site-map-related .site-wayfinder-card > em {
+    margin-top: auto;
+    padding-top: 12px;
+    color: var(--site-map-accent);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 800;
+}
+
+.site-map-shell {
+    padding: 24px max(16px, 2vw) 20px;
+    border: 1px solid var(--site-map-border);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--site-map-panel) 88%, transparent);
+}
+
+.site-map-shell .site-map-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+    gap: 10px;
+}
+
+.site-map-shell .site-map-group {
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid var(--site-map-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--site-map-panel) 78%, transparent);
+}
+
+.site-map-shell .site-map-group h3 {
+    margin: 0 0 8px;
+    color: var(--site-map-dim);
+    font-size: 0.65rem;
+    font-weight: 850;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.site-map-shell .site-map-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 11px;
+}
+
+.site-map-shell .site-map-links .site-map-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--site-map-text);
+    font-size: 0.75rem;
+    line-height: 1.35;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.site-map-shell .site-map-links .site-map-link small {
+    padding: 1px 5px;
+    border: 1px solid color-mix(in srgb, var(--site-map-accent) 42%, transparent);
+    border-radius: 999px;
+    color: var(--site-map-accent);
+    font-size: 0.52rem;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    line-height: 1.35;
+    text-transform: uppercase;
+}
+
+.site-map-shell .site-map-links .site-map-link:hover,
+.site-map-shell .site-map-links .site-map-link:focus-visible {
+    color: var(--site-map-accent);
+    outline: none;
+}
+
+.site-map-shell .site-map-links .site-map-link.is-active {
+    color: var(--site-map-accent);
+    font-weight: 850;
+}
+
+.site-map-shell .site-map-links .site-map-link.is-active::before {
+    content: "•";
+    margin-right: 4px;
+}
+
+.site-map-shell .site-map-footer-base {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 7px 14px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--site-map-border);
+    color: var(--site-map-dim);
+    font-size: 0.7rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.site-map-shell .site-map-footer-base a {
+    color: var(--site-map-accent);
+    text-decoration: none;
+}
+
+.site-map-shell .site-map-footer-base a:hover,
+.site-map-shell .site-map-footer-base a:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}
+
+.site-map-page-entry {
+    min-height: 100vh;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+}
+
+.site-map-page-entry > main {
+    width: min(680px, calc(100% - 32px));
+    margin: max(54px, 8vh) auto 0;
+}
+
+.site-map-page-entry > .site-map-shell {
+    margin-bottom: 28px;
+}
+
+.chamber-overlay .site-wayfinder[data-site-wayfinder] {
+    --site-wayfinder-accent: var(--accent, #45e0c8);
+    --site-wayfinder-text: var(--text-primary, #e8edf7);
+    --site-wayfinder-dim: var(--text-secondary, #93a0b5);
+    --site-wayfinder-border: var(--border-color, rgba(255, 255, 255, 0.12));
+    width: min(100%, 1040px);
+    margin: 18px auto 6px;
+    padding: 16px;
+    border: 1px solid var(--site-wayfinder-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--site-wayfinder-text);
+}
+
+.chamber-overlay .site-wayfinder[data-site-wayfinder] * {
+    box-sizing: border-box;
+}
+
+.chamber-overlay .site-wayfinder-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.chamber-overlay .site-wayfinder-label {
+    color: var(--site-wayfinder-accent);
+    font-size: 0.66rem;
+    font-weight: 850;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.chamber-overlay .site-wayfinder-links {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chamber-overlay .site-wayfinder-item {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.chamber-overlay .site-wayfinder-link {
+    min-height: 76px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 12px;
+    border: 1px solid var(--site-wayfinder-border);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--site-wayfinder-text);
+    text-decoration: none;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.chamber-overlay .site-wayfinder-link:hover,
+.chamber-overlay .site-wayfinder-link:focus-visible {
+    border-color: var(--site-wayfinder-accent);
+    background: rgba(255, 255, 255, 0.045);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.chamber-overlay .site-wayfinder-link-title {
+    color: var(--site-wayfinder-text);
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.chamber-overlay .site-wayfinder-link-detail {
+    color: var(--site-wayfinder-dim);
+    font-size: 0.68rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.chamber-overlay .site-wayfinder-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.chamber-overlay .site-wayfinder-action {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 11px;
+    border: 1px solid var(--site-wayfinder-border);
+    border-radius: 999px;
+    color: var(--site-wayfinder-dim);
+    font-size: 0.68rem;
+    font-weight: 750;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.chamber-overlay .site-wayfinder-action:hover,
+.chamber-overlay .site-wayfinder-action:focus-visible {
+    border-color: var(--site-wayfinder-accent);
+    color: var(--site-wayfinder-accent);
+    outline: none;
+}
+
+@media (max-width: 640px) {
+    .site-map-shell,
+    .site-map-related {
+        width: min(100% - 20px, 1120px);
+        margin-top: 24px;
+        margin-bottom: 24px;
+    }
+
+    .site-map-shell .site-map-head,
+    .site-map-related .site-map-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .site-map-shell .site-map-cta,
+    .site-map-related .site-map-cta {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .site-map-shell .site-map-cta a,
+    .site-map-related .site-map-cta a,
+    .site-map-shell a.site-map-cta,
+    .site-map-related a.site-map-cta {
+        min-height: 44px;
+    }
+
+    .site-map-related .site-wayfinder-card {
+        min-height: 0;
+    }
+
+    .chamber-overlay .site-wayfinder[data-site-wayfinder] {
+        margin-top: 14px;
+        padding: 12px;
+    }
+
+    .chamber-overlay .site-wayfinder-links {
+        grid-template-columns: 1fr;
+    }
+
+    .chamber-overlay .site-wayfinder-link {
+        min-height: 0;
+    }
+
+    .chamber-overlay .site-wayfinder-actions {
+        justify-content: flex-start;
+    }
+
+    .chamber-overlay .site-wayfinder-action {
+        min-height: 44px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .site-map-shell .site-map-cta a,
+    .site-map-related .site-map-cta a,
+    .site-map-shell a.site-map-cta,
+    .site-map-related a.site-map-cta,
+    .site-map-related .site-wayfinder-card {
+        transition: none;
+    }
+
+    .chamber-overlay .site-wayfinder-link {
+        transition: none;
+    }
+}

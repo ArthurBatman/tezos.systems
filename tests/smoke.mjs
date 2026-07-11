@@ -3249,11 +3249,44 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(focusModeState.mainPointerEvents === 'none', `hero command bar: background chambers should not sit above active search, pointer events ${focusModeState.mainPointerEvents}`);
   assert(focusModeState.commandDeckZ >= 3000 && focusModeState.panelZ > focusModeState.commandDeckZ, `hero command bar: search layer z-index mismatch ${JSON.stringify(focusModeState)}`);
   const emptyStateText = await page.locator('#hero-search-panel').innerText();
-  assert(/my tezos/i.test(emptyStateText) && /network health/i.test(emptyStateText) && /liquidity baking/i.test(emptyStateText), `hero command bar: empty state missing retrieval rows: ${emptyStateText}`);
+  assert(/my tezos/i.test(emptyStateText) && /network pulse/i.test(emptyStateText) && /staking chamber/i.test(emptyStateText) && /tezos maxis/i.test(emptyStateText) && /network health/i.test(emptyStateText), `hero command bar: manifest starter rows are incomplete: ${emptyStateText}`);
   assert(/Search accepts/i.test(emptyStateText) && /wallet addresses/i.test(emptyStateText) && /slash commands/i.test(emptyStateText), `hero command bar: search guide missing accepted-input copy: ${emptyStateText}`);
   assert(!/protocol history/i.test(emptyStateText), `hero command bar: empty state should not push protocol history first: ${emptyStateText}`);
   const chipLabels = await page.locator('#hero-search-chips .hero-search-chip').allTextContents();
-  assert(chipLabels.includes('Wallet or .tez') && chipLabels.includes('/domains') && !chipLabels.some((label) => /Wallet\/\.tez/i.test(label)), `hero command bar: wallet/.tez chip copy should read clearly: ${chipLabels.join(', ')}`);
+  assert(
+    chipLabels.includes('Wallet or .tez')
+      && chipLabels.includes('/pulse')
+      && chipLabels.includes('/stake')
+      && chipLabels.includes('/maxis')
+      && chipLabels.includes('/health')
+      && chipLabels.includes('/domains')
+      && !chipLabels.some((label) => /Wallet\/\.tez/i.test(label)),
+    `hero command bar: manifest quick chips are incomplete: ${chipLabels.join(', ')}`
+  );
+  const rankedSearchIntents = [
+    ['my tezos', 'My Tezos'],
+    ['wallet', 'My Tezos'],
+    ['/leaderboard', 'Baker Leaderboard'],
+    ['/history', 'Cycle History'],
+    ['widgets', 'Embed Widgets'],
+    ['nakamoto coefficient', 'Network Health'],
+    ['hot today', "What's Hot Today"],
+    ['maxi passport', 'Maxi Passport'],
+    ['season', 'Tezos Maxis Season'],
+    ['champions', 'Tezos Maxis Champions'],
+    ['nft', 'HEN Live Feed'],
+    ['/stake', 'Staking Chamber']
+  ];
+  for (const [query, expectedTitle] of rankedSearchIntents) {
+    await page.locator('#hero-search-input').fill(query);
+    await page.waitForFunction(({ value, title }) => {
+      const input = document.getElementById('hero-search-input');
+      const first = document.querySelector('#hero-search-panel .hero-search-result strong');
+      return input?.value === value && first?.textContent?.trim() === title;
+    }, { value: query, title: expectedTitle }, { timeout: 5000 });
+    const rankedText = await page.locator('#hero-search-panel').innerText();
+    assert(!new RegExp(`Searching bakers for "${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'i').test(rankedText), `hero command bar: site intent fell through to baker loading for ${query}: ${rankedText}`);
+  }
   await page.locator('#hero-search-input').fill('KT1');
   await page.waitForFunction(() => /KT1 Contracts/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   const kt1StarterText = await page.locator('#hero-search-panel').innerText();
@@ -3265,11 +3298,11 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.locator('#hero-search-input').fill('/domains');
   await page.waitForFunction(() => /Tezos Domains/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   const domainsCommandText = await page.locator('#hero-search-panel').innerText();
-  assert(/Tezos Domains/i.test(domainsCommandText) && /\.tez name lookup/i.test(domainsCommandText), `hero command bar: /domains should discover Tezos Domains Chamber: ${domainsCommandText}`);
+  assert(/Tezos Domains/i.test(domainsCommandText) && /\.tez (?:name )?lookup/i.test(domainsCommandText), `hero command bar: /domains should discover Tezos Domains Chamber: ${domainsCommandText}`);
   await page.locator('#hero-search-input').fill('viral.tez');
   await page.waitForFunction(() => /Check viral\.tez in Tezos Domains/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   const domainEntityText = await page.locator('#hero-search-panel').innerText();
-  assert(/Check viral\.tez in Tezos Domains/.test(domainEntityText) && /Lookup availability/i.test(domainEntityText), `hero command bar: .tez entity should offer Domains lookup: ${domainEntityText}`);
+  assert(/Check viral\.tez in Tezos Domains/.test(domainEntityText) && /Open viral\.tez in Maxi Passport/.test(domainEntityText) && /Lookup availability/i.test(domainEntityText), `hero command bar: .tez entity should offer Domains and Maxi Passport routes: ${domainEntityText}`);
   await page.mouse.click(10, 10);
   await page.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.getElementById('hero-search-panel')?.hidden, null, { timeout: 5000 });
 
@@ -3281,7 +3314,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.locator('#hero-search-input').fill('/protocol-history');
   await page.waitForFunction(() => /Protocol Anthology|protocol-history/i.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.location.hash === '#protocol-history', null, { timeout: 5000 });
+  await page.waitForURL((url) => url.pathname === '/anthology/' && !url.hash, { timeout: 5000 });
   await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item').first().waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction(() => /Curator's desk/i.test(document.querySelector('#protocol-history-chamber-modal')?.textContent || ''), null, { timeout: 10000 });
   const historyChamberText = await page.locator('#protocol-history-chamber-modal').innerText();
@@ -3315,7 +3348,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await page.keyboard.press('/');
   await page.locator('#hero-search-input').fill('/calculator');
-  await page.waitForFunction(() => /\/calculator/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+  await page.waitForFunction(() => /Rewards Calculator/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.location.hash === '#calculator', null, { timeout: 5000 });
   await page.locator('#calculator-section.visible').waitFor({ state: 'visible', timeout: 5000 });
@@ -3335,6 +3368,53 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   }));
   assert(loopState.aura === 'holder' && /Search is the map/i.test(loopState.title), `hero command bar: Tezos loop holder state mismatch ${JSON.stringify(loopState)}`);
   assert(loopState.activeCards === 1 && loopState.activeChips === 1, `hero command bar: Tezos loop active state mismatch ${JSON.stringify(loopState)}`);
+
+  const intentPage = await context.newPage();
+  attachIssueCollectors(intentPage, 'hero command bar exact intents', issues);
+  const seedIntent = async (query, expectedTitle) => {
+    const intentResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+    assert(intentResponse?.ok(), `hero command bar exact intents: dashboard failed with HTTP ${intentResponse?.status()}`);
+    await intentPage.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 10000 });
+    await intentPage.locator('#hero-search-input').fill(query);
+    await intentPage.waitForFunction(({ value, title }) => {
+      const input = document.getElementById('hero-search-input');
+      const first = document.querySelector('#hero-search-panel .hero-search-result strong');
+      return input?.value === value && first?.textContent?.trim() === title;
+    }, { value: query, title: expectedTitle }, { timeout: 5000 });
+  };
+
+  await seedIntent('my tezos', 'My Tezos');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 5000 });
+
+  await seedIntent('viral.tez', 'Check viral.tez in Tezos Domains');
+  await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: 'Try viral.tez as baker' }).click();
+  await intentPage.waitForFunction(() => window.location.hash === '#baker=viral.tez', null, { timeout: 5000 });
+  await seedIntent('viral.tez', 'Check viral.tez in Tezos Domains');
+  await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: 'Open viral.tez in Ledger Flow' }).click();
+  await intentPage.waitForFunction(() => window.location.hash === '#ledger-flow=viral.tez', null, { timeout: 5000 });
+
+  await seedIntent(SAMPLE_ADDRESS, 'Inspect account');
+  await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: `Open ${SAMPLE_ADDRESS} in Maxi Passport` }).click();
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'passport' && url.searchParams.get('address') === SAMPLE_ADDRESS, { timeout: 5000 });
+
+  await seedIntent('/stake', 'Staking Chamber');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.waitForURL((url) => url.pathname === '/stake/' && !url.hash, { timeout: 5000 });
+
+  for (const [query, title, view] of [
+    ['maxi passport', 'Maxi Passport', 'passport'],
+    ['season', 'Tezos Maxis Season', 'season'],
+    ['champions', 'Tezos Maxis Champions', 'champions']
+  ]) {
+    await seedIntent(query, title);
+    await intentPage.locator('#hero-search-input').press('Enter');
+    await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === view && !url.hash, { timeout: 5000 });
+  }
+
+  await seedIntent('nft', 'HEN Live Feed');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.waitForURL((url) => url.pathname === '/' && url.searchParams.get('hen') === '1', { timeout: 5000 });
 
   await context.close();
 

@@ -6,15 +6,25 @@
     <title>404 — Tezos Systems</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <script>
-        // Redirect /tz1.../tz2.../tz3.../tz4.../KT1... or /name.tez paths to dashboard with My Tezos
+        // Turn recognizable chain objects into native Tezos Systems receipts.
         (function() {
             var rawPath = window.location.pathname.replace(/^\/+|\/+$/g, '');
             var path = rawPath;
             try { path = decodeURIComponent(rawPath); } catch (error) {}
-            var isAddress = /^(tz[1-4]|KT1)[a-zA-Z0-9]{33}$/.test(path);
+            var isAccount = /^tz[1-4][a-zA-Z0-9]{33}$/.test(path);
+            var isContract = /^KT1[a-zA-Z0-9]{33}$/.test(path);
             var isDomain = path.length <= 253 && /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i.test(path);
-            if (isAddress || isDomain) {
+            var isOperation = /^o[a-zA-Z0-9]{50}$/.test(path);
+            var isBlockHash = /^B[a-zA-Z0-9]{50}$/.test(path);
+            var isBlockLevel = /^\d{4,}$/.test(path);
+            if (isAccount || isDomain) {
                 window.location.replace('/' + window.location.search + '#my-baker=' + encodeURIComponent(path));
+            } else if (isContract) {
+                window.location.replace('/' + window.location.search + '#contract=' + encodeURIComponent(path));
+            } else if (isOperation) {
+                window.location.replace('/' + window.location.search + '#operation=' + encodeURIComponent(path));
+            } else if (isBlockHash || isBlockLevel) {
+                window.location.replace('/' + window.location.search + '#block=' + encodeURIComponent(path));
             }
         })();
     </script>
@@ -70,11 +80,17 @@
             letter-spacing: 3px;
         }
     </style>
+    <link rel="stylesheet" href="/css/site-map.css?v=419">
 </head>
-<body>
-    <div class="code">404</div>
-    <div class="msg">This block was never baked</div>
-    <a href="/" class="home">← BACK TO DASHBOARD</a>
-    <div class="sub">TEZOS SYSTEMS</div>
+<body class="site-map-page-entry" data-site-context="home">
+    <main>
+        <div class="code">404</div>
+        <div class="msg">This block was never baked</div>
+        <a href="/" class="home">← BACK TO DASHBOARD</a>
+        <div class="sub">TEZOS SYSTEMS</div>
+    </main>
+    <section data-site-circulation data-site-context="home"></section>
+    <footer data-site-footer data-site-context="home"></footer>
+    <script type="module" src="/js/landing/site-nav.js?v=419"></script>
 </body>
 </html>

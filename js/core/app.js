@@ -5,7 +5,13 @@
 
 import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth } from './api.js';
-import { findSiteMapEntry, siteMapGroup } from './site-map.js';
+import {
+    SITE_MAP_NAV_GROUPS,
+    findSiteMapEntry,
+    siteMapGroup,
+    siteMapRelated,
+    siteMapRoute
+} from './site-map.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
 import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
@@ -99,8 +105,9 @@ import { initStateOfTezos } from '../features/state-of-tezos.js';
 import { initNetworkHealth, refreshNetworkHealth } from '../features/network-health.js';
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
+import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=418';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=419';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -303,6 +310,7 @@ async function init() {
     });
     safe('navButtons', initNavButtons);
     safe('siteFooterMap', initSiteFooterMap);
+    safe('siteWayfinder', initSiteWayfinder);
     safe('heroSearch', initHeroSearch);
     safe('nativeExplorer', initNativeExplorer);
     safe('uptimeClock', initUptimeClock);
@@ -4263,52 +4271,52 @@ function positionTooltip(e, tooltipEl) {
 const TEZOS_LOOP_STORAGE_KEY = 'tezos-systems-loop-aura';
 const TEZOS_LOOP_AURAS = {
     holder: {
+        entryId: 'my-tezos',
         title: 'Search is the map.',
         line: 'Start from any Tezos receipt: wallet address, .tez name, baker, contract, operation, or block. My Tezos remembers the account and turns raw chain data into a daily state view.',
         query: 'my tezos',
         searchLabel: 'Try My Tezos',
-        href: '#my-tezos',
         action: 'my-tezos',
         label: 'Open My Tezos'
     },
     baker: {
-        title: 'Baker lookup',
-        line: 'Type a baker name or address to reach operator capacity, health, Octez version status, rights, rewards, and delegation context.',
-        query: 'baker',
-        searchLabel: 'Search bakers',
-        href: '#leaderboard',
-        label: 'Open baker map'
+        entryId: 'staking-chamber',
+        title: 'Earn, stake, and choose a baker',
+        line: 'Search a baker name or address, inspect live stake and unstake moves, compare capacity, and follow the trail into rewards and Ledger Flow.',
+        query: '/stake',
+        searchLabel: 'Search staking',
+        label: 'Open Staking Chamber'
     },
     builder: {
+        entryId: 'widgets',
         title: 'Contracts, operations, and blocks',
         line: 'Paste a KT1 contract, operation hash, block hash, or level. Search now opens native Tezos.Systems receipts first, with TzKT kept as an audit trail.',
         query: 'KT1',
         searchLabel: 'Try KT1 / ops',
-        href: '/widgets/builder.html',
         label: 'Grab a live widget'
     },
     collector: {
+        entryId: 'hen',
         title: 'HEN live art feed',
         line: 'Type /nfts or enter HEN for the Teia-first live feed, OBJKT listings, creator history, and collector context.',
         query: '/nfts',
         searchLabel: 'Open HEN lane',
-        href: '/?hen=1',
         label: 'Enter HEN'
     },
     governance: {
+        entryId: 'chamber',
         title: 'Governance and protocol lore',
         line: 'Try /chamber, /health, Ushuaia, or Liquidity Baking to jump into live rooms, current vote state, and protocol memory.',
         query: '/chamber',
         searchLabel: 'Search governance',
-        href: '/chamber/',
         label: 'Enter the Chamber'
     },
     price: {
+        entryId: 'price',
         title: 'Market and history context',
         line: 'Search price, /compare, /history, or cycle terms for XTZ market data, captured history, chain comparison, and issuance context.',
         query: 'price',
         searchLabel: 'Open price intel',
-        href: '#price',
         label: 'Open price intel'
     }
 };
@@ -4319,7 +4327,8 @@ function initTezosLoopConsole() {
     const line = document.getElementById('tezos-loop-line');
     const link = document.getElementById('tezos-loop-link');
     const search = document.getElementById('tezos-loop-search');
-    if (!consoleEl || !title || !line || !link || !search) return;
+    const nextStops = document.getElementById('tezos-loop-next');
+    if (!consoleEl || !title || !line || !link || !search || !nextStops) return;
 
     const chips = Array.from(consoleEl.querySelectorAll('.tezos-loop-chip[data-loop-aura]'));
     const cards = Array.from(consoleEl.querySelectorAll('.recruit-card[data-loop-aura]'));
@@ -4342,9 +4351,10 @@ function initTezosLoopConsole() {
     const activate = (aura, persist = true) => {
         const profile = TEZOS_LOOP_AURAS[aura] || TEZOS_LOOP_AURAS.holder;
         consoleEl.dataset.aura = TEZOS_LOOP_AURAS[aura] ? aura : 'holder';
+        const entry = findSiteMapEntry(profile.entryId);
         title.textContent = profile.title;
         line.textContent = profile.line;
-        link.href = profile.href;
+        link.href = siteMapRoute(entry);
         link.dataset.loopAction = profile.action || '';
         link.textContent = profile.label;
         search.dataset.heroQuery = profile.query;
@@ -4357,6 +4367,15 @@ function initTezosLoopConsole() {
         cards.forEach((card) => {
             card.classList.toggle('is-active', card.dataset.loopAura === consoleEl.dataset.aura);
         });
+        const destinations = [entry, ...siteMapRelated(profile.entryId, 4)]
+            .filter((item, index, items) => item && items.findIndex((candidate) => candidate?.id === item.id) === index);
+        nextStops.innerHTML = destinations.map((item, index) => `
+            <a class="tezos-loop-next-link ${index === 0 ? 'is-primary' : ''}" href="${escapeHtml(siteMapRoute(item))}">
+                <span>${escapeHtml(item.title)}</span>
+                ${item.fresh ? '<small>New</small>' : ''}
+            </a>
+        `).join('');
+        nextStops.setAttribute('aria-label', `${profile.title} next steps`);
         if (persist) saveAura(consoleEl.dataset.aura);
     };
 
@@ -5316,6 +5335,31 @@ function applyDeepLink() {
         openMyTezosTarget(addr);
     }
 
+    // #my-tezos — open the personal drawer without requiring an address.
+    if (params.has('my-tezos') || hash === 'my-tezos') {
+        openMyTezosTarget('');
+    }
+
+    // #search — make the command bar the next doorway from any site map.
+    if (params.has('search') || hash === 'search') {
+        setTimeout(() => {
+            const input = document.getElementById('hero-search-input');
+            input?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+            input?.focus({ preventScroll: true });
+            input?.select();
+        }, 250);
+    }
+
+    // #site-map — land on the complete manifest-backed directory.
+    if (params.has('site-map') || hash === 'site-map') {
+        setTimeout(() => scrollToElementAfterLayout(() => document.getElementById('site-map'), { block: 'start' }), 150);
+    }
+
+    // #snapshot — open the shareable State of Tezos generator.
+    if (params.has('snapshot') || hash === 'snapshot') {
+        openHashModal(() => document.getElementById('state-of-tezos-btn')?.click(), 'Failed to open Network Snapshot');
+    }
+
     // #account=tz1... / #contract=KT1... / #operation=o... / #op=o... / #block=level|hash
     const nativeEntity = [
         ['account', params.get('account')],
@@ -5574,38 +5618,35 @@ function applyDeepLink() {
     }
 }
 
-function footerMapLink(entry, { featured = false } = {}) {
+function footerMapLink(entry) {
     if (!entry) return '';
-    const classes = ['footer-link'];
-    if (featured) classes.push('footer-link-feature');
-    const type = entry.href.endsWith('.xml') ? ' type="application/rss+xml"' : '';
-    const mark = featured ? '<span class="footer-link-mark" aria-hidden="true">+</span>' : '';
-    const detail = featured ? '<small>live stats for your site</small>' : '';
-    return `<a class="${classes.join(' ')}" href="${entry.href}"${type}>${mark}<span>${escapeHtml(entry.title)}</span>${detail}</a>`;
+    const type = String(entry.href || '').endsWith('.xml') ? ' type="application/rss+xml"' : '';
+    const fresh = entry.fresh ? '<small>New</small>' : '';
+    return `
+        <a class="site-map-link" href="${escapeHtml(siteMapRoute(entry))}"${type}>
+            <span>${escapeHtml(entry.title)}</span>
+            ${fresh}
+        </a>
+    `;
+}
+
+function footerMapGroup(label) {
+    const entries = siteMapGroup(label);
+    if (!entries.length) return '';
+    return `
+        <section class="site-map-group" aria-label="${escapeHtml(label)}">
+            <h3>${escapeHtml(label)}</h3>
+            <div class="site-map-links">
+                ${entries.map(footerMapLink).join('')}
+            </div>
+        </section>
+    `;
 }
 
 function initSiteFooterMap() {
-    const toolsRail = document.querySelector('[data-site-footer-tools]');
-    const roomsRail = document.querySelector('[data-site-footer-rooms]');
-    if (toolsRail) {
-        const entries = ['widgets', 'feed', 'anthology', 'staking', 'bakers-guide', 'compare']
-            .map(findSiteMapEntry)
-            .filter(Boolean);
-        toolsRail.innerHTML = entries
-            .map((entry) => footerMapLink(entry, { featured: entry.id === 'widgets' }))
-            .join('');
-    }
-    if (roomsRail) {
-        const entries = [
-            ...siteMapGroup('Story Rooms'),
-            ...siteMapGroup('Live Rooms'),
-            ...siteMapGroup('Account Rooms')
-        ].filter((entry) => entry.id !== 'anthology');
-        roomsRail.innerHTML = `
-            <span class="footer-rail-label">Rooms</span>
-            ${entries.map((entry) => footerMapLink(entry)).join('')}
-        `;
-    }
+    const grid = document.querySelector('[data-site-map-grid]');
+    if (!grid) return;
+    grid.innerHTML = SITE_MAP_NAV_GROUPS.map(footerMapGroup).join('');
 }
 
 // ==========================================

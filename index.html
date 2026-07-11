@@ -52,21 +52,23 @@
     <link rel="mask-icon" href="safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=418">
-    <link rel="stylesheet" href="css/loading.css?v=418">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=418">
+    <link rel="stylesheet" href="css/styles.min.css?v=419">
+    <link rel="stylesheet" href="css/loading.css?v=419">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=419">
+    <link rel="stylesheet" href="css/site-map.css?v=419">
     <link rel="stylesheet" href="css/hen-mode.css?v=94">
     <script src="js/core/hen-init.js?v=78" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=418">
+    <link rel="modulepreload" href="js/core/app.js?v=419">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/utils.js">
     <link rel="modulepreload" href="js/core/wallet.js">
     <link rel="modulepreload" href="js/ui/animations.js">
     <link rel="modulepreload" href="js/ui/share.js">
+    <link rel="modulepreload" href="js/ui/wayfinder.js">
     <link rel="modulepreload" href="js/features/my-tezos.js">
     <link rel="modulepreload" href="js/effects/bg-effects.js">
     <link rel="modulepreload" href="js/features/comparison.js">
@@ -223,7 +225,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=418"></script>
+    <script src="js/core/theme-preload.js?v=419"></script>
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
         <button id="corner-gift-toggle" class="corner-gift-toggle" type="button" aria-label="Open corner tools: HEN, ctez, and TzSafe" aria-expanded="false" aria-controls="corner-gift-items" title="Corner tools">
             <span aria-hidden="true">🎁</span>
@@ -329,6 +331,14 @@
                                 <button class="feature-copy-link" type="button" data-copy-hash="#pulse" aria-label="Copy Network Pulse link" title="Copy direct link">🔗</button>
                             </div>
                             <div class="feature-launcher-row">
+                                <a id="maxis-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/maxis/" aria-label="Open Tezos Maxis crowns, seasons, Passports, and Champions" title="Open Tezos Maxis">
+                                    <span class="tezos-stats-toggle-icon" aria-hidden="true">♛</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Tezos Maxis</span><span class="dropdown-hint">Crowns, protocol seasons, wallet Passports, and permanent Champions.</span><span class="dropdown-hint feature-live-crumb">Nine on-chain lanes</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
+                                </a>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#maxis" aria-label="Copy Tezos Maxis link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
                                 <a id="hen-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/?hen=1" data-hen-launch aria-label="Enter HEN live Teia and OBJKT feed" title="Enter HEN live feed">
                                     <span class="ctez-feature-icon hen-feature-icon">hen<span class="uptime-pulse-dot" aria-hidden="true"></span></span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">HEN / Teia Collecting</span><span class="dropdown-hint">Watch Teia and OBJKT mints and collects as they land.</span></span>
@@ -397,6 +407,14 @@
                                     <span class="feature-status feature-status-live">Live</span>
                                 </a>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#domains" aria-label="Copy Tezos Domains link" title="Copy direct link">🔗</button>
+                            </div>
+                            <div class="feature-launcher-row">
+                                <a id="ledger-flow-feature-link" href="/ledger-flow/" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Ledger Flow account transfer paths" title="Open Ledger Flow">
+                                    <span class="tezos-stats-toggle-icon" aria-hidden="true">⇄</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Ledger Flow</span><span class="dropdown-hint">Trace sent, received, and first-funding paths around any account.</span></span>
+                                    <span class="feature-status feature-status-tool">Tool</span>
+                                </a>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#ledger-flow" aria-label="Copy Ledger Flow link" title="Copy direct link">🔗</button>
                             </div>
                         </div>
 
@@ -1671,12 +1689,13 @@
                         <button class="tezos-loop-link tezos-loop-link-primary" id="tezos-loop-search" type="button" data-hero-query="my tezos">Try My Tezos</button>
                         <a class="tezos-loop-link" id="tezos-loop-link" href="#my-tezos">Open My Tezos</a>
                     </div>
+                    <nav class="tezos-loop-next" id="tezos-loop-next" aria-label="Wallet next steps"></nav>
                 </div>
                 <div class="tezos-loop-chips" id="tezos-loop-chips" role="group" aria-label="Choose a search recipe">
                     <button class="tezos-loop-chip active" type="button" data-loop-aura="holder" aria-pressed="true">Wallet</button>
-                    <button class="tezos-loop-chip" type="button" data-loop-aura="baker" aria-pressed="false">Baker</button>
-                    <button class="tezos-loop-chip" type="button" data-loop-aura="builder" aria-pressed="false">Contracts</button>
-                    <button class="tezos-loop-chip" type="button" data-loop-aura="collector" aria-pressed="false">NFTs</button>
+                    <button class="tezos-loop-chip" type="button" data-loop-aura="baker" aria-pressed="false">Earn</button>
+                    <button class="tezos-loop-chip" type="button" data-loop-aura="builder" aria-pressed="false">Build</button>
+                    <button class="tezos-loop-chip" type="button" data-loop-aura="collector" aria-pressed="false">Collect</button>
                     <button class="tezos-loop-chip" type="button" data-loop-aura="governance" aria-pressed="false">Governance</button>
                     <button class="tezos-loop-chip" type="button" data-loop-aura="price" aria-pressed="false">Market</button>
                 </div>
@@ -1687,11 +1706,11 @@
                         <span>Paste a tz address or .tez name to connect wallet, baker, NFTs, governance, and daily context.</span>
                         <span class="recruit-card-action">Try my tezos</span>
                     </button>
-                    <button class="recruit-card" type="button" data-loop-aura="baker" data-hero-query="baker">
-                        <span class="recruit-card-kicker">Baker lookup</span>
-                        <strong>Find operators fast</strong>
-                        <span>Type a baker name or address to reach capacity, health, Octez versions, rights, and rewards.</span>
-                        <span class="recruit-card-action">Search bakers</span>
+                    <button class="recruit-card" type="button" data-loop-aura="baker" data-hero-query="/stake">
+                        <span class="recruit-card-kicker">Stake / earn / bakers</span>
+                        <strong>Follow capital into rewards</strong>
+                        <span>Open live stake moves, compare baker capacity, estimate rewards, and trace accounts in Ledger Flow.</span>
+                        <span class="recruit-card-action">Search staking</span>
                     </button>
                     <button class="recruit-card" type="button" data-loop-aura="builder" data-hero-query="KT1">
                         <span class="recruit-card-kicker">KT1 / ops / blocks</span>
@@ -1700,9 +1719,9 @@
                         <span class="recruit-card-action">Try KT1 / ops</span>
                     </button>
                     <button class="recruit-card" type="button" data-loop-aura="collector" data-hero-query="/nfts">
-                        <span class="recruit-card-kicker">HEN / Teia</span>
-                        <strong>Enter the live art feed</strong>
-                        <span>Use /nfts for HEN mode when Teia mints, OBJKT listings, creator history, and collector context matter.</span>
+                        <span class="recruit-card-kicker">HEN / Maxis / .tez</span>
+                        <strong>Follow art into identity</strong>
+                        <span>Start with live Teia mints, then move through Maxis crowns, creator history, Domains, and wallet trails.</span>
                         <span class="recruit-card-action">Open HEN lane</span>
                     </button>
                     <button class="recruit-card" type="button" data-loop-aura="governance" data-hero-query="/chamber">
@@ -1973,36 +1992,23 @@
 
         </div>
         <div class="footer-meta" aria-label="Site attribution and links">
+            <section class="site-map-shell site-map-shell-dashboard" id="site-map" data-site-footer-map aria-labelledby="site-map-title">
+                <div class="site-map-head">
+                    <div>
+                        <p class="site-map-kicker">Keep exploring</p>
+                        <h2 id="site-map-title">Every route leads to another.</h2>
+                        <p>Rooms, live signals, guides, and tools — all from the same map that powers search.</p>
+                    </div>
+                    <a class="site-map-cta" href="/#search">Search everything</a>
+                </div>
+                <div class="site-map-grid" data-site-map-grid aria-live="polite"></div>
+            </section>
             <p class="powered-by">Built by <a href="https://github.com/Primate411" target="_blank" rel="noopener">Primate411</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></p>
             <p class="footer-source-line">
                 Data from <a href="https://tzkt.io" target="_blank" rel="noopener">TzKT</a>
                 <span aria-hidden="true">+</span>
                 RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a>
             </p>
-            <nav class="footer-link-rail" aria-label="Footer links" data-site-footer-tools>
-                <a class="footer-link footer-link-feature" href="/widgets/builder.html">
-                    <span class="footer-link-mark" aria-hidden="true">+</span>
-                    <span>Embed Widgets</span>
-                    <small>live stats for your site</small>
-                </a>
-                <a class="footer-link" href="/feed.xml" type="application/rss+xml">Governance RSS</a>
-                <a class="footer-link" href="/anthology/">Protocol Anthology</a>
-            </nav>
-            <nav class="footer-link-rail footer-chamber-rail" aria-label="Chamber direct links" data-site-footer-rooms>
-                <span class="footer-rail-label">Chambers</span>
-                <a class="footer-link" href="/chamber/">Tezos L1 Governance</a>
-                <a class="footer-link" href="/pulse/">Network Pulse</a>
-                <a class="footer-link" href="/stake/">Staking Chamber</a>
-                <a class="footer-link" href="/maxis/">Tezos Maxis</a>
-                <a class="footer-link" href="/health/">Network Health</a>
-                <a class="footer-link" href="/tezosx/">Tezos X</a>
-                <a class="footer-link" href="/l2chamber/">Tezos X Governance</a>
-                <a class="footer-link" href="/tz4/">tz4 Adoption</a>
-                <a class="footer-link" href="/lb/">Liquidity Baking</a>
-                <a class="footer-link" href="/ledger-flow/">Ledger Flow</a>
-                <a class="footer-link" href="/domains/">Tezos Domains</a>
-                <a class="footer-link" href="/ctez/">ctez Oven Guide</a>
-            </nav>
             <p class="footer-contribute">
                 Feedback? <a href="https://github.com/Primate411/tezos.systems/issues" target="_blank" rel="noopener">Open an Issue</a>
                 <span aria-hidden="true">·</span>
@@ -2297,7 +2303,7 @@
 
     <!-- Load app as module -->
     <script src="js/features/hen-mode.js?v=93"></script>
-    <script type="module" src="js/core/app.js?v=418"></script>
+    <script type="module" src="js/core/app.js?v=419"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content">

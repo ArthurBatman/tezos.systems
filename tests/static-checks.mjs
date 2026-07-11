@@ -210,6 +210,7 @@ async function checkRequiredFiles() {
     'css/styles.css',
     'css/styles.min.css',
     'css/hero-search.css',
+    'css/site-map.css',
     'css/leaderboard.css',
     'css/network-pulse.css',
     'css/staking-chamber.css',
@@ -226,6 +227,7 @@ async function checkRequiredFiles() {
     'js/features/milestone-catalog.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
+    'js/ui/wayfinder.js',
     'sw.js',
     'og-image.png',
     'stake/index.html',
@@ -418,6 +420,100 @@ async function checkLocalReferences() {
   pass(`local references checked: ${checked}`);
 }
 
+async function checkSiteMapGraphContracts() {
+  const source = await readText('js/core/site-map.js');
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+  const {
+    SITE_MAP,
+    SITE_MAP_NAV_GROUPS,
+    SITE_MAP_RELATIONS,
+    searchSiteMap,
+    siteMapSearchChips,
+    siteMapStarters
+  } = await import(moduleUrl);
+
+  const ids = SITE_MAP.map((entry) => entry.id);
+  const hrefs = SITE_MAP.map((entry) => entry.href);
+  const knownIds = new Set(ids);
+  if (knownIds.size !== ids.length) fail('site map entry ids must be unique');
+  if (new Set(hrefs).size !== hrefs.length) fail('site map entry hrefs must be unique');
+
+  for (const group of SITE_MAP_NAV_GROUPS) {
+    if (!SITE_MAP.some((entry) => entry.group === group)) fail(`site map nav group is empty: ${group}`);
+  }
+  for (const [sourceId, relatedIds] of Object.entries(SITE_MAP_RELATIONS)) {
+    if (!knownIds.has(sourceId)) fail(`site map relation source is unknown: ${sourceId}`);
+    for (const relatedId of relatedIds) {
+      if (!knownIds.has(relatedId)) fail(`site map relation ${sourceId} points to unknown id ${relatedId}`);
+      if (relatedId === sourceId) fail(`site map relation ${sourceId} must not point to itself`);
+    }
+  }
+
+  const starterIds = siteMapStarters().map((entry) => entry.id);
+  for (const required of ['my-tezos', 'pulse', 'staking-chamber', 'maxis', 'health']) {
+    if (!starterIds.includes(required)) fail(`site map starter set is missing ${required}`);
+  }
+  const chipIds = siteMapSearchChips().map((entry) => entry.id);
+  for (const required of ['my-tezos', 'pulse', 'staking-chamber', 'maxis', 'domains', 'health']) {
+    if (!chipIds.includes(required)) fail(`site map search chips are missing ${required}`);
+  }
+
+  const rankedIntent = {
+    'my tezos': 'my-tezos',
+    wallet: 'my-tezos',
+    '/history': 'history',
+    '/leaderboard': 'leaderboard',
+    '/compare': 'live-compare',
+    widgets: 'widgets',
+    '/stake': 'staking-chamber',
+    'nakamoto coefficient': 'health',
+    "what's hot today": 'hot-today',
+    nft: 'hen'
+  };
+  for (const [query, expectedId] of Object.entries(rankedIntent)) {
+    const actual = searchSiteMap(query)[0]?.id;
+    if (actual !== expectedId) fail(`site map search ${JSON.stringify(query)} should rank ${expectedId} first, got ${actual || 'none'}`);
+  }
+
+  for (const route of CHAMBER_ROUTES) {
+    const canonicalSlug = route.canonicalSlug || route.slug;
+    if (!SITE_MAP.some((entry) => entry.href === `/${canonicalSlug}/`)) {
+      fail(`site map is missing canonical chamber route /${canonicalSlug}/`);
+    }
+  }
+
+  const standalonePages = [
+    'staking/index.html',
+    'governance/index.html',
+    'bakers/index.html',
+    'landing.html',
+    'compare/index.html',
+    'compare/tezos-vs-ethereum.html',
+    'compare/tezos-vs-solana.html',
+    'compare/tezos-vs-cardano.html',
+    'compare/tezos-vs-algorand.html',
+    'hen/index.html',
+    '404.html',
+    'widgets/builder.html'
+  ];
+  for (const file of standalonePages) {
+    const html = await readText(file);
+    if (!html.includes('data-site-circulation') || !html.includes('data-site-footer') || !html.includes('/css/site-map.css') || !html.includes('/js/landing/site-nav.js')) {
+      fail(`${file} must expose contextual circulation and the complete shared site map`);
+    }
+  }
+
+  const search = await readText('js/features/search.js');
+  const app = await readText('js/core/app.js');
+  const index = await readText('index.html');
+  const wayfinder = await readText('js/ui/wayfinder.js');
+  if (/const\s+CHAMBERS\s*=/.test(search)) fail('hero search must not keep a duplicate Chamber catalog');
+  if (!index.includes('data-site-footer-map') || !index.includes('data-site-map-grid')) fail('dashboard footer must expose the manifest-backed complete map');
+  if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapRelated')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
+
+  pass(`site map graph checked: ${SITE_MAP.length} destinations, ${SITE_MAP_NAV_GROUPS.length} groups, ${standalonePages.length} standalone surfaces`);
+}
+
 async function checkCacheBustAlignment() {
   const index = await readText('index.html');
   const sw = await readText('sw.js');
@@ -433,6 +529,7 @@ async function checkCacheBustAlignment() {
   const themeUi = await readText('js/ui/theme.js');
   const cssMatch = index.match(/css\/styles\.min\.css\?v=(\d+)/);
   const heroCssLinkMatch = index.match(/css\/hero-search\.css\?v=(\d+)/);
+  const siteMapCssLinkMatch = index.match(/css\/site-map\.css\?v=(\d+)/);
   const appPreloadMatch = index.match(/js\/core\/app\.js\?v=(\d+)/);
   const appScriptMatch = index.match(/<script[^>]+src=["']js\/core\/app\.js\?v=(\d+)["']/);
   const themePreloadScriptMatch = index.match(/js\/core\/theme-preload\.js\?v=(\d+)/);
@@ -450,6 +547,7 @@ async function checkCacheBustAlignment() {
 
   if (!cssMatch) fail('index.html must serve css/styles.min.css with a ?v= cache stamp');
   if (!heroCssLinkMatch) fail('index.html must serve css/hero-search.css with a ?v= cache stamp');
+  if (!siteMapCssLinkMatch) fail('index.html must serve css/site-map.css with a ?v= cache stamp');
   if (!appPreloadMatch) fail('index.html modulepreload for js/core/app.js must carry a ?v= cache stamp');
   if (!appScriptMatch) fail('index.html app module script must carry a ?v= cache stamp');
   if (!themePreloadScriptMatch) fail('index.html theme-preload.js script must carry a ?v= cache stamp');
@@ -468,6 +566,7 @@ async function checkCacheBustAlignment() {
   const versions = [
     cssMatch?.[1],
     heroCssLinkMatch?.[1],
+    siteMapCssLinkMatch?.[1],
     appPreloadMatch?.[1],
     appScriptMatch?.[1],
     themePreloadScriptMatch?.[1],
@@ -483,7 +582,7 @@ async function checkCacheBustAlignment() {
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 14) {
+  } else if (versions.length === 15) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -814,24 +913,30 @@ async function checkSelectorContracts() {
     ['Hero search raises command deck', 'body.hero-search-mode .command-deck', heroSearchCss],
     ['Hero search empty-state guide', 'hero-search-guide', search],
     ['Hero search guide styles', '.hero-search-guide', heroSearchCss],
-    ['Hero search imports site map', 'searchSiteMap', search],
+    ['Hero search imports ranked site map search', 'searchSiteMap', search],
+    ['Hero search derives starter rows from site map', 'siteMapStarters', search],
+    ['Hero search derives quick chips from site map', 'siteMapSearchChips', search],
+    ['Hero search uses canonical site-map routes', 'siteMapRoute', search],
     ['Hero search root hash page normalization', 'const rootHashEntry', search],
     ['Site map manifest exports groups', 'SITE_MAP_NAV_GROUPS', siteMap],
     ['Site map manifest includes anthology route', "href: '/anthology/'", siteMap],
     ['Site map manifest includes Network Pulse route', "href: '/pulse/'", siteMap],
     ['Landing pages share site nav renderer', 'function renderFooter()', siteNav],
-    ['Hero search wallet chip clear copy', 'Wallet or .tez', search],
-    ['Hero search Domains quick chip', "label: '/domains'", search],
-    ['Hero search Domains chamber', "id: 'domains'", search],
+    ['Hero search runtime-only quick chips', 'RUNTIME_QUICK_CHIPS', search],
+    ['Hero search runtime-only commands', 'RUNTIME_COMMANDS', search],
     ['Hero search .tez scoped Domains route', '#domains=${encodeURIComponent(domain)}', search],
     ['Hero search Ledger Flow command', 'Ledger Flow', search],
     ['Hero search Ledger Flow scoped account route', '#ledger-flow=${encodeURIComponent(q)}', search],
     ['Hero search KT1 starter route', "['kt1', 'KT1 Contracts']", search],
+    ['Hero search grouped visual order normalization', 'groupOrderedResults', search],
+    ['Hero search Maxi Passport intent route', '/maxis/?view=passport', search],
+    ['Hero search Maxis Season intent route', '/maxis/?view=${view}', search],
+    ['Hero search address-scoped Maxi Passport route', 'view=passport&address=${encodeURIComponent(target)}', search],
     ['Tezos loop console initializer', 'function initTezosLoopConsole()', app],
     ['Tezos loop aura persistence', 'TEZOS_LOOP_STORAGE_KEY', app],
     ['Tezos loop console styles', '.tezos-loop-console', heroSearchCss],
     ['Tezos loop active card styles', '.recruit-card.is-active', heroSearchCss],
-    ['Hero search price command', "id: 'price'", search],
+    ['Hero search manifest page result adapter', 'function siteMapResult', search],
     ['LB tile hash route', "hash === 'lb-tile'", app],
     ['tz4 hash route', "hash === 'tz4'", app],
     ['comparison summary renderer', 'function renderComparisonSummary', comparison],
@@ -850,8 +955,8 @@ async function checkSelectorContracts() {
     ['Pretty chamber route opens without hash redirect', "chamber: 'chamber'", app],
     ['Network Pulse pretty route opens without hash redirect', "pulse: 'pulse'", app],
     ['Dashboard footer uses site map renderer', 'function initSiteFooterMap', app],
-    ['Dashboard footer tools rail is data-driven', 'data-site-footer-tools', index],
-    ['Dashboard footer rooms rail is data-driven', 'data-site-footer-rooms', index],
+    ['Dashboard footer map shell hook', 'data-site-footer-map', index],
+    ['Dashboard footer map grid hook', 'data-site-map-grid', index],
     ['Pretty chamber route generator hydrates dashboard shell', "dashboardShell = await fs.readFile", chamberRouteGenerator],
     ['Network Pulse feature import', 'initNetworkPulseChamber', app],
     ['Network Pulse card copy link', 'data-copy-hash="#pulse"', networkPulse],
@@ -925,7 +1030,7 @@ async function checkSelectorContracts() {
     ['Staking Chamber direct footer link', 'Direct: /stake/', stakingChamber],
     ['Staking Chamber crawlable route source', "slug: 'stake'", chamberRoutes],
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
-    ['Staking Chamber hero-search command', "id: 'staking-chamber'", search],
+    ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
     ['Staking Chamber share route', "'#staking': '/stake/'", share],
     ['Staking Chamber service worker JS', '/js/features/staking-chamber.js', await readText('sw.js')],
     ['Staking Chamber service worker CSS', '/css/staking-chamber.css', await readText('sw.js')],
@@ -1107,7 +1212,8 @@ async function checkSelectorContracts() {
     ['OBJKT profile carries collection logos for HEN rows', 'fa { name contract collection_id logo }', objkt],
     ['OBJKT profile carries recent acquisition token ids for CDN thumbnails', 'tokenId: h.token.token_id', objkt],
     ['HEN public activator', 'window.HenMode = HenMode', henMode],
-    ['HEN command palette route', "action: 'hen'", search],
+    ['HEN site-map live route', "href: '/?hen=1'", siteMap],
+    ['HEN site-map slash alias', "'/nfts'", siteMap],
     ['shared My Tezos address helper', 'export function rememberMyTezosAddress', wallet],
     ['shared My Tezos saved history key', "export const SAVED_ADDRESSES_KEY = 'tezos-systems-saved-addresses'", wallet],
     ['wallet connect syncs My Tezos', "source: 'octez-connect'", wallet],
@@ -1386,6 +1492,12 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  if (/const\s+(?:CHAMBERS|COMMANDS|QUICK_CHIPS)\s*=/.test(search)) {
+    fail('Hero search must not restore manual site-map destination catalogs');
+  }
+  if (search.includes("value: 'Ushuaia'") || search.includes('${result.value}${result.hash}')) {
+    fail('Hero search must not hard-code the current protocol or append redundant hashes to pretty routes');
   }
   if (stakingChamber.includes('requestedAmount')) {
     fail('Staking Chamber must filter TzKT actual processed amount, never requestedAmount');
@@ -3992,6 +4104,7 @@ async function main() {
   await checkJsonFiles();
   await checkGovernanceVotes();
   await checkLocalReferences();
+  await checkSiteMapGraphContracts();
   await checkCacheBustAlignment();
   await checkCsp();
   await checkSitemapCoverage();

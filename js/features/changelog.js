@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-10',
         entries: [
+            { type: '✨', text: 'Tezos Systems now behaves as one connected map: command search, the lower Tezos Loop, the complete footer directory, standalone pages, and Chamber next-step rails all lead into the same current rooms, signals, guides, and tools' },
+            { type: '🔧', text: 'Command search now ranks exact intent first, keeps visible rows attached to the correct action, removes duplicate Chamber results, and exposes Staking Chamber, Tezos Maxis rooms, Network Snapshot, Nakamoto Coefficients, What’s Hot Today, and Maxi Passport trails' },
             { type: '✨', text: 'The new Staking Chamber shows the latest stake and unstake moves over 10,000 tez, the current staking ratio and 7-day direction, a complete applied-operation archive, and per-mover Ledger Flow and receipt trails' },
             { type: '🔧', text: 'Header stat explainers now fully disappear after dismissal instead of lingering as translucent panels over the live ticker and search controls' },
             { type: '🎨', text: 'Themes now carry their own UI, display, and data typefaces, with a larger dedicated uptime counter and a truly centered mobile uptime line even during milestone celebrations' },

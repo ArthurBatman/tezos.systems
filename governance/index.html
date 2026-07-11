@@ -23,6 +23,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/landing.css?v=20260705a">
+    <link rel="stylesheet" href="/css/site-map.css?v=419">
 
     <script type="application/ld+json">
     {
@@ -101,7 +102,7 @@
     }
     </script>
 </head>
-<body>
+<body data-site-context="governance-guide">
     <nav class="landing-nav">
         <a href="/" class="landing-nav-logo">TEZOS SYSTEMS</a>
         <ul class="landing-nav-links">
@@ -262,14 +263,16 @@
                 <a href="https://opentezos.com/tezos-basics/governance-on-chain/" style="color:var(--accent); font-size:0.9rem;">Learn more</a>
             </div>
         </section>
+
+        <section data-site-circulation data-site-context="governance-guide"></section>
     </main>
 
-    <footer class="landing-footer">
-        Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a> · <a href="https://tez.capital">RPC by Tez Capital</a> · <a href="/">tezos.systems</a> · Data from TzKT &amp; Octez RPC
+    <footer class="landing-footer" data-site-footer data-site-context="governance-guide">
+        <div data-site-footer-attribution>Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a> · <a href="https://tez.capital">RPC by Tez Capital</a> · <a href="/">tezos.systems</a> · Data from TzKT &amp; Octez RPC</div>
     </footer>
 
     <script type="module">
-        import '/js/landing/site-nav.js?v=20260710b';
+        import '/js/landing/site-nav.js?v=419';
         import { loadGovernanceData, loadBakerData } from '/js/landing/live-data.js?v=20260704a';
         loadGovernanceData();
         loadBakerData();

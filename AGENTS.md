@@ -50,6 +50,8 @@ the highest-risk gotchas.
 - `css/network-health.css`: lazy Network Health Consensus Lens and Nakamoto panel styles.
 - `css/hen-mode.css`: HEN overlay styles.
 - `css/landing.css`: landing and SEO page styles.
+- `css/site-map.css`: shared complete-map, standalone circulation, and chamber
+  wayfinder styles.
 - `js/core/app.js`: app orchestrator, DOM wiring, modals, refresh loop, feature
   initialization, service worker registration, deep links.
 - `js/core/api.js`: Tezos data fetching, RPC/TzKT/Supabase calls, deduping,
@@ -57,6 +59,10 @@ the highest-risk gotchas.
 - `js/core/config.js`: endpoints, refresh intervals, constants, Supabase anon
   config, chain comparison data.
 - `js/core/storage.js`: localStorage/sessionStorage wrappers.
+- `js/core/site-map.js`: canonical destination, search, and semantic-relations
+  graph used by the command bar, dashboard map, standalone pages, and journey
+  recommendations. Add new first-party wares here instead of creating another
+  hard-coded navigation catalog.
 - `js/core/tezos-domains.js`: shared multi-label `.tez` validation and forward
   resolution with address-first, owner-fallback semantics.
 - `js/core/utils.js`: formatters, debounce/throttle, sanitization helpers.
@@ -143,7 +149,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v418`
+- Service worker cache name: `tezos-systems-v419`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -262,6 +268,8 @@ Stamping gotchas:
 ## UI and Effects
 
 - `js/ui/theme.js`: theme registry, picker, first-visit landing redirect.
+- `js/ui/wayfinder.js`: injects semantic next steps into chamber overlays that
+  do not already provide a native adjacent-room map.
 - `js/ui/share.js`: html2canvas-powered branded 1200x630 captures, tweet
   picker, card/dashboard/protocol/history sharing.
 - `js/ui/gauge.js`: Stake-O-Meter canvas gauge.

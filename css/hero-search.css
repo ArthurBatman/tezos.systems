@@ -1471,6 +1471,7 @@ body.hero-search-mode .main-content {
 .tezos-loop-copy,
 .tezos-loop-chips,
 .tezos-loop-hints,
+.tezos-loop-next,
 .recruit-grid {
     position: relative;
     z-index: 1;
@@ -1609,6 +1610,51 @@ body.hero-search-mode .main-content {
 
 .tezos-loop-actions {
     margin-top: 0.72rem;
+}
+
+.tezos-loop-next {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+    margin-top: 0.62rem;
+}
+
+.tezos-loop-next-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    min-height: 28px;
+    padding: 0.26rem 0.56rem;
+    border: 1px solid color-mix(in srgb, var(--loop-accent) 18%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--loop-accent) 5%, transparent);
+    color: var(--text-secondary);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    font-weight: 750;
+    text-decoration: none;
+}
+
+.tezos-loop-next-link.is-primary {
+    border-color: color-mix(in srgb, var(--loop-accent) 42%, transparent);
+    color: var(--loop-accent);
+}
+
+.tezos-loop-next-link small {
+    padding: 0.12rem 0.28rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--loop-accent) 16%, transparent);
+    color: var(--loop-accent);
+    font-size: 0.54rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.tezos-loop-next-link:hover,
+.tezos-loop-next-link:focus-visible {
+    border-color: color-mix(in srgb, var(--loop-accent) 50%, transparent);
+    color: var(--loop-accent);
+    outline: none;
 }
 
 .tezos-loop-chips {

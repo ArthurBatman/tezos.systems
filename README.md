@@ -421,14 +421,17 @@ inline modal styles in `js/core/app.js`.
   are hard-capped at 30 days before a target; newly crossed milestones remain
   celebratory for 72 hours. Each milestone card can open the existing branded
   image-share composer with milestone-specific promotional tweet styles.
-  Phase-one internal routes open My Tezos,
-  baker profiles, protocol lore/history, Chambers, themes, calculator,
-  comparisons, leaderboard, whale/giant feeds, NFT lookup, History, and native
-  account/contract/operation/block receipt views. Baker-name searches hydrate
-  from the active leaderboard data, while TzKT remains available from native
-  receipts as an audit trail. The empty search panel and Tezos Loop Console both
-  double as low-pressure search guides so first-time entrants can see what the
-  bar accepts without blocking experienced visitors.
+  Internal routes open My Tezos, baker profiles, protocol lore/history,
+  Chambers, themes, calculator, comparisons, leaderboard, whale/giant feeds,
+  NFT lookup, History, Network Snapshot, and native account/contract/operation/
+  block receipt views. `js/core/site-map.js` is the discovery source of truth:
+  it owns featured search chips/defaults, relevance-ranked destinations, the
+  complete grouped footer map, and semantic next-step relationships. Exact
+  intent ranks before broad keyword matches, specialized Maxis Season,
+  Passport, and Champions queries preserve their room state, and pasted
+  addresses or `.tez` names also expose a scoped Maxi Passport path. Baker-name
+  searches hydrate from active leaderboard data, while TzKT remains available
+  from native receipts as an audit trail.
 - Protocol History Chamber with direct `#protocol-history` access, backed by
   `data/protocol-data.json` and `data/protocol-debates.json`. It preserves the
   protocol timeline, individual protocol lore modals, share capture, and impact
@@ -440,11 +443,16 @@ inline modal styles in `js/core/app.js`.
   visible as a protocol-history chapter and DAL follow-up, but it is not counted
   as a separate self-amendment total, so public upgrade counts show 21 while the
   archive still has 22 protocol records.
-- Tezos Loop Console near the bottom of the dashboard replaces the duplicate
-  recruit/footer aura prompts with one search recipe surface. Wallet, Baker, Contracts, NFTs,
-  Governance, and Market lanes explain accepted search inputs, seed the command
-  bar, and expose direct next-step links such as My Tezos, widgets, HEN, The
-  Chamber, and price intelligence.
+- Tezos Loop Console near the bottom of the dashboard is a live lower-page map.
+  Wallet, Earn, Build, Collect, Governance, and Market lanes still teach search
+  recipes, but their primary destination and semantic next steps now resolve
+  through the canonical site map. Newly added rooms therefore enter the loop
+  without another hand-maintained destination catalog.
+- The footer renders every canonical Story Room, Live Room, Account Room, live
+  signal, guide, tool, and culture/feed destination instead of a handpicked
+  subset. Expanded Chambers add a shared `Continue exploring` rail when the room
+  does not already own an adjacent-room map; full internal routes prevent modal
+  stacks during room-to-room navigation.
 - Tezos L1 Governance for live and historical amendment voting, including a
   current-stage chronological ballot feed and the bottom historical vote log
   sourced from `data/governance-votes.json`. The command deck does not carry a
@@ -772,7 +780,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v418`, including hero search, theme
+- Current aligned shell cache stamp: `v419`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
@@ -821,6 +829,11 @@ SEO and standalone pages:
 - `compare/tezos-vs-solana.html`
 - `compare/tezos-vs-cardano.html`
 - `compare/tezos-vs-algorand.html`
+
+These pages, the welcome page, HEN gateway, 404 page, and widget builder all
+render contextual next steps plus the same complete manifest-backed footer map.
+Comparison rails live outside `#compare-content` so static and browser-side
+comparison regeneration cannot erase them.
 
 Widgets:
 

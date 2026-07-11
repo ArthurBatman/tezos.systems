@@ -4,13 +4,18 @@
  */
 
 import { debounce, escapeHtml } from '../core/utils.js';
-import { searchSiteMap } from '../core/site-map.js';
+import {
+    searchSiteMap,
+    siteMapRoute,
+    siteMapSearchChips,
+    siteMapStarters
+} from '../core/site-map.js';
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=418';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=419';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -18,13 +23,7 @@ const OPERATION_RE = /^o[0-9A-Za-z]{50}$/;
 const BLOCK_HASH_RE = /^B[0-9A-Za-z]{50}$/;
 const BLOCK_LEVEL_RE = /^\d{4,}$/;
 
-const QUICK_CHIPS = [
-    { label: 'Wallet or .tez', value: 'my tezos' },
-    { label: '/domains', value: '/domains' },
-    { label: '/health', value: '/health' },
-    { label: '/chamber', value: '/chamber' },
-    { label: '/flow', value: '/ledger-flow' },
-    { label: 'Protocol', value: 'Ushuaia' },
+const RUNTIME_QUICK_CHIPS = [
     { label: 'KT1', value: 'KT1' },
     { label: '/theme', value: '/theme' }
 ];
@@ -39,81 +38,16 @@ function livePulseChip() {
     };
 }
 
-const COMMANDS = [
-    { id: 'my-tezos', title: 'My Tezos', detail: 'Set or switch your primary wallet or .tez name', hash: null, action: 'button', value: 'my-tezos-btn', aliases: ['my tezos', 'wallet', 'primary address', 'domain'] },
-    { id: 'theme', title: '/theme', detail: 'Switch visual theme', hash: null, aliases: ['theme', 'themes', 'switch theme'] },
-    { id: 'calculator', title: '/calculator', detail: 'Open staking rewards calculator', hash: '#calculator', aliases: ['calc', 'rewards'] },
-    { id: 'compare', title: '/compare', detail: 'Open chain comparison', hash: '#compare', aliases: ['chains', 'comparison'] },
-    { id: 'history', title: '/history', detail: 'Open historical Tezos network charts', hash: '#history', aliases: ['charts', 'data history'] },
-    { id: 'protocol-history', title: '/protocol-history', detail: 'Open Protocol Anthology', hash: '#protocol-history', aliases: ['protocol archive', 'upgrade history', 'proposal history', 'impact views', 'lore', 'anthology'] },
-    { id: 'price', title: '/price', detail: 'Open XTZ price intelligence', hash: '#price', aliases: ['price', 'xtz price', 'market cap', 'price watcher'] },
-    { id: 'leaderboard', title: '/leaderboard', detail: 'Open baker leaderboard', hash: '#leaderboard', aliases: ['bakers', 'baker ranking'] },
-    { id: 'whales', title: '/whales', detail: 'Open live large-transfer feed', hash: '#whales', aliases: ['mini whale', 'transfers'] },
-    { id: 'giants', title: '/giants', detail: 'Open dormant-wallet awakenings', hash: '#giants', aliases: ['sleeping giants'] },
-    { id: 'nfts', title: '/nfts', detail: 'Open HEN mode with Teia-first live NFTs, listings, and collector profile stats', hash: null, action: 'hen', aliases: ['objkt', 'teia', 'nft', 'hen'] }
+const RUNTIME_COMMANDS = [
+    { id: 'theme', title: '/theme', detail: 'Switch visual theme', action: 'theme-picker', aliases: ['theme', 'themes', 'switch theme'] }
 ];
 
-const CHAMBERS = [
-    { id: 'pulse', title: 'Network Pulse', detail: 'Consensus, economy, governance, activity, and ecosystem cards in one room', hash: '#pulse', aliases: ['/pulse', 'live pulse', 'network pulse', 'stats'] },
-    { id: 'staking-chamber', title: 'Staking Chamber', detail: 'Large stake and unstake moves, staking ratio, and the complete >10K history', hash: '#staking', aliases: ['/stake', 'stake', 'unstake', 'stakers', 'staking moves'] },
-    { id: 'health', title: 'Network Health', detail: 'Blocks, Octez versions, missed rights, consensus lens', hash: '#health', aliases: ['/health', 'network', 'blocks'] },
-    { id: 'chamber', title: 'Tezos L1 Governance', detail: 'Current vote room and protocol governance history', hash: '#chamber', aliases: ['/chamber', 'governance', 'vote'] },
-    { id: 'tezosx', title: 'Tezos X Chamber', detail: 'Etherlink TVL, L2 transaction tape, gas oracle, tokens', hash: '#tezosx', aliases: ['/tezosx', 'tezlink', 'l2'] },
-    { id: 'l2chamber', title: 'Tezos X Governance', detail: 'FAST, SLOW, sequencer governance tracks', hash: '#l2chamber', aliases: ['/l2chamber', 'etherlink governance'] },
-    { id: 'tz4', title: 'tz4 Adoption', detail: 'BLS adoption, pending switches, holdouts, milestones', hash: '#tz4', aliases: ['/tz4', 'bls'] },
-    { id: 'lb', title: 'Liquidity Baking', detail: 'LB votes, EMA threshold, and live liquidity signals', hash: '#lb', aliases: ['/lb', 'liquidity baking'] },
-    { id: 'ledger-flow', title: 'Ledger Flow', detail: 'Account transfer diagram for sent, received, and first-funding paths', hash: '#ledger-flow', aliases: ['/ledger-flow', '/flow', 'flow', 'ledger', 'transfer graph', 'account flow'] },
-    { id: 'domains', title: 'Tezos Domains', detail: '.tez name lookup, live registrations, auctions, offers, and expiry pressure', hash: '#domains', aliases: ['/domains', '.tez', 'names', 'identity', 'tezos domains', 'domains'] },
-    { id: 'protocol-history', title: 'Protocol Anthology', detail: 'Self-amendment lore, impact views, and amendment memory', hash: '#protocol-history', aliases: ['/protocol-history', 'protocol history', 'protocol archive', 'upgrades', 'impact', 'lore', 'anthology'] },
-    { id: 'ctez', title: 'ctez End of Life', detail: 'Oven discovery and wallet-reviewed close flow', hash: '#ctez', aliases: ['/ctez', 'oven'] }
-];
+const SITE_MAP_BUTTON_TARGETS = new Map([
+    ['my-tezos', 'my-tezos-btn'],
+    ['snapshot', 'state-of-tezos-btn']
+]);
 
-const EMPTY_STATE_ROWS = [
-    {
-        kind: 'account',
-        group: 'My Tezos',
-        title: 'My Tezos',
-        detail: 'Save or switch the wallet address or .tez name that makes this yours',
-        badge: 'my tezos',
-        action: 'button',
-        value: 'my-tezos-btn'
-    },
-    {
-        kind: 'chamber',
-        group: 'Chambers',
-        title: 'Network Pulse',
-        detail: 'Open the full field of live Tezos stats by category',
-        badge: 'chamber',
-        action: 'hash',
-        value: '#pulse'
-    },
-    {
-        kind: 'chamber',
-        group: 'Chambers',
-        title: 'Network Health',
-        detail: 'Blocks, Octez versions, missed rights, consensus lens',
-        badge: 'chamber',
-        action: 'hash',
-        value: '#health'
-    },
-    {
-        kind: 'chamber',
-        group: 'Chambers',
-        title: 'Ledger Flow',
-        detail: 'Map sent, received, and first-funding paths around an account',
-        badge: 'chamber',
-        action: 'hash',
-        value: '#ledger-flow'
-    },
-    {
-        kind: 'chamber',
-        group: 'Chambers',
-        title: 'Liquidity Baking',
-        detail: 'LB votes, EMA threshold, and protocol-level liquidity lore',
-        badge: 'chamber',
-        action: 'hash',
-        value: '#lb'
-    },
+const RUNTIME_STARTER_ROWS = [
     {
         kind: 'contract',
         group: 'Contracts & Operations',
@@ -193,6 +127,9 @@ function shouldSearchBakers(query) {
     const q = normalizeQuery(query);
     if (q.length < 2 || q.startsWith('/')) return false;
     if (ADDRESS_RE.test(q) || TEZ_DOMAIN_RE.test(q) || OPERATION_RE.test(q) || BLOCK_HASH_RE.test(q) || BLOCK_LEVEL_RE.test(q)) return false;
+    if (specializedMaxisResults(q).length || searchSiteMap(q).length) return false;
+    if (RUNTIME_COMMANDS.some((command) => matchesQuery(commandResult(command), q))) return false;
+    if (protocols.some((protocol) => matchesQuery(protocolResult(protocol), q))) return false;
     return true;
 }
 
@@ -259,31 +196,70 @@ function commandResult(command) {
     };
 }
 
-function siteMapResult(entry) {
+function siteMapResult(entry, { starter = false } = {}) {
     const rootHashEntry = entry.hash && (entry.href === '/' || entry.href.startsWith('/#'));
+    const buttonTarget = SITE_MAP_BUTTON_TARGETS.get(entry.id);
+    const route = siteMapRoute(entry);
     return {
         kind: entry.group === 'Guides' ? 'guide' : entry.group === 'Story Rooms' ? 'story' : 'page',
-        group: 'Pages on tezos.systems',
+        group: starter ? 'Start here' : 'Pages on tezos.systems',
         title: entry.title,
         detail: entry.detail,
         badge: entry.group,
-        action: rootHashEntry ? 'hash' : 'page',
-        value: rootHashEntry ? entry.hash : entry.href,
-        hash: rootHashEntry ? null : entry.hash,
+        action: buttonTarget ? 'button' : rootHashEntry ? 'hash' : 'page',
+        value: buttonTarget || (rootHashEntry ? entry.hash : route),
         aliases: entry.keywords
     };
 }
 
-function chamberResult(chamber) {
+function maxisViewResult(view) {
+    const copy = {
+        season: {
+            title: 'Tezos Maxis Season',
+            detail: 'Open the current protocol-season race, moving ranks, cut lines, and honors',
+            badge: 'season'
+        },
+        passport: {
+            title: 'Maxi Passport',
+            detail: 'Open address-bound career stamps and current protocol-season progress',
+            badge: 'passport'
+        },
+        champions: {
+            title: 'Tezos Maxis Champions',
+            detail: 'Open permanent finalized protocol-season winners and frozen receipts',
+            badge: 'champions'
+        }
+    }[view];
     return {
-        kind: 'chamber',
-        group: 'Governance & Chambers',
-        title: chamber.title,
-        detail: chamber.detail,
-        badge: chamber.id === 'chamber' ? 'governance' : 'chamber',
-        action: 'hash',
-        value: chamber.hash,
-        aliases: chamber.aliases
+        kind: 'page',
+        group: 'Tezos Maxis',
+        title: copy.title,
+        detail: copy.detail,
+        badge: copy.badge,
+        action: 'page',
+        value: `/maxis/?view=${view}`,
+        aliases: ['tezos maxis', 'maxis', view]
+    };
+}
+
+function specializedMaxisResults(query) {
+    const q = normalizeQuery(query).toLowerCase().replace(/^\//, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ');
+    if (!q) return [];
+    if (/\bpassport\b/.test(q)) return [maxisViewResult('passport')];
+    if (/\bchampions?\b/.test(q)) return [maxisViewResult('champions')];
+    if (/\bseason\b/.test(q)) return [maxisViewResult('season')];
+    return [];
+}
+
+function maxiPassportEntityResult(target, group = 'Maxis & Identity') {
+    return {
+        kind: 'page',
+        group,
+        title: `Open ${target} in Maxi Passport`,
+        detail: 'Resolve one address into career stamps, ongoing crowns, and current-season progress',
+        badge: 'passport',
+        action: 'page',
+        value: `/maxis/?view=passport&address=${encodeURIComponent(target)}`
     };
 }
 
@@ -339,7 +315,7 @@ function entityResults(query) {
             return [
                 {
                     kind: 'contract',
-                    group: 'Contracts',
+                    group: 'Contract actions',
                     title: 'Inspect KT1 contract',
                     detail: `${q} · native balance, activity, and account-flow view`,
                     badge: 'contract',
@@ -348,7 +324,7 @@ function entityResults(query) {
                 },
                 {
                     kind: 'chamber',
-                    group: 'Governance & Chambers',
+                    group: 'Contract actions',
                     title: 'Open in Ledger Flow',
                     detail: 'Map sent, received, and first-funding transfer paths',
                     badge: 'flow',
@@ -360,7 +336,7 @@ function entityResults(query) {
         return [
             {
                 kind: 'account',
-                group: 'Bakers & Accounts',
+                group: 'Account actions',
                 title: 'Inspect account',
                 detail: `${q} · native balance, identity, and recent flow`,
                 badge: 'account',
@@ -369,16 +345,17 @@ function entityResults(query) {
             },
             {
                 kind: 'account',
-                group: 'Bakers & Accounts',
+                group: 'Account actions',
                 title: 'Track as My Tezos',
                 detail: `${q} · save this as your My Tezos account`,
                 badge: 'account',
                 action: 'hash',
                 value: `#my-baker=${encodeURIComponent(q)}`
             },
+            maxiPassportEntityResult(q, 'Account actions'),
             {
                 kind: 'chamber',
-                group: 'Governance & Chambers',
+                group: 'Account actions',
                 title: 'Open in Ledger Flow',
                 detail: 'Map sent, received, and first-funding transfer paths',
                 badge: 'flow',
@@ -387,7 +364,7 @@ function entityResults(query) {
             },
             {
                 kind: 'baker',
-                group: 'Bakers & Accounts',
+                group: 'Account actions',
                 title: 'Try as baker profile',
                 detail: 'If this address bakes, open its operator drawer',
                 badge: 'baker',
@@ -402,16 +379,17 @@ function entityResults(query) {
         return [
             {
                 kind: 'chamber',
-                group: 'Domains & Identity',
+                group: 'Domain actions',
                 title: `Check ${domain} in Tezos Domains`,
                 detail: 'Lookup availability, owner, offers, auctions, and recent name activity',
                 badge: '.tez',
                 action: 'hash',
                 value: `#domains=${encodeURIComponent(domain)}`
             },
+            maxiPassportEntityResult(domain, 'Domain actions'),
             {
                 kind: 'account',
-                group: 'Bakers & Accounts',
+                group: 'Domain actions',
                 title: `Track ${domain} as My Tezos`,
                 detail: 'Resolve Tezos Domains name and make it easy to change later',
                 badge: '.tez',
@@ -420,7 +398,7 @@ function entityResults(query) {
             },
             {
                 kind: 'chamber',
-                group: 'Governance & Chambers',
+                group: 'Domain actions',
                 title: `Open ${domain} in Ledger Flow`,
                 detail: 'Resolve this Tezos Domains name and map account transfers',
                 badge: 'flow',
@@ -429,7 +407,7 @@ function entityResults(query) {
             },
             {
                 kind: 'baker',
-                group: 'Bakers & Accounts',
+                group: 'Domain actions',
                 title: `Try ${domain} as baker`,
                 detail: 'Resolve domain and open baker profile if active',
                 badge: 'baker',
@@ -482,7 +460,7 @@ function starterResults(query) {
     const key = normalizeQuery(query).toLowerCase().replace(/\s+/g, ' ');
     const title = STARTER_QUERY_RESULTS.get(key);
     if (!title) return [];
-    const result = EMPTY_STATE_ROWS.find((row) => row.title === title);
+    const result = RUNTIME_STARTER_ROWS.find((row) => row.title === title);
     return result ? [result] : [];
 }
 
@@ -534,7 +512,7 @@ function themeResults(query) {
 function dedupeResults(results) {
     const seen = new Set();
     return results.filter((result) => {
-        const key = `${result.kind}:${result.title}:${result.value || ''}`;
+        const key = `${result.action || result.kind}:${result.value || result.title}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -547,22 +525,23 @@ function buildResults(query) {
     const bakerLoading = shouldSearchBakers(q) && !bakerSearchCache.has(bakerSearchKey(q)) && bakerSearchInFlight.has(bakerSearchKey(q))
         ? [bakerLoadingResult(q)]
         : [];
-    const protocolMatches = protocols
+    const protocolMatches = (q.startsWith('/') ? [] : protocols)
         .slice()
         .reverse()
         .map(protocolResult)
         .filter((result) => matchesQuery(result, q));
-    const commandMatches = COMMANDS.map(commandResult).filter((result) => matchesQuery(result, q));
-    const chamberMatches = CHAMBERS.map(chamberResult).filter((result) => matchesQuery(result, q));
+    const commandMatches = RUNTIME_COMMANDS.map(commandResult).filter((result) => matchesQuery(result, q));
     const siteMapMatches = searchSiteMap(q).map(siteMapResult);
     const entityMatches = entityResults(q);
     const themeMatches = themeResults(q);
     const starterMatches = starterResults(q);
+    const maxisMatches = specializedMaxisResults(q);
 
     if (!q) {
         return dedupeResults([
-            ...EMPTY_STATE_ROWS,
-            commandResult(COMMANDS.find((command) => command.id === 'theme'))
+            ...siteMapStarters().map((entry) => siteMapResult(entry, { starter: true })),
+            ...RUNTIME_STARTER_ROWS,
+            commandResult(RUNTIME_COMMANDS.find((command) => command.id === 'theme'))
         ].filter(Boolean));
     }
 
@@ -570,9 +549,9 @@ function buildResults(query) {
         ...entityMatches,
         ...themeMatches,
         ...starterMatches,
-        ...siteMapMatches.slice(0, 6),
+        ...maxisMatches,
+        ...siteMapMatches.slice(0, 8),
         ...protocolMatches.slice(0, 5),
-        ...chamberMatches.slice(0, 4),
         ...commandMatches.slice(0, 4),
         ...bakerMatches,
         ...bakerLoading
@@ -595,6 +574,10 @@ function groupedResults(results) {
         group.results.push(result);
     }
     return groups;
+}
+
+function groupOrderedResults(results) {
+    return groupedResults(results).flatMap((group) => group.results);
 }
 
 function resultHtml(result, index, selectedIndex) {
@@ -650,20 +633,13 @@ function runResult(result) {
         return true;
     }
     if (result.action === 'page') {
-        if (result.hash && result.value === '/') {
-            navigateHash(result.hash);
-            return true;
-        }
-        window.location.href = result.hash ? `${result.value}${result.hash}` : result.value;
+        window.location.href = result.value;
         return true;
     }
     if (result.action === 'button') {
-        document.getElementById(result.value)?.click();
-        return true;
-    }
-    if (result.action === 'hen') {
-        window.history.replaceState(null, '', '/?hen=1');
-        if (window.HenMode?.activate) window.HenMode.activate();
+        const button = document.getElementById(result.value);
+        if (!button) return false;
+        button.click();
         return true;
     }
     if (result.action === 'protocol') {
@@ -712,12 +688,17 @@ export function initHeroSearch() {
 
     const renderQuickChips = () => {
         const liveChip = livePulseChip();
-        const chipList = liveChip ? [liveChip, ...QUICK_CHIPS] : QUICK_CHIPS;
+        const chipList = [
+            ...(liveChip ? [liveChip] : []),
+            ...siteMapSearchChips(),
+            ...RUNTIME_QUICK_CHIPS
+        ];
         chips.innerHTML = chipList.map((chip) => {
             const attr = chip.route
                 ? `data-hero-route="${escapeHtml(chip.route)}"`
                 : `data-hero-query="${escapeHtml(chip.value)}"`;
-            return `<button class="hero-search-chip" type="button" ${attr}>${escapeHtml(chip.label)}</button>`;
+            const entryAttr = chip.id ? ` data-hero-entry="${escapeHtml(chip.id)}"` : '';
+            return `<button class="hero-search-chip" type="button" ${attr}${entryAttr}>${escapeHtml(chip.label)}</button>`;
         }).join('');
     };
 
@@ -765,7 +746,7 @@ export function initHeroSearch() {
 
     const render = () => {
         queueBakerLookup(input.value);
-        results = buildResults(input.value);
+        results = groupOrderedResults(buildResults(input.value));
         if (selectedIndex >= results.length) selectedIndex = results.length ? 0 : -1;
         if (selectedIndex < 0 && normalizeQuery(input.value) && results.length) selectedIndex = 0;
 
@@ -887,7 +868,9 @@ export function initHeroSearch() {
     chips.addEventListener('click', (event) => {
         const routeChip = event.target.closest('[data-hero-route]');
         if (routeChip) {
-            runRoute(routeChip.dataset.heroRoute || '');
+            const buttonTarget = SITE_MAP_BUTTON_TARGETS.get(routeChip.dataset.heroEntry || '');
+            if (buttonTarget) document.getElementById(buttonTarget)?.click();
+            else runRoute(routeChip.dataset.heroRoute || '');
             setOpen(false);
             return;
         }
