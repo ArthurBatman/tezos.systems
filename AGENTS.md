@@ -150,7 +150,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v421`
+- Service worker cache name: `tezos-systems-v422`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -269,8 +269,10 @@ Stamping gotchas:
 ## UI and Effects
 
 - `js/ui/theme.js`: theme registry, picker, first-visit landing redirect.
-- `js/ui/wayfinder.js`: injects semantic next steps into chamber overlays that
-  do not already provide a native adjacent-room map.
+- `js/ui/wayfinder.js`: injects four semantic next steps into chamber overlays
+  that do not already provide a native adjacent-room map. Keep contextual
+  recommendations visible, but keep exhaustive directories behind an explicit
+  disclosure on standalone/mobile surfaces.
 - `js/ui/share.js`: html2canvas-powered branded 1200x630 captures, tweet
   picker, card/dashboard/protocol/history sharing.
 - `js/ui/gauge.js`: Stake-O-Meter canvas gauge.

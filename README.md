@@ -439,7 +439,10 @@ inline modal styles in `js/core/app.js`.
   Passport, Champions, and lane queries preserve their room state, and pasted
   addresses or `.tez` names also expose a scoped Maxi Passport path. Baker-name
   searches hydrate from active leaderboard data, while TzKT remains available
-  from native receipts as an audit trail.
+  from native receipts as an audit trail. Blank search stays intentionally
+  compact with eight useful starting points; the `All 47` chip explicitly opens
+  the complete manifest directory without making every search session begin in
+  an atlas.
 - Protocol History Chamber with direct `#protocol-history` access, backed by
   `data/protocol-data.json` and `data/protocol-debates.json`. It preserves the
   protocol timeline, individual protocol lore modals, share capture, and impact
@@ -451,19 +454,20 @@ inline modal styles in `js/core/app.js`.
   visible as a protocol-history chapter and DAL follow-up, but it is not counted
   as a separate self-amendment total, so public upgrade counts show 21 while the
   archive still has 22 protocol records.
-- Tezos Loop Console near the bottom of the dashboard is a live lower-page map.
-  Wallet, Earn, Build, Collect, Governance, and Market lanes still teach search
-  recipes, but their primary destination and semantic next steps now resolve
-  through the canonical site map. Newly added rooms therefore enter the loop
-  without another hand-maintained destination catalog.
+- The compact Tezos Loop Console near the bottom of the dashboard starts from
+  a wallet, baker, contract, collectible, governance, or market intent without
+  repeating those six recipes as a second card grid. Its primary destination
+  and semantic next steps resolve through the canonical site map, so newly
+  added rooms enter the loop without another hand-maintained catalog.
 - The footer renders Dashboard plus every canonical Story Room, Live Room,
   Account Room, live signal, guide, tool, and culture/feed destination instead
   of a handpicked subset. Crawlable comparison/widget pages and the core Maxis
-  rooms appear as nested views under their parent destination. Expanded
-  Chambers add a shared `Continue exploring` rail when the room does not already
-  own an adjacent-room map; native Network Pulse and Staking maps retain the
-  same full-map/search exits, and full internal routes prevent modal stacks
-  during room-to-room navigation.
+  rooms appear as nested views under their parent destination. The Dashboard
+  keeps that atlas expanded; standalone pages preserve it behind a local
+  `Browse all 47 destinations` disclosure. Expanded Chambers add four semantic
+  next steps, and native Network Pulse and Staking now use the same four-link
+  model plus quiet Chambers/search exits. Full internal routes prevent modal
+  stacks during room-to-room navigation.
 - Tezos L1 Governance for live and historical amendment voting, including a
   current-stage chronological ballot feed and the bottom historical vote log
   sourced from `data/governance-votes.json`. The command deck does not carry a
@@ -842,7 +846,9 @@ SEO and standalone pages:
 - `compare/tezos-vs-algorand.html`
 
 These pages, the welcome page, HEN gateway, 404 page, and widget builder all
-render contextual next steps plus the same complete manifest-backed footer map.
+render contextual next steps plus a collapsed, on-demand copy of the complete
+manifest-backed footer map. Contextual recommendations stay visible; the atlas
+does not consume the page until a visitor requests it.
 Comparison rails live outside `#compare-content` so static and browser-side
 comparison regeneration cannot erase them.
 

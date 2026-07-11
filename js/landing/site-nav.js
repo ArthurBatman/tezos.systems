@@ -99,6 +99,11 @@ function relatedCardHtml(entry) {
     `;
 }
 
+function hasFollowingFooter(container) {
+    return Array.from(document.querySelectorAll('[data-site-footer], .landing-footer'))
+        .some((footer) => Boolean(container.compareDocumentPosition(footer) & 4));
+}
+
 function renderCirculation() {
     document.querySelectorAll('[data-site-circulation]').forEach((container) => {
         const current = contextEntry(container);
@@ -106,6 +111,12 @@ function renderCirculation() {
         const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 2), 6) : 4;
         const entries = relatedEntries(current, limit);
         const headingId = `site-circulation-title-${++headingSequence}`;
+        const discoveryActions = hasFollowingFooter(container) ? '' : `
+            <nav class="site-map-cta site-wayfinder-actions" aria-label="Tezos Systems discovery tools">
+                <a href="/#search">Search everything</a>
+                <a href="/#site-map">Full map</a>
+            </nav>
+        `;
         container.classList.add('site-map-related', 'site-wayfinder');
         container.setAttribute('aria-labelledby', headingId);
         container.innerHTML = `
@@ -114,10 +125,7 @@ function renderCirculation() {
                     <span class="site-map-kicker">Keep exploring</span>
                     <h2 id="${headingId}">${escapeHtml(current ? `Next from ${current.title}` : 'Choose your next Tezos path')}</h2>
                 </div>
-                <nav class="site-map-cta site-wayfinder-actions" aria-label="Tezos Systems discovery tools">
-                    <a href="/#search">Search everything</a>
-                    <a href="/#site-map">Full map</a>
-                </nav>
+                ${discoveryActions}
             </div>
             <div class="site-map-related-grid site-wayfinder-grid">
                 ${entries.map(relatedCardHtml).join('')}
@@ -172,6 +180,10 @@ function renderFooter() {
         renderedFooters.add(footer);
         const current = contextEntry(footer);
         const attribution = originalAttributionHtml(footer) || defaultAttributionHtml();
+        const destinationCount = SITE_MAP.reduce(
+            (count, entry) => count + 1 + siteMapDirectoryChildren(entry).length,
+            0
+        );
         footer.classList.add('site-map-shell', 'site-map-footer');
         footer.setAttribute('data-site-footer', 'true');
         footer.innerHTML = `
@@ -182,12 +194,17 @@ function renderFooter() {
                 </div>
                 <nav class="site-map-cta" aria-label="Tezos Systems discovery tools">
                     <a href="/#search">Search everything</a>
-                    <a href="/#site-map">Full map</a>
                 </nav>
             </div>
-            <nav class="site-map-grid" aria-label="Complete Tezos Systems map">
-                ${SITE_MAP_NAV_GROUPS.map((label) => footerGroupHtml(label, current)).join('')}
-            </nav>
+            <details class="site-map-disclosure">
+                <summary>
+                    <span class="site-map-disclosure-label">Browse all ${destinationCount} destinations</span>
+                    <span class="site-map-disclosure-hint">Rooms, guides, tools, views, widgets, and feeds</span>
+                </summary>
+                <nav class="site-map-grid" aria-label="Complete Tezos Systems map">
+                    ${SITE_MAP_NAV_GROUPS.map((label) => footerGroupHtml(label, current)).join('')}
+                </nav>
+            </details>
             <div class="site-map-footer-base" data-site-footer-attribution>${attribution}${legalAttributionHtml()}</div>
         `;
     });

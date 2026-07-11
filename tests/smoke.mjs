@@ -3249,12 +3249,14 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(focusModeState.mainPointerEvents === 'none', `hero command bar: background chambers should not sit above active search, pointer events ${focusModeState.mainPointerEvents}`);
   assert(focusModeState.commandDeckZ >= 3000 && focusModeState.panelZ > focusModeState.commandDeckZ, `hero command bar: search layer z-index mismatch ${JSON.stringify(focusModeState)}`);
   const emptyStateText = await page.locator('#hero-search-panel').innerText();
+  const emptyStateOptions = await page.locator('#hero-search-panel [role="option"]').count();
   assert(/my tezos/i.test(emptyStateText) && /network pulse/i.test(emptyStateText) && /staking chamber/i.test(emptyStateText) && /tezos maxis/i.test(emptyStateText) && /network health/i.test(emptyStateText), `hero command bar: manifest starter rows are incomplete: ${emptyStateText}`);
-  assert(/destinations, one search/i.test(emptyStateText) && /browse every room and tool/i.test(emptyStateText) && /Press \/ from anywhere/i.test(emptyStateText), `hero command bar: complete browse guide missing: ${emptyStateText}`);
-  for (const representative of ['Protocol Anthology', 'Ledger Flow', 'XTZ Market Watch', 'Staking Guide', 'Tezos Chambers', 'HEN Live Feed', '/changelog']) {
-    assert(emptyStateText.includes(representative), `hero command bar: complete browse index is missing ${representative}`);
-  }
+  assert(emptyStateOptions === 8, `hero command bar: compact blank search should render 8 starters, saw ${emptyStateOptions}`);
+  assert(/Start from anything/i.test(emptyStateText) && /complete directory/i.test(emptyStateText) && /Press \/ from anywhere/i.test(emptyStateText), `hero command bar: compact starter guide missing: ${emptyStateText}`);
+  assert(!/Governance RSS/.test(emptyStateText), `hero command bar: blank search should not expand the exhaustive directory: ${emptyStateText}`);
   const chipLabels = await page.locator('#hero-search-chips .hero-search-chip').allTextContents();
+  const browseAllLabel = chipLabels.find((label) => /^All \d+$/.test(label));
+  const destinationCount = Number.parseInt(browseAllLabel?.match(/\d+/)?.[0] || '', 10);
   assert(
     chipLabels.includes('Wallet or .tez')
       && chipLabels.includes('/pulse')
@@ -3266,6 +3268,15 @@ async function smokeHeroCommandBar(browser, baseUrl) {
       && !chipLabels.some((label) => /Wallet\/\.tez/i.test(label)),
     `hero command bar: manifest quick chips are incomplete: ${chipLabels.join(', ')}`
   );
+  assert(Number.isFinite(destinationCount) && destinationCount > 0, `hero command bar: invalid complete-directory count: ${browseAllLabel}`);
+  await page.locator('#hero-search-chips [data-hero-browse-all="true"]').click();
+  await page.waitForFunction((expected) => (document.querySelector('#hero-search-panel')?.textContent || '').includes(`All ${expected} destinations`), destinationCount, { timeout: 5000 });
+  const browseAllText = await page.locator('#hero-search-panel').innerText();
+  const browseAllOptions = await page.locator('#hero-search-panel [role="option"]').count();
+  assert(browseAllOptions === destinationCount, `hero command bar: complete directory rendered ${browseAllOptions} of ${destinationCount} canonical destinations`);
+  for (const representative of ['Protocol Anthology', 'Ledger Flow', 'XTZ Market Watch', 'Staking Guide', 'Tezos Chambers', 'HEN Live Feed', 'Governance RSS', 'XTZ Price Widget']) {
+    assert(browseAllText.includes(representative), `hero command bar: explicit complete directory is missing ${representative}`);
+  }
   const rankedSearchIntents = [
     ['my tezos', 'My Tezos'],
     ['wallet', 'My Tezos'],
@@ -3370,21 +3381,21 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.waitForFunction(() => window.location.hash === '#calculator', null, { timeout: 5000 });
   await page.locator('#calculator-section.visible').waitFor({ state: 'visible', timeout: 5000 });
 
-  await page.locator('.recruit-card[data-hero-query="my tezos"]').scrollIntoViewIfNeeded();
+  await page.locator('#tezos-loop-console').scrollIntoViewIfNeeded();
   const loopGuideText = await page.locator('#tezos-loop-console').innerText();
-  assert(/Search is the map/i.test(loopGuideText) && /KT1/i.test(loopGuideText) && /\/price/i.test(loopGuideText), `hero command bar: loop console should explain search inputs: ${loopGuideText}`);
-  await page.locator('.recruit-card[data-hero-query="my tezos"]').click();
+  assert(/Start from anything/i.test(loopGuideText) && /KT1/i.test(loopGuideText) && /\/price/i.test(loopGuideText), `hero command bar: compact loop console should explain search inputs: ${loopGuideText}`);
+  await page.locator('#tezos-loop-search').click();
   await page.waitForFunction(() => document.activeElement?.id === 'hero-search-input', null, { timeout: 5000 });
   await page.waitForFunction(() => /My Tezos/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
-  assert((await page.locator('#hero-search-input').inputValue()).toLowerCase() === 'my tezos', 'hero command bar: recruit card should seed My Tezos query');
+  assert((await page.locator('#hero-search-input').inputValue()).toLowerCase() === 'my tezos', 'hero command bar: compact loop action should seed My Tezos query');
   const loopState = await page.evaluate(() => ({
     aura: document.querySelector('#tezos-loop-console')?.dataset.aura || '',
     title: document.querySelector('#tezos-loop-title')?.textContent || '',
     activeCards: document.querySelectorAll('.recruit-card.is-active').length,
     activeChips: document.querySelectorAll('.tezos-loop-chip.active').length
   }));
-  assert(loopState.aura === 'holder' && /Search is the map/i.test(loopState.title), `hero command bar: Tezos loop holder state mismatch ${JSON.stringify(loopState)}`);
-  assert(loopState.activeCards === 1 && loopState.activeChips === 1, `hero command bar: Tezos loop active state mismatch ${JSON.stringify(loopState)}`);
+  assert(loopState.aura === 'holder' && /Start from anything/i.test(loopState.title), `hero command bar: Tezos loop holder state mismatch ${JSON.stringify(loopState)}`);
+  assert(loopState.activeCards === 0 && loopState.activeChips === 1, `hero command bar: compact Tezos loop state mismatch ${JSON.stringify(loopState)}`);
 
   const intentPage = await context.newPage();
   attachIssueCollectors(intentPage, 'hero command bar exact intents', issues);
@@ -3740,7 +3751,9 @@ async function smokeStakingChamber(browser, baseUrl) {
     directHref: document.querySelector('.staking-method-panel a[href="/stake/"]')?.getAttribute('href') || '',
     flow: Object.fromEntries(Array.from(document.querySelectorAll('[data-staking-flow]')).map((node) => [node.dataset.stakingFlow, node.textContent?.replace(/\s+/g, ' ').trim()])),
     method: document.querySelector('.staking-method-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    title: document.querySelector('#staking-chamber-title')?.textContent?.trim() || ''
+    title: document.querySelector('#staking-chamber-title')?.textContent?.trim() || '',
+    wayfinderLinks: document.querySelectorAll('[data-staking-wayfinder] .site-wayfinder-link').length,
+    wayfinderActions: Array.from(document.querySelectorAll('[data-staking-wayfinder] .site-wayfinder-actions a')).map((link) => link.getAttribute('href'))
   }));
   assert(roomState.title === 'Staking Chamber' && roomState.currentRatio === '27.62%', `${label}: opened room is missing its title or current ratio ${JSON.stringify(roomState)}`);
   assert(roomState.actionIds.length === 4 && new Set(roomState.actionIds).size === 4, `${label}: complete archive should contain the four unique strict-threshold fixtures ${JSON.stringify(roomState.actionIds)}`);
@@ -3749,6 +3762,7 @@ async function smokeStakingChamber(browser, baseUrl) {
   assert(/25\.5K ꜩ.*1 operations/.test(roomState.flow.stake || '') && /32\.0K ꜩ.*1 operations/.test(roomState.flow.unstake || '') && /−6\.5K ꜩ.*Explicit operations only/.test(roomState.flow.net || ''), `${label}: 24h gross/net operation flow is wrong ${JSON.stringify(roomState.flow)}`);
   assert(/Strictly over 10,000 ꜩ/.test(roomState.method) && /actual processed amount/.test(roomState.method) && /Exactly 10,000 ꜩ is excluded/.test(roomState.method), `${label}: strict actual-amount method disclosure is incomplete ${roomState.method}`);
   assert(roomState.directHref === '/stake/', `${label}: direct pretty route link is wrong ${roomState.directHref}`);
+  assert(roomState.wayfinderLinks === 4 && roomState.wayfinderActions.join(',') === '/#chambers,/#search', `${label}: compact semantic wayfinder is wrong ${JSON.stringify(roomState)}`);
 
   const compactRequests = requests.filter((entry) => entry.select === 'id,timestamp,amount');
   assert(compactRequests.length >= 6 && compactRequests.every((entry) => !entry.select.includes('requestedAmount')), `${label}: archive/launcher must request compact actual-amount receipts ${JSON.stringify(compactRequests)}`);
@@ -3862,6 +3876,14 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
     `${label}: history-backed lower row did not hydrate: ${JSON.stringify(state.values)}`
   );
 
+  await page.locator('#network-pulse-entry-card').click();
+  await page.locator('#network-pulse-modal.active [data-network-pulse-section="rooms"]').waitFor({ state: 'visible', timeout: 10000 });
+  const pulseWayfinder = await page.evaluate(() => ({
+    roomCards: document.querySelectorAll('#network-pulse-modal.active [data-network-pulse-room]').length,
+    actions: Array.from(document.querySelectorAll('#network-pulse-modal.active [data-network-pulse-section="rooms"] .site-wayfinder-actions a')).map((link) => link.getAttribute('href'))
+  }));
+  assert(pulseWayfinder.roomCards === 4 && pulseWayfinder.actions.join(',') === '/#chambers,/#search', `${label}: compact semantic room map is wrong ${JSON.stringify(pulseWayfinder)}`);
+
   await context.close();
   assert(issues.length === 0, `${label}: browser issues:\n${issues.join('\n')}`);
   log('ok - network pulse launcher smoke');
@@ -3949,7 +3971,9 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await openDropdown(page, '#features-gear', '#features-dropdown');
   await expectCount(page, '#features-dropdown.feature-launcher', 1, label);
   await expectCount(page, '#features-dropdown .feature-launcher-group', 7, label);
-  await expectCount(page, '#features-dropdown button.feature-copy-link', 11, label);
+  await expectCount(page, '#features-dropdown button.feature-copy-link', 10, label);
+  await expectCount(page, '#features-dropdown .feature-launcher-directory-link[href="/#site-map"]', 1, label);
+  await expectCount(page, '#features-dropdown #search-everything-feature-link', 0, label);
   await expectCount(page, '#features-dropdown #chambers-toggle', 1, label);
   await expectCount(page, '#features-dropdown .feature-copy-link[data-copy-hash="#chambers"]', 1, label);
   await expectCount(page, '#features-dropdown #domains-feature-link[href="/domains/"]', 1, label);
@@ -8157,7 +8181,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   const tourSteps = [
     { selector: '#top-continuity-history', label: 'uptime proof step', snippets: ['Start with live proof', 'uptime badge', 'Protocol Anthology'] },
     { selector: '#block-ticker-button', label: 'block ticker step', snippets: ['Read the latest head', 'Network Health Chamber'] },
-    { selector: '#hero-search-form', label: 'command bar step', snippets: ['Search is the map', 'Press /', 'Chamber'] },
+    { selector: '#hero-search-form', label: 'command bar step', snippets: ['Find anything', 'Press /', 'Chamber'] },
     { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Chambers explain the chain', 'Protocol Anthology'] },
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
     { selector: '#tezos-loop-chips', label: 'loop console step', snippets: ['Use the recipe console', 'Market lanes'] },
@@ -8269,7 +8293,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   });
   await page.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 6000 });
   const nudgeText = await page.locator('.tour-nudge').innerText();
-  assert(/Need a map/i.test(nudgeText) && /Help is available/i.test(nudgeText) && /Show help/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
+  assert(/Need a hand/i.test(nudgeText) && /Help is available/i.test(nudgeText) && /Show help/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
   await assertLocatorCount(page.locator('.tour-nudge .tour-start'), 1, 'first visit tour start');
   await page.locator('#features-gear').click();
   await page.locator('#features-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
@@ -9555,6 +9579,19 @@ async function smokeStandaloneLinks(browser, baseUrl) {
       checkedTargets.set(pathWithSearch, { route, text: link.text });
     }
   }
+
+  const disclosureResponse = await page.goto(`${baseUrl}/staking/`, { waitUntil: 'domcontentloaded' });
+  assert(disclosureResponse?.ok(), 'standalone links: staking disclosure route failed');
+  const disclosure = page.locator('.site-map-footer .site-map-disclosure');
+  await disclosure.waitFor({ state: 'visible', timeout: 5000 });
+  assert((await disclosure.getAttribute('open')) === null, 'standalone links: exhaustive directory should start collapsed');
+  const disclosureLabel = await disclosure.locator('summary').innerText();
+  const disclosureCount = Number.parseInt(disclosureLabel.match(/Browse all (\d+) destinations/)?.[1] || '', 10);
+  assert(Number.isFinite(disclosureCount) && disclosureCount > 0, `standalone links: invalid disclosure count: ${disclosureLabel}`);
+  await disclosure.locator('summary').click();
+  assert((await disclosure.getAttribute('open')) !== null, 'standalone links: directory disclosure did not open');
+  const disclosedLinks = await disclosure.locator('.site-map-link, .site-map-sublink').count();
+  assert(disclosedLinks === disclosureCount, `standalone links: opened directory rendered ${disclosedLinks} of ${disclosureCount} canonical destinations`);
 
   assert(unsafeHrefs.length === 0, `standalone links: unsafe local/file hrefs found:\n${unsafeHrefs.join('\n')}`);
   assert(checkedTargets.size >= 12, `standalone links: expected broad first-party link coverage, saw ${checkedTargets.size}`);

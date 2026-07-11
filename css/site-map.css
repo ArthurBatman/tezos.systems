@@ -171,6 +171,67 @@
     gap: 10px;
 }
 
+.site-map-footer .site-map-disclosure {
+    margin: 0;
+}
+
+.site-map-footer .site-map-disclosure > summary {
+    min-height: 54px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 3px 16px;
+    padding: 11px 14px;
+    border: 1px solid var(--site-map-border);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--site-map-panel) 78%, transparent);
+    color: var(--site-map-text);
+    cursor: pointer;
+    list-style: none;
+}
+
+.site-map-footer .site-map-disclosure > summary::-webkit-details-marker {
+    display: none;
+}
+
+.site-map-footer .site-map-disclosure > summary::after {
+    content: "+";
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    color: var(--site-map-accent);
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.site-map-footer .site-map-disclosure[open] > summary::after {
+    content: "−";
+}
+
+.site-map-footer .site-map-disclosure > summary:hover,
+.site-map-footer .site-map-disclosure > summary:focus-visible {
+    border-color: color-mix(in srgb, var(--site-map-accent) 70%, var(--site-map-border));
+    outline: none;
+}
+
+.site-map-footer .site-map-disclosure-label {
+    color: var(--site-map-text);
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.site-map-footer .site-map-disclosure-hint {
+    grid-column: 1;
+    color: var(--site-map-dim);
+    font-size: 0.68rem;
+    line-height: 1.35;
+}
+
+.site-map-footer .site-map-disclosure > .site-map-grid {
+    margin-top: 10px;
+}
+
 .site-map-shell .site-map-group {
     min-width: 0;
     padding: 13px;
@@ -310,11 +371,16 @@
     margin-bottom: 28px;
 }
 
-.chamber-overlay .site-wayfinder[data-site-wayfinder] {
+.chamber-overlay [data-site-wayfinder],
+.chamber-overlay [data-site-wayfinder-native] {
     --site-wayfinder-accent: var(--accent, #45e0c8);
     --site-wayfinder-text: var(--text-primary, #e8edf7);
     --site-wayfinder-dim: var(--text-secondary, #93a0b5);
     --site-wayfinder-border: var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.chamber-overlay .site-wayfinder[data-site-wayfinder],
+.chamber-overlay .site-wayfinder[data-site-wayfinder-native] {
     width: min(100%, 1040px);
     margin: 18px auto 6px;
     padding: 16px;
@@ -324,7 +390,8 @@
     color: var(--site-wayfinder-text);
 }
 
-.chamber-overlay .site-wayfinder[data-site-wayfinder] * {
+.chamber-overlay .site-wayfinder[data-site-wayfinder] *,
+.chamber-overlay .site-wayfinder[data-site-wayfinder-native] * {
     box-sizing: border-box;
 }
 
@@ -457,7 +524,13 @@
         min-height: 0;
     }
 
-    .chamber-overlay .site-wayfinder[data-site-wayfinder] {
+    .site-map-footer .site-map-disclosure > summary {
+        min-height: 48px;
+        padding: 10px 12px;
+    }
+
+    .chamber-overlay .site-wayfinder[data-site-wayfinder],
+    .chamber-overlay .site-wayfinder[data-site-wayfinder-native] {
         margin-top: 14px;
         padding: 12px;
     }

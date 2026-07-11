@@ -24,7 +24,7 @@
         },
         {
             target: '#hero-search-form',
-            title: 'Search is the map',
+            title: 'Find anything',
             text: 'Press / from anywhere or paste a wallet address, .tez name, baker, KT1 contract, operation hash, block, protocol, Chamber, or slash command.',
         },
         {
@@ -388,7 +388,7 @@
         nudge.setAttribute('aria-label', 'Tezos Systems help');
         nudge.innerHTML =
             '<div>' +
-                '<strong>Need a map?</strong>' +
+                '<strong>Need a hand?</strong>' +
                 '<span>Start with live uptime proof, then use / search for wallet addresses, .tez names, bakers, KT1 contracts, blocks, operations, protocols, Chambers, and tools. Help is available when you want it.</span>' +
             '</div>' +
             '<div class="tour-nudge-actions">' +

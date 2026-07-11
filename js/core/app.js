@@ -110,7 +110,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=421';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=422';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -4276,7 +4276,7 @@ const TEZOS_LOOP_STORAGE_KEY = 'tezos-systems-loop-aura';
 const TEZOS_LOOP_AURAS = {
     holder: {
         entryId: 'my-tezos',
-        title: 'Search is the map.',
+        title: 'Start from anything.',
         line: 'Start from any Tezos receipt: wallet address, .tez name, baker, contract, operation, or block. My Tezos remembers the account and turns raw chain data into a daily state view.',
         query: 'my tezos',
         searchLabel: 'Try My Tezos',
@@ -4336,7 +4336,7 @@ function initTezosLoopConsole() {
 
     const chips = Array.from(consoleEl.querySelectorAll('.tezos-loop-chip[data-loop-aura]'));
     const cards = Array.from(consoleEl.querySelectorAll('.recruit-card[data-loop-aura]'));
-    if (!chips.length || !cards.length) return;
+    if (!chips.length) return;
 
     const getSavedAura = () => {
         try {

@@ -19,7 +19,7 @@ import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=421';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=422';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -510,7 +510,7 @@ function dedupeResults(results) {
     });
 }
 
-function buildResults(query) {
+function buildResults(query, { browseAll = false } = {}) {
     const q = normalizeQuery(query);
     const bakerMatches = cachedBakerResults(q);
     const bakerLoading = shouldSearchBakers(q) && !bakerSearchCache.has(bakerSearchKey(q)) && bakerSearchInFlight.has(bakerSearchKey(q))
@@ -531,12 +531,15 @@ function buildResults(query) {
     const starterMatches = starterResults(q);
 
     if (!q) {
+        if (browseAll) {
+            return dedupeResults([
+                ...siteMapBrowseEntries().map((entry) => siteMapResult(entry, { browse: true })),
+                ...siteMapBrowseIntents().map((intent) => siteMapIntentResult(intent, { browse: true }))
+            ]);
+        }
         return dedupeResults([
             ...siteMapStarters().map((entry) => siteMapResult(entry, { starter: true })),
-            ...RUNTIME_STARTER_ROWS,
-            ...RUNTIME_COMMANDS.map(commandResult),
-            ...siteMapBrowseEntries().map((entry) => siteMapResult(entry, { browse: true })),
-            ...siteMapBrowseIntents().map((intent) => siteMapIntentResult(intent, { browse: true }))
+            ...RUNTIME_STARTER_ROWS
         ].filter(Boolean));
     }
 
@@ -694,6 +697,7 @@ export function initHeroSearch() {
     ensureHeroSearchStyles();
 
     let isOpen = false;
+    let isBrowsingAll = false;
     let selectedIndex = -1;
     let results = [];
 
@@ -701,12 +705,14 @@ export function initHeroSearch() {
         const liveChip = livePulseChip();
         const chipList = [
             ...(liveChip ? [liveChip] : []),
-            { label: `All ${siteMapBrowseEntries().length + siteMapBrowseIntents().length}`, value: '' },
+            { label: `All ${siteMapBrowseEntries().length + siteMapBrowseIntents().length}`, browseAll: true },
             ...siteMapSearchChips(),
             ...RUNTIME_QUICK_CHIPS
         ];
         chips.innerHTML = chipList.map((chip) => {
-            const attr = chip.route
+            const attr = chip.browseAll
+                ? 'data-hero-browse-all="true"'
+                : chip.route
                 ? `data-hero-route="${escapeHtml(chip.route)}"`
                 : `data-hero-query="${escapeHtml(chip.value)}"`;
             const entryAttr = chip.id ? ` data-hero-entry="${escapeHtml(chip.id)}"` : '';
@@ -726,8 +732,10 @@ export function initHeroSearch() {
         input.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         if (isOpen && !wasOpen) window.dispatchEvent(new Event('hero-search-opened'));
         if (!isOpen) {
+            isBrowsingAll = false;
             selectedIndex = -1;
             root.classList.remove('has-query');
+            root.classList.remove('is-browsing-all');
             input.setAttribute('aria-activedescendant', '');
         }
     };
@@ -763,7 +771,8 @@ export function initHeroSearch() {
         if (!isOpen) return;
         queueBakerLookup(input.value);
         root.classList.toggle('has-query', Boolean(normalizeQuery(input.value)));
-        results = groupOrderedResults(buildResults(input.value));
+        root.classList.toggle('is-browsing-all', isBrowsingAll);
+        results = groupOrderedResults(buildResults(input.value, { browseAll: isBrowsingAll }));
         if (selectedIndex >= results.length) selectedIndex = results.length ? 0 : -1;
         if (selectedIndex < 0 && normalizeQuery(input.value) && results.length) selectedIndex = 0;
 
@@ -774,9 +783,12 @@ export function initHeroSearch() {
         }
 
         let index = 0;
+        const destinationCount = siteMapBrowseEntries().length + siteMapBrowseIntents().length;
         const guide = normalizeQuery(input.value)
             ? ''
-            : `<div class="hero-search-guide"><strong>All ${siteMapBrowseEntries().length + siteMapBrowseIntents().length} destinations, one search.</strong><span>Browse every room and tool below, including nested views, or paste a wallet, .tez name, baker, contract, operation, block, or protocol. Press / from anywhere.</span></div>`;
+            : isBrowsingAll
+                ? `<div class="hero-search-guide"><strong>All ${destinationCount} destinations.</strong><span>The complete Tezos Systems directory. Start typing to narrow it, or choose any room, guide, tool, view, widget, or feed.</span></div>`
+                : `<div class="hero-search-guide"><strong>Start from anything.</strong><span>Choose a useful starting point below, paste a wallet, .tez name, baker, contract, operation, block, or protocol, or open All ${destinationCount} for the complete directory. Press / from anywhere.</span></div>`;
         panel.innerHTML = guide + groupedResults(results).map((group) => {
             const rows = group.results.map((result) => resultHtml(result, index++, selectedIndex)).join('');
             return `
@@ -807,6 +819,7 @@ export function initHeroSearch() {
     };
 
     const applyQuery = (value) => {
+        isBrowsingAll = false;
         input.value = value || '';
         input.focus();
         setOpen(true);
@@ -846,6 +859,7 @@ export function initHeroSearch() {
 
     input.addEventListener('input', () => {
         if (!isOpen) setOpen(true);
+        isBrowsingAll = false;
         selectedIndex = -1;
         debouncedRender();
     });
@@ -897,6 +911,17 @@ export function initHeroSearch() {
     });
 
     chips.addEventListener('click', (event) => {
+        const browseAllChip = event.target.closest('[data-hero-browse-all]');
+        if (browseAllChip) {
+            input.value = '';
+            input.focus();
+            setOpen(true);
+            ensureProtocols();
+            isBrowsingAll = true;
+            selectedIndex = -1;
+            render();
+            return;
+        }
         const routeChip = event.target.closest('[data-hero-route]');
         if (routeChip) {
             const buttonTarget = SITE_MAP_BUTTON_TARGETS.get(routeChip.dataset.heroEntry || '');

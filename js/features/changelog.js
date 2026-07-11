@@ -7,7 +7,9 @@ const CHANGELOG = [
     {
         date: '2026-07-11',
         entries: [
-            { type: '✨', text: 'Every discovery surface now closes the loop: the complete map includes Dashboard plus nested Maxis, comparison, and widget views, Explore points to the full directory and search, and every semantic route can circle through the whole site' },
+            { type: '🎨', text: 'Discovery now unfolds progressively: contextual rails stay visible, standalone atlases collapse until requested, and Network Pulse and Staking show four meaningful next steps instead of twelve-room directories' },
+            { type: '🔧', text: 'Command search now opens with eight useful starting points, reveals the complete 47-destination directory only through All 47, and the lower start-anywhere console no longer repeats six recipe cards' },
+            { type: '✨', text: 'Every discovery surface now closes the loop: the complete map includes Dashboard plus nested Maxis, comparison, and widget views, Explore points to the full directory, and every semantic route can circle through the whole site' },
             { type: '🔧', text: 'Search, sitemap XML, canonical URLs, share and copy links, native Chamber maps, machine-readable feature inventory, and generated route shells now agree with the same canonical destination manifest' },
             { type: '🔧', text: 'Scheduled Maxis refreshes now timestamp each active protocol-season snapshot immediately before resolving its fixed TzKT transaction boundary, preventing slower upstream fetches from invalidating the scan' },
             { type: '✨', text: 'Command search now opens into the complete canonical destination map and finds deeper Maxis lanes, direct chain comparisons, Chambers, Network Health concepts, recovery tools, and Settings actions including Share, Export, Shortcuts, and Changelog' },

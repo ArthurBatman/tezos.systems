@@ -631,14 +631,26 @@ async function checkSiteMapGraphContracts() {
   if (/const\s+CHAMBERS\s*=/.test(search)) fail('hero search must not keep a duplicate Chamber catalog');
   if (!index.includes('data-site-footer-map') || !index.includes('data-site-map-grid')) fail('dashboard footer must expose the manifest-backed complete map');
   if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapRelated')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
-  if (!index.includes('data-site-map-complete') || !index.includes('href="/#site-map"') || !index.includes('href="/#search"')) {
-    fail('Explore must expose both the complete canonical map and Search Everything');
+  if (!index.includes('data-site-map-complete') || !index.includes('class="feature-launcher-directory-link"') || !index.includes('href="/#site-map"')) {
+    fail('Explore must expose one quiet complete-directory utility');
   }
-  const nativeWayfinders = [await readText('js/features/network-pulse.js'), await readText('js/features/staking-chamber.js')];
+  if (index.includes('id="search-everything-feature-link"')) {
+    fail('Explore must not duplicate the global search surface as another feature row');
+  }
+  const nativePulse = await readText('js/features/network-pulse.js');
+  const nativeStaking = await readText('js/features/staking-chamber.js');
+  const nativeWayfinders = [nativePulse, nativeStaking];
   for (const native of nativeWayfinders) {
-    if (!native.includes('data-site-wayfinder-native') || !native.includes('href="/#site-map"') || !native.includes('href="/#search"')) {
-      fail('native Chamber wayfinders must preserve full-map and search exits');
+    if (!native.includes('data-site-wayfinder-native') || !native.includes('siteMapRelated(') || !native.includes('href="/#chambers"') || !native.includes('href="/#search"')) {
+      fail('native Chamber wayfinders must expose four semantic neighbors plus Chambers and search exits');
     }
+  }
+  const siteMapCss = await readText('css/site-map.css');
+  if (!siteMapCss.includes('.chamber-overlay [data-site-wayfinder-native]')) {
+    fail('native Chamber wayfinders must inherit the shared wayfinder color and border variables');
+  }
+  if ((nativePulse.match(/renderChamberLinks\(\)/g) || []).length < 3 || (nativeStaking.match(/renderNativeWayfinder\(\)/g) || []).length < 3) {
+    fail('native Chamber wayfinders must survive both successful and failed live-data renders');
   }
 
   const jsonLdMatch = index.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/);
@@ -901,7 +913,7 @@ async function checkSelectorContracts() {
     ['price bar cycle health launcher', 'class="cycle-chip" id="cycle-chip" href="#health"'],
     ['Tezos loop console', 'class="tezos-loop-console"'],
     ['Tezos loop aura chip rail', 'class="tezos-loop-chips"'],
-    ['Tezos loop search map copy', 'Search is the map'],
+    ['Tezos loop start-anywhere copy', 'Start from anything.'],
     ['Tezos loop accepted inputs', 'Paste a wallet address or .tez name, baker, KT1 contract, operation hash, block, protocol, or slash command'],
     ['hero command bar placeholder copy', 'Search every feature or paste any Tezos ID…'],
     ['timeline share fallback host', 'document.querySelector(\'.upgrade-badges\')'],
@@ -911,7 +923,7 @@ async function checkSelectorContracts() {
     ['hero command bar slot', 'class="hero-slot" id="hero-slot"'],
     ['hero command bar combobox', 'aria-controls="hero-search-panel"'],
     ['My Tezos recruit prompt', 'data-hero-query="my tezos"'],
-    ['Price watcher recruit prompt', 'data-hero-query="price"'],
+    ['Price watcher recipe chip', 'data-loop-aura="price"'],
     ['Governance alert strip shell', 'class="stats-section governance-alert-section"'],
     ['History modal direct link copy button', 'id="history-copy-link" data-copy-hash="#history"'],
     ['Governance SEO nonblank voting fallback', 'data-live="voting-period">Checking TzKT', governanceLanding],
@@ -1084,7 +1096,9 @@ async function checkSelectorContracts() {
     ['Tezos loop console initializer', 'function initTezosLoopConsole()', app],
     ['Tezos loop aura persistence', 'TEZOS_LOOP_STORAGE_KEY', app],
     ['Tezos loop console styles', '.tezos-loop-console', heroSearchCss],
-    ['Tezos loop active card styles', '.recruit-card.is-active', heroSearchCss],
+    ['Tezos loop active chip styles', '.tezos-loop-chip.active', heroSearchCss],
+    ['Hero search explicit full-directory mode', 'data-hero-browse-all="true"', search],
+    ['Standalone footer progressive disclosure', 'class="site-map-disclosure"', siteNav],
     ['Hero search manifest page result adapter', 'function siteMapResult', search],
     ['LB tile hash route', "hash === 'lb-tile'", app],
     ['tz4 hash route', "hash === 'tz4'", app],
@@ -1118,7 +1132,7 @@ async function checkSelectorContracts() {
     ['Network Pulse Market source cards', "source: 'market'", networkPulse],
     ['Network Pulse sourced freshness label', 'network-pulse-source-age', networkPulse],
     ['Network Pulse card history modal', 'openCardHistoryModal', networkPulse],
-    ['Network Pulse SITE_MAP room source', 'SITE_MAP', networkPulse],
+    ['Network Pulse semantic room source', "siteMapRelated('pulse', 4)", networkPulse],
     ['Network Pulse nav buttons avoid hash pollution', 'data-pulse-target', networkPulse],
     ['Network Pulse scrollspy wiring', 'IntersectionObserver', networkPulse],
     ['Network Pulse delta chip markup', 'network-pulse-delta', networkPulse],
@@ -2666,7 +2680,8 @@ async function checkTourAndShareCaptureContracts() {
     fail(`tooltip tour theme count must agree with theme.js (${themes.length} themes)`);
   }
   for (const snippet of [
-    'Search is the map',
+    'Find anything',
+    'Need a hand?',
     'Start with live proof',
     'Read the latest head',
     'Protocol Anthology',
