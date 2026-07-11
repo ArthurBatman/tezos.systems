@@ -3250,8 +3250,10 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(focusModeState.commandDeckZ >= 3000 && focusModeState.panelZ > focusModeState.commandDeckZ, `hero command bar: search layer z-index mismatch ${JSON.stringify(focusModeState)}`);
   const emptyStateText = await page.locator('#hero-search-panel').innerText();
   assert(/my tezos/i.test(emptyStateText) && /network pulse/i.test(emptyStateText) && /staking chamber/i.test(emptyStateText) && /tezos maxis/i.test(emptyStateText) && /network health/i.test(emptyStateText), `hero command bar: manifest starter rows are incomplete: ${emptyStateText}`);
-  assert(/Search accepts/i.test(emptyStateText) && /wallet addresses/i.test(emptyStateText) && /slash commands/i.test(emptyStateText), `hero command bar: search guide missing accepted-input copy: ${emptyStateText}`);
-  assert(!/protocol history/i.test(emptyStateText), `hero command bar: empty state should not push protocol history first: ${emptyStateText}`);
+  assert(/destinations, one search/i.test(emptyStateText) && /browse every room and tool/i.test(emptyStateText) && /Press \/ from anywhere/i.test(emptyStateText), `hero command bar: complete browse guide missing: ${emptyStateText}`);
+  for (const representative of ['Protocol Anthology', 'Ledger Flow', 'XTZ Market Watch', 'Staking Guide', 'Tezos Chambers', 'HEN Live Feed', '/changelog']) {
+    assert(emptyStateText.includes(representative), `hero command bar: complete browse index is missing ${representative}`);
+  }
   const chipLabels = await page.locator('#hero-search-chips .hero-search-chip').allTextContents();
   assert(
     chipLabels.includes('Wallet or .tez')
@@ -3260,6 +3262,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
       && chipLabels.includes('/maxis')
       && chipLabels.includes('/health')
       && chipLabels.includes('/domains')
+      && chipLabels.some((label) => /^All \d+$/.test(label))
       && !chipLabels.some((label) => /Wallet\/\.tez/i.test(label)),
     `hero command bar: manifest quick chips are incomplete: ${chipLabels.join(', ')}`
   );
@@ -3269,11 +3272,25 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     ['/leaderboard', 'Baker Leaderboard'],
     ['/history', 'Cycle History'],
     ['widgets', 'Embed Widgets'],
+    ['chambers', 'Tezos Chambers'],
+    ['governance', 'Tezos L1 Governance'],
+    ['staking', 'Staking Chamber'],
+    ['liquidity', 'Liquidity Baking'],
+    ['finality', 'Network Health'],
+    ['rewards tracker', 'My Tezos'],
     ['nakamoto coefficient', 'Network Health'],
     ['hot today', "What's Hot Today"],
     ['maxi passport', 'Maxi Passport'],
     ['season', 'Tezos Maxis Season'],
     ['champions', 'Tezos Maxis Champions'],
+    ['transaction maxi', 'Transaction Maxi'],
+    ['transaction season', 'Transaction Maxi'],
+    ['transaction maxi season', 'Transaction Maxi'],
+    ['transaction', 'Transaction Maxi'],
+    ['delegation maxi', 'Delegation Maxi Season'],
+    ['bridge maxi', 'Bridge Maxi Season'],
+    ['tezos vs ethereum', 'Tezos vs Ethereum'],
+    ['/changelog', '/changelog'],
     ['nft', 'HEN Live Feed'],
     ['/stake', 'Staking Chamber']
   ];
@@ -3383,6 +3400,18 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     }, { value: query, title: expectedTitle }, { timeout: 5000 });
   };
 
+  const immediateResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(immediateResponse?.ok(), `hero command bar immediate intent: dashboard failed with HTTP ${immediateResponse?.status()}`);
+  await intentPage.locator('#hero-search-input').focus();
+  await intentPage.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'My Tezos', null, { timeout: 5000 });
+  await intentPage.evaluate(() => {
+    const input = document.getElementById('hero-search-input');
+    input.value = 'transaction maxi';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  });
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('lane') === 'transaction' && !url.searchParams.has('view'), { timeout: 5000 });
+
   await seedIntent('my tezos', 'My Tezos');
   await intentPage.locator('#hero-search-input').press('Enter');
   await intentPage.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 5000 });
@@ -3397,6 +3426,29 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await seedIntent(SAMPLE_ADDRESS, 'Inspect account');
   await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: `Open ${SAMPLE_ADDRESS} in Maxi Passport` }).click();
   await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'passport' && url.searchParams.get('address') === SAMPLE_ADDRESS, { timeout: 5000 });
+
+  await seedIntent('transaction maxi', 'Transaction Maxi');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('lane') === 'transaction' && !url.searchParams.has('view'), { timeout: 5000 });
+
+  await seedIntent('transaction season', 'Transaction Maxi');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'transaction', { timeout: 5000 });
+
+  await seedIntent('delegation maxi', 'Delegation Maxi Season');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'delegation', { timeout: 5000 });
+
+  await seedIntent('tezos vs ethereum', 'Tezos vs Ethereum');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.waitForURL((url) => url.pathname === '/compare/tezos-vs-ethereum.html', { timeout: 5000 });
+
+  await seedIntent('/changelog', '/changelog');
+  await intentPage.locator('#hero-search-input').press('Enter');
+  await intentPage.locator('#changelog-modal[aria-hidden="false"]').waitFor({ state: 'visible', timeout: 5000 });
+  assert(await intentPage.locator('#changelog-body').getByText('Command search now opens into the complete canonical destination map', { exact: false }).count(), 'hero command bar exact intents: latest search changelog entry missing');
+  await intentPage.locator('.changelog-modal-close').click();
+  await intentPage.locator('#changelog-modal[aria-hidden="true"]').waitFor({ state: 'hidden', timeout: 5000 });
 
   await seedIntent('/stake', 'Staking Chamber');
   await intentPage.locator('#hero-search-input').press('Enter');
@@ -3441,8 +3493,26 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     scale: window.visualViewport?.scale || 1,
     scrollWidth: document.documentElement.scrollWidth
   }));
+
+  await mobilePage.locator('.top-continuity-stat[data-card-history="staking-ratio"]').click();
+  await mobilePage.locator('#top-continuity-explain.is-visible').waitFor({ state: 'visible', timeout: 5000 });
+  const mobileExplainerState = await mobilePage.evaluate(() => {
+    const popover = document.getElementById('top-continuity-explain')?.getBoundingClientRect();
+    const ticker = document.getElementById('block-ticker-strip')?.getBoundingClientRect();
+    const form = document.getElementById('hero-search-form')?.getBoundingClientRect();
+    return {
+      position: getComputedStyle(document.getElementById('top-continuity-explain')).position,
+      popoverBottom: popover?.bottom || 0,
+      tickerTop: ticker?.top || 0,
+      formTop: form?.top || 0
+    };
+  });
+  assert(mobileExplainerState.position === 'relative', `hero command bar mobile: stat explainer must reserve header flow ${JSON.stringify(mobileExplainerState)}`);
+  assert(mobileExplainerState.popoverBottom <= mobileExplainerState.tickerTop + 1 && mobileExplainerState.popoverBottom <= mobileExplainerState.formTop + 1, `hero command bar mobile: stat explainer overlaps ticker or search ${JSON.stringify(mobileExplainerState)}`);
+
   await mobilePage.locator('#hero-search-input').focus();
   await mobilePage.waitForFunction(() => document.activeElement?.id === 'hero-search-input', null, { timeout: 5000 });
+  await mobilePage.waitForFunction(() => !document.getElementById('top-continuity-explain')?.classList.contains('is-visible'), null, { timeout: 5000 });
   const mobileFocusState = await mobilePage.evaluate((before) => {
     const input = document.getElementById('hero-search-input');
     const inputRect = input?.getBoundingClientRect();
@@ -3453,13 +3523,86 @@ async function smokeHeroCommandBar(browser, baseUrl) {
       inputRight: inputRect ? Math.round(inputRect.right) : 0,
       scale: window.visualViewport?.scale || 1,
       scrollWidth: document.documentElement.scrollWidth,
-      viewportWidth: window.innerWidth
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      commandPosition: getComputedStyle(document.querySelector('.command-deck')).position,
+      deck: (() => {
+        const rect = document.querySelector('.command-deck')?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right } : null;
+      })(),
+      form: (() => {
+        const rect = document.getElementById('hero-search-form')?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom } : null;
+      })(),
+      chips: (() => {
+        const el = document.getElementById('hero-search-chips');
+        const rect = el?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom, height: rect.height, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, flexWrap: getComputedStyle(el).flexWrap } : null;
+      })(),
+      panel: (() => {
+        const rect = document.getElementById('hero-search-panel')?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom } : null;
+      })(),
+      closeVisible: getComputedStyle(document.getElementById('hero-search-close')).display !== 'none'
     };
   }, mobileBeforeFocus);
   assert(mobileFocusState.fontSize >= 16, `hero command bar mobile focus: input font must stay at least 16px, saw ${JSON.stringify(mobileFocusState)}`);
   assert(Math.abs(mobileFocusState.scale - mobileFocusState.beforeScale) < 0.01, `hero command bar mobile focus: focus changed viewport scale ${JSON.stringify(mobileFocusState)}`);
   assert(mobileFocusState.scrollWidth <= mobileFocusState.beforeScrollWidth + 1, `hero command bar mobile focus: focus widened the page ${JSON.stringify(mobileFocusState)}`);
   assert(mobileFocusState.inputRight <= mobileFocusState.viewportWidth + 1, `hero command bar mobile focus: input overflows viewport ${JSON.stringify(mobileFocusState)}`);
+  assert(mobileFocusState.commandPosition === 'fixed' && mobileFocusState.deck?.top >= 0 && mobileFocusState.deck?.bottom <= mobileFocusState.viewportHeight + 1 && mobileFocusState.deck?.left >= 0 && mobileFocusState.deck?.right <= mobileFocusState.viewportWidth + 1, `hero command bar mobile focus: command sheet escaped viewport ${JSON.stringify(mobileFocusState)}`);
+  assert(mobileFocusState.chips?.flexWrap === 'nowrap' && mobileFocusState.chips.height <= 48 && mobileFocusState.chips.scrollWidth > mobileFocusState.chips.clientWidth, `hero command bar mobile focus: shortcuts must stay in one reachable rail ${JSON.stringify(mobileFocusState)}`);
+  assert(mobileFocusState.form?.bottom <= mobileFocusState.chips?.top + 1 && mobileFocusState.chips?.bottom <= mobileFocusState.panel?.top + 1 && mobileFocusState.panel?.bottom <= mobileFocusState.viewportHeight + 1, `hero command bar mobile focus: form, chips, and results overlap ${JSON.stringify(mobileFocusState)}`);
+  assert(mobileFocusState.closeVisible, `hero command bar mobile focus: explicit close button is not visible ${JSON.stringify(mobileFocusState)}`);
+
+  await mobilePage.locator('#hero-search-input').fill('nakamoto coefficient');
+  await mobilePage.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'Network Health', null, { timeout: 5000 });
+  const mobileQueryState = await mobilePage.evaluate(() => ({
+    chipsDisplay: getComputedStyle(document.getElementById('hero-search-chips')).display,
+    selectedVisible: (() => {
+      const panel = document.getElementById('hero-search-panel')?.getBoundingClientRect();
+      const option = document.querySelector('#hero-search-panel .hero-search-result.is-selected')?.getBoundingClientRect();
+      return Boolean(panel && option && option.top >= panel.top - 1 && option.bottom <= panel.bottom + 1);
+    })()
+  }));
+  assert(mobileQueryState.chipsDisplay === 'none' && mobileQueryState.selectedVisible, `hero command bar mobile query: shortcuts should collapse and first result stay visible ${JSON.stringify(mobileQueryState)}`);
+
+  await mobilePage.setViewportSize({ width: 390, height: 667 });
+  const shortViewportState = await mobilePage.evaluate(() => {
+    const deck = document.querySelector('.command-deck')?.getBoundingClientRect();
+    const panel = document.getElementById('hero-search-panel')?.getBoundingClientRect();
+    return { height: window.innerHeight, deckBottom: deck?.bottom || 0, panelBottom: panel?.bottom || 0 };
+  });
+  assert(shortViewportState.deckBottom <= shortViewportState.height + 1 && shortViewportState.panelBottom <= shortViewportState.height + 1, `hero command bar mobile keyboard viewport: sheet is not contained ${JSON.stringify(shortViewportState)}`);
+
+  await mobilePage.locator('#hero-search-input').fill('');
+  for (let index = 0; index < 20; index += 1) await mobilePage.locator('#hero-search-input').press('ArrowDown');
+  const mobileArrowState = await mobilePage.evaluate(() => {
+    const activeId = document.getElementById('hero-search-input')?.getAttribute('aria-activedescendant');
+    const panel = document.getElementById('hero-search-panel')?.getBoundingClientRect();
+    const option = activeId ? document.getElementById(activeId)?.getBoundingClientRect() : null;
+    return { activeId, visible: Boolean(panel && option && option.top >= panel.top - 1 && option.bottom <= panel.bottom + 1) };
+  });
+  assert(mobileArrowState.activeId && mobileArrowState.visible, `hero command bar mobile keyboard: active option scrolled out of view ${JSON.stringify(mobileArrowState)}`);
+
+  await mobilePage.locator('#hero-search-close').click();
+  await mobilePage.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.getElementById('hero-search-panel')?.hidden, null, { timeout: 5000 });
+
+  await mobilePage.setViewportSize({ width: 700, height: 900 });
+  await mobilePage.locator('#hero-search-input').focus();
+  const tabletRailState = await mobilePage.evaluate(() => {
+    const chips = document.getElementById('hero-search-chips');
+    const rect = chips?.getBoundingClientRect();
+    return {
+      commandPosition: getComputedStyle(document.querySelector('.command-deck')).position,
+      flexWrap: getComputedStyle(chips).flexWrap,
+      height: rect?.height || 0,
+      scrollWidth: chips?.scrollWidth || 0,
+      clientWidth: chips?.clientWidth || 0
+    };
+  });
+  assert(tabletRailState.commandPosition === 'fixed' && tabletRailState.flexWrap === 'nowrap' && tabletRailState.height <= 48 && tabletRailState.scrollWidth > tabletRailState.clientWidth, `hero command bar tablet: command sheet shortcut rail wrapped ${JSON.stringify(tabletRailState)}`);
+  await mobilePage.locator('#hero-search-close').click();
   await mobileContext.close();
 
   assert(issues.length === 0, `hero command bar browser issues:\n${issues.join('\n')}`);
@@ -9495,6 +9638,22 @@ async function smokeRouteFormatting(browser, baseUrl) {
           const box = node.getBoundingClientRect();
           return box.width > 1 && box.height > 1;
         };
+        const clippedByHorizontalScroller = (node, box) => {
+          let ancestor = node.parentElement;
+          while (ancestor && ancestor !== document.body) {
+            const ancestorStyle = window.getComputedStyle(ancestor);
+            const scrollsHorizontally = ['auto', 'scroll'].includes(ancestorStyle.overflowX)
+              && ancestor.scrollWidth > ancestor.clientWidth + 1;
+            if (scrollsHorizontally) {
+              const ancestorBox = ancestor.getBoundingClientRect();
+              if (ancestorBox.left >= -4 && ancestorBox.right <= viewportWidth + 4 && (box.left < ancestorBox.left - 1 || box.right > ancestorBox.right + 1)) {
+                return true;
+              }
+            }
+            ancestor = ancestor.parentElement;
+          }
+          return false;
+        };
 
         const escaped = [];
         for (const node of Array.from(document.body.querySelectorAll('*'))) {
@@ -9502,7 +9661,7 @@ async function smokeRouteFormatting(browser, baseUrl) {
           const box = node.getBoundingClientRect();
           const style = window.getComputedStyle(node);
           if (style.position === 'fixed' && box.width >= viewportWidth - 2) continue;
-          if (box.left < -4 || box.right > viewportWidth + 4) {
+          if ((box.left < -4 || box.right > viewportWidth + 4) && !clippedByHorizontalScroller(node, box)) {
             escaped.push(`${elementName(node)} at ${box.left.toFixed(1)}..${box.right.toFixed(1)} "${textSample(node)}"`);
           }
         }

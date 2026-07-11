@@ -107,7 +107,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=419';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=420';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -2965,6 +2965,7 @@ function initUptimeClock() {
             if (event.key !== 'Escape' || !explainActiveKey) return;
             closeTopContinuityExplanation({ returnFocus: true });
         });
+        window.addEventListener('hero-search-opened', () => closeTopContinuityExplanation());
         window.addEventListener('resize', repositionTopContinuityExplanation);
     }
 

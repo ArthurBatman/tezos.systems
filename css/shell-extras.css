@@ -1473,6 +1473,23 @@
         width: 100%;
     }
 
+    .top-continuity-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .top-continuity-explain.is-visible {
+        position: relative;
+        top: auto;
+        left: 0 !important;
+        grid-row: 2;
+        margin-top: 0.55rem;
+    }
+
+    .top-continuity-explain.is-visible::before {
+        display: none;
+    }
+
     .top-continuity-explain-actions,
     .top-continuity-explain-chart {
         width: 100%;

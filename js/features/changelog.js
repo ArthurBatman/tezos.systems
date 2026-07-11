@@ -5,6 +5,13 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-11',
+        entries: [
+            { type: '✨', text: 'Command search now opens into the complete canonical destination map and finds deeper Maxis lanes, direct chain comparisons, Chambers, Network Health concepts, recovery tools, and Settings actions including Share, Export, Shortcuts, and Changelog' },
+            { type: '🎨', text: 'Mobile search now stays compact as a one-line shortcut rail, expands into a viewport-contained command sheet, clears shortcuts once typing begins, and keeps header stat explainers from overlapping the ticker or search controls' }
+        ]
+    },
+    {
         date: '2026-07-10',
         entries: [
             { type: '✨', text: 'Tezos Systems now behaves as one connected map: command search, the lower Tezos Loop, the complete footer directory, standalone pages, and Chamber next-step rails all lead into the same current rooms, signals, guides, and tools' },

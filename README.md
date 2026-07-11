@@ -411,9 +411,14 @@ inline modal styles in `js/core/app.js`.
   command-deck protocol ribbon stays retired so protocol history access is not
   repeated in a third first-screen surface. The bar accepts
   Tezos addresses, `.tez` names, protocol names, block levels, block hashes,
-  operation hashes, KT1 contracts, and slash commands. While active, the command
-  bar switches the page into a focused search mode that pushes Chambers into a
-  barely-visible background layer. The compact `What's hot today` live pulse
+  operation hashes, KT1 contracts, and slash commands. Opening it exposes every
+  grouped canonical destination plus runtime actions such as Share, Export,
+  Shortcuts, Changelog, and the external TzSafe recovery path. Maxis lane and
+  direct chain-comparison intents keep their exact room state. While active, the
+  command bar switches the page into a focused search mode that pushes Chambers
+  into a barely-visible background layer; on mobile it becomes a contained
+  command sheet with a one-line shortcut rail that collapses after typing. The
+  compact `What's hot today` live pulse
   sits above Chambers as a horizontally scrolling strip for non-obvious daily
   signals instead of repeating the header's cycle, baker, staking, or security
   facts, and leads with a larger uptime-anniversary card on September 17 UTC.
@@ -425,8 +430,9 @@ inline modal styles in `js/core/app.js`.
   Chambers, themes, calculator, comparisons, leaderboard, whale/giant feeds,
   NFT lookup, History, Network Snapshot, and native account/contract/operation/
   block receipt views. `js/core/site-map.js` is the discovery source of truth:
-  it owns featured search chips/defaults, relevance-ranked destinations, the
-  complete grouped footer map, and semantic next-step relationships. Exact
+  it owns featured search chips/defaults, relevance-ranked destinations and
+  subfeature intents, the complete grouped footer map, and semantic next-step
+  relationships. Exact
   intent ranks before broad keyword matches, specialized Maxis Season,
   Passport, and Champions queries preserve their room state, and pasted
   addresses or `.tez` names also expose a scoped Maxi Passport path. Baker-name
@@ -780,7 +786,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v419`, including hero search, theme
+- Current aligned shell cache stamp: `v420`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.

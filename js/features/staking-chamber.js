@@ -10,7 +10,7 @@ import { loadStats, loadStatsTimestamp } from '../core/storage.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=419';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=420';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;

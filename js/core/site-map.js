@@ -10,13 +10,22 @@ const home = {
 export const SITE_MAP = [
     home,
     {
+        id: 'chambers',
+        title: 'Tezos Chambers',
+        href: '/#chambers',
+        hash: '#chambers',
+        group: 'Tools',
+        detail: 'Browse every focused Tezos room from one live dashboard suite',
+        keywords: ['chambers', 'all chambers', 'rooms', 'feature rooms']
+    },
+    {
         id: 'my-tezos',
         title: 'My Tezos',
         href: '/#my-tezos',
         hash: '#my-tezos',
         group: 'Tools',
         detail: 'Make a wallet or .tez name the center of a personal Tezos dashboard',
-        keywords: ['wallet', 'account', 'portfolio', 'rewards', 'baker', 'identity', 'my baker'],
+        keywords: ['wallet', 'account', 'portfolio', 'rewards', 'rewards tracker', 'baker', 'baker report card', 'operator health', 'personal brief', 'wallet connect', 'identity', 'my baker'],
         starter: 1,
         searchChip: { label: 'Wallet or .tez', order: 1 }
     },
@@ -45,7 +54,7 @@ export const SITE_MAP = [
         hash: '#pulse',
         group: 'Live Rooms',
         detail: 'Consensus, economy, market, governance, activity, and ecosystem cards in one live chamber',
-        keywords: ['network pulse', 'live stats', 'consensus', 'economy', 'activity', 'market', 'what is hot today', "what's hot today", 'hot today', 'network moments'],
+        keywords: ['network pulse', 'live stats', 'daily briefing', 'cycle pulse', 'consensus', 'economy', 'activity', 'market', 'what is hot today', "what's hot today", 'hot today', 'network moments'],
         starter: 2,
         searchChip: { label: '/pulse', order: 2 }
     },
@@ -69,6 +78,21 @@ export const SITE_MAP = [
         group: 'Live Rooms',
         detail: 'Canonical Tezos crowns, protocol-season races, career Passports, and permanent Champions',
         keywords: ['maxis', 'maxi', 'on-chain crowns', 'all time', 'live', 'protocol season', 'maxi passport', 'passport', 'champions', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'staking', 'unicorn'],
+        searchIntents: [
+            { id: 'maxis-unicorn', title: 'Unicorn Maxi', href: '/maxis/?lane=unicorn', seasonHref: '/maxis/?view=season&lane=unicorn', detail: 'Open the cross-lane Unicorn crown board', keywords: ['unicorn maxi', 'unicorn crown', 'unicorn season'] },
+            { id: 'maxis-staking', title: 'Staking Maxi', href: '/maxis/?lane=staking', seasonHref: '/maxis/?view=season&lane=staking', detail: 'Open the live Staking Maxi crown board', keywords: ['staking maxi', 'staking crown', 'staking season'] },
+            { id: 'maxis-governance', title: 'Governance Maxi', href: '/maxis/?lane=governance', seasonHref: '/maxis/?view=season&lane=governance', detail: 'Open the all-time-active Governance Maxi board', keywords: ['governance maxi', 'governance crown', 'governance season'] },
+            { id: 'maxis-collector', title: 'Collector Maxi', href: '/maxis/?lane=collector', seasonHref: '/maxis/?view=season&lane=collector', detail: 'Open the Collector Maxi crown board', keywords: ['collector maxi', 'collector crown', 'collector season'] },
+            { id: 'maxis-artist', title: 'Art Maxi', href: '/maxis/?lane=artist', seasonHref: '/maxis/?view=season&lane=artist', detail: 'Open the Art Maxi crown board', keywords: ['art maxi', 'artist maxi', 'art crown', 'art season'] },
+            { id: 'maxis-minter', title: 'Mint Maxi', href: '/maxis/?lane=minter', seasonHref: '/maxis/?view=season&lane=minter', detail: 'Open the Mint Maxi crown board', keywords: ['mint maxi', 'minter maxi', 'mint crown', 'mint season'] },
+            { id: 'maxis-defi', title: 'DeFi Maxi', href: '/maxis/?lane=defi', seasonHref: '/maxis/?view=season&lane=defi', detail: 'Open the DeFi Maxi crown board', keywords: ['defi maxi', 'defi crown', 'defi season'] },
+            { id: 'maxis-transaction', title: 'Transaction Maxi', href: '/maxis/?lane=transaction', seasonHref: '/maxis/?view=season&lane=transaction', detail: 'Open the all-time Transaction Maxi crown board', keywords: ['transaction maxi', 'transactions maxi', 'transaction crown', 'transaction season'] },
+            { id: 'maxis-gaming', title: 'Gaming Maxi', href: '/maxis/?lane=gaming', seasonHref: '/maxis/?view=season&lane=gaming', detail: 'Open the Gaming Maxi crown board', keywords: ['gaming maxi', 'gaming crown', 'gaming season'] },
+            { id: 'maxis-delegation', title: 'Delegation Maxi Season', href: '/maxis/?view=season&lane=delegation', detail: 'Open the protocol-season Delegation Maxi race', keywords: ['delegation maxi', 'delegation crown', 'delegation season'] },
+            { id: 'maxis-liquidity', title: 'Liquidity Maxi Season', href: '/maxis/?view=season&lane=liquidity', detail: 'Open the protocol-season Liquidity Maxi race', keywords: ['liquidity maxi', 'liquidity crown', 'liquidity season'] },
+            { id: 'maxis-bridge', title: 'Bridge Maxi Season', href: '/maxis/?view=season&lane=bridge', detail: 'Open the protocol-season Bridge Maxi race', keywords: ['bridge maxi', 'bridge crown', 'bridge season'] },
+            { id: 'maxis-builder', title: 'Builder Maxi Season', href: '/maxis/?view=season&lane=builder', detail: 'Open the protocol-season Builder Maxi race', keywords: ['builder maxi', 'builder crown', 'builder season'] }
+        ],
         starter: 4,
         searchChip: { label: '/maxis', order: 4 },
         fresh: true
@@ -80,7 +104,7 @@ export const SITE_MAP = [
         hash: '#health',
         group: 'Live Rooms',
         detail: 'Blocks, Nakamoto coefficients, consensus timing, Octez versions, missed rights, and the Teztale lens',
-        keywords: ['health', 'blocks', 'consensus', 'octez', 'teztale', 'nakamoto', 'nakamoto coefficient', 'decentralization', 'one third', 'two thirds'],
+        keywords: ['health', 'blocks', 'finality', 'attestation power', 'missed attestations', 'missed blocks', 'round zero', 'round 0', 'consensus', 'consensus lens', 'pre quorum', 'quorum timing', 'validation delay', 'application delay', 'reception histogram', 'octez', 'octez versions', 'version adoption', 'teztale', 'native explorer', 'operation receipt', 'block receipt', 'missed rights', 'nakamoto', 'nakamoto coefficient', 'quorum control coefficient', 'decentralization', 'one third', 'two thirds'],
         starter: 5,
         searchChip: { label: '/health', order: 5 }
     },
@@ -98,6 +122,7 @@ export const SITE_MAP = [
         id: 'tezosx',
         title: 'Tezos X',
         href: '/tezosx/',
+        paths: ['/tezlink/'],
         hash: '#tezosx',
         group: 'Live Rooms',
         detail: 'Etherlink TVL, transaction tape, gas oracle, and L2 activity',
@@ -158,7 +183,7 @@ export const SITE_MAP = [
         hash: '#price',
         group: 'Live Signals',
         detail: 'Live XTZ price, market context, predictions, and local alerts',
-        keywords: ['price', 'xtz price', 'market cap', 'price intelligence', 'market watch']
+        keywords: ['price', 'xtz price', 'market cap', 'price intelligence', 'price alerts', 'market watch']
     },
     {
         id: 'whales',
@@ -185,7 +210,7 @@ export const SITE_MAP = [
         hash: '#hot-today',
         group: 'Live Signals',
         detail: 'The ranked live pulse of unusual Tezos movement, milestones, and Network Moments',
-        keywords: ['what is hot today', "what's hot today", 'hot today', 'live pulse', 'network moments', 'milestones']
+        keywords: ['what is hot today', "what's hot today", 'hot today', 'live pulse', 'daily briefing', 'network moments', 'network milestones', 'milestones']
     },
     {
         id: 'staking',
@@ -217,7 +242,13 @@ export const SITE_MAP = [
         href: '/compare/',
         group: 'Guides',
         detail: 'Tezos compared with Ethereum, Solana, Cardano, and Algorand',
-        keywords: ['compare', 'ethereum', 'solana', 'cardano', 'algorand', 'tezos versus', 'tezos vs']
+        keywords: ['compare', 'ethereum', 'solana', 'cardano', 'algorand', 'tezos versus', 'tezos vs'],
+        searchIntents: [
+            { id: 'compare-ethereum', title: 'Tezos vs Ethereum', href: '/compare/tezos-vs-ethereum.html', detail: 'Open the sourced Tezos and Ethereum comparison', keywords: ['tezos vs ethereum', 'tezos versus ethereum', 'ethereum comparison'] },
+            { id: 'compare-solana', title: 'Tezos vs Solana', href: '/compare/tezos-vs-solana.html', detail: 'Open the sourced Tezos and Solana comparison', keywords: ['tezos vs solana', 'tezos versus solana', 'solana comparison'] },
+            { id: 'compare-cardano', title: 'Tezos vs Cardano', href: '/compare/tezos-vs-cardano.html', detail: 'Open the sourced Tezos and Cardano comparison', keywords: ['tezos vs cardano', 'tezos versus cardano', 'cardano comparison'] },
+            { id: 'compare-algorand', title: 'Tezos vs Algorand', href: '/compare/tezos-vs-algorand.html', detail: 'Open the sourced Tezos and Algorand comparison', keywords: ['tezos vs algorand', 'tezos versus algorand', 'algorand comparison'] }
+        ]
     },
     {
         id: 'calculator',
@@ -302,7 +333,8 @@ export const SITE_MAP_NAV_GROUPS = [
 ];
 
 export const SITE_MAP_RELATIONS = {
-    home: ['pulse', 'my-tezos', 'staking-chamber', 'maxis'],
+    home: ['chambers', 'pulse', 'my-tezos', 'maxis'],
+    chambers: ['pulse', 'staking-chamber', 'health', 'maxis'],
     'my-tezos': ['domains', 'ledger-flow', 'maxis', 'calculator'],
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
@@ -366,7 +398,7 @@ function normalizedSearchValue(value) {
         .replace(/\s+/g, ' ');
 }
 
-function siteMapSearchScore(entry, query) {
+export function siteMapSearchScore(entry, query) {
     const q = String(query || '').trim().toLowerCase();
     const bare = q.replace(/^\//, '');
     const normalized = normalizedSearchValue(q);
@@ -400,6 +432,42 @@ export function searchSiteMap(query) {
         .map((item) => item.entry);
 }
 
+export function searchSiteMapIntents(query) {
+    const raw = String(query || '').trim();
+    if (!raw) return [];
+    const wantsSeason = /\bseason\b/i.test(raw);
+    const queryTokens = normalizedSearchValue(raw).split(' ').filter(Boolean);
+    return SITE_MAP
+        .flatMap((entry, parentIndex) => (entry.searchIntents || []).map((intent, intentIndex) => ({
+            ...intent,
+            group: intent.group || entry.group,
+            parentId: entry.id,
+            parentTitle: entry.title,
+            href: wantsSeason && intent.seasonHref ? intent.seasonHref : intent.href,
+            parentIndex,
+            intentIndex
+        })))
+        .map((intent) => {
+            const discriminantTokens = normalizedSearchValue(String(intent.id || '').replace(/^[^-]+-/, '')).split(' ').filter(Boolean);
+            const intentTokens = [intent.id, intent.title, intent.detail, intent.group, ...(intent.keywords || [])]
+                .flatMap((value) => normalizedSearchValue(value).split(' '))
+                .filter(Boolean);
+            const hasSpecificIntent = queryTokens.some((queryToken) => (
+                queryToken.length >= 3
+                && discriminantTokens.some((token) => token.startsWith(queryToken) || queryToken.startsWith(token))
+            ));
+            const coversEveryToken = queryTokens.every((queryToken) => intentTokens.some((token) => (
+                token === queryToken
+                || (queryToken.length >= 3 && (token.startsWith(queryToken) || queryToken.startsWith(token)))
+            )));
+            const score = Math.max(siteMapSearchScore(intent, raw), coversEveryToken ? 108 : 0);
+            return { intent, score, hasSpecificIntent };
+        })
+        .filter(({ score, hasSpecificIntent }) => hasSpecificIntent && score >= 75)
+        .sort((a, b) => b.score - a.score || a.intent.parentIndex - b.intent.parentIndex || a.intent.intentIndex - b.intent.intentIndex)
+        .map(({ intent, score }) => ({ ...intent, searchScore: score }));
+}
+
 export function siteMapGroup(label) {
     return SITE_MAP.filter((entry) => entry.group === label);
 }
@@ -408,6 +476,17 @@ export function siteMapStarters() {
     return SITE_MAP
         .filter((entry) => Number.isFinite(entry.starter))
         .sort((a, b) => a.starter - b.starter);
+}
+
+export function siteMapBrowseEntries() {
+    return SITE_MAP
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => SITE_MAP_NAV_GROUPS.includes(entry.group))
+        .sort((a, b) => (
+            SITE_MAP_NAV_GROUPS.indexOf(a.entry.group) - SITE_MAP_NAV_GROUPS.indexOf(b.entry.group)
+            || a.index - b.index
+        ))
+        .map(({ entry }) => entry);
 }
 
 export function siteMapSearchChips() {

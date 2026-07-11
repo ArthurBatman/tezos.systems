@@ -6,7 +6,10 @@
 import { debounce, escapeHtml } from '../core/utils.js';
 import {
     searchSiteMap,
+    searchSiteMapIntents,
+    siteMapBrowseEntries,
     siteMapRoute,
+    siteMapSearchScore,
     siteMapSearchChips,
     siteMapStarters
 } from '../core/site-map.js';
@@ -15,7 +18,7 @@ import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=419';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=420';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -39,7 +42,18 @@ function livePulseChip() {
 }
 
 const RUNTIME_COMMANDS = [
-    { id: 'theme', title: '/theme', detail: 'Switch visual theme', action: 'theme-picker', aliases: ['theme', 'themes', 'switch theme'] }
+    { id: 'theme', title: '/theme', detail: 'Switch visual theme', action: 'theme-picker', aliases: ['theme', 'themes', 'switch theme'] },
+    { id: 'explore', title: '/explore', detail: 'Open the Tezos Systems feature launcher', action: 'button', value: 'features-gear', aliases: ['explore', 'features', 'feature launcher', 'command center'] },
+    { id: 'settings', title: '/settings', detail: 'Open theme, sharing, export, and help settings', action: 'button', value: 'settings-gear', aliases: ['settings', 'preferences'] },
+    { id: 'ultra', title: '/ultra', detail: 'Toggle the high-intensity visual mode', action: 'button', value: 'ultra-toggle', aliases: ['ultra', 'ultra mode'] },
+    { id: 'share', title: '/share', detail: 'Create a branded Tezos Systems snapshot', action: 'button', value: 'share-btn', aliases: ['share', 'share dashboard', 'snapshot image'] },
+    { id: 'export', title: '/export', detail: 'Export the current dashboard data', action: 'button', value: 'export-btn', aliases: ['export', 'download data', 'export data'] },
+    { id: 'about', title: '/about', detail: 'Open the quick Tezos explainer', action: 'button', value: 'about-tezos-btn', aliases: ['about', 'what is tezos', 'tezos explainer'] },
+    { id: 'streak', title: '/streak', detail: 'Explain this browser\'s local visit streak', action: 'button', value: 'visit-streak-info-btn', aliases: ['streak', 'visit streak', 'daily streak'] },
+    { id: 'shortcuts', title: '/shortcuts', detail: 'Open keyboard shortcuts and search help', action: 'button', value: 'shortcuts-btn', aliases: ['shortcuts', 'keyboard shortcuts', 'help'] },
+    { id: 'changelog', title: '/changelog', detail: 'Read the latest Tezos Systems changes', action: 'button', value: 'changelog-btn', aliases: ['changelog', 'updates', 'what is new', "what's new"] },
+    { id: 'site-map', title: '/site-map', detail: 'Jump to the complete canonical destination map', action: 'hash', value: '#site-map', aliases: ['site map', 'all pages', 'directory'] },
+    { id: 'tzsafe', title: 'TzSafe Multisig Recovery', detail: 'Open the external legacy KT1 multisig migration tool', action: 'external', value: 'https://tzsafe.tez.page/', group: 'Recovery tools', badge: 'external', aliases: ['tzsafe', 'multisig recovery', 'kt1 safe', 'legacy multisig'] }
 ];
 
 const SITE_MAP_BUTTON_TARGETS = new Map([
@@ -127,7 +141,7 @@ function shouldSearchBakers(query) {
     const q = normalizeQuery(query);
     if (q.length < 2 || q.startsWith('/')) return false;
     if (ADDRESS_RE.test(q) || TEZ_DOMAIN_RE.test(q) || OPERATION_RE.test(q) || BLOCK_HASH_RE.test(q) || BLOCK_LEVEL_RE.test(q)) return false;
-    if (specializedMaxisResults(q).length || searchSiteMap(q).length) return false;
+    if (specializedMaxisResults(q).length || searchSiteMapIntents(q).length || searchSiteMap(q).length) return false;
     if (RUNTIME_COMMANDS.some((command) => matchesQuery(commandResult(command), q))) return false;
     if (protocols.some((protocol) => matchesQuery(protocolResult(protocol), q))) return false;
     return true;
@@ -186,26 +200,41 @@ function protocolResult(protocol) {
 function commandResult(command) {
     return {
         kind: 'command',
-        group: 'Commands',
+        group: command.group || 'Commands',
         title: command.title,
         detail: command.detail,
-        badge: 'command',
+        badge: command.badge || 'command',
         action: command.action || (command.id === 'theme' ? 'theme-picker' : 'hash'),
         value: command.value || command.hash,
         aliases: command.aliases
     };
 }
 
-function siteMapResult(entry, { starter = false } = {}) {
+function siteMapIntentResult(intent) {
+    return {
+        kind: 'page',
+        group: 'Feature views',
+        title: intent.title,
+        detail: intent.detail,
+        badge: intent.parentTitle || intent.group || 'view',
+        action: 'page',
+        value: intent.href,
+        parentId: intent.parentId,
+        searchScore: intent.searchScore,
+        aliases: intent.keywords
+    };
+}
+
+function siteMapResult(entry, { starter = false, browse = false } = {}) {
     const rootHashEntry = entry.hash && (entry.href === '/' || entry.href.startsWith('/#'));
     const buttonTarget = SITE_MAP_BUTTON_TARGETS.get(entry.id);
     const route = siteMapRoute(entry);
     return {
         kind: entry.group === 'Guides' ? 'guide' : entry.group === 'Story Rooms' ? 'story' : 'page',
-        group: starter ? 'Start here' : 'Pages on tezos.systems',
+        group: starter ? 'Start here' : browse ? entry.group : 'Pages on tezos.systems',
         title: entry.title,
         detail: entry.detail,
-        badge: entry.group,
+        badge: entry.fresh ? 'new' : entry.group,
         action: buttonTarget ? 'button' : rootHashEntry ? 'hash' : 'page',
         value: buttonTarget || (rootHashEntry ? entry.hash : route),
         aliases: entry.keywords
@@ -531,7 +560,10 @@ function buildResults(query) {
         .map(protocolResult)
         .filter((result) => matchesQuery(result, q));
     const commandMatches = RUNTIME_COMMANDS.map(commandResult).filter((result) => matchesQuery(result, q));
-    const siteMapMatches = searchSiteMap(q).map(siteMapResult);
+    const siteMapIntents = searchSiteMapIntents(q);
+    const siteMapEntries = searchSiteMap(q);
+    const siteMapIntentMatches = siteMapIntents.map(siteMapIntentResult);
+    const siteMapMatches = siteMapEntries.map(siteMapResult);
     const entityMatches = entityResults(q);
     const themeMatches = themeResults(q);
     const starterMatches = starterResults(q);
@@ -541,16 +573,31 @@ function buildResults(query) {
         return dedupeResults([
             ...siteMapStarters().map((entry) => siteMapResult(entry, { starter: true })),
             ...RUNTIME_STARTER_ROWS,
-            commandResult(RUNTIME_COMMANDS.find((command) => command.id === 'theme'))
+            ...RUNTIME_COMMANDS.map(commandResult),
+            ...siteMapBrowseEntries().map((entry) => siteMapResult(entry, { browse: true }))
         ].filter(Boolean));
     }
+
+    const intentMatches = siteMapIntentMatches.slice(0, 6);
+    const canonicalMatches = siteMapMatches.slice(0, 8);
+    const topIntent = intentMatches[0];
+    const topCanonicalEntry = siteMapEntries[0];
+    const topCanonicalScore = topCanonicalEntry ? siteMapSearchScore(topCanonicalEntry, q) : 0;
+    const preferIntent = Boolean(topIntent) && (
+        topIntent.parentId === topCanonicalEntry?.id
+        || Number(topIntent.searchScore || 0) > topCanonicalScore
+    );
+    const manifestMatches = !intentMatches.length
+        ? [...maxisMatches, ...canonicalMatches]
+        : preferIntent
+            ? [...intentMatches, ...canonicalMatches, ...maxisMatches]
+            : [canonicalMatches[0], ...intentMatches, ...canonicalMatches.slice(1), ...maxisMatches].filter(Boolean);
 
     const directMatches = [
         ...entityMatches,
         ...themeMatches,
         ...starterMatches,
-        ...maxisMatches,
-        ...siteMapMatches.slice(0, 8),
+        ...manifestMatches,
         ...protocolMatches.slice(0, 5),
         ...commandMatches.slice(0, 4),
         ...bakerMatches,
@@ -589,6 +636,7 @@ function resultHtml(result, index, selectedIndex) {
             id="hero-search-option-${index}"
             type="button"
             role="option"
+            tabindex="-1"
             aria-selected="${selected ? 'true' : 'false'}"
             data-result-index="${index}"
         >
@@ -679,7 +727,8 @@ export function initHeroSearch() {
     const input = document.getElementById('hero-search-input');
     const panel = document.getElementById('hero-search-panel');
     const chips = document.getElementById('hero-search-chips');
-    if (!root || !form || !input || !panel || !chips) return;
+    const closeButton = document.getElementById('hero-search-close');
+    if (!root || !form || !input || !panel || !chips || !closeButton) return;
     ensureHeroSearchStyles();
 
     let isOpen = false;
@@ -690,6 +739,7 @@ export function initHeroSearch() {
         const liveChip = livePulseChip();
         const chipList = [
             ...(liveChip ? [liveChip] : []),
+            { label: `All ${siteMapBrowseEntries().length}`, value: '' },
             ...siteMapSearchChips(),
             ...RUNTIME_QUICK_CHIPS
         ];
@@ -706,13 +756,16 @@ export function initHeroSearch() {
     window.addEventListener('hot-signal-rendered', renderQuickChips);
 
     const setOpen = (next) => {
+        const wasOpen = isOpen;
         isOpen = Boolean(next);
         root.classList.toggle('is-open', isOpen);
         document.body.classList.toggle('hero-search-mode', isOpen);
         panel.hidden = !isOpen;
         input.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (isOpen && !wasOpen) window.dispatchEvent(new Event('hero-search-opened'));
         if (!isOpen) {
             selectedIndex = -1;
+            root.classList.remove('has-query');
             input.setAttribute('aria-activedescendant', '');
         }
     };
@@ -745,7 +798,9 @@ export function initHeroSearch() {
     };
 
     const render = () => {
+        if (!isOpen) return;
         queueBakerLookup(input.value);
+        root.classList.toggle('has-query', Boolean(normalizeQuery(input.value)));
         results = groupOrderedResults(buildResults(input.value));
         if (selectedIndex >= results.length) selectedIndex = results.length ? 0 : -1;
         if (selectedIndex < 0 && normalizeQuery(input.value) && results.length) selectedIndex = 0;
@@ -759,17 +814,26 @@ export function initHeroSearch() {
         let index = 0;
         const guide = normalizeQuery(input.value)
             ? ''
-            : '<div class="hero-search-guide"><strong>Search accepts:</strong> wallet addresses, .tez names, bakers, KT1 contracts, operation hashes, block levels, protocols, Chambers, and slash commands. Press / from anywhere.</div>';
+            : `<div class="hero-search-guide"><strong>All ${siteMapBrowseEntries().length} destinations, one search.</strong><span>Browse every room and tool below, or paste a wallet, .tez name, baker, contract, operation, block, or protocol. Press / from anywhere.</span></div>`;
         panel.innerHTML = guide + groupedResults(results).map((group) => {
             const rows = group.results.map((result) => resultHtml(result, index++, selectedIndex)).join('');
             return `
-                <section class="hero-search-group" aria-label="${escapeHtml(group.label)}">
+                <section class="hero-search-group" role="group" aria-label="${escapeHtml(group.label)}">
                     <div class="hero-search-group-label">${escapeHtml(group.label)}</div>
                     ${rows}
                 </section>
             `;
         }).join('');
         syncActiveDescendant();
+        if (selectedIndex >= 0) {
+            const option = panel.querySelector(`#hero-search-option-${selectedIndex}`);
+            if (option) {
+                const panelRect = panel.getBoundingClientRect();
+                const optionRect = option.getBoundingClientRect();
+                if (optionRect.top < panelRect.top) panel.scrollTop -= panelRect.top - optionRect.top + 8;
+                else if (optionRect.bottom > panelRect.bottom) panel.scrollTop += optionRect.bottom - panelRect.bottom + 8;
+            }
+        }
     };
 
     const debouncedRender = debounce(render, 80);
@@ -792,13 +856,18 @@ export function initHeroSearch() {
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         if (!isOpen) setOpen(true);
-        if (!results.length) render();
+        render();
         const result = results[selectedIndex >= 0 ? selectedIndex : 0];
         if (runResult(result)) setOpen(false);
     });
 
+    closeButton.addEventListener('click', () => {
+        setOpen(false);
+        input.blur();
+    });
+
     form.addEventListener('click', (event) => {
-        if (event.target.closest('.hero-search-submit')) return;
+        if (event.target.closest('.hero-search-submit, .hero-search-close')) return;
         if (document.activeElement !== input) input.focus();
         if (!isOpen) {
             setOpen(true);
@@ -830,7 +899,7 @@ export function initHeroSearch() {
         if (event.key === 'Enter') {
             event.preventDefault();
             if (!isOpen) setOpen(true);
-            if (!results.length) render();
+            render();
             const result = results[selectedIndex >= 0 ? selectedIndex : 0];
             if (runResult(result)) setOpen(false);
             return;

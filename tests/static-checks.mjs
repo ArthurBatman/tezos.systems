@@ -428,6 +428,8 @@ async function checkSiteMapGraphContracts() {
     SITE_MAP_NAV_GROUPS,
     SITE_MAP_RELATIONS,
     searchSiteMap,
+    searchSiteMapIntents,
+    siteMapBrowseEntries,
     siteMapSearchChips,
     siteMapStarters
   } = await import(moduleUrl);
@@ -458,6 +460,20 @@ async function checkSiteMapGraphContracts() {
     if (!chipIds.includes(required)) fail(`site map search chips are missing ${required}`);
   }
 
+  const starterOrders = SITE_MAP.filter((entry) => Number.isFinite(entry.starter)).map((entry) => entry.starter);
+  if (new Set(starterOrders).size !== starterOrders.length) fail('site map starter orders must be unique');
+  const chipOrders = SITE_MAP.filter((entry) => entry.searchChip).map((entry) => entry.searchChip.order);
+  if (new Set(chipOrders).size !== chipOrders.length) fail('site map search chip orders must be unique');
+
+  const expectedBrowseIds = SITE_MAP
+    .filter((entry) => SITE_MAP_NAV_GROUPS.includes(entry.group))
+    .sort((a, b) => SITE_MAP_NAV_GROUPS.indexOf(a.group) - SITE_MAP_NAV_GROUPS.indexOf(b.group) || ids.indexOf(a.id) - ids.indexOf(b.id))
+    .map((entry) => entry.id);
+  const browseIds = siteMapBrowseEntries().map((entry) => entry.id);
+  if (JSON.stringify(browseIds) !== JSON.stringify(expectedBrowseIds)) {
+    fail(`site map browse order must cover every grouped destination exactly once: ${browseIds.join(', ')}`);
+  }
+
   const rankedIntent = {
     'my tezos': 'my-tezos',
     wallet: 'my-tezos',
@@ -466,6 +482,12 @@ async function checkSiteMapGraphContracts() {
     '/compare': 'live-compare',
     widgets: 'widgets',
     '/stake': 'staking-chamber',
+    chambers: 'chambers',
+    governance: 'chamber',
+    staking: 'staking-chamber',
+    liquidity: 'liquidity-baking',
+    finality: 'health',
+    'rewards tracker': 'my-tezos',
     'nakamoto coefficient': 'health',
     "what's hot today": 'hot-today',
     nft: 'hen'
@@ -473,6 +495,23 @@ async function checkSiteMapGraphContracts() {
   for (const [query, expectedId] of Object.entries(rankedIntent)) {
     const actual = searchSiteMap(query)[0]?.id;
     if (actual !== expectedId) fail(`site map search ${JSON.stringify(query)} should rank ${expectedId} first, got ${actual || 'none'}`);
+  }
+
+  const rankedSubfeatureIntent = {
+    'transaction maxi': ['maxis-transaction', '/maxis/?lane=transaction'],
+    'transaction season': ['maxis-transaction', '/maxis/?view=season&lane=transaction'],
+    'transaction maxi season': ['maxis-transaction', '/maxis/?view=season&lane=transaction'],
+    transaction: ['maxis-transaction', '/maxis/?lane=transaction'],
+    'delegation maxi': ['maxis-delegation', '/maxis/?view=season&lane=delegation'],
+    'bridge maxi': ['maxis-bridge', '/maxis/?view=season&lane=bridge'],
+    'tezos vs ethereum': ['compare-ethereum', '/compare/tezos-vs-ethereum.html'],
+    ethereum: ['compare-ethereum', '/compare/tezos-vs-ethereum.html']
+  };
+  for (const [query, [expectedId, expectedHref]] of Object.entries(rankedSubfeatureIntent)) {
+    const actual = searchSiteMapIntents(query)[0];
+    if (actual?.id !== expectedId || actual?.href !== expectedHref) {
+      fail(`site map subfeature search ${JSON.stringify(query)} should rank ${expectedId} at ${expectedHref}, got ${actual?.id || 'none'} at ${actual?.href || 'none'}`);
+    }
   }
 
   for (const route of CHAMBER_ROUTES) {
@@ -763,7 +802,7 @@ async function checkSelectorContracts() {
     ['Tezos loop aura chip rail', 'class="tezos-loop-chips"'],
     ['Tezos loop search map copy', 'Search is the map'],
     ['Tezos loop accepted inputs', 'Paste a wallet address or .tez name, baker, KT1 contract, operation hash, block, protocol, or slash command'],
-    ['hero command bar placeholder copy', 'Search wallet · .tez name · baker · KT1 contract · operation hash · block'],
+    ['hero command bar placeholder copy', 'Search every feature or paste any Tezos ID…'],
     ['timeline share fallback host', 'document.querySelector(\'.upgrade-badges\')'],
     ['timeline share protocol history chamber fallback', 'document.querySelector(\'#protocol-history-chamber-modal .protocol-history-chamber-header\')'],
     ['header protocol chip', 'id="header-protocol-chip" href="#protocol-history"'],
@@ -924,6 +963,14 @@ async function checkSelectorContracts() {
     ['Landing pages share site nav renderer', 'function renderFooter()', siteNav],
     ['Hero search runtime-only quick chips', 'RUNTIME_QUICK_CHIPS', search],
     ['Hero search runtime-only commands', 'RUNTIME_COMMANDS', search],
+    ['Hero search complete browse index', 'siteMapBrowseEntries', search],
+    ['Hero search manifest subfeature intents', 'searchSiteMapIntents', search],
+    ['Hero search explicit mobile close', 'id="hero-search-close"', index],
+    ['Hero search runtime changelog command', "title: '/changelog'", search],
+    ['Hero search runtime export command', "title: '/export'", search],
+    ['Hero search mobile fixed command sheet', 'body.hero-search-mode .command-deck', heroSearchCss],
+    ['Hero search mobile query shortcut collapse', '.hero-slot.has-query .hero-search-chips', heroSearchCss],
+    ['Top continuity mobile explainer reserves flow', '.top-continuity-explain.is-visible', shellExtrasCss],
     ['Hero search .tez scoped Domains route', '#domains=${encodeURIComponent(domain)}', search],
     ['Hero search Ledger Flow command', 'Ledger Flow', search],
     ['Hero search Ledger Flow scoped account route', '#ledger-flow=${encodeURIComponent(q)}', search],
