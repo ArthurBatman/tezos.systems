@@ -3081,6 +3081,7 @@ async function checkMaxisContracts() {
   const sw = await readText('sw.js');
   const tezosDomainsCore = await readText('js/core/tezos-domains.js');
   const myTezos = await readText('js/features/my-baker.js');
+  const maxisGenerator = await readText('scripts/refresh-maxis-data.mjs');
   const generatedSurfaces = await readText('scripts/refresh-generated-surfaces.mjs');
   const packageJson = JSON.parse(await readText('package.json'));
 
@@ -4121,6 +4122,9 @@ async function checkMaxisContracts() {
   if (governanceRefreshIndex < 0 || maxisRefreshIndex < 0 || maxisCareerRefreshIndex < 0
     || governanceRefreshIndex > maxisRefreshIndex || maxisRefreshIndex > maxisCareerRefreshIndex) {
     fail('generated surfaces must refresh governance, frozen-season Maxis data, and mutable career context in dependency order');
+  }
+  if (!/const activeSeasonGeneratedAt = new Date\(\)\.toISOString\(\);\s*const buildOptions = \{\s*season,\s*rules,\s*generatedAt: activeSeasonGeneratedAt,[\s\S]*?\};\s*const fullSeasonSnapshot = await buildFullSeasonSnapshot\(buildOptions\);/.test(maxisGenerator)) {
+    fail('Maxis active-season builds must capture a fresh timestamp immediately before resolving their live Transaction boundary');
   }
   if (packageJson?.scripts?.['refresh:maxis-careers'] !== 'node scripts/refresh-maxis-careers.mjs'
     || packageJson?.scripts?.['check:maxis-careers'] !== 'node scripts/refresh-maxis-careers.mjs --check') {

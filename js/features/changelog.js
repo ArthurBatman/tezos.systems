@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-11',
         entries: [
+            { type: '🔧', text: 'Scheduled Maxis refreshes now timestamp each active protocol-season snapshot immediately before resolving its fixed TzKT transaction boundary, preventing slower upstream fetches from invalidating the scan' },
             { type: '✨', text: 'Command search now opens into the complete canonical destination map and finds deeper Maxis lanes, direct chain comparisons, Chambers, Network Health concepts, recovery tools, and Settings actions including Share, Export, Shortcuts, and Changelog' },
             { type: '🎨', text: 'Mobile search now stays compact as a one-line shortcut rail, expands into a viewport-contained command sheet, clears shortcuts once typing begins, and keeps header stat explainers from overlapping the ticker or search controls' }
         ]

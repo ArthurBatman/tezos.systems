@@ -2199,10 +2199,15 @@ async function main() {
     || transitionSnapshot
     || previousSeasonSnapshot;
 
+  // The Crown Hall sources above can take longer than the two-block
+  // Transaction confirmation lag. Freeze the active season clock only when
+  // its live source build begins so the fixed TzKT boundary cannot overtake a
+  // stale process-start timestamp.
+  const activeSeasonGeneratedAt = new Date().toISOString();
   const buildOptions = {
     season,
     rules,
-    generatedAt,
+    generatedAt: activeSeasonGeneratedAt,
     previousSnapshot: currentPreviousSnapshot,
     previousSeasonSnapshot,
     inheritedPassportSnapshot
