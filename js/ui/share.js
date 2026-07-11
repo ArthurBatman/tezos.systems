@@ -3,6 +3,7 @@
  */
 
 import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgradeOrdinal } from '../core/protocol-count.js';
+import { siteMapCanonicalRoute } from '../core/site-map.js';
 import { loadStats } from '../core/storage.js';
 import { releaseToastSafeArea, reserveToastSafeArea } from './toast-queue.js';
 
@@ -450,25 +451,7 @@ function pushUniqueLine(lines, value) {
 
 function getChamberShareRoute(card) {
     const hash = card.querySelector(':scope > .card-copy-link')?.dataset?.copyHash || '';
-    const routes = {
-        '#pulse': '/pulse/',
-        '#network-pulse': '/pulse/',
-        '#staking': '/stake/',
-        '#stake': '/stake/',
-        '#maxis': '/maxis/',
-        '#chamber': '/chamber/',
-        '#health': '/health/',
-        '#tezosx': '/tezosx/',
-        '#l2chamber': '/l2chamber/',
-        '#tz4': '/tz4/',
-        '#lb': '/lb/',
-        '#ledger-flow': '/ledger-flow/',
-        '#domains': '/domains/',
-        '#tezos-domains': '/domains/'
-    };
-    if (routes[hash]) return `tezos.systems${routes[hash]}`;
-    if (hash === '#protocol-history') return 'tezos.systems/#protocol-history';
-    return 'tezos.systems/#chambers';
+    return `tezos.systems${siteMapCanonicalRoute(hash || '#chambers')}`;
 }
 
 function getChamberShareSummary(card) {

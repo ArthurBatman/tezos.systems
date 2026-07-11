@@ -114,37 +114,33 @@ function shouldRun(modeName, touched, patterns) {
   return modeName === 'all' || modeName === 'scheduled' || anyTouched(touched, patterns);
 }
 
-function routeSitemapMeta(route) {
-  const special = {
-    anthology: { changefreq: 'daily', priority: '0.9' },
-    chamber: { changefreq: 'hourly', priority: '0.9' },
-    pulse: { changefreq: 'hourly', priority: '0.9' },
-    ctez: { changefreq: 'monthly', priority: '0.7' }
-  };
-  return special[route.slug] || { changefreq: 'hourly', priority: '0.8' };
+async function loadSiteMapModule() {
+  const source = await fs.readFile(path.join(ROOT, 'js/core/site-map.js'), 'utf8');
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+  return import(moduleUrl);
 }
 
-async function listHtmlFiles(dir) {
-  try {
-    const entries = await fs.readdir(path.join(ROOT, dir), { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.html'))
-      .map((entry) => `${dir}/${entry.name}`)
-      .sort();
-  } catch {
-    return [];
-  }
-}
-
-function sitemapUrl(pathname, changefreq, priority) {
+function sitemapUrl(href, changefreq, priority) {
+  const url = new URL(href, 'https://tezos.systems');
+  url.hash = '';
   return {
-    loc: `https://tezos.systems${pathname}`,
+    loc: url.toString(),
     changefreq,
     priority
   };
 }
 
+function escapeXml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
 async function renderSitemap() {
+  const { siteMapSitemapEntries } = await loadSiteMapModule();
   const entries = [];
   const seen = new Set();
   const add = (entry) => {
@@ -153,50 +149,28 @@ async function renderSitemap() {
     entries.push(entry);
   };
 
-  [
-    sitemapUrl('/', 'hourly', '1.0'),
-    sitemapUrl('/staking/', 'daily', '0.9'),
-    sitemapUrl('/governance/', 'daily', '0.9')
-  ].forEach(add);
-
-  for (const route of CHAMBER_ROUTES) {
-    if (String(route.robots || '').includes('noindex')) continue;
-    const { changefreq, priority } = routeSitemapMeta(route);
-    add(sitemapUrl(`/${route.canonicalSlug || route.slug}/`, changefreq, priority));
-  }
-
-  [
-    sitemapUrl('/bakers/', 'daily', '0.9'),
-    sitemapUrl('/hen/', 'daily', '0.7'),
-    sitemapUrl('/compare/', 'daily', '0.8')
-  ].forEach(add);
-
-  for (const file of await listHtmlFiles('compare')) {
-    if (file.endsWith('/index.html')) continue;
-    add(sitemapUrl(`/${file}`, 'daily', '0.9'));
-  }
-
-  for (const file of await listHtmlFiles('widgets')) {
-    const name = path.basename(file);
-    const changefreq = name === 'builder.html' ? 'monthly' : ['price.html', 'block-height.html'].includes(name) ? 'hourly' : 'daily';
-    const priority = name === 'builder.html' ? '0.6' : '0.5';
-    add(sitemapUrl(`/${file}`, changefreq, priority));
-  }
+  siteMapSitemapEntries().forEach((entry) => {
+    add(sitemapUrl(entry.href, entry.changefreq, entry.priority));
+  });
 
   const body = entries
-    .map((entry) => `  <url><loc>${entry.loc}</loc><changefreq>${entry.changefreq}</changefreq><priority>${entry.priority}</priority></url>`)
+    .map((entry) => `  <url><loc>${escapeXml(entry.loc)}</loc><changefreq>${escapeXml(entry.changefreq)}</changefreq><priority>${escapeXml(entry.priority)}</priority></url>`)
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
 }
 
 async function writeSitemap() {
   await fs.writeFile(path.join(ROOT, 'sitemap.xml'), await renderSitemap());
-  console.log('Wrote sitemap.xml from chamber route manifest');
+  console.log('Wrote sitemap.xml from canonical site map');
 }
 
 async function main() {
   if (hasFlag('--print-targets')) {
     console.log(GENERATED_TARGETS.join('\n'));
+    return;
+  }
+  if (hasFlag('--sitemap-only')) {
+    await writeSitemap();
     return;
   }
 
@@ -259,9 +233,11 @@ async function main() {
   if (routeTouched || shouldRun(modeName, touched, [
     /^scripts\/refresh-generated-surfaces\.mjs$/,
     /^scripts\/lib\/chamber-routes\.mjs$/,
+    /^js\/core\/site-map\.js$/,
     /^sitemap\.xml$/,
     /^compare\/.*\.html$/,
-    /^widgets\/.*\.html$/
+    /^widgets\/.*\.html$/,
+    /^widgets\/runtime\.js$/
   ])) {
     ran.push('sitemap');
     await writeSitemap();

@@ -431,10 +431,12 @@ inline modal styles in `js/core/app.js`.
   NFT lookup, History, Network Snapshot, and native account/contract/operation/
   block receipt views. `js/core/site-map.js` is the discovery source of truth:
   it owns featured search chips/defaults, relevance-ranked destinations and
-  subfeature intents, the complete grouped footer map, and semantic next-step
-  relationships. Exact
-  intent ranks before broad keyword matches, specialized Maxis Season,
-  Passport, and Champions queries preserve their room state, and pasted
+  subfeature intents, sitemap metadata, the complete grouped footer map, and
+  semantic next-step relationships. The same manifest also declares hash/path
+  aliases, canonical share/copy routes, nested Maxis/compare/widget views, and
+  the public crawl set, so those surfaces cannot quietly become parallel route
+  catalogs. Exact intent ranks before broad keyword matches; Maxis Season,
+  Passport, Champions, and lane queries preserve their room state, and pasted
   addresses or `.tez` names also expose a scoped Maxi Passport path. Baker-name
   searches hydrate from active leaderboard data, while TzKT remains available
   from native receipts as an audit trail.
@@ -454,11 +456,14 @@ inline modal styles in `js/core/app.js`.
   recipes, but their primary destination and semantic next steps now resolve
   through the canonical site map. Newly added rooms therefore enter the loop
   without another hand-maintained destination catalog.
-- The footer renders every canonical Story Room, Live Room, Account Room, live
-  signal, guide, tool, and culture/feed destination instead of a handpicked
-  subset. Expanded Chambers add a shared `Continue exploring` rail when the room
-  does not already own an adjacent-room map; full internal routes prevent modal
-  stacks during room-to-room navigation.
+- The footer renders Dashboard plus every canonical Story Room, Live Room,
+  Account Room, live signal, guide, tool, and culture/feed destination instead
+  of a handpicked subset. Crawlable comparison/widget pages and the core Maxis
+  rooms appear as nested views under their parent destination. Expanded
+  Chambers add a shared `Continue exploring` rail when the room does not already
+  own an adjacent-room map; native Network Pulse and Staking maps retain the
+  same full-map/search exits, and full internal routes prevent modal stacks
+  during room-to-room navigation.
 - Tezos L1 Governance for live and historical amendment voting, including a
   current-stage chronological ballot feed and the bottom historical vote log
   sourced from `data/governance-votes.json`. The command deck does not carry a
@@ -869,8 +874,11 @@ site-owner language and heartbeat affordance from the dashboard polish pass.
 ## SEO And Analytics
 
 - `robots.txt` allows major AI crawlers and points at `sitemap.xml`.
-- `sitemap.xml` is generated from the Chamber route manifest plus SEO, compare,
-  and widget endpoints by `scripts/refresh-generated-surfaces.mjs`.
+- `sitemap.xml` is generated from the canonical sitemap metadata and nested
+  intents in `js/core/site-map.js` by
+  `scripts/refresh-generated-surfaces.mjs`. Chamber route generation remains a
+  separate distribution concern, and static checks require its canonical
+  routes to agree with the site map.
 - `index.html` includes CSP, Open Graph/Twitter metadata, and JSON-LD.
 - `.well-known/ai-plugin.json` describes the current live/historical data model
   using the canonical September 17, 2018 mainnet date and avoids stale

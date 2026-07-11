@@ -77,6 +77,13 @@ function externalTzktLink(path, label = 'Open TzKT audit trail') {
     return `<a href="https://tzkt.io/${escapeHtml(path)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`;
 }
 
+function circulationLinks() {
+    return [
+        '<a href="/#search">Search Tezos Systems</a>',
+        '<a href="/#site-map">View site map</a>'
+    ].join('');
+}
+
 async function fetchJson(url) {
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`TzKT request failed: ${response.status}`);
@@ -147,7 +154,7 @@ function renderRecentTransactions(rows, address) {
         const counterparty = direction === 'Sent' ? tx.target : tx.sender;
         const counterpartyLabel = counterparty?.alias || counterparty?.address || 'unknown';
         return `
-            <a class="native-explorer-event" href="#operation=${encodeURIComponent(tx.hash || '')}" data-native-entity-link>
+            <a class="native-explorer-event" href="/#operation=${encodeURIComponent(tx.hash || '')}">
                 <span>${escapeHtml(direction)}</span>
                 <strong>${escapeHtml(formatMutez(tx.amount || 0, { compact: true }))}</strong>
                 <em>${escapeHtml(counterpartyLabel)}</em>
@@ -173,10 +180,11 @@ function renderAccountLens(data, kind) {
             : metric('Delegators', formatNumber(delegate?.numDelegators), delegate?.active ? 'active baker' : 'account')
     ].join('');
     const actions = [
-        `<a href="#ledger-flow=${encodeURIComponent(data.address)}">Open Ledger Flow</a>`,
-        data.address.startsWith('tz') ? `<a href="#baker=${encodeURIComponent(data.address)}">Try baker profile</a>` : '',
-        `<a href="#my-baker=${encodeURIComponent(data.address)}">Track in My Tezos</a>`,
-        externalTzktLink(data.address)
+        `<a href="/#ledger-flow=${encodeURIComponent(data.address)}">Open Ledger Flow</a>`,
+        data.address.startsWith('tz') ? `<a href="/#baker=${encodeURIComponent(data.address)}">Try baker profile</a>` : '',
+        `<a href="/#my-baker=${encodeURIComponent(data.address)}">Track in My Tezos</a>`,
+        externalTzktLink(data.address),
+        circulationLinks()
     ].filter(Boolean).join('');
 
     return `
@@ -238,7 +246,11 @@ function renderOperationLens(hash, rows) {
             <code>${escapeHtml(hash)}</code>
         </div>
         <div class="native-explorer-metrics">${metrics}</div>
-        <div class="native-explorer-actions">${externalTzktLink(hash)}</div>
+        <div class="native-explorer-actions">
+            <a href="/health/">Open Network Health</a>
+            ${externalTzktLink(hash)}
+            ${circulationLinks()}
+        </div>
         <section class="native-explorer-section">
             <div class="native-explorer-section-head">
                 <h3>Operation contents</h3>
@@ -266,8 +278,9 @@ function renderBlockLens(block) {
         </div>
         <div class="native-explorer-metrics">${metrics}</div>
         <div class="native-explorer-actions">
-            <a href="#health">Open Network Health</a>
+            <a href="/health/">Open Network Health</a>
             ${externalTzktLink(String(level || hash))}
+            ${circulationLinks()}
         </div>
         <section class="native-explorer-section">
             <div class="native-explorer-section-head">
@@ -341,7 +354,10 @@ function renderError(type, value, error) {
             <h2>Native view could not load</h2>
             <code>${escapeHtml(value)}</code>
             <p>${escapeHtml(error?.message || 'The API did not return data for this entity.')}</p>
-            <div class="native-explorer-actions">${externalTzktLink(value, 'Check TzKT directly')}</div>
+            <div class="native-explorer-actions">
+                ${externalTzktLink(value, 'Check TzKT directly')}
+                ${circulationLinks()}
+            </div>
         </div>
     `);
 }

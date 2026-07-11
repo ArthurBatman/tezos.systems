@@ -10,7 +10,7 @@ import { loadStats, loadStatsTimestamp } from '../core/storage.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=420';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=421';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
@@ -821,8 +821,12 @@ function renderRoom() {
             </nav>
         </section>
 
-        <section class="staking-other-rooms chamber-anim-fade">
+        <section class="staking-other-rooms chamber-anim-fade" data-site-wayfinder-native>
             <div class="staking-panel-head"><div><span>Keep exploring</span><h2>Other Chambers</h2></div></div>
+            <nav class="site-wayfinder-actions" aria-label="Tezos Systems discovery tools">
+                <a class="site-wayfinder-action" href="/#site-map">View site map</a>
+                <a class="site-wayfinder-action" href="/#search">Search Tezos Systems</a>
+            </nav>
             <div>${renderOtherRooms()}</div>
         </section>
     `;

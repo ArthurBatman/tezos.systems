@@ -59,8 +59,9 @@ the highest-risk gotchas.
 - `js/core/config.js`: endpoints, refresh intervals, constants, Supabase anon
   config, chain comparison data.
 - `js/core/storage.js`: localStorage/sessionStorage wrappers.
-- `js/core/site-map.js`: canonical destination, search, and semantic-relations
-  graph used by the command bar, dashboard map, standalone pages, and journey
+- `js/core/site-map.js`: canonical destination, search, sitemap/crawl, nested
+  view, alias, and semantic-relations graph used by the command bar, dashboard
+  map, standalone pages, XML sitemap, share/copy routes, and journey
   recommendations. Add new first-party wares here instead of creating another
   hard-coded navigation catalog.
 - `js/core/tezos-domains.js`: shared multi-label `.tez` validation and forward
@@ -149,7 +150,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v420`
+- Service worker cache name: `tezos-systems-v421`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -379,7 +380,9 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   Commit mode refreshes governance/feed and root OG on every normal commit, plus
   staged-source outputs for CSS bundles, pretty chamber route shells, sitemap,
   chamber OG images, and compare pages; scheduled/manual mode refreshes the full
-  generated set.
+  generated set. `sitemap.xml` is rendered from `js/core/site-map.js`, while
+  pretty Chamber shells remain generated from `scripts/lib/chamber-routes.mjs`;
+  static contracts keep those two route identities aligned.
 - `scripts/refresh-maxis-data.mjs`: generates the canonical mixed-clock Maxis
   board and frozen protocol-season artifacts. It must run after governance refresh,
   preserve active rules and finalized archives byte-for-byte, open a new season

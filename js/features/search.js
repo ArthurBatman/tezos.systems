@@ -8,6 +8,7 @@ import {
     searchSiteMap,
     searchSiteMapIntents,
     siteMapBrowseEntries,
+    siteMapBrowseIntents,
     siteMapRoute,
     siteMapSearchScore,
     siteMapSearchChips,
@@ -18,7 +19,7 @@ import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
 const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=420';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=421';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -141,7 +142,7 @@ function shouldSearchBakers(query) {
     const q = normalizeQuery(query);
     if (q.length < 2 || q.startsWith('/')) return false;
     if (ADDRESS_RE.test(q) || TEZ_DOMAIN_RE.test(q) || OPERATION_RE.test(q) || BLOCK_HASH_RE.test(q) || BLOCK_LEVEL_RE.test(q)) return false;
-    if (specializedMaxisResults(q).length || searchSiteMapIntents(q).length || searchSiteMap(q).length) return false;
+    if (searchSiteMapIntents(q).length || searchSiteMap(q).length) return false;
     if (RUNTIME_COMMANDS.some((command) => matchesQuery(commandResult(command), q))) return false;
     if (protocols.some((protocol) => matchesQuery(protocolResult(protocol), q))) return false;
     return true;
@@ -210,10 +211,10 @@ function commandResult(command) {
     };
 }
 
-function siteMapIntentResult(intent) {
+function siteMapIntentResult(intent, { browse = false } = {}) {
     return {
         kind: 'page',
-        group: 'Feature views',
+        group: browse ? intent.group : 'Feature views',
         title: intent.title,
         detail: intent.detail,
         badge: intent.parentTitle || intent.group || 'view',
@@ -239,45 +240,6 @@ function siteMapResult(entry, { starter = false, browse = false } = {}) {
         value: buttonTarget || (rootHashEntry ? entry.hash : route),
         aliases: entry.keywords
     };
-}
-
-function maxisViewResult(view) {
-    const copy = {
-        season: {
-            title: 'Tezos Maxis Season',
-            detail: 'Open the current protocol-season race, moving ranks, cut lines, and honors',
-            badge: 'season'
-        },
-        passport: {
-            title: 'Maxi Passport',
-            detail: 'Open address-bound career stamps and current protocol-season progress',
-            badge: 'passport'
-        },
-        champions: {
-            title: 'Tezos Maxis Champions',
-            detail: 'Open permanent finalized protocol-season winners and frozen receipts',
-            badge: 'champions'
-        }
-    }[view];
-    return {
-        kind: 'page',
-        group: 'Tezos Maxis',
-        title: copy.title,
-        detail: copy.detail,
-        badge: copy.badge,
-        action: 'page',
-        value: `/maxis/?view=${view}`,
-        aliases: ['tezos maxis', 'maxis', view]
-    };
-}
-
-function specializedMaxisResults(query) {
-    const q = normalizeQuery(query).toLowerCase().replace(/^\//, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ');
-    if (!q) return [];
-    if (/\bpassport\b/.test(q)) return [maxisViewResult('passport')];
-    if (/\bchampions?\b/.test(q)) return [maxisViewResult('champions')];
-    if (/\bseason\b/.test(q)) return [maxisViewResult('season')];
-    return [];
 }
 
 function maxiPassportEntityResult(target, group = 'Maxis & Identity') {
@@ -567,14 +529,14 @@ function buildResults(query) {
     const entityMatches = entityResults(q);
     const themeMatches = themeResults(q);
     const starterMatches = starterResults(q);
-    const maxisMatches = specializedMaxisResults(q);
 
     if (!q) {
         return dedupeResults([
             ...siteMapStarters().map((entry) => siteMapResult(entry, { starter: true })),
             ...RUNTIME_STARTER_ROWS,
             ...RUNTIME_COMMANDS.map(commandResult),
-            ...siteMapBrowseEntries().map((entry) => siteMapResult(entry, { browse: true }))
+            ...siteMapBrowseEntries().map((entry) => siteMapResult(entry, { browse: true })),
+            ...siteMapBrowseIntents().map((intent) => siteMapIntentResult(intent, { browse: true }))
         ].filter(Boolean));
     }
 
@@ -588,10 +550,10 @@ function buildResults(query) {
         || Number(topIntent.searchScore || 0) > topCanonicalScore
     );
     const manifestMatches = !intentMatches.length
-        ? [...maxisMatches, ...canonicalMatches]
+        ? canonicalMatches
         : preferIntent
-            ? [...intentMatches, ...canonicalMatches, ...maxisMatches]
-            : [canonicalMatches[0], ...intentMatches, ...canonicalMatches.slice(1), ...maxisMatches].filter(Boolean);
+            ? [...intentMatches, ...canonicalMatches]
+            : [canonicalMatches[0], ...intentMatches, ...canonicalMatches.slice(1)].filter(Boolean);
 
     const directMatches = [
         ...entityMatches,
@@ -739,7 +701,7 @@ export function initHeroSearch() {
         const liveChip = livePulseChip();
         const chipList = [
             ...(liveChip ? [liveChip] : []),
-            { label: `All ${siteMapBrowseEntries().length}`, value: '' },
+            { label: `All ${siteMapBrowseEntries().length + siteMapBrowseIntents().length}`, value: '' },
             ...siteMapSearchChips(),
             ...RUNTIME_QUICK_CHIPS
         ];
@@ -814,7 +776,7 @@ export function initHeroSearch() {
         let index = 0;
         const guide = normalizeQuery(input.value)
             ? ''
-            : `<div class="hero-search-guide"><strong>All ${siteMapBrowseEntries().length} destinations, one search.</strong><span>Browse every room and tool below, or paste a wallet, .tez name, baker, contract, operation, block, or protocol. Press / from anywhere.</span></div>`;
+            : `<div class="hero-search-guide"><strong>All ${siteMapBrowseEntries().length + siteMapBrowseIntents().length} destinations, one search.</strong><span>Browse every room and tool below, including nested views, or paste a wallet, .tez name, baker, contract, operation, block, or protocol. Press / from anywhere.</span></div>`;
         panel.innerHTML = guide + groupedResults(results).map((group) => {
             const rows = group.results.map((result) => resultHtml(result, index++, selectedIndex)).join('');
             return `

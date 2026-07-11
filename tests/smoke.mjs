@@ -3284,8 +3284,8 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     ['season', 'Tezos Maxis Season'],
     ['champions', 'Tezos Maxis Champions'],
     ['transaction maxi', 'Transaction Maxi'],
-    ['transaction season', 'Transaction Maxi'],
-    ['transaction maxi season', 'Transaction Maxi'],
+    ['transaction season', 'Transaction Maxi Season'],
+    ['transaction maxi season', 'Transaction Maxi Season'],
     ['transaction', 'Transaction Maxi'],
     ['delegation maxi', 'Delegation Maxi Season'],
     ['bridge maxi', 'Bridge Maxi Season'],
@@ -3431,7 +3431,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await intentPage.locator('#hero-search-input').press('Enter');
   await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('lane') === 'transaction' && !url.searchParams.has('view'), { timeout: 5000 });
 
-  await seedIntent('transaction season', 'Transaction Maxi');
+  await seedIntent('transaction season', 'Transaction Maxi Season');
   await intentPage.locator('#hero-search-input').press('Enter');
   await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'transaction', { timeout: 5000 });
 

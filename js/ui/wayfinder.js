@@ -13,12 +13,11 @@ const OVERLAY_ENTRY_IDS = Object.freeze({
     'liquidity-baking-modal': 'liquidity-baking',
     'ledger-flow-modal': 'ledger-flow',
     'tezos-domains-modal': 'domains',
-    'ctez-modal': 'ctez'
+    'ctez-modal': 'ctez',
+    'history-modal': 'history'
 });
 
 const BUILT_IN_WAYFINDER_SELECTOR = [
-    '.network-pulse-category-rooms',
-    '.staking-other-rooms',
     '[data-site-wayfinder-native]'
 ].join(', ');
 
@@ -68,7 +67,7 @@ function semanticLinks(currentId) {
             seen.add(entry.id);
             return true;
         })
-        .slice(0, 3);
+        .slice(0, 4);
 }
 
 function createSemanticLink(entry) {

@@ -430,7 +430,11 @@ async function checkSiteMapGraphContracts() {
     searchSiteMap,
     searchSiteMapIntents,
     siteMapBrowseEntries,
+    siteMapBrowseIntents,
+    siteMapDirectoryChildren,
+    siteMapRelated,
     siteMapSearchChips,
+    siteMapSitemapEntries,
     siteMapStarters
   } = await import(moduleUrl);
 
@@ -439,12 +443,23 @@ async function checkSiteMapGraphContracts() {
   const knownIds = new Set(ids);
   if (knownIds.size !== ids.length) fail('site map entry ids must be unique');
   if (new Set(hrefs).size !== hrefs.length) fail('site map entry hrefs must be unique');
+  const intentEntries = SITE_MAP.flatMap((entry) => (entry.searchIntents || []).map((intent) => ({ ...intent, parentId: entry.id })));
+  const intentIds = intentEntries.map((entry) => entry.id);
+  if (new Set(intentIds).size !== intentIds.length) fail('site map child intent ids must be unique');
+  if (intentIds.some((id) => knownIds.has(id))) fail('site map child intent ids must not collide with top-level ids');
 
   for (const group of SITE_MAP_NAV_GROUPS) {
     if (!SITE_MAP.some((entry) => entry.group === group)) fail(`site map nav group is empty: ${group}`);
   }
+  for (const entry of SITE_MAP) {
+    if (!SITE_MAP_NAV_GROUPS.includes(entry.group)) fail(`site map destination is missing from the complete directory groups: ${entry.id}`);
+  }
+  if (new Set(Object.keys(SITE_MAP_RELATIONS)).size !== SITE_MAP.length || SITE_MAP.some((entry) => !SITE_MAP_RELATIONS[entry.id])) {
+    fail('every site map destination must own a semantic relation set');
+  }
   for (const [sourceId, relatedIds] of Object.entries(SITE_MAP_RELATIONS)) {
     if (!knownIds.has(sourceId)) fail(`site map relation source is unknown: ${sourceId}`);
+    if (new Set(relatedIds).size !== relatedIds.length) fail(`site map relation ${sourceId} contains duplicates`);
     for (const relatedId of relatedIds) {
       if (!knownIds.has(relatedId)) fail(`site map relation ${sourceId} points to unknown id ${relatedId}`);
       if (relatedId === sourceId) fail(`site map relation ${sourceId} must not point to itself`);
@@ -473,6 +488,29 @@ async function checkSiteMapGraphContracts() {
   if (JSON.stringify(browseIds) !== JSON.stringify(expectedBrowseIds)) {
     fail(`site map browse order must cover every grouped destination exactly once: ${browseIds.join(', ')}`);
   }
+  if (browseIds.length !== SITE_MAP.length) fail(`complete site map must include all ${SITE_MAP.length} top-level destinations, got ${browseIds.length}`);
+
+  const inbound = new Map(ids.map((id) => [id, 0]));
+  for (const sourceId of ids) {
+    for (const related of siteMapRelated(sourceId, 4)) inbound.set(related.id, (inbound.get(related.id) || 0) + 1);
+  }
+  for (const [id, count] of inbound) {
+    if (!count) fail(`site map destination has no rendered inbound semantic route: ${id}`);
+  }
+  for (const startId of ids) {
+    const seen = new Set([startId]);
+    const queue = [startId];
+    while (queue.length) {
+      for (const related of siteMapRelated(queue.shift(), 4)) {
+        if (seen.has(related.id)) continue;
+        seen.add(related.id);
+        queue.push(related.id);
+      }
+    }
+    if (seen.size !== SITE_MAP.length) {
+      fail(`site map relation graph is not circular from ${startId}; missing ${ids.filter((id) => !seen.has(id)).join(', ')}`);
+    }
+  }
 
   const rankedIntent = {
     'my tezos': 'my-tezos',
@@ -498,6 +536,9 @@ async function checkSiteMapGraphContracts() {
   }
 
   const rankedSubfeatureIntent = {
+    season: ['maxis-season', '/maxis/?view=season'],
+    passport: ['maxis-passport', '/maxis/?view=passport'],
+    champions: ['maxis-champions', '/maxis/?view=champions'],
     'transaction maxi': ['maxis-transaction', '/maxis/?lane=transaction'],
     'transaction season': ['maxis-transaction', '/maxis/?view=season&lane=transaction'],
     'transaction maxi season': ['maxis-transaction', '/maxis/?view=season&lane=transaction'],
@@ -505,13 +546,54 @@ async function checkSiteMapGraphContracts() {
     'delegation maxi': ['maxis-delegation', '/maxis/?view=season&lane=delegation'],
     'bridge maxi': ['maxis-bridge', '/maxis/?view=season&lane=bridge'],
     'tezos vs ethereum': ['compare-ethereum', '/compare/tezos-vs-ethereum.html'],
-    ethereum: ['compare-ethereum', '/compare/tezos-vs-ethereum.html']
+    ethereum: ['compare-ethereum', '/compare/tezos-vs-ethereum.html'],
+    'price widget': ['widget-price', '/widgets/price.html'],
+    'baker card widget': ['widget-baker-card', '/widgets/baker-card.html']
   };
   for (const [query, [expectedId, expectedHref]] of Object.entries(rankedSubfeatureIntent)) {
     const actual = searchSiteMapIntents(query)[0];
     if (actual?.id !== expectedId || actual?.href !== expectedHref) {
       fail(`site map subfeature search ${JSON.stringify(query)} should rank ${expectedId} at ${expectedHref}, got ${actual?.id || 'none'} at ${actual?.href || 'none'}`);
     }
+  }
+
+  const transactionSeason = searchSiteMapIntents('transaction season')[0];
+  if (transactionSeason?.title !== 'Transaction Maxi Season' || !/protocol-season Transaction Maxi race/.test(transactionSeason?.detail || '')) {
+    fail('season lane intents must switch title and detail together with their season route');
+  }
+
+  const visibleLauncherQueries = {
+    'HEN / Teia Collecting': 'hen',
+    'Baker Directory': 'leaderboard',
+    'Staking Rewards Estimator': 'calculator',
+    'Tezos Widgets': 'widgets',
+    'ctez Oven Exit': 'ctez'
+  };
+  for (const [query, expectedId] of Object.entries(visibleLauncherQueries)) {
+    if (searchSiteMap(query)[0]?.id !== expectedId) fail(`visible Explore label ${JSON.stringify(query)} must resolve to ${expectedId}`);
+  }
+
+  const directoryIntentIds = new Set(SITE_MAP.flatMap((entry) => siteMapDirectoryChildren(entry).map((intent) => intent.id)));
+  const browseIntentIds = siteMapBrowseIntents().map((intent) => intent.id);
+  if (JSON.stringify(browseIntentIds) !== JSON.stringify([...directoryIntentIds])) {
+    fail('empty search browse must expose every nested directory view exactly once');
+  }
+  for (const entry of siteMapSitemapEntries()) {
+    if (entry.parentId && !directoryIntentIds.has(entry.id)) fail(`crawlable child route is missing from the complete human map: ${entry.id}`);
+  }
+
+  const expectedWidgetFiles = (await walk('widgets', (name) => name.endsWith('.html') && !name.endsWith('/builder.html')))
+    .map((file) => `/${file}`);
+  const widgetIntentHrefs = new Set(intentEntries.filter((entry) => entry.parentId === 'widgets').map((entry) => entry.href));
+  for (const href of expectedWidgetFiles) {
+    if (!widgetIntentHrefs.has(href)) fail(`widget endpoint is missing from canonical site map intents: ${href}`);
+  }
+
+  for (const intent of intentEntries) {
+    const url = new URL(intent.href, 'https://tezos.systems');
+    if (url.origin !== 'https://tezos.systems') continue;
+    const local = url.pathname.endsWith('/') ? `${url.pathname.slice(1)}index.html` : url.pathname.slice(1);
+    if (local && !(await pathExists(local))) fail(`site map intent ${intent.id} points to missing local route ${intent.href}`);
   }
 
   for (const route of CHAMBER_ROUTES) {
@@ -549,8 +631,24 @@ async function checkSiteMapGraphContracts() {
   if (/const\s+CHAMBERS\s*=/.test(search)) fail('hero search must not keep a duplicate Chamber catalog');
   if (!index.includes('data-site-footer-map') || !index.includes('data-site-map-grid')) fail('dashboard footer must expose the manifest-backed complete map');
   if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapRelated')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
+  if (!index.includes('data-site-map-complete') || !index.includes('href="/#site-map"') || !index.includes('href="/#search"')) {
+    fail('Explore must expose both the complete canonical map and Search Everything');
+  }
+  const nativeWayfinders = [await readText('js/features/network-pulse.js'), await readText('js/features/staking-chamber.js')];
+  for (const native of nativeWayfinders) {
+    if (!native.includes('data-site-wayfinder-native') || !native.includes('href="/#site-map"') || !native.includes('href="/#search"')) {
+      fail('native Chamber wayfinders must preserve full-map and search exits');
+    }
+  }
 
-  pass(`site map graph checked: ${SITE_MAP.length} destinations, ${SITE_MAP_NAV_GROUPS.length} groups, ${standalonePages.length} standalone surfaces`);
+  const jsonLdMatch = index.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/);
+  const webAppSchema = jsonLdMatch ? JSON.parse(jsonLdMatch[1]) : null;
+  const featureList = new Set(Array.isArray(webAppSchema?.featureList) ? webAppSchema.featureList : []);
+  for (const entry of SITE_MAP.filter((item) => item.id !== 'home')) {
+    if (!featureList.has(entry.title)) fail(`WebApplication featureList is missing canonical ware: ${entry.title}`);
+  }
+
+  pass(`site map graph checked: ${SITE_MAP.length} destinations, ${intentEntries.length} child views, ${SITE_MAP_NAV_GROUPS.length} groups, ${standalonePages.length} standalone surfaces`);
 }
 
 async function checkCacheBustAlignment() {
@@ -697,37 +795,40 @@ async function checkCsp() {
 
 async function checkSitemapCoverage() {
   const sitemap = await readText('sitemap.xml');
-  const locs = new Set(Array.from(sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)).map((match) => match[1]));
-  const expected = [
-    'https://tezos.systems/',
-    'https://tezos.systems/staking/',
-    'https://tezos.systems/governance/',
-    'https://tezos.systems/bakers/',
-    'https://tezos.systems/hen/',
-    'https://tezos.systems/compare/'
-  ];
-  for (const route of CHAMBER_ROUTES) {
-    if (String(route.robots || '').includes('noindex')) continue;
-    expected.push(routeUrl(route));
-  }
+  const locs = new Set(Array.from(sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)).map((match) => match[1].replaceAll('&amp;', '&')));
+  const source = await readText('js/core/site-map.js');
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+  const { siteMapSitemapEntries } = await import(moduleUrl);
+  const expected = new Set(siteMapSitemapEntries().map((entry) => new URL(entry.href, 'https://tezos.systems').toString()));
 
-  for (const file of await walk('compare', (name) => name.endsWith('.html'))) {
-    expected.push(file.endsWith('/index.html')
-      ? 'https://tezos.systems/compare/'
-      : `https://tezos.systems/${file}`);
-  }
-  for (const file of await walk('widgets', (name) => name.endsWith('.html'))) {
-    expected.push(`https://tezos.systems/${file}`);
-  }
-
-  for (const url of new Set(expected)) {
+  for (const url of expected) {
     if (!locs.has(url)) fail(`sitemap.xml missing ${url}`);
   }
   for (const url of locs) {
+    if (!expected.has(url)) fail(`sitemap.xml contains a route outside the canonical site map: ${url}`);
     if (url.includes('#')) fail(`sitemap.xml should use crawlable paths instead of hash fragments: ${url}`);
   }
 
-  pass(`sitemap coverage checked: ${locs.size} URLs`);
+  const canonicalPages = {
+    'landing.html': 'https://tezos.systems/',
+    'staking/index.html': 'https://tezos.systems/staking/',
+    'governance/index.html': 'https://tezos.systems/governance/',
+    'bakers/index.html': 'https://tezos.systems/bakers/',
+    'hen/index.html': 'https://tezos.systems/?hen=1',
+    'widgets/builder.html': 'https://tezos.systems/widgets/builder.html'
+  };
+  for (const file of await walk('widgets', (name) => name.endsWith('.html') && !name.endsWith('/builder.html'))) {
+    canonicalPages[file] = `https://tezos.systems/${file}`;
+  }
+  for (const [file, canonical] of Object.entries(canonicalPages)) {
+    const html = await readText(file);
+    if (!html.includes(`<link rel="canonical" href="${canonical}">`)) fail(`${file} canonical URL must agree with the site map: ${canonical}`);
+    if (file === 'landing.html' && !html.includes(`<meta property="og:url" content="${canonical}">`)) {
+      fail(`landing.html Open Graph URL must agree with its Dashboard canonical: ${canonical}`);
+    }
+  }
+
+  pass(`canonical sitemap equality checked: ${locs.size} URLs`);
 }
 
 async function checkSelectorContracts() {
@@ -925,7 +1026,7 @@ async function checkSelectorContracts() {
     ['Protocol History chamber current-first timeline', 'const displayProtocols = isHistoryChamber ? [...protocols].reverse() : protocols', app],
     ['Protocol History Chamber card', "card.id = 'protocol-history-entry-card'", app],
     ['Protocol Anthology card copy', 'Protocol Anthology', app],
-    ['Protocol Anthology pretty route map', "anthology: 'protocol-history'", app],
+    ['Protocol Anthology pretty route map', "href: '/anthology/'", siteMap],
     ['Protocol Anthology crawlable route source', "slug: 'anthology'", chamberRoutes],
     ['Protocol Anthology card anatomy', 'protocol-history-entry-anthology', app],
     ['Protocol Anthology recent spines', 'protocol-history-entry-spine-item', app],
@@ -964,6 +1065,7 @@ async function checkSelectorContracts() {
     ['Hero search runtime-only quick chips', 'RUNTIME_QUICK_CHIPS', search],
     ['Hero search runtime-only commands', 'RUNTIME_COMMANDS', search],
     ['Hero search complete browse index', 'siteMapBrowseEntries', search],
+    ['Hero search complete nested view index', 'siteMapBrowseIntents', search],
     ['Hero search manifest subfeature intents', 'searchSiteMapIntents', search],
     ['Hero search explicit mobile close', 'id="hero-search-close"', index],
     ['Hero search runtime changelog command', "title: '/changelog'", search],
@@ -976,8 +1078,8 @@ async function checkSelectorContracts() {
     ['Hero search Ledger Flow scoped account route', '#ledger-flow=${encodeURIComponent(q)}', search],
     ['Hero search KT1 starter route', "['kt1', 'KT1 Contracts']", search],
     ['Hero search grouped visual order normalization', 'groupOrderedResults', search],
-    ['Hero search Maxi Passport intent route', '/maxis/?view=passport', search],
-    ['Hero search Maxis Season intent route', '/maxis/?view=${view}', search],
+    ['Hero search Maxi Passport intent route', '/maxis/?view=passport', siteMap],
+    ['Hero search Maxis Season intent route', '/maxis/?view=season', siteMap],
     ['Hero search address-scoped Maxi Passport route', 'view=passport&address=${encodeURIComponent(target)}', search],
     ['Tezos loop console initializer', 'function initTezosLoopConsole()', app],
     ['Tezos loop aura persistence', 'TEZOS_LOOP_STORAGE_KEY', app],
@@ -999,8 +1101,8 @@ async function checkSelectorContracts() {
     ['Collapsed header inline spacing reset', "header.style.marginBottom = '0'", app],
     ['Chambers visibility storage', 'tezos-systems-chambers-visible', app],
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
-    ['Pretty chamber route opens without hash redirect', "chamber: 'chamber'", app],
-    ['Network Pulse pretty route opens without hash redirect', "pulse: 'pulse'", app],
+    ['Pretty chamber route resolves through site map', 'findCurrentSiteMapEntry({', app],
+    ['Pretty chamber route uses canonical hash identity', "entry.hash.replace(/^#/, '')", app],
     ['Dashboard footer uses site map renderer', 'function initSiteFooterMap', app],
     ['Dashboard footer map shell hook', 'data-site-footer-map', index],
     ['Dashboard footer map grid hook', 'data-site-map-grid', index],
@@ -1043,7 +1145,7 @@ async function checkSelectorContracts() {
     ['Network Pulse direct footer link', 'Direct: /pulse/', networkPulse],
     ['Network Pulse pretty route', "slug: 'pulse'", chamberRoutes],
     ['Network Pulse chamber pair', "key: 'network-pulse'", app],
-    ['Network Pulse share route', "'#pulse': '/pulse/'", share],
+    ['Network Pulse share route', 'siteMapCanonicalRoute', share],
     ['Network Pulse hero stats spread', '...heroStats', app],
     ['Network Pulse hero stats fallback event', "source: 'hero'", app],
     ['Network Pulse delegated hero stat', 'delegatedRatio: staking.delegatedRatio', api],
@@ -1055,7 +1157,7 @@ async function checkSelectorContracts() {
     ['Staking Chamber feature import', 'initStakingChamber', app],
     ['Staking Chamber hash route', "hash === 'staking'", app],
     ['Staking Chamber legacy short hash route', "hash === 'stake'", app],
-    ['Staking Chamber pretty route opens without hash redirect', "stake: 'staking'", app],
+    ['Staking Chamber pretty route opens without hash redirect', "case 'staking':", app],
     ['Staking Chamber modal cleanup', 'closeStakingChamber', app],
     ['Staking Chamber card pair', "key: 'staking'", app],
     ['Staking Chamber card copy link', 'data-copy-hash="#staking"', stakingChamber],
@@ -1078,7 +1180,7 @@ async function checkSelectorContracts() {
     ['Staking Chamber crawlable route source', "slug: 'stake'", chamberRoutes],
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
     ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
-    ['Staking Chamber share route', "'#staking': '/stake/'", share],
+    ['Staking Chamber share route', 'siteMapCanonicalRoute', share],
     ['Staking Chamber service worker JS', '/js/features/staking-chamber.js', await readText('sw.js')],
     ['Staking Chamber service worker CSS', '/css/staking-chamber.css', await readText('sw.js')],
     ['Staking Chamber service worker route', "'/stake/'", await readText('sw.js')],
@@ -1168,7 +1270,7 @@ async function checkSelectorContracts() {
     ['Tezos Domains full-row pair', "key: 'tezos-domains'", app],
     ['Tezos Domains lookup panel CSS', '.td-lookup-panel', tezosDomainsCss],
     ['Tezos Domains final strip CSS', '[data-chamber-pair="tezos-domains"]', tezosDomainsCss],
-    ['Tezos Domains share route', "'#domains': '/domains/'", share],
+    ['Tezos Domains share route', 'siteMapCanonicalRoute', share],
     ['Tezos Domains service worker JS', '/js/features/tezos-domains.js', await readText('sw.js')],
     ['Tezos Domains service worker CSS', '/css/tezos-domains.css', await readText('sw.js')],
     ['ctez hash route', "hash === 'ctez'", app],
@@ -1754,8 +1856,8 @@ async function checkSelectorContracts() {
     ['Chamber rich share capture helper', 'async function captureChamberCard(card)', share],
     ['Chamber rich share clones visible panel', 'cloneChamberPanel(card)', share],
     ['Chamber rich share html2canvas color sanitizer', 'sanitizeCaptureModernColorStyles(panelClone', share],
-    ['Chamber rich share direct Ledger Flow route', "'#ledger-flow': '/ledger-flow/'", share],
-    ['Chamber rich share Protocol Anthology route', "tezos.systems/#protocol-history", share],
+    ['Chamber rich share canonical route helper import', "import { siteMapCanonicalRoute } from '../core/site-map.js';", share],
+    ['Chamber rich share canonical route resolver', "siteMapCanonicalRoute(hash || '#chambers')", share],
     ['Chamber rich share panel label', 'Visible Chamber Panel', share],
     ['Chamber generated info helper', 'function ensureChamberInfoButton(card)', app],
     ['Chamber generated info copy', 'CHAMBER_INFO_COPY', app],
@@ -4022,7 +4124,7 @@ async function checkMaxisContracts() {
 
   const contracts = [
     ['maxis app import', 'initMaxisChamber', app],
-    ['maxis pretty path map', "maxis: 'maxis'", app],
+    ['maxis pretty path map', "case 'maxis':", app],
     ['maxis hash route', "hash === 'maxis'", app],
     ['maxis site map', "id: 'maxis'", siteMap],
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],

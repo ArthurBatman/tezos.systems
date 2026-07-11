@@ -7,7 +7,10 @@ import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth } from './api.js';
 import {
     SITE_MAP_NAV_GROUPS,
+    findCurrentSiteMapEntry,
     findSiteMapEntry,
+    siteMapCanonicalRoute,
+    siteMapDirectoryChildren,
     siteMapGroup,
     siteMapRelated,
     siteMapRoute
@@ -107,7 +110,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=420';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=421';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -4748,26 +4751,7 @@ function initDeepLinkAffordances() {
     ];
 
     function makeUrl(hash) {
-        const prettyRoutes = {
-            '#pulse': '/pulse/',
-            '#network-pulse': '/pulse/',
-            '#staking': '/stake/',
-            '#stake': '/stake/',
-            '#chamber': '/chamber/',
-            '#health': '/health/',
-            '#tezosx': '/tezosx/',
-            '#tezlink': '/tezosx/',
-            '#l2chamber': '/l2chamber/',
-            '#lb': '/lb/',
-            '#lb-tile': '/lb/',
-            '#tz4': '/tz4/',
-            '#ctez': '/ctez/',
-            '#ledger-flow': '/ledger-flow/',
-            '#maxis': '/maxis/'
-        };
-        const pretty = prettyRoutes[hash];
-        if (pretty) return `${window.location.origin}${pretty}`;
-        return `${window.location.origin}${window.location.pathname}${hash}`;
+        return new URL(siteMapCanonicalRoute(hash), window.location.origin).toString();
     }
 
     function markCopied(button) {
@@ -4945,23 +4929,12 @@ function initOfflineIndicator() {
 function getPrettyChamberPathRoute() {
     const slug = window.location.pathname.replace(/^\/+|\/+$/g, '');
     if (!slug || slug.includes('/')) return null;
-    const routes = {
-        anthology: 'protocol-history',
-        pulse: 'pulse',
-        stake: 'staking',
-        chamber: 'chamber',
-        health: 'health',
-        tezosx: 'tezosx',
-        tezlink: 'tezosx',
-        l2chamber: 'l2chamber',
-        tz4: 'tz4',
-        lb: 'lb',
-        domains: 'domains',
-        'ledger-flow': 'ledger-flow',
-        ctez: 'ctez',
-        maxis: 'maxis'
-    };
-    return routes[slug] || null;
+    const entry = findCurrentSiteMapEntry({
+        pathname: window.location.pathname,
+        search: window.location.search,
+        hash: ''
+    });
+    return entry?.hash ? entry.hash.replace(/^#/, '') : null;
 }
 
 function isTezosAccountAddress(value) {
@@ -5619,15 +5592,25 @@ function applyDeepLink() {
     }
 }
 
-function footerMapLink(entry) {
+function footerMapLink(entry, className = 'site-map-link') {
     if (!entry) return '';
     const type = String(entry.href || '').endsWith('.xml') ? ' type="application/rss+xml"' : '';
     const fresh = entry.fresh ? '<small>New</small>' : '';
     return `
-        <a class="site-map-link" href="${escapeHtml(siteMapRoute(entry))}"${type}>
+        <a class="${className}" href="${escapeHtml(siteMapRoute(entry))}"${type}>
             <span>${escapeHtml(entry.title)}</span>
             ${fresh}
         </a>
+    `;
+}
+
+function footerMapEntry(entry) {
+    const children = siteMapDirectoryChildren(entry);
+    return `
+        <div class="site-map-link-cluster${children.length ? ' has-children' : ''}">
+            ${footerMapLink(entry)}
+            ${children.length ? `<div class="site-map-sublinks">${children.map((child) => footerMapLink(child, 'site-map-sublink')).join('')}</div>` : ''}
+        </div>
     `;
 }
 
@@ -5638,7 +5621,7 @@ function footerMapGroup(label) {
         <section class="site-map-group" aria-label="${escapeHtml(label)}">
             <h3>${escapeHtml(label)}</h3>
             <div class="site-map-links">
-                ${entries.map(footerMapLink).join('')}
+                ${entries.map(footerMapEntry).join('')}
             </div>
         </section>
     `;

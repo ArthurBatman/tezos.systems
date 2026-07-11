@@ -3,7 +3,7 @@
  * Cache-first for shell assets, network-first for API data
  */
 
-const CACHE_NAME = 'tezos-systems-v420';
+const CACHE_NAME = 'tezos-systems-v421';
 
 // Shell assets to precache
 const SHELL_ASSETS = [

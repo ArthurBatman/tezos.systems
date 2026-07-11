@@ -3,6 +3,7 @@ import {
     SITE_MAP_NAV_GROUPS,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
+    siteMapDirectoryChildren,
     siteMapGroup,
     siteMapRelated,
     siteMapRoute
@@ -134,7 +135,13 @@ function footerGroupHtml(label, current) {
             <div class="site-map-links">
                 ${entries.map((entry) => {
                     const active = isActive(entry, current);
-                    return `<a class="site-map-link${active ? ' is-active' : ''}" href="${escapeHtml(entryRoute(entry))}"${active ? ' aria-current="page"' : ''}>${escapeHtml(entry.title)}</a>`;
+                    const children = siteMapDirectoryChildren(entry);
+                    return `
+                        <div class="site-map-link-cluster${children.length ? ' has-children' : ''}">
+                            <a class="site-map-link${active ? ' is-active' : ''}" href="${escapeHtml(entryRoute(entry))}"${active ? ' aria-current="page"' : ''}>${escapeHtml(entry.title)}</a>
+                            ${children.length ? `<div class="site-map-sublinks">${children.map((child) => `<a class="site-map-sublink" href="${escapeHtml(entryRoute(child))}">${escapeHtml(child.title)}</a>`).join('')}</div>` : ''}
+                        </div>
+                    `;
                 }).join('')}
             </div>
         </section>
@@ -149,7 +156,7 @@ function defaultAttributionHtml() {
 }
 
 function legalAttributionHtml() {
-    return '<span><a href="/feed.xml">Governance RSS</a> · <a href="https://github.com/Primate411/tezos.systems">Source</a> · <a href="/LICENSE" rel="license">MPL-2.0</a></span>';
+    return '<span><a href="https://github.com/Primate411/tezos.systems">Source</a> · <a href="/LICENSE" rel="license">MPL-2.0</a></span>';
 }
 
 function originalAttributionHtml(footer) {

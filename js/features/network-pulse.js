@@ -11,14 +11,14 @@ import {
     fetchChamberHistoricalData,
     fetchHistoricalData
 } from '../core/api.js';
-import { SITE_MAP } from '../core/site-map.js';
+import { SITE_MAP, siteMapCanonicalRoute, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
 import { escapeHtml, formatLarge, formatPercentage, formatSupply } from '../core/utils.js';
 import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=420';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=421';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1051,9 +1051,10 @@ function renderMetricCard(metric, stats, rows = lastHistoryRows, domainRows = la
     const sparkline = metricIsQuiet(metric, stats, context)
         ? ''
         : renderSparkline(metric, rowsForMetric(metric, context));
-    const action = metric.route ? `<a class="network-pulse-card-action" href="${escapeHtml(metric.route)}">Open</a>` : '';
-    const routeAttrs = metric.route
-        ? ` data-route="${escapeHtml(metric.route)}" role="link" tabindex="0"`
+    const route = metric.route ? siteMapCanonicalRoute(metric.route) : '';
+    const action = route ? `<a class="network-pulse-card-action" href="${escapeHtml(route)}">Open</a>` : '';
+    const routeAttrs = route
+        ? ` data-route="${escapeHtml(route)}" role="link" tabindex="0"`
         : '';
     return `
         <article class="network-pulse-card${metric.route ? ' network-pulse-card-clickable' : ''}" data-network-pulse-metric="${escapeHtml(metric.key)}"${routeAttrs}>
@@ -1090,7 +1091,7 @@ function renderGroup(group, stats, rows = lastHistoryRows, domainRows = lastDoma
 }
 
 function roomRoute(item) {
-    return item.hash || item.href || '/';
+    return siteMapRoute(item) || item.href || item.hash || '/';
 }
 
 function roomOverrideValue(id) {
@@ -1129,7 +1130,7 @@ function chamberLinks() {
 
 function renderChamberLinks() {
     return `
-        <section class="network-pulse-category network-pulse-category-rooms" id="network-pulse-rooms" data-network-pulse-section="rooms">
+        <section class="network-pulse-category network-pulse-category-rooms" id="network-pulse-rooms" data-network-pulse-section="rooms" data-site-wayfinder-native>
             <div class="network-pulse-category-head">
                 <div>
                     <span>Adjacent rooms</span>
@@ -1137,6 +1138,10 @@ function renderChamberLinks() {
                 </div>
                 <p>Specialized chambers already explain the deeper story behind many pulse cards.</p>
             </div>
+            <nav class="site-wayfinder-actions" aria-label="Tezos Systems discovery tools">
+                <a class="site-wayfinder-action" href="/#site-map">View site map</a>
+                <a class="site-wayfinder-action" href="/#search">Search Tezos Systems</a>
+            </nav>
             <div class="network-pulse-card-grid network-pulse-room-grid">
                 ${chamberLinks().map((item) => `
                     <a class="network-pulse-card network-pulse-room-card" href="${escapeHtml(item.route)}" data-network-pulse-room="${escapeHtml(item.id)}">
