@@ -131,7 +131,7 @@ async function shareStreakMilestone(count, copy, button) {
 
         showShareModal(canvas, [{
             label: '🔥 Streak',
-            text: `${count} days straight watching Tezos run. It has never stopped either.\n\ntezos.systems`
+            text: `${count} days straight checking the Tezos network. Mainnet history stretches back to September 2018.\n\ntezos.systems`
         }], 'Tezos Streak');
     } catch (error) {
         console.error('Failed to share streak milestone', error);

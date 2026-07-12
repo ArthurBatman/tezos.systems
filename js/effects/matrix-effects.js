@@ -13,6 +13,7 @@ const MATRIX_CONFIG = {
     chars: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン日月火水木金土01',
     opacity: 0.3
 };
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 class MatrixRain {
     constructor() {
@@ -25,7 +26,7 @@ class MatrixRain {
     }
 
     start() {
-        if (this.isActive) return;
+        if (this.isActive || reducedMotionQuery.matches) return;
 
         debugLog('Starting Matrix rain effect');
         this.isActive = true;
@@ -153,7 +154,7 @@ const matrixRain = new MatrixRain();
 function handleThemeChange() {
     const theme = document.body.getAttribute('data-theme');
 
-    if (theme === 'matrix') {
+    if (theme === 'matrix' && !reducedMotionQuery.matches) {
         matrixRain.start();
     } else {
         matrixRain.stop();
@@ -162,6 +163,8 @@ function handleThemeChange() {
 
 // Listen for theme changes
 window.addEventListener('themechange', handleThemeChange);
+if (reducedMotionQuery.addEventListener) reducedMotionQuery.addEventListener('change', handleThemeChange);
+else reducedMotionQuery.addListener?.(handleThemeChange);
 
 // Check initial theme
 document.addEventListener('DOMContentLoaded', () => {

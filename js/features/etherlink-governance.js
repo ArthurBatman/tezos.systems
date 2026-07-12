@@ -6,6 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const BLOCK_SECONDS = 6;
@@ -95,10 +96,6 @@ let chamberInFlight = false;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 const targetTrackCache = new Map();
-
-function isAbortableTarget(target) {
-    return Boolean(target?.closest('button, a, .card-info-btn, .card-tooltip'));
-}
 
 async function fetchJson(url) {
     return fetchWithRetry(url, { cache: 'no-store', memoryCache: false }, 1);
@@ -1100,10 +1097,6 @@ function unlockPageScroll() {
     savedHtmlOverflow = null;
 }
 
-function handleEscape(event) {
-    if (event.key === 'Escape') closeEtherlinkGovernanceChamber();
-}
-
 function stopChamberRefresh() {
     if (chamberTimer) {
         window.clearInterval(chamberTimer);
@@ -1148,6 +1141,7 @@ export async function openEtherlinkGovernanceChamber(trackKey = '') {
         overlay = document.createElement('div');
         overlay.id = 'etherlink-governance-modal';
         overlay.className = 'modal-overlay chamber-overlay lb-overlay etherlink-gov-overlay';
+        overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
             <div class="modal-content modal-large chamber-content lb-content etherlink-gov-content" role="dialog" aria-modal="true" aria-labelledby="etherlink-governance-title">
                 <button class="modal-close chamber-close" type="button" aria-label="Close Tezos X Governance Chamber">&times;</button>
@@ -1166,9 +1160,14 @@ export async function openEtherlinkGovernanceChamber(trackKey = '') {
         });
     }
 
-    document.addEventListener('keydown', handleEscape);
     lockPageScroll();
     overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeEtherlinkGovernanceChamber,
+        dialogSelector: '.etherlink-gov-content',
+        titleId: 'etherlink-governance-title',
+        label: 'Tezos X Governance Chamber'
+    });
     const content = overlay.querySelector('.etherlink-gov-content');
     if (content) content.scrollTop = 0;
     await refreshChamber({ force: true });
@@ -1179,15 +1178,22 @@ export async function openEtherlinkGovernanceChamber(trackKey = '') {
 }
 
 export function closeEtherlinkGovernanceChamber() {
-    document.removeEventListener('keydown', handleEscape);
     stopChamberRefresh();
     const overlay = document.getElementById('etherlink-governance-modal');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        deactivateChamberDialog(overlay);
+    }
     unlockPageScroll();
 }
 
 export function initEtherlinkGovernanceChamber() {
     if (document.getElementById('etherlink-governance-entry-card')) {
+        wireChamberLauncher(document.getElementById('etherlink-governance-entry-card'), {
+            open: openEtherlinkGovernanceChamber,
+            label: 'Open Tezos X Governance Chamber',
+            titleSelector: '#etherlink-governance-entry-title, .stat-label'
+        });
         startEntryRefresh();
         refreshEntryCard();
         return;
@@ -1199,16 +1205,12 @@ export function initEtherlinkGovernanceChamber() {
     const card = document.createElement('div');
     card.id = 'etherlink-governance-entry-card';
     card.className = 'stat-card chamber-entry-card etherlink-governance-entry-card';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', 'Open Tezos X Governance L2 panel');
-    card.title = 'Open Tezos X Governance L2 panel';
     card.innerHTML = `
         <button class="card-copy-link" type="button" data-copy-hash="#l2chamber" aria-label="Copy Tezos X Governance L2 direct link" title="Copy Tezos X Governance L2 link">🔗</button>
         <div class="card-inner">
             <div class="card-front chamber-entry-front etherlink-governance-entry-front">
                 <div class="tezlink-entry-main">
-                    <h2 class="stat-label">Tezos X Governance</h2>
+                    <h2 class="stat-label" id="etherlink-governance-entry-title">Tezos X Governance</h2>
                     <div class="stat-value etherlink-gov-entry-value" id="etherlink-governance-entry-value"><span class="loading loading-skeleton">Preheating L2 governance</span></div>
                     <p class="stat-description" id="etherlink-governance-entry-description">L2 Governance · FAST, SLOW, and Sequencer votes</p>
                     <div class="chamber-entry-status live" id="etherlink-governance-entry-mini">L2 Governance · warming proposal tracks</div>
@@ -1218,22 +1220,18 @@ export function initEtherlinkGovernanceChamber() {
         </div>
     `;
 
-    card.addEventListener('click', (event) => {
-        if (isAbortableTarget(event.target)) return;
-        openEtherlinkGovernanceChamber();
-    });
-    card.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        openEtherlinkGovernanceChamber();
-    });
-
     const tezlinkCard = document.getElementById('tezlink-entry-card');
     if (tezlinkCard?.parentElement === grid) {
         tezlinkCard.after(card);
     } else {
         grid.prepend(card);
     }
+
+    wireChamberLauncher(card, {
+        open: openEtherlinkGovernanceChamber,
+        label: 'Open Tezos X Governance Chamber',
+        titleSelector: '#etherlink-governance-entry-title'
+    });
 
     refreshEntryCard({ force: true });
     startEntryRefresh();

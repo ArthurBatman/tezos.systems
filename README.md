@@ -115,7 +115,7 @@ tezos.systems/
 ├── .githooks/pre-commit               # Shared local hook wrapper
 ├── LICENSE                             # Mozilla Public License 2.0 terms
 ├── NOTICE                              # Project attribution and license scope
-├── sw.js                              # Service worker cache and offline strategy
+├── sw.js                              # Bounded shell cache and offline strategy
 ├── version.json                       # Served build metadata
 ├── site.webmanifest
 ├── robots.txt
@@ -189,9 +189,9 @@ wordmark stays as vivid as the wrapped mobile title.
 | `warzone` | Amber command theme |
 
 HEN is both a selectable persisted dashboard theme and a separate live-feed
-overlay entry point. `/hen/` is a crawlable entry page with an explicit handoff
-into `/?hen=1`, and the overlay opens a live Tezos NFT feed that shows Teia/HEN
-contract mints and OBJKT artist
+overlay entry point. `/hen/` is the canonical, crawlable live-feed page and
+opens the collecting surface immediately; the legacy `/?hen=1` entry still
+activates the feed and canonicalizes to `/hen/`. The feed shows Teia/HEN contract mints and OBJKT artist
 collection mints together by default. The HEN overlay uses a fixed grid shell:
 header, status, feed, and CLI rows stay stable while terminal scrollback, new
 mint pulses, the collecting hint, idle/listening state, and the now-playing
@@ -263,20 +263,23 @@ inline modal styles in `js/core/app.js`.
   clean whole-line transition.
   Clicking the strip opens the Network Health Chamber.
 - The header keeps the current protocol beside the Tezos Systems title, promotes
-  the live NFT feed doorway into the right-side navigation, and turns uptime
-  into a first-screen statement with years/days/hours/minutes plus a `100%
-  uptime · since 2018` claim. Active baker count, finality, staked share, and
-  issuance rate remain in theme-matched stat pills.
-  On the September 17 UTC mainnet anniversary, the uptime statement switches to
+  the live NFT feed doorway into the right-side navigation, and turns mainnet
+  age into a first-screen statement with years/days/hours/minutes plus a
+  `mainnet age · since 2018` label. The counter measures elapsed time
+  since launch, not an availability percentage or incident ledger. Active baker
+  count, finality, staked share, and issuance rate remain in theme-matched stat
+  pills.
+  On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   Imminent or newly crossed network milestones make the runtime glow and add a
   compact linked marker immediately to the right of the uptime/year counter,
-  while remaining visually subordinate to the larger uptime proof;
-  the marker opens Network Pulse or the most relevant Chamber while the uptime
+  while remaining visually subordinate to the larger mainnet continuity counter;
+  the marker opens Network Pulse or the most relevant Chamber while the continuity
   statement still opens Protocol Anthology.
   Clicking a stat pill opens that metric's historical stats surface.
-- The Network Health Chamber contains the fuller Continuity Proof panel with
-  the same core proof data in the deep Health context.
+- The Network Health Chamber contains the fuller Mainnet Continuity panel with
+  the same chain-age and upgrade-history context, explicitly separated from
+  availability monitoring.
 - Tezos X Governance Chamber with direct `#l2chamber` access and visible L2
   Governance labeling,
   live FAST, SLOW, and Sequencer track status sourced from TzKT contract
@@ -795,7 +798,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v420`, including hero search, theme
+- Current aligned shell cache stamp: `v423`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
@@ -816,6 +819,8 @@ Important version model:
   the latest GitHub `main` commit at runtime.
 - `sw.js` treats `/version.json` as network-first and same-origin shell assets
   as network-first with cache fallback.
+- Cross-origin API responses bypass Cache Storage and failed requests surface
+  as unavailable instead of replaying stale telemetry as current.
 
 ## Governance Data
 

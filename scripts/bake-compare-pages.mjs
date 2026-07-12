@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG_FILE = path.join(ROOT, 'js', 'core', 'config.js');
 const PROTOCOL_FILE = path.join(ROOT, 'data', 'protocol-data.json');
+const COMPARE_INDEX_FILE = path.join(ROOT, 'compare', 'index.html');
 
 const PAGES = {
   ethereum: 'compare/tezos-vs-ethereum.html',
@@ -15,16 +16,36 @@ const PAGES = {
   algorand: 'compare/tezos-vs-algorand.html'
 };
 
+const PEER_REFERENCES = {
+  ethereum: [
+    ['Ethereum PoS and finality', 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/']
+  ],
+  solana: [
+    ['Solana whitepaper', 'https://solana.com/solana-whitepaper.pdf'],
+    ['energy methodology', 'https://solana.com/news/solana-energy-use-report-december-2023']
+  ],
+  cardano: [
+    ['Cardano governance', 'https://docs.cardano.org/about-cardano/governance-overview'],
+    ['eras and phases', 'https://docs.cardano.org/about-cardano/evolution/eras-and-phases']
+  ],
+  algorand: [
+    ['Algorand finality', 'https://developer.algorand.org/solutions/avm-evm-instant-finality/'],
+    ['sustainability', 'https://algorand.co/technology/sustainability'],
+    ['May 2026 supply report', 'https://algorand.co/blog/may-2026-algo-insights-report'],
+    ['staking rewards FAQ', 'https://algorand.co/staking-rewards-faq']
+  ]
+};
+
 const METRICS = [
   { key: 'blockTime', label: 'Block Time', icon: '⏱️', lower: true },
   { key: 'finality', label: 'Finality', icon: '✅', lower: true },
-  { key: 'stakingPct', label: 'Staking %', icon: '🥩', higher: true },
-  { key: 'annualIssuance', label: 'Annual Issuance', icon: '🖨️', lower: true },
-  { key: 'validators', label: 'Nakamoto Coeff.', icon: '🏛️', context: true },
-  { key: 'selfAmendments', label: 'On-Chain Upgrades', icon: '🔄', higher: true },
-  { key: 'hardForks', label: 'Hard Forks', icon: '🍴', lower: true },
-  { key: 'energyPerTx', label: 'Energy / Tx', icon: '⚡', lower: true },
-  { key: 'avgTxFee', label: 'Avg Tx Fee', icon: '💰', lower: true },
+  { key: 'stakingPct', label: 'Staking %', icon: '🥩', context: true },
+  { key: 'annualIssuance', label: 'Annual Issuance', icon: '🖨️', context: true },
+  { key: 'validators', label: 'Stake Concentration', icon: '🏛️', context: true },
+  { key: 'selfAmendments', label: 'Governance Upgrade Record', icon: '🔄', context: true },
+  { key: 'hardForks', label: 'Upgrade Path', icon: '🍴', context: true },
+  { key: 'energyPerTx', label: 'Energy / Tx', icon: '⚡', context: true },
+  { key: 'avgTxFee', label: 'Avg Tx Fee', icon: '💰', context: true },
   { key: 'slashing', label: 'Slashing', icon: '⚔️', context: true }
 ];
 
@@ -51,6 +72,12 @@ function escapeHtml(value) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+function peerReferenceHtml(chainKey) {
+  return (PEER_REFERENCES[chainKey] || [])
+    .map(([label, url]) => `<a href="${url}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`)
+    .join(' · ');
 }
 
 async function loadComparisonData() {
@@ -91,25 +118,16 @@ function getWinner(tezVal, otherVal, metric) {
   return 'tie';
 }
 
-function generateNarrative(chain, tezos, wins) {
-  const tezWins = wins.filter((winner) => winner === 'tezos').length;
-  const otherWins = wins.filter((winner) => winner === 'other').length;
+function generateNarrative(chain, tezos) {
   const lines = [];
 
   lines.push(`Tezos and ${chain.name} are both proof-of-stake blockchains, but they make different tradeoffs around governance, decentralization, finality, and operational predictability.`);
+  lines.push('No composite score is assigned. Thresholds, entity grouping, and operational risk differ by chain, so contextual rows such as stake concentration and slashing should be read with their notes rather than ranked as a single winner.');
 
-  if (tezWins > otherWins) {
-    lines.push(`On this baked baseline, Tezos leads in ${tezWins} of ${METRICS.length} tracked categories while ${chain.name} leads in ${otherWins}. The live script upgrades these values in-browser with current Tezos network data from TzKT and Octez RPC.`);
-  } else if (otherWins > tezWins) {
-    lines.push(`${chain.name} leads in ${otherWins} of ${METRICS.length} tracked categories on this baseline, while Tezos's zero-hard-fork self-amendment record remains a qualitative advantage that raw metric counts do not fully capture.`);
-  } else {
-    lines.push(`The baked baseline is closely split, which makes the qualitative differences matter: Tezos emphasizes self-amendment, deterministic finality, and operator-visible governance rather than a separate social hard-fork process.`);
-  }
-
-  lines.push(`Tezos has completed ${tezos.selfAmendments} named on-chain protocol upgrades without a hard fork or network split. Its deterministic finality target is two blocks, so the dashboard treats finality and governance state as live operating signals, not only marketing claims.`);
+  lines.push(`Tezos has completed ${tezos.selfAmendments} named on-chain protocol upgrades. No persistent upgrade-driven community split is recorded in the tracked history. Tenderbake targets deterministic finality after two levels when quorum and network assumptions hold.`);
 
   if (chain.name === 'Ethereum') {
-    lines.push('Ethereum dominates in liquidity and developer mindshare, but its upgrade process still lands as coordinated hard forks and its stake is concentrated across large liquid-staking and exchange operators.');
+    lines.push('Ethereum dominates in liquidity and developer mindshare, while protocol upgrades land through socially coordinated client releases and hard forks. Validator-key counts should not be mistaken for independently controlled staking entities.');
   } else if (chain.name === 'Solana') {
     lines.push('Solana optimizes for raw throughput and very fast slots, while Tezos prioritizes protocol-level upgrade continuity, deterministic finality, and governance that bakers can inspect directly.');
   } else if (chain.name === 'Cardano') {
@@ -121,15 +139,13 @@ function generateNarrative(chain, tezos, wins) {
   return lines;
 }
 
-function renderBakedContent(chain, tezos, comparison) {
-  const wins = [];
+function renderBakedContent(chainKey, chain, tezos, comparison) {
   const rows = METRICS.map((metric) => {
     const tVal = tezos[metric.key] !== undefined ? tezos[metric.key] : '—';
     const oVal = chain[metric.key] !== undefined ? chain[metric.key] : '—';
     const tNote = tezos[`${metric.key}Note`] || '';
     const oNote = chain[`${metric.key}Note`] || '';
     const winner = getWinner(tVal, oVal, metric);
-    wins.push(winner);
     return `<div class="cp-row">
   <div class="cp-metric">${metric.icon} ${escapeHtml(metric.label)}</div>
   <div class="cp-val ${winner === 'tezos' ? 'cp-winner' : ''}">
@@ -141,17 +157,10 @@ function renderBakedContent(chain, tezos, comparison) {
 </div>`;
   });
 
-  const tezWins = wins.filter((winner) => winner === 'tezos').length;
-  const otherWins = wins.filter((winner) => winner === 'other').length;
-  const narrative = generateNarrative(chain, tezos, wins);
+  const narrative = generateNarrative(chain, tezos);
 
   return `<!-- baked:start -->
-<div class="cp-scoreboard" data-baked-compare="true">
-  <div class="cp-score cp-tezos-score"><span class="cp-score-num">${tezWins}</span><span class="cp-score-label">Tezos</span></div>
-  <div class="cp-vs">vs</div>
-  <div class="cp-score cp-other-score"><span class="cp-score-num">${otherWins}</span><span class="cp-score-label">${escapeHtml(chain.name)}</span></div>
-</div>
-<div class="cp-table">
+<div class="cp-table" data-baked-compare="true">
   <div class="cp-header">
     <div class="cp-metric">Metric</div>
     <div class="cp-val"><img src="/favicon-48.png" alt="Tezos" width="20" height="20"> Tezos</div>
@@ -167,7 +176,8 @@ function renderBakedContent(chain, tezos, comparison) {
   <a href="/#calculator" class="cp-cta-btn cp-cta-secondary">Calculate staking rewards →</a>
 </div>
 <div class="cp-footer">
-  <p>Baked baseline from static comparison data last verified ${escapeHtml(comparison.lastUpdated)}. Live Tezos values upgrade in-browser from <a href="https://api.tzkt.io" target="_blank" rel="noopener">TzKT</a>.</p>
+  <p>Live Tezos values update in-browser from <a href="https://api.tzkt.io" target="_blank" rel="noopener">TzKT</a> and Octez RPC. Current-cycle address-level concentration is calculated in <a href="/health/">Network Health</a>. Peer values are a static snapshot last verified ${escapeHtml(comparison.lastUpdated)}; they are not all live.</p>
+  <p>Peer methodology references: ${peerReferenceHtml(chainKey)}</p>
 </div>
 <!-- baked:end -->`;
 }
@@ -187,16 +197,41 @@ ${indented}
         </div>${html.slice(close + closeLine.length)}`;
 }
 
+function syncSharedAssetStamps(html, referenceHtml) {
+  const cssTag = referenceHtml.match(/<link rel="stylesheet" href="\/css\/site-map\.css\?v=\d+">/)?.[0];
+  const navTag = referenceHtml.match(/<script type="module" src="\/js\/landing\/site-nav\.js\?v=\d+"><\/script>/)?.[0];
+  if (!cssTag || !navTag) throw new Error('Shared comparison asset stamps not found');
+  return html
+    .replace(/<link rel="stylesheet" href="\/css\/site-map\.css\?v=\d+">/, cssTag)
+    .replace(/<script type="module" src="\/js\/landing\/site-nav\.js\?v=\d+"><\/script>/, navTag);
+}
+
+function syncComparisonMetadata(html, chain, comparison) {
+  const title = `Tezos vs ${chain.name} — Live Tezos + Dated Peer Snapshot`;
+  const description = `Compare live Tezos metrics with a dated ${chain.name} methodology snapshot last verified ${comparison.lastUpdated}. Peer values are not all live.`;
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)} | tezos.systems</title>`)
+    .replace(/(<meta name="description" content=")[^"]*(">)/, `$1${escapeHtml(description)}$2`)
+    .replace(/(<meta property="og:title" content=")[^"]*(">)/, `$1${escapeHtml(title)}$2`)
+    .replace(/(<meta property="og:description" content=")[^"]*(">)/, `$1${escapeHtml(description)}$2`)
+    .replace(/(<meta name="twitter:title" content=")[^"]*(">)/, `$1${escapeHtml(title)}$2`)
+    .replace(/(<meta name="twitter:description" content=")[^"]*(">)/, `$1${escapeHtml(description)}$2`)
+    .replace(/("description": ")[^"]*(")/, `$1${description}$2`)
+    .replace(/<p class="cp-subtitle">[^<]*<\/p>/, `<p class="cp-subtitle">Live Tezos values · ${escapeHtml(chain.name)} peer snapshot verified ${escapeHtml(comparison.lastUpdated)}</p>`);
+}
+
 async function main() {
   const comparison = await loadComparisonData();
   const tezos = await tezosStaticData(comparison);
+  const compareIndex = await fs.readFile(COMPARE_INDEX_FILE, 'utf8');
 
   for (const [key, file] of Object.entries(PAGES)) {
     const chain = comparison[key];
     if (!chain) throw new Error(`Missing comparison data for ${key}`);
     const target = path.join(ROOT, file);
-    const html = await fs.readFile(target, 'utf8');
-    const baked = renderBakedContent(chain, tezos, comparison);
+    const sourceHtml = syncSharedAssetStamps(await fs.readFile(target, 'utf8'), compareIndex);
+    const html = syncComparisonMetadata(sourceHtml, chain, comparison);
+    const baked = renderBakedContent(key, chain, tezos, comparison);
     await fs.writeFile(target, replaceCompareContent(html, baked));
     console.log(`Baked static comparison content into ${file}`);
   }

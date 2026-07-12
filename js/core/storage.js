@@ -33,9 +33,13 @@ const DELTA_MIN_GAP = 60 * 60 * 1000;
  */
 export function saveStats(stats) {
     try {
+        const observedAt = Date.parse(stats?._quality?.observedAt || '');
+        const timestamp = Number.isFinite(observedAt) && observedAt > 0
+            ? Math.min(Date.now(), observedAt)
+            : Date.now();
         localStorage.setItem(STORAGE_KEYS.stats, JSON.stringify(stats));
         localStorage.setItem(STORAGE_KEYS.statsVersion, STATS_CACHE_VERSION);
-        localStorage.setItem(STORAGE_KEYS.timestamp, Date.now().toString());
+        localStorage.setItem(STORAGE_KEYS.timestamp, timestamp.toString());
         debugLog('💾 Stats cached to localStorage');
     } catch (error) {
         // localStorage might be full or disabled
@@ -167,6 +171,7 @@ export function getCacheAge() {
  */
 export function saveVisitSnapshot(stats) {
     try {
+        if (['stale', 'unavailable'].includes(stats?._quality?.status)) return;
         const lastVisit = localStorage.getItem(STORAGE_KEYS.lastVisit);
         const now = Date.now();
         
@@ -189,6 +194,7 @@ export function saveVisitSnapshot(stats) {
  */
 export function getVisitDeltas(currentStats) {
     try {
+        if (['stale', 'unavailable'].includes(currentStats?._quality?.status)) return null;
         const lastVisit = localStorage.getItem(STORAGE_KEYS.lastVisit);
         const lastStats = localStorage.getItem(STORAGE_KEYS.lastVisitStats);
         const lastVisitVersion = localStorage.getItem(STORAGE_KEYS.lastVisitVersion);
@@ -223,7 +229,7 @@ export function getVisitDeltas(currentStats) {
             { key: 'tz4Bakers', label: 'BLS Bakers', format: 'count' },
             { key: 'stakingRatio', label: 'Staking', format: 'percent' },
             { key: 'bakingPower', label: 'Baking Power', format: 'supply' },
-            { key: 'rewardAccounts', label: 'Reward Accounts', format: 'count' },
+            { key: 'rewardAccounts', label: 'Staker + Delegator Accounts', format: 'count' },
             { key: 'totalSupply', label: 'Supply', format: 'supply' },
             { key: 'totalBurned', label: 'Burned', format: 'supply' },
             { key: 'fundedAccounts', label: 'Accounts', format: 'count' }
@@ -233,15 +239,20 @@ export function getVisitDeltas(currentStats) {
             const prev = previous[metric.key];
             const curr = currentStats[metric.key];
             
-            if (prev !== undefined && curr !== undefined && prev !== curr) {
-                const delta = curr - prev;
-                const percentChange = prev !== 0 ? ((delta / prev) * 100) : 0;
+            const prevNumber = typeof prev === 'number' ? prev : Number(prev);
+            const currNumber = typeof curr === 'number' ? curr : Number(curr);
+            const validPrevious = prev !== null && prev !== undefined && prev !== '' && Number.isFinite(prevNumber);
+            const validCurrent = curr !== null && curr !== undefined && curr !== '' && Number.isFinite(currNumber);
+
+            if (validPrevious && validCurrent && prevNumber !== currNumber) {
+                const delta = currNumber - prevNumber;
+                const percentChange = prevNumber !== 0 ? ((delta / prevNumber) * 100) : 0;
                 
                 deltas.metrics.push({
                     key: metric.key,
                     label: metric.label,
-                    previous: prev,
-                    current: curr,
+                    previous: prevNumber,
+                    current: currNumber,
                     delta,
                     percentChange,
                     format: metric.format,

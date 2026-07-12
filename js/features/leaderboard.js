@@ -5,17 +5,15 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez } from '../core/utils.js';
-import { letterGrade, computeBakerScores } from './baker-report-card.js';
-import { loadHtml2Canvas, showShareModal, appendCardSeal } from '../ui/share.js';
 import { isValidAddress } from './my-baker.js';
 import { pulseFresh } from '../effects/data-magic.js';
 
 const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
 const SORT_KEY = 'tezos-systems-leaderboard-sort';
-const CACHE_KEY = 'tezos-systems-leaderboard-cache-v4';
+const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=422';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=423';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -26,6 +24,7 @@ let delegationLimit = DEFAULT_DELEGATION_LIMIT;
 let delegationLimitSource = 'fallback';
 let delegationLimitPromise = null;
 let showOpenOvensOnly = false;
+let leaderboardDataQuality = { status: 'unavailable', observedAt: null };
 const previousStakeSnapshot = new Map();
 
 function ensureLeaderboardStyles() {
@@ -51,9 +50,8 @@ const FIT_QUESTIONS = [
         key: 'priority',
         label: 'Priority',
         options: [
-            { value: 'reliability', label: 'Reliability', detail: 'balanced report score' },
-            { value: 'capacity', label: 'Capacity', detail: 'more delegation room' },
-            { value: 'fee', label: 'Fee', detail: 'competitive edge' }
+            { value: 'community', label: 'Community', detail: 'delegator and staker adoption' },
+            { value: 'capacity', label: 'Capacity', detail: 'more delegation room' }
         ]
     },
     {
@@ -70,13 +68,16 @@ const FIT_QUESTIONS = [
 function loadFitPrefs() {
     try {
         const saved = JSON.parse(localStorage.getItem(FIT_KEY) || 'null');
+        const priority = ['community', 'capacity'].includes(saved?.priority)
+            ? saved.priority
+            : 'community';
         return {
             amount: saved?.amount || 'medium',
-            priority: saved?.priority || 'reliability',
+            priority,
             style: saved?.style || 'balanced'
         };
     } catch {
-        return { amount: 'medium', priority: 'reliability', style: 'balanced' };
+        return { amount: 'medium', priority: 'community', style: 'balanced' };
     }
 }
 
@@ -106,11 +107,17 @@ async function fetchDelegationLimit() {
  * Fetch all active bakers from TzKT
  */
 async function fetchBakers() {
-    // Check cache
+    let cachedFunded = [];
+    let cachedAt = null;
     try {
         const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-        if (cached && Date.now() - cached.ts < CACHE_TTL) {
-            return cached.data.filter((baker) => Number(baker.bakingPower || 0) > 0);
+        if (cached && Array.isArray(cached.data)) {
+            cachedFunded = cached.data.filter((baker) => Number(baker.bakingPower || 0) > 0);
+            cachedAt = Number(cached.ts) || null;
+        }
+        if (cachedFunded.length && cachedAt && Date.now() - cachedAt < CACHE_TTL) {
+            leaderboardDataQuality = { status: 'cached', observedAt: new Date(cachedAt).toISOString() };
+            return cachedFunded;
         }
     } catch { /* ignore */ }
 
@@ -120,25 +127,41 @@ async function fetchBakers() {
 
     // Fetch active delegates, then keep the same funded-baker set used for
     // All Bakers Attest activation: positive current baking power.
-    while (true) {
-        const resp = await fetch(
-            `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,stakedBalance,balance,software,firstActivity,firstActivityTime&sort.desc=id&limit=${limit}&offset=${offset}`
-        );
-        if (!resp.ok) throw new Error('Failed to fetch bakers');
-        const batch = await resp.json();
-        all = all.concat(batch);
-        if (batch.length < limit) break;
-        offset += limit;
-    }
-
-    const fundedBakers = all.filter((baker) => Number(baker.bakingPower || 0) > 0);
-
-    // Cache it
     try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: fundedBakers }));
-    } catch { /* quota */ }
+        while (true) {
+            const resp = await fetch(
+                `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,stakedBalance,balance,software,firstActivity,firstActivityTime&sort.desc=id&limit=${limit}&offset=${offset}`
+            );
+            if (!resp.ok) throw new Error(`Baker directory HTTP ${resp.status}`);
+            const batch = await resp.json();
+            if (!Array.isArray(batch)) throw new Error('Unexpected baker directory payload');
+            all = all.concat(batch);
+            if (batch.length < limit) break;
+            offset += limit;
+        }
 
-    return fundedBakers;
+        const fundedBakers = all.filter((baker) => Number(baker.bakingPower || 0) > 0);
+        if (!fundedBakers.length) throw new Error('Baker directory returned no funded active bakers');
+
+        const observedAt = Date.now();
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: observedAt, data: fundedBakers }));
+        } catch { /* quota */ }
+
+        leaderboardDataQuality = { status: 'live', observedAt: new Date(observedAt).toISOString() };
+        return fundedBakers;
+    } catch (error) {
+        if (cachedFunded.length) {
+            leaderboardDataQuality = {
+                status: 'stale',
+                observedAt: cachedAt ? new Date(cachedAt).toISOString() : null,
+                error: error.message
+            };
+            return cachedFunded;
+        }
+        leaderboardDataQuality = { status: 'unavailable', observedAt: null, error: error.message };
+        throw error;
+    }
 }
 
 /**
@@ -302,57 +325,42 @@ export async function findBakersByName(query, { limit = 5 } = {}) {
         }));
 }
 
-/**
- * Build a stat cell for the ranking card (inline-styled for html2canvas)
- */
-function buildRankStatCell(label, value) {
-    return `
-        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:10px 12px;text-align:center;">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,0.35);margin-bottom:4px;">${label}</div>
-            <div style="font-size:16px;font-weight:600;color:#fff;">${value}</div>
-        </div>
-    `;
-}
-
-function bakerCapacityFact(baker) {
-    const free = Number(baker.freeDelegationCapacity || 0);
-    if (free >= 1000) {
-        return `${Math.floor(free).toLocaleString('en-US')} XTZ delegation room`;
-    }
-    return `${Number(baker.delegationUsage || 0).toFixed(0)}% capacity used`;
-}
-
 function fitCapacityNeed(prefs) {
     if (prefs.amount === 'large') return 250000;
     if (prefs.amount === 'medium') return 50000;
     return 1000;
 }
 
-function scoreBakerFit(baker, rankIndex, prefs = fitPrefs) {
-    const scores = computeBakerScores(baker, null);
+function clampScore(value) {
+    return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
+function scoreBakerFit(baker, prefs = fitPrefs) {
     const free = Number(baker.freeDelegationCapacity || 0);
     const need = fitCapacityNeed(prefs);
     const hasRoom = free >= need && Number(baker.delegationUsage || 0) < 90;
-    let score = scores.overall;
+    const capacityRoomScore = clampScore((free / Math.max(1, need)) * 100);
+    const capacityUseScore = clampScore(100 - Number(baker.delegationUsage || 0));
+    const capacityScore = capacityRoomScore * 0.65 + capacityUseScore * 0.35;
+    const community = Number(baker.delegators || 0) + Number(baker.stakers || 0);
+    const communityScore = clampScore(Math.log10(community + 1) * 42);
+    let score = capacityScore * 0.48 + communityScore * 0.37 + (baker.tz4 ? 15 : 0);
     const reasons = [];
 
     if (hasRoom) {
-        score += prefs.amount === 'large' ? 22 : 12;
+        score += prefs.amount === 'large' ? 18 : 10;
         reasons.push(`${Math.floor(free).toLocaleString('en-US')} XTZ room`);
     } else {
-        score -= prefs.amount === 'large' ? 45 : 18;
+        score -= prefs.amount === 'large' ? 60 : 30;
         reasons.push(`${Math.max(0, Math.floor(free)).toLocaleString('en-US')} XTZ room`);
     }
 
     if (prefs.priority === 'capacity') {
-        score += scores.capacity * 0.3;
+        score += capacityScore * 0.28;
         if (baker.openDelegationRoom) reasons.push('open oven');
-    } else if (prefs.priority === 'fee') {
-        score += scores.fee * 0.25;
-        reasons.push(`fee score ${scores.fee}`);
     } else {
-        score += scores.uptime * 0.2;
-        reasons.push(`grade ${letterGrade(scores.overall).grade}`);
+        score += communityScore * 0.28;
+        reasons.push(`${community.toLocaleString('en-US')} delegators + stakers`);
     }
 
     if (prefs.style === 'modern' && baker.tz4) {
@@ -362,15 +370,13 @@ function scoreBakerFit(baker, rankIndex, prefs = fitPrefs) {
         score += 18;
         reasons.push(`since ${baker.sinceYear}`);
     } else if (prefs.style === 'balanced') {
-        const rankBoost = Math.max(0, 10 - Math.min(10, rankIndex / 12));
-        score += rankBoost;
+        score += (capacityScore + communityScore) * 0.05;
         reasons.push(`${(baker.delegationUsage || 0).toFixed(0)}% used`);
     }
 
     return {
         baker,
         score,
-        grade: letterGrade(scores.overall).grade,
         reasons: reasons.slice(0, 3),
         hasRoom
     };
@@ -378,7 +384,7 @@ function scoreBakerFit(baker, rankIndex, prefs = fitPrefs) {
 
 function fitFinderHtml(ranked) {
     const candidates = ranked
-        .map((baker, index) => scoreBakerFit(baker, index, fitPrefs))
+        .map((baker) => scoreBakerFit(baker, fitPrefs))
         .filter((item) => item.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 3);
@@ -389,6 +395,7 @@ function fitFinderHtml(ranked) {
                 <div>
                     <span class="feature-kicker">Delegator match</span>
                     <h3>Find bakers that fit your delegation lane</h3>
+                    <p class="baker-fit-method">Fit uses live delegation capacity, community, tenure, and tz4—not an uptime or performance grade. Delegation fees and payout policy are off-chain, so they are not ranked here; the on-chain external-staker edge is not a delegation fee.</p>
                 </div>
                 <a href="/staking/">Staking guide</a>
             </div>
@@ -398,7 +405,7 @@ function fitFinderHtml(ranked) {
                         <span>${escapeHtml(question.label)}</span>
                         <div class="baker-fit-options">
                             ${question.options.map((option) => `
-                                <button type="button" class="baker-fit-option ${fitPrefs[question.key] === option.value ? 'active' : ''}" data-fit-key="${escapeHtml(question.key)}" data-fit-value="${escapeHtml(option.value)}" title="${escapeHtml(option.detail)}">
+                                <button type="button" class="baker-fit-option ${fitPrefs[question.key] === option.value ? 'active' : ''}" data-fit-key="${escapeHtml(question.key)}" data-fit-value="${escapeHtml(option.value)}" aria-pressed="${fitPrefs[question.key] === option.value ? 'true' : 'false'}" title="${escapeHtml(option.detail)}">
                                     ${escapeHtml(option.label)}
                                 </button>
                             `).join('')}
@@ -412,7 +419,7 @@ function fitFinderHtml(ranked) {
                         <span class="baker-fit-rank">#${index + 1}</span>
                         <strong>${escapeHtml(item.baker.name)}</strong>
                         <small>${escapeHtml(item.reasons.join(' · '))}</small>
-                        <button type="button" class="baker-fit-select" data-address="${escapeHtml(item.baker.address)}">Use this baker</button>
+                        <button type="button" class="baker-fit-select" data-address="${escapeHtml(item.baker.address)}">Review baker</button>
                     </article>
                 `).join('')}
             </div>
@@ -441,127 +448,10 @@ function openBakerInDrawer(addr) {
     }
 }
 
-function bakerStatsLine(baker) {
-    return `${formatMutez(baker.stakingBalance)} XTZ | ${baker.delegators} delegators | ${baker.stakers} stakers`;
-}
-
-/**
- * Build the ranking card DOM for a baker (inline-styled for html2canvas)
- */
-function buildRankingCardDOM(baker, rank, total, scores) {
-    const { grade, color } = letterGrade(scores.overall);
-    const name = escapeHtml(baker.name);
-    const addr = escapeHtml(baker.address.slice(0, 8) + '…' + baker.address.slice(-4));
-    const topPct = Math.max(1, Math.ceil((rank / total) * 100));
-    const badge = baker.earnedBadge?.label || 'Baker guild';
-    const since = baker.sinceYear ? `Since ${baker.sinceYear}` : 'Live baker';
-    const uptime = `${scores.uptime}%`;
-
-    const card = document.createElement('div');
-    card.style.cssText = `
-        width: 680px; padding: 32px 32px 70px; background: #0a0e1a;
-        border: 1px solid rgba(0,255,136,0.2); border-radius: 16px;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        color: #e0e0e0; position: relative; overflow: hidden;
-    `;
-
-    card.innerHTML = `
-        <div style="position:absolute;inset:0;background:linear-gradient(rgba(0,255,136,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.02) 1px,transparent 1px);background-size:20px 20px;pointer-events:none;"></div>
-
-            <div style="position:relative;z-index:1;">
-            <!-- Header -->
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
-                <div>
-                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,255,136,0.5);margin-bottom:4px;">Tezos Baker Guild</div>
-                    <div style="font-size:24px;font-weight:700;color:#fff;">${name}</div>
-                    <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;margin-top:2px;">${addr}</div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="font-size:56px;font-weight:900;color:${color};line-height:1;text-shadow:0 0 20px ${color}40;">${grade}</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">${scores.overall}/100</div>
-                </div>
-            </div>
-
-            <div style="background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.12);border-radius:8px;padding:16px;margin-bottom:20px;">
-                <div style="font-size:13px;color:rgba(255,255,255,0.62);line-height:1.55;">
-                    One of <strong style="color:#fff;">${total}</strong> active bakers keeping Tezos running.
-                    Rank <strong style="color:#00ff88;">#${rank}</strong> by stake, top <strong style="color:#00ff88;">${topPct}%</strong>.
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-                    <span style="font-size:11px;color:#00ff88;border:1px solid rgba(0,255,136,0.18);border-radius:999px;padding:5px 9px;">${escapeHtml(badge)}</span>
-                    <span style="font-size:11px;color:rgba(255,255,255,0.72);border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:5px 9px;">${escapeHtml(since)}</span>
-                    <span style="font-size:11px;color:rgba(255,255,255,0.72);border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:5px 9px;">${escapeHtml(uptime)} uptime score</span>
-                </div>
-            </div>
-
-            <!-- Stats grid -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
-                ${buildRankStatCell('Staking Power', formatMutez(baker.stakingBalance) + ' XTZ')}
-                ${buildRankStatCell('Delegators', String(baker.delegators))}
-                ${buildRankStatCell('Stakers', String(baker.stakers))}
-                ${buildRankStatCell('Capacity', baker.delegationUsage.toFixed(0) + '%')}
-                ${buildRankStatCell('tz4 Key', baker.tz4 ? '✅ Yes' : '— No')}
-                ${buildRankStatCell('Delegation Room', Math.floor(baker.freeDelegationCapacity || 0).toLocaleString('en-US') + ' XTZ')}
-            </div>
-        </div>
-    `;
-
-    return card;
-}
-
-/**
- * Generate and show a shareable ranking card for a baker
- */
-async function showBakerRankingCard(baker, rank, total, scores) {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;
-        display:flex;align-items:center;justify-content:center;
-        backdrop-filter:blur(4px);
-    `;
-    overlay.innerHTML = '<div style="color:#00ff88;font-size:16px;">Generating ranking card…</div>';
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
-
-    try {
-        const card = buildRankingCardDOM(baker, rank, total, scores);
-        appendCardSeal(card);
-        card.style.position = 'fixed';
-        card.style.left = '-9999px';
-        document.body.appendChild(card);
-
-        await loadHtml2Canvas();
-        const canvas = await window.html2canvas(card, {
-            backgroundColor: '#0a0e1a',
-            scale: 2,
-            useCORS: true,
-        });
-
-        card.remove();
-        overlay.remove();
-
-        const name = baker.name;
-        const fact = bakerCapacityFact(baker);
-        const statsLine = bakerStatsLine(baker);
-        const tweetOptions = [
-            { label: '🍞 My Baker', text: `My baker ${name} is one of ${total} bakers securing Tezos — ${fact} — #${rank} by stake.\n\ntezos.systems` },
-            { label: '🏛️ Guild', text: `${total} independent bakers keep Tezos running. Mine is ${name}. Find yours →\n\ntezos.systems` },
-            { label: '📊 Stats', text: `${name} — ${statsLine}\ntezos.systems` },
-        ];
-
-        showShareModal(canvas, tweetOptions, `Baker Ranking: ${name}`);
-    } catch (err) {
-        overlay.innerHTML = `<div style="color:#ff4444;font-size:14px;text-align:center;padding:20px;">
-            Failed to generate ranking card<br><span style="font-size:12px;color:rgba(255,255,255,0.4);">${err.message}</span>
-        </div>`;
-        setTimeout(() => overlay.remove(), 3000);
-    }
-}
-
 /**
  * Render the leaderboard table
  */
-function render(container) {
+function render(container, { focusSort = '' } = {}) {
     const ranked = sortBakers(bakersData, currentSort.col, currentSort.dir);
     const sorted = showOpenOvensOnly
         ? ranked.filter((baker) => baker.openDelegationRoom)
@@ -574,6 +464,23 @@ function render(container) {
     };
 
     const headerClass = (col) => currentSort.col === col ? 'lb-th active' : 'lb-th';
+    const sortHeader = (col, label, shortLabel = '') => {
+        const active = currentSort.col === col;
+        const direction = active ? (currentSort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+        const nextDirection = active && currentSort.dir === 'asc' ? 'descending' : 'ascending';
+        const visibleLabel = shortLabel
+            ? `<span class="full-title">${escapeHtml(label)}</span><span class="short-title">${escapeHtml(shortLabel)}</span>`
+            : escapeHtml(label);
+        const ariaLabel = active
+            ? `${label}, sorted ${direction}. Sort ${nextDirection}`
+            : `Sort by ${label}, ${nextDirection}`;
+        return `
+            <th scope="col" class="${headerClass(col)}" data-col="${col}" aria-sort="${direction}">
+                <button type="button" class="lb-sort-btn" data-col="${col}" aria-label="${escapeHtml(ariaLabel)}">
+                    <span>${visibleLabel}</span><span class="lb-sort-arrow" aria-hidden="true">${arrow(col)}</span>
+                </button>
+            </th>`;
+    };
 
     let html = `
         ${fitFinderHtml(ranked)}
@@ -585,16 +492,16 @@ function render(container) {
         </div>
         <div class="leaderboard-table-wrap">
             <table class="leaderboard-table">
+                <caption class="leaderboard-table-caption">Active Tezos bakers. Choose a baker name to open full details and sharing.</caption>
                 <thead>
                     <tr>
-                        <th class="lb-th lb-rank">#</th>
-                        <th class="${headerClass('name')}" data-col="name">Baker${arrow('name')}</th>
-                        <th class="${headerClass('stake')}" data-col="stake"><span class="full-title">Staking Power</span><span class="short-title">🍞 Power</span>${arrow('stake')}</th>
-                        <th class="${headerClass('delegators')}" data-col="delegators">Delegators${arrow('delegators')}</th>
-                        <th class="${headerClass('stakers')}" data-col="stakers">Stakers${arrow('stakers')}</th>
-                        <th class="${headerClass('capacity')}" data-col="capacity">Capacity${arrow('capacity')}</th>
-                        <th class="${headerClass('tz4')}" data-col="tz4">tz4${arrow('tz4')}</th>
-                        <th class="lb-th lb-share-col"></th>
+                        <th scope="col" class="lb-th lb-rank">#</th>
+                        ${sortHeader('name', 'Baker')}
+                        ${sortHeader('stake', 'Staking Balance', '🍞 Balance')}
+                        ${sortHeader('delegators', 'Delegators')}
+                        ${sortHeader('stakers', 'Stakers')}
+                        ${sortHeader('capacity', 'Capacity')}
+                        ${sortHeader('tz4', 'tz4 consensus key')}
                     </tr>
                 </thead>
                 <tbody>
@@ -613,13 +520,16 @@ function render(container) {
         html += `
             <tr class="lb-row ${isMine ? 'lb-my-baker' : ''}" data-address="${escapeHtml(b.address)}">
                 <td class="lb-rank">${i + 1}</td>
-                <td class="lb-name" title="${escapeHtml(b.address)}"><span class="lb-name-main">${mineMarker}${escapeHtml(b.name)}</span>${badge}</td>
+                <td class="lb-name">
+                    <button type="button" class="lb-baker-open" data-address="${escapeHtml(b.address)}" title="${escapeHtml(b.address)}" aria-label="Open ${escapeHtml(b.name)} baker details">
+                        <span class="lb-name-main">${mineMarker}${escapeHtml(b.name)}</span>${badge}
+                    </button>
+                </td>
                 <td class="lb-num">${formatMutez(b.stakingBalance)}</td>
                 <td class="lb-num">${b.delegators}</td>
                 <td class="lb-num">${b.stakers}</td>
                 <td class="lb-num lb-capacity-cell ${capacityClass}">${openRoom}${b.delegationUsage.toFixed(0)}%</td>
                 <td class="lb-tz4">${b.tz4 ? '✅' : '—'}</td>
-                <td class="lb-share-cell"><button class="lb-share-btn" title="Share ranking card">📸</button></td>
             </tr>
         `;
     });
@@ -628,10 +538,20 @@ function render(container) {
     const countLabel = showOpenOvensOnly
         ? `${sorted.length} of ${ranked.length} active bakers with open delegation room`
         : `${sorted.length} active bakers`;
-    html += `<div class="leaderboard-footer">${countLabel} · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
+    const sourceLabel = leaderboardDataQuality.status === 'live'
+        ? 'live baker data'
+        : leaderboardDataQuality.status === 'cached'
+            ? 'recent cached baker data'
+            : leaderboardDataQuality.status === 'stale'
+                ? 'last-known cached baker data'
+                : 'baker data unavailable';
+    html += `<div class="leaderboard-footer">${countLabel} · ${sourceLabel} · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
 
     container.innerHTML = html;
     focusSavedBakerRow(container);
+    if (focusSort) {
+        container.querySelector(`.lb-sort-btn[data-col="${CSS.escape(focusSort)}"]`)?.focus({ preventScroll: true });
+    }
 
     container.querySelector('#leaderboard-open-ovens-filter')?.addEventListener('click', () => {
         showOpenOvensOnly = !showOpenOvensOnly;
@@ -656,11 +576,11 @@ function render(container) {
         });
     });
 
-    // Wire sort headers
-    container.querySelectorAll('.lb-th[data-col]').forEach(th => {
-        th.style.cursor = 'pointer';
-        th.addEventListener('click', () => {
-            const col = th.dataset.col;
+    // Native buttons make sorting reachable by click, Enter, and Space. The
+    // owning columnheader carries aria-sort, and focus survives the rerender.
+    container.querySelectorAll('.lb-sort-btn[data-col]').forEach(button => {
+        button.addEventListener('click', () => {
+            const col = button.dataset.col;
             if (currentSort.col === col) {
                 currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
             } else {
@@ -668,31 +588,15 @@ function render(container) {
                 currentSort.dir = col === 'name' ? 'asc' : 'desc';
             }
             try { localStorage.setItem(SORT_KEY, JSON.stringify(currentSort)); } catch {}
-            render(container);
+            render(container, { focusSort: col });
         });
     });
 
-    // Wire share buttons → generate ranking card
-    container.querySelectorAll('.lb-share-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const row = btn.closest('.lb-row');
-            const addr = row?.dataset.address;
-            if (!addr) return;
-            const rank = parseInt(row.querySelector('.lb-rank')?.textContent, 10);
-            const bakerData = sorted.find(b => b.address === addr);
-            if (!bakerData || !rank) return;
-            const scores = computeBakerScores(bakerData, null);
-            showBakerRankingCard(bakerData, rank, sorted.length, scores);
-        });
-    });
-
-    // Wire row clicks → populate My Baker
-    container.querySelectorAll('.lb-row').forEach(row => {
-        row.style.cursor = 'pointer';
-        row.addEventListener('click', () => {
-            const addr = row.dataset.address;
-            openBakerInDrawer(addr);
+    // Baker names are the single explicit row action. Full details retain the
+    // existing report-card/share workflow without another button in every row.
+    container.querySelectorAll('.lb-baker-open').forEach(button => {
+        button.addEventListener('click', () => {
+            openBakerInDrawer(button.dataset.address);
         });
     });
 }
@@ -720,7 +624,6 @@ function renderLeaderboardSkeleton() {
             <td><span class="leaderboard-row-shimmer num"></span></td>
             <td><span class="leaderboard-row-shimmer num"></span></td>
             <td><span class="leaderboard-row-shimmer short"></span></td>
-            <td><span class="leaderboard-row-shimmer short"></span></td>
         </tr>
     `).join('');
 
@@ -728,20 +631,19 @@ function renderLeaderboardSkeleton() {
         <div class="leaderboard-loading-state" role="status" aria-live="polite">
             <div class="leaderboard-loading-copy">
                 <strong>Preheating the baker board</strong>
-                <span>Ranking active bakers by live staking power.</span>
+                <span>Ranking funded active bakers by staking balance.</span>
             </div>
             <div class="leaderboard-table-wrap" aria-hidden="true">
                 <table class="leaderboard-table">
                     <thead>
                         <tr>
-                            <th class="lb-th lb-rank">#</th>
-                            <th class="lb-th">Baker</th>
-                            <th class="lb-th">Staking Power</th>
-                            <th class="lb-th">Delegators</th>
-                            <th class="lb-th">Stakers</th>
-                            <th class="lb-th">Capacity</th>
-                            <th class="lb-th">tz4</th>
-                            <th class="lb-th"></th>
+                            <th scope="col" class="lb-th lb-rank">#</th>
+                            <th scope="col" class="lb-th">Baker</th>
+                            <th scope="col" class="lb-th">Staking Balance</th>
+                            <th scope="col" class="lb-th">Delegators</th>
+                            <th scope="col" class="lb-th">Stakers</th>
+                            <th scope="col" class="lb-th">Capacity</th>
+                            <th scope="col" class="lb-th">tz4</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>

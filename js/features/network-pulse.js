@@ -18,7 +18,7 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=422';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=423';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -77,12 +77,12 @@ const GROUPS = [
             { label: 'tz4 Adoption', key: 'tz4Percentage', format: formatTz4, detail: formatTz4Detail, route: '#tz4', history: 'tz4_percentage', historyCard: 'tz4-adoption', deltaDecimals: 1, deltaSuffix: '%' },
             { label: 'Current Cycle', key: 'cycle', format: formatCount, detail: (stats) => `${formatFinite(stats.cycleProgress, 1)}% complete, ${stats.cycleTimeRemaining || 'time remaining warming'}.`, route: '#health' },
             { label: 'Head Block', key: 'blockLevel', format: formatCount, detail: formatHeadBlockDetail, route: '#health' },
-            { label: 'Health Score', key: 'healthScore', source: 'networkHealth', column: 'health_score', format: formatPercentage, detail: formatHealthScoreDetail, route: '#health', history: 'health_score', historyCard: 'network-health', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Health Score', key: 'healthScore', source: 'networkHealth', column: 'health_score', format: formatSafePercentage, detail: formatHealthScoreDetail, route: '#health', history: 'health_score', historyCard: 'network-health', deltaDecimals: 1, deltaSuffix: '%' },
             { label: 'Block Time', key: 'blockTimeAvg', source: 'networkHealth', column: 'avg_block_seconds', format: formatSeconds, detail: formatBlockTimeDetail, route: '#health', history: 'avg_block_seconds', historyCard: 'block-time', deltaDecimals: 1, deltaSuffix: 's' },
             { label: 'Finality', key: 'finalitySeconds', source: 'networkHealth', format: formatSeconds, detail: 'Two confirmations at current pace.', route: '#health', history: 'finality_seconds', historyCard: 'finality', deriveValue: deriveFinalitySeconds, deltaDecimals: 1, deltaSuffix: 's' },
-            { label: 'Round-0 Rate', key: 'roundZeroPct', source: 'networkHealth', column: 'round_zero_pct', format: formatPercentage, detail: formatRoundZeroDetail, route: '#health', history: 'round_zero_pct', historyCard: 'round-zero', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Round-0 Rate', key: 'roundZeroPct', source: 'networkHealth', column: 'round_zero_pct', format: formatSafePercentage, detail: formatRoundZeroDetail, route: '#health', history: 'round_zero_pct', historyCard: 'round-zero', deltaDecimals: 1, deltaSuffix: '%' },
             { label: 'Missed Attestations', key: 'missedAttestations', source: 'networkHealth', column: 'missed_attestation_slots', format: formatMissedAttestations, detail: formatMissedAttestationsDetail, route: '#health', history: 'missed_attestation_slots', historyCard: 'missed-attestations', deltaDecimals: 0 },
-            { label: 'tz4 Power', key: 'tz4PowerPct', format: formatPercentage, detail: formatTz4PowerDetail, route: '#tz4', history: 'tz4_power_pct', historyCard: 'tz4-adoption', deltaDecimals: 1, deltaSuffix: '%', value: (_stats, context) => latestMetricValue(context.rows, 'tz4_power_pct') }
+            { label: 'tz4 Power', key: 'tz4PowerPct', format: formatSafePercentage, detail: formatTz4PowerDetail, route: '#tz4', history: 'tz4_power_pct', historyCard: 'tz4-adoption', deltaDecimals: 1, deltaSuffix: '%', value: (_stats, context) => latestMetricValue(context.rows, 'tz4_power_pct') }
         ]
     },
     {
@@ -90,16 +90,16 @@ const GROUPS = [
         label: 'Economy',
         detail: 'Issuance, staking, delegation, supply, and burn pressure.',
         metrics: [
-            { label: 'Issuance Rate', key: 'currentIssuanceRate', format: formatPercentage, detail: formatIssuanceDetail, route: '#section=economy', history: 'current_issuance_rate', historyCard: 'issuance-rate', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Stake APY', key: 'stakeAPY', format: formatPercentage, detail: (stats) => `Delegate estimate ${formatPct(stats.delegateAPY)}.`, route: '#calculator', history: 'staking_apy_stake', historyCard: 'staking-apy', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Staking Ratio', key: 'stakingRatio', format: formatPercentage, detail: 'Share of XTZ reported as staked by TzKT.', route: '#staking', history: 'staking_ratio', historyCard: 'staking-ratio', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Delegated Ratio', key: 'delegatedRatio', format: formatPercentage, detail: 'Liquid delegation footprint across bakers.', route: '#section=economy', history: 'delegated_ratio', historyCard: 'delegated', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Total Staked', key: 'totalStaked', format: formatSupply, detail: formatTotalStakedDetail, route: '#staking', history: 'total_staked', historyCard: 'total-staked', deltaDecimals: 2 },
+            { label: 'Issuance Rate', key: 'currentIssuanceRate', format: formatSafePercentage, detail: formatIssuanceDetail, route: '#section=economy', history: 'current_issuance_rate', historyCard: 'issuance-rate', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Stake APY', key: 'stakeAPY', format: formatSafePercentage, detail: (stats) => `Gross delegate context ${formatPct(stats.delegateAPY)} before baker policy.`, route: '#calculator', history: 'staking_apy_stake', historyCard: 'staking-apy', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Staking Ratio', key: 'stakingRatio', format: formatSafePercentage, detail: 'Share of XTZ reported as staked by TzKT.', route: '#staking', history: 'staking_ratio', historyCard: 'staking-ratio', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Delegated Ratio', key: 'delegatedRatio', format: formatSafePercentage, detail: 'Liquid delegation footprint across bakers.', route: '#section=economy', history: 'delegated_ratio', historyCard: 'delegated', deltaDecimals: 1, deltaSuffix: '%' },
+            { label: 'Total Staked', key: 'totalStaked', format: formatSafeSupply, detail: formatTotalStakedDetail, route: '#staking', history: 'total_staked', historyCard: 'total-staked', deltaDecimals: 2 },
             { label: 'LB EMA', key: 'lbEmaPct', format: formatNullablePct, detail: formatLbEmaDetail, route: '#lb', history: 'lb_ema_pct', historyCard: 'lb-entry-card', deltaDecimals: 1, deltaSuffix: '%' },
-            { label: 'Baking Power', key: 'bakingPower', format: formatSupply, detail: 'Effective consensus weight for baking and attestation rights.', route: '#section=economy', history: 'total_baking_power', historyCard: 'baking-power', deltaDecimals: 2 },
-            { label: 'Reward Accounts', key: 'rewardAccounts', format: formatLarge, detail: formatRewardDetail, route: '#section=economy' },
-            { label: 'Total Supply', key: 'totalSupply', format: formatSupply, detail: 'Current XTZ supply reported by the stats feed.', route: '#section=economy', history: 'total_supply', historyCard: 'total-supply', deltaDecimals: 2 },
-            { label: 'Total Burned', key: 'totalBurned', format: formatSupply, detail: 'XTZ permanently removed from circulation.', route: '#section=economy', history: 'total_burned', historyCard: 'total-burned', deltaDecimals: 2 }
+            { label: 'Baking Power', key: 'bakingPower', format: formatSafeSupply, detail: 'Effective consensus weight for baking and attestation rights.', route: '#section=economy', history: 'total_baking_power', historyCard: 'baking-power', deltaDecimals: 2 },
+            { label: 'Staker + Delegator Accounts', key: 'rewardAccounts', format: formatSafeLarge, detail: formatRewardDetail, route: '#section=economy' },
+            { label: 'Total Supply', key: 'totalSupply', format: formatSafeSupply, detail: 'Current XTZ supply reported by the stats feed.', route: '#section=economy', history: 'total_supply', historyCard: 'total-supply', deltaDecimals: 2 },
+            { label: 'Total Burned', key: 'totalBurned', format: formatSafeSupply, detail: 'XTZ permanently removed from circulation.', route: '#section=economy', history: 'total_burned', historyCard: 'total-burned', deltaDecimals: 2 }
         ]
     },
     {
@@ -131,10 +131,10 @@ const GROUPS = [
         label: 'Network Activity',
         detail: '24-hour account, transaction, and contract movement.',
         metrics: [
-            { label: 'Transactions', key: 'transactionVolume24h', format: formatLarge, detail: 'All Tezos transactions seen in the last 24 hours.', route: '#section=network', history: 'tx_volume_24h', historyCard: 'tx-volume', deltaDecimals: 0 },
-            { label: 'Contract Calls', key: 'contractCalls24h', format: formatLarge, detail: 'Entrypoint calls across DeFi, NFTs, and apps.', route: '#section=network', history: 'contract_calls_24h', historyCard: 'contract-calls', deltaDecimals: 0 },
-            { label: 'Funded Accounts', key: 'fundedAccounts', format: formatLarge, detail: 'Accounts with non-zero XTZ balance.', route: '#section=network', history: 'funded_accounts', historyCard: 'funded-accounts', deltaDecimals: 0 },
-            { label: 'New Accounts', key: 'newAccounts24h', format: formatLarge, detail: 'Accounts whose first activity appeared in the last 24 hours.', route: '#section=network', history: 'new_accounts_24h', historyCard: 'new-accounts', deltaDecimals: 0 },
+            { label: 'Transactions', key: 'transactionVolume24h', format: formatSafeLarge, detail: 'All Tezos transactions seen in the last 24 hours.', route: '#section=network', history: 'tx_volume_24h', historyCard: 'tx-volume', deltaDecimals: 0 },
+            { label: 'Contract Calls', key: 'contractCalls24h', format: formatSafeLarge, detail: 'Entrypoint calls across DeFi, NFTs, and apps.', route: '#section=network', history: 'contract_calls_24h', historyCard: 'contract-calls', deltaDecimals: 0 },
+            { label: 'Funded Accounts', key: 'fundedAccounts', format: formatSafeLarge, detail: 'Accounts with non-zero XTZ balance.', route: '#section=network', history: 'funded_accounts', historyCard: 'funded-accounts', deltaDecimals: 0 },
+            { label: 'New Accounts', key: 'newAccounts24h', format: formatSafeLarge, detail: 'Accounts whose first activity appeared in the last 24 hours.', route: '#section=network', history: 'new_accounts_24h', historyCard: 'new-accounts', deltaDecimals: 0 },
             { label: 'Giant Awakenings', key: 'giantAwakenings', source: 'client', format: formatGiantAwakeningValue, detail: formatGiantAwakeningDetail, route: '#giants', value: () => recentGiantAwakenings().length }
         ]
     },
@@ -143,14 +143,14 @@ const GROUPS = [
         label: 'Ecosystem',
         detail: 'Contracts, tokens, rollups, and active app surface.',
         metrics: [
-            { label: 'Smart Contracts', key: 'smartContracts', format: formatLarge, detail: 'Total deployed Tezos smart contracts.', route: '#section=ecosystem', history: 'smart_contracts', historyCard: 'smart-contracts', deltaDecimals: 0 },
-            { label: 'Active Contracts', key: 'activeContracts24h', format: formatLarge, detail: 'Contracts with activity in the last 24 hours.', route: '#section=ecosystem', history: 'active_contracts_24h', historyCard: 'active-contracts', deltaDecimals: 0 },
-            { label: 'Tokens', key: 'tokens', format: formatLarge, detail: 'FA1.2 and FA2 token contracts and token rows.', route: '#section=ecosystem', history: 'tokens', historyCard: 'tokens', deltaDecimals: 0 },
+            { label: 'Smart Contracts', key: 'smartContracts', format: formatSafeLarge, detail: 'Total deployed Tezos smart contracts.', route: '#section=ecosystem', history: 'smart_contracts', historyCard: 'smart-contracts', deltaDecimals: 0 },
+            { label: 'Active Contracts', key: 'activeContracts24h', format: formatSafeLarge, detail: 'Contracts with activity in the last 24 hours.', route: '#section=ecosystem', history: 'active_contracts_24h', historyCard: 'active-contracts', deltaDecimals: 0 },
+            { label: 'Tokens', key: 'tokens', format: formatSafeLarge, detail: 'FA1.2 and FA2 token contracts and token rows.', route: '#section=ecosystem', history: 'tokens', historyCard: 'tokens', deltaDecimals: 0 },
             { label: 'Smart Rollups', key: 'rollups', format: formatCount, detail: 'L2 rollups registered on Tezos.', route: '#tezosx', history: 'rollups', historyCard: 'rollups', deltaDecimals: 0 },
             { label: 'Etherlink TVL', key: 'etherlinkTvl', source: 'tezosx', column: 'tvl_usd', format: formatUsdCompact, detail: formatEtherlinkTvlDetail, route: '#tezosx', history: 'tvl_usd', historyCard: 'tezlink-entry-card', deltaDecimals: 2, deltaPrefix: '$' },
-            { label: 'L2 Transactions', key: 'l2Transactions', source: 'tezosx', column: 'transactions_24h', format: formatLarge, detail: formatL2TransactionsDetail, route: '#tezosx', history: 'transactions_24h', historyCard: 'l2-transactions', deltaDecimals: 0 },
+            { label: 'L2 Transactions', key: 'l2Transactions', source: 'tezosx', column: 'transactions_24h', format: formatSafeLarge, detail: formatL2TransactionsDetail, route: '#tezosx', history: 'transactions_24h', historyCard: 'l2-transactions', deltaDecimals: 0 },
             { label: 'L2 Gas', key: 'l2Gas', source: 'tezosx', column: 'gas_gwei', format: formatGwei, detail: formatL2GasDetail, route: '#tezosx', history: 'gas_gwei', historyCard: 'l2-gas', deltaDecimals: 2 },
-            { label: 'L2 Active Addresses', key: 'l2ActiveAddresses', source: 'tezosx', column: 'active_addresses', format: formatLarge, detail: formatL2ActiveAddressesDetail, route: '#tezosx', history: 'active_addresses', historyCard: 'l2-active-addresses', deltaDecimals: 0 }
+            { label: 'L2 Active Addresses', key: 'l2ActiveAddresses', source: 'tezosx', column: 'active_addresses', format: formatSafeLarge, detail: formatL2ActiveAddressesDetail, route: '#tezosx', history: 'active_addresses', historyCard: 'l2-active-addresses', deltaDecimals: 0 }
         ]
     }
 ];
@@ -164,9 +164,9 @@ const ENTRY_METRICS = [
     { label: 'Delegated', topLabel: 'Delegated', key: 'delegatedRatio', category: 'economy', tier: 'structural', history: 'delegated_ratio', format: formatPct },
     { label: 'Issuance', topLabel: 'Issuance', key: 'currentIssuanceRate', category: 'economy', tier: 'structural', history: 'current_issuance_rate', format: formatPct },
     { label: 'Stake APY', topLabel: 'Stake APY', key: 'stakeAPY', category: 'economy', tier: 'structural', history: 'staking_apy_stake', format: formatPct },
-    { label: 'Tx 24h', topLabel: 'Transactions', key: 'transactionVolume24h', category: 'activity', tier: 'activity', history: 'tx_volume_24h', format: formatLarge },
-    { label: 'Calls 24h', topLabel: 'Contract calls', key: 'contractCalls24h', category: 'activity', tier: 'activity', history: 'contract_calls_24h', format: formatLarge },
-    { label: 'New accts', topLabel: 'New accounts', key: 'newAccounts24h', category: 'activity', tier: 'activity', history: 'new_accounts_24h', format: formatLarge },
+    { label: 'Tx 24h', topLabel: 'Transactions', key: 'transactionVolume24h', category: 'activity', tier: 'activity', history: 'tx_volume_24h', format: formatSafeLarge },
+    { label: 'Calls 24h', topLabel: 'Contract calls', key: 'contractCalls24h', category: 'activity', tier: 'activity', history: 'contract_calls_24h', format: formatSafeLarge },
+    { label: 'New accts', topLabel: 'New accounts', key: 'newAccounts24h', category: 'activity', tier: 'activity', history: 'new_accounts_24h', format: formatSafeLarge },
     {
         label: 'Price',
         topLabel: 'Price',
@@ -209,30 +209,42 @@ const ROOM_FALLBACKS = {
 const ROOM_VALUE_MAX = 52;
 
 function formatCount(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return number.toLocaleString('en-US');
 }
 
 function formatFinite(value, decimals = 1) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return number.toFixed(decimals);
 }
 
 function formatPct(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return `${number.toFixed(1)}%`;
 }
 
 function formatNullablePct(value) {
-    return Number.isFinite(Number(value)) ? formatPercentage(value) : 'Quiet';
+    return numericValue(value) !== null ? formatPercentage(value) : 'Unavailable';
+}
+
+function formatSafePercentage(value) {
+    return numericValue(value) === null ? '--' : formatPercentage(value);
+}
+
+function formatSafeLarge(value) {
+    return numericValue(value) === null ? '--' : formatLarge(value);
+}
+
+function formatSafeSupply(value) {
+    return numericValue(value) === null ? '--' : formatSupply(value);
 }
 
 function formatTz4(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '-- / 50%';
+    const number = numericValue(value);
+    if (number === null) return '-- / 50%';
     return `${number.toFixed(1)} / 50%`;
 }
 
@@ -242,9 +254,9 @@ function formatText(value) {
 }
 
 function formatTz4Detail(stats) {
-    const tz4 = Number(stats.tz4Bakers);
-    const total = Number(stats.totalBakers);
-    if (Number.isFinite(tz4) && Number.isFinite(total) && total > 0) {
+    const tz4 = numericValue(stats.tz4Bakers);
+    const total = numericValue(stats.totalBakers);
+    if (tz4 !== null && total !== null && total > 0) {
         return `${formatCount(tz4)} of ${formatCount(total)} bakers on BLS keys.`;
     }
     return 'BLS consensus key adoption against the 50% target.';
@@ -261,23 +273,27 @@ function formatHeadBlockDetail(stats) {
 
 function formatIssuanceDetail(stats) {
     const protocol = formatPct(stats.protocolIssuanceRate);
-    const lb = stats.lbSubsidyDisabled ? 'LB disabled' : `LB ${formatPct(stats.lbIssuanceRate)}`;
-    const ema = Number.isFinite(Number(stats.lbEmaPct)) ? `EMA ${formatPct(stats.lbEmaPct)}` : 'EMA warming';
+    const lb = stats.lbSubsidyDisabled == null
+        ? 'LB state unavailable'
+        : stats.lbSubsidyDisabled
+            ? 'LB disabled'
+            : `LB ${formatPct(stats.lbIssuanceRate)}`;
+    const ema = numericValue(stats.lbEmaPct) !== null ? `EMA ${formatPct(stats.lbEmaPct)}` : 'EMA unavailable';
     return `${protocol} protocol issuance, ${lb}, ${ema}.`;
 }
 
 function formatRewardDetail(stats) {
-    const delegators = formatLarge(stats.totalDelegators || 0);
-    const stakers = formatLarge(stats.totalStakers || 0);
+    const delegators = formatSafeLarge(stats.totalDelegators);
+    const stakers = formatSafeLarge(stats.totalStakers);
     return `${delegators} delegators and ${stakers} stakers.`;
 }
 
 function formatParticipationDetail(stats) {
-    const quorum = Number.isFinite(Number(stats.participationQuorum)) ? `quorum ${formatPct(stats.participationQuorum)}` : 'quorum warming';
-    const yay = Number.isFinite(Number(stats.participationYayPct)) ? `yay ${formatPct(stats.participationYayPct)}` : 'yay warming';
+    const quorum = numericValue(stats.participationQuorum) !== null ? `quorum ${formatPct(stats.participationQuorum)}` : 'quorum unavailable';
+    const yay = numericValue(stats.participationYayPct) !== null ? `yay ${formatPct(stats.participationYayPct)}` : 'yay unavailable';
     const period = cleanText(stats.govPeriodKind || stats.votingPeriod || 'period');
-    const days = Number(stats.participationDaysLeft);
-    const daysLine = Number.isFinite(days) ? `${days.toFixed(days < 1 ? 1 : 0)} days left in ${period}` : `${period} timing warming`;
+    const days = numericValue(stats.participationDaysLeft);
+    const daysLine = days !== null ? `${days.toFixed(days < 1 ? 1 : 0)} days left in ${period}` : `${period} timing unavailable`;
     return `${quorum}, ${yay}; ${daysLine}.`;
 }
 
@@ -287,20 +303,20 @@ function deriveFinalitySeconds(row) {
 }
 
 function formatSeconds(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return `${number.toFixed(number < 10 ? 1 : 0)}s`;
 }
 
 function formatUsdPrice(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return `$${number.toFixed(number < 1 ? 3 : 2)}`;
 }
 
 function formatUsdCompact(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     if (Math.abs(number) >= 1e9) return `$${(number / 1e9).toFixed(2)}B`;
     if (Math.abs(number) >= 1e6) return `$${(number / 1e6).toFixed(2)}M`;
     if (Math.abs(number) >= 1e3) return `$${(number / 1e3).toFixed(2)}K`;
@@ -308,26 +324,27 @@ function formatUsdCompact(value) {
 }
 
 function formatSats(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return `${Math.round(number).toLocaleString('en-US')} sats`;
 }
 
 function formatGwei(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return `${number.toFixed(number < 10 ? 2 : 1)} gwei`;
 }
 
 function formatMissedAttestations(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--';
+    const number = numericValue(value);
+    if (number === null) return '--';
     return number === 0 ? 'None' : formatCount(number);
 }
 
 function formatGiantAwakeningValue(value) {
-    const count = Number(value);
-    return Number.isFinite(count) && count > 0 ? formatCount(count) : 'Quiet';
+    const count = numericValue(value);
+    if (count === null) return 'Unavailable';
+    return count > 0 ? formatCount(count) : 'Quiet';
 }
 
 function latestRow(rows = []) {
@@ -439,17 +456,21 @@ function formatTz4PowerDetail(stats, context) {
 }
 
 function formatTotalStakedDetail(stats) {
-    const delegated = Number(stats.totalDelegated);
-    return Number.isFinite(delegated)
+    const delegated = numericValue(stats.totalDelegated);
+    return delegated !== null
         ? `${formatSupply(delegated)} delegated, outside the staked total.`
-        : 'Delegated total warming.';
+        : 'Delegated total unavailable.';
 }
 
 function formatLbEmaDetail(stats) {
-    const ema = Number(stats.lbEmaPct);
-    const distance = Number.isFinite(ema) ? Math.max(0, 66.67 - ema) : null;
-    const state = stats.lbSubsidyDisabled ? 'Subsidy disabled' : 'Subsidy active';
-    return distance === null ? `${state}; EMA warming.` : `${state}; ${distance.toFixed(1)}pp below the 66.67% off threshold.`;
+    const ema = numericValue(stats.lbEmaPct);
+    const distance = ema !== null ? Math.max(0, 66.67 - ema) : null;
+    const state = stats.lbSubsidyDisabled == null
+        ? 'Subsidy state unavailable'
+        : stats.lbSubsidyDisabled
+            ? 'Subsidy disabled'
+            : 'Subsidy active';
+    return distance === null ? `${state}; EMA unavailable.` : `${state}; ${distance.toFixed(1)}pp below the 66.67% off threshold.`;
 }
 
 function formatPriceDetail(_stats, context) {
@@ -460,8 +481,8 @@ function formatPriceDetail(_stats, context) {
 }
 
 function formatBallotSplitValue(value) {
-    const yay = Number(value);
-    return Number.isFinite(yay) ? `${yay.toFixed(1)}% yay` : 'Quiet';
+    const yay = numericValue(value);
+    return yay !== null ? `${yay.toFixed(1)}% yay` : 'Quiet';
 }
 
 function isGovernanceBallotQuiet(_stats, context) {
@@ -484,9 +505,9 @@ function formatBallotSplitDetail(_stats, context) {
 function formatVotersValue(value, _stats, context) {
     if (isGovernanceBallotQuiet(_stats, context)) return 'Quiet';
     const row = latestRow(context.domainRows.governance);
-    const voted = Number(value);
-    const total = Number(row?.voters_total);
-    if (!Number.isFinite(voted) || !Number.isFinite(total) || total <= 0) return 'Quiet';
+    const voted = numericValue(value);
+    const total = numericValue(row?.voters_total);
+    if (voted === null || total === null || total <= 0) return 'Quiet';
     return `${formatCount(voted)} / ${formatCount(total)}`;
 }
 
@@ -537,8 +558,8 @@ function formatL2ActiveAddressesDetail(_stats, context) {
 }
 
 function formatMxtz(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return '--Mꜩ';
+    const number = numericValue(value);
+    if (number === null) return '--Mꜩ';
     return `${(number / 1e6).toFixed(number >= 10_000_000 ? 1 : 2)}Mꜩ`;
 }
 
@@ -649,13 +670,13 @@ async function getDomainHistoryRows() {
 }
 
 function summaryLine(stats = {}) {
-    const bakers = Number(stats.totalBakers);
-    const staked = Number(stats.stakingRatio);
-    const tx = Number(stats.transactionVolume24h);
-    if (Number.isFinite(bakers) && Number.isFinite(staked)) {
+    const bakers = numericValue(stats.totalBakers);
+    const staked = numericValue(stats.stakingRatio);
+    const tx = numericValue(stats.transactionVolume24h);
+    if (bakers !== null && staked !== null) {
         return `${formatCount(bakers)} bakers - ${formatPct(staked)} staked`;
     }
-    if (Number.isFinite(tx)) return `${formatLarge(tx)} transactions in 24h`;
+    if (tx !== null) return `${formatLarge(tx)} transactions in 24h`;
     return 'Live stats chamber';
 }
 
@@ -939,6 +960,7 @@ function metricPresentation(metric, stats = {}, rows = lastHistoryRows, domainRo
 }
 
 function numericValue(value) {
+    if (value === null || value === undefined || value === '') return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
 }
@@ -1505,6 +1527,13 @@ function bindEntryMetricJumps(card) {
     metrics.addEventListener('click', handleEntryMetricClick);
 }
 
+function bindEntryOpenAction(card) {
+    const button = card?.querySelector('.network-pulse-entry-open');
+    if (!button || button.dataset.pulseOpenWired === '1') return;
+    button.dataset.pulseOpenWired = '1';
+    button.addEventListener('click', () => openNetworkPulseChamber());
+}
+
 export async function openNetworkPulseChamber() {
     ensureNetworkPulseCss();
     const overlay = ensureOverlay();
@@ -1541,6 +1570,7 @@ export function initNetworkPulseChamber() {
     if (document.getElementById('network-pulse-entry-card')) {
         const existing = document.getElementById('network-pulse-entry-card');
         bindEntryMetricJumps(existing);
+        bindEntryOpenAction(existing);
         updateEntryCard(lastKnownStats());
         scheduleEntryHistoryRefresh();
         return;
@@ -1549,37 +1579,27 @@ export function initNetworkPulseChamber() {
     const grid = document.getElementById('chambers-grid');
     if (!grid) return;
 
-    const card = document.createElement('div');
+    const card = document.createElement('article');
     card.id = 'network-pulse-entry-card';
     card.className = 'stat-card chamber-entry-card chamber-entry-wide chamber-entry-live network-pulse-entry-card';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', 'Open Network Pulse Chamber');
+    card.setAttribute('aria-labelledby', 'network-pulse-entry-title');
     card.innerHTML = `
         <button class="card-copy-link" type="button" data-copy-hash="#pulse" aria-label="Copy Network Pulse Chamber direct link" title="Copy Network Pulse link">&#128279;</button>
         <div class="card-inner">
             <div class="card-front chamber-entry-front network-pulse-entry-front">
                 <div class="network-pulse-entry-head">
-                    <h2 class="stat-label">Network Pulse</h2>
+                    <h2 class="stat-label" id="network-pulse-entry-title">Network Pulse</h2>
                     <div class="stat-value network-pulse-entry-value" id="network-pulse-entry-value">Opening pulse</div>
                     <span class="network-pulse-entry-freshness" id="network-pulse-entry-freshness"></span>
                 </div>
                 <div class="chamber-entry-metrics network-pulse-entry-metrics" id="network-pulse-entry-metrics">${renderEntryMetrics(lastKnownStats() || {})}</div>
+                <button class="network-pulse-entry-open" type="button">Open Network Pulse <span aria-hidden="true">→</span></button>
             </div>
         </div>
     `;
 
-    card.addEventListener('click', (event) => {
-        if (event.target.closest('button, a, .card-tooltip')) return;
-        openNetworkPulseChamber();
-    });
-    card.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        if (event.target.closest('button, a, .card-tooltip')) return;
-        event.preventDefault();
-        openNetworkPulseChamber();
-    });
     bindEntryMetricJumps(card);
+    bindEntryOpenAction(card);
 
     grid.prepend(card);
     updateEntryCard(lastKnownStats());

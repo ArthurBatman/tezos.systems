@@ -21,6 +21,7 @@ const CACHE_TTL = 120000; // 2 min
 
 let currentMode = 'delegate';
 let latestProjection = null;
+let updateSequence = 0;
 
 function debounce(fn, ms) {
     return (...args) => {
@@ -32,22 +33,30 @@ function debounce(fn, ms) {
 async function getXTZPrice() {
     try {
         const data = await fetchXTZPrice();
-        return (data && data.usd) ? data.usd : 0;
+        const price = Number(data?.usd);
+        return Number.isFinite(price) && price > 0 ? price : null;
     } catch (err) {
         console.error('Failed to fetch XTZ price:', err);
-        return 0;
+        return null;
     }
 }
 
 async function getAPY() {
     if (cachedAPY && Date.now() - apyFetchedAt < CACHE_TTL) return cachedAPY;
     try {
-        cachedAPY = await fetchStakingAPY();
-        apyFetchedAt = Date.now();
-        return cachedAPY;
+        const result = await fetchStakingAPY();
+        if (Number.isFinite(result?.delegateAPY) && Number.isFinite(result?.stakeAPY)) {
+            cachedAPY = result;
+            apyFetchedAt = Date.now();
+        }
+        return result;
     } catch (err) {
         console.error('Failed to fetch APY:', err);
-        return cachedAPY || { delegateAPY: 3.1, stakeAPY: 9.2 };
+        return cachedAPY || {
+            delegateAPY: null,
+            stakeAPY: null,
+            _quality: { status: 'unavailable', observedAt: null, error: err.message }
+        };
     }
 }
 
@@ -56,6 +65,22 @@ function formatNum(n, decimals = 2) {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals
     });
+}
+
+function readPercentInput(id, fallback = null) {
+    const raw = document.getElementById(id)?.value;
+    if (raw == null || String(raw).trim() === '') return fallback;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(100, Math.max(0, parsed));
+}
+
+function setUsdResult(id, xtzAmount, price) {
+    if (!Number.isFinite(price) || price <= 0) {
+        setResult(id, 'Price unavailable');
+        return;
+    }
+    setResultNumber(id, xtzAmount * price, (val) => `$${formatNum(val)}`);
 }
 
 function calcRewards(amount, apyPct) {
@@ -77,10 +102,12 @@ function saveState() {
         const state = {
             mode: currentMode,
             amount: document.getElementById('calc-amount')?.value || '',
+            delegatePayoutAssumption: document.getElementById('calc-delegate-payout-assumption')?.value ?? '',
+            stakeEdgeAssumption: document.getElementById('calc-stake-edge-assumption')?.value ?? '',
             extStaked: document.getElementById('calc-ext-staked')?.value || '',
-            stakingFee: document.getElementById('calc-staking-fee')?.value || '5',
+            stakingFee: document.getElementById('calc-staking-fee')?.value ?? '5',
             extDelegated: document.getElementById('calc-ext-delegated')?.value || '',
-            delegPayout: document.getElementById('calc-deleg-payout')?.value || '80'
+            delegPayout: document.getElementById('calc-deleg-payout')?.value ?? '80'
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (_) {}
@@ -164,28 +191,68 @@ async function renderPayoutLine() {
         clearPayoutLine();
         return;
     }
-    const timing = await getProtocolTiming();
-    const cycleLabel = formatCycleHours(timing.cycleHours);
     line.hidden = false;
 
-    if (!timing.verified) {
-        line.textContent = `Rewards land every cycle (~${cycleLabel}). Your first payout within a few days.`;
+    if (currentMode === 'delegate') {
+        const payout = readPercentInput('calc-delegate-payout-assumption');
+        line.textContent = payout == null
+            ? 'Enter your baker’s payout percentage to calculate a scenario. Delegation payout cadence and fees are off-chain baker policy.'
+            : `Scenario uses a ${payout}% baker payout assumption. Actual delegation fees, missed rewards, and payout cadence depend on the baker’s off-chain policy.`;
         return;
     }
 
-    const firstPayout = new Date(Date.now() + timing.activationDelayCycles * timing.cycleHours * 3600000);
-    const dateLabel = firstPayout.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric'
-    });
-    line.textContent = `Rewards land every cycle (~${cycleLabel}). Your first payout: ~${dateLabel}.`;
+    const edge = readPercentInput('calc-stake-edge-assumption');
+    const timing = await getProtocolTiming();
+    const cycleLabel = formatCycleHours(timing.cycleHours);
+    const timingNote = timing.verified
+        ? `Current protocol rights delay: ${timing.activationDelayCycles} cycles of roughly ${cycleLabel} each.`
+        : 'Protocol activation timing could not be verified.';
+    line.textContent = edge == null
+        ? `Enter the baker’s on-chain external-staker edge to calculate a scenario. ${timingNote}`
+        : `Scenario uses a ${edge}% external-staker edge; the baker keeps that share of rewards. ${timingNote}`;
 }
 
 function setApyDisplay(value, label = 'live network rate') {
     const el = document.getElementById('calc-apy-display');
-    if (el) el.title = 'Measured from the chain right now. Moves with the staking ratio.';
+    if (el) el.title = 'Protocol context is measured from current chain data; personal scenarios also use the assumptions shown.';
     setResultNumber('calc-apy-display', value, (val) => `${formatNum(val, 1)}% — ${label} ⓘ`);
+}
+
+function showApyUnavailable() {
+    const el = document.getElementById('calc-apy-display');
+    if (el) {
+        el.textContent = 'APY unavailable — retry shortly';
+        el.title = 'The live issuance or staking inputs could not be verified, so no reward estimate is shown.';
+        delete el.dataset.calcValue;
+    }
+    setResult('calc-daily-xtz', '—');
+    setResult('calc-daily-usd', '—');
+    setResult('calc-monthly-xtz', '—');
+    setResult('calc-monthly-usd', '—');
+    setResult('calc-yearly-xtz', '—');
+    setResult('calc-yearly-usd', '—');
+    clearPayoutLine();
+    clearCompound();
+    removeBreakdown();
+    latestProjection = null;
+}
+
+function showAssumptionRequired(grossApy, message) {
+    setApyDisplay(grossApy, 'gross protocol context only');
+    setResult('calc-daily-xtz', 'Add assumption');
+    setResult('calc-daily-usd', '—');
+    setResult('calc-monthly-xtz', 'Add assumption');
+    setResult('calc-monthly-usd', '—');
+    setResult('calc-yearly-xtz', 'Add assumption');
+    setResult('calc-yearly-usd', '—');
+    const line = document.getElementById('calc-payout-line');
+    if (line) {
+        line.hidden = false;
+        line.textContent = message;
+    }
+    clearCompound();
+    removeBreakdown();
+    latestProjection = null;
 }
 
 function clearCompound() {
@@ -241,13 +308,13 @@ function renderBreakdown(items, container) {
 /**
  * Calculate baker income from all sources
  */
-function calcBakerIncome(ownStake, extStaked, stakingFeePct, extDelegated, delegPayoutPct, stakeAPY, delegateAPY) {
+function calcBakerIncome(ownStake, extStaked, externalStakerEdgePct, extDelegated, delegPayoutPct, stakeAPY, delegateAPY) {
     // 1. Own stake rewards (full staker APY on own stake)
     const ownRewards = ownStake * (stakeAPY / 100);
 
-    // 2. Staking fee income (fee % of external stakers' rewards)
+    // 2. On-chain baker edge from external stakers' rewards.
     const extStakerRewards = extStaked * (stakeAPY / 100);
-    const stakingFeeIncome = extStakerRewards * (stakingFeePct / 100);
+    const stakingFeeIncome = extStakerRewards * (externalStakerEdgePct / 100);
 
     // 3. Delegation income (baker keeps what's not paid out to delegators)
     const delegRewards = extDelegated * (delegateAPY / 100);
@@ -258,14 +325,16 @@ function calcBakerIncome(ownStake, extStaked, stakingFeePct, extDelegated, deleg
 }
 
 async function updateResults() {
+    const updateId = ++updateSequence;
+    const mode = currentMode;
     const amountInput = document.getElementById('calc-amount');
     if (!amountInput) return;
 
     const amount = parseFloat(amountInput.value) || 0;
     saveState();
 
-    if (currentMode === 'baker') {
-        return updateBakerResults(amount);
+    if (mode === 'baker') {
+        return updateBakerResults(amount, updateId);
     }
 
     // Delegate or Stake mode
@@ -273,36 +342,80 @@ async function updateResults() {
     if (amount <= 0) { clearResults(); return; }
 
     const [apy, price] = await Promise.all([getAPY(), getXTZPrice()]);
-    const apyPct = currentMode === 'stake' ? apy.stakeAPY : apy.delegateAPY;
+    if (updateId !== updateSequence || mode !== currentMode) return;
+    const grossApy = mode === 'stake' ? apy.stakeAPY : apy.delegateAPY;
+    if (!Number.isFinite(grossApy) || grossApy <= 0) {
+        showApyUnavailable();
+        return;
+    }
 
-    setApyDisplay(apyPct);
+    let apyPct;
+    let assumptionLabel;
+    if (mode === 'stake') {
+        const edge = readPercentInput('calc-stake-edge-assumption');
+        if (edge == null) {
+            showAssumptionRequired(
+                grossApy,
+                'Enter the baker’s on-chain external-staker edge (0–100%) to calculate a personal staking scenario.'
+            );
+            return;
+        }
+        apyPct = grossApy * (1 - edge / 100);
+        assumptionLabel = `${edge}% external-staker edge`;
+    } else {
+        const payout = readPercentInput('calc-delegate-payout-assumption');
+        if (payout == null) {
+            showAssumptionRequired(
+                grossApy,
+                'Enter your baker’s off-chain payout percentage (0–100%) to calculate a personal delegation scenario.'
+            );
+            return;
+        }
+        apyPct = grossApy * (payout / 100);
+        assumptionLabel = `${payout}% baker payout`;
+    }
+
+    const freshness = apy?._quality?.status === 'stale' ? 'stale network context' : 'live network context';
+    const rateLabel = `scenario · ${assumptionLabel} · ${freshness}`;
+    setApyDisplay(apyPct, rateLabel);
 
     const rewards = calcRewards(amount, apyPct);
     setResultNumber('calc-daily-xtz', rewards.daily, (val) => `${formatNum(val, 4)} ꜩ`);
-    setResultNumber('calc-daily-usd', rewards.daily * price, (val) => `$${formatNum(val)}`);
+    setUsdResult('calc-daily-usd', rewards.daily, price);
     setResultNumber('calc-monthly-xtz', rewards.monthly, (val) => `${formatNum(val, 2)} ꜩ`);
-    setResultNumber('calc-monthly-usd', rewards.monthly * price, (val) => `$${formatNum(val)}`);
+    setUsdResult('calc-monthly-usd', rewards.monthly, price);
     setResultNumber('calc-yearly-xtz', rewards.yearly, (val) => `${formatNum(val, 2)} ꜩ`);
-    setResultNumber('calc-yearly-usd', rewards.yearly * price, (val) => `$${formatNum(val)}`);
+    setUsdResult('calc-yearly-usd', rewards.yearly, price);
     renderPayoutLine();
 
-    renderCompound(amount, apyPct, price);
+    renderCompound(amount, apyPct, price, assumptionLabel);
 }
 
-async function updateBakerResults(ownStake) {
+async function updateBakerResults(ownStake, updateId) {
     const extStaked = parseFloat(document.getElementById('calc-ext-staked')?.value) || 0;
-    const stakingFee = parseFloat(document.getElementById('calc-staking-fee')?.value) || 5;
+    const stakingFee = readPercentInput('calc-staking-fee', 5);
     const extDelegated = parseFloat(document.getElementById('calc-ext-delegated')?.value) || 0;
-    const delegPayout = parseFloat(document.getElementById('calc-deleg-payout')?.value) || 80;
+    const delegPayout = readPercentInput('calc-deleg-payout', 80);
 
     if (ownStake <= 0 && extStaked <= 0 && extDelegated <= 0) { clearResults(); return; }
 
     const [apy, price] = await Promise.all([getAPY(), getXTZPrice()]);
+    if (updateId !== updateSequence || currentMode !== 'baker') return;
+    if (!Number.isFinite(apy?.stakeAPY) || apy.stakeAPY <= 0
+        || !Number.isFinite(apy?.delegateAPY) || apy.delegateAPY <= 0) {
+        showApyUnavailable();
+        return;
+    }
     const income = calcBakerIncome(ownStake, extStaked, stakingFee, extDelegated, delegPayout, apy.stakeAPY, apy.delegateAPY);
 
     // Show effective APY relative to own stake (if any)
     const effectiveAPY = ownStake > 0 ? (income.total / ownStake) * 100 : 0;
-    if (ownStake > 0) setApyDisplay(effectiveAPY, 'effective baker rate');
+    if (ownStake > 0) {
+        const rateLabel = apy?._quality?.status === 'stale'
+            ? 'effective baker rate from stale network inputs'
+            : 'effective baker rate';
+        setApyDisplay(effectiveAPY, rateLabel);
+    }
     else setResult('calc-apy-display', '—');
     clearPayoutLine();
 
@@ -310,20 +423,20 @@ async function updateBakerResults(ownStake) {
     const daily = income.total / 365.25;
     const monthly = income.total / 12;
     setResultNumber('calc-daily-xtz', daily, (val) => `${formatNum(val, 4)} ꜩ`);
-    setResultNumber('calc-daily-usd', daily * price, (val) => `$${formatNum(val)}`);
+    setUsdResult('calc-daily-usd', daily, price);
     setResultNumber('calc-monthly-xtz', monthly, (val) => `${formatNum(val, 2)} ꜩ`);
-    setResultNumber('calc-monthly-usd', monthly * price, (val) => `$${formatNum(val)}`);
+    setUsdResult('calc-monthly-usd', monthly, price);
     setResultNumber('calc-yearly-xtz', income.total, (val) => `${formatNum(val, 2)} ꜩ`);
-    setResultNumber('calc-yearly-usd', income.total * price, (val) => `$${formatNum(val)}`);
+    setUsdResult('calc-yearly-usd', income.total, price);
 
     // Breakdown
     const resultsGrid = document.getElementById('calc-results');
     if (resultsGrid) {
         const items = [
             { label: `Own Stake (${formatNum(apy.stakeAPY, 1)}% APY)`, value: formatNum(income.ownRewards, 2) + ' ꜩ' },
-            { label: `Staking Fee (${stakingFee}% of ext. staker rewards)`, value: formatNum(income.stakingFeeIncome, 2) + ' ꜩ' },
+            { label: `External-staker edge (${stakingFee}% kept)`, value: formatNum(income.stakingFeeIncome, 2) + ' ꜩ' },
             { label: `Delegation (keep ${100 - delegPayout}% of rewards)`, value: formatNum(income.delegBakerKeep, 2) + ' ꜩ' },
-            { label: 'Total Yearly Income', value: formatNum(income.total, 2) + ' ꜩ ($' + formatNum(income.total * price) + ')', total: true }
+            { label: 'Total Yearly Income', value: formatNum(income.total, 2) + ' ꜩ' + (Number.isFinite(price) && price > 0 ? ' ($' + formatNum(income.total * price) + ')' : ' (USD unavailable)'), total: true }
         ];
         // Insert after results grid, before compound
         const compound = document.querySelector('.calc-compound');
@@ -353,10 +466,10 @@ async function updateBakerResults(ownStake) {
     }
 
     // Compound based on total income reinvested to own stake
-    renderCompound(ownStake, effectiveAPY, price);
+    renderCompound(ownStake, effectiveAPY, price, `${stakingFee}% external-staker edge · ${delegPayout}% delegator payout`);
 }
 
-function renderCompound(amount, apyPct, price) {
+function renderCompound(amount, apyPct, price, assumptionLabel = '') {
     const compoundRows = document.getElementById('calc-compound-body');
     if (!compoundRows || amount <= 0) { clearCompound(); return; }
 
@@ -365,6 +478,8 @@ function renderCompound(amount, apyPct, price) {
         amount,
         apyPct,
         price,
+        mode: currentMode,
+        assumptionLabel,
         rows: []
     };
 
@@ -386,7 +501,8 @@ function renderCompound(amount, apyPct, price) {
 
         const earnedEl = document.createElement('span');
         earnedEl.className = 'calc-compound-earned';
-        earnedEl.textContent = '+' + formatNum(earned, 2) + ' ꜩ ($' + formatNum(earned * price) + ')';
+        earnedEl.textContent = '+' + formatNum(earned, 2) + ' ꜩ'
+            + (Number.isFinite(price) && price > 0 ? ' ($' + formatNum(earned * price) + ')' : ' (USD unavailable)');
 
         row.appendChild(yearEl);
         row.appendChild(xtzEl);
@@ -416,6 +532,12 @@ async function shareProjection(showAmounts, overlay) {
         const cycleLabel = formatCycleHours(timing.cycleHours);
         const fiveYear = latestProjection.rows[latestProjection.rows.length - 1];
         const gainText = `+${formatNum(fiveYear.gainPct, 1)}%`;
+        const modeLabel = latestProjection.mode === 'delegate'
+            ? 'Delegation scenario'
+            : latestProjection.mode === 'stake'
+                ? 'External-staking scenario'
+                : 'Baker scenario';
+        const assumptionText = latestProjection.assumptionLabel || 'user-entered assumptions';
         const rowsHtml = latestProjection.rows.map((row) => `
             <div style="display:grid;grid-template-columns:74px 1fr ${showAmounts ? '1fr' : ''};gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
                 <span style="font-size:13px;color:rgba(255,255,255,0.44);font-weight:800;">${row.year}Y</span>
@@ -437,9 +559,9 @@ async function shareProjection(showAmounts, overlay) {
             <div style="position:relative;z-index:1;">
                 <div style="font-family:Orbitron,sans-serif;font-size:22px;font-weight:900;color:#00ff88;text-transform:uppercase;letter-spacing:0;">TEZOS SYSTEMS</div>
                 <div style="width:220px;height:1px;background:#00ff88;opacity:0.5;margin:14px 0 28px;"></div>
-                <div style="font-size:13px;color:rgba(255,255,255,0.42);text-transform:uppercase;font-weight:850;letter-spacing:0;">Compound Projection</div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.42);text-transform:uppercase;font-weight:850;letter-spacing:0;">${modeLabel}</div>
                 <h1 style="margin:12px 0 10px;font-size:58px;line-height:1;font-weight:900;color:#ffffff;">${gainText} over 5 years</h1>
-                <p style="margin:0 0 24px;font-size:19px;line-height:1.38;color:rgba(255,255,255,0.62);">Live network rate, compounding every ~${cycleLabel}. ${showAmounts ? 'Amounts included by request.' : 'Percentages only.'}</p>
+                <p style="margin:0 0 24px;font-size:19px;line-height:1.38;color:rgba(255,255,255,0.62);">Current network context · ${assumptionText}. Model assumes reinvestment every ~${cycleLabel}; returns are not promised. ${showAmounts ? 'Amounts included by request.' : 'Percentages only.'}</p>
                 <div style="display:grid;gap:0;margin-top:8px;">${rowsHtml}</div>
             </div>
         `;
@@ -456,8 +578,8 @@ async function shareProjection(showAmounts, overlay) {
         closeProjectionOverlay(overlay);
 
         showShareModal(canvas, [
-            { label: '📈 Projection', text: `Staking on Tezos at live network rates: ${gainText} over 5 years, compounding every cycle.\n\nRun yours → tezos.systems` },
-            { label: '🔒 Private', text: `Compounding every ~${cycleLabel}, automatically, on a chain that has never forked.\n\ntezos.systems` }
+            { label: '📈 Projection', text: `My Tezos calculator scenario uses current network context and ${assumptionText}: ${gainText} over 5 years if rewards are reinvested each cycle. Not a promised return.\n\nRun yours → tezos.systems` },
+            { label: '🔒 Private', text: `Scenario model: ${assumptionText}, with reinvestment every ~${cycleLabel}. Actual rewards and timing can differ.\n\ntezos.systems` }
         ], 'Compound Projection');
     } catch (error) {
         console.error('Projection share failed:', error);
@@ -515,6 +637,10 @@ function setMode(mode) {
     // Show/hide baker fields
     const bakerFields = document.getElementById('calc-baker-fields');
     if (bakerFields) bakerFields.style.display = mode === 'baker' ? '' : 'none';
+    const delegateFields = document.getElementById('calc-delegate-fields');
+    if (delegateFields) delegateFields.style.display = mode === 'delegate' ? '' : 'none';
+    const stakeFields = document.getElementById('calc-stake-fields');
+    if (stakeFields) stakeFields.style.display = mode === 'stake' ? '' : 'none';
     if (mode === 'baker') clearPayoutLine();
 
     // Update amount label
@@ -582,11 +708,19 @@ export function initCalculator() {
     const saved = loadState();
     if (saved) {
         if (saved.amount) amountInput.value = saved.amount;
+        if (saved.delegatePayoutAssumption != null) {
+            const el = document.getElementById('calc-delegate-payout-assumption');
+            if (el) el.value = saved.delegatePayoutAssumption;
+        }
+        if (saved.stakeEdgeAssumption != null) {
+            const el = document.getElementById('calc-stake-edge-assumption');
+            if (el) el.value = saved.stakeEdgeAssumption;
+        }
         if (saved.extStaked) {
             const el = document.getElementById('calc-ext-staked');
             if (el) el.value = saved.extStaked;
         }
-        if (saved.stakingFee) {
+        if (saved.stakingFee != null) {
             const el = document.getElementById('calc-staking-fee');
             if (el) el.value = saved.stakingFee;
         }
@@ -594,7 +728,7 @@ export function initCalculator() {
             const el = document.getElementById('calc-ext-delegated');
             if (el) el.value = saved.extDelegated;
         }
-        if (saved.delegPayout) {
+        if (saved.delegPayout != null) {
             const el = document.getElementById('calc-deleg-payout');
             if (el) el.value = saved.delegPayout;
         }
@@ -614,13 +748,26 @@ export function initCalculator() {
     }
 
     // Baker field inputs
-    const bakerInputs = ['calc-ext-staked', 'calc-staking-fee', 'calc-ext-delegated', 'calc-deleg-payout'];
+    const bakerInputs = [
+        'calc-delegate-payout-assumption',
+        'calc-stake-edge-assumption',
+        'calc-ext-staked',
+        'calc-staking-fee',
+        'calc-ext-delegated',
+        'calc-deleg-payout'
+    ];
     const debouncedUpdate = debounce(updateResults, DEBOUNCE_MS);
+    const scheduleUpdate = () => {
+        // Invalidate any request already in flight as soon as an assumption
+        // changes; only the debounced update for the newest inputs may render.
+        updateSequence += 1;
+        debouncedUpdate();
+    };
 
-    amountInput.addEventListener('input', debouncedUpdate);
+    amountInput.addEventListener('input', scheduleUpdate);
     for (const id of bakerInputs) {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('input', debouncedUpdate);
+        if (el) el.addEventListener('input', scheduleUpdate);
     }
 
     // Set initial mode

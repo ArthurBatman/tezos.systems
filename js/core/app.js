@@ -4,7 +4,7 @@
  */
 
 import './tzkt-throttle.js';
-import { fetchAllStats, fetchHeroStats, checkApiHealth } from './api.js';
+import { fetchAllStats, fetchHeroStats, checkApiHealth, fetchWithDeadline } from './api.js';
 import {
     SITE_MAP_NAV_GROUPS,
     findCurrentSiteMapEntry,
@@ -41,6 +41,7 @@ import {
 import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js';
 import { initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { setToastGate } from '../ui/toast-queue.js';
 import { fetchProtocols } from '../features/governance.js';
 import { initGovernanceAlerts } from '../features/governance-alerts.js';
@@ -81,7 +82,7 @@ const SPARKLINE_LIVE_METRICS = [
     ['active_contracts_24h', 'activeContracts24h']
 ];
 
-import { saveStats, loadStats, saveProtocols, loadProtocols, getCacheAge, getVisitDeltas, saveVisitSnapshot } from './storage.js';
+import { saveStats, loadStats, loadStatsTimestamp, saveProtocols, loadProtocols, getCacheAge, getVisitDeltas, saveVisitSnapshot } from './storage.js';
 import { initWhaleTracker } from '../features/whales.js';
 import { initSleepingGiants } from '../features/sleeping-giants.js';
 import { initPriceBar } from '../features/price.js';
@@ -110,7 +111,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=422';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=423';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -135,6 +136,81 @@ const state = {
     refreshInterval: REFRESH_INTERVALS.main,
     refreshTimer: null,
 };
+
+function statsObservationDate(stats, fallbackTimestamp = 0) {
+    const observedAt = Date.parse(stats?._quality?.observedAt || '');
+    const timestamp = Number.isFinite(observedAt) && observedAt > 0
+        ? observedAt
+        : Number(fallbackTimestamp);
+    return Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp) : new Date();
+}
+
+const DATA_QUALITY_LABELS = {
+    bakers: 'baker counts',
+    cycle: 'cycle data',
+    governance: 'governance',
+    issuance: 'issuance',
+    staking: 'staking',
+    stakingAPY: 'reward rates',
+    transactionVolume24h: 'transaction volume',
+    totalTransactions: 'transaction totals',
+    contractCalls24h: 'contract calls',
+    totalSupply: 'total supply',
+    totalBurned: 'burn totals',
+    fundedAccounts: 'funded accounts',
+    newAccounts24h: 'new accounts',
+    smartContracts: 'contracts',
+    activeContracts24h: 'active contracts',
+    tokens: 'tokens',
+    rollups: 'rollups',
+    networkStats: 'network totals',
+    networkActivity: 'network activity',
+    accounts: 'account totals',
+    contracts: 'contracts',
+    upstreamApiCache: 'upstream data',
+    hero: 'headline network data'
+};
+
+function finiteMetric(value) {
+    const number = Number(value);
+    return value !== null && value !== undefined && value !== '' && Number.isFinite(number)
+        ? number
+        : null;
+}
+
+function formatApyPair(delegateAPY, stakeAPY) {
+    const delegate = finiteMetric(delegateAPY);
+    const stake = finiteMetric(stakeAPY);
+    if (delegate === null && stake === null) return 'Unavailable';
+    return `${delegate === null ? '—' : `${delegate.toFixed(1)}%`} / ${stake === null ? '—' : `${stake.toFixed(1)}%`}`;
+}
+
+function formatCycleProgress(progress, timeRemaining) {
+    const value = finiteMetric(progress);
+    if (value === null) return 'Cycle timing unavailable';
+    return `${value.toFixed(1)}% • ${timeRemaining || 'remaining time unavailable'}`;
+}
+
+function formatTz4Progress(value) {
+    const percentage = finiteMetric(value);
+    return percentage === null ? 'Unavailable' : `${percentage.toFixed(1)} / ${STAKING_TARGET}%`;
+}
+
+function uptimeMetricPayload(stats) {
+    const payload = {};
+    const metricKeys = [
+        ['activeBakers', 'totalBakers'],
+        ['stakedRatio', 'stakingRatio'],
+        ['currentIssuanceRate', 'currentIssuanceRate'],
+        ['blockLevel', 'blockLevel']
+    ];
+    for (const [target, source] of metricKeys) {
+        const value = finiteMetric(stats?.[source]);
+        if (value !== null) payload[target] = value;
+    }
+    if (stats?.blockTime) payload.blockTime = stats.blockTime;
+    return payload;
+}
 
 window.tezosSystemsPrefersReducedMotion = prefersReducedMotion;
 
@@ -341,6 +417,7 @@ async function init() {
 
     // Try to load cached data for instant display
     const cachedStats = loadStats();
+    const cachedStatsTimestamp = loadStatsTimestamp();
     const cachedProtocols = loadProtocols();
     
     // Only render cached full stats if the user enabled Network Stats.
@@ -349,8 +426,9 @@ async function init() {
         debugLog('⚡ Rendering cached data instantly');
         statsDataLoaded = true;
         await updateStats(cachedStats);
-        state.lastUpdate = new Date();
+        state.lastUpdate = statsObservationDate(cachedStats, cachedStatsTimestamp);
         updateLastRefreshTime();
+        reportDataProblem();
         
         // Show cache indicator briefly
         const cacheAge = getCacheAge();
@@ -368,13 +446,7 @@ async function init() {
 
     // Feed uptime clock with cached data if available
     if (cachedStats && window._updateUptimeClock) {
-        window._updateUptimeClock({
-            activeBakers: cachedStats.totalBakers,
-            stakedRatio: cachedStats.stakingRatio,
-            currentIssuanceRate: cachedStats.currentIssuanceRate,
-            blockLevel: cachedStats.blockLevel,
-            blockTime: cachedStats.blockTime,
-        });
+        window._updateUptimeClock(uptimeMetricPayload(cachedStats));
     }
     if (cachedStats) updateTz4ChamberTile(cachedStats);
 
@@ -526,13 +598,7 @@ async function refreshInBackground() {
             return;
         }
         if (window._updateUptimeClock) {
-            window._updateUptimeClock({
-                activeBakers: heroStats.totalBakers,
-                stakedRatio: heroStats.stakingRatio,
-                currentIssuanceRate: heroStats.currentIssuanceRate,
-                blockLevel: heroStats.blockLevel,
-                blockTime: heroStats.blockTime,
-            });
+            window._updateUptimeClock(uptimeMetricPayload(heroStats));
         }
         updateTz4ChamberTile(heroStats);
         syncLiveSparklineMetrics(heroStats);
@@ -540,6 +606,7 @@ async function refreshInBackground() {
         // Only fetch full stats if Tezos Stats sections are visible
         const statsVisible = localStorage.getItem(STATS_VISIBLE_KEY);
         let fullStatsPublished = false;
+        let qualityStats = heroStats;
         if (statsVisible === 'true') {
             const newStats = await fetchAllStats();
             debugLog('✅ Fresh stats received');
@@ -550,8 +617,9 @@ async function refreshInBackground() {
             saveStats(newStats);
             await updateStats(newStats);
             fullStatsPublished = true;
+            qualityStats = newStats;
             syncLiveSparklineMetrics(newStats);
-            state.lastUpdate = new Date();
+            state.lastUpdate = statsObservationDate(newStats);
             updateLastRefreshTime();
         }
 
@@ -567,6 +635,7 @@ async function refreshInBackground() {
             blockTime: heroStats.blockTime ?? state.currentStats?.blockTime,
             cycleProgress: heroStats.cycleProgress ?? state.currentStats?.cycleProgress,
             cycleTimeRemaining: heroStats.cycleTimeRemaining ?? state.currentStats?.cycleTimeRemaining,
+            _quality: qualityStats?._quality ?? heroStats._quality ?? state.currentStats?._quality,
         };
         updateComparison(comparisonStats);
         updateCyclePulse(comparisonStats);
@@ -589,7 +658,7 @@ async function refreshInBackground() {
         refreshMyTezos();
         refreshNetworkHealth({ force: true });
 
-        reportDataHealthy();
+        reportDataQuality(qualityStats);
         // resetCountdown();
     } catch (error) {
         console.error('Background refresh failed:', error);
@@ -624,7 +693,7 @@ async function refresh() {
         state.lastUpdate = null;
         await updateStats(newStats);
         syncLiveSparklineMetrics(newStats);
-        state.lastUpdate = new Date();
+        state.lastUpdate = statsObservationDate(newStats);
         updateLastRefreshTime();
         await updateUpgradeClock(); // Update protocol + days live
 
@@ -643,7 +712,7 @@ async function refresh() {
         refreshMyTezos();
         refreshNetworkHealth({ force: true });
 
-        reportDataHealthy();
+        reportDataQuality(newStats);
     } catch (error) {
         console.error('Failed to refresh stats:', error);
         reportDataProblem();
@@ -679,6 +748,7 @@ function updateRewardAccountsBreakdown(totalDelegators, totalStakers) {
 }
 
 function clampPercent(value) {
+    if (value === null || value === undefined || value === '') return null;
     const num = Number(value);
     if (!Number.isFinite(num)) return null;
     return Math.min(100, Math.max(0, num));
@@ -692,7 +762,7 @@ function renderGovernanceVessel(stats) {
     const participation = clampPercent(stats?.participation);
     const quorum = clampPercent(stats?.participationQuorum);
     const yay = clampPercent(stats?.participationYayPct);
-    const daysLeft = Number(stats?.participationDaysLeft);
+    const daysLeft = finiteMetric(stats?.participationDaysLeft);
     const isBallot = stats?.govPeriodKind === 'exploration' || stats?.govPeriodKind === 'promotion';
 
     card?.classList.remove('governance-vessel-late-low');
@@ -776,12 +846,18 @@ async function updateStats(newStats) {
         // Consensus
         revealStat('total-bakers', newStats.totalBakers, formatCount);
         revealStat('tz4-adoption', newStats.tz4Percentage,
-            (val) => `${val.toFixed(1)} / ${STAKING_TARGET}%`);
+            formatTz4Progress);
         const tz4Desc = document.getElementById('tz4-description');
-        if (tz4Desc) tz4Desc.textContent = `${newStats.tz4Bakers} / ${newStats.totalBakers} bakers active`;
+        const tz4Bakers = finiteMetric(newStats.tz4Bakers);
+        const totalBakers = finiteMetric(newStats.totalBakers);
+        if (tz4Desc) {
+            tz4Desc.textContent = tz4Bakers === null || totalBakers === null
+                ? 'BLS baker adoption unavailable'
+                : `${tz4Bakers.toLocaleString('en-US')} / ${totalBakers.toLocaleString('en-US')} bakers active`;
+        }
         revealStat('cycle-progress', newStats.cycle, formatCount);
-        document.getElementById('cycle-description').textContent = 
-            `${newStats.cycleProgress.toFixed(1)}% • ${newStats.cycleTimeRemaining}`;
+        document.getElementById('cycle-description').textContent =
+            formatCycleProgress(newStats.cycleProgress, newStats.cycleTimeRemaining);
         
         // Governance
         revealStat('proposal', newStats.proposal, (v) => v);
@@ -795,7 +871,7 @@ async function updateStats(newStats) {
         revealStat('issuance-rate', newStats.currentIssuanceRate, formatPercentage);
         updateIssuanceBreakdown(newStats.protocolIssuanceRate, newStats.lbIssuanceRate, newStats.lbSubsidyDisabled);
         revealStat('staking-apy', newStats.delegateAPY,
-            (val) => `${(val || 0).toFixed(1)}% / ${(newStats.stakeAPY || 0).toFixed(1)}%`);
+            (val) => formatApyPair(val, newStats.stakeAPY));
         // Update live APY values for tweet template substitution
         if (newStats.delegateAPY && newStats.stakeAPY) {
             setLiveAPY(newStats.delegateAPY, newStats.stakeAPY);
@@ -822,13 +898,7 @@ async function updateStats(newStats) {
 
         // Feed uptime clock with baker/staking data
         if (window._updateUptimeClock) {
-            window._updateUptimeClock({
-                activeBakers: newStats.totalBakers,
-                stakedRatio: newStats.stakingRatio,
-                currentIssuanceRate: newStats.currentIssuanceRate,
-                blockLevel: newStats.blockLevel,
-                blockTime: newStats.blockTime,
-            });
+            window._updateUptimeClock(uptimeMetricPayload(newStats));
         }
     } else {
         // Animate changes
@@ -841,7 +911,7 @@ async function updateStats(newStats) {
             updates.push({
                 cardId: 'tz4-adoption',
                 value: newStats.tz4Percentage,
-                formatter: (val) => `${val.toFixed(1)} / ${STAKING_TARGET}%`
+                formatter: formatTz4Progress
             });
         }
         if (state.currentStats.cycle !== newStats.cycle) {
@@ -870,7 +940,7 @@ async function updateStats(newStats) {
             updates.push({
                 cardId: 'staking-apy',
                 value: newStats.delegateAPY,
-                formatter: (val) => `${(val || 0).toFixed(1)}% / ${(newStats.stakeAPY || 0).toFixed(1)}%`
+                formatter: (val) => formatApyPair(val, newStats.stakeAPY)
             });
         }
         if (state.currentStats.stakingRatio !== newStats.stakingRatio) {
@@ -918,9 +988,15 @@ async function updateStats(newStats) {
         
         // Update descriptions
         const tz4Desc2 = document.getElementById('tz4-description');
-        if (tz4Desc2) tz4Desc2.textContent = `${newStats.tz4Bakers} / ${newStats.totalBakers} bakers active`;
-        document.getElementById('cycle-description').textContent = 
-            `${newStats.cycleProgress.toFixed(1)}% • ${newStats.cycleTimeRemaining}`;
+        if (tz4Desc2) {
+            const tz4Bakers = finiteMetric(newStats.tz4Bakers);
+            const totalBakers = finiteMetric(newStats.totalBakers);
+            tz4Desc2.textContent = tz4Bakers === null || totalBakers === null
+                ? 'BLS baker adoption unavailable'
+                : `${tz4Bakers.toLocaleString('en-US')} / ${totalBakers.toLocaleString('en-US')} bakers active`;
+        }
+        document.getElementById('cycle-description').textContent =
+            formatCycleProgress(newStats.cycleProgress, newStats.cycleTimeRemaining);
         document.getElementById('proposal-description').textContent = newStats.proposalDescription;
         document.getElementById('voting-description').textContent = newStats.votingDescription;
         renderGovernanceVessel(newStats);
@@ -933,13 +1009,7 @@ async function updateStats(newStats) {
 
     // Feed uptime clock on every refresh
     if (window._updateUptimeClock) {
-        window._updateUptimeClock({
-            activeBakers: newStats.totalBakers,
-            stakedRatio: newStats.stakingRatio,
-            currentIssuanceRate: newStats.currentIssuanceRate,
-            blockLevel: newStats.blockLevel,
-            blockTime: newStats.blockTime,
-        });
+        window._updateUptimeClock(uptimeMetricPayload(newStats));
     }
 
     // Check for network moments (milestone detection)
@@ -955,7 +1025,10 @@ async function updateStats(newStats) {
 
     // Update about modal with live data
     const aboutApy = document.getElementById('about-apy');
-    if (aboutApy) aboutApy.textContent = `~${(newStats.stakeAPY || 0).toFixed(1)}%`;
+    if (aboutApy) {
+        const stakeApy = finiteMetric(newStats.stakeAPY);
+        aboutApy.textContent = stakeApy === null ? 'Unavailable' : `~${stakeApy.toFixed(1)}%`;
+    }
 
     // Update comparison section with live Tezos data
     updateComparison(state.currentStats);
@@ -1041,6 +1114,31 @@ function reportDataProblem() {
 /** A refresh succeeded — clear any status banner. */
 function reportDataHealthy() {
     setDataStatus(null);
+}
+
+function reportDataQuality(stats) {
+    const quality = stats?._quality;
+    if (!quality || quality.status === 'live') {
+        reportDataHealthy();
+        return;
+    }
+
+    const unavailable = Array.isArray(quality.unavailableCategories)
+        ? quality.unavailableCategories
+        : [];
+    const stale = Array.isArray(quality.staleCategories)
+        ? quality.staleCategories
+        : [];
+    const affected = [...new Set([...unavailable, ...stale])]
+        .map((category) => DATA_QUALITY_LABELS[category] || category)
+        .slice(0, 4);
+    const suffix = affected.length ? `: ${affected.join(', ')}` : '';
+
+    if (unavailable.length) {
+        setDataStatus('stale', `Some live metrics are unavailable${suffix}. Available values still updated.`);
+        return;
+    }
+    setDataStatus('stale', `Some metrics are using last known values${suffix}.`);
 }
 
 /**
@@ -2043,14 +2141,11 @@ function ensureProtocolHistoryEntryCard() {
         card = document.createElement('div');
         card.id = 'protocol-history-entry-card';
         card.className = 'stat-card chamber-entry-card chamber-entry-wide protocol-history-entry-card chamber-entry-adoption';
-        card.setAttribute('role', 'button');
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', 'Open Protocol Anthology Chamber');
         card.innerHTML = `
             <button class="card-copy-link" type="button" data-copy-hash="#protocol-history" aria-label="Copy Protocol Anthology direct link" title="Copy Protocol Anthology link">🔗</button>
             <div class="card-inner">
                 <div class="card-front protocol-history-entry-front">
-                    <h2 class="stat-label">Protocol Anthology</h2>
+                    <h2 class="stat-label" id="protocol-history-entry-title">Protocol Anthology</h2>
                     <div class="protocol-history-entry-anthology">
                         <div class="protocol-history-entry-count">
                             <span>Volume</span>
@@ -2083,19 +2178,12 @@ function ensureProtocolHistoryEntryCard() {
         grid.appendChild(card);
     }
 
-    if (!card.dataset.protocolHistoryWired) {
-        const open = (event) => {
-            if (event?.target?.closest?.('button, a, .card-tooltip')) return;
-            openProtocolHistoryChamber();
-        };
-        card.addEventListener('click', open);
-        card.addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            open(event);
-        });
-        card.dataset.protocolHistoryWired = '1';
-    }
+    wireChamberLauncher(card, {
+        open: openProtocolHistoryChamber,
+        label: 'Open Protocol Anthology Chamber',
+        titleSelector: '#protocol-history-entry-title, .stat-label'
+    });
+    card.dataset.protocolHistoryWired = '1';
 
     updateProtocolHistoryEntryCard(getKnownProtocols());
     return card;
@@ -2196,10 +2284,11 @@ function initChambersToggle() {
 
 function updateTz4ChamberTile(stats) {
     if (!stats) return;
+    if (stats.tz4Percentage === null || stats.tz4Percentage === undefined || stats.tz4Percentage === '') return;
     const percentage = Number(stats.tz4Percentage);
     if (!Number.isFinite(percentage)) return;
 
-    updateStatInstant('tz4-adoption', percentage, (val) => `${val.toFixed(1)} / ${STAKING_TARGET}%`);
+    updateStatInstant('tz4-adoption', percentage, formatTz4Progress);
     const tz4Desc = document.getElementById('tz4-description');
     if (!tz4Desc) return;
 
@@ -2224,7 +2313,9 @@ function syncLiveSparklineMetrics(stats) {
     let hasMetric = false;
     for (const [metric, statKey] of SPARKLINE_LIVE_METRICS) {
         if (!(statKey in stats)) continue;
-        const value = Number(stats[statKey]);
+        const rawValue = stats[statKey];
+        if (rawValue === null || rawValue === undefined || rawValue === '') continue;
+        const value = Number(rawValue);
         if (!Number.isFinite(value)) continue;
         setLatestLiveMetric(metric, value);
         hasMetric = true;
@@ -2270,8 +2361,9 @@ function initTezosStatsToggle() {
             const newStats = await fetchAllStats();
             saveStats(newStats);
             await updateStats(newStats);
-            state.lastUpdate = new Date();
+            state.lastUpdate = statsObservationDate(newStats);
             updateLastRefreshTime();
+            reportDataQuality(newStats);
         } catch (e) {
             console.error('Stats fetch failed:', e);
             statsDataLoaded = false; // retry on next toggle
@@ -2996,7 +3088,7 @@ function initUptimeClock() {
         counterEl?.classList.toggle('is-anniversary', active);
 
         if (topContinuityClaim) {
-            topContinuityClaim.textContent = active ? anniversary.claimText : '100% uptime';
+            topContinuityClaim.textContent = active ? anniversary.claimText : 'mainnet age';
         }
         if (topContinuityOrigin) {
             topContinuityOrigin.textContent = active ? anniversary.originText : 'since 2018';
@@ -3004,8 +3096,8 @@ function initUptimeClock() {
         if (!topContinuityHistory) return;
 
         const myth = active
-            ? `${anniversary.message} ${upgradeCount} protocol upgrades kept shipping without a stop.`
-            : `${totalDays.toLocaleString('en-US')} days without stopping. ${upgradeCount} upgrades. Zero forks. The longest-running self-amending chain.`;
+            ? `${anniversary.message} ${upgradeCount} protocol upgrades adopted on-chain.`
+            : `${totalDays.toLocaleString('en-US')} days of Tezos mainnet history. ${upgradeCount} protocol upgrades adopted on-chain.`;
         const milestoneLead = activeMilestone
             ? `${uptimeMilestoneStatus(activeMilestone) === 'crossed' ? 'Network milestone confirmed' : 'Network milestone approaching'}: ${describeUptimeMilestone(activeMilestone)}. `
             : '';
@@ -3075,7 +3167,7 @@ function initUptimeClock() {
     // Fast block poller via Octez RPC (real-time, every 6s)
     async function pollBlock() {
         try {
-            const resp = await fetch(`${API_URLS.octez}/chains/main/blocks/head/header`);
+            const resp = await fetchWithDeadline(`${API_URLS.octez}/chains/main/blocks/head/header`, {}, 5000);
             if (!resp.ok) return;
             const header = await resp.json();
             const level = header.level;
@@ -4097,10 +4189,6 @@ function showProtocolHistoryModal(history, protocolName) {
 
 let protocolHistoryChamberCloseTimer = null;
 
-function handleProtocolHistoryChamberEscape(event) {
-    if (event.key === 'Escape') closeProtocolHistoryChamber();
-}
-
 function ensureProtocolHistoryChamberModal() {
     let overlay = document.getElementById('protocol-history-chamber-modal');
     if (overlay) return overlay;
@@ -4110,8 +4198,8 @@ function ensureProtocolHistoryChamberModal() {
     overlay.className = 'modal-overlay chamber-overlay protocol-history-overlay';
     overlay.setAttribute('aria-hidden', 'true');
     overlay.innerHTML = `
-        <div class="modal-content modal-large chamber-content protocol-history-content" role="dialog" aria-modal="true" aria-labelledby="protocol-history-chamber-title">
-            <button class="modal-close chamber-close" aria-label="Close Protocol History Chamber" style="z-index:3">&times;</button>
+        <div class="modal-content modal-large chamber-content protocol-history-content" role="dialog" aria-modal="true" aria-labelledby="protocol-history-chamber-title" tabindex="-1">
+            <button class="modal-close chamber-close" type="button" aria-label="Close Protocol History Chamber" style="z-index:3">&times;</button>
             <div class="chamber-body protocol-history-body">
                 <div class="chamber-loading">
                     <div class="chamber-loading-text">Preheating Protocol History</div>
@@ -4214,8 +4302,7 @@ function closeProtocolHistoryChamber() {
     const overlay = document.getElementById('protocol-history-chamber-modal');
     if (!overlay) return;
     overlay.classList.remove('active');
-    overlay.setAttribute('aria-hidden', 'true');
-    document.removeEventListener('keydown', handleProtocolHistoryChamberEscape);
+    deactivateChamberDialog(overlay);
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
     window.clearTimeout(protocolHistoryChamberCloseTimer);
@@ -4228,11 +4315,14 @@ async function openProtocolHistoryChamber() {
     window.clearTimeout(protocolHistoryChamberCloseTimer);
     renderProtocolHistoryChamberShell(overlay);
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
+    activateChamberDialog(overlay, {
+        close: closeProtocolHistoryChamber,
+        dialogSelector: '.protocol-history-content',
+        titleId: 'protocol-history-chamber-title',
+        label: 'Protocol Anthology Chamber'
+    });
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleProtocolHistoryChamberEscape);
-
     const cachedProtocols = getKnownProtocols();
     if (cachedProtocols.length) {
         renderProtocolTimeline(cachedProtocols);
@@ -4422,9 +4512,6 @@ async function updateUpgradeClock() {
             daysLiveEl.textContent = daysLive.toLocaleString();
             const aboutDays = document.getElementById('about-days');
             if (aboutDays) aboutDays.textContent = daysLive.toLocaleString();
-            // Update "fork-free days" badge
-            const forkFreeDays = document.getElementById('fork-free-days');
-            if (forkFreeDays) forkFreeDays.textContent = `${daysLive.toLocaleString()} days fork-free`;
         }
         
         const statusEl = document.getElementById('upgrade-status');
@@ -5100,7 +5187,7 @@ function applyDeepLink() {
                     .then(async (newStats) => {
                         saveStats(newStats);
                         await updateStats(newStats);
-                        state.lastUpdate = new Date();
+                        state.lastUpdate = statsObservationDate(newStats);
                         updateLastRefreshTime();
                     })
                     .catch((error) => {
@@ -5176,8 +5263,12 @@ function applyDeepLink() {
             historyModal.setAttribute('aria-hidden', 'true');
         }
         document.getElementById('protocol-history-modal')?.remove();
-        document.getElementById('protocol-history-chamber-modal')?.remove();
-        document.removeEventListener('keydown', handleProtocolHistoryChamberEscape);
+        const protocolHistoryChamber = document.getElementById('protocol-history-chamber-modal');
+        if (protocolHistoryChamber) {
+            protocolHistoryChamber.classList.remove('active');
+            deactivateChamberDialog(protocolHistoryChamber);
+            protocolHistoryChamber.remove();
+        }
 
         await Promise.allSettled([
             import('../features/chamber.js').then((module) => module.closeChamber?.()),
@@ -5641,7 +5732,7 @@ async function updateNetworkPulse() {
     // This function just feeds block data as a TzKT fallback
     try {
         // Use Octez RPC instead of TzKT
-        const response = await fetch(`${API_URLS.octez}/chains/main/blocks/head/header`);
+        const response = await fetchWithDeadline(`${API_URLS.octez}/chains/main/blocks/head/header`, {}, 5000);
         if (!response.ok) return;
         const header = await response.json();
 
@@ -5713,6 +5804,11 @@ function exportData(format) {
     const data = {
         exported: timestamp,
         source: 'tezos.systems',
+        sourceEndpoints: {
+            tzkt: API_URLS.tzkt,
+            octez: API_URLS.octez
+        },
+        quality: stats._quality || { status: 'unknown' },
         consensus: {
             totalBakers: stats.totalBakers,
             tz4Bakers: stats.tz4Bakers,
@@ -5724,8 +5820,12 @@ function exportData(format) {
             issuanceRate: stats.currentIssuanceRate,
             protocolIssuance: stats.protocolIssuanceRate,
             lbIssuance: stats.lbIssuanceRate,
-            lbSubsidyStatus: stats.lbSubsidyDisabled ? 'Disabled' : 'Active',
-            lbSubsidyDisabled: Boolean(stats.lbSubsidyDisabled),
+            lbSubsidyStatus: stats.lbSubsidyDisabled == null
+                ? 'Unknown'
+                : stats.lbSubsidyDisabled
+                    ? 'Disabled'
+                    : 'Active',
+            lbSubsidyDisabled: stats.lbSubsidyDisabled ?? null,
             lbEmaPct: stats.lbEmaPct,
             delegateAPY: stats.delegateAPY,
             stakeAPY: stats.stakeAPY,
@@ -5780,7 +5880,7 @@ function exportData(format) {
             stakingRatio: 'Staking Ratio',
             delegatedRatio: 'Delegated Ratio',
             bakingPower: 'Baking Power',
-            rewardAccounts: 'Reward Accounts',
+            rewardAccounts: 'Staker + Delegator Accounts',
             totalDelegators: 'Total Delegators',
             totalStakers: 'Total Stakers',
             totalSupply: 'Total Supply',

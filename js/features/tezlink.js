@@ -6,6 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const DEFILLAMA = API_URLS.defillama;
 const EXPLORER = API_URLS.tezlinkExplorer;
@@ -23,10 +24,6 @@ let chamberTimer = null;
 let chamberInFlight = false;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
-
-function isAbortableTarget(target) {
-    return target.closest?.('button, a, .card-info-btn, .card-tooltip');
-}
 
 async function fetchJson(url, options = {}) {
     return fetchWithRetry(url, { cache: 'no-store', memoryCache: false, ...options }, 2);
@@ -676,10 +673,6 @@ function unlockPageScroll() {
     savedHtmlOverflow = null;
 }
 
-function handleEscape(event) {
-    if (event.key === 'Escape') closeTezlinkChamber();
-}
-
 function stopChamberRefresh() {
     if (!chamberTimer) return;
     window.clearInterval(chamberTimer);
@@ -724,6 +717,7 @@ export async function openTezlinkChamber() {
         overlay = document.createElement('div');
         overlay.id = 'tezlink-modal';
         overlay.className = 'modal-overlay chamber-overlay lb-overlay tezlink-overlay';
+        overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
             <div class="modal-content modal-large chamber-content lb-content tezlink-content" role="dialog" aria-modal="true" aria-labelledby="tezlink-title">
                 <button class="modal-close chamber-close" type="button" aria-label="Close Tezos X Chamber">&times;</button>
@@ -740,8 +734,13 @@ export async function openTezlinkChamber() {
     }
 
     lockPageScroll();
-    document.addEventListener('keydown', handleEscape);
     overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeTezlinkChamber,
+        dialogSelector: '.tezlink-content',
+        titleId: 'tezlink-title',
+        label: 'Tezos X Chamber'
+    });
     await refreshTezlinkChamber({ force: true });
 
     stopChamberRefresh();
@@ -751,10 +750,12 @@ export async function openTezlinkChamber() {
 }
 
 export function closeTezlinkChamber() {
-    document.removeEventListener('keydown', handleEscape);
     stopChamberRefresh();
     const overlay = document.getElementById('tezlink-modal');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        deactivateChamberDialog(overlay);
+    }
     unlockPageScroll();
 }
 
@@ -781,6 +782,11 @@ function startEntryRefresh() {
 
 export function initTezlinkChamber() {
     if (document.getElementById('tezlink-entry-card')) {
+        wireChamberLauncher(document.getElementById('tezlink-entry-card'), {
+            open: openTezlinkChamber,
+            label: 'Open Tezos X Chamber',
+            titleSelector: '#tezlink-entry-title, .stat-label'
+        });
         startEntryRefresh();
         refreshEntryCard();
         return;
@@ -792,16 +798,12 @@ export function initTezlinkChamber() {
     const card = document.createElement('div');
     card.id = 'tezlink-entry-card';
     card.className = 'stat-card chamber-entry-card chamber-entry-wide tezlink-entry-card';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', 'Open Tezos X Chamber');
-    card.title = 'Open Tezos X Chamber';
     card.innerHTML = `
         <button class="card-copy-link" type="button" data-copy-hash="#tezosx" aria-label="Copy Tezos X direct link" title="Copy Tezos X link">🔗</button>
         <div class="card-inner">
             <div class="card-front chamber-entry-front tezlink-entry-front">
                 <div class="tezlink-entry-main">
-                    <h2 class="stat-label">Tezos X</h2>
+                    <h2 class="stat-label" id="tezlink-entry-title">Tezos X</h2>
                     <div class="stat-value tezlink-entry-value" id="tezlink-entry-tvl"><span class="loading loading-skeleton">Preheating Tezos X</span></div>
                     <span class="tezlink-entry-value-label">TVL</span>
                     <p class="stat-description" id="tezlink-entry-description">Atomic L2 rollup</p>
@@ -815,22 +817,18 @@ export function initTezlinkChamber() {
         </div>
     `;
 
-    card.addEventListener('click', (event) => {
-        if (isAbortableTarget(event.target)) return;
-        openTezlinkChamber();
-    });
-    card.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        openTezlinkChamber();
-    });
-
     const chamberCard = document.getElementById('chamber-entry-card');
     if (chamberCard?.parentElement === grid) {
         chamberCard.after(card);
     } else {
         grid.prepend(card);
     }
+
+    wireChamberLauncher(card, {
+        open: openTezlinkChamber,
+        label: 'Open Tezos X Chamber',
+        titleSelector: '#tezlink-entry-title'
+    });
 
     refreshEntryCard({ force: true });
     startEntryRefresh();

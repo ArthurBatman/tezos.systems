@@ -5,7 +5,7 @@ export const CHAMBER_ROUTES = [
     hash: '#protocol-history',
     title: 'Protocol Anthology - Tezos Self-Amendment Story',
     shortTitle: 'Protocol Anthology',
-    description: 'Read the Tezos self-amendment archive: protocol lore, upgrade debates, impact views, and the zero-fork chain story.',
+    description: 'Read the Tezos self-amendment archive: protocol lore, upgrade debates, impact views, and the tracked history of one adopted protocol path.',
     eyebrow: 'Protocol Archive',
     accent: '#45e0c8'
   },

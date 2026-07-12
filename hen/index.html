@@ -3,76 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>hen — live Tezos NFTs</title>
-    <meta name="description" content="Live Teia and OBJKT feed of freshly minted NFTs on Tezos. Discover, explore, collect.">
-    <link rel="canonical" href="https://tezos.systems/?hen=1">
-    <meta property="og:title" content="hen — live Tezos NFTs">
-    <meta property="og:description" content="Real-time Teia and OBJKT feed of new NFTs being minted on the Tezos blockchain.">
+    <title>HEN Live Feed — Teia and OBJKT NFTs on Tezos</title>
+    <meta name="description" content="A live Teia and OBJKT feed of freshly minted NFTs on Tezos, with collecting filters, wallet-owned flags, and direct collect links.">
+    <meta name="author" content="Primate411">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="https://tezos.systems/hen/">
+    <link rel="license" href="/LICENSE">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="https://tezos.systems/hen/">
+    <meta property="og:title" content="HEN Live Feed — Teia and OBJKT NFTs on Tezos">
+    <meta property="og:description" content="Discover and collect freshly minted Tezos NFTs in one live feed.">
+    <meta property="og:image" content="https://tezos.systems/og-image.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="HEN Live Feed — Teia and OBJKT NFTs on Tezos">
+    <meta name="twitter:description" content="Discover and collect freshly minted Tezos NFTs in one live feed.">
+    <meta name="twitter:image" content="https://tezos.systems/og-image.png">
+    <meta name="theme-color" content="#111111">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' api.coingecko.com api.tzkt.io api.tezos.domains *.rpc.tez.capital data.objkt.com https://*.gke.papers.tech https://*.papers.tech wss://*.papers.tech cdn.jsdelivr.net https://esm.sh wss://relay.walletconnect.com https://relay.walletconnect.com; img-src 'self' data: *.objkt.com assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; media-src 'self' blob: data: assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; object-src 'none'; base-uri 'self'; form-action 'self';">
     <link rel="icon" href="/favicon.svg">
+    <link rel="stylesheet" href="/css/hen-mode.css?v=95">
+    <link rel="stylesheet" href="/css/site-map.css?v=423">
     <style>
-        html, body {
-            margin: 0;
-            min-height: 100%;
-            background: #0a0a0a;
-            color: #e0e0e0;
-            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        }
-        body {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            box-sizing: border-box;
-        }
-        main {
-            display: grid;
-            gap: 18px;
-            max-width: 620px;
-            text-align: center;
-        }
-        h1 {
-            margin: 0;
-            color: #00d4ff;
-            font-size: clamp(2rem, 8vw, 4.5rem);
-            letter-spacing: 0.08em;
-            text-transform: lowercase;
-        }
-        p {
-            margin: 0;
-            color: #9a9a9a;
-            font-size: 0.92rem;
-            line-height: 1.7;
-        }
-        a {
-            justify-self: center;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 44px;
-            padding: 0 18px;
-            border: 1px solid rgba(0,255,136,0.52);
-            background: #00ff88;
-            color: #07140d;
-            font-size: 0.76rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-decoration: none;
-            text-transform: uppercase;
-            box-shadow: 0 0 24px rgba(0,255,136,0.16);
-        }
+        html, body { margin: 0; min-height: 100%; background: #111; color: #e0e0e0; }
+        .hen-doorway { box-sizing: border-box; display: grid; min-height: 100vh; place-content: center; gap: 1rem; padding: 2rem; text-align: center; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+        .hen-doorway h1 { margin: 0; color: #00d4ff; font-size: clamp(2rem, 8vw, 4.5rem); letter-spacing: 0.08em; text-transform: lowercase; }
+        .hen-doorway p { max-width: 42rem; margin: 0; color: #aaa; line-height: 1.7; }
+        .hen-doorway a { color: #00ff88; }
     </style>
-    <link rel="stylesheet" href="/css/site-map.css?v=422">
+    <script src="/js/core/hen-init.js?v=79"></script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "HEN Live Feed",
+      "url": "https://tezos.systems/hen/",
+      "description": "A live Teia and OBJKT feed of freshly minted NFTs on Tezos.",
+      "isPartOf": {
+        "@type": "WebSite",
+        "name": "Tezos Systems",
+        "url": "https://tezos.systems/"
+      },
+      "publisher": {
+        "@type": "Person",
+        "name": "Primate411",
+        "url": "https://github.com/Primate411",
+        "affiliation": {
+          "@type": "Organization",
+          "name": "Tez Capital",
+          "url": "https://tez.capital"
+        }
+      }
+    }
+    </script>
 </head>
-<body class="site-map-page-entry" data-site-context="hen">
-    <main>
+<body data-hen-standalone="true">
+    <main class="hen-doorway" id="hen-doorway">
         <h1>hen</h1>
-        <p>Live Teia and OBJKT mints on Tezos, with collecting filters, wallet-owned flags, and direct collect links.</p>
-        <a href="/?hen=1">Enter Live Feed</a>
+        <p>Opening the live Teia and OBJKT feed with collecting filters, wallet-owned flags, and direct collect links.</p>
+        <noscript><p>JavaScript is required for the live feed. <a href="/">Return to Tezos Systems</a>.</p></noscript>
     </main>
     <section data-site-circulation data-site-context="hen"></section>
     <footer data-site-footer data-site-context="hen"></footer>
-    <script type="module" src="/js/landing/site-nav.js?v=422"></script>
+
+    <div id="hen-overlay" class="hen-overlay" role="main" aria-label="HEN live Tezos NFT feed">
+        <div id="hen-boot" class="hen-boot"></div>
+        <div class="hen-header">
+            <div class="hen-logo">hen</div>
+            <div class="hen-source-tabs" role="group" aria-label="NFT source filter">
+                <button type="button" class="hen-source-tab" data-hen-mode="all" aria-pressed="true">all</button>
+                <button type="button" class="hen-source-tab" data-hen-mode="teia" aria-pressed="false">teia</button>
+                <button type="button" class="hen-source-tab" data-hen-mode="objkt" aria-pressed="false">objkt</button>
+            </div>
+            <div id="hen-mint-count" class="hen-mint-count"></div>
+            <button class="hen-close" type="button" aria-label="Exit HEN live feed" title="Exit HEN live feed">×</button>
+        </div>
+        <div id="hen-status-strip" class="hen-status-strip">
+            <span id="hen-status-line" class="hen-status-line" aria-live="polite"></span>
+            <button type="button" id="hen-mobile-filter-toggle" class="hen-mobile-filter-toggle" aria-expanded="false" aria-controls="hen-filterbar hen-wallet-controls">filters</button>
+            <div id="hen-filterbar" class="hen-filterbar" aria-label="HEN feed filters">
+                <button type="button" id="hen-filter-listed" class="hen-filter-toggle" aria-pressed="false">for sale</button>
+                <div class="hen-filter-group" role="group" aria-label="Maximum price">
+                    <button type="button" class="hen-filter-chip" data-hen-price="1000000" aria-pressed="false">≤1</button>
+                    <button type="button" class="hen-filter-chip" data-hen-price="5000000" aria-pressed="false">≤5</button>
+                    <button type="button" class="hen-filter-chip" data-hen-price="25000000" aria-pressed="false">≤25</button>
+                    <button type="button" class="hen-filter-chip" data-hen-price="any" aria-pressed="true">any</button>
+                </div>
+                <label class="hen-search-label" for="hen-search-input">search</label>
+                <input id="hen-search-input" class="hen-search-input" type="search" placeholder="name..." autocomplete="off" spellcheck="false">
+                <div class="hen-filter-group" role="group" aria-label="Edition size">
+                    <button type="button" class="hen-filter-chip" data-hen-edition="1" aria-pressed="false">1/1</button>
+                    <button type="button" class="hen-filter-chip" data-hen-edition="10" aria-pressed="false">≤10</button>
+                    <button type="button" class="hen-filter-chip" data-hen-edition="any" aria-pressed="true">any</button>
+                </div>
+                <div class="hen-filter-group" role="group" aria-label="Sort feed">
+                    <button type="button" class="hen-filter-chip" data-hen-sort="newest" aria-pressed="true">newest</button>
+                    <button type="button" class="hen-filter-chip" data-hen-sort="cheapest" aria-pressed="false">cheap</button>
+                    <button type="button" class="hen-filter-chip" data-hen-sort="scarce" aria-pressed="false">scarce</button>
+                </div>
+                <button type="button" id="hen-filter-saved" class="hen-filter-icon" aria-pressed="false" title="Saved pieces">♥</button>
+                <button type="button" id="hen-filter-hide-owned" class="hen-filter-chip" aria-pressed="false">hide owned</button>
+                <button type="button" id="hen-filter-shuffle" class="hen-filter-icon" title="Shuffle feed">↯</button>
+            </div>
+            <div id="hen-wallet-controls" class="hen-wallet-controls" aria-label="HEN wallet setup">
+                <span id="hen-wallet-status" class="hen-wallet-status">connect to flag pieces you own</span>
+                <button type="button" id="hen-wallet-connect" class="hen-wallet-button hen-wallet-primary">connect</button>
+                <label class="hen-wallet-paste-label" for="hen-wallet-input">or paste</label>
+                <input id="hen-wallet-input" class="hen-wallet-input" type="text" placeholder="tz1… or name.tez" aria-label="Wallet address or Tezos domain" spellcheck="false" autocomplete="off">
+                <button type="button" id="hen-wallet-save" class="hen-wallet-button">set</button>
+                <button type="button" id="hen-wallet-clear" class="hen-wallet-button hen-wallet-clear" title="Clear HEN wallet">×</button>
+            </div>
+        </div>
+        <div class="hen-feed">
+            <section id="hen-profile-panel" class="hen-profile-panel" hidden></section>
+            <div id="hen-now-line" class="hen-now-line" aria-hidden="true"><span>now · --:--:--</span></div>
+            <div id="hen-grid" class="hen-grid"></div>
+            <div id="hen-loading" class="hen-loading">indexing...</div>
+        </div>
+        <div class="hen-cli">
+            <span class="hen-cli-prompt">&gt;</span>
+            <input id="hen-cli-input" class="hen-cli-input" type="text" placeholder="type help for commands" autocomplete="off" spellcheck="false">
+        </div>
+        <div id="hen-expanded" class="hen-expanded">
+            <button class="hen-expanded-close" type="button" aria-label="Close NFT details">×</button>
+            <div class="hen-expanded-inner"></div>
+        </div>
+    </div>
+    <script type="module" src="/js/landing/site-nav.js?v=423"></script>
+    <script src="/js/features/hen-mode.js?v=94"></script>
 </body>
 </html>

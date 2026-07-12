@@ -166,10 +166,10 @@
       "hash": "Psithaca",
       "date": "2022-04-01",
       "block": 2244609,
-      "headline": "Tenderbake: deterministic finality",
+      "headline": "Tenderbake: two-block BFT finality",
       "changes": [
         "Tenderbake: BFT-style consensus",
-        "Deterministic finality in 2 blocks",
+        "Two-block BFT finality under Tenderbake safety and quorum assumptions",
         "7000 attestation slots",
         "LB escape threshold 50%\u219233%"
       ],
@@ -180,12 +180,12 @@
         "subtitle": "Tenderbake consensus arrived, but Liquidity Baking stole the show",
         "sections": [
           {
-            "heading": "Why Deterministic Finality Matters",
-            "content": "Before Ithaca, Tezos used Emmy* \u2014 a Nakamoto-style consensus with probabilistic finality. Tenderbake replaced it with a BFT algorithm where blocks are mathematically final after 2 confirmations.\n\nThe advantage isn't just speed. Deterministic finality means simpler implementations, clearer specifications, and more tractable mathematical proofs. Every PBFT-family algorithm is conceptually easier to reason about than probabilistic alternatives.\n\nEthereum still uses probabilistic finality \u2014 technically, transactions can reorg. Solana uses a probabilistic approach too. Tezos blocks are mathematically final. Period."
+            "heading": "Why a Defined BFT Finality Rule Matters",
+            "content": "Before Ithaca, Tezos used Emmy* \u2014 a Nakamoto-style consensus where confidence increased with confirmation depth. Tenderbake replaced it with a BFT algorithm whose safety holds under its stated fault assumptions. With quorum and normal network conditions, blocks normally reach the two-block finality target: about 60 seconds at Ithaca's 30-second block time and about 12 seconds at today's 6-second target. Quorum or network failures can stall liveness, so this is not an assumption-free availability guarantee.\n\nThe advantage is a defined BFT finality rule, clearer specifications, and more tractable safety reasoning. Finalized competing blocks would require the protocol's BFT safety assumptions to be violated.\n\nEthereum proof of stake uses checkpoint finality, normally after about two epochs (roughly 15 minutes), rather than Nakamoto-style probabilistic confirmations. Tezos targets faster BFT finality, but both mechanisms have explicit safety, quorum, and network assumptions."
           },
           {
             "heading": "Tenderbake vs LB Drama",
-            "content": "Ithaca's headline feature was Tenderbake \u2014 a major consensus upgrade bringing deterministic finality to Tezos. It was a genuinely significant technical achievement.\n\nBut the governance conversation was dominated by Liquidity Baking. Ithaca extended the LB sunset by approximately 10 months (~20 voting periods), keeping the controversial subsidy alive."
+            "content": "Ithaca's headline feature was Tenderbake \u2014 a major consensus upgrade bringing a defined two-block BFT finality rule to Tezos under stated fault, quorum, and network assumptions. It was a genuinely significant technical achievement.\n\nBut the governance conversation was dominated by Liquidity Baking. Ithaca extended the LB sunset by approximately 10 months (~20 voting periods), keeping the controversial subsidy alive."
           },
           {
             "heading": "The Threshold Battle",
@@ -272,7 +272,7 @@
       "hash": "PtMumbai",
       "date": "2023-03-29",
       "block": 3268609,
-      "headline": "15-second blocks, Smart Rollups live",
+      "headline": "15-second blocks, Smart Rollups production launch",
       "changes": [
         "Block time 30s\u219215s",
         "Smart Rollups production",
@@ -386,7 +386,7 @@
       "hash": "PsQuebec",
       "date": "2025-01-20",
       "block": 7692289,
-      "headline": "8-second blocks, Adaptive Maximum \u2014 the most contested upgrade in Tezos history",
+      "headline": "8-second blocks, Adaptive Maximum, and competing community proposals",
       "changes": [
         "Block time 10s\u21928s",
         "Adaptive Maximum issuance curve",
@@ -395,11 +395,11 @@
         "WASM PVM V5"
       ],
       "blockTime": 8,
-      "debate": "Quebec vs Qena: 6-month economic governance battle. Qena42 won the Proposal vote (59.9%) but was killed in Exploration after a core developer bug advisory caused no quorum. Qena variants consistently won majority support but couldn't clear the 80% supermajority or maintain quorum. First time community seriously challenged core developer economic proposals.",
+      "debate": "Quebec vs Qena: an extended economic-governance dispute. Qena42 won the Proposal vote (59.9%) but did not advance from Exploration after a core-developer bug advisory and no quorum. Qena variants won majority support in recorded windows but did not clear the applicable supermajority or quorum requirements.",
       "contention": true,
       "history": {
         "title": "The Quebec/Qena Wars: A Battle for Tezos' Economic Soul",
-        "subtitle": "The most contested upgrade in Tezos history \u2014 a 6-month governance crisis",
+        "subtitle": "Extended economic-governance debate with competing community proposals",
         "sections": [
           {
             "heading": "The Spark",

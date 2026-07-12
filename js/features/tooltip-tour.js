@@ -14,8 +14,8 @@
     const steps = [
         {
             target: '#top-continuity-history',
-            title: 'Start with live proof',
-            text: 'The uptime badge opens Protocol Anthology; each bright stat pill opens its own all-time chart.',
+            title: 'Start with mainnet history',
+            text: 'The chain-age counter opens Protocol Anthology; each bright stat pill opens its own all-time chart.',
         },
         {
             target: '#block-ticker-button',
@@ -389,7 +389,7 @@
         nudge.innerHTML =
             '<div>' +
                 '<strong>Need a hand?</strong>' +
-                '<span>Start with live uptime proof, then use / search for wallet addresses, .tez names, bakers, KT1 contracts, blocks, operations, protocols, Chambers, and tools. Help is available when you want it.</span>' +
+                '<span>Start with the live mainnet counter, then use / search for wallet addresses, .tez names, bakers, KT1 contracts, blocks, operations, protocols, Chambers, and tools. Help is available when you want it.</span>' +
             '</div>' +
             '<div class="tour-nudge-actions">' +
                 '<button class="tour-dismiss" type="button">Not now</button>' +

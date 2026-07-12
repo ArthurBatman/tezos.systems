@@ -6,6 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const TEZTALE = API_URLS.teztale;
@@ -51,7 +52,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=422';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=423';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -74,6 +75,7 @@ let chamberRefreshInFlight = false;
 let lastContestedRoundSignalAt = 0;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
+let focusedBeforeChamber = null;
 let activityTapeCache = [];
 let activityTapeCacheAt = 0;
 let activityTapeInFlight = null;
@@ -638,6 +640,7 @@ function nakamotoLiveFallback(error = '') {
     return {
         available: false,
         stale: false,
+        status: 'unavailable',
         error,
         observedAt: null,
         sourceUrl: `${OCTEZ_MAINNET}${NAKAMOTO_RPC_PATH}`,
@@ -690,12 +693,15 @@ function buildNakamotoCoefficients(payload) {
     }
     const powers = [...powerByDelegate.values()];
     if (!powers.length) throw new Error('No powered delegates were returned');
+    const payloadQuality = payload?._quality;
+    const stale = payloadQuality?.status === 'stale';
 
     return {
         available: true,
-        stale: false,
+        stale,
+        status: stale ? 'stale' : 'live',
         error: '',
-        observedAt: new Date().toISOString(),
+        observedAt: stale ? (payloadQuality.observedAt || null) : new Date().toISOString(),
         sourceUrl: `${OCTEZ_MAINNET}${NAKAMOTO_RPC_PATH}`,
         poweredDelegates: powers.length,
         totalPower: totalPower.toString(),
@@ -745,7 +751,12 @@ export async function fetchNakamotoCoefficients({ force = false } = {}) {
                 .catch((error) => {
                     console.warn('Network Health Nakamoto calculation failed:', error);
                     return nakamotoCache?.live?.available
-                        ? { ...nakamotoCache.live, stale: true, error: error?.message || 'Current-cycle RPC unavailable' }
+                        ? {
+                            ...nakamotoCache.live,
+                            stale: true,
+                            status: 'stale',
+                            error: error?.message || 'Current-cycle RPC unavailable'
+                        }
                         : nakamotoLiveFallback(error?.message || 'Current-cycle RPC unavailable');
                 }),
             fetchNakamotoSources({ force })
@@ -2242,10 +2253,10 @@ function renderContinuityProofPanel() {
     const stakedText = document.getElementById('uptime-staked')?.textContent || '—';
     const issuanceText = document.getElementById('uptime-issuance')?.textContent || '—';
     return `
-        <section class="lb-panel health-panel health-continuity-panel chamber-anim-fade" id="health-chain-proof" aria-label="Tezos chain continuity proof" style="animation-delay:40ms">
-            <div class="lb-panel-title">Continuity Proof <span class="lb-live-pill">zero forks · zero outages</span></div>
+        <section class="lb-panel health-panel health-continuity-panel chamber-anim-fade" id="health-chain-proof" aria-label="Tezos mainnet age and upgrade history" style="animation-delay:40ms">
+            <div class="lb-panel-title">Mainnet Continuity <span class="lb-live-pill">chain age · upgrade history</span></div>
             <div class="health-continuity-runtime" id="chain-uptime-counter">${runtimeHtml}</div>
-            <p class="health-continuity-copy">Mainnet keeps producing blocks while the protocol upgrades underneath it.</p>
+            <p class="health-continuity-copy">Elapsed time since mainnet launch, paired with protocol upgrades adopted on-chain. This is a chain-age measure, not an availability percentage or incident ledger.</p>
             <div class="health-continuity-grid">
                 <div>
                     <span>Bakers</span>
@@ -2532,7 +2543,9 @@ function renderNakamotoLiveMeta(live) {
     if (!live?.available) {
         return `<span>Current-cycle RPC unavailable; external snapshots are still shown.</span>`;
     }
-    const status = live.stale ? 'cached after RPC error' : 'live current-cycle snapshot';
+    const status = live.stale
+        ? live.error ? 'cached after RPC error' : 'cached current-cycle snapshot'
+        : 'live current-cycle snapshot';
     return `
         <span>${formatCount(live.poweredDelegates)} powered delegate addresses · ${escapeHtml(status)} · ${escapeHtml(formatNakamotoObservedAt(live.observedAt))}</span>
         <a href="${escapeHtml(safeHttpsUrl(live.sourceUrl))}" target="_blank" rel="noopener">Octez RPC response ↗</a>
@@ -2575,7 +2588,7 @@ function renderNakamotoPrintDocument(nakamoto = {}) {
         `;
     }).join('');
     const liveStatus = live.available
-        ? `${live.stale ? 'Cached after RPC error' : 'Live current-cycle snapshot'} · ${formatCount(live.poweredDelegates)} powered delegate addresses · ${formatNakamotoObservedAt(live.observedAt)}`
+        ? `${live.stale ? (live.error ? 'Cached after RPC error' : 'Cached current-cycle snapshot') : 'Live current-cycle snapshot'} · ${formatCount(live.poweredDelegates)} powered delegate addresses · ${formatNakamotoObservedAt(live.observedAt)}`
         : 'Current-cycle RPC calculation unavailable';
     return `<!doctype html>
 <html lang="en">
@@ -3379,8 +3392,50 @@ function unlockPageScroll() {
     savedHtmlOverflow = null;
 }
 
-function handleChamberEscape(event) {
-    if (event.key === 'Escape') closeNetworkHealthChamber();
+function chamberFocusableElements(overlay) {
+    return [...overlay.querySelectorAll([
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        'summary',
+        '[tabindex]:not([tabindex="-1"])'
+    ].join(','))].filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
+}
+
+function handleChamberKeydown(event) {
+    const overlay = document.getElementById('network-health-modal');
+    if (!overlay?.classList.contains('active')) return;
+    if (document.getElementById('share-modal') || document.getElementById('card-history-modal')?.classList.contains('active')) return;
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeNetworkHealthChamber();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = chamberFocusableElements(overlay);
+    const content = overlay.querySelector('.health-content');
+    if (!focusable.length) {
+        event.preventDefault();
+        content?.focus({ preventScroll: true });
+        return;
+    }
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!overlay.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus({ preventScroll: true });
+    } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+    }
 }
 
 function renderNetworkHealthLoading(body) {
@@ -3448,9 +3503,10 @@ export async function openNetworkHealthChamber() {
         overlay = document.createElement('div');
         overlay.id = 'network-health-modal';
         overlay.className = 'modal-overlay chamber-overlay lb-overlay health-overlay';
+        overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
-            <div class="modal-content modal-large chamber-content lb-content health-content">
-                <button class="modal-close chamber-close" aria-label="Close" style="z-index:3">&times;</button>
+            <div class="modal-content modal-large chamber-content lb-content health-content" role="dialog" aria-modal="true" aria-label="Network Health Chamber" tabindex="-1">
+                <button class="modal-close chamber-close" type="button" aria-label="Close Network Health Chamber" style="z-index:3">&times;</button>
                 <div class="chamber-body lb-body health-body">
                 </div>
             </div>
@@ -3462,12 +3518,21 @@ export async function openNetworkHealthChamber() {
         });
     }
 
+    const wasActive = overlay.classList.contains('active');
+    if (!wasActive) focusedBeforeChamber = document.activeElement;
     renderNetworkHealthLoading(overlay.querySelector('.health-body'));
-    document.addEventListener('keydown', handleChamberEscape);
+    document.addEventListener('keydown', handleChamberKeydown, true);
     overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
     lockPageScroll();
     const content = overlay.querySelector('.health-content');
     if (content) content.scrollTop = 0;
+    if (!wasActive) {
+        requestAnimationFrame(() => {
+            const target = overlay.querySelector('.chamber-close') || content;
+            target?.focus({ preventScroll: true });
+        });
+    }
 
     try {
         await refreshNetworkHealthChamber({ initial: true });
@@ -3487,12 +3552,21 @@ export async function openNetworkHealthChamber() {
 }
 
 export function closeNetworkHealthChamber() {
-    document.removeEventListener('keydown', handleChamberEscape);
+    document.removeEventListener('keydown', handleChamberKeydown, true);
     stopChamberRefresh();
     const overlay = document.getElementById('network-health-modal');
-    if (overlay) overlay.classList.remove('active');
+    const wasActive = overlay?.classList.contains('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
     document.getElementById('tooltip-network-health')?.classList.remove('is-open');
     unlockPageScroll();
+    if (wasActive && focusedBeforeChamber?.isConnected) {
+        const target = focusedBeforeChamber;
+        requestAnimationFrame(() => target.focus({ preventScroll: true }));
+    }
+    focusedBeforeChamber = null;
 }
 
 function wireNetworkHealthCard() {
@@ -3500,26 +3574,10 @@ function wireNetworkHealthCard() {
     if (!card || card.dataset.healthChamberWired) return;
     card.dataset.healthChamberWired = '1';
     card.classList.add('chamber-entry-card', 'health-entry-card', 'chamber-entry-wide');
-    card.style.cursor = 'pointer';
-    card.title = 'Open Network Health Chamber';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', 'Open Network Health Chamber');
-
-    const shouldIgnore = (target) => Boolean(target?.closest(
-        '.card-info-btn, .card-tooltip, .card-share-btn, .card-history-btn, .card-copy-link, a, button'
-    ));
-
-    card.addEventListener('click', (event) => {
-        if (shouldIgnore(event.target)) return;
-        openNetworkHealthChamber();
-    });
-
-    card.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        if (shouldIgnore(event.target)) return;
-        event.preventDefault();
-        openNetworkHealthChamber();
+    wireChamberLauncher(card, {
+        open: openNetworkHealthChamber,
+        label: 'Open Network Health Chamber',
+        titleSelector: '.stat-label'
     });
 
     ensureHealthEntryTape();

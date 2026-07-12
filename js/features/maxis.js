@@ -5,11 +5,12 @@
 
 import { escapeHtml } from '../core/utils.js';
 import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
+import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=422';
+const MAXIS_CSS_URL = '/css/maxis.css?v=423';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -2972,7 +2973,7 @@ function renderEntryContents(legacy, manifest, summary) {
         <div class="maxis-entry-season-front maxis-entry-maxis-front">
             <div class="maxis-entry-season-copy maxis-entry-maxis-copy">
                 <span class="maxis-entry-season-label">✺ Ongoing Tezos identities</span>
-                <div class="maxis-entry-season-title">Tezos Maxis</div>
+                <div class="maxis-entry-season-title" id="maxis-entry-title">Tezos Maxis</div>
                 <p>Live, rolling, and all-time records for the chain’s collectors, creators, builders, voters, stakers, transactors, and cross-lane Unicorns.</p>
                 <div class="maxis-entry-identity-strip" aria-label="Tezos Maxi identities">
                     ${identities.map((category) => `<span><b aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b><span class="maxis-entry-identity-name">${escapeHtml(categoryLabel(category))}</span><small>${escapeHtml(windowLabel(leaderForCategory(legacyData, category)?.windowKind))}</small></span>`).join('')}
@@ -3009,6 +3010,11 @@ function updateEntryCard(legacy, manifest = null, summary = null) {
     if (backValue) backValue.textContent = `${identityCount || '—'} Maxis identities`;
     if (backCopy) backCopy.textContent = 'Live, rolling, and all-time records with a smaller protocol-season pulse.';
     window.syncChamberEntryFooters?.(card);
+    wireChamberLauncher(card, {
+        open: openMaxisChamber,
+        label: 'Open Tezos Maxis Chamber',
+        titleSelector: '#maxis-entry-title, .stat-label, .maxis-entry-season-title'
+    });
 }
 
 function ensureEntryCard() {
@@ -3019,32 +3025,22 @@ function ensureEntryCard() {
         card = document.createElement('div');
         card.id = 'maxis-entry-card';
         card.className = 'stat-card chamber-entry-card chamber-entry-wide maxis-entry-card chamber-entry-adoption';
-        card.setAttribute('role', 'button');
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', 'Open Tezos Maxis Chamber');
         card.dataset.updatedLabel = 'Loading Maxis identities';
         card.innerHTML = `
             <button class="card-copy-link" type="button" data-copy-hash="#maxis" aria-label="Copy Tezos Maxis direct link" title="Copy Tezos Maxis link">🔗</button>
             <div class="card-inner">
-                <div class="card-front maxis-entry-front"><h2 class="stat-label">Tezos Maxis</h2><div class="maxis-entry-loading">Opening the identity boards…</div></div>
+                <div class="card-front maxis-entry-front"><h2 class="stat-label" id="maxis-entry-title">Tezos Maxis</h2><div class="maxis-entry-loading">Opening the identity boards…</div></div>
                 <div class="card-back" aria-hidden="true"><h2 class="stat-label">Tezos Maxis</h2><div class="stat-value">Maxis identities</div><p class="stat-description">Every identity keeps its honest clock.</p></div>
             </div>
         `;
         grid.appendChild(card);
     }
-    if (!card.dataset.maxisWired) {
-        const open = (event) => {
-            if (event?.target?.closest?.('button, a, .card-tooltip')) return;
-            openMaxisChamber();
-        };
-        card.addEventListener('click', open);
-        card.addEventListener('keydown', (event) => {
-            if (!['Enter', ' '].includes(event.key)) return;
-            event.preventDefault();
-            open(event);
-        });
-        card.dataset.maxisWired = '1';
-    }
+    wireChamberLauncher(card, {
+        open: openMaxisChamber,
+        label: 'Open Tezos Maxis Chamber',
+        titleSelector: '#maxis-entry-title, .stat-label, .maxis-entry-season-title'
+    });
+    card.dataset.maxisWired = '1';
     return card;
 }
 
@@ -3249,8 +3245,11 @@ export function closeMaxisChamber() {
     chamberState.selectorOpen = false;
     document.body.style.overflow = savedBodyOverflow || '';
     document.documentElement.style.overflow = savedHtmlOverflow || '';
-    if (focusedBeforeOpen && document.contains(focusedBeforeOpen)) {
-        const target = focusedBeforeOpen;
+    const focusTarget = focusedBeforeOpen && document.contains(focusedBeforeOpen)
+        ? focusedBeforeOpen
+        : findChamberLauncher('#maxis-entry-card');
+    if (focusTarget) {
+        const target = focusTarget;
         requestAnimationFrame(() => target.focus({ preventScroll: true }));
     }
     focusedBeforeOpen = null;

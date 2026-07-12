@@ -601,6 +601,17 @@ async function checkSiteMapGraphContracts() {
     if (!SITE_MAP.some((entry) => entry.href === `/${canonicalSlug}/`)) {
       fail(`site map is missing canonical chamber route /${canonicalSlug}/`);
     }
+    const routeShell = await readText(`${route.slug}/index.html`);
+    if (!routeShell.includes('class="chamber-route-shell-intro"')
+      || !routeShell.includes(`<h1 id="chamber-route-title">${route.shortTitle}</h1>`)
+      || !routeShell.includes(route.description)) {
+      fail(`${route.slug}/index.html must expose its route-specific heading and summary before hydration`);
+    }
+    if (!routeShell.includes('"@type": "WebPage"')
+      || !routeShell.includes('"@type": "BreadcrumbList"')
+      || routeShell.includes('"@type": "FAQPage"')) {
+      fail(`${route.slug}/index.html must use route-specific WebPage/Breadcrumb schema without inherited dashboard FAQ claims`);
+    }
   }
 
   const standalonePages = [
@@ -748,6 +759,21 @@ async function checkCacheBustAlignment() {
     pass('service worker handles version.json freshness');
   }
 
+  const shellAssetsBlock = sw.match(/const SHELL_ASSETS = \[([\s\S]*?)\];/)?.[1] || '';
+  for (const optionalAsset of ["'/anthology/'", "'/pulse/'", "'/widgets/builder.html'", "'/css/styles.css'", "'/css/network-health.css'", "'/data/maxis/manifest.json'"]) {
+    if (shellAssetsBlock.includes(optionalAsset)) fail(`sw.js install shell should not precache optional asset ${optionalAsset}`);
+  }
+  for (const contract of ['RUNTIME_CACHE_LIMIT', "_quality: { status: 'unavailable', observedAt: null }"]) {
+    if (!sw.includes(contract)) fail(`sw.js bounded runtime/explicit API failure contract missing ${contract}`);
+  }
+  if (sw.includes('staleApiFallback') || sw.includes('API_CACHE_MAX_AGE_MS')) {
+    fail('sw.js must not return cached API payloads as successful current responses to provenance-unaware consumers');
+  }
+  if (!shellAssetsBlock.includes("'/offline.html'") || !sw.includes("caches.match('/offline.html')")) {
+    fail('sw.js must precache and serve the self-contained offline navigation page');
+  }
+  pass('service worker uses a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
+
   if (!index.includes('<meta property="og:image:width" content="1200">') || !index.includes('<meta property="og:image:height" content="630">')) {
     fail('index.html root OG image metadata must match generated og-image.png at 1200x630');
   } else {
@@ -802,6 +828,10 @@ async function checkCsp() {
   for (const domain of requiredConnect) {
     if (!csp.includes(domain)) fail(`CSP connect-src is missing ${domain}`);
   }
+  const mediaDirective = csp.match(/media-src\s+([^;]+)/)?.[1] || '';
+  for (const domain of ['assets.objkt.media', 'dweb.link', 'nftstorage.link', 'ipfs.io', 'gateway.pinata.cloud']) {
+    if (!mediaDirective.includes(domain)) fail(`CSP media-src is missing HEN media gateway ${domain}`);
+  }
   pass('CSP includes required live-data domains');
 }
 
@@ -826,7 +856,7 @@ async function checkSitemapCoverage() {
     'staking/index.html': 'https://tezos.systems/staking/',
     'governance/index.html': 'https://tezos.systems/governance/',
     'bakers/index.html': 'https://tezos.systems/bakers/',
-    'hen/index.html': 'https://tezos.systems/?hen=1',
+    'hen/index.html': 'https://tezos.systems/hen/',
     'widgets/builder.html': 'https://tezos.systems/widgets/builder.html'
   };
   for (const file of await walk('widgets', (name) => name.endsWith('.html') && !name.endsWith('/builder.html'))) {
@@ -989,6 +1019,8 @@ async function checkSelectorContracts() {
   const ctez = await readText('js/features/ctez.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
   const tezosDomains = await readText('js/features/tezos-domains.js');
+  const maxis = await readText('js/features/maxis.js');
+  const chamberAccessibility = await readText('js/ui/chamber-accessibility.js');
   const wallet = await readText('js/core/wallet.js');
   const health = await readText('js/features/network-health.js');
   const networkPulse = await readText('js/features/network-pulse.js');
@@ -1058,6 +1090,19 @@ async function checkSelectorContracts() {
     ['Protocol History print button', 'history-modal-print', app],
     ['Protocol History print helper', 'function printProtocolHistory', app],
     ['Protocol History Chamber reveal helper', 'function revealProtocolHistorySection', app],
+    ['shared Chamber launcher article semantics', "card.setAttribute('role', 'article')", chamberAccessibility],
+    ['shared Chamber native Open action', "cue.tagName !== 'BUTTON'", chamberAccessibility],
+    ['shared Chamber focus trap', "event.key !== 'Tab'", chamberAccessibility],
+    ['shared Chamber Escape close', "event.key === 'Escape'", chamberAccessibility],
+    ['shared Chamber opener restoration', 'state?.opener?.isConnected', chamberAccessibility],
+    ['Protocol Anthology accessible launcher', 'wireChamberLauncher(card', app],
+    ['Tezos X accessible launcher and dialog', 'activateChamberDialog(overlay', tezlink],
+    ['Tezos X Governance accessible launcher and dialog', 'activateChamberDialog(overlay', etherlinkGovernance],
+    ['tz4 accessible launcher and dialog', 'activateChamberDialog(overlay', tz4],
+    ['Ledger Flow accessible launcher and dialog', 'activateChamberDialog(overlay', ledgerFlow],
+    ['Tezos Domains accessible launcher and dialog', 'activateChamberDialog(overlay', tezosDomains],
+    ['Network Health accessible launcher', 'wireChamberLauncher(card', health],
+    ['Tezos Maxis accessible launcher', 'wireChamberLauncher(card', maxis],
     ['Protocol History Chamber timeline toggle target', 'protocol-timeline-toggle-btn', app],
     ['Protocol History Chamber action styles', '.protocol-history-chamber-action', heroSearchCss],
     ['Hero search mode body class', "document.body.classList.toggle('hero-search-mode'", search],
@@ -1138,6 +1183,8 @@ async function checkSelectorContracts() {
     ['Network Pulse delta chip markup', 'network-pulse-delta', networkPulse],
     ['Network Pulse entry delta chip', 'network-pulse-entry-delta', networkPulse],
     ['Network Pulse entry cell jumps', 'data-pulse-jump', networkPulse],
+    ['Network Pulse entry semantic article', "document.createElement('article')", networkPulse],
+    ['Network Pulse explicit open action', 'network-pulse-entry-open', networkPulse],
     ['Network Pulse entry header freshness', 'network-pulse-entry-freshness', networkPulse],
     ['Network Pulse entry history value fallback', 'latestMetricValue(lastEntryHistoryRows, metric.history)', networkPulse],
     ['Network Pulse partial hero merge', "event?.detail?.source === 'hero'", networkPulse],
@@ -1151,6 +1198,7 @@ async function checkSelectorContracts() {
     ['Network Pulse flex entry header CSS', '.network-pulse-entry-head', networkPulseCss],
     ['Network Pulse hover headline transform guard', 'network-pulse-entry-card:hover .network-pulse-entry-value', networkPulseCss],
     ['Network Pulse entry footer cue alignment', '.network-pulse-entry-card .chamber-entry-footer', networkPulseCss],
+    ['Network Pulse explicit open action styles', '.network-pulse-entry-open', networkPulseCss],
     ['Network Pulse entry sparkline CSS', '.network-pulse-entry-sparkline', networkPulseCss],
     ['Network Pulse loading state CSS', '.network-pulse-field.is-loading', networkPulseCss],
     ['Network Pulse scroll-margin CSS', 'scroll-margin-top', networkPulseCss],
@@ -1163,8 +1211,14 @@ async function checkSelectorContracts() {
     ['Network Pulse hero stats spread', '...heroStats', app],
     ['Network Pulse hero stats fallback event', "source: 'hero'", app],
     ['Network Pulse delegated hero stat', 'delegatedRatio: staking.delegatedRatio', api],
-    ['Network Pulse service worker JS', '/js/features/network-pulse.js', await readText('sw.js')],
-    ['Network Pulse service worker CSS', '/css/network-pulse.css', await readText('sw.js')],
+    ['API request deadline', 'DEFAULT_FETCH_TIMEOUT_MS', api],
+    ['API caller abort forwarding', "callerSignal.addEventListener('abort', forwardAbort", api],
+    ['API Retry-After cap', 'MAX_RETRY_AFTER_MS', api],
+    ['API aggregate quality receipt', 'qualityFromSettled', api],
+    ['API failed category receipt', 'failedCategories', api],
+    ['API unavailable APY receipt', "status: 'unavailable'", api],
+    ['API service-worker stale receipt', "response.headers.get('X-Tezos-Systems-Cache') !== 'stale'", api],
+    ['API stale memory-cache guard', "memoryCache && provenance?.status !== 'stale'", api],
     ['Network Pulse XTZ price card history', "'xtz-price'", history],
     ['Network Pulse market cap card history', "'market-cap'", history],
     ['Network Pulse L2 transactions card history', "'l2-transactions'", history],
@@ -1195,9 +1249,6 @@ async function checkSelectorContracts() {
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
     ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
     ['Staking Chamber share route', 'siteMapCanonicalRoute', share],
-    ['Staking Chamber service worker JS', '/js/features/staking-chamber.js', await readText('sw.js')],
-    ['Staking Chamber service worker CSS', '/css/staking-chamber.css', await readText('sw.js')],
-    ['Staking Chamber service worker route', "'/stake/'", await readText('sw.js')],
     ['Staking Chamber narrow desktop pair', 'grid-template-columns: minmax(0, 29rem)', stakingChamberCss],
     ['Staking Chamber narrow desktop cap', 'max-width: 29rem', stakingChamberCss],
     ['Staking Chamber mobile single-column pair', 'grid-template-columns: minmax(0, 1fr)', stakingChamberCss],
@@ -1285,8 +1336,6 @@ async function checkSelectorContracts() {
     ['Tezos Domains lookup panel CSS', '.td-lookup-panel', tezosDomainsCss],
     ['Tezos Domains final strip CSS', '[data-chamber-pair="tezos-domains"]', tezosDomainsCss],
     ['Tezos Domains share route', 'siteMapCanonicalRoute', share],
-    ['Tezos Domains service worker JS', '/js/features/tezos-domains.js', await readText('sw.js')],
-    ['Tezos Domains service worker CSS', '/css/tezos-domains.css', await readText('sw.js')],
     ['ctez hash route', "hash === 'ctez'", app],
     ['ctez feature copy link', 'data-copy-hash="#ctez"', index],
     ['ctez top-left launcher', 'id="ctez-launcher"', index],
@@ -1303,10 +1352,11 @@ async function checkSelectorContracts() {
     ['HEN source all tab', 'data-hen-mode="all"', index],
     ['HEN source Teia tab', 'data-hen-mode="teia"', index],
     ['HEN source OBJKT tab', 'data-hen-mode="objkt"', index],
-    ['HEN standalone route entry link', 'href="/?hen=1"', henPage],
-    ['HEN standalone route copy', 'Live Teia and OBJKT mints on Tezos', henPage],
-    ['HEN CSS cache stamp', 'css/hen-mode.css?v=94', index],
-    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=93', index],
+    ['HEN standalone canonical URL', '<link rel="canonical" href="https://tezos.systems/hen/">', henPage],
+    ['HEN standalone live overlay', 'id="hen-overlay"', henPage],
+    ['HEN standalone auto activator', '/js/features/hen-mode.js?v=94', henPage],
+    ['HEN CSS cache stamp', 'css/hen-mode.css?v=95', index],
+    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=94', index],
     ['HEN setup status strip', 'id="hen-status-strip"', index],
     ['HEN permanent now line', 'id="hen-now-line"', index],
     ['HEN mobile filter toggle', 'id="hen-mobile-filter-toggle"', index],
@@ -1375,7 +1425,7 @@ async function checkSelectorContracts() {
     ['OBJKT profile carries collection logos for HEN rows', 'fa { name contract collection_id logo }', objkt],
     ['OBJKT profile carries recent acquisition token ids for CDN thumbnails', 'tokenId: h.token.token_id', objkt],
     ['HEN public activator', 'window.HenMode = HenMode', henMode],
-    ['HEN site-map live route', "href: '/?hen=1'", siteMap],
+    ['HEN site-map live route', "href: '/hen/'", siteMap],
     ['HEN site-map slash alias', "'/nfts'", siteMap],
     ['shared My Tezos address helper', 'export function rememberMyTezosAddress', wallet],
     ['shared My Tezos saved history key', "export const SAVED_ADDRESSES_KEY = 'tezos-systems-saved-addresses'", wallet],
@@ -1529,7 +1579,7 @@ async function checkSelectorContracts() {
     ['health period telemetry panel', 'id="health-period-telemetry"', health],
     ['health network load panel', 'id="health-network-load"', health],
     ['health chain proof panel', 'id="health-chain-proof"', health],
-    ['health chain proof slogan', 'zero forks · zero outages', health],
+    ['health chain-age methodology label', 'chain age · upgrade history', health],
     ['health chain uptime counter', 'id="chain-uptime-counter"', health],
     ['top continuity stat panel', 'id="top-continuity-panel"', index],
     ['top continuity title-stack uptime launcher', 'id="top-continuity-history"', index],
@@ -1538,7 +1588,7 @@ async function checkSelectorContracts() {
     ['header NFT feed nav label visible on mobile', '.header-nft-feed-btn .nav-label', heroSearchCss],
     ['header NFT feed art-frame icon', '.nft-feed-icon::before', heroSearchCss],
     ['top continuity statement wrapper', 'class="top-continuity-statement"', index],
-    ['top continuity uptime statement claim', 'top-continuity-claim">100% uptime', index],
+    ['top continuity mainnet-age statement claim', 'top-continuity-claim">mainnet age', index],
     ['top continuity statement subline', 'class="top-continuity-subline"', index],
     ['top continuity since-2018 marker', 'top-continuity-origin">since 2018', index],
     ['top continuity milestone runtime marker', 'class="top-continuity-primary-line"', index],
@@ -1651,10 +1701,28 @@ async function checkSelectorContracts() {
     ['Tezos Story action styles', '.tezos-story-actions', styles],
     ['Delegator fit finder questions', 'FIT_QUESTIONS', leaderboard],
     ['Delegator fit finder scorer', 'function scoreBakerFit', leaderboard],
-    ['Delegator fit finder styles', '.baker-fit-finder', leaderboardCss]
+    ['Delegator fit finder styles', '.baker-fit-finder', leaderboardCss],
+    ['Delegator fit finder truth disclosure', 'not an uptime or performance grade', leaderboard],
+    ['Leaderboard native sort controls', 'class="lb-sort-btn"', leaderboard],
+    ['Leaderboard column sort state', 'aria-sort="${direction}"', leaderboard],
+    ['Leaderboard explicit baker action', 'class="lb-baker-open"', leaderboard],
+    ['Leaderboard sort focus styles', '.lb-sort-btn:focus-visible', leaderboardCss],
+    ['Theme picker native radio controls', 'class="theme-radio" type="radio"', themeUi],
+    ['Theme picker radio group label', 'role="radiogroup" aria-label="Choose a site theme"', themeUi],
+    ['Clean dark Chamber surface token', '--chamber-surface-bg: #07101D', styles],
+    ['Clean dark Chamber semantic exclusion', '.chamber-content:not(.maxis-content):not(.staking-chamber-content)', styles]
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  if (leaderboard.includes('lb-share-btn') || leaderboard.includes('lb-share-col')) {
+    fail('Baker Leaderboard must not restore one share control per row');
+  }
+  if (leaderboard.includes('computeBakerScores') || leaderboard.includes("value: 'reliability'") || leaderboard.includes('grade ${')) {
+    fail('Delegator fit must not present synthetic participation defaults as reliability or performance grades');
+  }
+  if (/card\.setAttribute\(['"]role['"],\s*['"]button['"]\)/.test(networkPulse)) {
+    fail('Network Pulse entry card must not wrap its inner controls in an outer button role');
   }
   if (/const\s+(?:CHAMBERS|COMMANDS|QUICK_CHIPS)\s*=/.test(search)) {
     fail('Hero search must not restore manual site-map destination catalogs');
@@ -1742,6 +1810,9 @@ async function checkSelectorContracts() {
   }
   if (index.includes('cloudflare-ipfs.com')) {
     fail('CSP must not allow the retired Cloudflare public IPFS gateway');
+  }
+  if (api.includes('delegateAPY: 3.1') || api.includes('stakeAPY: 9.2')) {
+    fail('shared API must not present hardcoded APY fallback values as live measurements');
   }
   for (const retiredSearchCopy of ['Wallet/.tez', 'wallet/domain retrieval surface', 'TzKT boundary', 'No Tezos.Systems room']) {
     if (search.includes(retiredSearchCopy)) fail(`hero search should not retain confusing copy: ${retiredSearchCopy}`);
@@ -1894,7 +1965,9 @@ async function checkSelectorContracts() {
 
   const expandCueMarkupFiles = [
     'index.html',
-    ...(await walk('js', (file) => file.endsWith('.js') && file !== 'js/core/app.js'))
+    ...(await walk('js', (file) => file.endsWith('.js')
+      && file !== 'js/core/app.js'
+      && file !== 'js/ui/chamber-accessibility.js'))
   ];
   for (const file of expandCueMarkupFiles) {
     const text = file === 'index.html' ? index : await readText(file);
@@ -2059,9 +2132,12 @@ async function checkWidgetRuntimeContracts() {
     fail('widgets/builder.html must track embed-code copy events');
   }
 
+  if (!sw.includes('RUNTIME_CACHE_LIMIT') || !sw.includes('putBounded(RUNTIME_CACHE')) {
+    fail('sw.js must cache optional widgets and feature assets on use in a bounded runtime cache');
+  }
   for (const file of ['widgets/runtime.js', ...htmlFiles]) {
-    if (!sw.includes(`'/${file}'`) && !sw.includes(`"/${file}"`)) {
-      fail(`sw.js shell assets must include /${file}`);
+    if (sw.includes(`'/${file}'`) || sw.includes(`"/${file}"`)) {
+      fail(`sw.js install shell must not eagerly precache optional widget asset /${file}`);
     }
   }
 
@@ -2273,6 +2349,7 @@ async function checkHistoricalPagination() {
   }
   const workflowFiles = [
     '.github/workflows/backfill-supabase-history.yml',
+    '.github/workflows/ci.yml',
     '.github/workflows/collect-chamber-history.yml',
     '.github/workflows/collect-data.yml',
     '.github/workflows/refresh-governance-surfaces.yml'
@@ -2282,6 +2359,10 @@ async function checkHistoricalPagination() {
     if (workflow.includes('actions/checkout@v4') || workflow.includes('actions/setup-node@v4') || workflow.includes("node-version: '20'")) {
       fail(`${file} must use Node 24-era action pins`);
     }
+  }
+  const ciWorkflow = await readText('.github/workflows/ci.yml');
+  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', '--only app-shell,hen-mode,route-crawl']) {
+    if (!ciWorkflow.includes(snippet)) fail(`site validation workflow must include ${snippet}`);
   }
 
   pass('historical data fetch paginates and long-range charts use fast render settings');
@@ -2317,6 +2398,231 @@ async function checkLiquidityBakingIssuanceState() {
   }
 
   pass('issuance surfaces account for Liquidity Baking active/disabled state');
+}
+
+async function checkTruthSurfaceContracts() {
+  const rewardsTracker = await readText('js/features/rewards-tracker.js');
+  const myTezos = await readText('js/features/my-tezos.js');
+  const myBaker = await readText('js/features/my-baker.js');
+  const leaderboard = await readText('js/features/leaderboard.js');
+  const bakerReportCard = await readText('js/features/baker-report-card.js');
+  const calculator = await readText('js/features/calculator.js');
+  const api = await readText('js/core/api.js');
+  const landingLive = await readText('js/landing/live-data.js');
+  const comparison = await readText('js/features/comparison.js');
+  const comparePage = await readText('js/features/compare-page.js');
+  const comparisonConfig = await readText('js/core/config.js');
+  const compareIndex = await readText('compare/index.html');
+  const stakingGuide = await readText('staking/index.html');
+  const bakersGuide = await readText('bakers/index.html');
+  const tweetTemplates = await readText('data/tweets.json');
+  const protocolData = await readText('data/protocol-data.json');
+  const siteMapCopy = await readText('js/core/site-map.js');
+  const dailyBriefingCopy = await readText('js/features/daily-briefing.js');
+  const changelogCopy = await readText('js/features/changelog.js');
+
+  for (const required of [
+    "status: 'no-current-record'",
+    'Latest historical record: cycle',
+    'Not currently baking, staking, or delegating.',
+    'No baker-efficiency score applies to a staker reward.',
+    'Estimate from baker rewards; payout policies vary.'
+  ]) {
+    if (!rewardsTracker.includes(required)) fail(`rewards tracker truth state missing: ${required}`);
+  }
+  if (rewardsTracker.includes('baker efficiency') || rewardsTracker.includes('📈 This Cycle')) {
+    fail('rewards tracker must not apply universal baker-efficiency or historical This Cycle copy');
+  }
+  if (/recent\s*=\s*rewards\.find[\s\S]*?\|\|\s*rewards\[0\]/.test(rewardsTracker)) {
+    fail('rewards tracker must not fall back from the current cycle to a historical row');
+  }
+  const bakerEarnedBlock = rewardsTracker.match(/function sumBakerEarned\(row\) \{([\s\S]*?)\n\}/)?.[1] || '';
+  if (/StakedShared/.test(bakerEarnedBlock)
+      || !rewardsTracker.includes('Gross on-chain baker receipts before delegator payouts; external-staker shared rewards excluded')) {
+    fail('rewards tracker baker-owned totals must exclude external-staker shared rewards and disclose gross pre-payout scope');
+  }
+
+  for (const [label, source] of [
+    ['My Tezos', myTezos],
+    ['My Baker', myBaker],
+    ['calculator', calculator]
+  ]) {
+    if (/delegateAPY:\s*3\.1|stakeAPY:\s*9\.2/.test(source)) {
+      fail(`${label} must not restore hard-coded APY fallbacks`);
+    }
+  }
+  if (!myTezos.includes('No active reward estimate') || !calculator.includes('APY unavailable — retry shortly') || !myBaker.includes("'Reward Status'")) {
+    fail('personal reward surfaces must render explicit inactive or unavailable states');
+  }
+  const missedRightsBlock = myBaker.match(/async function fetchMissedRights[\s\S]*?\n\}/)?.[0] || '';
+  if (/return 0;/.test(missedRightsBlock)
+      || !missedRightsBlock.includes('Number.isSafeInteger(count)')
+      || !myBaker.includes("element.dataset.quality = blocksKnown && attestKnown ? 'live' : 'partial'")) {
+    fail('My Baker missed-rights failures must render unavailable or partial coverage, never a fabricated zero');
+  }
+  if (!api.includes('gross * (1 - edge)')
+      || !api.includes('edge_of_staking_over_delegation')
+      || !myTezos.includes('activeRewardEstimate')
+      || !myBaker.includes('Gross APY (Delegation)')) {
+    fail('personal reward surfaces must use the live delegation divisor, apply the external-staker edge as gross times one minus edge, and withhold gross delegation projections');
+  }
+  if (!api.includes('parsedProtocolRate > 0')
+      || !api.includes("rawLbEma !== null")
+      || /Number\.isFinite\(Number\(lbState\?\.ema\)\)/.test(api)) {
+    fail('issuance aggregation must reject zero protocol rates and must not coerce an unknown LB EMA to zero');
+  }
+  if (!api.includes("failedInputs.push('calculatedRate')")
+      || !api.includes('const rawBurned = stats?.totalBurned')
+      || !landingLive.includes("throw new Error('Live staking estimate values are invalid')")
+      || !landingLive.includes('rawEma !== null')) {
+    fail('APY, Liquidity Baking, and burned-supply surfaces must reject malformed or semantically empty 200 responses');
+  }
+  if (!calculator.includes('calc-delegate-payout-assumption')
+      || !calculator.includes('calc-stake-edge-assumption')
+      || /parseFloat\([^\n]*calc-staking-fee[^\n]*\)\s*\|\|\s*5/.test(calculator)) {
+    fail('calculator must require explicit delegation/staking assumptions and preserve valid zero-percent endpoints');
+  }
+  if (!calculator.includes('const updateId = ++updateSequence')
+      || !calculator.includes("if (updateId !== updateSequence || currentMode !== 'baker') return;")) {
+    fail('calculator async renders must discard superseded assumption requests');
+  }
+
+  if (leaderboard.includes("value: 'edge'") || leaderboard.includes('bakerStakingEdgePercent')) {
+    fail('delegator fit must not rank the direct-staking edge as if it were a delegation fee');
+  }
+  if (!leaderboard.includes('Delegation fees and payout policy are off-chain')
+      || !leaderboard.includes('external-staker edge is not a delegation fee')) {
+    fail('delegator fit must disclose that off-chain payout terms and the on-chain external-staker edge are different');
+  }
+  if (bakerReportCard.includes("buildScoreBar('Fee Score'")
+      || bakerReportCard.includes("buildStatCell('Fee'")
+      || !bakerReportCard.includes('External-staker edge')
+      || !bakerReportCard.includes('Delegation payout policy is off-chain and is not scored here.')) {
+    fail('Baker Report Card must show the external-staker edge separately from its operational grade and delegation terms');
+  }
+  if (!bakerReportCard.includes('Number(cycle?.cycle) < currentCycle')
+      || !bakerReportCard.includes('Number(b.bakingPower || 0) - Number(a.bakingPower || 0)')
+      || !bakerReportCard.includes('Current baking-power rank')) {
+    fail('Baker Report Card must score a completed participation cycle and rank the field it labels as baking power');
+  }
+
+  if (comparison.includes("tezosLive: () => '4'") || comparePage.includes("validators: '6'")) {
+    fail('comparison surfaces must not restore unreceipted hard-coded Tezos Nakamoto values');
+  }
+  const tezosStaticBlock = comparisonConfig.match(/tezosStatic:\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
+  if (!tezosStaticBlock.includes("validators: 'See /health'") || /validators:\s*['"](?:4|6)['"]/.test(tezosStaticBlock)) {
+    fail('comparison config must defer Tezos concentration to Network Health');
+  }
+  if (/\b(?:stakingPct|annualIssuance):\s*['"]Live['"]/.test(tezosStaticBlock)) {
+    fail('comparison no-JS fallbacks must say unavailable rather than rendering a bare Live placeholder');
+  }
+  if (!comparison.includes('Concentration and slashing rows are contextual') || comparison.includes("key: 'slashing',\n        label: 'Slashing',\n        icon: '🔪',\n        tezosLive: () => CHAIN_COMPARISON.tezosStatic.slashing,\n        tezosNote: () => CHAIN_COMPARISON.tezosStatic.slashingNote,\n        winner: 'tezos'")) {
+    fail('comparison summary must treat slashing and concentration as context, not categorical winners');
+  }
+  for (const key of ['stakingPct', 'annualIssuance', 'energyPerTx', 'avgTxFee']) {
+    const metric = comparison.match(new RegExp(`key:\\s*'${key}',[\\s\\S]*?\\n\\s*},`))?.[0] || '';
+    if (!metric.includes('winner: null')) {
+      fail(`comparison ${key} must not assign a hard-coded winner to dynamic or method-dependent values`);
+    }
+  }
+  const governanceRecordMetric = comparison.match(/key:\s*'selfAmendments',[\s\S]*?\n\s*},/)?.[0] || '';
+  if (!governanceRecordMetric.includes("label: 'Governance Upgrade Record'")
+      || !governanceRecordMetric.includes('winner: null')
+      || /selfAmendments:\s*[01]\s*,/.test(comparisonConfig)) {
+    fail('comparison must describe unlike governance upgrade mechanisms as context instead of an invented numeric self-amendment scoreboard');
+  }
+  if (!comparison.includes('Dynamic or method-dependent staking, issuance, energy, fee, concentration, and slashing rows have no categorical winner.')
+      || /Lowest gross issuance in this tracked set|high staking participation|lowest fees, and the smallest energy footprint/i.test(comparison)) {
+    fail('comparison chain profiles must keep dynamic and methodology-dependent metrics neutral');
+  }
+  if (/Solana wins cost|Highest participation|Tezos uses less energy per tx|~0\.00051 kWh|~\$0\.005/.test(comparison)) {
+    fail('comparison share copy must not restore undated fee, energy, or staking winner claims');
+  }
+  if (/5 chains\. 1 comparison\. Live data|Cardano:\s*~12 min|created Lido|billions in exploits|forks every upgrade/i.test(comparison)) {
+    fail('comparison share copy must distinguish live Tezos data from dated peers and avoid obsolete or unreceipted claims');
+  }
+  const hardForkMetric = comparison.match(/key:\s*'hardForks',[\s\S]*?\n\s*\},/)?.[0] || '';
+  if (!hardForkMetric.includes("label: 'Upgrade Path'") || !hardForkMetric.includes('winner: null')) {
+    fail('comparison must treat unlike hard-fork and upgrade mechanisms as contextual');
+  }
+  if (/of 10|Nakamoto coefficient/i.test(compareIndex)) {
+    fail('comparison index must not present an editorial aggregate score or unlike Nakamoto bases as one ranking');
+  }
+  const peerReferences = {
+    ethereum: 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/',
+    solana: 'https://solana.com/solana-whitepaper.pdf',
+    cardano: 'https://docs.cardano.org/about-cardano/governance-overview',
+    algorand: 'https://developer.algorand.org/solutions/avm-evm-instant-finality/'
+  };
+  for (const chain of ['ethereum', 'solana', 'cardano', 'algorand']) {
+    const page = await readText(`compare/tezos-vs-${chain}.html`);
+    if (!page.includes('See /health') || !page.includes('No composite score is assigned.')) {
+      fail(`Tezos vs ${chain} must defer concentration and omit a composite winner`);
+    }
+    if (/<div class="cp-scoreboard"/.test(page)) {
+      fail(`Tezos vs ${chain} must not restore the baked aggregate scoreboard`);
+    }
+    if (!page.includes(peerReferences[chain]) || !page.includes('Peer values are a static snapshot') || !page.includes('they are not all live')) {
+      fail(`Tezos vs ${chain} must disclose its static peer snapshot and primary reference`);
+    }
+  }
+
+  if (/250\+|~250/.test(stakingGuide + bakersGuide)) {
+    fail('staking and baker guides must not hard-code a stale baker population');
+  }
+  if (/below 67% attestation rate get deactivated/i.test(bakersGuide)) {
+    fail('baker guide must separate reward participation thresholds from inactivity deactivation');
+  }
+  if (!stakingGuide.includes('direct staking freezes XTZ')
+      || !stakingGuide.includes('protocol unstaking and finalization process')
+      || !bakersGuide.includes('deactivation is a separate consequence of sustained inactivity')) {
+    fail('staking and baker guides must preserve lockup and deactivation semantics');
+  }
+  if (stakingGuide.includes('<td>Baker fee</td>')
+      || !stakingGuide.includes('Off-chain baker payout policy')
+      || !stakingGuide.includes('0–100% external-staker edge')
+      || !stakingGuide.includes('It is not a delegation fee.')) {
+    fail('staking guide must distinguish off-chain delegation terms from the on-chain direct-staking edge');
+  }
+
+  const publicCopy = `${tweetTemplates}\n${protocolData}\n${comparison}\n${siteMapCopy}\n${dailyBriefingCopy}\n${changelogCopy}`;
+  const forbiddenClaims = [
+    [/\{value\}\s+independent\s+(?:bakers|operators|validators)/i, 'active baker addresses must not be presented as independently controlled operators'],
+    [/every single one run by an independent operator/i, 'the baker count must not imply one independent operator per address'],
+    [/risk[- ]?free|zero additional risk|no slashing risk|no smart contract risk/i, 'delegation copy must not erase payout, wallet, market, or operational risks'],
+    [/Tezos is the only L1 with real on-chain democracy|stake IS governance|your stake IS your vote|every staker is also a voter/i, 'governance copy must distinguish assigned voting power from baker ballots'],
+    [/Ethereum[^\n]{0,120}probabilistic finality|probabilistic finality[^\n]{0,120}Ethereum/i, 'Ethereum PoS must be described with checkpoint finality, not Nakamoto-style probabilistic finality'],
+    [/zero hard forks|zero chain splits|zero reorganizations|no reorgs|100% uptime|zero downtime|perfect uptime|not a single outage|days fork-free|zero-fork (?:history|streak|upgrades)/i, 'public copy must not make unreceipted absolute continuity claims'],
+    [/every (?:single )?block is final|guaranteed finality|mathematically final/i, 'Tenderbake finality must retain its BFT, quorum, and network assumptions'],
+    [/no admin keys|zero external trust assumptions|no bridge risk|same guarantees|actually work as intended|verified first|no other (?:L1|chain)|every use case|won't drain user funds|formally verified contracts|near-zero exploits|formal verification would have caught|bugs (?:aren't found|are made impossible)/i, 'public share copy must not turn framework capabilities into universal application or cross-chain guarantees'],
+    [/single Tezos transaction uses|Raspberry Pis drawing \d+ watts|\b\d[\d,.]*x more efficient|certified carbon neutral/i, 'public energy copy must retain a dated measurement boundary and methodology'],
+    [/staking is voting|funded (?:accounts|addresses)[^\n]{0,80}(?:are|represent|counts?) (?:real )?(?:people|users|humans)|every[^\n]{0,60}can[^\n]{0,40}vote/i, 'funded addresses must not be presented as unique people or direct governance voters'],
+    [/trilemma solved|every new baker adds another operator|no slashing for downtime/i, 'baker-address copy must not imply independent control or erase protocol risk'],
+    [/only one lets stakeholders vote/i, 'cross-chain governance copy must not use an unreceipted categorical winner'],
+    [/no VC unlocks|no hidden wallets|mysterious foundation wallet|team tokens unlocking/i, 'supply telemetry must not infer wallet control or future market behavior'],
+    [/zero fragmentation|approve\/transferFrom footguns|built-in contract upgrade mechanism/i, 'token and contract tooling copy must not turn design options into universal guarantees'],
+    [/first time a blockchain upgraded itself|foundation of every zk-rollup/i, 'protocol history must avoid unsupported cross-chain firsts and universal ZK claims'],
+    [/sub-cent|fractions?[- ]of[- ](?:a[- ])?cent|near-zero fees|costs? almost nothing|for pennies/i, 'fee copy must use current comparable receipts instead of timeless dollar-cost claims'],
+    [/stake: run your own baker|earn: either way|your XTZ, your choice of baker, your rewards|accounts earning through staking or delegation|reward-earning/i, 'staking copy must distinguish direct staking, baking, and discretionary delegation payouts'],
+    [/daily cycles mean daily rewards|earn every single day|without a single halt|hasn['’]t missed one since genesis/i, 'cycle copy must not turn nominal timing into guaranteed rewards or availability'],
+    [/all of them actually finalized|deterministic finality[^\n]{0,100}what are you waiting for/i, 'transaction counts must not imply unconditional finality'],
+    [/active smart rollups|active examples|rollups live|enshrined L2 security|inter-rollup messaging without the trust assumptions/i, 'unfiltered originated-rollup counts and L1 verification must not erase activity or deployment assumptions'],
+    [/unbiasable randomness|ETH validators still can['’]t separate|any VM[^\n]{0,80}verified by the L1|\{total\} on-chain votes|most contested (?:Tezos )?upgrade/i, 'protocol-history copy must not restore false universal, superlative, or one-upgrade-one-vote claims'],
+    [/how many people (?:are )?(?:actually )?securing|merge to deflationary|went deflationary with the merge|respond(?:s|ing)? to actual (?:network )?usage(?: patterns)?/i, 'issuance copy must use direct-staking conditions and dated net-supply outcomes']
+  ];
+  for (const [pattern, message] of forbiddenClaims) {
+    if (pattern.test(publicCopy)) fail(message);
+  }
+  for (const required of [
+    'baker payout/default, wallet, market, and operational risks remain',
+    'Delegators assign voting power to their baker',
+    'quorum and normal network conditions',
+    'Ethereum proof of stake uses checkpoint finality'
+  ]) {
+    if (!publicCopy.includes(required)) fail(`public truth copy must retain: ${required}`);
+  }
+
+  pass('reward, APY, concentration, and staking guide truth contracts checked');
 }
 
 async function checkStylesheetFreshness() {
@@ -2356,10 +2662,67 @@ async function checkStylesheetFreshness() {
   if (themeFiles.length >= expectedThemes.length) {
     pass(`lazy theme CSS bundles checked: ${themeFiles.length}`);
   }
+
+  const sourceCss = await readText('css/styles.css');
+  const henCss = await readText('css/hen-mode.css');
+  const parseVariables = (block = '') => Object.fromEntries(
+    Array.from(block.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi), (match) => [match[1], match[2].trim()])
+  );
+  const rootVariables = parseVariables(sourceCss.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1]);
+  const henVariables = parseVariables(henCss.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1]);
+  const resolveVariable = (value, variables, depth = 0) => {
+    const variable = String(value || '').match(/^var\((--[a-z0-9-]+)\)$/i)?.[1];
+    if (!variable || depth > 4) return value;
+    return resolveVariable(variables[variable], variables, depth + 1);
+  };
+  const normalizeHex = (value) => /^#[0-9a-f]{3}$/i.test(value || '')
+    ? `#${value.slice(1).split('').map((character) => character.repeat(2)).join('')}`
+    : value;
+  const luminance = (hex) => {
+    const channels = hex.slice(1).match(/.{2}/g).map((value) => Number.parseInt(value, 16) / 255);
+    const linear = channels.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+  };
+  const contrastRatio = (left, right) => {
+    const light = Math.max(luminance(left), luminance(right));
+    const dark = Math.min(luminance(left), luminance(right));
+    return (light + 0.05) / (dark + 0.05);
+  };
+  for (const theme of expectedThemes) {
+    const themeBlock = sourceCss.match(new RegExp(`\\[data-theme=["']${theme}["']\\]\\s*\\{([\\s\\S]*?)\\n\\}`))?.[1] || '';
+    const variables = { ...rootVariables, ...henVariables, ...parseVariables(themeBlock) };
+    for (const textToken of ['--text-tertiary', '--text-muted']) {
+      const textColor = normalizeHex(resolveVariable(variables[textToken], variables));
+      for (const backgroundToken of ['--bg-primary', '--bg-secondary', '--bg-tertiary']) {
+        const backgroundColor = normalizeHex(resolveVariable(variables[backgroundToken], variables));
+        if (!/^#[0-9a-f]{6}$/i.test(textColor || '') || !/^#[0-9a-f]{6}$/i.test(backgroundColor || '')) {
+          fail(`theme ${theme} contrast contract could not resolve ${textToken} on ${backgroundToken}`);
+          continue;
+        }
+        const ratio = contrastRatio(textColor, backgroundColor);
+        if (ratio < 4.5) {
+          fail(`theme ${theme} ${textToken} contrast is ${ratio.toFixed(2)}:1 on ${backgroundToken}; small text needs at least 4.5:1`);
+        }
+      }
+    }
+    if (theme === 'clean') {
+      const linkColor = normalizeHex(resolveVariable(variables['--surface-link-color'], variables));
+      for (const backgroundToken of ['--bg-primary', '--bg-secondary', '--bg-tertiary']) {
+        const backgroundColor = normalizeHex(resolveVariable(variables[backgroundToken], variables));
+        const ratio = contrastRatio(linkColor, backgroundColor);
+        if (ratio < 4.5) {
+          fail(`theme clean link contrast is ${ratio.toFixed(2)}:1 on ${backgroundToken}; ordinary links need at least 4.5:1`);
+        }
+      }
+    }
+  }
+  pass(`theme small-text contrast checked across ${expectedThemes.length} themes`);
 }
 
 async function checkAuroraDesktopTitleTreatment() {
   const css = await readText('css/styles.css');
+  const matrixEffects = await readText('js/effects/matrix-effects.js');
+  const backgroundEffects = await readText('js/effects/bg-effects.js');
   const titleStart = css.indexOf('[data-theme="aurora"] .title');
   const keyframesStart = css.indexOf('@keyframes auroraTitleShift', titleStart);
   const sharedBlock = titleStart >= 0 && keyframesStart >= 0
@@ -2384,11 +2747,30 @@ async function checkAuroraDesktopTitleTreatment() {
   if (css.includes('auroraTitleSweep')) {
     fail('desktop aurora title should not use a separate sweep animation from mobile');
   }
-  if (!css.includes('[data-theme="aurora"] .title {\n        animation: auroraTitleShift 9s linear infinite !important;')) {
-    fail('aurora title must keep its shared color-shift animation when desktop reduced-motion clamps global animations');
+  const accessibilityStart = css.indexOf('Accessibility');
+  const reducedMotionStart = css.indexOf('@media (prefers-reduced-motion: reduce)', accessibilityStart);
+  const reducedMotionEnd = css.indexOf('.glass-button:focus', reducedMotionStart);
+  const reducedMotionBlock = reducedMotionStart >= 0 && reducedMotionEnd > reducedMotionStart
+    ? css.slice(reducedMotionStart, reducedMotionEnd)
+    : '';
+  if (!reducedMotionBlock.includes('animation: none !important')) {
+    fail('reduced-motion mode must disable decorative animations');
+  }
+  if (!reducedMotionBlock.includes('*::before') || !reducedMotionBlock.includes('*::after')) {
+    fail('reduced-motion mode must also disable animations on pseudo-elements');
+  }
+  if (reducedMotionBlock.includes('auroraTitleShift') || /animation:[^;]*infinite/i.test(reducedMotionBlock)) {
+    fail('Aurora and other theme animations must not be re-enabled in reduced-motion mode');
+  }
+  for (const [label, source] of [['Matrix canvas', matrixEffects], ['theme background canvas', backgroundEffects]]) {
+    if (!source.includes("matchMedia('(prefers-reduced-motion: reduce)')")
+        || !source.includes('!reducedMotionQuery.matches')
+        || !source.includes("addEventListener('change', handleThemeChange)")) {
+      fail(`${label} must avoid animation under reduced motion and react when the preference changes`);
+    }
   }
 
-  pass('desktop aurora title shares the mobile multicolor shift treatment');
+  pass('desktop aurora title shares the multicolor treatment while respecting reduced motion');
 }
 
 async function checkPortableTooling() {
@@ -2597,12 +2979,14 @@ async function checkRepositoryLicense() {
   }
   for (const route of CHAMBER_ROUTES) {
     const routeShell = await readText(`${route.slug}/index.html`);
-    for (const snippet of deployedNoticeSnippets) {
+    for (const snippet of deployedNoticeSnippets.filter((item) => !item.includes('creativecommons.org'))) {
       if (!routeShell.includes(snippet)) fail(`${route.slug}/index.html missing deployed license text: ${snippet}`);
     }
-    if ((routeShell.match(/"name": "Primate411"/g) || []).length < 2
-      || (routeShell.match(/"affiliation": \{/g) || []).length < 2
-      || (routeShell.match(/"name": "Tez Capital"/g) || []).length < 2
+    if ((routeShell.match(/"name": "Primate411"/g) || []).length < 1
+      || (routeShell.match(/"affiliation": \{/g) || []).length < 1
+      || (routeShell.match(/"name": "Tez Capital"/g) || []).length < 1
+      || !routeShell.includes('"@type": "WebPage"')
+      || !routeShell.includes('"@type": "BreadcrumbList"')
       || routeShell.includes('Powered by <a href="https://tez.capital"')
       || routeShell.includes('"sourceOrganization"')) {
       fail(`${route.slug}/index.html has stale product ownership attribution`);
@@ -2682,7 +3066,7 @@ async function checkTourAndShareCaptureContracts() {
   for (const snippet of [
     'Find anything',
     'Need a hand?',
-    'Start with live proof',
+    'Start with mainnet history',
     'Read the latest head',
     'Protocol Anthology',
     'Network Context',
@@ -4143,6 +4527,7 @@ async function checkMaxisContracts() {
     ['maxis hash route', "hash === 'maxis'", app],
     ['maxis site map', "id: 'maxis'", siteMap],
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
+    ['maxis stable focus restoration fallback', "findChamberLauncher('#maxis-entry-card')", maxis],
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
     ['maxis route-scoped rank shares', 'function rankShareUrl(category)', maxis],
@@ -4212,8 +4597,6 @@ async function checkMaxisContracts() {
     ['maxis compact ranks four through ten', '.maxis-compact-ranking', maxisCss],
     ['maxis Passport progress track', '.maxis-progress-track', maxisCss],
     ['maxis Champions archive cards', '.maxis-champion-card', maxisCss],
-    ['maxis service worker manifest', '/data/maxis/manifest.json', sw],
-    ['maxis service worker domain resolver', '/js/core/tezos-domains.js', sw],
     ['My Tezos Passport link', 'my-tezos-maxi-passport-link', myTezos]
   ];
   for (const [label, snippet, source] of contracts) {
@@ -4282,6 +4665,7 @@ async function main() {
   await checkModuleImportVersions();
   await checkHistoricalPagination();
   await checkLiquidityBakingIssuanceState();
+  await checkTruthSurfaceContracts();
   await checkStylesheetFreshness();
   await checkAuroraDesktopTitleTreatment();
   await checkPortableTooling();

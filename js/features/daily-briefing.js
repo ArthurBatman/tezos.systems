@@ -62,7 +62,7 @@ const CATEGORY_META = {
   tz4: { label: 'tz4', icon: 'tz4', tone: 'security', detail: 'BLS consensus key adoption' },
   etherlink: { label: 'Etherlink', icon: 'L2', tone: 'activity', detail: 'Tezos X activity lane' },
   ledger: { label: 'Ledger Flow', icon: '↔', tone: 'network', detail: 'Account transfer paths' },
-  anniversary: { label: 'Anniversary', icon: '∞', tone: 'anniversary', detail: 'Tezos uptime anniversary' },
+  anniversary: { label: 'Anniversary', icon: '∞', tone: 'anniversary', detail: 'Tezos mainnet anniversary' },
   milestone: { label: 'Milestone', icon: 'M', tone: 'milestone', detail: 'Round-number network marker' },
   moment: { label: 'Milestone', icon: '✦', tone: 'growth', detail: 'Network milestone' },
   network: { label: 'Network', icon: '🌐', tone: 'network', detail: 'Daily Tezos pulse' }
@@ -538,10 +538,10 @@ const MILESTONE_TRACKS = [
     id: 'uptime-days',
     value: () => Math.floor((Date.now() - Date.parse('2018-09-17T00:00:00Z')) / DAY_MS),
     thresholds: milestoneBaseThresholds('uptime-days'),
-    noun: 'uptime days',
+    noun: 'mainnet days',
     targetSuffix: 'days live',
     currentSuffix: 'days live',
-    detail: 'Zero-downtime clock',
+    detail: 'Elapsed since mainnet launch',
     route: '/anthology/',
     priority: 24,
     trustedDailyRate: 1,
@@ -555,7 +555,7 @@ const MILESTONE_TRACKS = [
     noun: 'self-amendments',
     targetSuffix: 'self-amendments',
     currentSuffix: 'protocol upgrades',
-    detail: 'Zero-fork upgrades',
+    detail: 'Documented amendment record',
     route: '/anthology/',
     priority: 24,
     snapshotField: 'upgradeCount',
@@ -1295,7 +1295,7 @@ async function maybeDispatchProtocolLoreSignal() {
       score: 58,
       title: 'Protocol lore day',
       detail: protocol.headline || 'Self-amendment history',
-      text: `${ageText}${protocol.name} activated. The zero-fork streak holds.`,
+      text: `${ageText}${protocol.name} activated. Explore its proposal, ballots, activation, and debate record.`,
       route: '/anthology/',
       expiresAt: Number.isFinite(endOfDay) ? endOfDay : Date.now() + DAY_MS
     });
@@ -1767,7 +1767,7 @@ function buildLiveHotSignals(stats = lastStats || {}) {
       id: `uptime-anniversary-${uptimeAnniversary.years}`,
       kind: 'state',
       breaking: true,
-      title: `${uptimeAnniversary.years} years live`,
+      title: `${uptimeAnniversary.ordinalYears} mainnet anniversary`,
       detail: uptimeAnniversary.detail,
       route: '/anthology/',
       tone: 'anniversary',
@@ -2081,7 +2081,7 @@ const MILESTONE_PROMO_LINES = {
   staking: 'More stake is more economic weight standing behind every Tezos block.',
   burned: 'Protocol activity keeps leaving an economic receipt in burned XTZ.',
   cycle: 'Another cycle is another clean handoff in the Tezos clockwork.',
-  'uptime-days': 'No restart. No fork. The uptime clock keeps moving.',
+  'uptime-days': 'The public mainnet history keeps growing, one day at a time.',
   'protocol-upgrades': 'Self-amendment is not a roadmap slide. It is the chain shipping.',
   rollups: 'The Tezos rollup surface keeps widening for the next wave of execution.'
 };

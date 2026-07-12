@@ -12,7 +12,7 @@
     --text-primary: #EAF0FF;
     --text-secondary: #AAB8EC;
     --text-tertiary: #7E8CC8;
-    --text-muted: #4A5588;
+    --text-muted: #7E8CC8;
     /* Distinct aurora hues so cards span the spectrum (teal/sky/violet/magenta) */
     --accent-cyan: #45E0C8;
     --accent-blue: #5BA8FF;
@@ -72,16 +72,6 @@ body[data-theme="aurora"]::after{
 [data-theme="aurora"] .trend-arrow.down{ color: #F472B6; }
 [data-theme="aurora"] ::-webkit-scrollbar-thumb{ background: rgba(124, 140, 255, 0.30); border: 1px solid rgba(64, 224, 200, 0.15); }
 [data-theme="aurora"] ::-webkit-scrollbar-thumb:hover{ background: rgba(124, 140, 255, 0.55); box-shadow: 0 0 6px rgba(124, 140, 255, 0.4); }
-
-
-/* ==========================================
-   Accessibility
-   ========================================== */
-
-@media (prefers-reduced-motion: reduce) {[data-theme="aurora"] .title{
-        animation: auroraTitleShift 9s linear infinite !important;
-    }
-}
 [data-theme="aurora"] .visit-streak-toast{
     --streak-toast-bg: rgba(9, 13, 32, 0.92);
     --streak-toast-border: rgba(124, 140, 255, 0.3);

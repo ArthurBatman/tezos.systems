@@ -26,9 +26,11 @@ async function fetchJson(url) {
 }
 
 async function fetchText(url) {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`${url} failed: ${resp.status}`);
-    return resp.text();
+    return fetchWithRetry(url, {
+        cache: 'no-store',
+        memoryCache: false,
+        responseType: 'text'
+    }, 2);
 }
 
 function parseMutez(value) {
@@ -41,16 +43,13 @@ function getTzktTotalStaked(stats = {}) {
     return total > 0 ? total : Number(stats.totalFrozen || 0);
 }
 
-function getTzktTotalDelegated(stats = {}) {
-    return Number(stats.totalOwnDelegated || 0) + Number(stats.totalExternalDelegated || 0);
-}
-
 async function fetchLiquidityBakingSubsidyState() {
     try {
         const blocks = await fetchJson(`${TZKT}/blocks?sort.desc=level&limit=1&select=level,lbToggleEma`);
         const latest = Array.isArray(blocks) ? blocks[0] : null;
-        const ema = Number(latest?.lbToggleEma);
-        const known = Number.isFinite(ema);
+        const rawEma = latest?.lbToggleEma;
+        const ema = Number(rawEma);
+        const known = rawEma !== null && rawEma !== undefined && rawEma !== '' && Number.isFinite(ema);
         return {
             disabled: known && ema >= LB_EMA_DISABLE_THRESHOLD,
             known,
@@ -71,11 +70,13 @@ async function fetchProtocolConstants() {
     }
 }
 
-function calculateLbIssuanceRate(constants, supplyMutez, lbDisabled) {
-    if (lbDisabled || !constants || !supplyMutez) return 0;
+function calculateLbIssuanceRate(constants, supplyMutez, lbDisabled, lbStateKnown) {
+    if (!lbStateKnown) return null;
+    if (lbDisabled) return 0;
+    if (!constants || !supplyMutez) return null;
     const lbSubsidyPerMinute = parseMutez(constants.liquidity_baking_subsidy);
     const supply = supplyMutez / 1e6;
-    if (!lbSubsidyPerMinute || !supply) return 0;
+    if (!lbSubsidyPerMinute || !supply) return null;
     const lbXTZPerYear = (lbSubsidyPerMinute / 1e6) * LB_MINUTES_PER_YEAR;
     return (lbXTZPerYear / supply) * 100;
 }
@@ -123,28 +124,64 @@ export async function loadStakingData() {
         ]);
 
         const parsedProtocolIssuance = parseFloat(rateText.replace(/"/g, ''));
-        const protocolIssuance = Number.isFinite(parsedProtocolIssuance) ? parsedProtocolIssuance : 0;
+        const protocolIssuance = Number.isFinite(parsedProtocolIssuance) && parsedProtocolIssuance > 0
+            ? parsedProtocolIssuance
+            : null;
         const supplyMutez = Number(stats.totalSupply || 0) || parseMutez(supplyText) || 0;
         const stakedMutez = getTzktTotalStaked(stats) || parseMutez(frozenStakeText) || 0;
-        const canEstimateLb = Boolean(constants && supplyMutez);
-        const lbIssuance = calculateLbIssuanceRate(constants, supplyMutez, lbState.disabled);
-        const totalIssuance = protocolIssuance + lbIssuance;
+        const readNonNegativeStat = (key) => {
+            const raw = stats?.[key];
+            if (raw === null || raw === undefined || raw === '') return null;
+            const parsed = Number(raw);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+        };
+        const ownStakedMutez = readNonNegativeStat('totalOwnStaked');
+        const externalStakedMutez = readNonNegativeStat('totalExternalStaked');
+        const totalFrozenMutez = readNonNegativeStat('totalFrozen');
+        const ownDelegatedMutez = readNonNegativeStat('totalOwnDelegated');
+        const externalDelegatedMutez = readNonNegativeStat('totalExternalDelegated');
+        const hasStakedFields = (ownStakedMutez !== null && externalStakedMutez !== null)
+            || totalFrozenMutez !== null;
+        const hasDelegatedFields = ownDelegatedMutez !== null && externalDelegatedMutez !== null;
+        const hasTzktStakingInputs = stats
+            && typeof stats === 'object'
+            && hasStakedFields
+            && hasDelegatedFields;
+        if (!protocolIssuance || supplyMutez <= 0 || stakedMutez <= 0 || !hasTzktStakingInputs) {
+            throw new Error('Live staking estimate inputs are incomplete');
+        }
+        const delegationPowerDivisor = Number(constants?.edge_of_staking_over_delegation);
+        if (!Number.isFinite(delegationPowerDivisor) || delegationPowerDivisor <= 0) {
+            throw new Error('Live staking/delegation weight is unavailable');
+        }
+        const lbIssuance = calculateLbIssuanceRate(constants, supplyMutez, lbState.disabled, lbState.known);
+        const totalIssuance = Number.isFinite(lbIssuance) ? protocolIssuance + lbIssuance : null;
         const supply = supplyMutez / 1e6;
         const staked = stakedMutez / 1e6;
-        const delegated = getTzktTotalDelegated(stats) / 1e6;
+        const delegatedMutez = hasDelegatedFields
+            ? ownDelegatedMutez + externalDelegatedMutez
+            : NaN;
+        const delegated = delegatedMutez / 1e6;
         const stakingRatio = supply > 0 ? (staked / supply * 100) : 0;
-        const edge = 2;
-        const effective = supply > 0 ? (staked / supply) + (delegated / supply) / (1 + edge) : 0;
+        const effective = supply > 0 ? (staked / supply) + (delegated / supply) / delegationPowerDivisor : 0;
         const stakeAPY = effective > 0 ? (protocolIssuance / 100) / effective * 100 : 0;
-        const delegateAPY = stakeAPY / (1 + edge);
+        const delegateAPY = stakeAPY / delegationPowerDivisor;
+        if (!Number.isFinite(supply) || supply <= 0
+            || !Number.isFinite(staked) || staked <= 0
+            || !Number.isFinite(delegated) || delegated < 0
+            || !Number.isFinite(effective) || effective <= 0
+            || !Number.isFinite(stakeAPY) || stakeAPY <= 0
+            || !Number.isFinite(delegateAPY) || delegateAPY <= 0) {
+            throw new Error('Live staking estimate values are invalid');
+        }
         const lbBreakdown = lbState.disabled
             ? '0.00% LB (disabled)'
-            : canEstimateLb ? `${lbIssuance.toFixed(2)}% LB` : 'LB active';
+            : Number.isFinite(lbIssuance) ? `${lbIssuance.toFixed(2)}% LB` : 'LB state unavailable';
 
         inject('staking-apy', `~${stakeAPY.toFixed(1)}%`);
         inject('delegate-apy', `~${delegateAPY.toFixed(1)}%`);
         inject('staking-ratio', `${stakingRatio.toFixed(1)}%`);
-        inject('issuance-rate', `${totalIssuance.toFixed(2)}%`);
+        inject('issuance-rate', Number.isFinite(totalIssuance) ? `${totalIssuance.toFixed(2)}%` : 'Unavailable');
         inject('issuance-breakdown', `${protocolIssuance.toFixed(2)}% protocol · ${lbBreakdown}`);
         inject('total-supply', `${(supply / 1e9).toFixed(2)}B`);
         inject('total-staked', `${(staked / 1e9).toFixed(2)}B`);
@@ -228,12 +265,16 @@ export async function loadGovernanceData() {
 export async function loadBakerData() {
     try {
         const bakers = await fetchJson(`${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,numDelegators,stakersCount&limit=10000`);
-        const fundedBakers = Array.isArray(bakers)
-            ? bakers.filter((b) => Number(b.bakingPower || 0) > 0)
-            : [];
-        const topBakers = fundedBakers.length
-            ? fundedBakers.sort((a, b) => (b.stakingBalance || 0) - (a.stakingBalance || 0)).slice(0, 10)
-            : [];
+        if (!Array.isArray(bakers)) {
+            throw new Error('Unexpected active baker response');
+        }
+        const fundedBakers = bakers.filter((b) => Number(b.bakingPower || 0) > 0);
+        if (!fundedBakers.length) {
+            throw new Error('Active baker response contained no funded bakers');
+        }
+        const topBakers = fundedBakers
+            .sort((a, b) => Number(b.bakingPower || 0) - Number(a.bakingPower || 0))
+            .slice(0, 10);
         const totalBakers = fundedBakers.length;
 
         inject('total-bakers', totalBakers.toString());
@@ -247,11 +288,11 @@ export async function loadBakerData() {
                 if (xtz >= 1e3) return (xtz / 1e3).toFixed(1) + 'K';
                 return xtz.toFixed(0);
             };
-            let html = '<table class="landing-table"><thead><tr><th>#</th><th>Baker</th><th>Staking Power</th><th>Delegators</th></tr></thead><tbody>';
+            let html = '<table class="landing-table"><thead><tr><th>#</th><th>Baker</th><th>Baking Power</th><th>Delegators</th></tr></thead><tbody>';
             topBakers.forEach((b, i) => {
                 const name = b.alias || (b.address.slice(0, 10) + '…');
                 const address = b.address || '';
-                html += `<tr><td>${i + 1}</td><td><a href="/#baker=${encodeURIComponent(address)}">${escapeHtml(name)}</a></td><td>${fmtXTZ(b.stakingBalance)} ꜩ</td><td>${b.numDelegators || 0}</td></tr>`;
+                html += `<tr><td>${i + 1}</td><td><a href="/#baker=${encodeURIComponent(address)}">${escapeHtml(name)}</a></td><td>${fmtXTZ(b.bakingPower)} ꜩ</td><td>${b.numDelegators || 0}</td></tr>`;
             });
             html += '</tbody></table>';
             html += `<p class="landing-cta"><a href="/#leaderboard">View all ${totalBakers} bakers →</a></p>`;

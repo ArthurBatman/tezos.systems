@@ -104,6 +104,7 @@ const SAMPLE_REGULAR_DELEGATOR_ADDRESS = 'tz1iKT2pvdbEHuVC3zugnJfVoQZbbyUzgToW';
 const SAMPLE_SMALL_DELEGATOR_ADDRESS = 'tz1hh3pqYnm3umz3U7zJ6xkaCmpXbnKA7aAm';
 const SAMPLE_STAKER_ADDRESS = 'tz1XrutuvkFRG15HmV2gdon86F38NMMGMAXr';
 const SAMPLE_HEAVY_STAKER_ADDRESS = 'tz1dKGGEVmYrm6V8hBKexLQLdWCapoEAZb1i';
+const SAMPLE_HISTORICAL_REWARDS_ADDRESS = 'tz1HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH';
 const SAMPLE_LARGE_STAKER_ADDRESS = 'tz1dCgGWymGmVefmNTHSBhSYXXfeJ2aprCLv';
 const SAMPLE_STAKING_BAKER_ADDRESS = 'tz1StakingBaker11111111111111111111111';
 const SAMPLE_UNSTAKER_ADDRESS = 'tz1Unstaker11111111111111111111111111';
@@ -209,6 +210,7 @@ const sampleBakers = [
     stakingBalance: 1200000000000,
     externalStakedBalance: 250000000000,
     externalDelegatedBalance: 180000000000,
+    edgeOfBakingOverStaking: 100000000,
     numDelegators: 42,
     stakersCount: 12,
     stakedBalance: 700000000000,
@@ -223,6 +225,7 @@ const sampleBakers = [
     stakingBalance: 900000000000,
     externalStakedBalance: 120000000000,
     externalDelegatedBalance: 220000000000,
+    edgeOfBakingOverStaking: 150000000,
     numDelegators: 35,
     stakersCount: 9,
     stakedBalance: 500000000000,
@@ -237,6 +240,7 @@ const sampleBakers = [
     stakingBalance: 700000000000,
     externalStakedBalance: 100000000000,
     externalDelegatedBalance: 110000000000,
+    edgeOfBakingOverStaking: 0,
     numDelegators: 18,
     stakersCount: 6,
     stakedBalance: 420000000000,
@@ -256,6 +260,7 @@ const overdelegatedBaker = {
   stakingBalance: 695000000000,
   externalStakedBalance: 567000000000,
   externalDelegatedBalance: 630000000000,
+  edgeOfBakingOverStaking: 100000000,
   numDelegators: 459,
   stakersCount: 128,
   bakingPower: 695000000000,
@@ -1066,6 +1071,8 @@ async function installFeatureMocks(context, options = {}) {
   const governanceNoProposal = Boolean(options.governanceNoProposal);
   const governanceLiveVote = Boolean(options.governanceLiveVote);
   const governanceAdoptionPeriod = Boolean(options.governanceAdoptionPeriod);
+  const nakamotoStale = Boolean(options.nakamotoStale);
+  const nullCycleTiming = Boolean(options.nullCycleTiming);
   const forwardDomainAddress = Object.prototype.hasOwnProperty.call(options, 'forwardDomainAddress')
     ? options.forwardDomainAddress
     : SAMPLE_ADDRESS;
@@ -1164,14 +1171,24 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes('tezos-mainnet.octez.io') && url.includes('/helpers/baking_power_distribution_for_current_cycle')) {
-      return fulfillJson(route, [
-        '300',
-        [
-          [{ delegate: SAMPLE_ADDRESS, consensus_pkh: 'tz4SmokeConsensus111111111111111111111' }, '110'],
-          [{ delegate: SAMPLE_ADDRESS_2, consensus_pkh: 'tz4SmokeConsensus222222222222222222222' }, '100'],
-          [{ delegate: SAMPLE_ADDRESS_3, consensus_pkh: 'tz4SmokeConsensus333333333333333333333' }, '90']
-        ]
-      ]);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: nakamotoStale ? {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'X-Tezos-Systems-Cache, X-Tezos-Systems-Observed-At',
+          'X-Tezos-Systems-Cache': 'stale',
+          'X-Tezos-Systems-Observed-At': '2026-07-10T12:34:56.000Z'
+        } : {},
+        body: JSON.stringify([
+          '300',
+          [
+            [{ delegate: SAMPLE_ADDRESS, consensus_pkh: 'tz4SmokeConsensus111111111111111111111' }, '110'],
+            [{ delegate: SAMPLE_ADDRESS_2, consensus_pkh: 'tz4SmokeConsensus222222222222222222222' }, '100'],
+            [{ delegate: SAMPLE_ADDRESS_3, consensus_pkh: 'tz4SmokeConsensus333333333333333333333' }, '90']
+          ]
+        ])
+      });
     }
 
     if (url.includes('teztale-server-mainnet-ro-prd.octez.tech')) {
@@ -1385,6 +1402,7 @@ async function installFeatureMocks(context, options = {}) {
           blocks_per_cycle: 10800,
           minimal_block_delay: '6',
           consensus_committee_size: 7000,
+          edge_of_staking_over_delegation: 3,
           liquidity_baking_subsidy: '2500000'
         });
       }
@@ -1392,7 +1410,11 @@ async function installFeatureMocks(context, options = {}) {
         return fulfillJson(route, { level: 12345678, cycle: 1143, cycle_position: 1234 });
       }
       if (url.includes('/metadata')) {
-        return fulfillJson(route, { level_info: { cycle: 1143, cycle_position: 1234 } });
+        return fulfillJson(route, {
+          level_info: nullCycleTiming
+            ? { cycle: null, cycle_position: null }
+            : { cycle: 1143, cycle_position: 1234 }
+        });
       }
       if (url.includes('/header')) {
         return fulfillJson(route, { level: 12345678, timestamp: new Date().toISOString() });
@@ -1469,6 +1491,7 @@ async function installFeatureMocks(context, options = {}) {
           totalExternalStaked: 100000000000000,
           totalOwnDelegated: 80000000000000,
           totalExternalDelegated: 170000000000000,
+          totalBurned: 600000000000,
           burnedSupply: 600000000000,
           totalBootstrapped: 1050000000000000
         });
@@ -1934,6 +1957,19 @@ async function installFeatureMocks(context, options = {}) {
           firstActivityTime: '2024-02-20T00:00:00Z'
         });
       }
+      if (url.includes(`/accounts/${SAMPLE_HISTORICAL_REWARDS_ADDRESS}`) && !url.includes('/operations?')) {
+        return fulfillJson(route, {
+          address: SAMPLE_HISTORICAL_REWARDS_ADDRESS,
+          type: 'user',
+          alias: 'Former Delegator',
+          active: true,
+          balance: 125000000,
+          stakedBalance: 0,
+          delegate: null,
+          firstActivity: 4123456,
+          firstActivityTime: '2022-08-10T00:00:00Z'
+        });
+      }
       if (url.includes(`/rewards/stakers/${SAMPLE_REGULAR_DELEGATOR_ADDRESS}`)) {
         return fulfillJson(route, []);
       }
@@ -2042,6 +2078,25 @@ async function installFeatureMocks(context, options = {}) {
               externalDelegatedBalance: 3203106679689,
               blockRewardsDelegated: 99584197,
               attestationRewardsDelegated: 0,
+              dalAttestationRewardsDelegated: 0
+            }
+          }
+        ]);
+      }
+      if (url.includes(`/rewards/stakers/${SAMPLE_HISTORICAL_REWARDS_ADDRESS}`)
+          || url.includes(`/rewards/bakers/${SAMPLE_HISTORICAL_REWARDS_ADDRESS}`)) {
+        return fulfillJson(route, []);
+      }
+      if (url.includes(`/rewards/delegators/${SAMPLE_HISTORICAL_REWARDS_ADDRESS}`)) {
+        return fulfillJson(route, [
+          {
+            cycle: 1023,
+            delegatedBalance: 125000000,
+            baker: { address: SAMPLE_ADDRESS, alias: 'Former Baker' },
+            bakerRewards: {
+              externalDelegatedBalance: 1250000000,
+              blockRewardsDelegated: 5000000,
+              attestationRewardsDelegated: 2500000,
               dalAttestationRewardsDelegated: 0
             }
           }
@@ -3081,7 +3136,20 @@ async function smokeAppShell(browser, baseUrl) {
 
   const failedAssets = shell.assetResults.filter((asset) => !asset.ok);
   assert(failedAssets.length === 0, `app shell: service worker shell assets failed: ${failedAssets.map((asset) => `${asset.asset} ${asset.status}`).join(', ')}`);
-  assert(shell.assetResults.length >= 40, `app shell: expected broad shell asset coverage, saw ${shell.assetResults.length}`);
+  assert(shell.assetResults.length >= 12 && shell.assetResults.length <= 24, `app shell: expected a compact core shell, saw ${shell.assetResults.length} discovered assets`);
+
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller), null, { timeout: 10000 });
+  let offlineResponse = null;
+  let offlineHeading = '';
+  try {
+    await context.setOffline(true);
+    offlineResponse = await page.goto(`${baseUrl}/offline-navigation-smoke`, { waitUntil: 'domcontentloaded' });
+    offlineHeading = await page.locator('h1').innerText();
+  } finally {
+    await context.setOffline(false);
+  }
+  assert(offlineResponse?.ok(), `app shell: offline navigation did not return the cached explanation (${offlineResponse?.status()})`);
+  assert(/offline/i.test(offlineHeading), `app shell: offline navigation should render the self-contained offline page, saw ${offlineHeading}`);
 
   await context.close();
 
@@ -3477,7 +3545,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await seedIntent('nft', 'HEN Live Feed');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/' && url.searchParams.get('hen') === '1', { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/hen/' && !url.searchParams.has('hen'), { timeout: 5000 });
 
   await context.close();
 
@@ -3859,6 +3927,10 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
   const state = await page.evaluate((keys) => ({
     statsVisible: localStorage.getItem('tezos-systems-stats-visible'),
     modalOpen: Boolean(document.querySelector('#network-pulse-modal.active')),
+    cardTag: document.querySelector('#network-pulse-entry-card')?.tagName || '',
+    cardRole: document.querySelector('#network-pulse-entry-card')?.getAttribute('role'),
+    cardTabIndex: document.querySelector('#network-pulse-entry-card')?.getAttribute('tabindex'),
+    explicitOpenActions: document.querySelectorAll('#network-pulse-entry-card .network-pulse-entry-open').length,
     metricCount: document.querySelectorAll('#network-pulse-entry-metrics [data-pulse-entry-key]').length,
     freshness: document.querySelector('#network-pulse-entry-freshness')?.textContent?.trim() || '',
     values: Object.fromEntries(keys.map((key) => [
@@ -3869,6 +3941,8 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
 
   assert(state.statsVisible === null, `${label}: legacy full-stats visibility must remain unset, saw ${state.statsVisible}`);
   assert(!state.modalOpen, `${label}: regression must hydrate without opening the Network Pulse modal`);
+  assert(state.cardTag === 'ARTICLE' && state.cardRole === null && state.cardTabIndex === null, `${label}: entry card must be a non-interactive article around its controls: ${JSON.stringify(state)}`);
+  assert(state.explicitOpenActions === 1, `${label}: entry card needs one explicit Open action: ${JSON.stringify(state)}`);
   assert(state.metricCount === 10, `${label}: expected 10 launcher metrics, saw ${state.metricCount}`);
   assert(/history/i.test(state.freshness), `${label}: mixed-source freshness should disclose history fallback, saw ${state.freshness}`);
   assert(
@@ -3876,7 +3950,7 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
     `${label}: history-backed lower row did not hydrate: ${JSON.stringify(state.values)}`
   );
 
-  await page.locator('#network-pulse-entry-card').click();
+  await page.locator('#network-pulse-entry-card .network-pulse-entry-open').click();
   await page.locator('#network-pulse-modal.active [data-network-pulse-section="rooms"]').waitFor({ state: 'visible', timeout: 10000 });
   const pulseWayfinder = await page.evaluate(() => ({
     roomCards: document.querySelectorAll('#network-pulse-modal.active [data-network-pulse-room]').length,
@@ -4401,7 +4475,7 @@ async function smokeMyTezosBakerCapacity(browser, baseUrl) {
   log('ok - my tezos baker capacity smoke');
 }
 
-async function getMyTezosRewardReport(browser, baseUrl, { address, label, requiredText }) {
+async function getMyTezosRewardReport(browser, baseUrl, { address, label, requiredText, nullCycleTiming = false }) {
   const issues = [];
   const rewardsRequests = [];
   const context = await browser.newContext({
@@ -4409,7 +4483,7 @@ async function getMyTezosRewardReport(browser, baseUrl, { address, label, requir
     serviceWorkers: 'block'
   });
   await context.grantPermissions(['clipboard-write'], { origin: baseUrl });
-  await installFeatureMocks(context);
+  await installFeatureMocks(context, { nullCycleTiming });
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
@@ -4452,12 +4526,20 @@ async function getMyTezosRewardReport(browser, baseUrl, { address, label, requir
       const statsLabels = Array.from(document.querySelectorAll('#my-baker-results .my-baker-stat-label')).map((el) => el.textContent?.trim());
       return {
         rewardsText,
+        cycleClockText: document.querySelectorAll('#rewards-tracker-container .rt-card')[0]?.innerText?.replace(/\s+/g, ' ').trim() || '',
+        currentCycleText: document.querySelectorAll('#rewards-tracker-container .rt-card')[1]?.innerText?.replace(/\s+/g, ' ').trim() || '',
+        currentCycleValue: document.querySelectorAll('#rewards-tracker-container .rt-card')[1]?.querySelector('.rt-value')?.textContent?.trim() || '',
         lifetimeText,
         statsText,
         statsLabels,
         fullAddress: data.fullAddress,
         isStaker: data.isStaker,
         rewardsLastCycle: data.rewardsLastCycle,
+        latestRewardCycle: data.latestRewardCycle,
+        hasRewardRole: data.hasRewardRole,
+        activeRewardEstimate: data.activeRewardEstimate,
+        apyRate: data.apyRate,
+        estAnnual: data.estAnnual,
         staked: data.staked,
         totalXTZ: data.totalXTZ
       };
@@ -4493,6 +4575,7 @@ async function smokeMyTezosStakerRewards(browser, baseUrl) {
       expectedLifetime: '1.0856 XTZ',
       expectedCurrent: '0.1676 XTZ',
       expectedLastCycle: 0.16764,
+      expectedApy: 11.4,
       minStakeRatio: 0.75
     },
     {
@@ -4501,6 +4584,7 @@ async function smokeMyTezosStakerRewards(browser, baseUrl) {
       expectedLifetime: '91.2112 XTZ',
       expectedCurrent: '16.6054 XTZ',
       expectedLastCycle: 16.605433,
+      expectedApy: 10.8,
       minStakeRatio: 0.99
     }
   ];
@@ -4512,7 +4596,7 @@ async function smokeMyTezosStakerRewards(browser, baseUrl) {
         'Protocol staking rewards',
         rewardCase.expectedLifetime,
         rewardCase.expectedCurrent,
-        'APY (Staker)',
+        'APY (External staker)',
         'Bkr Missed (10d)'
       ]
     });
@@ -4527,7 +4611,8 @@ async function smokeMyTezosStakerRewards(browser, baseUrl) {
     assert(state.isStaker === true, `${rewardCase.label}: Morning Brief should mark account as a staker`);
     assert(Number(state.staked) / Number(state.totalXTZ) >= rewardCase.minStakeRatio, `${rewardCase.label}: stake ratio should match a mostly-staked account: ${state.staked}/${state.totalXTZ}`);
     assert(state.statsLabels.includes('Bkr Missed (10d)'), `${rewardCase.label}: baker missed-right label should be explicit, saw ${state.statsLabels.join(', ')}`);
-    assert(state.statsLabels.includes('APY (Staker)'), `${rewardCase.label}: APY label should be staker-specific, saw ${state.statsLabels.join(', ')}`);
+    assert(state.statsLabels.includes('APY (External staker)'), `${rewardCase.label}: APY label should identify the external-staker reward split, saw ${state.statsLabels.join(', ')}`);
+    assert(state.statsText.includes(`${rewardCase.expectedApy}%`) && state.activeRewardEstimate === true && Math.abs(Number(state.apyRate) - rewardCase.expectedApy) < 0.001, `${rewardCase.label}: external-staker APY should apply gross × (1 - baker edge): ${JSON.stringify(state)}`);
     assert(!state.statsLabels.includes('Missed (10d)'), `${rewardCase.label}: ambiguous missed-right label is still present`);
     assert(!state.lifetimeText.includes('9.1000 XTZ'), `${rewardCase.label}: old generic baker mock leaked into lifetime card: ${state.lifetimeText}`);
   }
@@ -4560,7 +4645,7 @@ async function smokeMyTezosDelegatorRewards(browser, baseUrl) {
         'Estimated delegation share',
         rewardCase.expectedLifetime,
         rewardCase.expectedCurrent,
-        'APY (Delegator)',
+        'Gross APY (Delegation)',
         'Bkr Missed (10d)'
       ]
     });
@@ -4574,13 +4659,40 @@ async function smokeMyTezosDelegatorRewards(browser, baseUrl) {
     assert(Math.abs(Number(state.rewardsLastCycle) - rewardCase.expectedLastCycle) < 0.00001, `${rewardCase.label}: Morning Brief delegator reward amount wrong: ${state.rewardsLastCycle}`);
     assert(state.isStaker === false, `${rewardCase.label}: Morning Brief should not mark a zero-stake delegator as a staker`);
     assert(Number(state.staked) === 0, `${rewardCase.label}: staked amount should stay zero: ${state.staked}`);
-    assert(state.statsLabels.includes('APY (Delegator)'), `${rewardCase.label}: APY label should be delegator-specific, saw ${state.statsLabels.join(', ')}`);
+    assert(state.statsLabels.includes('Gross APY (Delegation)'), `${rewardCase.label}: delegation APY must be labeled gross before baker policy, saw ${state.statsLabels.join(', ')}`);
+    assert(state.statsLabels.includes('Personal Projection') && state.statsText.includes('Policy-dependent'), `${rewardCase.label}: My Baker should withhold a personal delegation projection without baker payout terms: ${state.statsText}`);
+    assert(state.activeRewardEstimate === false && state.estAnnual === null, `${rewardCase.label}: My Tezos must not turn gross delegation context into personal annual yield: ${JSON.stringify(state)}`);
     assert(state.statsLabels.includes('Bkr Missed (10d)'), `${rewardCase.label}: delegated wallet should still label baker missed rights explicitly, saw ${state.statsLabels.join(', ')}`);
     assert(!state.lifetimeText.includes('Protocol staking rewards'), `${rewardCase.label}: delegator report should not use staking copy: ${state.lifetimeText}`);
     assert(!state.lifetimeText.includes('9.1000 XTZ'), `${rewardCase.label}: old generic baker mock leaked into lifetime card: ${state.lifetimeText}`);
   }
 
   log('ok - my tezos delegator rewards smoke');
+}
+
+async function smokeMyTezosHistoricalRewards(browser, baseUrl) {
+  const { state, rewardsRequests } = await getMyTezosRewardReport(browser, baseUrl, {
+    label: 'my tezos historical rewards only wallet',
+    address: SAMPLE_HISTORICAL_REWARDS_ADDRESS,
+    nullCycleTiming: true,
+    requiredText: [
+      'Not currently baking, staking, or delegating',
+      'Latest historical record: cycle 1023',
+      'No active reward estimate',
+      'Estimated delegation share'
+    ]
+  });
+
+  assert(rewardsRequests.some((url) => url.includes(`/rewards/delegators/${SAMPLE_HISTORICAL_REWARDS_ADDRESS}`)), 'my tezos historical rewards: historical delegator endpoint was not requested');
+  assert(state.currentCycleValue === '—', `my tezos historical rewards: historical reward leaked into the Current Cycle value: ${state.currentCycleText}`);
+  assert(state.cycleClockText.includes('Cycle timing unavailable') && state.cycleClockText.includes('progress unavailable'), `my tezos historical rewards: null cycle timing was coerced to a fake countdown: ${state.cycleClockText}`);
+  assert(state.currentCycleText.includes('Latest historical record: cycle 1023'), `my tezos historical rewards: explicit historical label missing: ${state.currentCycleText}`);
+  assert(!/baker efficiency/i.test(state.rewardsText), `my tezos historical rewards: inactive non-baker received a baker efficiency score: ${state.rewardsText}`);
+  assert(state.lifetimeText.includes('0.7500 XTZ'), `my tezos historical rewards: lifetime history was lost: ${state.lifetimeText}`);
+  assert(state.latestRewardCycle === 1023 && state.hasRewardRole === false, `my tezos historical rewards: My Tezos role/cycle contract is dishonest: ${JSON.stringify(state)}`);
+  assert(!/earning\s+~|% APY/i.test(state.statsText), `my tezos historical rewards: inactive wallet was presented as actively earning: ${state.statsText}`);
+
+  log('ok - my tezos historical rewards smoke');
 }
 
 async function smokeMyTezosAddressSwitch(browser, baseUrl) {
@@ -5017,7 +5129,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
   });
-  await installFeatureMocks(context, { blockHeadLagMs: 90000, networkHealthBlocksDelayMs: 500 });
+  await installFeatureMocks(context, { blockHeadLagMs: 90000, networkHealthBlocksDelayMs: 500, nakamotoStale: true });
   await context.addInitScript((myBakerAddress) => {
     window.__tezosSystemsIntervals = [];
     window.__healthPrintState = { html: '', focused: false, printed: false };
@@ -5134,6 +5246,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
 
   const healthState = await page.evaluate(() => {
     const modal = document.querySelector('#network-health-modal');
+    const modalContent = modal?.querySelector('.health-content');
     const healthGrid = modal?.querySelector('.health-dashboard-grid');
     const consensusPanel = modal?.querySelector('#health-teztale-consensus');
     const nakamotoPanel = modal?.querySelector('#health-nakamoto-coefficient');
@@ -5199,6 +5312,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     };
     return {
       title: modal?.querySelector('.chamber-title')?.textContent || '',
+      modalRole: modalContent?.getAttribute('role') || '',
+      modalAriaModal: modalContent?.getAttribute('aria-modal') || '',
+      modalAriaLabel: modalContent?.getAttribute('aria-label') || '',
+      modalAriaHidden: modal?.getAttribute('aria-hidden') || '',
+      focusedClose: document.activeElement === modal?.querySelector('.chamber-close'),
       badge: modal?.querySelector('#health-header-badge')?.textContent || '',
       live: modal?.dataset.healthLive || '',
       refreshState: modal?.querySelector('#health-refresh-state')?.textContent || '',
@@ -5298,6 +5416,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       cardRole: card?.getAttribute('role') || '',
       cardTabIndex: card?.getAttribute('tabindex') || '',
       cardCue: Boolean(card?.querySelector('.chamber-expand-cue')),
+      cardCueTag: card?.querySelector('.chamber-expand-cue')?.tagName || '',
+      cardCueLabel: card?.querySelector('.chamber-expand-cue')?.getAttribute('aria-label') || '',
       cardWide: card?.classList.contains('chamber-entry-wide') || false,
       cardCopyHash: card?.querySelector('.card-copy-link')?.dataset.copyHash || '',
       cardUpdatedLabel: card?.dataset.updatedLabel || '',
@@ -5367,6 +5487,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   });
 
   assert(/Network Health Chamber/.test(healthState.title), `network health chamber: title mismatch: ${healthState.title}`);
+  assert(healthState.modalRole === 'dialog' && healthState.modalAriaModal === 'true' && /Network Health Chamber/.test(healthState.modalAriaLabel), `network health chamber: dialog semantics missing: ${JSON.stringify(healthState)}`);
+  assert(healthState.modalAriaHidden === 'false' && healthState.focusedClose, `network health chamber: open dialog state/focus mismatch: hidden=${healthState.modalAriaHidden} focusedClose=${healthState.focusedClose}`);
   assert(/Healthy|Watch/.test(healthState.badge), `network health chamber: badge mismatch: ${healthState.badge}`);
   assert(healthState.live === 'true', `network health chamber: live refresh should be active, saw ${healthState.live}`);
   assert(/auto-refresh 6s/.test(healthState.refreshState), `network health chamber: refresh label mismatch: ${healthState.refreshState}`);
@@ -5407,6 +5529,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.teztaleNomadicHref.includes('gitlab.com/nomadic-labs/teztale'), `network health chamber: Teztale source credit link missing: ${healthState.teztaleNomadicHref}`);
   assert(healthState.nakamotoImmediatelyBeforeTeztale, 'network health chamber: Nakamoto Coefficients should sit directly above the Teztale Consensus Lens');
   assert(healthState.nakamoto33 === '1' && healthState.nakamoto66 === '2', `network health chamber: live Nakamoto thresholds mismatch: ${healthState.nakamoto33}/${healthState.nakamoto66}`);
+  assert(/cached current-cycle snapshot/i.test(healthState.nakamotoText) && /2026-07-10 12:34 UTC/.test(healthState.nakamotoText), `network health chamber: stale Nakamoto provenance missing: ${healthState.nakamotoText}`);
   assert(/Halt \/ fault boundary/.test(healthState.nakamotoText) && /Unilateral quorum control/.test(healthState.nakamotoText), `network health chamber: Nakamoto threshold labels missing: ${healthState.nakamotoText}`);
   assert(/Chainspect/.test(healthState.nakamotoText) && /Edinburgh EDI/.test(healthState.nakamotoText) && /CoinClear/.test(healthState.nakamotoText), `network health chamber: external Nakamoto sources missing: ${healthState.nakamotoText}`);
   assert(/33% claimed/.test(healthState.nakamotoText) && /50%/.test(healthState.nakamotoText) && /threshold unstated/.test(healthState.nakamotoText), `network health chamber: external threshold context missing: ${healthState.nakamotoText}`);
@@ -5431,12 +5554,12 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.myBakerMetrics[0] === '7', `network health chamber: My Tezos attestation misses mismatch: ${healthState.myBakerMetrics.join(', ')}`);
   assert(healthState.myBakerMetrics[1] === '1', `network health chamber: My Tezos block misses mismatch: ${healthState.myBakerMetrics.join(', ')}`);
   assert(!/Not in sample/.test(healthState.myBakerMetrics[2] || ''), `network health chamber: My Tezos latest block missing: ${healthState.myBakerMetrics.join(', ')}`);
-  assert(healthState.topProofInHeader && healthState.topProofHistoryInHeader, 'network health chamber: continuity stats and uptime badge should live in the top header');
+  assert(healthState.topProofInHeader && healthState.topProofHistoryInHeader, 'network health chamber: continuity stats and mainnet-age counter should live in the top header');
   assert(healthState.topProofTag === 'DIV' && healthState.topProofHistoryTag === 'BUTTON' && healthState.topProofHistoryType === 'button', `network health chamber: continuity surface should use a stat container with a button uptime launcher, saw ${healthState.topProofTag}/${healthState.topProofHistoryTag}/${healthState.topProofHistoryType}`);
   assert(healthState.topProofHistoryAriaControls === 'protocol-history-chamber-modal' && healthState.topProofHistoryWired === '1', `network health chamber: continuity proof Protocol Anthology launcher missing: ${healthState.topProofHistoryAriaControls}/${healthState.topProofHistoryWired}`);
   assert(healthState.topProofMilestoneAfterHistory && healthState.topProofMilestoneGap >= 0 && healthState.topProofMilestoneGap <= 24, `network health chamber: milestone marker must sit directly right of the uptime/year counter: ${JSON.stringify({ after: healthState.topProofMilestoneAfterHistory, gap: healthState.topProofMilestoneGap })}`);
   assert(['total-bakers', 'finality', 'staking-ratio', 'issuance-rate'].every((key) => healthState.topProofPillCards.includes(key)) && healthState.topProofPillsWired, `network health chamber: continuity proof all-time pills missing or unwired: ${healthState.topProofPillCards.join(',')}/${healthState.topProofPillsWired}`);
-  assert(/uptime/i.test(healthState.topProofHistoryText) && /since 2018/i.test(healthState.topProofHistoryText) && !/mainnet uptime|zero forks|zero outages/i.test(healthState.topProofHistoryText), `network health chamber: uptime badge should include the uptime identity/counter only: ${healthState.topProofHistoryText}`);
+  assert(/mainnet age/i.test(healthState.topProofHistoryText) && /since 2018/i.test(healthState.topProofHistoryText) && !/100% uptime|zero forks|zero outages/i.test(healthState.topProofHistoryText), `network health chamber: mainnet-age counter should identify its elapsed-time meaning: ${healthState.topProofHistoryText}`);
   assert(healthState.topProofPairUnderTitle && healthState.topProofPairLeftAligned, `network health chamber: milestone/year pair should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofPairUnderTitle, aligned: healthState.topProofPairLeftAligned })}`);
   assert(healthState.topProofBadgeHeight >= healthState.topProofMilestoneHeight * 1.06, `network health chamber: uptime proof should remain visibly larger than its milestone marker: ${healthState.topProofBadgeHeight}/${healthState.topProofMilestoneHeight}`);
   assert(healthState.topProofRuntimeVisualFontSize >= healthState.topProofMilestoneFontSize * 1.08, `network health chamber: uptime numerals should remain visibly larger than milestone text: ${healthState.topProofRuntimeVisualFontSize}/${healthState.topProofMilestoneFontSize}`);
@@ -5459,9 +5582,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(!healthState.cardHasProofStrip, 'network health chamber: entry card should stay a clean health overview, not carry the continuity proof');
   assert(healthState.ageLabelCount >= 3, `network health chamber: age labels should be live-tickable, saw ${healthState.ageLabelCount}`);
   assert(healthState.cardWired === '1', `network health chamber: card wiring missing: ${healthState.cardWired}`);
-  assert(healthState.cardRole === 'button', `network health chamber: card role mismatch: ${healthState.cardRole}`);
-  assert(healthState.cardTabIndex === '0', `network health chamber: card keyboard focus mismatch: ${healthState.cardTabIndex}`);
-  assert(healthState.cardCue, 'network health chamber: card expand cue missing');
+  assert(healthState.cardRole === 'article', `network health chamber: card role mismatch: ${healthState.cardRole}`);
+  assert(healthState.cardTabIndex === '', `network health chamber: article should not be keyboard focusable: ${healthState.cardTabIndex}`);
+  assert(healthState.cardCue && healthState.cardCueTag === 'BUTTON' && /Open Network Health Chamber/.test(healthState.cardCueLabel), 'network health chamber: explicit Open button missing');
   assert(healthState.cardCopyHash === '#health', `network health chamber: card direct link mismatch: ${healthState.cardCopyHash}`);
   assert(/^as of \d{2}:\d{2} UTC$/.test(healthState.cardUpdatedLabel), `network health chamber: freshness stamp mismatch: ${healthState.cardUpdatedLabel}`);
   assert(healthState.cardFreshnessState === 'fresh' && !healthState.cardStale, `network health chamber: block-age watch state should not mark fresh fetch stale: ${healthState.cardFreshnessState}/${healthState.cardStale}`);
@@ -5481,7 +5604,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(/Octezv25\.0/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing baker Octez version: ${healthState.blockTickerText}`);
   assert(/Attested[\d,]+\/7,000/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing attestation power: ${healthState.blockTickerText}`);
   assert(!healthState.blockTickerHasUptimeProof, 'network health chamber: uptime proof should not live inside the live block ticker');
-  assert(/zero forks/i.test(healthState.networkHealthProofText) && /zero outages/i.test(healthState.networkHealthProofText), `network health chamber: health proof missing zero-fork/zero-outage copy: ${healthState.networkHealthProofText}`);
+  assert(/mainnet continuity/i.test(healthState.networkHealthProofText) && /chain-age measure/i.test(healthState.networkHealthProofText) && /not an availability percentage/i.test(healthState.networkHealthProofText), `network health chamber: continuity panel must distinguish chain age from availability: ${healthState.networkHealthProofText}`);
   assert(/\d+y\s+\d+d\s+\d{2}h\s+\d{2}m\s+\d{2}s/.test(healthState.networkHealthProofCounter), `network health chamber: uptime counter missing fixed-width runtime: ${healthState.networkHealthProofCounter}`);
   assert(/^\d+$/.test(healthState.networkHealthProofBakers) && Number(healthState.networkHealthProofBakers) >= 1, `network health chamber: health proof baker count mismatch: ${healthState.networkHealthProofBakers}`);
   assert(/\d+s/.test(healthState.networkHealthProofFinality), `network health chamber: health proof finality missing: ${healthState.networkHealthProofFinality}`);
@@ -5689,10 +5812,26 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.locator('#network-health-modal.active .health-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#network-health-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 5000 });
-  await page.locator('[data-stat="network-health"]').click();
+  const healthOpenButton = page.locator('[data-stat="network-health"] .chamber-expand-cue');
+  await healthOpenButton.focus();
+  await healthOpenButton.click();
   await page.locator('#network-health-modal.active .health-content').waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('#network-health-modal.active .chamber-close').click();
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#network-health-modal.active .chamber-close'), null, { timeout: 5000 });
+  await page.evaluate(() => {
+    const overlay = document.querySelector('#network-health-modal.active');
+    const focusable = [...(overlay?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])') || [])]
+      .filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
+    window.__healthLastFocusable = focusable.at(-1) || null;
+    window.__healthLastFocusable?.focus();
+  });
+  await page.keyboard.press('Tab');
+  assert(await page.evaluate(() => document.activeElement === document.querySelector('#network-health-modal .chamber-close')), 'network health chamber: Tab did not wrap from the last control to the close button');
+  await page.keyboard.press('Shift+Tab');
+  assert(await page.evaluate(() => document.activeElement === window.__healthLastFocusable), 'network health chamber: Shift+Tab did not wrap from the close button to the last control');
+  await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement === document.querySelector('[data-stat="network-health"] .chamber-expand-cue'), null, { timeout: 5000 });
+  assert(await page.evaluate(() => document.querySelector('#network-health-modal')?.getAttribute('aria-hidden') === 'true'), 'network health chamber: closed dialog did not return to aria-hidden=true');
 
   await context.close();
   assert(issues.length === 0, `network health chamber browser issues:\n${issues.join('\n')}`);
@@ -6466,6 +6605,15 @@ async function smokeMaxisChamber(browser, baseUrl) {
   });
   assert(entryState.height > 0 && entryState.height <= 400 && entryState.overflow <= 1 && entryState.bodyOverflow !== 'hidden', `tezos maxis chamber: compact mobile entry/scroll restore failed ${JSON.stringify(entryState)}`);
 
+  const maxisOpenButton = page.locator('#maxis-entry-card .chamber-expand-cue');
+  await maxisOpenButton.focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#maxis-modal')?.classList.contains('active'));
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#maxis-entry-card .chamber-expand-cue'));
+
   await page.evaluate(() => window.openMaxisChamber());
   await page.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('[data-maxis-view="season"]').click();
@@ -6983,7 +7131,15 @@ async function smokeTezlinkChamber(browser, baseUrl) {
       cardDescription: card?.querySelector('#tezlink-entry-description')?.textContent?.trim() || '',
       cardMini: card?.querySelector('#tezlink-entry-mini')?.textContent?.trim() || '',
       cardTape: card?.querySelector('#tezlink-entry-tape')?.textContent || '',
+      cardRole: card?.getAttribute('role') || '',
+      cardTabIndex: card?.getAttribute('tabindex'),
+      openTag: card?.querySelector('.chamber-expand-cue')?.tagName || '',
+      openLabel: card?.querySelector('.chamber-expand-cue')?.getAttribute('aria-label') || '',
       title: modal?.querySelector('.chamber-title')?.textContent || '',
+      dialogRole: modal?.querySelector('.tezlink-content')?.getAttribute('role') || '',
+      dialogModal: modal?.querySelector('.tezlink-content')?.getAttribute('aria-modal') || '',
+      dialogLabelledBy: modal?.querySelector('.tezlink-content')?.getAttribute('aria-labelledby') || '',
+      focusInsideDialog: Boolean(modal?.querySelector('.tezlink-content')?.contains(document.activeElement)),
       badge: modal?.querySelector('.chamber-badge')?.textContent || '',
       proposalInfo: modal?.querySelector('.chamber-proposal-info')?.textContent || '',
       facts: modal?.querySelector('.tezlink-explainer')?.textContent || '',
@@ -7012,7 +7168,10 @@ async function smokeTezlinkChamber(browser, baseUrl) {
   assert(!/\bTVL$/.test(tezlinkState.cardDescription), `tezlink chamber: card description should not leave TVL as a trailing orphan: ${tezlinkState.cardDescription}`);
   assert(/Head|live L2 feed/i.test(tezlinkState.cardMini), `tezlink chamber: card mini mismatch: ${tezlinkState.cardMini}`);
   assert(/credit|swap/.test(tezlinkState.cardTape), `tezlink chamber: card transaction tape missing: ${tezlinkState.cardTape}`);
+  assert(tezlinkState.cardRole === 'article' && tezlinkState.cardTabIndex === null, `tezlink chamber: entry card must be a non-focusable article: ${JSON.stringify(tezlinkState)}`);
+  assert(tezlinkState.openTag === 'BUTTON' && /Open Tezos X Chamber/.test(tezlinkState.openLabel), `tezlink chamber: explicit Open button missing: ${JSON.stringify(tezlinkState)}`);
   assert(/Tezos X Chamber/.test(tezlinkState.title), `tezlink chamber: title mismatch: ${tezlinkState.title}`);
+  assert(tezlinkState.dialogRole === 'dialog' && tezlinkState.dialogModal === 'true' && tezlinkState.dialogLabelledBy === 'tezlink-title' && tezlinkState.focusInsideDialog, `tezlink chamber: modal semantics or initial focus missing: ${JSON.stringify(tezlinkState)}`);
   assert(/Live L2/.test(tezlinkState.badge), `tezlink chamber: badge mismatch: ${tezlinkState.badge}`);
   assert(/\$18\.1M/.test(tezlinkState.proposalInfo), `tezlink chamber: header TVL missing: ${tezlinkState.proposalInfo}`);
   assert(/Atomic L2|atomic L2/i.test(tezlinkState.facts), `tezlink chamber: explainer missing atomic L2 context: ${tezlinkState.facts}`);
@@ -7031,6 +7190,23 @@ async function smokeTezlinkChamber(browser, baseUrl) {
 
   await page.locator('#tezlink-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#tezlink-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
+  const openButton = page.locator('#tezlink-entry-card .chamber-expand-cue');
+  await openButton.focus();
+  await openButton.click();
+  await page.locator('#tezlink-modal.active .tezlink-content').waitFor({ state: 'visible', timeout: 10000 });
+  await page.evaluate(() => {
+    const dialog = document.querySelector('#tezlink-modal.active .tezlink-content');
+    const focusable = Array.from(dialog?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])') || [])
+      .filter((element) => element.getClientRects().length > 0);
+    focusable.at(-1)?.focus();
+  });
+  await page.keyboard.press('Tab');
+  assert(await page.evaluate(() => document.activeElement === document.querySelector('#tezlink-modal.active .chamber-close')), 'tezlink chamber: Tab did not wrap from the last control to the close button');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#tezlink-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#tezlink-entry-card .chamber-expand-cue'), null, { timeout: 5000 });
+  assert(await page.evaluate(() => document.activeElement === document.querySelector('#tezlink-entry-card .chamber-expand-cue')), 'tezlink chamber: Escape did not restore focus to the Open button');
 
   await context.close();
   assert(issues.length === 0, `tezlink chamber browser issues:\n${issues.join('\n')}`);
@@ -7490,6 +7666,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     tz4TileRole: document.querySelector('[data-stat="tz4-adoption"]')?.getAttribute('role') || '',
     tz4TileTabIndex: document.querySelector('[data-stat="tz4-adoption"]')?.getAttribute('tabindex') || '',
     tz4TileCue: Boolean(document.querySelector('[data-stat="tz4-adoption"] .chamber-expand-cue')),
+    tz4TileCueTag: document.querySelector('[data-stat="tz4-adoption"] .chamber-expand-cue')?.tagName || '',
     tz4SparklineLast: (() => {
       const canvas = document.getElementById('tz4-sparkline');
       const chart = canvas ? window.Chart?.getChart(canvas) : null;
@@ -7550,14 +7727,14 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(dashboardState.tz4TileLatest === '1', `governance testing period: tz4 tile latest count mismatch: ${dashboardState.tz4TileLatest}`);
   assert(/Latest switches/.test(dashboardState.tz4TilePreview) && /QA Baker/.test(dashboardState.tz4TilePreview) && /Pending/.test(dashboardState.tz4TilePreview) && /Pending Baker/.test(dashboardState.tz4TilePreview), `governance testing period: tz4 tile preview mismatch: ${dashboardState.tz4TilePreview}`);
   assert(dashboardState.tz4TileWired === '1', `governance testing period: tz4 tile wiring missing: ${dashboardState.tz4TileWired}`);
-  assert(dashboardState.tz4TileRole === 'button', `governance testing period: tz4 tile role mismatch: ${dashboardState.tz4TileRole}`);
-  assert(dashboardState.tz4TileTabIndex === '0', `governance testing period: tz4 tile keyboard focus mismatch: ${dashboardState.tz4TileTabIndex}`);
-  assert(dashboardState.tz4TileCue, 'governance testing period: tz4 tile expand cue missing');
+  assert(dashboardState.tz4TileRole === 'article', `governance testing period: tz4 tile role mismatch: ${dashboardState.tz4TileRole}`);
+  assert(dashboardState.tz4TileTabIndex === '', `governance testing period: tz4 tile article should not be keyboard focusable: ${dashboardState.tz4TileTabIndex}`);
+  assert(dashboardState.tz4TileCue && dashboardState.tz4TileCueTag === 'BUTTON', 'governance testing period: tz4 tile Open button missing');
   assert(Math.abs(dashboardState.tz4SparklineLast - (100 / 3)) < 0.01, `governance testing period: tz4 sparkline latest value must match live tile, saw ${dashboardState.tz4SparklineLast}`);
   assert(!dashboardState.extraTz4EntryCard, 'governance testing period: tz4 should use the existing Adoption tile, not a separate entry card');
   assert(dashboardState.intervalDelays.includes(60000), `governance testing period: LB entry 60s refresh timer was not registered: ${dashboardState.intervalDelays.join(', ')}`);
 
-  await page.locator('#etherlink-governance-entry-card .card-front').click();
+  await page.locator('#etherlink-governance-entry-card .chamber-expand-cue').click();
   await page.locator('#etherlink-governance-modal.active .etherlink-gov-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction((proposal) => document.querySelector('#etherlink-governance-modal .etherlink-gov-proposal-hash')?.textContent?.includes(proposal), ETHERLINK_FAST_PROPOSAL, { timeout: 10000 });
   const etherlinkState = await page.evaluate(() => {
@@ -7658,7 +7835,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   await page.locator('#etherlink-governance-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#etherlink-governance-modal')?.classList.contains('active'), null, { timeout: 5000 });
 
-  await page.locator('[data-stat="tz4-adoption"] .card-front').click();
+  await page.locator('[data-stat="tz4-adoption"] .chamber-expand-cue').click();
   await page.locator('#tz4-adoption-modal.active .tz4-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#tz4-adoption-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#tz4-adoption-modal')?.classList.contains('active'), null, { timeout: 5000 });
@@ -8179,7 +8356,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   }
 
   const tourSteps = [
-    { selector: '#top-continuity-history', label: 'uptime proof step', snippets: ['Start with live proof', 'uptime badge', 'Protocol Anthology'] },
+    { selector: '#top-continuity-history', label: 'mainnet history step', snippets: ['Start with mainnet history', 'chain-age counter', 'Protocol Anthology'] },
     { selector: '#block-ticker-button', label: 'block ticker step', snippets: ['Read the latest head', 'Network Health Chamber'] },
     { selector: '#hero-search-form', label: 'command bar step', snippets: ['Find anything', 'Press /', 'Chamber'] },
     { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Chambers explain the chain', 'Protocol Anthology'] },
@@ -8419,6 +8596,50 @@ async function smokeUxChanges(browser, baseUrl) {
   await page.locator('#section-picker-modal .share-modal-close').click();
 
   await installFeatureMocks(context);
+  const cleanChambers = [
+    { hash: 'pulse', content: '#network-pulse-modal.active .network-pulse-content', title: '.network-pulse-header .chamber-title' },
+    { hash: 'health', content: '#network-health-modal.active .health-content', title: '.health-header .chamber-title' },
+    { hash: 'domains', content: '#tezos-domains-modal.active .tezos-domains-content', title: '.tezos-domains-header .chamber-title' },
+    { hash: 'ledger-flow', content: '#ledger-flow-modal.active .ledger-flow-content', title: '.ledger-flow-header .chamber-title' }
+  ];
+  for (const chamber of cleanChambers) {
+    await page.goto(`${baseUrl}/?theme=clean#${chamber.hash}`, { waitUntil: 'domcontentloaded' });
+    await page.locator(chamber.content).waitFor({ state: 'visible', timeout: 20000 });
+    await page.locator(`${chamber.content} ${chamber.title}`).first().waitFor({ state: 'visible', timeout: 10000 });
+    await page.waitForFunction((selector) => Boolean(getComputedStyle(document.querySelector(selector)).getPropertyValue('--chamber-surface-bg').trim()), chamber.content, { timeout: 5000 });
+    const contrast = await page.evaluate(({ content, title }) => {
+      const parse = (value) => {
+        const normalized = String(value || '').trim();
+        if (/^#[0-9a-f]{6}$/i.test(normalized)) {
+          return [1, 3, 5].map((offset) => Number.parseInt(normalized.slice(offset, offset + 2), 16));
+        }
+        const parts = normalized.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
+        return parts.length === 3 ? parts : null;
+      };
+      const luminance = (rgb) => {
+        const channels = rgb.map((part) => {
+          const value = part / 255;
+          return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      };
+      const panel = document.querySelector(content);
+      const heading = panel?.querySelector(title);
+      const foreground = parse(heading ? getComputedStyle(heading).color : '');
+      const backgroundToken = panel ? getComputedStyle(panel).getPropertyValue('--chamber-surface-bg').trim() : '';
+      const background = parse(backgroundToken);
+      if (!foreground || !background) return { ratio: 0, foreground, backgroundToken };
+      const a = luminance(foreground);
+      const b = luminance(background);
+      return {
+        ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+        foreground,
+        backgroundToken
+      };
+    }, chamber);
+    assert(contrast.ratio >= 4.5, `ux changes: Clean ${chamber.hash} title contrast must meet AA: ${JSON.stringify(contrast)}`);
+  }
+
   await page.goto(`${baseUrl}/?hen=1&theme=clean`, { waitUntil: 'domcontentloaded' });
   await page.locator('#hen-overlay.active').waitFor({ state: 'visible', timeout: 15000 });
 
@@ -8578,28 +8799,48 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await clickFeatureLauncher(page, '#leaderboard-toggle');
   await page.locator('#leaderboard-section.visible').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#leaderboard-results .leaderboard-table').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#leaderboard-results .baker-fit-finder').waitFor({ state: 'visible', timeout: 10000 });
   await expectCount(page, '#leaderboard-results .lb-row', 2, 'feature workflows leaderboard rows');
-  await page.locator('#leaderboard-results .lb-th[data-col="name"]').click();
+  await expectCount(page, '#leaderboard-results .lb-sort-btn', 6, 'feature workflows leaderboard sort buttons');
+  await page.locator('#leaderboard-results .lb-sort-btn[data-col="name"]').focus();
+  await page.keyboard.press('Enter');
   await expectClassContains(page.locator('#leaderboard-results .lb-th[data-col="name"]'), 'active', 'feature workflows leaderboard sort');
-  await expectCount(page, '#leaderboard-results .lb-share-btn', 2, 'feature workflows leaderboard share buttons');
-  await page.locator('#leaderboard-results .lb-share-btn').first().click();
-  await expectShareModal(page, 'feature workflows leaderboard share', issues);
+  assert(await page.locator('#leaderboard-results .lb-th[data-col="name"]').getAttribute('aria-sort') === 'ascending', 'feature workflows leaderboard name column should expose ascending aria-sort');
+  assert(await page.locator('#leaderboard-results .lb-sort-btn[data-col="name"]').evaluate((button) => document.activeElement === button), 'feature workflows leaderboard sort should retain keyboard focus after rerender');
+  await expectCount(page, '#leaderboard-results .lb-share-btn', 0, 'feature workflows leaderboard per-row share buttons');
+  await expectCount(page, '#leaderboard-results .lb-baker-open', 2, 'feature workflows leaderboard baker detail buttons');
+  await page.locator('#leaderboard-results .lb-baker-open').first().click();
+  await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#drawer-close').click();
   log('ok - feature workflow: leaderboard');
 
   await clickFeatureLauncher(page, '#calc-toggle');
   await page.locator('#calculator-section.visible').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#calc-amount').fill('10000');
+  await page.waitForFunction(() => document.querySelector('#calc-yearly-xtz')?.textContent?.trim() === 'Add assumption', null, { timeout: 8000 });
+  await page.locator('#calc-delegate-payout-assumption').fill('80');
   await page.waitForFunction(() => {
     const text = document.querySelector('#calc-yearly-xtz')?.textContent?.trim() || '';
-    return text && !['-', '—'].includes(text);
+    return /ꜩ/.test(text) && !/Add assumption/.test(text);
   }, null, { timeout: 8000 });
   await page.locator('#calc-mode-toggle [data-mode="stake"]').click();
   await expectClassContains(page.locator('#calc-mode-toggle [data-mode="stake"]'), 'calc-toggle-active', 'feature workflows stake mode');
+  await page.waitForFunction(() => document.querySelector('#calc-yearly-xtz')?.textContent?.trim() === 'Add assumption', null, { timeout: 8000 });
+  await page.locator('#calc-stake-edge-assumption').fill('10');
+  await page.waitForFunction(() => /ꜩ/.test(document.querySelector('#calc-yearly-xtz')?.textContent || ''), null, { timeout: 8000 });
   await page.locator('#calc-mode-toggle [data-mode="baker"]').click();
   await page.locator('#calc-baker-fields').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#calc-ext-staked').fill('50000');
   await page.locator('#calc-ext-delegated').fill('250000');
-  await page.waitForFunction(() => Boolean(document.querySelector('#calc-baker-breakdown')), null, { timeout: 8000 });
+  await page.locator('#calc-staking-fee').fill('0');
+  await page.locator('#calc-deleg-payout').fill('0');
+  await page.waitForFunction(() => {
+    const text = document.querySelector('#calc-baker-breakdown')?.textContent || '';
+    return text.includes('External-staker edge (0% kept)') && text.includes('Delegation (keep 100% of rewards)');
+  }, null, { timeout: 8000 });
+  await page.waitForTimeout(750);
+  const bakerBreakdownText = await page.locator('#calc-baker-breakdown').innerText();
+  assert(bakerBreakdownText.includes('External-staker edge (0% kept)') && bakerBreakdownText.includes('Delegation (keep 100% of rewards)'), `feature workflows calculator should preserve valid 0% assumptions: ${bakerBreakdownText}`);
   log('ok - feature workflow: calculator modes');
 
   await clickFeatureLauncher(page, '#price-intel-toggle');
@@ -8699,7 +8940,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   log('ok - feature workflow: card history');
 
   await page.locator('#protocol-history-entry-card').scrollIntoViewIfNeeded();
-  await page.locator('#protocol-history-entry-card').click();
+  await page.locator('#protocol-history-entry-card .chamber-expand-cue').click();
   await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item[data-protocol="Quebec"]').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.timeline-share-btn').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.timeline-share-btn').click();
@@ -8990,6 +9231,15 @@ async function smokeThemeSelection(browser, baseUrl) {
     .filter(Boolean));
   assert(registeredThemes.length === 14 && new Set(registeredThemes).size === 14, `theme picker should expose 14 unique themes: ${registeredThemes.join(', ')}`);
   assert(registeredThemes.every((theme) => fontExpectations[theme]), `theme font expectations missing registry entries: ${registeredThemes.filter((theme) => !fontExpectations[theme]).join(', ')}`);
+  const pickerSemantics = await page.evaluate(() => ({
+    groupRole: document.querySelector('#theme-picker-dropdown')?.getAttribute('role') || '',
+    radioCount: document.querySelectorAll('#theme-picker-dropdown input.theme-radio[type="radio"]').length,
+    checked: Array.from(document.querySelectorAll('#theme-picker-dropdown input.theme-radio:checked')).map((input) => input.value),
+    focused: document.activeElement?.classList.contains('theme-radio') || false
+  }));
+  assert(pickerSemantics.groupRole === 'radiogroup' && pickerSemantics.radioCount === 14 && pickerSemantics.checked.join(',') === 'matrix' && pickerSemantics.focused, `theme picker native radio semantics mismatch: ${JSON.stringify(pickerSemantics)}`);
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => document.body.dataset.theme === 'hen' && document.querySelector('#theme-picker-dropdown input.theme-radio[value="hen"]')?.checked, null, { timeout: 5000 });
   await page.keyboard.press('Escape');
 
   for (const theme of ['clean', 'dark', 'bubblegum', 'warzone']) {
@@ -9116,6 +9366,35 @@ async function smokeThemeSelection(browser, baseUrl) {
   }
 
   await mobileContext.close();
+
+  const reducedMotionContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(reducedMotionContext);
+  await reducedMotionContext.addInitScript(() => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const reducedMotionPage = await reducedMotionContext.newPage();
+  for (const theme of ['aurora', 'matrix', 'void']) {
+    const reducedResponse = await reducedMotionPage.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });
+    assert(reducedResponse?.ok(), `theme ${theme} reduced motion: dashboard failed with HTTP ${reducedResponse?.status()}`);
+    await reducedMotionPage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+    const reducedState = await reducedMotionPage.evaluate(() => ({
+      beforeAnimation: getComputedStyle(document.body, '::before').animationName,
+      afterAnimation: getComputedStyle(document.body, '::after').animationName,
+      matrixCanvas: Boolean(document.getElementById('matrix-canvas')),
+      backgroundCanvas: Boolean(document.getElementById('bg-effects-canvas'))
+    }));
+    assert(reducedState.beforeAnimation === 'none' && reducedState.afterAnimation === 'none'
+      && !reducedState.matrixCanvas && !reducedState.backgroundCanvas,
+    `theme ${theme}: reduced motion must disable pseudo-element and canvas animation ${JSON.stringify(reducedState)}`);
+  }
+  await reducedMotionContext.close();
+
   assert(issues.length === 0, `theme selection browser issues:\n${issues.join('\n')}`);
   log('ok - all-theme typography and selection smoke');
 }
@@ -9193,6 +9472,7 @@ async function smokeHenMode(browser, baseUrl) {
   const response = await page.goto(`${baseUrl}/?hen=1`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `HEN mode: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#hen-overlay.active').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => location.pathname === '/hen/' && !new URLSearchParams(location.search).has('hen'), null, { timeout: 5000 });
   await page.waitForFunction(() => {
     const labels = Array.from(document.querySelectorAll('.hen-card-source')).map((el) => el.textContent?.trim());
     return labels.includes('TEIA') && labels.includes('OBJKT');
@@ -9525,6 +9805,7 @@ async function crawlRoutes(browser, baseUrl) {
     viewport: { width: 1280, height: 900 },
     serviceWorkers: 'block'
   });
+  await installFeatureMocks(context);
   const page = await context.newPage();
   attachIssueCollectors(page, 'route crawl', issues);
 
@@ -9533,6 +9814,10 @@ async function crawlRoutes(browser, baseUrl) {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
     assert(response?.status() !== 404, `route returned 404: ${route}`);
     assert((response?.status() || 0) < 500, `route returned ${response?.status()}: ${route}`);
+    if (route === '/hen/') {
+      await page.locator('#hen-overlay.active').waitFor({ state: 'visible', timeout: 15000 });
+      assert(await page.evaluate(() => location.pathname === '/hen/' && !new URLSearchParams(location.search).has('hen')), '/hen/ must remain the canonical live-feed URL');
+    }
     const bodyText = (await page.locator('body').innerText({ timeout: 5000 })).trim();
     assert(bodyText.length > 0, `route rendered empty body: ${route}`);
     log(`ok - route ${route} (${response?.status()})`);
@@ -9766,6 +10051,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-baker-capacity', description: 'My Tezos connected baker drawer shows signed over-delegation capacity', run: () => smokeMyTezosBakerCapacity(browser, baseUrl) },
     { name: 'my-tezos-staker-rewards', description: 'My Tezos connected drawer uses personal staker reward rows for regular and mostly-staked accounts', run: () => smokeMyTezosStakerRewards(browser, baseUrl) },
     { name: 'my-tezos-delegator-rewards', description: 'My Tezos connected drawer uses delegator estimate rows for zero-stake delegated accounts', run: () => smokeMyTezosDelegatorRewards(browser, baseUrl) },
+    { name: 'my-tezos-historical-rewards', description: 'My Tezos keeps historical rewards out of the Current Cycle value and shows an inactive reward role honestly', run: () => smokeMyTezosHistoricalRewards(browser, baseUrl) },
     { name: 'my-tezos-address-switch', description: 'My Tezos connected drawer saves a newly typed address over a stale saved baker', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
     { name: 'my-tezos-subdomain-input', description: 'My Tezos connected drawer accepts Tezos Domains subdomains and saves their resolved address', run: () => smokeMyTezosSubdomainInput(browser, baseUrl) },
     { name: 'my-tezos-proposal-attribution', description: 'My Tezos Story distinguishes a delegator from their baker when accepted proposals are shown', run: () => smokeMyTezosProposalAttribution(browser, baseUrl) },

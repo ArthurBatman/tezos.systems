@@ -9,7 +9,7 @@
 import '../core/tzkt-throttle.js';
 import { CHAIN_COMPARISON, API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
-import { getTzktTotalStaked } from '../core/api.js';
+import { fetchWithDeadline, getTzktTotalStaked } from '../core/api.js';
 import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades } from '../core/protocol-count.js';
 
 const LB_EMA_DISABLE_THRESHOLD = 1_000_000_000;
@@ -17,10 +17,17 @@ const LB_MINUTES_PER_YEAR = 365.25 * 24 * 60;
 
 async function fetchUpgradeCount() {
     try {
-        const resp = await fetch(API_URLS.tzkt + '/protocols');
+        const resp = await fetchWithDeadline(API_URLS.tzkt + '/protocols', { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`Protocol history HTTP ${resp.status}`);
         const protocols = await resp.json();
         return countProtocolUpgrades(protocols);
     } catch { return CANONICAL_UPGRADE_COUNT; }
+}
+
+async function fetchRequired(url, type = 'json') {
+  const response = await fetchWithDeadline(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Comparison source HTTP ${response.status}`);
+  return type === 'text' ? response.text() : response.json();
 }
 
 function parseMutez(value) {
@@ -28,61 +35,97 @@ function parseMutez(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function calculateLbIssuance(constants, supplyMutez, lbDisabled) {
-  if (lbDisabled || !constants || !supplyMutez) return 0;
+function calculateLbIssuance(constants, supplyMutez, lbDisabled, lbStateKnown) {
+  if (!lbStateKnown) return null;
+  if (lbDisabled) return 0;
+  if (!constants || !supplyMutez) return null;
   var subsidyMutez = parseMutez(constants.liquidity_baking_subsidy);
   var supply = supplyMutez / 1e6;
-  if (!subsidyMutez || !supply) return 0;
+  if (!subsidyMutez || !supply) return null;
   return (((subsidyMutez / 1e6) * LB_MINUTES_PER_YEAR) / supply) * 100;
 }
 
 const METRICS = [
   { key: 'blockTime',       label: 'Block Time',        icon: '⏱️', lower: true },
   { key: 'finality',        label: 'Finality',          icon: '✅', lower: true },
-  { key: 'stakingPct',      label: 'Staking %',         icon: '🥩', higher: true },
-  { key: 'annualIssuance',  label: 'Annual Issuance',   icon: '🖨️', lower: true },
-  { key: 'validators',      label: 'Nakamoto Coeff.',   icon: '🏛️', context: true },
-  { key: 'selfAmendments',  label: 'On-Chain Upgrades', icon: '🔄', higher: true },
-  { key: 'hardForks',       label: 'Hard Forks',        icon: '🍴', lower: true },
-  { key: 'energyPerTx',     label: 'Energy / Tx',       icon: '⚡', lower: true },
-  { key: 'avgTxFee',        label: 'Avg Tx Fee',        icon: '💰', lower: true },
+  { key: 'stakingPct',      label: 'Staking %',         icon: '🥩', context: true },
+  { key: 'annualIssuance',  label: 'Annual Issuance',   icon: '🖨️', context: true },
+  { key: 'validators',      label: 'Stake Concentration', icon: '🏛️', context: true },
+  { key: 'selfAmendments',  label: 'Governance Upgrade Record', icon: '🔄', context: true },
+  { key: 'hardForks',       label: 'Upgrade Path',      icon: '🍴', context: true },
+  { key: 'energyPerTx',     label: 'Energy / Tx',       icon: '⚡', context: true },
+  { key: 'avgTxFee',        label: 'Avg Tx Fee',        icon: '💰', context: true },
   { key: 'slashing',        label: 'Slashing',          icon: '⚔️', context: true },
 ];
+
+const PEER_REFERENCES = {
+  ethereum: [
+    ['Ethereum PoS and finality', 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/']
+  ],
+  solana: [
+    ['Solana whitepaper', 'https://solana.com/solana-whitepaper.pdf'],
+    ['energy methodology', 'https://solana.com/news/solana-energy-use-report-december-2023']
+  ],
+  cardano: [
+    ['Cardano governance', 'https://docs.cardano.org/about-cardano/governance-overview'],
+    ['eras and phases', 'https://docs.cardano.org/about-cardano/evolution/eras-and-phases']
+  ],
+  algorand: [
+    ['Algorand finality', 'https://developer.algorand.org/solutions/avm-evm-instant-finality/'],
+    ['sustainability', 'https://algorand.co/technology/sustainability'],
+    ['May 2026 supply report', 'https://algorand.co/blog/may-2026-algo-insights-report'],
+    ['staking rewards FAQ', 'https://algorand.co/staking-rewards-faq']
+  ]
+};
+
+function peerReferenceHtml(chainKey) {
+  return (PEER_REFERENCES[chainKey] || [])
+    .map(function(reference) {
+      return '<a href="' + reference[1] + '" target="_blank" rel="noopener">' + escapeHtml(reference[0]) + '</a>';
+    })
+    .join(' · ');
+}
 
 async function fetchLiveTezosData() {
   try {
     const [stats, issuanceText, constants, lbBlocks] = await Promise.all([
-      fetch(API_URLS.tzkt + '/statistics/current').then(r => r.json()),
-      fetch(API_URLS.octez + '/chains/main/blocks/head/context/issuance/current_yearly_rate').then(r => r.text()),
-      fetch(API_URLS.octez + '/chains/main/blocks/head/context/constants').then(r => r.json()),
-      fetch(API_URLS.tzkt + '/blocks?sort.desc=level&limit=1&select=level,lbToggleEma').then(r => r.json()),
+      fetchRequired(API_URLS.tzkt + '/statistics/current'),
+      fetchRequired(API_URLS.octez + '/chains/main/blocks/head/context/issuance/current_yearly_rate', 'text'),
+      fetchRequired(API_URLS.octez + '/chains/main/blocks/head/context/constants'),
+      fetchRequired(API_URLS.tzkt + '/blocks?sort.desc=level&limit=1&select=level,lbToggleEma'),
     ]);
     const supplyMutez = Number(stats.totalSupply || 0);
     const stakedMutez = getTzktTotalStaked(stats);
     const protocolIssuance = parseFloat(String(issuanceText).replace(/"/g, ''));
     const latestLbBlock = Array.isArray(lbBlocks) ? lbBlocks[0] : null;
     const lbEma = Number(latestLbBlock?.lbToggleEma);
-    const lbDisabled = Number.isFinite(lbEma) && lbEma >= LB_EMA_DISABLE_THRESHOLD;
-    const lbIssuance = calculateLbIssuance(constants, supplyMutez, lbDisabled);
-    const totalIssuance = Number.isFinite(protocolIssuance) ? protocolIssuance + lbIssuance : NaN;
-    const stakePct = stakedMutez && supplyMutez ? ((stakedMutez / supplyMutez) * 100).toFixed(1) : '27.8';
+    const lbStateKnown = Number.isFinite(lbEma);
+    const lbDisabled = lbStateKnown && lbEma >= LB_EMA_DISABLE_THRESHOLD;
+    const lbIssuance = calculateLbIssuance(constants, supplyMutez, lbDisabled, lbStateKnown);
+    const totalIssuance = Number.isFinite(protocolIssuance) && Number.isFinite(lbIssuance)
+      ? protocolIssuance + lbIssuance
+      : NaN;
+    const stakePct = stakedMutez && supplyMutez ? ((stakedMutez / supplyMutez) * 100).toFixed(1) : null;
     return {
-      stakingPct: '~' + stakePct + '%',
-      annualIssuance: Number.isFinite(totalIssuance) ? '~' + totalIssuance.toFixed(2) + '%' : CHAIN_COMPARISON.tezosStatic.annualIssuance,
-      annualIssuanceNote: lbDisabled ? 'Adaptive + LB 0% (disabled)' : 'Adaptive + active LB',
-      validators: '6',
-      validatorsNote: 'entities for 33% of stake (248 total)',
+      stakingPct: stakePct ? '~' + stakePct + '%' : 'Unavailable',
+      annualIssuance: Number.isFinite(totalIssuance) ? '~' + totalIssuance.toFixed(2) + '%' : 'Unavailable',
+      annualIssuanceNote: !lbStateKnown
+        ? 'LB state unavailable; combined rate withheld'
+        : lbDisabled
+          ? 'Adaptive + LB 0% (disabled)'
+          : 'Adaptive + active LB',
       blockTime: '~6s',
       finality: '~12s',
       selfAmendments: await fetchUpgradeCount(),
-      hardForks: '0',
-      energyPerTx: '<0.001 kWh',
-      avgTxFee: '~$0.01',
       slashing: 'Adaptive',
       slashingNote: 'Scales with offense severity',
     };
   } catch(e) {
-    return {};
+    return {
+      stakingPct: 'Unavailable',
+      annualIssuance: 'Unavailable',
+      annualIssuanceNote: 'Live Tezos sources unavailable; combined rate withheld'
+    };
   }
 }
 
@@ -103,29 +146,22 @@ function getWinner(tezVal, otherVal, metric) {
   return 'tie';
 }
 
-function generateNarrative(chain, tezos, other, wins) {
-  var tezWins = wins.filter(function(w) { return w === 'tezos'; }).length;
-  var otherWins = wins.filter(function(w) { return w === 'other'; }).length;
+function generateNarrative(chain, tezos) {
   var lines = [];
 
   lines.push('Tezos and ' + chain.name + ' are both proof-of-stake blockchains, but they take fundamentally different approaches to upgradability, governance, and decentralization.');
+  lines.push('No composite score is assigned. Thresholds, entity grouping, and operational risk differ by chain, so contextual rows such as stake concentration and slashing should be read with their notes rather than ranked as a single winner.');
 
-  if (tezWins > otherWins) {
-    lines.push('Across ' + METRICS.length + ' key metrics, Tezos leads in ' + tezWins + ' categories while ' + chain.name + ' leads in ' + otherWins + '.');
-  } else if (otherWins > tezWins) {
-    lines.push(chain.name + ' leads in ' + otherWins + ' of ' + METRICS.length + ' metrics, though Tezos\'s self-amendment capability and zero-fork track record represent qualitative advantages that raw numbers don\'t capture.');
-  }
-
-  lines.push('Tezos has completed ' + tezos.selfAmendments + ' on-chain protocol upgrades without a single hard fork or network split — a track record unmatched by any major blockchain. Its deterministic 12-second finality means transactions are irreversible in two blocks, with no probabilistic waiting period.');
+  lines.push('Tezos has completed ' + tezos.selfAmendments + ' on-chain protocol upgrades. No persistent upgrade-driven community split is recorded in the tracked history. Tenderbake targets deterministic finality after two levels when quorum and network assumptions hold.');
 
   if (chain.name === 'Ethereum') {
-    lines.push('Ethereum dominates in TVL and ecosystem size, but its reliance on hard forks for upgrades and the concentration of stake among a handful of liquid staking providers raise centralization concerns that Tezos\'s on-chain governance model avoids.');
+    lines.push('Ethereum dominates in TVL and ecosystem size, while protocol upgrades land through socially coordinated client releases and hard forks. Validator-key counts should not be mistaken for independently controlled staking entities.');
   } else if (chain.name === 'Solana') {
-    lines.push('Solana offers faster raw block times, but its history of network outages and lack of on-chain governance contrast with Tezos\'s 7+ years of uninterrupted operation and community-driven protocol evolution.');
+    lines.push('Solana offers faster raw block times and has a published network-incident history. Its operator-coordinated upgrade model differs from Tezos\'s protocol-level, on-chain amendment process.');
   } else if (chain.name === 'Cardano') {
-    lines.push('Cardano introduced on-chain governance with CIP-1694 in September 2024, but with just one governance-driven upgrade compared to Tezos\'s ' + tezos.selfAmendments + ', the two chains are at very different stages of self-amendment maturity.');
+    lines.push('Cardano introduced Voltaire-era on-chain governance after Tezos. Tezos has the longer production record of protocol proposals, ballots, activations, and failed governance windows captured on-chain.');
   } else if (chain.name === 'Algorand') {
-    lines.push('Algorand achieves instant finality through pure proof-of-stake, and Tezos achieves deterministic finality in 12 seconds. Both avoid forks by design, but Tezos adds fully decentralized on-chain governance while Algorand\'s upgrades remain Foundation-coordinated.');
+    lines.push('Algorand and Tezos use different deterministic-finality designs. Tezos makes binding self-amendment a protocol mechanism, while Algorand upgrades remain more Foundation-coordinated.');
   }
 
   return lines;
@@ -142,14 +178,12 @@ export function initComparePage(chainKey) {
     // Merge live data
     var tez = Object.assign({}, tezos, live, { name: 'Tezos', symbol: 'XTZ' });
 
-    var wins = [];
     var rows = METRICS.map(function(m) {
       var tVal = tez[m.key] !== undefined ? tez[m.key] : '—';
       var oVal = chain[m.key] !== undefined ? chain[m.key] : '—';
       var tNote = tez[m.key + 'Note'] || '';
       var oNote = chain[m.key + 'Note'] || '';
       var winner = getWinner(tVal, oVal, m);
-      wins.push(winner);
 
       return '<div class="cp-row">' +
         '<div class="cp-metric">' + m.icon + ' ' + m.label + '</div>' +
@@ -164,16 +198,9 @@ export function initComparePage(chainKey) {
       '</div>';
     });
 
-    var tezWins = wins.filter(function(w) { return w === 'tezos'; }).length;
-    var otherWins = wins.filter(function(w) { return w === 'other'; }).length;
-    var narrative = generateNarrative(chain, tez, chain, wins);
+    var narrative = generateNarrative(chain, tez);
 
     container.innerHTML =
-      '<div class="cp-scoreboard">' +
-        '<div class="cp-score cp-tezos-score"><span class="cp-score-num">' + tezWins + '</span><span class="cp-score-label">Tezos</span></div>' +
-        '<div class="cp-vs">vs</div>' +
-        '<div class="cp-score cp-other-score"><span class="cp-score-num">' + otherWins + '</span><span class="cp-score-label">' + escapeHtml(chain.name) + '</span></div>' +
-      '</div>' +
       '<div class="cp-table">' +
         '<div class="cp-header">' +
           '<div class="cp-metric">Metric</div>' +
@@ -188,7 +215,8 @@ export function initComparePage(chainKey) {
         '<a href="/#calculator" class="cp-cta-btn cp-cta-secondary">Calculate staking rewards →</a>' +
       '</div>' +
       '<div class="cp-footer">' +
-        '<p>Data updates live from <a href="https://api.tzkt.io" target="_blank">TzKT</a>. Last verified: ' + CHAIN_COMPARISON.lastUpdated + '</p>' +
+        '<p>Live Tezos values update from <a href="https://api.tzkt.io" target="_blank" rel="noopener">TzKT</a> and Octez RPC. Current-cycle address-level concentration is calculated in <a href="/health/">Network Health</a>. Peer values are a static snapshot last verified ' + CHAIN_COMPARISON.lastUpdated + '; they are not all live.</p>' +
+        '<p>Peer methodology references: ' + peerReferenceHtml(chainKey) + '</p>' +
       '</div>';
   });
 }

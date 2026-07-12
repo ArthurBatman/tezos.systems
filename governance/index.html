@@ -11,11 +11,11 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://tezos.systems/governance/">
     <meta property="og:title" content="Tezos Governance — The Blockchain That Upgrades Itself">
-    <meta property="og:description" content="20+ protocol amendments. Zero hard forks. Learn how Tezos on-chain governance works and track live voting.">
+    <meta property="og:description" content="20+ protocol amendments through a binding on-chain process. Learn how Tezos governance works and track live voting.">
     <meta property="og:image" content="https://tezos.systems/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Tezos Governance — The Blockchain That Upgrades Itself">
-    <meta name="twitter:description" content="20+ protocol amendments. Zero hard forks. How Tezos on-chain governance works.">
+    <meta name="twitter:description" content="20+ protocol amendments through binding on-chain governance. How the Tezos process works.">
     <meta name="twitter:image" content="https://tezos.systems/og-image.png">
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -23,14 +23,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/landing.css?v=20260705a">
-    <link rel="stylesheet" href="/css/site-map.css?v=422">
+    <link rel="stylesheet" href="/css/site-map.css?v=423">
 
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "Article",
         "headline": "How Tezos On-Chain Governance Works",
-        "description": "Tezos is the first blockchain to implement formal on-chain governance. Learn about the 5-period voting process, protocol upgrades, baker vote checks, governance RSS, and why Tezos has never hard forked.",
+        "description": "Learn about Tezos's 5-period on-chain amendment process, protocol activation, baker vote checks, governance RSS, and its tracked upgrade record.",
         "url": "https://tezos.systems/governance/",
         "publisher": {
             "@type": "Person",
@@ -42,7 +42,7 @@
                 "url": "https://tez.capital"
             }
         },
-        "dateModified": "2026-07-10"
+        "dateModified": "2026-07-11"
     }
     </script>
     <script type="application/ld+json">
@@ -55,15 +55,15 @@
                 "name": "How does Tezos governance work?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Tezos uses a formal on-chain governance process with 5 periods: Proposal, Exploration, Cooldown, Promotion, and Adoption. Bakers vote on protocol upgrades, and approved changes are automatically applied — no hard fork required."
+                    "text": "Tezos uses 5 amendment periods: Proposal, Exploration, Cooldown, Promotion, and Adoption. Delegates cast protocol ballots; approved protocols activate on-chain after Adoption, while node operators must run compatible Octez software."
                 }
             },
             {
                 "@type": "Question",
-                "name": "Has Tezos ever hard forked?",
+                "name": "How has Tezos coordinated protocol upgrades?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "No. Tezos has never hard forked since its mainnet launch in September 2018. All 20+ protocol upgrades have been applied through the on-chain governance process."
+                    "text": "Tezos has activated 20+ named protocol upgrades through its on-chain amendment process. No persistent upgrade-driven community chain split is recorded in the tracked mainnet history."
                 }
             },
             {
@@ -115,7 +115,7 @@
 
     <header class="landing-hero">
         <h1>Tezos Governance</h1>
-        <p class="subtitle">The first blockchain to upgrade itself through formal on-chain voting. 20+ protocol amendments. Zero hard forks. Since 2018.</p>
+        <p class="subtitle">A production amendment process with 20+ named protocol upgrades and binding delegate ballots since 2018.</p>
 
         <div class="live-stats-row">
             <div class="live-stat">
@@ -123,8 +123,8 @@
                 <span class="live-stat-label">Protocol Upgrades</span>
             </div>
             <div class="live-stat">
-                <span class="live-stat-value">0</span>
-                <span class="live-stat-label">Hard Forks</span>
+                <span class="live-stat-value">On-chain</span>
+                <span class="live-stat-label">Upgrade Path</span>
             </div>
             <div class="live-stat">
                 <span class="live-stat-value" data-live="days-live">2,700+</span>
@@ -201,7 +201,7 @@
                 </div>
                 <div class="landing-card" style="text-align:center;">
                     <h3>5. Adoption</h3>
-                    <p style="font-size:0.8rem; color:var(--text-dim); margin-top:6px;">Nodes update automatically. No hard fork.</p>
+                    <p style="font-size:0.8rem; color:var(--text-dim); margin-top:6px;">Approved protocol activates on-chain; operators prepare compatible Octez releases</p>
                 </div>
             </div>
 
@@ -247,7 +247,7 @@
         <section class="landing-section">
             <h2>Why On-Chain Governance Matters</h2>
             <ul>
-                <li><strong>No hard forks</strong> — The community never splits. One chain, one token, one community.</li>
+                <li><strong>Shared upgrade path</strong> — No persistent upgrade-driven community chain split is recorded in the tracked Tezos mainnet history.</li>
                 <li><strong>Continuous evolution</strong> — Tezos has shipped 20+ upgrades since 2018. Block time went from 60s → 30s → 15s → 10s → 6s.</li>
                 <li><strong>Decentralized decision-making</strong> — Protocol changes require 80% supermajority from bakers.</li>
                 <li><strong>Future-proof</strong> — Can adopt any new technology (ZK proofs, new signature schemes, L2 scaling) through governance.</li>
@@ -272,8 +272,8 @@
     </footer>
 
     <script type="module">
-        import '/js/landing/site-nav.js?v=422';
-        import { loadGovernanceData, loadBakerData } from '/js/landing/live-data.js?v=20260704a';
+        import '/js/landing/site-nav.js?v=423';
+        import { loadGovernanceData, loadBakerData } from '/js/landing/live-data.js?v=20260711a';
         loadGovernanceData();
         loadBakerData();
     </script>

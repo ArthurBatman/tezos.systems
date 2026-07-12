@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Offline · Tezos Systems</title>
+    <style>
+        :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+        * { box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            color: #eef8ff;
+            background: radial-gradient(circle at 50% 0%, #12304a 0, #07101a 48%, #03070c 100%);
+        }
+        main {
+            width: min(520px, 100%);
+            padding: clamp(28px, 7vw, 48px);
+            border: 1px solid #2f617d;
+            border-radius: 20px;
+            background: rgba(5, 18, 29, .92);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, .45);
+        }
+        .eyebrow { margin: 0 0 10px; color: #69d7ff; font-size: .78rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+        h1 { margin: 0; font-size: clamp(2rem, 9vw, 3.4rem); line-height: 1; }
+        p { margin: 18px 0 0; color: #bfd1dc; line-height: 1.65; }
+        .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+        a {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            border: 1px solid #4fbce6;
+            border-radius: 999px;
+            color: #eafaff;
+            font-weight: 750;
+            text-decoration: none;
+        }
+        a:first-child { color: #041019; background: #69d7ff; }
+        a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        small { display: block; margin-top: 28px; color: #7f9aaa; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <main>
+        <p class="eyebrow">Tezos Systems</p>
+        <h1>You’re offline.</h1>
+        <p>The live dashboard needs a connection to verify current chain data. No cached values are presented as current on this page.</p>
+        <div class="actions">
+            <a href="/">Try again</a>
+            <a href="https://github.com/Primate411/tezos.systems">Source</a>
+        </div>
+        <small>Previously visited assets may still be stored locally, but network statistics can be stale or unavailable while disconnected.</small>
+    </main>
+</body>
+</html>

@@ -2722,3 +2722,23 @@
         -webkit-line-clamp: 2;
     }
 }
+/* Theme chooser uses native radios; focus belongs to the complete visual row. */
+.theme-radio {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    margin: 0;
+    accent-color: var(--accent-cyan);
+    cursor: pointer;
+}
+
+.theme-row:focus-within {
+    background: color-mix(in srgb, var(--accent-cyan) 8%, var(--glass-bg));
+    outline: 2px solid color-mix(in srgb, var(--accent-cyan) 58%, transparent);
+    outline-offset: 1px;
+    transform: translateX(2px);
+}
+
+.theme-row:focus-within .theme-tagline-hint {
+    opacity: 1;
+}

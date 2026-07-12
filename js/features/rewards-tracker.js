@@ -1,11 +1,12 @@
 /**
  * rewards-tracker.js — Personal Rewards Tracker for tezos.systems
- * Cards: ⏱ Next Rewards | 📈 This Cycle | 🏆 Lifetime
+ * Cards: ⏱ Cycle Clock | 📈 Current Cycle | 🏆 Lifetime
  * + 30-cycle mini-calendar + 🔔 notifications
  *
  * DEPLOY TO: js/features/rewards-tracker.js
  */
 import { API_URLS } from '../core/config.js';
+import { fetchProtocolConstants, fetchWithDeadline } from '../core/api.js';
 
 
 const CONTAINER_ID = 'rewards-tracker-container';
@@ -22,13 +23,14 @@ function getAddress() {
 }
 
 function getCacheKey(address) {
-  return `tezos-systems-rewards-v3-${address}`;
+  return `tezos-systems-rewards-v4-${address}`;
 }
 
 function parsePrice(xtzPrice) {
   if (typeof xtzPrice === 'number' && xtzPrice > 0) return xtzPrice;
-  const raw = xtzPrice || document.querySelector('.price-value')?.textContent || '0';
-  return parseFloat(String(raw).replace(/[^0-9.]/g, '')) || 0;
+  const raw = xtzPrice || document.querySelector('.price-value')?.textContent || '';
+  const parsed = parseFloat(String(raw).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function fmt(n, d = 2) {
@@ -54,23 +56,18 @@ function sumBakerEarned(row) {
     'blockRewardsDelegated',
     'blockRewardsStakedOwn',
     'blockRewardsStakedEdge',
-    'blockRewardsStakedShared',
     'attestationRewardsDelegated',
     'attestationRewardsStakedOwn',
     'attestationRewardsStakedEdge',
-    'attestationRewardsStakedShared',
     'dalAttestationRewardsDelegated',
     'dalAttestationRewardsStakedOwn',
     'dalAttestationRewardsStakedEdge',
-    'dalAttestationRewardsStakedShared',
     'vdfRevelationRewardsDelegated',
     'vdfRevelationRewardsStakedOwn',
     'vdfRevelationRewardsStakedEdge',
-    'vdfRevelationRewardsStakedShared',
     'nonceRevelationRewardsDelegated',
     'nonceRevelationRewardsStakedOwn',
     'nonceRevelationRewardsStakedEdge',
-    'nonceRevelationRewardsStakedShared',
     'blockFees'
   ]);
 }
@@ -158,7 +155,7 @@ async function fetchRewards(address, { force = false } = {}) {
   if (!force && cached) {
     try {
       const { ts, data } = JSON.parse(cached);
-      if (Date.now() - ts < 2 * 60 * 1000) return data; // 2min cache
+      if (Date.now() - ts < 2 * 60 * 1000 && Array.isArray(data?.rows)) return data; // 2min cache
     } catch (_) {}
   }
 
@@ -197,8 +194,30 @@ async function fetchRewards(address, { force = false } = {}) {
   if (!data.length) {
     try { data = await fetchBakerRows(); } catch (_) { data = []; }
   }
-  localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
-  return data;
+  const currentRole = isBaker
+    ? 'baker'
+    : hasStake
+      ? 'staker'
+      : account?.delegate?.address
+        ? 'delegator-estimate'
+        : account
+          ? 'none'
+          : 'unknown';
+  const roleActive = currentRole === 'baker'
+    ? account?.active !== false
+    : currentRole === 'staker' || currentRole === 'delegator-estimate'
+      ? Boolean(account?.delegate?.address) && account.delegate.active !== false
+      : currentRole === 'none'
+        ? false
+        : null;
+  const report = {
+    rows: data,
+    currentRole,
+    roleActive,
+    accountAvailable: Boolean(account)
+  };
+  localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: report }));
+  return report;
 }
 
 // ─── Notifications ──────────────────────────────────────────────────────────
@@ -246,31 +265,35 @@ function calcLifetime(rewards) {
 }
 
 function calcThisCycle(rewards, stats) {
-  if (!rewards.length) return { estimatedMutez: 0, efficiency: 100, fullCycleMutez: 0 };
-  // Find current cycle — the one with blocks already produced (not future)
-  const currentCycle = stats?.cycle || 0;
-  let recent = rewards.find(r => r.cycle === currentCycle);
-  if (!recent) {
-    // Fall back: find the first cycle that has earned rewards or blocks
-    recent = rewards.find(r => (r._earnedRewards || 0) > 0) || rewards[0];
+  const currentCycle = Number(stats?.cycle);
+  if (!Number.isFinite(currentCycle) || currentCycle <= 0) {
+    return { status: 'cycle-unavailable', currentCycle: null, recent: null };
   }
-  
+  const recent = rewards.find(r => Number(r.cycle) === currentCycle) || null;
+  if (!recent) {
+    return { status: 'no-current-record', currentCycle, recent: null };
+  }
+
   const earnedSoFar = rewardAmountMutez(recent);
   const futureEst = recent._futureRewards || 0;
   const missed = recent._missedRewards ?? ((recent.missedBlockRewards || 0) + (recent.missedEndorsementRewards || 0));
-  
-  // Full cycle estimate: earned so far + remaining future, or just future if nothing earned yet
-  const fullCycleMutez = earnedSoFar > 0 ? (earnedSoFar + futureEst) : futureEst;
-  
-  const total = earnedSoFar + missed;
-  const efficiency = total > 0 ? Math.round((earnedSoFar / total) * 100) : 100;
-  
-  return { estimatedMutez: earnedSoFar, efficiency, fullCycleMutez };
+
+  return {
+    status: 'recorded',
+    currentCycle,
+    recent,
+    estimatedMutez: earnedSoFar,
+    futureRightsMutez: futureEst,
+    missedRightsMutez: missed
+  };
 }
 
 function cycleColor(r) {
-  const missed = r._missedRewards ?? ((r.missedBlockRewards || 0) + (r.missedEndorsementRewards || 0));
   const earned = rewardAmountMutez(r);
+  if (r?._rewardKind !== 'baker') {
+    return earned > 0 ? 'var(--accent, #00ff88)' : '#555';
+  }
+  const missed = r._missedRewards ?? ((r.missedBlockRewards || 0) + (r.missedEndorsementRewards || 0));
   const total = earned + missed;
   if (total === 0) return '#555';
   const ratio = missed / total;
@@ -424,43 +447,142 @@ function buildCSS() {
 
 // ─── DOM Build ───────────────────────────────────────────────────────────────
 
-function buildContainer(rewards, stats, xtzPrice) {
+function latestHistoricalRewardRow(rewards, currentCycle) {
+  const hasCurrentCycle = currentCycle !== null && currentCycle !== undefined && currentCycle !== ''
+    && Number.isFinite(Number(currentCycle));
+  const historical = hasCurrentCycle
+    ? rewards.filter((row) => Number(row?.cycle) < Number(currentCycle))
+    : rewards;
+  return historical.reduce((latest, row) => {
+    if (!latest) return row;
+    return Number(row?.cycle) > Number(latest?.cycle) ? row : latest;
+  }, null);
+}
+
+function currentRoleLabel(role) {
+  if (role === 'baker') return 'baker';
+  if (role === 'staker') return 'staker';
+  if (role === 'delegator-estimate') return 'delegation';
+  return 'reward';
+}
+
+function noCurrentRecordMessage(report, currentCycle) {
+  if (report.currentRole === 'none') {
+    return 'Not currently baking, staking, or delegating.';
+  }
+  if (report.currentRole === 'baker' && report.roleActive === false) {
+    return 'Baker is inactive; no current-cycle reward record.';
+  }
+  if (report.currentRole === 'delegator-estimate' && report.roleActive === false) {
+    return 'Delegate is inactive; no current-cycle reward record.';
+  }
+  if (report.currentRole === 'staker' && report.roleActive === false) {
+    return 'No active delegate was found for this stake.';
+  }
+  if (report.currentRole === 'unknown') {
+    return 'No current-cycle reward record was returned.';
+  }
+  return `No cycle ${currentCycle} ${currentRoleLabel(report.currentRole)} record yet.`;
+}
+
+function buildCurrentCycleBody(report, cycleData, price) {
+  const rewards = report.rows;
+  const latest = latestHistoricalRewardRow(rewards, cycleData.currentCycle);
+  if (cycleData.status !== 'recorded') {
+    const message = cycleData.status === 'cycle-unavailable'
+      ? 'Current cycle data is unavailable.'
+      : noCurrentRecordMessage(report, cycleData.currentCycle);
+    const history = latest
+      ? `<div class="rt-sub" style="margin-top:0.5rem">Latest historical record: cycle <span class="rt-accent">${Number(latest.cycle)}</span> · ${fmtXtz(rewardAmountMutez(latest))} XTZ</div>`
+      : '<div class="rt-sub" style="margin-top:0.5rem">No reward history returned.</div>';
+    return `
+      <div class="rt-value">—</div>
+      <div class="rt-sub">${message}</div>
+      ${history}
+    `;
+  }
+
+  const kind = cycleData.recent?._rewardKind || report.currentRole;
+  const earnedXtz = cycleData.estimatedMutez / 1_000_000;
+  const value = `<div class="rt-value">${fmtXtz(cycleData.estimatedMutez)} <span style="font-size:0.9rem">XTZ</span></div>`;
+  const usd = Number.isFinite(price) && price > 0
+    ? `<div class="rt-sub rt-current-usd">≈ $${fmt(earnedXtz * price)} USD</div>`
+    : '<div class="rt-sub rt-current-usd">USD price unavailable</div>';
+
+  if (kind === 'baker') {
+    const futureRightsXtz = (cycleData.futureRightsMutez || 0) / 1_000_000;
+    const estimate = futureRightsXtz > 0
+      ? `<div class="rt-sub rt-future-rights-estimate" style="margin-top:0.3rem">Unsplit future protocol rights: <span class="rt-accent">${fmt(futureRightsXtz, 4)} XTZ</span>${Number.isFinite(price) && price > 0 ? `&nbsp;($${fmt(futureRightsXtz * price)})` : '&nbsp;(USD unavailable)'} · baker/external-staker ownership not yet attributed</div>`
+      : '<div class="rt-sub" style="margin-top:0.3rem">No future reward estimate is available.</div>';
+    return `${value}<div class="rt-sub">Gross on-chain baker receipts before off-chain delegator payouts; external-staker shared rewards excluded</div>${usd}${estimate}`;
+  }
+  if (kind === 'staker') {
+    return `${value}<div class="rt-sub">Protocol staking reward recorded for cycle ${cycleData.currentCycle}</div>${usd}<div class="rt-sub" style="margin-top:0.3rem">No baker-efficiency score applies to a staker reward.</div>`;
+  }
+  if (kind === 'delegator-estimate') {
+    return `${value}<div class="rt-sub">Estimated delegation share for cycle ${cycleData.currentCycle}</div>${usd}<div class="rt-sub" style="margin-top:0.3rem">Estimate from baker rewards; payout policies vary.</div>`;
+  }
+  return `${value}<div class="rt-sub">Reward record for cycle ${cycleData.currentCycle}</div>${usd}`;
+}
+
+function getBlocksRemaining(stats) {
+  const hasBlocksRemaining = stats?.blocksRemaining != null && stats.blocksRemaining !== '';
+  const hasCycleProgress = stats?.cycleProgress != null && stats.cycleProgress !== '';
+  if (hasBlocksRemaining && Number.isFinite(Number(stats.blocksRemaining))) {
+    return Math.max(0, Number(stats.blocksRemaining));
+  }
+  if (hasCycleProgress && Number.isFinite(Number(stats.cycleProgress))) {
+    return Math.max(0, Math.round(((100 - Number(stats.cycleProgress)) / 100) * 14400));
+  }
+  return null;
+}
+
+function buildContainer(report, stats, xtzPrice) {
+  const rewards = report.rows;
   const price = parsePrice(xtzPrice);
   const lifetimeMutez = calcLifetime(rewards);
   const lifetimeXtz = lifetimeMutez / 1_000_000;
-  const lifetimeUsd = lifetimeXtz * price;
-  const { estimatedMutez, efficiency, fullCycleMutez } = calcThisCycle(rewards, stats);
-  const estimatedXtz = estimatedMutez / 1_000_000;
-  const estimatedUsd = estimatedXtz * price;
-  const fullCycleXtz = (fullCycleMutez || 0) / 1_000_000;
-  const fullCycleUsd = fullCycleXtz * price;
-  const firstCycle = rewards.length ? rewards[rewards.length - 1].cycle : null;
+  const cycleData = calcThisCycle(rewards, stats);
+  const trackedRewards = Number.isFinite(cycleData.currentCycle)
+    ? rewards.filter((row) => Number(row?.cycle) <= cycleData.currentCycle)
+    : rewards;
+  const trackedCycles = trackedRewards.map((row) => Number(row?.cycle)).filter(Number.isFinite);
+  const firstCycle = trackedCycles.length ? Math.min(...trackedCycles) : null;
   const rewardKind = rewards.find((row) => row?._rewardKind)?._rewardKind || 'unknown';
   const lifetimeSubtitle = rewardKind === 'baker'
-    ? 'Total baker rewards'
+    ? 'Gross on-chain baker receipts before delegator payouts; external-staker shared rewards excluded'
     : rewardKind === 'staker'
       ? 'Protocol staking rewards'
       : rewardKind === 'delegator-estimate'
         ? 'Estimated delegation share'
         : 'Personal rewards history';
   const notifEnabled = isNotifEnabled();
-  const effClass = efficiency >= 95 ? 'rt-eff-high' : efficiency >= 80 ? 'rt-eff-mid' : 'rt-eff-low';
-  const blocksRemaining = stats?.blocksRemaining ??
-    Math.round(((100 - (stats?.cycleProgress || 0)) / 100) * 14400);
-  const secsRemaining = blocksRemaining * 6;
+  const blocksRemaining = getBlocksRemaining(stats);
+  const secsRemaining = blocksRemaining == null ? null : blocksRemaining * 6;
+  const currentCycleBody = buildCurrentCycleBody(report, cycleData, price);
+  const cycleClock = secsRemaining == null ? '—' : secondsToHms(secsRemaining);
+  const cycleDetail = blocksRemaining == null
+    ? 'Cycle timing unavailable'
+    : `~${fmt(blocksRemaining, 0)} blocks remaining`;
+  const cycleProgress = stats?.cycleProgress != null
+    && stats.cycleProgress !== ''
+    && Number.isFinite(Number(stats.cycleProgress))
+    ? `${fmt(Number(stats.cycleProgress), 1)}% complete`
+    : 'progress unavailable';
 
   const wrap = document.createElement('div');
   wrap.id = CONTAINER_ID;
+  wrap.dataset.currentCycle = cycleData.currentCycle == null ? '' : String(cycleData.currentCycle);
 
   wrap.innerHTML = `
     <div class="rt-grid">
       <div class="rt-card">
-        <div class="rt-card-title">⏱ Next Rewards</div>
-        <div class="rt-value" id="rt-countdown">${secondsToHms(secsRemaining)}</div>
-        <div class="rt-sub">~${fmt(blocksRemaining, 0)} blocks remaining</div>
+        <div class="rt-card-title">⏱ Cycle Clock</div>
+        <div class="rt-value" id="rt-countdown">${cycleClock}</div>
+        <div class="rt-sub">${cycleDetail}</div>
         <div class="rt-sub" style="margin-top:0.5rem">
           Cycle <span class="rt-accent">${stats?.cycle ?? '—'}</span>
-          &nbsp;·&nbsp; ${fmt(stats?.cycleProgress ?? 0, 1)}% complete
+          &nbsp;·&nbsp; ${cycleProgress}
         </div>
         <div class="rt-card-actions">
           <button class="rt-icon-btn ${notifEnabled ? 'notif-on' : ''}" id="rt-notif-btn"
@@ -471,24 +593,18 @@ function buildContainer(rewards, stats, xtzPrice) {
       </div>
 
       <div class="rt-card">
-        <div class="rt-card-title">📈 This Cycle</div>
-        <div class="rt-value">${fmtXtz(estimatedMutez)} <span style="font-size:0.9rem">XTZ</span></div>
-        <div class="rt-sub">≈ $${fmt(estimatedUsd)} USD so far</div>
-        <div class="rt-sub" style="margin-top:0.3rem">
-          Est. full cycle: <span class="rt-accent">${fmt(fullCycleXtz, 4)} XTZ</span>
-          &nbsp;($${fmt(fullCycleUsd)})
-        </div>
-        <div class="rt-efficiency ${effClass}">${efficiency}% baker efficiency</div>
+        <div class="rt-card-title">📈 Current Cycle</div>
+        ${currentCycleBody}
       </div>
 
       <div class="rt-card" id="rt-lifetime-card">
         <div class="rt-card-title">🏆 Lifetime Rewards</div>
         <div class="rt-sub" style="font-size:10px;opacity:0.5;margin-bottom:4px">${lifetimeSubtitle}</div>
         <div class="rt-value">${fmt(lifetimeXtz, 4)} <span style="font-size:0.9rem">XTZ</span></div>
-        <div class="rt-sub">≈ $${fmt(lifetimeUsd)} USD total</div>
+        <div class="rt-sub rt-lifetime-usd">${Number.isFinite(price) && price > 0 ? `≈ $${fmt(lifetimeXtz * price)} USD total` : 'USD price unavailable'}</div>
         <div class="rt-sub" style="margin-top:0.3rem">
           Since cycle <span class="rt-accent">${firstCycle ?? '—'}</span>
-          ${firstCycle ? `&nbsp;·&nbsp; ${rewards.length} cycles tracked` : ''}
+          ${firstCycle ? `&nbsp;·&nbsp; ${trackedRewards.length} cycles tracked` : ''}
         </div>
         <div class="rt-card-actions">
           <button class="rt-icon-btn" id="rt-share-btn" title="Export as PNG">📸</button>
@@ -497,11 +613,9 @@ function buildContainer(rewards, stats, xtzPrice) {
     </div>
 
     <div class="rt-calendar">
-      <div class="rt-cal-title">
-        📅 30-Cycle History &nbsp;
-        <span style="color:var(--accent,#00ff88)">■</span> full &nbsp;
-        <span style="color:#f0c040">■</span> partial &nbsp;
-        <span style="color:#ff4444">■</span> missed
+      <div class="rt-cal-title">${rewardKind === 'baker'
+        ? '📅 30-Cycle Baker History &nbsp; <span style="color:var(--accent,#00ff88)">■</span> full &nbsp; <span style="color:#f0c040">■</span> partial &nbsp; <span style="color:#ff4444">■</span> missed'
+        : '📅 30-Cycle Reward History &nbsp; <span style="color:var(--accent,#00ff88)">■</span> recorded &nbsp; <span style="color:#555">■</span> zero'}
       </div>
       <div class="rt-cal-grid" id="rt-cal-grid"></div>
     </div>
@@ -509,7 +623,10 @@ function buildContainer(rewards, stats, xtzPrice) {
 
   // Calendar blocks — oldest first
   const calGrid = wrap.querySelector('#rt-cal-grid');
-  const calData = [...rewards].slice(0, 30).reverse();
+  const calData = [...trackedRewards]
+    .sort((a, b) => Number(b?.cycle) - Number(a?.cycle))
+    .slice(0, 30)
+    .reverse();
   if (calData.length) {
     for (const r of calData) {
       const block = document.createElement('div');
@@ -530,8 +647,13 @@ function buildContainer(rewards, stats, xtzPrice) {
 
 function startCountdown(stats) {
   if (countdownInterval) clearInterval(countdownInterval);
-  const blocksRemaining = stats?.blocksRemaining ??
-    Math.round(((100 - (stats?.cycleProgress || 0)) / 100) * 14400);
+  const blocksRemaining = getBlocksRemaining(stats);
+  if (blocksRemaining == null) {
+    const el = document.getElementById('rt-countdown');
+    if (el) el.textContent = '—';
+    countdownInterval = null;
+    return;
+  }
   const secsRemaining = blocksRemaining * 6;
   const startTs = Date.now();
 
@@ -553,28 +675,42 @@ export async function initRewardsTracker(stats, xtzPrice, options = {}) {
   destroyRewardsTracker();
   buildCSS();
 
-  let rewards = [];
+  let rewardReport = {
+    rows: [],
+    currentRole: 'unknown',
+    roleActive: null,
+    accountAvailable: false
+  };
   try {
-    rewards = await fetchRewards(address, options);
+    rewardReport = await fetchRewards(address, options);
   } catch (e) {
     console.warn('[rewards-tracker] fetch failed:', e);
   }
 
   // Self-fetch cycle data if stats is missing it
-  if (!stats?.cycle || !stats?.cycleProgress) {
+  if (stats?.cycle == null || stats?.cycleProgress == null) {
     try {
-      // Use Octez RPC instead of TzKT
-      const [header, meta] = await Promise.all([
-        fetch('https://eu.rpc.tez.capital/chains/main/blocks/head/header').then(r => r.json()),
-        fetch('https://eu.rpc.tez.capital/chains/main/blocks/head/metadata').then(r => r.json())
+      const [headerResponse, metadataResponse, constants] = await Promise.all([
+        fetchWithDeadline(`${API_URLS.octez}/chains/main/blocks/head/header`, { cache: 'no-store' }),
+        fetchWithDeadline(`${API_URLS.octez}/chains/main/blocks/head/metadata`, { cache: 'no-store' }),
+        fetchProtocolConstants()
       ]);
-      if (header && meta?.level_info) {
-        const cyclePos = meta.level_info.cycle_position || 0;
+      if (!headerResponse.ok || !metadataResponse.ok) throw new Error('Cycle RPC unavailable');
+      const [header, meta] = await Promise.all([headerResponse.json(), metadataResponse.json()]);
+      const cycle = meta?.level_info?.cycle == null ? null : Number(meta.level_info.cycle);
+      const cyclePos = meta?.level_info?.cycle_position == null ? null : Number(meta.level_info.cycle_position);
+      const blocksPerCycle = Number(constants?.blocks_per_cycle);
+      const blockDelay = Number(Array.isArray(constants?.minimal_block_delay)
+        ? constants.minimal_block_delay[0]
+        : constants?.minimal_block_delay);
+      if (header && Number.isFinite(cycle) && Number.isFinite(cyclePos)
+          && Number.isFinite(blocksPerCycle) && blocksPerCycle > 0
+          && Number.isFinite(blockDelay) && blockDelay > 0) {
         stats = {
           ...stats,
-          cycle: meta.level_info.cycle,
-          cycleProgress: (cyclePos / 14400) * 100,
-          cycleTimeRemaining: Math.round((14400 - cyclePos) * 6),
+          cycle,
+          cycleProgress: (cyclePos / blocksPerCycle) * 100,
+          cycleTimeRemaining: Math.round((blocksPerCycle - cyclePos) * blockDelay),
         };
       }
     } catch (_) {}
@@ -585,7 +721,7 @@ export async function initRewardsTracker(stats, xtzPrice, options = {}) {
   const fallbackTarget = document.getElementById('my-baker-results');
   if (!drawerTarget && !fallbackTarget) return;
 
-  const container = buildContainer(rewards, stats, xtzPrice);
+  const container = buildContainer(rewardReport, stats, xtzPrice);
   if (drawerTarget) {
     drawerTarget.innerHTML = '';
     drawerTarget.appendChild(container);
@@ -608,6 +744,12 @@ export async function initRewardsTracker(stats, xtzPrice, options = {}) {
 export function updateRewardsTracker(stats, xtzPrice) {
   const container = document.getElementById(CONTAINER_ID);
   if (!container) return;
+  const incomingCycle = Number(stats?.cycle);
+  const renderedCycle = Number(container.dataset.currentCycle);
+  if (Number.isFinite(incomingCycle) && incomingCycle > 0 && incomingCycle !== renderedCycle) {
+    void initRewardsTracker(stats, xtzPrice, { force: true });
+    return;
+  }
   if (stats?.cycle != null) maybeSendCycleNotif(stats.cycle);
   startCountdown(stats);
 
@@ -627,10 +769,12 @@ export function updateRewardsTracker(stats, xtzPrice) {
   }
 
   // Update blocks remaining
-  const blocksRemaining = Math.round(((100 - (stats?.cycleProgress || 0)) / 100) * 14400);
+  const blocksRemaining = getBlocksRemaining(stats);
   for (const sub of subs) {
     if (sub.textContent.includes('blocks remaining')) {
-      sub.textContent = '~' + fmt(blocksRemaining, 0) + ' blocks remaining';
+      sub.textContent = blocksRemaining == null
+        ? 'Cycle timing unavailable'
+        : '~' + fmt(blocksRemaining, 0) + ' blocks remaining';
       break;
     }
   }
@@ -643,15 +787,15 @@ export function updateRewardsTracker(stats, xtzPrice) {
     if (thisCycleCard) {
       const mutezText = thisCycleCard.querySelector('.rt-value')?.textContent;
       const xtz = parseFloat(mutezText?.replace(/[^0-9.]/g, '')) || 0;
-      const usdSub = thisCycleCard.querySelector('.rt-sub');
-      if (usdSub && xtz > 0) usdSub.textContent = '≈ $' + fmt(xtz * price) + ' USD so far';
-      // Full cycle estimate USD
-      const estSub = thisCycleCard.querySelectorAll('.rt-sub')[1];
+      const usdSub = thisCycleCard.querySelector('.rt-current-usd');
+      if (usdSub && xtz > 0) usdSub.textContent = '≈ $' + fmt(xtz * price) + ' USD';
+      // Unsplit future-rights estimate USD
+      const estSub = thisCycleCard.querySelector('.rt-future-rights-estimate');
       if (estSub) {
         const match = estSub.textContent.match(/([\d,.]+)\s*XTZ/);
         if (match) {
           const fullXtz = parseFloat(match[1].replace(/,/g, '')) || 0;
-          estSub.innerHTML = 'Est. full cycle: <span class="rt-accent">' + fmt(fullXtz, 4) + ' XTZ</span>&nbsp;($' + fmt(fullXtz * price) + ')';
+          estSub.innerHTML = 'Unsplit future protocol rights: <span class="rt-accent">' + fmt(fullXtz, 4) + ' XTZ</span>&nbsp;($' + fmt(fullXtz * price) + ') · baker/external-staker ownership not yet attributed';
         }
       }
     }
@@ -660,7 +804,7 @@ export function updateRewardsTracker(stats, xtzPrice) {
     if (lifetimeCard) {
       const ltText = lifetimeCard.querySelector('.rt-value')?.textContent;
       const ltXtz = parseFloat(ltText?.replace(/[^0-9.]/g, '')) || 0;
-      const ltSub = lifetimeCard.querySelector('.rt-sub');
+      const ltSub = lifetimeCard.querySelector('.rt-lifetime-usd');
       if (ltSub && ltXtz > 0) ltSub.textContent = '≈ $' + fmt(ltXtz * price) + ' USD total';
     }
   }

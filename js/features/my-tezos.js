@@ -7,7 +7,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
 import { countsAsProtocolUpgrade } from '../core/protocol-count.js';
-import { fetchSharedStats, fetchWithRetry, getTzktTotalDelegated, getTzktTotalStaked } from '../core/api.js';
+import { fetchStakingAPY, fetchWithRetry, getExternalStakerApy } from '../core/api.js';
 import { fetchXTZPrice } from './price.js';
 import { letterGrade } from './baker-report-card.js';
 import { fetchVotingStatus, getVotingPeriodName } from './governance.js';
@@ -101,37 +101,7 @@ async function getXtzPrice() {
 }
 
 async function getStakingAPY() {
-    try {
-        const [rateResp, stakeResp, supplyResp, stats] = await Promise.all([
-            fetch(`${OCTEZ}/chains/main/blocks/head/context/issuance/current_yearly_rate`),
-            fetch(`${OCTEZ}/chains/main/blocks/head/context/total_frozen_stake`),
-            fetch(`${OCTEZ}/chains/main/blocks/head/context/total_supply`),
-            fetchSharedStats()
-        ]);
-        const [rateText, stakeText, supplyText] = await Promise.all([
-            rateResp.text(),
-            stakeResp.text(),
-            supplyResp.text()
-        ]);
-        const netIssuance = parseFloat(rateText.replace(/"/g, ''));
-        const supplyMutez = Number(stats.totalSupply || 0) || parseInt(String(supplyText).replace(/"/g, ''), 10) || 0;
-        const stakedMutez = getTzktTotalStaked(stats)
-            || parseInt(String(stakeText).replace(/"/g, ''), 10)
-            || 0;
-        const supply = supplyMutez / 1e6;
-        const staked = stakedMutez / 1e6;
-        const delegated = getTzktTotalDelegated(stats) / 1e6;
-        if (!Number.isFinite(netIssuance) || netIssuance <= 0 || supply <= 0 || staked <= 0) {
-            throw new Error('Missing staking APY inputs');
-        }
-        const edge = 2;
-        const effective = (staked / supply) + (delegated / supply) / (1 + edge);
-        const stakeAPY = (netIssuance / 100) / effective * 100;
-        const delegateAPY = stakeAPY / (1 + edge);
-        return { delegateAPY: Math.round(delegateAPY * 10) / 10, stakeAPY: Math.round(stakeAPY * 10) / 10 };
-    } catch {
-        return { delegateAPY: 3.1, stakeAPY: 9.2 };
-    }
+    return fetchStakingAPY();
 }
 
 async function fetchRecentRewards(address, account = null) {
@@ -207,19 +177,13 @@ function getDelegatorRewardEstimateMutez(r) {
     return Math.round(delegatedPool * delegated / externalDelegated);
 }
 
-function getRewardAmount(r) {
+function getRecordedRewardAmount(r) {
     if (!r) return 0;
     if (r.rewards !== undefined) return (Number(r.rewards) || 0) / 1e6;
     if (r.bakerRewards) return getDelegatorRewardEstimateMutez(r) / 1e6;
 
     const actual = getBakerRewardMutez(r);
     if (actual > 0) return actual / 1e6;
-
-    const attestFuture = r.futureAttestationRewards ?? r.futureEndorsementRewards ?? 0;
-    const future = (Number(r.futureBlockRewards) || 0)
-        + (Number(attestFuture) || 0)
-        + (Number(r.futureDalAttestationRewards) || 0);
-    if (future > 0) return future / 1e6;
 
     if (r.ownBlockRewards !== undefined) {
         return ((r.ownBlockRewards || 0) + (r.ownEndorsementRewards || 0) +
@@ -228,11 +192,25 @@ function getRewardAmount(r) {
     return 0;
 }
 
+function getRewardAmount(r) {
+    const recorded = getRecordedRewardAmount(r);
+    if (recorded > 0) return recorded;
+    if (!r) return 0;
+
+    const attestFuture = r.futureAttestationRewards ?? r.futureEndorsementRewards ?? 0;
+    const future = (Number(r.futureBlockRewards) || 0)
+        + (Number(attestFuture) || 0)
+        + (Number(r.futureDalAttestationRewards) || 0);
+    if (future > 0) return future / 1e6;
+
+    return 0;
+}
+
 function calcRewardStreak(rewards) {
     if (!rewards || !rewards.length) return 0;
     let streak = 0;
     for (let i = 0; i < rewards.length; i++) {
-        if (getRewardAmount(rewards[i]) <= 0) break;
+        if (getRecordedRewardAmount(rewards[i]) <= 0) break;
         if (i > 0 && rewards[i-1].cycle - rewards[i].cycle !== 1) break;
         streak++;
     }
@@ -1101,6 +1079,13 @@ function getStoryNextSignal(data) {
             tone: 'risk'
         };
     }
+    if (!data.hasRewardRole) {
+        return {
+            label: 'Reward status',
+            value: 'This address is not currently baking, staking, or delegating.',
+            tone: 'default'
+        };
+    }
     if (data.bakerVote && !data.bakerVote.voted) {
         const left = data.bakerVote.endTime ? ` · ${formatGovTimeLeft(data.bakerVote.endTime)} left` : '';
         return {
@@ -1112,7 +1097,9 @@ function getStoryNextSignal(data) {
     if (data.rewardStreak > 1) {
         return {
             label: 'Now compounding',
-            value: `${data.rewardStreak} reward cycles in a row with ${data.apyRate}% APY context.`,
+            value: Number.isFinite(data.apyRate)
+                ? `${data.rewardStreak} reward cycles in a row with ${data.apyRate}% APY context.`
+                : `${data.rewardStreak} reward cycles in a row. The current APY estimate is unavailable.`,
             tone: 'rewards'
         };
     }
@@ -1131,7 +1118,7 @@ function buildStoryBadges(data) {
     }
     badges.push(renderStoryBadge(
         `Joined under ${escapeHtml(story.joinedEra)} · ${escapeHtml(String(story.upgradesSeen))} upgrades witnessed`,
-        'Zero hard forks in your arc',
+        'Named protocol upgrades in your on-chain arc',
         'era'
     ));
     if (story.proposalsInjected > 0) {
@@ -1170,7 +1157,11 @@ function buildStoryBadges(data) {
         badges.push(renderStoryBadge(`Delegating to ${escapeHtml(data.bakerName || shortAddress(data.bakerAddr))}`, 'Your rewards depend on this baker lane', 'baker'));
     }
     if (data.isStaker) {
-        badges.push(renderStoryBadge('Staker', `${data.apyRate}% APY context`, 'rewards'));
+        badges.push(renderStoryBadge(
+            'Staker',
+            Number.isFinite(data.apyRate) ? `${data.apyRate}% APY context` : 'Current APY unavailable',
+            'rewards'
+        ));
     }
     return badges;
 }
@@ -1209,7 +1200,7 @@ function renderTezosStoryBody(data) {
                 <span class="tezos-story-persona">${escapeHtml(getStoryPersona(data))}</span>
                 <div class="tezos-story-name">${identity}</div>
                 <div class="tezos-story-summary">
-                    Joined under <strong>${escapeHtml(story.joinedEra)}</strong> · <strong>${escapeHtml(String(story.upgradesSeen))} upgrades</strong> witnessed · zero forks
+                    Joined under <strong>${escapeHtml(story.joinedEra)}</strong> · <strong>${escapeHtml(String(story.upgradesSeen))} named upgrades</strong> witnessed
                 </div>
             </div>
             <div class="tezos-story-metrics">
@@ -1250,6 +1241,7 @@ function saveOvernightSnapshot(data) {
             xtzPrice: data.xtzPrice,
             usdValue: data.xtzPrice ? data.totalXTZ * data.xtzPrice : null,
             rewardsLastCycle: data.rewardsLastCycle,
+            latestRewardCycle: data.latestRewardCycle,
             rewardStreak: data.rewardStreak,
             bakerName: data.bakerName,
             healthScore: data.healthScore,
@@ -1313,7 +1305,8 @@ function buildOvernightCard(data, snapshot) {
     // Rewards
     if (data.rewardsLastCycle > 0) {
         const usd = data.xtzPrice ? ` ($${(data.rewardsLastCycle * data.xtzPrice).toFixed(2)})` : '';
-        bullets.push(`Earned <strong>+${data.rewardsLastCycle.toFixed(2)} XTZ</strong>${usd} last cycle`);
+        const cycle = Number.isFinite(data.latestRewardCycle) ? ` in cycle ${data.latestRewardCycle}` : '';
+        bullets.push(`Latest reward record: <strong>+${data.rewardsLastCycle.toFixed(2)} XTZ</strong>${usd}${cycle}`);
     }
 
     // Baker health change
@@ -1330,7 +1323,15 @@ function buildOvernightCard(data, snapshot) {
 
     // Calm fallback
     if (bullets.length === 0) {
-        bullets.push(`Your <strong>${fmtCompact(data.totalXTZ)} XTZ</strong> is quietly compounding at <strong>${data.apyRate}%</strong>`);
+        if (!data.hasRewardRole) {
+            bullets.push(`Your <strong>${fmtCompact(data.totalXTZ)} XTZ</strong> has no active baking, staking, or delegation reward role`);
+        } else if (data.activeRewardEstimate && Number.isFinite(data.apyRate)) {
+            bullets.push(`Your eligible stake has a current estimate of <strong>${data.apyRate}% APY</strong>`);
+        } else if (data.apyBasis === 'gross-delegation-context' && Number.isFinite(data.apyRate)) {
+            bullets.push(`Gross delegation context is <strong>${data.apyRate}%</strong> before your baker’s off-chain fee and payout policy`);
+        } else {
+            bullets.push(`Your <strong>${fmtCompact(data.totalXTZ)} XTZ</strong> is connected, but the current APY estimate is unavailable`);
+        }
     }
 
     return {
@@ -1364,15 +1365,29 @@ function buildMorningBrief(data) {
     const usdNote = data.xtzPrice ? ` That's $${(data.rewardsLastCycle * data.xtzPrice).toFixed(2)}.` : '';
     const bakerInactive = data.bakerInactive;
     let earningsLine, dailyLine;
-    if (bakerInactive) {
-        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> — <strong style="color:#ef4444">baker inactive, earning nothing</strong>`;
-        dailyLine = `<span style="color:#ef4444">⚠️ Re-delegate to start earning</span>`;
+    if (!data.hasRewardRole) {
+        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> — not currently baking, staking, or delegating`;
+        dailyLine = 'No active reward estimate';
+    } else if (bakerInactive) {
+        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> — <strong style="color:#ef4444">baker inactive</strong>`;
+        dailyLine = `<span style="color:#ef4444">⚠️ No forward reward estimate shown; review or re-delegate</span>`;
     } else if (data.rewardsLastCycle > 0) {
-        earningsLine = `<strong>+${data.rewardsLastCycle.toFixed(2)} XTZ</strong> last cycle${usdNote}`;
-        dailyLine = `~${data.estDaily.toFixed(2)} XTZ/day · ${data.apyRate}% APY`;
+        const cycle = Number.isFinite(data.latestRewardCycle) ? ` in cycle ${data.latestRewardCycle}` : '';
+        earningsLine = `<strong>+${data.rewardsLastCycle.toFixed(2)} XTZ</strong> recorded${cycle}${usdNote}`;
+        dailyLine = data.activeRewardEstimate && Number.isFinite(data.estDaily) && Number.isFinite(data.apyRate)
+            ? `~${data.estDaily.toFixed(2)} XTZ/day · ${data.apyRate}% APY estimate`
+            : data.apyBasis === 'gross-delegation-context' && Number.isFinite(data.apyRate)
+                ? `${data.apyRate}% gross protocol context; baker payout policy varies`
+                : 'Current APY estimate unavailable';
+    } else if (data.activeRewardEstimate && Number.isFinite(data.apyRate) && Number.isFinite(data.estDaily)) {
+        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> with an estimated <strong>${data.apyRate}% APY</strong>`;
+        dailyLine = `~${data.estDaily.toFixed(2)} XTZ/day estimate`;
+    } else if (data.apyBasis === 'gross-delegation-context' && Number.isFinite(data.apyRate)) {
+        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> · <strong>${data.apyRate}% gross protocol context</strong>`;
+        dailyLine = 'No personal projection: your baker’s off-chain fee and payout policy determine delegation rewards';
     } else {
-        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> earning ~<strong>${data.apyRate}% APY</strong>`;
-        dailyLine = `~${data.estDaily.toFixed(2)} XTZ/day`;
+        earningsLine = `<strong>${fmtCompact(data.totalXTZ)} XTZ</strong> — reward rate unavailable`;
+        dailyLine = 'Could not calculate a current APY estimate';
     }
     cards.push({
         icon: '💰',
@@ -1571,7 +1586,7 @@ async function shareAnniversaryCard(details, button) {
             <div style="position:relative;z-index:1;">
                 <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(0,212,255,0.62);margin-bottom:12px;">${escapeHtml(kicker)}</div>
                 <div style="font-size:42px;line-height:1.05;font-weight:900;color:#fff;margin-bottom:18px;">${escapeHtml(heading)}</div>
-                <p style="font-size:20px;line-height:1.45;color:rgba(255,255,255,0.78);margin:0 0 24px;">Joined in the <strong style="color:#00d4ff;">${escapeHtml(details.era)}</strong> era — <strong style="color:#00d4ff;">${details.upgrades}</strong> upgrades survived, zero forks.</p>
+                <p style="font-size:20px;line-height:1.45;color:rgba(255,255,255,0.78);margin:0 0 24px;">Joined in the <strong style="color:#00d4ff;">${escapeHtml(details.era)}</strong> era — <strong style="color:#00d4ff;">${details.upgrades}</strong> named on-chain upgrades witnessed.</p>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <span style="font-size:12px;border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:7px 10px;color:rgba(255,255,255,0.76);">First seen ${escapeHtml(String(details.joinYear))}</span>
                     <span style="font-size:12px;border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:7px 10px;color:rgba(255,255,255,0.76);">Self-amending since day one</span>
@@ -1590,8 +1605,8 @@ async function shareAnniversaryCard(details, button) {
         });
         card.remove();
         const tweetOptions = [
-            { label: '🎂 Anniversary', text: `${details.years} years on Tezos today. Joined in the ${details.era} era. ${details.upgrades} upgrades survived. Zero forks.\n\ntezos.systems` },
-            { label: '📜 Story', text: `My Tezos story: since ${details.era} (${details.joinYear}), through ${details.upgrades} self-amendments, on a chain that has never forked.\n\ntezos.systems` },
+            { label: '🎂 Anniversary', text: `${details.years} years on Tezos today. Joined in the ${details.era} era and witnessed ${details.upgrades} named on-chain upgrades.\n\ntezos.systems` },
+            { label: '📜 Story', text: `My Tezos story: since ${details.era} (${details.joinYear}), through ${details.upgrades} named self-amendments on Tezos.\n\ntezos.systems` },
         ];
         showShareModal(canvas, tweetOptions, kicker);
     } catch (error) {
@@ -1634,7 +1649,7 @@ function showAnniversaryToast(details, done, duration = 12000) {
     toast.innerHTML = `
         <div class="moment-toast-header"><span class="moment-toast-label">🎂 Tezos Anniversary</span></div>
         <div class="moment-toast-title">${escapeHtml(yearsLabel)} on Tezos today.</div>
-        <div class="moment-toast-body">Joined in the ${escapeHtml(details.era)} era — ${details.upgrades} upgrades survived, zero forks.</div>
+        <div class="moment-toast-body">Joined in the ${escapeHtml(details.era)} era — ${details.upgrades} named on-chain upgrades witnessed.</div>
         <div class="moment-toast-actions">
             <button class="moment-toast-share" type="button">Share</button>
             <button class="moment-toast-dismiss" type="button">Dismiss</button>
@@ -1795,7 +1810,7 @@ async function shareTezosStory(data) {
                     ${proposalLinesHtml}
                     ${nftLineHtml}
                     ${creatorLineHtml}
-                    Zero hard forks. Ever.
+                    Named upgrades through Tezos on-chain governance.
                 </div>
 
                 <div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;max-width:500px;margin:0 auto;">
@@ -1846,9 +1861,9 @@ async function shareTezosStory(data) {
             data.story.bakerProposalsInjected > 0 ? ` My baker injected ${data.story.bakerProposalsInjected} proposal${data.story.bakerProposalsInjected > 1 ? 's' : ''} that became Tezos law.` : ''
         ].join('');
         const tweetOptions = [
-            { label: '📜 Story', text: `I've been on Tezos for ${data.story.daysSinceJoin.toLocaleString()} days.${domainSentence} Joined under ${data.story.joinedEra}. Witnessed ${data.story.upgradesSeen} protocol upgrades.${storyProposalSentence}${nftSentence}${creatorSentence} Zero hard forks.\n\nWhat's your Tezos story?\ntezos.systems` },
-            { label: '🏛️ OG', text: `${data.story.joinedEra} era. ${data.story.upgradesSeen} upgrades witnessed. ${data.story.daysSinceJoin.toLocaleString()} days and counting.${domainSentence}${ogProposalSentence}${nftSentence}${creatorSentence}\n\nTezos doesn't fork. It evolves.\ntezos.systems` },
-            { label: '📊 Data', text: `My Tezos Story:${domainLine}\n\n📅 ${data.story.daysSinceJoin.toLocaleString()} days on-chain\n🏛️ Joined: ${data.story.joinedEra}\n🔄 ${data.story.upgradesSeen} upgrades witnessed${injectedLine}${nftLine}${creatorLine}\n🔗 Zero forks\n\ntezos.systems` },
+            { label: '📜 Story', text: `I've been on Tezos for ${data.story.daysSinceJoin.toLocaleString()} days.${domainSentence} Joined under ${data.story.joinedEra}. Witnessed ${data.story.upgradesSeen} named protocol upgrades.${storyProposalSentence}${nftSentence}${creatorSentence}\n\nWhat's your Tezos story?\ntezos.systems` },
+            { label: '🏛️ OG', text: `${data.story.joinedEra} era. ${data.story.upgradesSeen} named upgrades witnessed. ${data.story.daysSinceJoin.toLocaleString()} days and counting.${domainSentence}${ogProposalSentence}${nftSentence}${creatorSentence}\n\nTezos upgrades through binding on-chain governance.\ntezos.systems` },
+            { label: '📊 Data', text: `My Tezos Story:${domainLine}\n\n📅 ${data.story.daysSinceJoin.toLocaleString()} days on-chain\n🏛️ Joined: ${data.story.joinedEra}\n🔄 ${data.story.upgradesSeen} named upgrades witnessed${injectedLine}${nftLine}${creatorLine}\n\ntezos.systems` },
         ];
 
         showShareModal(canvas, tweetOptions, 'Your Tezos Story');
@@ -1881,6 +1896,16 @@ async function shareMorningBrief(data) {
         `;
 
         const sysFont = "-apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', sans-serif";
+        const annualYieldTitle = data.activeRewardEstimate ? 'Est. Annual Yield' : 'Reward Projection';
+        const annualYieldValue = data.activeRewardEstimate && Number.isFinite(data.estAnnual)
+            ? `+${data.estAnnual.toFixed(1)} XTZ`
+            : data.hasRewardRole
+                ? 'Not personalized'
+                : 'Not active';
+        const apyTitle = data.apyBasis === 'gross-delegation-context' ? 'Gross context' : 'APY';
+        const apyValue = !data.bakerInactive && Number.isFinite(data.apyRate)
+            ? `${data.apyRate}%`
+            : '—';
 
         wrapper.innerHTML = `
             <div style="font-family:'Orbitron',sans-serif; font-size:16px; font-weight:900;
@@ -1895,15 +1920,15 @@ async function shareMorningBrief(data) {
                     <div style="font-family:${sysFont}; font-size:22px; font-weight:800; color:white; margin-top:6px;">${fmtCompact(data.totalXTZ)} XTZ</div>
                 </div>
                 <div style="background:rgba(${brandRgb},0.08); border:1px solid rgba(${brandRgb},0.12); border-radius:12px; padding:18px 14px; text-align:center;">
-                    <div style="font-family:${sysFont}; font-size:10px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:1.5px;">Est. Annual Yield</div>
-                    <div style="font-family:${sysFont}; font-size:22px; font-weight:800; color:${brand}; margin-top:6px;">+${data.estAnnual.toFixed(1)} XTZ</div>
+                    <div style="font-family:${sysFont}; font-size:10px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:1.5px;">${annualYieldTitle}</div>
+                    <div style="font-family:${sysFont}; font-size:22px; font-weight:800; color:${brand}; margin-top:6px;">${annualYieldValue}</div>
                 </div>
             </div>
 
             <div style="display:grid; grid-template-columns:${data.rewardStreak > 0 ? '1fr 1fr 1fr' : '1fr 1fr'}; gap:14px; text-align:center;">
                 <div>
-                    <div style="font-family:${sysFont}; font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px;">APY</div>
-                    <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:${brand}; margin-top:4px;">${data.apyRate}%</div>
+                    <div style="font-family:${sysFont}; font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1px;">${apyTitle}</div>
+                    <div style="font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700; color:${brand}; margin-top:4px;">${apyValue}</div>
                 </div>
                 ${data.rewardStreak > 0 ? `
                 <div>
@@ -1929,11 +1954,14 @@ async function shareMorningBrief(data) {
         });
         wrapper.remove();
 
-        const tweetOptions = [
-            { label: 'Flex', text: `Staking ${fmtCompact(data.totalXTZ)} XTZ on Tezos at ${data.apyRate}% APY${data.rewardStreak > 0 ? ` — ${data.rewardStreak} cycle reward streak 🔥` : ''}.\n\ntezos.systems` },
-            { label: 'Recruit', text: `Earning ~${data.estAnnual.toFixed(0)} XTZ/year just by staking on Tezos. No lockup. Keep your keys.\n\nCheck your own stats:\ntezos.systems` },
-            { label: 'Data', text: `My Tezos staking dashboard:\n\n📊 ${fmtCompact(data.totalXTZ)} XTZ portfolio\n📈 ${data.apyRate}% APY\n💰 ~${data.estAnnual.toFixed(0)} XTZ/year est.\n${data.rewardStreak > 0 ? `🔥 ${data.rewardStreak} cycle streak\n` : ''}\ntezos.systems` },
-        ];
+        const tweetOptions = data.activeRewardEstimate && Number.isFinite(data.apyRate) && Number.isFinite(data.estAnnual)
+            ? [
+                { label: 'Rewards', text: `Tracking ${fmtCompact(data.totalXTZ)} XTZ on Tezos with a current ${data.apyRate}% APY estimate${data.rewardStreak > 0 ? ` — ${data.rewardStreak} cycle reward streak 🔥` : ''}.\n\ntezos.systems` },
+                { label: 'Data', text: `My Tezos rewards view:\n\n📊 ${fmtCompact(data.totalXTZ)} XTZ portfolio\n📈 ${data.apyRate}% estimated APY\n💰 ~${data.estAnnual.toFixed(0)} XTZ/year estimate\n${data.rewardStreak > 0 ? `🔥 ${data.rewardStreak} cycle streak\n` : ''}\ntezos.systems` },
+            ]
+            : [
+                { label: 'Portfolio', text: `My Tezos view: ${fmtCompact(data.totalXTZ)} XTZ. ${data.apyBasis === 'gross-delegation-context' && Number.isFinite(data.apyRate) ? `${data.apyRate}% gross delegation context before my baker’s off-chain fee and payout policy.` : data.hasRewardRole ? 'No verified personal forward reward estimate is available.' : 'No active baking, staking, or delegation reward role.'}\n\ntezos.systems` }
+            ];
 
         showShareModal(canvas, tweetOptions, 'My Tezos Stats');
     } catch (err) {
@@ -2223,17 +2251,20 @@ async function renderMorningBrief(address, force = false) {
         const totalXTZ = balance;
 
         const isBaker = account.type === 'delegate' || account.delegate?.address === address;
+        const isStaker = staked > 0;
         const bakerAddr = isBaker ? address : account.delegate?.address;
         const bakerName = isBaker ? 'Self (Baker)' : (account.delegate?.alias || (bakerAddr ? bakerAddr.slice(0, 8) + '…' : 'None'));
-        const bakerActive = isBaker ? account.active !== false : account.delegate?.active !== false;
-        const bakerInactive = !bakerActive;
+        const hasRewardRole = isBaker || isStaker || Boolean(bakerAddr);
 
         const participationPromise = bakerAddr ? fetchParticipation(bakerAddr) : Promise.resolve(null);
+        const rewardBakerPromise = bakerAddr
+            ? fetchJsonWithTimeout(`${TZKT}/delegates/${encodeURIComponent(bakerAddr)}`, null, 8000)
+            : Promise.resolve(null);
         const operatorStatusPromise = bakerAddr
             ? participationPromise.then((participation) => fetchBakerOperatorStatus(bakerAddr, participation))
             : Promise.resolve(null);
 
-        const [participation, rewards, story, bakerVote, bakerActivity, operatorStatus, greetingName] = await Promise.all([
+        const [participation, rewards, story, bakerVote, bakerActivity, operatorStatus, greetingName, rewardBaker] = await Promise.all([
             participationPromise,
             fetchRecentRewards(address, account),
             fetchTezosStory(address, account, bakerAddr),
@@ -2241,22 +2272,60 @@ async function renderMorningBrief(address, force = false) {
             isBaker ? fetchRecentBakerActivity(address) : Promise.resolve(null),
             operatorStatusPromise,
             resolveTezName(address, account),
+            rewardBakerPromise,
         ]);
+
+        const bakerActive = Boolean(bakerAddr)
+            && account.delegate?.active !== false
+            && rewardBaker?.active !== false
+            && (!isBaker || account.active !== false);
+        const bakerInactive = Boolean(bakerAddr) && !bakerActive;
 
         const healthScore = calcBakerHealth(participation);
         const health = healthLabel(healthScore);
 
         let rewardsLastCycle = 0;
+        let latestRewardCycle = null;
         let rewardStreak = 0;
         if (rewards && rewards.length) {
-            rewardsLastCycle = getRewardAmount(rewards[0]);
-            rewardStreak = calcRewardStreak(rewards);
+            const recordedRewards = rewards.filter((row) => getRecordedRewardAmount(row) > 0);
+            const latestRecorded = recordedRewards[0] || null;
+            if (latestRecorded) {
+                rewardsLastCycle = getRecordedRewardAmount(latestRecorded);
+                const parsedCycle = Number(latestRecorded.cycle);
+                latestRewardCycle = Number.isFinite(parsedCycle) ? parsedCycle : null;
+            }
+            rewardStreak = calcRewardStreak(recordedRewards);
         }
 
-        const isStaker = staked > 0;
-        const apyRate = isStaker ? apy.stakeAPY : apy.delegateAPY;
-        const estDaily = totalXTZ * (apyRate / 100) / 365.25;
-        const estAnnual = totalXTZ * (apyRate / 100);
+        let selectedApy = null;
+        let apyBasis = 'unavailable';
+        if (isStaker && isBaker) {
+            selectedApy = Number.isFinite(apy.stakeAPY) ? apy.stakeAPY : null;
+            apyBasis = 'baker-own-stake';
+        } else if (isStaker) {
+            selectedApy = getExternalStakerApy(apy.stakeAPY, rewardBaker?.edgeOfBakingOverStaking);
+            apyBasis = 'external-stake-after-edge';
+        } else if (bakerAddr) {
+            selectedApy = Number.isFinite(apy.delegateAPY) ? apy.delegateAPY : null;
+            apyBasis = 'gross-delegation-context';
+        }
+
+        // Direct staking has an on-chain reward split, so a personalized
+        // forward estimate is possible when the edge is known. Delegation
+        // payouts depend on the baker's off-chain fee and payment policy; show
+        // the gross protocol rate as context without inventing personal yield.
+        const activeRewardEstimate = hasRewardRole
+            && !bakerInactive
+            && (isBaker || isStaker)
+            && Number.isFinite(selectedApy)
+            && selectedApy >= 0;
+        const apyRate = hasRewardRole && !bakerInactive && Number.isFinite(selectedApy)
+            ? selectedApy
+            : null;
+        const rewardBase = isStaker ? staked : totalXTZ;
+        const estDaily = activeRewardEstimate ? rewardBase * (apyRate / 100) / 365.25 : null;
+        const estAnnual = activeRewardEstimate ? rewardBase * (apyRate / 100) : null;
 
         // Attestation rate
         let attestRate = null;
@@ -2289,10 +2358,10 @@ async function renderMorningBrief(address, force = false) {
             address: address.slice(0, 8) + '…' + address.slice(-4),
             fullAddress: address,
             bakerAddr, isBaker,
-            totalXTZ, staked, xtzPrice, apyRate, estDaily, estAnnual,
-            rewardsLastCycle, rewardStreak,
+            totalXTZ, staked, xtzPrice, apyRate, apyBasis, activeRewardEstimate, estDaily, estAnnual,
+            rewardsLastCycle, latestRewardCycle, rewardStreak,
             bakerName, bakerInactive, healthScore, health, attestRate,
-            isStaker, story, activeProposal, bakerVote, bakerActivity, operatorStatus, greetingName,
+            isStaker, hasRewardRole, story, activeProposal, bakerVote, bakerActivity, operatorStatus, greetingName,
         };
 
         if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) {
@@ -2352,7 +2421,7 @@ async function renderMorningBrief(address, force = false) {
                 `;
                 rewardsSection.appendChild(sparkContainer);
 
-                const values = rewards.map(r => getRewardAmount(r)).reverse();
+                const values = rewards.map(r => getRecordedRewardAmount(r)).reverse();
                 const ctx = document.getElementById('drawer-rewards-sparkline')?.getContext('2d');
                 if (ctx && window.Chart) {
                     if (window._drawerRewardsChart) window._drawerRewardsChart.destroy();
@@ -2366,13 +2435,13 @@ async function renderMorningBrief(address, force = false) {
         }
 
         // Feature 8: Non-baker conditional CTA
-        if (!bakerAddr && !isBaker) {
+        if (!hasRewardRole) {
             const bakerResults = document.getElementById('my-baker-results');
             if (bakerResults) {
                 bakerResults.innerHTML = `
                     <div class="drawer-no-baker">
                         <p>💡 This address isn't delegated or staking.</p>
-                        <p>Delegate to a baker to start earning ~${apy.delegateAPY}% APY on your ${balance.toLocaleString()} XTZ.</p>
+                        <p>No active reward estimate is shown. Delegation stays liquid, while reward rates, fees, and payout policy vary.</p>
                         <a href="https://gov.tez.capital" target="_blank" class="glass-button" style="margin-top:8px;">🥩 Browse Bakers</a>
                     </div>
                 `;

@@ -7,7 +7,7 @@ const THEME_KEY = 'tezos-systems-theme';
 export const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
 // Aurora — bespoke animated default; striking but legible.
 export const DEFAULT_THEME = 'aurora';
-const THEME_CSS_VERSION = '422';
+const THEME_CSS_VERSION = '423';
 
 // Theme color definitions for the picker dots
 export const THEME_COLORS = {
@@ -29,6 +29,9 @@ export const THEME_COLORS = {
 
 let currentPreviewTheme = null;
 let originalTheme = null;
+let themePickerTrigger = null;
+let themePickerOutsideHandler = null;
+let themePickerEscapeHandler = null;
 
 function themeCssHref(theme) {
     return `/css/themes/${theme}.min.css?v=${THEME_CSS_VERSION}`;
@@ -130,11 +133,14 @@ export function openThemePicker() {
     // Remove any existing theme picker
     const existingPicker = document.getElementById('theme-picker-dropdown');
     if (existingPicker) {
-        existingPicker.remove();
+        closeThemePicker();
     }
 
     const currentTheme = getCurrentTheme();
     originalTheme = currentTheme;
+    themePickerTrigger = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById('theme-toggle');
 
     // Theme categories for organized picker
     const ANIMATED_THEMES = ['aurora', 'matrix', 'hen', 'void', 'ember', 'signal', 'abyss', 'moss', 'warzone', 'nerv', 'bubblegum'];
@@ -142,25 +148,26 @@ export function openThemePicker() {
 
     function renderThemeRow(theme) {
         const vibe = THEME_VIBES[theme] || {};
+        const label = capitalizeTheme(theme);
         return `
-            <div class="theme-row${theme === 'hen' ? ' theme-row-hen' : ''}" data-theme="${theme}">
-                <div class="theme-dots">
+            <label class="theme-row${theme === 'hen' ? ' theme-row-hen' : ''}" data-theme="${theme}">
+                <input class="theme-radio" type="radio" name="tezos-systems-theme" value="${theme}" ${currentTheme === theme ? 'checked' : ''} aria-label="${label}: ${vibe.tagline || 'theme'}">
+                <span class="theme-dots" aria-hidden="true">
                     <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].bg};"></span>
                     <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].accent};"></span>
                     <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].text};"></span>
-                </div>
-                <span class="theme-label">${capitalizeTheme(theme)}</span>
+                </span>
+                <span class="theme-label">${label}</span>
                 <span class="theme-tagline-hint">${vibe.tagline || ''}</span>
-                <span class="theme-checkmark" ${currentTheme === theme ? '' : 'style="display: none;"'}>✓</span>
-            </div>`;
+            </label>`;
     }
 
     // Create picker HTML
     const pickerHTML = `
-        <div id="theme-picker-dropdown" class="theme-picker-dropdown">
-            <div class="theme-group-label">✦ Animated</div>
+        <div id="theme-picker-dropdown" class="theme-picker-dropdown" role="radiogroup" aria-label="Choose a site theme">
+            <div class="theme-group-label" aria-hidden="true">✦ Animated</div>
             ${ANIMATED_THEMES.map(renderThemeRow).join('')}
-            <div class="theme-group-label">◆ Classic</div>
+            <div class="theme-group-label" aria-hidden="true">◆ Classic</div>
             ${CLASSIC_THEMES.map(renderThemeRow).join('')}
         </div>
     `;
@@ -190,6 +197,7 @@ export function openThemePicker() {
 
     // Add event listeners
     const themeRows = picker.querySelectorAll('.theme-row');
+    const themeRadios = picker.querySelectorAll('.theme-radio');
 
     themeRows.forEach(row => {
         const theme = row.dataset.theme;
@@ -202,14 +210,28 @@ export function openThemePicker() {
             });
         }
 
-        // Click to select
-        row.addEventListener('click', (e) => {
-            e.stopPropagation();
+        // Pointer selection keeps the familiar one-click-and-close behavior.
+        // Native radio keyboard events report detail 0 and remain open so arrow
+        // keys can compare adjacent themes.
+        row.addEventListener('click', (event) => {
+            if (event.detail <= 0) return;
+            window.setTimeout(() => closeThemePicker({ restoreFocus: true }), 0);
+        });
+
+    });
+
+    themeRadios.forEach(radio => {
+        const theme = radio.value;
+
+        // Native radio changes include arrow-key selection. Keep the picker open
+        // so keyboard users can compare themes, and persist each confirmed choice.
+        radio.addEventListener('change', () => {
             currentPreviewTheme = null;
             setTheme(theme);
             localStorage.setItem(THEME_KEY, theme);
-            closeThemePicker();
+            originalTheme = theme;
         });
+
     });
 
     // Hover out of picker - revert to original
@@ -223,34 +245,35 @@ export function openThemePicker() {
     }
 
     // Close on outside click
-    const closeHandler = (e) => {
+    themePickerOutsideHandler = (e) => {
         if (!picker.contains(e.target)) {
             closeThemePicker();
-            document.removeEventListener('click', closeHandler);
         }
     };
     
     setTimeout(() => {
-        document.addEventListener('click', closeHandler);
+        if (document.body.contains(picker) && themePickerOutsideHandler) {
+            document.addEventListener('click', themePickerOutsideHandler);
+        }
     }, 100);
 
     // Close on escape
-    const escapeHandler = (e) => {
+    themePickerEscapeHandler = (e) => {
         if (e.key === 'Escape') {
-            closeThemePicker();
-            document.removeEventListener('keydown', escapeHandler);
+            closeThemePicker({ restoreFocus: true });
         }
     };
-    document.addEventListener('keydown', escapeHandler);
+    document.addEventListener('keydown', themePickerEscapeHandler);
 
     // Show picker
     picker.classList.add('open');
+    picker.querySelector('.theme-radio:checked')?.focus({ preventScroll: true });
 }
 
 /**
  * Close theme picker and cleanup
  */
-function closeThemePicker() {
+function closeThemePicker({ restoreFocus = false } = {}) {
     const picker = document.getElementById('theme-picker-dropdown');
     if (!picker) return;
 
@@ -260,7 +283,20 @@ function closeThemePicker() {
         currentPreviewTheme = null;
     }
 
+    if (themePickerOutsideHandler) {
+        document.removeEventListener('click', themePickerOutsideHandler);
+        themePickerOutsideHandler = null;
+    }
+    if (themePickerEscapeHandler) {
+        document.removeEventListener('keydown', themePickerEscapeHandler);
+        themePickerEscapeHandler = null;
+    }
+
     picker.remove();
+    if (restoreFocus && themePickerTrigger?.isConnected) {
+        themePickerTrigger.focus({ preventScroll: true });
+    }
+    themePickerTrigger = null;
 }
 
 /**

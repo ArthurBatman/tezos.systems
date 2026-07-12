@@ -76,6 +76,7 @@ async function fetchSnapshotData() {
         governanceStatus: '—',
         uptimeDays: Math.floor((Date.now() - MAINNET_LAUNCH.getTime()) / 86400000),
         selfAmendments: SELF_AMENDMENTS,
+        sourceStatus: 'PARTIAL',
         timestamp: new Date(),
     };
 
@@ -118,9 +119,9 @@ async function fetchSnapshotData() {
         if (bakersResp.ok) {
             const bakers = await bakersResp.json();
             const fundedBakers = Array.isArray(bakers)
-                ? bakers.filter((baker) => Number(baker.bakingPower || 0) > 0).length
-                : 0;
-            data.activeBakers = fundedBakers.toLocaleString();
+                ? bakers.filter((baker) => Number(baker.bakingPower || 0) > 0)
+                : [];
+            if (fundedBakers.length) data.activeBakers = fundedBakers.length.toLocaleString();
         }
     } catch { /* graceful fallback */ }
 
@@ -178,12 +179,13 @@ async function fetchSnapshotData() {
                 || proposalName(voting.proposal)
                 || proposalName(voting.epoch?.proposal);
             data.governanceStatus = proposal ? `${label}: ${proposal}` : label;
-        } else {
-            data.governanceStatus = 'No active proposal';
         }
-    } catch {
-        data.governanceStatus = 'No active proposal';
-    }
+    } catch { /* keep unavailable */ }
+
+    data.sourceStatus = [data.blockHeight, data.cycle, data.protocol, data.activeBakers, data.stakingRatio, data.governanceStatus]
+        .every((value) => value !== '—')
+        ? 'LIVE'
+        : 'PARTIAL';
 
     return data;
 }
@@ -313,22 +315,23 @@ function buildSnapshotDOM(data) {
         gap: 7px;
         margin-top: 4px;
     `;
+    const sourceColor = data.sourceStatus === 'LIVE' ? GREEN : '#f0c040';
     const liveDot = document.createElement('div');
     liveDot.style.cssText = `
         width: 9px;
         height: 9px;
         border-radius: 50%;
-        background: ${GREEN};
-        box-shadow: 0 0 8px ${GREEN}, 0 0 16px rgba(0,255,136,0.5);
+        background: ${sourceColor};
+        box-shadow: 0 0 8px ${sourceColor};
     `;
     const liveLabel = document.createElement('div');
     liveLabel.style.cssText = `
         font-size: 11px;
-        color: ${GREEN};
+        color: ${sourceColor};
         letter-spacing: 3px;
         font-weight: 700;
     `;
-    liveLabel.textContent = 'LIVE';
+    liveLabel.textContent = data.sourceStatus;
     liveBlock.appendChild(liveDot);
     liveBlock.appendChild(liveLabel);
 
@@ -444,7 +447,7 @@ function buildSnapshotDOM(data) {
     if (govStr.length > 20) govVal.style.fontSize = '13px';
     else if (govStr.length > 14) govVal.style.fontSize = '16px';
 
-    const uptimePanel = statPanel('NETWORK UPTIME', `${displayText(data.uptimeDays.toLocaleString())} DAYS`);
+    const uptimePanel = statPanel('MAINNET AGE', `${displayText(data.uptimeDays.toLocaleString())} DAYS`);
     const amendPanel = statPanel('SELF-AMENDMENTS', displayText(data.selfAmendments));
 
     // Milestone note
@@ -455,7 +458,7 @@ function buildSnapshotDOM(data) {
         letter-spacing: 2px;
         margin-top: 3px;
     `;
-    milestoneNote.textContent = 'ZERO HARD FORKS';
+    milestoneNote.textContent = 'ON-CHAIN UPGRADE HISTORY';
     amendPanel.appendChild(milestoneNote);
 
     col3.appendChild(govPanel);
@@ -586,11 +589,11 @@ export async function showStateOfTezos() {
         const tweetOptions = [
             {
                 label: '📊 Stats',
-                text: `State of Tezos 📊\n\nCycle ${cycle} | ${bakers} bakers | ${staking} staked\nXTZ: ${price} (${change} 7d)\n${amendments} self-amendments. Zero hard forks.\n\ntezos.systems`,
+                text: `State of Tezos 📊\n\nCycle ${cycle} | ${bakers} powered baker addresses | ${staking} staked\nXTZ: ${price} (${change} 7d)\n${amendments} named upgrades through on-chain governance.\nSource status: ${data.sourceStatus}.\n\ntezos.systems`,
             },
             {
                 label: '🔢 Bullets',
-                text: `Weekly Tezos snapshot:\n• ${bakers} active bakers\n• ${staking} staking ratio\n• Protocol: ${proto}\n• ${price} XTZ\n\nThe blockchain that upgrades itself.\ntezos.systems`,
+                text: `Weekly Tezos snapshot:\n• ${bakers} powered baker addresses\n• ${staking} staking ratio\n• Protocol: ${proto}\n• ${price} XTZ\n\nSource status: ${data.sourceStatus}.\ntezos.systems`,
             },
             {
                 label: '🏷️ Brief',

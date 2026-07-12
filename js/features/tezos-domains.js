@@ -4,6 +4,7 @@
  */
 
 import { debounce, escapeHtml, formatLiveDuration, startLiveTimeTicker } from '../core/utils.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TEZOS_DOMAINS_ENDPOINT = 'https://api.tezos.domains/graphql';
 const TEZOS_DOMAINS_CSS_URL = '/css/tezos-domains.css?v=317';
@@ -721,7 +722,7 @@ function renderEntryCard(data) {
         <div class="card-inner">
             <div class="card-front tezos-domains-entry-front">
                 <div class="td-entry-main">
-                    <h2 class="stat-label">Tezos Domains</h2>
+                    <h2 class="stat-label" id="tezos-domains-entry-title">Tezos Domains</h2>
                     <div class="td-entry-hero">
                         <span class="td-entry-mark" aria-hidden="true">.tez</span>
                         <strong id="tezos-domains-entry-feature">${escapeHtml(featureName)}</strong>
@@ -1336,10 +1337,6 @@ function stopChamberRefresh() {
     }
 }
 
-function handleEscape(event) {
-    if (event.key === 'Escape') closeTezosDomainsChamber();
-}
-
 export async function openTezosDomainsChamber(initialName = '') {
     ensureTezosDomainsStyles();
     const normalizedInitial = normalizeDomainInput(initialName);
@@ -1353,6 +1350,7 @@ export async function openTezosDomainsChamber(initialName = '') {
         overlay = document.createElement('div');
         overlay.id = 'tezos-domains-modal';
         overlay.className = 'modal-overlay chamber-overlay lb-overlay tezos-domains-overlay';
+        overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
             <div class="modal-content modal-large chamber-content lb-content tezos-domains-content" role="dialog" aria-modal="true" aria-labelledby="tezos-domains-title">
                 <button class="modal-close chamber-close" type="button" aria-label="Close Tezos Domains Chamber">&times;</button>
@@ -1372,13 +1370,16 @@ export async function openTezosDomainsChamber(initialName = '') {
     }
 
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
+    activateChamberDialog(overlay, {
+        close: closeTezosDomainsChamber,
+        dialogSelector: '.tezos-domains-content',
+        titleId: 'tezos-domains-title',
+        label: 'Tezos Domains Chamber'
+    });
     savedBodyOverflow = document.body.style.overflow;
     savedHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleEscape);
-
     await refreshChamber({ initial: true, force: true });
     if (normalizedInitial.name && !normalizedInitial.error) {
         runDomainLookup(normalizedInitial.name);
@@ -1390,12 +1391,11 @@ export async function openTezosDomainsChamber(initialName = '') {
 }
 
 export function closeTezosDomainsChamber() {
-    document.removeEventListener('keydown', handleEscape);
     stopChamberRefresh();
     const overlay = document.getElementById('tezos-domains-modal');
     if (overlay) {
         overlay.classList.remove('active');
-        overlay.setAttribute('aria-hidden', 'true');
+        deactivateChamberDialog(overlay);
     }
     document.body.style.overflow = savedBodyOverflow || '';
     document.documentElement.style.overflow = savedHtmlOverflow || '';
@@ -1404,15 +1404,10 @@ export function closeTezosDomainsChamber() {
 function wireEntryCard(card) {
     if (!card || card.dataset.tezosDomainsWired) return;
     card.dataset.tezosDomainsWired = '1';
-    const open = (event) => {
-        if (event?.target?.closest?.('button, a, .card-tooltip')) return;
-        openTezosDomainsChamber();
-    };
-    card.addEventListener('click', open);
-    card.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        open(event);
+    wireChamberLauncher(card, {
+        open: openTezosDomainsChamber,
+        label: 'Open Tezos Domains Chamber',
+        titleSelector: '#tezos-domains-entry-title, .stat-label'
     });
 }
 
@@ -1425,9 +1420,6 @@ export function initTezosDomainsChamber() {
         card = document.createElement('div');
         card.id = 'tezos-domains-entry-card';
         card.className = 'stat-card chamber-entry-card chamber-entry-wide tezos-domains-entry-card chamber-entry-live';
-        card.setAttribute('role', 'button');
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', 'Open Tezos Domains Chamber');
         card.innerHTML = renderEntryCard({
             counts: {},
             recentEvents: [],

@@ -261,7 +261,7 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="/css/site-map.css?v=422">
+    <link rel="stylesheet" href="/css/site-map.css?v=423">
 </head>
 <body data-site-context="compare">
     <main class="wrap">
@@ -275,7 +275,7 @@
         <header class="hero">
             <p class="kicker">Chain comparison</p>
             <h1>Where the major proof-of-stake chains stand</h1>
-            <p class="sub">A compact read before the head-to-head pages: what each chain leads on, what to watch, and how Tezos fits into the field.</p>
+            <p class="sub">A compact read before the head-to-head pages: each chain's profile, what to watch, and how Tezos fits into the field. This is orientation, not a composite score.</p>
         </header>
 
         <section class="summary-grid" aria-label="At-a-glance standing by chain">
@@ -285,14 +285,13 @@
                         <h2 class="chain">Tezos</h2>
                         <div class="role">Self-upgrading baseline</div>
                     </div>
-                    <div class="score"><strong>3</strong><span>of 10</span></div>
                 </div>
-                <p>Tezos is the continuity play: deterministic finality, protocol-level self-amendment, adaptive slashing, and zero hard forks.</p>
+                <p>Tezos is the continuity play: deterministic finality, protocol-level self-amendment, adaptive slashing, and no persistent upgrade-driven community split in its tracked history.</p>
                 <dl class="lead-list">
-                    <dt>Leads</dt>
-                    <dd class="wins">Slashing, self-amendments, hard forks</dd>
+                    <dt>Profile</dt>
+                    <dd class="wins">Self-amendment, deterministic finality, on-chain upgrade coordination</dd>
                     <dt>Watch</dt>
-                    <dd>Not the fastest block time or absolute lowest transaction fee.</dd>
+                    <dd>Compare throughput, fees, and concentration only with aligned timestamps and definitions.</dd>
                 </dl>
             </article>
 
@@ -300,16 +299,15 @@
                 <div class="card-top">
                     <div>
                         <h2 class="chain">Ethereum</h2>
-                        <div class="role">Issuance heavyweight</div>
+                        <div class="role">Issuance profile</div>
                     </div>
-                    <div class="score"><strong>1</strong><span>of 10</span></div>
                 </div>
-                <p>Ethereum leads the tracked set on gross issuance, but keeps a hard-fork upgrade model and slower finality window.</p>
+                <p>Ethereum combines proof-of-stake checkpoint finality with socially coordinated client releases and hard-fork upgrades.</p>
                 <dl class="lead-list">
-                    <dt>Leads</dt>
-                    <dd class="wins">Annual issuance</dd>
+                    <dt>Profile</dt>
+                    <dd class="wins">Checkpoint finality, socially coordinated upgrades</dd>
                     <dt>Watch</dt>
-                    <dd>Slower finality and large staking-entity concentration.</dd>
+                    <dd>Issuance, fees, and independently controlled staking entities are dynamic and method-dependent.</dd>
                 </dl>
             </a>
 
@@ -319,14 +317,13 @@
                         <h2 class="chain">Solana</h2>
                         <div class="role">Speed specialist</div>
                     </div>
-                    <div class="score"><strong>3</strong><span>of 10</span></div>
                 </div>
-                <p>Solana wins raw block speed, staking participation, and validator concentration metrics in this snapshot.</p>
+                <p>Solana emphasizes fast slots and client-coordinated operation under a disinflationary issuance schedule.</p>
                 <dl class="lead-list">
-                    <dt>Leads</dt>
-                    <dd class="wins">Block time, Nakamoto coefficient, staking percent</dd>
+                    <dt>Profile</dt>
+                    <dd class="wins">Fast slots, client-coordinated upgrades</dd>
                     <dt>Watch</dt>
-                    <dd>No on-chain self-amendment and a more brittle uptime history.</dd>
+                    <dd>No on-chain self-amendment; review its published incident history separately.</dd>
                 </dl>
             </a>
 
@@ -336,12 +333,11 @@
                         <h2 class="chain">Cardano</h2>
                         <div class="role">Governance entrant</div>
                     </div>
-                    <div class="score"><strong>0</strong><span>of 10</span></div>
                 </div>
-                <p>Cardano is staking-heavy and now has Voltaire-era governance, but this baseline does not give it an outright category lead.</p>
+                <p>Cardano combines stake-pool consensus with Voltaire-era governance and hard-fork-combinator upgrades.</p>
                 <dl class="lead-list">
-                    <dt>Leads</dt>
-                    <dd>No outright metric lead in this set</dd>
+                    <dt>Profile</dt>
+                    <dd>Stake pools, newer on-chain governance</dd>
                     <dt>Watch</dt>
                     <dd>Slower finality and a shorter production record for on-chain upgrades.</dd>
                 </dl>
@@ -353,12 +349,11 @@
                         <h2 class="chain">Algorand</h2>
                         <div class="role">Finality and efficiency</div>
                     </div>
-                    <div class="score"><strong>3</strong><span>of 10</span></div>
                 </div>
-                <p>Algorand leads on instant finality, energy per transaction, and average fee in the current peer snapshot.</p>
+                <p>Algorand uses permissionless sortition and immediate deterministic finality, with Foundation-coordinated upgrades.</p>
                 <dl class="lead-list">
-                    <dt>Leads</dt>
-                    <dd class="wins">Finality, energy per transaction, average fee</dd>
+                    <dt>Profile</dt>
+                    <dd class="wins">Sortition-based consensus, immediate finality</dd>
                     <dt>Watch</dt>
                     <dd>Upgrade path is more foundation-coordinated than self-amending.</dd>
                 </dl>
@@ -376,7 +371,7 @@
             <div class="score-row">
                 <strong>Tezos vs Solana</strong>
                 <span>Protocol continuity versus raw speed and low fees.</span>
-                <span>Block time, finality, uptime, governance, decentralization.</span>
+                <span>Block time, finality, incident history, governance, decentralization.</span>
                 <a href="/compare/tezos-vs-solana.html">Open comparison</a>
             </div>
             <div class="score-row">
@@ -393,11 +388,11 @@
             </div>
         </section>
 
-        <p class="note">Static peer-chain snapshot last verified February 28, 2026. The live dashboard upgrades Tezos values in-browser from public network data.</p>
+        <p class="note">Static peer-chain snapshot last verified July 11, 2026. Direct numeric rows highlight narrow measurements, not an aggregate winner. Network Health calculates Tezos concentration live at both the &gt;1/3 and &gt;2/3 address-level thresholds.</p>
         <div class="back-wrap"><a href="/" class="back">Back to dashboard</a></div>
         <section data-site-circulation data-site-context="compare"></section>
     </main>
     <footer data-site-footer data-site-context="compare"></footer>
-    <script type="module" src="/js/landing/site-nav.js?v=422"></script>
+    <script type="module" src="/js/landing/site-nav.js?v=423"></script>
 </body>
 </html>

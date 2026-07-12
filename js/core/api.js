@@ -41,8 +41,14 @@ const HISTORICAL_PAGE_SIZE = 1000;
 const LB_EMA_DISABLE_THRESHOLD = 1_000_000_000;
 const LB_EMA_DENOMINATOR = 2_000_000_000;
 const GOVERNANCE_SNAPSHOT_TTL = 60 * 1000;
+export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
+export const MAX_RETRY_AFTER_MS = 15_000;
 const historicalDataCache = new Map();
 const reportedHistoryFetchFailures = new Set();
+const lastGoodCategoryValues = new Map();
+let lastGoodStakingAPY = null;
+let responseQualitySequence = 0;
+const staleResponseEvents = [];
 export const DOMAIN_HISTORY_TABLES = {
     market: 'market_history',
     networkHealth: 'network_health_history',
@@ -57,11 +63,206 @@ export const HISTORY_FRESHNESS_LIMITS = {
     tezosx_history: 90 * 60 * 1000
 };
 
+function staleCategoryHint(url) {
+    const value = String(url || '');
+    if (/\/delegates(?:\?|$)/.test(value)) return 'bakers';
+    if (/\/voting\//.test(value)) return 'governance';
+    if (/issuance|liquidity_baking|lbToggleEma/.test(value)) return 'issuance';
+    if (/total_frozen_stake|total_supply|statistics\/current/.test(value)) return 'staking';
+    if (/operations\/transactions/.test(value)) return 'networkActivity';
+    if (/\/accounts/.test(value)) return 'accounts';
+    if (/\/contracts/.test(value)) return 'contracts';
+    if (/\/tokens/.test(value)) return 'tokens';
+    if (/smart_rollups/.test(value)) return 'rollups';
+    if (/\/head|\/header|\/metadata|\/constants/.test(value)) return 'cycle';
+    return 'upstreamApiCache';
+}
+
+function responseQuality(response, url) {
+    if (response.headers.get('X-Tezos-Systems-Cache') !== 'stale') return null;
+    const observedAt = response.headers.get('X-Tezos-Systems-Observed-At') || null;
+    const event = {
+        sequence: ++responseQualitySequence,
+        category: staleCategoryHint(url),
+        observedAt
+    };
+    staleResponseEvents.push(event);
+    if (staleResponseEvents.length > 100) staleResponseEvents.splice(0, staleResponseEvents.length - 100);
+    return { status: 'stale', observedAt, source: 'service-worker-cache' };
+}
+
+function attachResponseQuality(data, quality) {
+    if (!quality || data == null || (typeof data !== 'object' && typeof data !== 'function')) return data;
+    try {
+        Object.defineProperty(data, '_quality', {
+            configurable: true,
+            enumerable: false,
+            value: quality
+        });
+    } catch (_) {}
+    return data;
+}
+
+function mergeStaleResponseQuality(quality, sequenceAtStart) {
+    const events = staleResponseEvents.filter((event) => event.sequence > sequenceAtStart);
+    if (!events.length) return quality;
+
+    const categories = [...new Set(events.map((event) => event.category))];
+    for (const category of categories) {
+        if (!quality.failedCategories.includes(category)) quality.failedCategories.push(category);
+        if (!quality.staleCategories.includes(category)) quality.staleCategories.push(category);
+    }
+    quality.status = quality.status === 'live' ? 'stale' : quality.status;
+    quality.staleObservedAt = quality.staleObservedAt || {};
+    for (const event of events) {
+        if (event.observedAt && !quality.staleObservedAt[event.category]) {
+            quality.staleObservedAt[event.category] = event.observedAt;
+        }
+    }
+    return quality;
+}
+
+function qualityFromSettled(entries, fallbacks) {
+    const values = {};
+    const failedCategories = [];
+    const staleCategories = [];
+    const unavailableCategories = [];
+    const errors = {};
+    const staleObservedAt = {};
+
+    for (const [category, result] of Object.entries(entries)) {
+        if (result.status === 'fulfilled') {
+            const valueQuality = result.value?._quality;
+            values[category] = result.value;
+            if (valueQuality?.status === 'stale') {
+                failedCategories.push(category);
+                staleCategories.push(category);
+                if (valueQuality.observedAt) staleObservedAt[category] = valueQuality.observedAt;
+            } else if (valueQuality?.status === 'partial') {
+                failedCategories.push(category);
+                unavailableCategories.push(category);
+                if (valueQuality.error) errors[category] = valueQuality.error;
+            } else if (valueQuality?.status === 'unavailable') {
+                failedCategories.push(category);
+                unavailableCategories.push(category);
+                if (valueQuality.error) errors[category] = valueQuality.error;
+            } else {
+                lastGoodCategoryValues.set(category, {
+                    value: result.value,
+                    observedAt: valueQuality?.observedAt || new Date().toISOString()
+                });
+            }
+            continue;
+        }
+
+        failedCategories.push(category);
+        errors[category] = result.reason?.message || String(result.reason || 'request failed');
+        const lastGood = lastGoodCategoryValues.get(category);
+        if (lastGood) {
+            values[category] = lastGood.value;
+            staleCategories.push(category);
+            staleObservedAt[category] = lastGood.observedAt;
+        } else {
+            values[category] = fallbacks[category];
+            unavailableCategories.push(category);
+        }
+    }
+
+    const status = unavailableCategories.length > 0
+        ? 'partial'
+        : staleCategories.length > 0
+            ? 'stale'
+            : 'live';
+    const staleTimes = Object.values(staleObservedAt)
+        .map((value) => Date.parse(value))
+        .filter((value) => Number.isFinite(value) && value > 0);
+    const observedAt = staleTimes.length
+        ? new Date(Math.min(...staleTimes)).toISOString()
+        : new Date().toISOString();
+
+    return {
+        values,
+        quality: {
+            status,
+            observedAt,
+            failedCategories,
+            staleCategories,
+            unavailableCategories,
+            ...(Object.keys(staleObservedAt).length ? { staleObservedAt } : {}),
+            ...(Object.keys(errors).length ? { errors } : {})
+        }
+    };
+}
+
 /**
  * Check if cached data is still valid
  */
 function isCacheValid(key) {
     return cache.timestamps[key] && (Date.now() - cache.timestamps[key]) < cache.ttl;
+}
+
+function abortError(message = 'The operation was aborted.') {
+    if (typeof DOMException === 'function') return new DOMException(message, 'AbortError');
+    const error = new Error(message);
+    error.name = 'AbortError';
+    return error;
+}
+
+function timeoutError(timeoutMs) {
+    if (typeof DOMException === 'function') return new DOMException(`Request timed out after ${timeoutMs}ms.`, 'TimeoutError');
+    const error = new Error(`Request timed out after ${timeoutMs}ms.`);
+    error.name = 'TimeoutError';
+    return error;
+}
+
+function requestSignal(resource, options) {
+    if (options?.signal) return options.signal;
+    if (typeof Request !== 'undefined' && resource instanceof Request) return resource.signal;
+    return null;
+}
+
+/**
+ * Run one fetch attempt with a deadline while forwarding a caller-provided
+ * AbortSignal. Each retry gets a fresh deadline; a caller abort ends the whole
+ * retry sequence immediately.
+ */
+export async function fetchWithDeadline(resource, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+    const callerSignal = requestSignal(resource, options);
+    const controller = new AbortController();
+    const fetchOptions = { ...options, signal: controller.signal };
+    let timeoutId = null;
+
+    const forwardAbort = () => controller.abort(callerSignal?.reason || abortError());
+    if (callerSignal?.aborted) forwardAbort();
+    else if (callerSignal) callerSignal.addEventListener('abort', forwardAbort, { once: true });
+
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+        timeoutId = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
+    }
+
+    try {
+        return await fetch(resource, fetchOptions);
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (callerSignal) callerSignal.removeEventListener('abort', forwardAbort);
+    }
+}
+
+function sleepWithSignal(delayMs, signal) {
+    if (!signal) return new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (signal.aborted) return Promise.reject(signal.reason || abortError());
+
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            signal.removeEventListener('abort', onAbort);
+            resolve();
+        }, delayMs);
+        const onAbort = () => {
+            clearTimeout(timeoutId);
+            reject(signal.reason || abortError());
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
 }
 
 function getHistoryStartTime(range = '7d') {
@@ -107,7 +308,15 @@ export async function fetchSharedStats() {
  * Fetch with retry logic and caching
  */
 export async function fetchWithRetry(url, options = {}, retries = 3) {
-    const { memoryCache = true, ...fetchOptions } = options || {};
+    const {
+        memoryCache = true,
+        timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+        responseType = 'json',
+        ...fetchOptions
+    } = options || {};
+    const callerSignal = fetchOptions.signal || null;
+
+    if (callerSignal?.aborted) throw callerSignal.reason || abortError();
 
     // Check cache first
     if (memoryCache && isCacheValid(url)) {
@@ -116,13 +325,13 @@ export async function fetchWithRetry(url, options = {}, retries = 3) {
 
     for (let i = 0; i < retries; i++) {
         try {
-            const response = await fetch(url, {
+            const response = await fetchWithDeadline(url, {
                 ...fetchOptions,
                 headers: {
                     'Accept': 'application/json',
                     ...fetchOptions.headers
                 }
-            });
+            }, timeoutMs);
 
             if (response.status === 429) {
                 // Rate limited — respect Retry-After or use exponential backoff
@@ -134,9 +343,14 @@ export async function fetchWithRetry(url, options = {}, retries = 3) {
                     : Number.isFinite(retryAfterDate)
                         ? Math.max(0, retryAfterDate - Date.now())
                         : 0;
-                const backoffMs = retryAfterMs > 0 ? retryAfterMs : 2000 * Math.pow(2, i);
+                if (i === retries - 1) {
+                    throw new Error(`HTTP 429: rate limit persisted after ${retries} attempt${retries === 1 ? '' : 's'}`);
+                }
+                const requestedBackoffMs = retryAfterMs > 0 ? retryAfterMs : 2000 * Math.pow(2, i);
+                const backoffMs = Math.min(MAX_RETRY_AFTER_MS, Math.max(0, requestedBackoffMs));
                 console.warn(`⚠️ Rate limited (429) on ${url}, backing off ${Math.round(backoffMs/1000)}s`);
-                await new Promise(r => setTimeout(r, backoffMs));
+                await response.body?.cancel().catch(() => {});
+                await sleepWithSignal(backoffMs, callerSignal);
                 continue;
             }
 
@@ -144,18 +358,24 @@ export async function fetchWithRetry(url, options = {}, retries = 3) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const data = await response.json();
+            const provenance = responseQuality(response, url);
+            const data = attachResponseQuality(
+                responseType === 'text' ? await response.text() : await response.json(),
+                provenance
+            );
             
-            // Cache the response
-            if (memoryCache) {
+            // A service-worker fallback is already stale. Keep it usable for
+            // this call, but never refresh the in-memory TTL with it.
+            if (memoryCache && provenance?.status !== 'stale') {
                 cache.data[url] = data;
                 cache.timestamps[url] = Date.now();
             }
             
             return data;
         } catch (error) {
+            if (callerSignal?.aborted) throw error;
             if (i === retries - 1) throw error;
-            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+            await sleepWithSignal(1000 * (i + 1), callerSignal);
         }
     }
     throw new Error('Max retries exceeded');
@@ -197,15 +417,7 @@ async function fetchText(url) {
     if (isCacheValid(url)) {
         return cache.data[url];
     }
-
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    
-    cache.data[url] = text;
-    cache.timestamps[url] = Date.now();
-    
-    return text;
+    return fetchWithRetry(url, { responseType: 'text' });
 }
 
 /**
@@ -260,6 +472,20 @@ export function getTzktTotalDelegated(stats = {}) {
     return Number(stats.totalOwnDelegated || 0) + Number(stats.totalExternalDelegated || 0);
 }
 
+/**
+ * TzKT exposes a baker's edge_of_baking_over_staking as a billionth-scaled
+ * fraction. It is the baker's share of externally staked rewards, so an
+ * external staker receives the remaining (1 - edge) share.
+ */
+export function getExternalStakerApy(grossStakeApy, edgeOfBakingOverStaking) {
+    const gross = Number(grossStakeApy);
+    if (!Number.isFinite(gross) || gross <= 0 || edgeOfBakingOverStaking == null) return null;
+
+    const edge = Number(edgeOfBakingOverStaking) / 1e9;
+    if (!Number.isFinite(edge) || edge < 0 || edge > 1) return null;
+    return Math.round(gross * (1 - edge) * 10) / 10;
+}
+
 // ─── Shared dedup fetchers ─────────────────────────────────────────────────────
 
 /**
@@ -311,7 +537,13 @@ async function _doFetchBakers() {
     // historical update_consensus_key ops can include keys that are still pending.
     const bakerUrl = `${ENDPOINTS.tzkt.base}${ENDPOINTS.tzkt.bakers}?active=true&select=address,consensusAddress,bakingPower&limit=${FETCH_LIMITS.bakers}`;
     const delegates = await fetchWithRetry(bakerUrl);
+    if (!Array.isArray(delegates)) {
+        throw new Error('Unexpected active baker response');
+    }
     const fundedBakers = delegates.filter((baker) => Number(baker.bakingPower || 0) > 0);
+    if (!fundedBakers.length) {
+        throw new Error('Active baker response contained no funded bakers');
+    }
     const total = fundedBakers.length;
 
     const tz4Count = fundedBakers.filter((baker) => {
@@ -345,8 +577,19 @@ async function fetchCycleInfo() {
     };
 
     // Compute cycle boundaries from metadata (no TzKT /cycles needed)
-    const cyclePosition = levelInfo.cycle_position || 0;
-    const cycleStartBlock = header.level - cyclePosition;
+    const currentLevel = Number(header.level);
+    const cyclePosition = levelInfo.cycle_position == null ? NaN : Number(levelInfo.cycle_position);
+    const cycleNumber = levelInfo.cycle == null ? null : Number(levelInfo.cycle);
+    if (!Number.isFinite(currentLevel) || !Number.isFinite(cyclePosition) || cyclePosition < 0) {
+        return {
+            cycle: Number.isFinite(cycleNumber) ? cycleNumber : null,
+            blockLevel: Number.isFinite(currentLevel) ? currentLevel : null,
+            blockTime: header.timestamp || null,
+            progress: null,
+            timeRemaining: '—'
+        };
+    }
+    const cycleStartBlock = currentLevel - cyclePosition;
 
     // Fetch block time from RPC constants (don't hardcode 6s)
     let blockTimeSec = 6; // safe fallback
@@ -365,7 +608,7 @@ async function fetchCycleInfo() {
     // Recompute with actual blocks_per_cycle from constants
     const cycleEndBlockActual = cycleStartBlock + actualBlocksPerCycle - 1;
 
-    const currentBlock = head.level;
+    const currentBlock = currentLevel;
     // cycleStartBlock computed above from RPC metadata
     const blocksPerCycle = 14400; // Will be overridden by constants below if available
     const cycleEndBlock = cycleStartBlock + blocksPerCycle - 1;
@@ -392,7 +635,7 @@ async function fetchCycleInfo() {
     }
 
     return {
-        cycle: head.cycle,
+        cycle: Number.isFinite(cycleNumber) ? cycleNumber : null,
         blockLevel: head.level,
         blockTime: head.timestamp,
         progress: Math.min(progress, 100),
@@ -429,8 +672,11 @@ function proposalDisplayName(proposal) {
 let _governanceReportPromise = null;
 async function fetchGovernanceReport() {
     if (!_governanceReportPromise) {
-        _governanceReportPromise = fetch('/data/governance-refresh-report.json?v=1', { cache: 'no-store' })
-            .then((response) => response.ok ? response.json() : null)
+        _governanceReportPromise = fetchWithRetry(
+            '/data/governance-refresh-report.json?v=1',
+            { cache: 'no-store', memoryCache: false },
+            2
+        )
             .catch(() => null);
     }
     return _governanceReportPromise;
@@ -540,11 +786,17 @@ async function fetchGovernance() {
         console.error('Failed to fetch governance:', error);
 
         return {
+            _quality: {
+                status: 'unavailable',
+                observedAt: null,
+                checkedAt: new Date().toISOString(),
+                error: error.message
+            },
             proposal: 'N/A',
             proposalDescription: 'Error loading',
             period: 'N/A',
             periodDescription: 'Error loading',
-            participation: 0,
+            participation: null,
             participationDescription: 'Error loading'
         };
     }
@@ -567,43 +819,91 @@ async function fetchIssuance() {
         const parsedProtocolRate = rpcRateRaw.status === 'fulfilled' && rpcRateRaw.value != null
             ? parseFloat(String(rpcRateRaw.value).replace(/"/g, ''))
             : NaN;
-        const protocolRate = Number.isFinite(parsedProtocolRate) ? parsedProtocolRate : null;
+        const protocolRate = Number.isFinite(parsedProtocolRate) && parsedProtocolRate > 0
+            ? parsedProtocolRate
+            : null;
 
         if (protocolRate == null) {
-            return { total: 0, protocol: 0, lb: 0 };
+            return {
+                total: null,
+                protocol: null,
+                lb: null,
+                _quality: {
+                    status: 'unavailable',
+                    observedAt: null,
+                    checkedAt: new Date().toISOString(),
+                    error: 'Protocol issuance rate unavailable'
+                }
+            };
         }
 
         // LB subsidy: constant is per-block but denominated for ~1 min blocks.
         // Treat as XTZ-per-minute to match TzKT methodology.
-        let lbRate = 0;
+        let lbRate = null;
         const constants = constantsRaw.status === 'fulfilled' ? constantsRaw.value : null;
         const supplyMutez = supplyRaw.status === 'fulfilled'
-            ? parseInt(supplyRaw.value.replace(/"/g, ''))
+            ? parseInt(String(supplyRaw.value).replace(/"/g, ''), 10)
             : null;
         const lbState = lbStateRaw.status === 'fulfilled'
             ? lbStateRaw.value
-            : { disabled: false, ema: null, emaPct: null };
-        const lbDisabled = Boolean(lbState.disabled);
+            : { disabled: null, ema: null, emaPct: null };
+        const rawLbEma = lbState?.ema;
+        const lbStateKnown = rawLbEma !== null
+            && rawLbEma !== undefined
+            && rawLbEma !== ''
+            && Number.isFinite(Number(rawLbEma));
+        const lbDisabled = lbStateKnown ? Boolean(lbState.disabled) : null;
+        const lbSubsidy = Number(constants?.liquidity_baking_subsidy);
+        const lbRateInputsKnown = Boolean(constants)
+            && Number.isFinite(supplyMutez)
+            && supplyMutez > 0
+            && Number.isFinite(lbSubsidy)
+            && lbSubsidy >= 0;
 
-        if (!lbDisabled && constants && supplyMutez && supplyMutez > 0) {
-            const lbSubsidy = parseInt(constants.liquidity_baking_subsidy) || 0;
+        if (lbDisabled === true) {
+            lbRate = 0;
+        } else if (lbDisabled === false && lbRateInputsKnown) {
             const minutesPerYear = 365.25 * 24 * 60;
             const lbXTZPerYear = (lbSubsidy / 1e6) * minutesPerYear;
             const totalSupplyXTZ = supplyMutez / 1e6;
             lbRate = (lbXTZPerYear / totalSupplyXTZ) * 100;
         }
 
+        const lbInputsAvailable = lbStateKnown
+            && (lbDisabled === true || lbRateInputsKnown)
+            && Number.isFinite(lbRate);
         return {
-            total: protocolRate + lbRate,
+            total: lbInputsAvailable ? protocolRate + lbRate : null,
             protocol: protocolRate,
-            lb: lbRate,
+            lb: lbInputsAvailable ? lbRate : null,
             lbDisabled,
-            lbEma: lbState.ema,
-            lbEmaPct: lbState.emaPct
+            lbEma: lbStateKnown ? Number(rawLbEma) : null,
+            lbEmaPct: lbStateKnown
+                && lbState.emaPct !== null
+                && lbState.emaPct !== undefined
+                && lbState.emaPct !== ''
+                && Number.isFinite(Number(lbState.emaPct))
+                ? Number(lbState.emaPct)
+                : null,
+            _quality: {
+                status: lbInputsAvailable ? 'live' : 'partial',
+                observedAt: new Date().toISOString(),
+                ...(lbInputsAvailable ? {} : { error: 'Liquidity Baking issuance inputs unavailable' })
+            }
         };
     } catch (error) {
         console.error('Failed to fetch issuance:', error);
-        return { total: 0, protocol: 0, lb: 0 };
+        return {
+            total: null,
+            protocol: null,
+            lb: null,
+            _quality: {
+                status: 'unavailable',
+                observedAt: null,
+                checkedAt: new Date().toISOString(),
+                error: error.message
+            }
+        };
     }
 }
 
@@ -678,6 +978,7 @@ async function fetchRecentActivityCutoffLevel() {
  * Matches TzKT's Proof-of-Stake totals: own staked + external staked.
  */
 export async function fetchStakingRatio() {
+    const responseSequenceAtStart = responseQualitySequence;
     try {
         const [statsResult, frozenStakeResult, supplyResult] = await Promise.allSettled([
             fetchSharedStats(),
@@ -685,57 +986,130 @@ export async function fetchStakingRatio() {
             fetchText(`${ENDPOINTS.octez.base}${ENDPOINTS.octez.totalSupply}`)
         ]);
 
-        const stats = statsResult.status === 'fulfilled' ? statsResult.value : {};
+        const stats = statsResult.status === 'fulfilled' && statsResult.value && typeof statsResult.value === 'object'
+            ? statsResult.value
+            : {};
+        const readStatsNumber = (field) => {
+            if (!Object.prototype.hasOwnProperty.call(stats, field) || stats[field] === null || stats[field] === '') {
+                return null;
+            }
+            const value = Number(stats[field]);
+            return Number.isFinite(value) && value >= 0 ? value : null;
+        };
+        const statsSupply = readStatsNumber('totalSupply');
+        const ownStaked = readStatsNumber('totalOwnStaked');
+        const externalStaked = readStatsNumber('totalExternalStaked');
+        const legacyFrozen = readStatsNumber('totalFrozen');
+        const ownDelegated = readStatsNumber('totalOwnDelegated');
+        const externalDelegated = readStatsNumber('totalExternalDelegated');
+        const bakingPower = readStatsNumber('totalBakingPower');
+        const totalDelegators = readStatsNumber('totalDelegators');
+        const totalStakers = readStatsNumber('totalStakers');
         const rpcSupply = supplyResult.status === 'fulfilled' ? parseMutezText(supplyResult.value) : 0;
-        const totalSupply = Number(stats.totalSupply || 0) || rpcSupply || 0;
+        const totalSupply = (statsSupply > 0 ? statsSupply : 0) || rpcSupply || 0;
         
         if (totalSupply === 0) {
             return {
-                stakingRatio: 0,
-                delegatedRatio: 0,
-                totalStaked: 0,
-                totalDelegated: 0,
-                bakingPower: 0,
-                totalDelegators: 0,
-                totalStakers: 0,
-                rewardAccounts: 0
+                _quality: {
+                    status: 'unavailable',
+                    observedAt: null,
+                    checkedAt: new Date().toISOString(),
+                    error: 'Staking supply inputs unavailable'
+                },
+                stakingRatio: null,
+                delegatedRatio: null,
+                totalStaked: null,
+                totalDelegated: null,
+                bakingPower: null,
+                totalDelegators: null,
+                totalStakers: null,
+                rewardAccounts: null
             };
         }
         
         const rpcFrozenStake = frozenStakeResult.status === 'fulfilled'
             ? parseMutezText(frozenStakeResult.value)
             : 0;
-        const totalStaked = getTzktTotalStaked(stats) || rpcFrozenStake || 0;
+        const tzktStaked = ownStaked !== null && externalStaked !== null && ownStaked + externalStaked > 0
+            ? ownStaked + externalStaked
+            : legacyFrozen !== null && legacyFrozen > 0
+                ? legacyFrozen
+                : 0;
+        const totalStaked = tzktStaked || rpcFrozenStake || 0;
+        if (totalStaked <= 0) {
+            return {
+                _quality: {
+                    status: 'unavailable',
+                    observedAt: null,
+                    checkedAt: new Date().toISOString(),
+                    error: 'Frozen stake inputs unavailable'
+                },
+                stakingRatio: null,
+                delegatedRatio: null,
+                totalStaked: null,
+                totalDelegated: null,
+                bakingPower: null,
+                totalDelegators: null,
+                totalStakers: null,
+                rewardAccounts: null
+            };
+        }
         const stakingRatio = (totalStaked / totalSupply) * 100;
         
         // Delegated = own delegated + external delegated (not locked/staked)
-        const totalDelegated = getTzktTotalDelegated(stats);
-        const delegatedRatio = (totalDelegated / totalSupply) * 100;
+        const totalDelegated = ownDelegated !== null && externalDelegated !== null
+            ? ownDelegated + externalDelegated
+            : null;
+        const delegatedRatio = totalDelegated === null ? null : (totalDelegated / totalSupply) * 100;
+        const missingFields = [
+            ...(totalDelegated === null ? ['totalOwnDelegated/totalExternalDelegated'] : []),
+            ...(bakingPower === null ? ['totalBakingPower'] : []),
+            ...(totalDelegators === null ? ['totalDelegators'] : []),
+            ...(totalStakers === null ? ['totalStakers'] : [])
+        ];
+        const hasCompleteStats = missingFields.length === 0;
 
-        const totalDelegators = stats.totalDelegators || 0;
-        const totalStakers = stats.totalStakers || 0;
-
+        const stakingQuality = mergeStaleResponseQuality({
+            status: hasCompleteStats ? 'live' : 'partial',
+            observedAt: new Date().toISOString(),
+            failedCategories: hasCompleteStats ? [] : ['networkStats'],
+            staleCategories: [],
+            unavailableCategories: hasCompleteStats ? [] : ['networkStats'],
+            ...(hasCompleteStats ? {} : {
+                missingFields,
+                error: `TzKT network totals unavailable: ${missingFields.join(', ')}`
+            })
+        }, responseSequenceAtStart);
         return {
+            _quality: stakingQuality,
             stakingRatio,
             delegatedRatio,
             totalStaked: totalStaked / 1e6,
-            totalDelegated: totalDelegated / 1e6,
-            bakingPower: (stats.totalBakingPower || 0) / 1e6,
+            totalDelegated: totalDelegated === null ? null : totalDelegated / 1e6,
+            bakingPower: bakingPower === null ? null : bakingPower / 1e6,
             totalDelegators,
             totalStakers,
-            rewardAccounts: totalDelegators + totalStakers
+            rewardAccounts: totalDelegators === null || totalStakers === null
+                ? null
+                : totalDelegators + totalStakers
         };
     } catch (error) {
         console.error('Failed to fetch staking ratio:', error);
         return {
-            stakingRatio: 0,
-            delegatedRatio: 0,
-            totalStaked: 0,
-            totalDelegated: 0,
-            bakingPower: 0,
-            totalDelegators: 0,
-            totalStakers: 0,
-            rewardAccounts: 0
+            _quality: {
+                status: 'unavailable',
+                observedAt: null,
+                checkedAt: new Date().toISOString(),
+                error: error.message
+            },
+            stakingRatio: null,
+            delegatedRatio: null,
+            totalStaked: null,
+            totalDelegated: null,
+            bakingPower: null,
+            totalDelegators: null,
+            totalStakers: null,
+            rewardAccounts: null
         };
     }
 }
@@ -746,7 +1120,9 @@ export async function fetchStakingRatio() {
 async function fetchTotalSupply() {
     const url = `${ENDPOINTS.octez.base}${ENDPOINTS.octez.totalSupply}`;
     const supplyMutez = await fetchText(url);
-    return parseMutezText(supplyMutez) / 1e6;
+    const supply = parseMutezText(supplyMutez) / 1e6;
+    if (supply <= 0) throw new Error('Total supply unavailable');
+    return supply;
 }
 
 /**
@@ -755,10 +1131,18 @@ async function fetchTotalSupply() {
 async function fetchTotalBurned() {
     try {
         const stats = await fetchSharedStats();
-        return (stats.totalBurned || 0) / 1e6;
+        const rawBurned = stats?.totalBurned;
+        if (rawBurned === null || rawBurned === undefined || rawBurned === '') {
+            throw new Error('Total burned unavailable');
+        }
+        const burnedMutez = Number(rawBurned);
+        if (!Number.isFinite(burnedMutez) || burnedMutez < 0) {
+            throw new Error('Total burned is invalid');
+        }
+        return burnedMutez / 1e6;
     } catch (error) {
         console.error('Failed to fetch burned:', error);
-        return 0;
+        throw error;
     }
 }
 
@@ -816,24 +1200,55 @@ async function fetchRollups() {
  * Fetch estimated staking APY
  */
 export async function fetchStakingAPY() {
+    let failedInputs = [];
+    const responseSequenceAtStart = responseQualitySequence;
     try {
-        const [rateResult, statsResult, frozenStakeResult, supplyResult] = await Promise.allSettled([
+        const [rateResult, statsResult, frozenStakeResult, supplyResult, constantsResult] = await Promise.allSettled([
             fetchSharedYearlyRate(),
             fetchSharedStats(),
             fetchText(`${ENDPOINTS.octez.base}${ENDPOINTS.octez.totalFrozenStake}`),
-            fetchText(`${ENDPOINTS.octez.base}${ENDPOINTS.octez.totalSupply}`)
+            fetchText(`${ENDPOINTS.octez.base}${ENDPOINTS.octez.totalSupply}`),
+            fetchSharedConstants()
         ]);
 
         const rateString = rateResult.status === 'fulfilled' ? rateResult.value : '0';
         const netIssuance = parseFloat(String(rateString || '0').replace(/"/g, ''));
         const stats = statsResult.status === 'fulfilled' ? statsResult.value : {};
+        const readNonNegativeStat = (key) => {
+            const raw = stats?.[key];
+            if (raw === null || raw === undefined || raw === '') return null;
+            const parsed = Number(raw);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+        };
+        const ownDelegatedMutez = readNonNegativeStat('totalOwnDelegated');
+        const externalDelegatedMutez = readNonNegativeStat('totalExternalDelegated');
+        const hasDelegatedFields = ownDelegatedMutez !== null && externalDelegatedMutez !== null;
         const fallbackSupplyMutez = supplyResult.status === 'fulfilled' ? parseMutezText(supplyResult.value) : 0;
         const fallbackFrozenStakeMutez = frozenStakeResult.status === 'fulfilled' ? parseMutezText(frozenStakeResult.value) : 0;
         const supplyMutez = Number(stats.totalSupply || 0) || fallbackSupplyMutez || 0;
         const stakedMutez = getTzktTotalStaked(stats) || fallbackFrozenStakeMutez || 0;
-        const delegatedMutez = getTzktTotalDelegated(stats);
+        const delegatedMutez = hasDelegatedFields
+            ? ownDelegatedMutez + externalDelegatedMutez
+            : NaN;
+        const delegationPowerDivisor = constantsResult.status === 'fulfilled'
+            ? Number(constantsResult.value?.edge_of_staking_over_delegation)
+            : NaN;
 
-        if (!Number.isFinite(netIssuance) || netIssuance <= 0 || supplyMutez <= 0 || stakedMutez <= 0) {
+        failedInputs = [...new Set([
+            rateResult.status === 'rejected' || !Number.isFinite(netIssuance) || netIssuance <= 0 ? 'issuanceRate' : null,
+            statsResult.status === 'rejected' ? 'networkStats' : null,
+            !hasDelegatedFields ? 'delegatedSupply' : null,
+            frozenStakeResult.status === 'rejected' && stakedMutez <= 0 ? 'frozenStake' : null,
+            supplyResult.status === 'rejected' && supplyMutez <= 0 ? 'totalSupply' : null,
+            !Number.isFinite(supplyMutez) || supplyMutez <= 0 ? 'supply' : null,
+            !Number.isFinite(stakedMutez) || stakedMutez <= 0 ? 'stakedSupply' : null,
+            !Number.isFinite(delegatedMutez) || delegatedMutez < 0 ? 'delegatedSupply' : null,
+            !Number.isFinite(delegationPowerDivisor) || delegationPowerDivisor <= 0
+                ? 'stakingDelegationWeight'
+                : null
+        ].filter(Boolean))];
+
+        if (failedInputs.length > 0) {
             throw new Error('Missing staking APY inputs');
         }
 
@@ -843,23 +1258,68 @@ export async function fetchStakingAPY() {
         
         const s = staked / supply;
         const d = delegated / supply;
-        const edge = 2; // edge_of_baking_over_staking protocol constant
         
-        // Effective baking power: staked + delegated/(1+edge)
-        const effective = s + d / (1 + edge);
+        // Protocol baking power weights delegated funds by the live
+        // edge_of_staking_over_delegation divisor (currently 3), independently
+        // from each baker's configurable edge_of_baking_over_staking split.
+        const effective = s + d / delegationPowerDivisor;
         
         // Staker APY = net_issuance / effective_stake_ratio
         const stakeAPY = (netIssuance / 100) / effective * 100;
-        // Delegator APY = staker_apy / (1+edge)
-        const delegateAPY = stakeAPY / (1 + edge);
+        // Gross delegation context before a baker's off-chain payout policy.
+        const delegateAPY = stakeAPY / delegationPowerDivisor;
+        if (!Number.isFinite(effective) || effective <= 0
+            || !Number.isFinite(stakeAPY) || stakeAPY <= 0
+            || !Number.isFinite(delegateAPY) || delegateAPY <= 0) {
+            failedInputs.push('calculatedRate');
+            throw new Error('Invalid staking APY calculation');
+        }
         
-        return { 
+        const observedAt = new Date().toISOString();
+        const apyQuality = mergeStaleResponseQuality({
+            status: 'live',
+            observedAt,
+            failedCategories: [],
+            staleCategories: [],
+            unavailableCategories: []
+        }, responseSequenceAtStart);
+        const result = {
             delegateAPY: Math.round(delegateAPY * 10) / 10, 
-            stakeAPY: Math.round(stakeAPY * 10) / 10 
+            stakeAPY: Math.round(stakeAPY * 10) / 10,
+            _quality: {
+                ...apyQuality,
+                failedInputs: []
+            }
         };
+        if (result._quality.status === 'live') lastGoodStakingAPY = result;
+        return result;
     } catch (error) {
         console.error('Failed to fetch staking APY:', error);
-        return { delegateAPY: 3.1, stakeAPY: 9.2 }; // Fallback to recent known values
+        const checkedAt = new Date().toISOString();
+        if (lastGoodStakingAPY) {
+            return {
+                delegateAPY: lastGoodStakingAPY.delegateAPY,
+                stakeAPY: lastGoodStakingAPY.stakeAPY,
+                _quality: {
+                    status: 'stale',
+                    observedAt: lastGoodStakingAPY._quality.observedAt,
+                    checkedAt,
+                    failedInputs,
+                    error: error.message
+                }
+            };
+        }
+        return {
+            delegateAPY: null,
+            stakeAPY: null,
+            _quality: {
+                status: 'unavailable',
+                observedAt: null,
+                checkedAt,
+                failedInputs,
+                error: error.message
+            }
+        };
     }
 }
 
@@ -868,6 +1328,7 @@ export async function fetchStakingAPY() {
  */
 export async function fetchAllStats() {
     try {
+        const responseSequenceAtStart = responseQualitySequence;
         const [
             bakersData,
             cycleInfo,
@@ -906,23 +1367,57 @@ export async function fetchAllStats() {
             fetchStakingAPY()
         ]);
 
-        // Log warning if multiple API categories failed
-        const allResults = [bakersData, cycleInfo, governance, issuance, txVolume, totalTransactions, contractCalls, stakingData, totalSupply, totalBurned, fundedAccounts, newAccounts, smartContracts, activeContracts, tokens, rollups, stakingAPY];
-        const failedCount = allResults.filter(r => r.status === 'rejected').length;
-        if (failedCount >= 2) {
+        const { values, quality } = qualityFromSettled({
+            bakers: bakersData,
+            cycle: cycleInfo,
+            governance,
+            issuance,
+            transactionVolume24h: txVolume,
+            totalTransactions,
+            contractCalls24h: contractCalls,
+            staking: stakingData,
+            totalSupply,
+            totalBurned,
+            fundedAccounts,
+            newAccounts24h: newAccounts,
+            smartContracts,
+            activeContracts24h: activeContracts,
+            tokens,
+            rollups,
+            stakingAPY
+        }, {
+            bakers: { total: null, tz4Count: null, tz4Percentage: null },
+            cycle: { cycle: null, progress: null, timeRemaining: '—' },
+            governance: {},
+            issuance: { total: null, protocol: null, lb: null, lbDisabled: null, lbEmaPct: null },
+            transactionVolume24h: null,
+            totalTransactions: null,
+            contractCalls24h: null,
+            staking: { stakingRatio: null, delegatedRatio: null, totalStaked: null, totalDelegated: null, bakingPower: null, totalDelegators: null, totalStakers: null, rewardAccounts: null },
+            totalSupply: null,
+            totalBurned: null,
+            fundedAccounts: null,
+            newAccounts24h: null,
+            smartContracts: null,
+            activeContracts24h: null,
+            tokens: null,
+            rollups: null,
+            stakingAPY: { delegateAPY: null, stakeAPY: null, _quality: { status: 'unavailable', observedAt: null } }
+        });
+        mergeStaleResponseQuality(quality, responseSequenceAtStart);
+
+        if (quality.failedCategories.length >= 2) {
             console.warn('Multiple API categories failed, showing cached/stale data');
         }
 
-        // Extract results with fallbacks
-        const bakers = bakersData.status === 'fulfilled' ? bakersData.value : { total: 0, tz4Count: 0, tz4Percentage: 0 };
-        const cycle = cycleInfo.status === 'fulfilled' ? cycleInfo.value : { cycle: 0, progress: 0, timeRemaining: 'N/A' };
-        const gov = governance.status === 'fulfilled' ? governance.value : {};
-        const staking = stakingData.status === 'fulfilled'
-            ? stakingData.value
-            : { stakingRatio: 0, delegatedRatio: 0, bakingPower: 0, totalDelegators: 0, totalStakers: 0, rewardAccounts: 0 };
-        const apy = stakingAPY.status === 'fulfilled' ? stakingAPY.value : { delegateAPY: 0, stakeAPY: 0 };
+        const bakers = values.bakers;
+        const cycle = values.cycle;
+        const gov = values.governance;
+        const staking = values.staking;
+        const apy = values.stakingAPY;
 
         return {
+            _quality: quality,
             // Consensus
             totalBakers: bakers.total,
             tz4Bakers: bakers.tz4Count,
@@ -947,11 +1442,11 @@ export async function fetchAllStats() {
             govProposalName: gov.govProposalName || null,
             
             // Economy
-            currentIssuanceRate: issuance.status === 'fulfilled' ? (issuance.value.total || 0) : 0,
-            protocolIssuanceRate: issuance.status === 'fulfilled' ? issuance.value.protocol : 0,
-            lbIssuanceRate: issuance.status === 'fulfilled' ? issuance.value.lb : 0,
-            lbSubsidyDisabled: issuance.status === 'fulfilled' ? Boolean(issuance.value.lbDisabled) : false,
-            lbEmaPct: issuance.status === 'fulfilled' ? issuance.value.lbEmaPct : null,
+            currentIssuanceRate: values.issuance.total ?? null,
+            protocolIssuanceRate: values.issuance.protocol ?? null,
+            lbIssuanceRate: values.issuance.lb ?? null,
+            lbSubsidyDisabled: values.issuance.lbDisabled ?? null,
+            lbEmaPct: values.issuance.lbEmaPct ?? null,
             stakingRatio: staking.stakingRatio,
             delegatedRatio: staking.delegatedRatio,
             totalStaked: staking.totalStaked,
@@ -960,23 +1455,23 @@ export async function fetchAllStats() {
             totalDelegators: staking.totalDelegators,
             totalStakers: staking.totalStakers,
             rewardAccounts: staking.rewardAccounts,
-            totalSupply: totalSupply.status === 'fulfilled' ? totalSupply.value : 0,
-            totalBurned: totalBurned.status === 'fulfilled' ? totalBurned.value : 0,
+            totalSupply: values.totalSupply,
+            totalBurned: values.totalBurned,
             delegateAPY: apy.delegateAPY,
             stakeAPY: apy.stakeAPY,
             
             // Network Activity
-            transactionVolume24h: txVolume.status === 'fulfilled' ? txVolume.value : 0,
-            totalTransactions: totalTransactions.status === 'fulfilled' ? totalTransactions.value : 0,
-            contractCalls24h: contractCalls.status === 'fulfilled' ? contractCalls.value : 0,
-            fundedAccounts: fundedAccounts.status === 'fulfilled' ? fundedAccounts.value : 0,
-            newAccounts24h: newAccounts.status === 'fulfilled' ? newAccounts.value : 0,
+            transactionVolume24h: values.transactionVolume24h,
+            totalTransactions: values.totalTransactions,
+            contractCalls24h: values.contractCalls24h,
+            fundedAccounts: values.fundedAccounts,
+            newAccounts24h: values.newAccounts24h,
             
             // Ecosystem
-            smartContracts: smartContracts.status === 'fulfilled' ? smartContracts.value : 0,
-            activeContracts24h: activeContracts.status === 'fulfilled' ? activeContracts.value : 0,
-            tokens: tokens.status === 'fulfilled' ? tokens.value : 0,
-            rollups: rollups.status === 'fulfilled' ? rollups.value : 0
+            smartContracts: values.smartContracts,
+            activeContracts24h: values.activeContracts24h,
+            tokens: values.tokens,
+            rollups: values.rollups
         };
     } catch (error) {
         console.error('Failed to fetch all stats:', error);
@@ -990,6 +1485,7 @@ export async function fetchAllStats() {
  */
 export async function fetchHeroStats() {
     try {
+        const responseSequenceAtStart = responseQualitySequence;
         const [bakersData, stakingData, issuanceData, cycleData] = await Promise.allSettled([
             fetchBakers(),
             fetchStakingRatio(),
@@ -997,16 +1493,25 @@ export async function fetchHeroStats() {
             fetchCycleInfo()
         ]);
 
-        const bakers = bakersData.status === 'fulfilled' ? bakersData.value : { total: 0, tz4Count: 0, tz4Percentage: 0 };
-        const staking = stakingData.status === 'fulfilled'
-            ? stakingData.value
-            : { stakingRatio: 0, delegatedRatio: 0, totalStaked: 0, totalDelegated: 0, bakingPower: 0, totalDelegators: 0, totalStakers: 0, rewardAccounts: 0 };
-
-        const issuanceRate = issuanceData.status === "fulfilled" ? (issuanceData.value.total || 0) : 0;
-
-        const cycleInfo = cycleData.status === 'fulfilled' ? cycleData.value : { cycle: 0, progress: 0, timeRemaining: '—' };
+        const { values, quality } = qualityFromSettled({
+            bakers: bakersData,
+            staking: stakingData,
+            issuance: issuanceData,
+            cycle: cycleData
+        }, {
+            bakers: { total: null, tz4Count: null, tz4Percentage: null },
+            staking: { stakingRatio: null, delegatedRatio: null, totalStaked: null, totalDelegated: null, bakingPower: null, totalDelegators: null, totalStakers: null, rewardAccounts: null },
+            issuance: { total: null },
+            cycle: { cycle: null, progress: null, timeRemaining: '—' }
+        });
+        mergeStaleResponseQuality(quality, responseSequenceAtStart);
+        const bakers = values.bakers;
+        const staking = values.staking;
+        const issuanceRate = values.issuance.total ?? null;
+        const cycleInfo = values.cycle;
 
         return {
+            _quality: quality,
             totalBakers: bakers.total,
             tz4Bakers: bakers.tz4Count,
             tz4Percentage: bakers.tz4Percentage,
@@ -1027,7 +1532,25 @@ export async function fetchHeroStats() {
         };
     } catch (error) {
         console.error('Failed to fetch hero stats:', error);
-        return { totalBakers: 0, tz4Bakers: 0, tz4Percentage: 0, stakingRatio: 0, delegatedRatio: 0, currentIssuanceRate: 0, cycle: 0, cycleProgress: 0, cycleTimeRemaining: '—' };
+        return {
+            _quality: {
+                status: 'unavailable',
+                observedAt: new Date().toISOString(),
+                failedCategories: ['hero'],
+                staleCategories: [],
+                unavailableCategories: ['hero'],
+                errors: { hero: error.message }
+            },
+            totalBakers: null,
+            tz4Bakers: null,
+            tz4Percentage: null,
+            stakingRatio: null,
+            delegatedRatio: null,
+            currentIssuanceRate: null,
+            cycle: null,
+            cycleProgress: null,
+            cycleTimeRemaining: '—'
+        };
     }
 }
 
@@ -1037,13 +1560,13 @@ export async function fetchHeroStats() {
 export async function checkApiHealth() {
     try {
         const [tzktHealth, octezHealth] = await Promise.allSettled([
-            fetch(`${ENDPOINTS.tzkt.base}/head`),
-            fetch(`${ENDPOINTS.octez.base}/chains/main/blocks/head/header`)
+            fetchWithRetry(`${ENDPOINTS.tzkt.base}/head`, { memoryCache: false }, 1),
+            fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/head/header`, { memoryCache: false }, 1)
         ]);
         
         return {
-            tzkt: tzktHealth.status === 'fulfilled' && tzktHealth.value.ok,
-            octez: octezHealth.status === 'fulfilled' && octezHealth.value.ok
+            tzkt: tzktHealth.status === 'fulfilled',
+            octez: octezHealth.status === 'fulfilled'
         };
     } catch (error) {
         return { tzkt: false, octez: false };
@@ -1070,13 +1593,11 @@ export async function fetchHistoricalData(range = '7d') {
 
     const requestPromise = (async () => {
         for (let offset = 0; ; offset += HISTORICAL_PAGE_SIZE) {
-            const response = await fetch(`${url}&limit=${HISTORICAL_PAGE_SIZE}&offset=${offset}`, { headers });
-
-            if (!response.ok) {
-                throw new Error(`Supabase fetch failed: ${response.status}`);
-            }
-
-            const rows = await response.json();
+            const rows = await fetchWithRetry(
+                `${url}&limit=${HISTORICAL_PAGE_SIZE}&offset=${offset}`,
+                { headers, memoryCache: false },
+                2
+            );
             if (!Array.isArray(rows)) {
                 throw new Error('Supabase fetch returned a non-array response');
             }
@@ -1130,12 +1651,11 @@ async function fetchSupabaseHistoryRows(table, range = '7d', select = '*') {
 
     const requestPromise = (async () => {
         for (let offset = 0; ; offset += HISTORICAL_PAGE_SIZE) {
-            const response = await fetch(`${url}&limit=${HISTORICAL_PAGE_SIZE}&offset=${offset}`, { headers });
-            if (!response.ok) {
-                throw new Error(`${table} fetch failed: ${response.status}`);
-            }
-
-            const rows = await response.json();
+            const rows = await fetchWithRetry(
+                `${url}&limit=${HISTORICAL_PAGE_SIZE}&offset=${offset}`,
+                { headers, memoryCache: false },
+                2
+            );
             if (!Array.isArray(rows)) {
                 throw new Error(`${table} fetch returned a non-array response`);
             }
@@ -1186,18 +1706,17 @@ export async function fetchChamberHistoricalData(range = '7d') {
 }
 
 async function fetchLatestHistoryRow(config, table) {
-    const response = await fetch(`${config.url}/rest/v1/${table}?select=timestamp&order=timestamp.desc&limit=1`, {
-        headers: {
-            'apikey': config.key,
-            'Authorization': `Bearer ${config.key}`
-        }
-    });
-
-    if (!response.ok) {
-        throw new Error(`${table} freshness fetch failed: ${response.status}`);
-    }
-
-    const rows = await response.json();
+    const rows = await fetchWithRetry(
+        `${config.url}/rest/v1/${table}?select=timestamp&order=timestamp.desc&limit=1`,
+        {
+            headers: {
+                'apikey': config.key,
+                'Authorization': `Bearer ${config.key}`
+            },
+            memoryCache: false
+        },
+        2
+    );
     return Array.isArray(rows) ? rows[0] : null;
 }
 

@@ -2391,7 +2391,7 @@ export async function captureProtocol(protocol) {
         }
 
         wrapper.appendChild(content);
-        addFooter(wrapper, brand, `${total} upgrades • Zero forks`, { isClean, isDark });
+        addFooter(wrapper, brand, `${total} named on-chain upgrades`, { isClean, isDark });
         document.body.appendChild(wrapper);
         restoreSpacing = await fixWordSpacing(wrapper);
 
@@ -2490,7 +2490,7 @@ export async function captureTimeline(allProtocols) {
         // Tagline
         content.innerHTML += `
             <div style="font-size:16px; font-weight:700; color:rgba(255,255,255,0.6); letter-spacing:1px;">
-                ${total} Self-Amendments • Zero Hard Forks • Since 2018
+                ${total} Named Upgrades • On-Chain Amendment Path • Since 2018
             </div>
         `;
 

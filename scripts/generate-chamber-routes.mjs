@@ -20,6 +20,82 @@ function replaceTag(html, pattern, replacement) {
   return html.replace(pattern, replacement);
 }
 
+function jsonLd(value) {
+  return JSON.stringify(value, null, 2).replaceAll('<', '\\u003c');
+}
+
+function renderRouteStructuredData(route, url, image) {
+  const schema = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: route.shortTitle,
+      headline: route.title,
+      url,
+      description: route.description,
+      primaryImageOfPage: image,
+      isPartOf: {
+        '@type': 'WebSite',
+        name: 'Tezos Systems',
+        url: 'https://tezos.systems/'
+      },
+      about: {
+        '@type': 'Thing',
+        name: 'Tezos'
+      },
+      publisher: {
+        '@type': 'Person',
+        name: 'Primate411',
+        url: 'https://github.com/Primate411',
+        affiliation: {
+          '@type': 'Organization',
+          name: 'Tez Capital',
+          url: 'https://tez.capital'
+        }
+      }
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Tezos Systems',
+          item: 'https://tezos.systems/'
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: route.shortTitle,
+          item: url
+        }
+      ]
+    }
+  ];
+
+  return `    <!-- Route-specific structured data: generated, do not edit in route shells -->
+    <script type="application/ld+json">
+${jsonLd(schema)}
+    </script>`;
+}
+
+function renderRouteIntro(route) {
+  return `
+        <section class="chamber-route-shell-intro" aria-labelledby="chamber-route-title" style="--chamber-route-accent:${escapeHtml(route.accent)}">
+            <nav aria-label="Breadcrumb"><a href="/">Tezos Systems</a><span aria-hidden="true"> / </span>${escapeHtml(route.eyebrow)}</nav>
+            <h1 id="chamber-route-title">${escapeHtml(route.shortTitle)}</h1>
+            <p>${escapeHtml(route.description)}</p>
+            <small>Opening the live room…</small>
+        </section>`;
+}
+
+const ROUTE_INTRO_STYLES = `    <style data-chamber-route-shell>
+      .chamber-route-shell-intro{box-sizing:border-box;max-width:1160px;margin:0 auto 1rem;padding:clamp(1rem,3vw,1.75rem);border:1px solid color-mix(in srgb,var(--chamber-route-accent) 52%,transparent);border-radius:16px;background:linear-gradient(135deg,rgba(8,15,28,.96),rgba(13,22,38,.9));color:#edf4ff;box-shadow:0 18px 48px rgba(0,0,0,.22)}
+      .chamber-route-shell-intro nav{margin:0 0 .7rem;color:#aebdd1;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase}.chamber-route-shell-intro nav a{color:var(--chamber-route-accent)}
+      .chamber-route-shell-intro h1{margin:0;color:#fff;font-size:clamp(1.65rem,4vw,2.7rem);line-height:1.08}.chamber-route-shell-intro p{max-width:68ch;margin:.75rem 0 0;color:#d4deec;line-height:1.6}.chamber-route-shell-intro small{display:block;margin-top:.8rem;color:var(--chamber-route-accent);font-weight:700}
+    </style>`;
+
 function absolutizeShellAssetRefs(html) {
   return html.replace(/\b(href|src)="(?!https?:|\/|#|mailto:|data:)([^"]+)"/g, (_match, attr, value) => {
     return `${attr}="/${value}"`;
@@ -48,6 +124,18 @@ function renderRoute(route, dashboardShell) {
   html = replaceTag(html, /<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${escapedDescription}">`);
   html = replaceTag(html, /<meta name="twitter:image" content="[^"]*">/, `<meta name="twitter:image" content="${image}">`);
   html = replaceTag(html, /<meta name="robots" content="[^"]*">/, `<meta name="robots" content="${robots}">`);
+  html = replaceTag(
+    html,
+    /\s*<!-- JSON-LD Structured Data -->[\s\S]*?(?=\s*<!-- GoatCounter Analytics -->)/,
+    `\n${renderRouteStructuredData(route, url, image)}\n`
+  );
+  html = html.replace(/\s*<!-- Price Intelligence Structured Data -->\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/, '');
+  html = replaceTag(html, /\n<\/head>/, `\n${ROUTE_INTRO_STYLES}\n</head>`);
+  html = replaceTag(
+    html,
+    /<main class="main-content" role="main">/,
+    `<main class="main-content" role="main">${renderRouteIntro(route)}`
+  );
   return html.replace(/[ \t]+$/gm, '');
 }
 

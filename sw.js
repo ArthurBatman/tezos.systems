@@ -1,224 +1,188 @@
 /**
- * Tezos Systems — Service Worker
- * Cache-first for shell assets, network-first for API data
+ * Tezos Systems service worker.
+ *
+ * Install only a small bootstrap plus a self-contained offline explanation.
+ * Optional chambers, module dependencies, widgets, and data are cached on use
+ * so installing an update does not download the whole site.
  */
 
-const CACHE_NAME = 'tezos-systems-v422';
+const CACHE_NAME = 'tezos-systems-v423';
+const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
+const CURRENT_CACHES = new Set([CACHE_NAME, RUNTIME_CACHE]);
 
-// Shell assets to precache
+const RUNTIME_CACHE_LIMIT = 64;
+const API_NETWORK_TIMEOUT_MS = 12_000;
+
+// Minimum viable shell. The rest of the module graph is cached as the browser
+// requests it during normal use.
 const SHELL_ASSETS = [
     '/',
     '/index.html',
-    '/anthology/',
-    '/chamber/',
-    '/pulse/',
-    '/stake/',
-    '/maxis/',
-    '/health/',
-    '/tezosx/',
-    '/tezlink/',
-    '/l2chamber/',
-    '/tz4/',
-    '/lb/',
-    '/ledger-flow/',
-    '/domains/',
-    '/ctez/',
-    '/css/styles.css',
+    '/offline.html',
     '/css/styles.min.css',
     '/css/loading.css',
     '/css/hero-search.css',
-    '/css/leaderboard.css',
-    '/css/shell-extras.css',
     '/css/site-map.css',
-    '/css/network-pulse.css',
-    '/css/staking-chamber.css',
-    '/css/network-health.css',
-    '/css/maxis.css',
-    '/css/ledger-flow.css',
-    '/css/tezos-domains.css',
-    '/css/hen-mode.css',
     '/js/core/theme-preload.js',
     '/js/core/tzkt-throttle.js',
     '/js/core/app.js',
     '/js/core/api.js',
-    '/js/core/anniversary.js',
     '/js/core/config.js',
-    '/js/core/goatcounter-init.js',
-    '/js/core/hen-init.js',
-    '/js/core/protocol-count.js',
-    '/js/core/site-map.js',
-    '/js/core/tezos-domains.js',
-    '/js/core/utils.js',
-    '/js/core/wallet.js',
     '/js/core/storage.js',
-    '/js/ui/animations.js',
-    '/js/ui/gauge.js',
-    '/js/ui/theme.js',
-    '/js/ui/title.js',
-    '/js/ui/share.js',
-    '/js/ui/toast-queue.js',
-    '/js/ui/wayfinder.js',
-    '/js/features/whales.js',
-    '/js/features/moments.js',
-    '/js/features/my-baker.js',
-    '/js/features/native-explorer.js',
-    '/js/features/network-health.js',
-    '/js/features/network-pulse.js',
-    '/js/features/staking-chamber.js',
-    '/js/features/maxis.js',
-    '/js/features/tezlink.js',
-    '/js/features/ctez.js',
-    '/js/features/etherlink-governance.js',
-    '/js/features/sleeping-giants.js',
-    '/js/features/governance.js',
-    '/js/features/governance-alerts.js',
-    '/js/features/history.js',
-    '/js/features/price.js',
-    '/js/features/changelog.js',
-    '/js/features/comparison.js',
-    '/js/features/streak.js',
-    '/js/features/calculator.js',
-    '/js/effects/arcade-effects.js',
-    '/js/effects/audio.js',
-    '/js/effects/data-magic.js',
-    '/js/effects/matrix-effects.js',
-    '/js/effects/bg-effects.js',
-    '/js/effects/vibes.js',
-    '/js/features/baker-report-card.js',
-    '/js/features/chamber.js',
-    '/js/features/compare-page.js',
-    '/js/features/cycle-pulse.js',
-    '/js/features/daily-briefing.js',
-    '/js/features/hen-mode.js',
-    '/js/features/leaderboard.js',
-    '/js/features/ledger-flow.js',
-    '/js/features/tezos-domains.js',
-    '/js/features/liquidity-baking.js',
-    '/js/features/my-tezos.js',
-    '/js/features/price-intelligence.js',
-    '/js/features/rewards-tracker.js',
-    '/js/features/search.js',
-    '/js/features/state-of-tezos.js',
-    '/js/features/tooltip-tour.js',
-    '/js/features/tz4-adoption.js',
-    '/js/features/upgrade-effect.js',
-    '/js/landing/live-data.js',
-    '/js/landing/site-nav.js',
-    '/widgets/runtime.js',
-    '/widgets/baker-count.html',
-    '/widgets/block-height.html',
-    '/widgets/staking-ratio.html',
-    '/widgets/price.html',
-    '/widgets/protocol.html',
-    '/widgets/governance.html',
-    '/widgets/combo.html',
-    '/widgets/baker-card.html',
-    '/widgets/builder.html',
-    '/data/governance-votes.json',
-    '/data/nakamoto-sources.json',
-    '/data/governance-refresh-report.json',
-    '/data/maxis-leaders.json',
-    '/data/maxis/manifest.json',
-    '/data/protocol-data.json',
-    '/data/tweets.json',
+    '/js/core/utils.js',
     '/favicon.svg',
-    '/favicon-48.png',
     '/site.webmanifest'
 ];
 
-// API domains — network-first with cache fallback
-const API_HOSTS = ['api.tzkt.io', 'eu.rpc.tez.capital', 'tezos-mainnet.octez.io', 'api.coingecko.com', 'iijpfczftroespicmufb.supabase.co', 'data.objkt.com'];
+const API_HOSTS = new Set([
+    'api.tzkt.io',
+    'eu.rpc.tez.capital',
+    'tezos-mainnet.octez.io',
+    'api.coingecko.com',
+    'iijpfczftroespicmufb.supabase.co',
+    'data.objkt.com'
+]);
+
+const CDN_HOSTS = new Set([
+    'cdn.jsdelivr.net',
+    'esm.sh',
+    'fonts.googleapis.com',
+    'fonts.gstatic.com',
+    'unpkg.com'
+]);
+
+async function trimCache(cacheName, maxEntries) {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    const overflow = Math.max(0, keys.length - maxEntries);
+    await Promise.all(keys.slice(0, overflow).map((request) => cache.delete(request)));
+}
+
+async function putBounded(cacheName, request, response, maxEntries) {
+    const cache = await caches.open(cacheName);
+    await cache.put(request, response);
+    await trimCache(cacheName, maxEntries);
+}
+
+async function fetchWithTimeout(request, timeoutMs, init = {}) {
+    const controller = new AbortController();
+    const callerSignal = request.signal;
+    const forwardAbort = () => controller.abort(callerSignal.reason);
+    if (callerSignal?.aborted) forwardAbort();
+    else callerSignal?.addEventListener('abort', forwardAbort, { once: true });
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(request, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+        callerSignal?.removeEventListener('abort', forwardAbort);
+    }
+}
+
+async function apiNetworkFirst(request, event) {
+    try {
+        return await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS);
+    } catch {
+        return new Response(JSON.stringify({
+            error: 'Network data unavailable',
+            _quality: { status: 'unavailable', observedAt: null }
+        }), {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'application/json', 'X-Tezos-Systems-Cache': 'miss' }
+        });
+    }
+}
+
+async function networkFirstRuntime(request, event) {
+    try {
+        const response = await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-cache' });
+        if (response.ok) {
+            event.waitUntil(putBounded(RUNTIME_CACHE, request, response.clone(), RUNTIME_CACHE_LIMIT));
+        }
+        return response;
+    } catch {
+        if (request.mode === 'navigate') {
+            const offline = await caches.match('/offline.html');
+            if (offline) return offline;
+        }
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+    }
+}
+
+async function cacheFirstRuntime(request, event) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    try {
+        const response = await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS);
+        if (response.ok) {
+            event.waitUntil(putBounded(RUNTIME_CACHE, request, response.clone(), RUNTIME_CACHE_LIMIT));
+        }
+        return response;
+    } catch {
+        return new Response('', { status: 504, statusText: 'Gateway Timeout' });
+    }
+}
+
+async function pruneShellCache() {
+    const cache = await caches.open(CACHE_NAME);
+    const allowed = new Set(SHELL_ASSETS.map((asset) => new URL(asset, self.location.origin).href));
+    allowed.add(new URL('/version.json', self.location.origin).href);
+    const keys = await cache.keys();
+    await Promise.all(keys.filter((request) => !allowed.has(request.url)).map((request) => cache.delete(request)));
+}
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            // Don't fail install if some assets are missing
-            return Promise.allSettled(
+        caches.open(CACHE_NAME)
+            .then((cache) => Promise.allSettled(
                 SHELL_ASSETS.map((url) => cache.add(url).catch(() => console.warn('SW: skip', url)))
-            );
-        }).then(() => self.skipWaiting())
+            ))
+            .then(() => self.skipWaiting())
     );
 });
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-            );
-        }).then(() => self.clients.claim())
+        caches.keys()
+            .then((keys) => Promise.all(keys.filter((key) => !CURRENT_CACHES.has(key)).map((key) => caches.delete(key))))
+            .then(pruneShellCache)
+            .then(() => trimCache(RUNTIME_CACHE, RUNTIME_CACHE_LIMIT))
+            .then(() => self.clients.claim())
     );
 });
 
 self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
+    const request = event.request;
+    const url = new URL(request.url);
+    if (request.method !== 'GET') return;
 
-    // Skip non-GET
-    if (event.request.method !== 'GET') return;
-
-    // Version metadata must stay fresh for the footer sanity check.
     if (url.origin === self.location.origin && url.pathname === '/version.json') {
         event.respondWith(
-            fetch(event.request, { cache: 'no-store' })
+            fetch(request, { cache: 'no-store' })
                 .then((response) => {
-                    if (response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put('/version.json', clone));
-                    }
+                    if (response.ok) event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())));
                     return response;
                 })
-                .catch(() => caches.match('/version.json').then((r) => r || new Response('Version unavailable', { status: 503, statusText: 'Service Unavailable' })))
+                .catch(() => caches.match(request)
+                    .then((response) => response || new Response('Version unavailable', { status: 503, statusText: 'Service Unavailable' })))
         );
         return;
     }
 
-    // API requests: network-first, cache fallback
-    if (API_HOSTS.some((h) => url.hostname === h)) {
-        event.respondWith(
-            fetch(event.request)
-                .then((response) => {
-                    if (response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-                    }
-                    return response;
-                })
-                .catch(() => caches.match(event.request).then((r) => r || new Response('Offline', { status: 503, statusText: 'Service Unavailable' })))
-        );
+    if (API_HOSTS.has(url.hostname)) {
+        event.respondWith(apiNetworkFirst(request, event));
         return;
     }
 
-    // CDN resources (Chart.js, fonts): cache-first
-    if (url.hostname === 'cdn.jsdelivr.net' || url.hostname === 'esm.sh' || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com' || url.hostname === 'unpkg.com') {
-        event.respondWith(
-            caches.match(event.request).then((cached) => {
-                return cached || fetch(event.request).then((response) => {
-                    if (response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-                    }
-                    return response;
-                }).catch(() => new Response('', { status: 504 }));
-            })
-        );
+    if (CDN_HOSTS.has(url.hostname)) {
+        event.respondWith(cacheFirstRuntime(request, event));
         return;
     }
 
-    // Shell assets: network-first with cache fallback so version sanity checks
-    // and front-page JS do not lag behind deployed code.
     if (url.origin === self.location.origin) {
-        event.respondWith(
-            fetch(event.request, { cache: 'no-cache' })
-                .then((response) => {
-                    if (response.ok) {
-                        const clone = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-                    }
-                    return response;
-                })
-                .catch(() => caches.match(event.request)
-                    .then((r) => r || caches.match(url.pathname))
-                    .then((r) => r || new Response('Offline', { status: 503, statusText: 'Service Unavailable' })))
-        );
+        event.respondWith(networkFirstRuntime(request, event));
     }
 });

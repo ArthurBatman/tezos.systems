@@ -23,7 +23,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/landing.css?v=20260705a">
-    <link rel="stylesheet" href="/css/site-map.css?v=422">
+    <link rel="stylesheet" href="/css/site-map.css?v=423">
 
     <script type="application/ld+json">
     {
@@ -42,7 +42,7 @@
                 "url": "https://tez.capital"
             }
         },
-        "dateModified": "2026-07-10"
+        "dateModified": "2026-07-11"
     }
     </script>
     <script type="application/ld+json">
@@ -71,7 +71,7 @@
                 "name": "How many Tezos bakers are there?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "There are approximately 250 active bakers on Tezos. The minimum staking power to bake is 6,000 XTZ."
+                    "text": "The active baker population changes by cycle. This page loads the current directory from TzKT when available. The minimum staking power to bake is 6,000 XTZ."
                 }
             },
             {
@@ -103,15 +103,15 @@
 
         <div class="live-stats-row">
             <div class="live-stat">
-                <span class="live-stat-value" data-live="total-bakers">~250</span>
+                <span class="live-stat-value" data-live="total-bakers">—</span>
                 <span class="live-stat-label">Active Bakers</span>
             </div>
             <div class="live-stat">
-                <span class="live-stat-value" data-live="staking-ratio">~50%</span>
+                <span class="live-stat-value" data-live="staking-ratio">—</span>
                 <span class="live-stat-label">Staking Ratio</span>
             </div>
             <div class="live-stat">
-                <span class="live-stat-value" data-live="staking-apy">~9%</span>
+                <span class="live-stat-value" data-live="staking-apy">—</span>
                 <span class="live-stat-label">Staking APY</span>
             </div>
         </div>
@@ -130,7 +130,7 @@
             <div class="landing-cards">
                 <div class="landing-card">
                     <h3>Reliability</h3>
-                    <p style="font-size:0.85rem; color:var(--text-dim); margin-top:6px;">Low missed blocks and attestations. Bakers below 67% attestation rate get deactivated.</p>
+                    <p style="font-size:0.85rem; color:var(--text-dim); margin-top:6px;">Look for low missed blocks and attestations. Falling below the protocol's cycle participation threshold reduces attestation rewards; deactivation is a separate consequence of sustained inactivity.</p>
                 </div>
                 <div class="landing-card">
                     <h3>Capacity</h3>
@@ -152,7 +152,7 @@
             <p>Bakers are the validators that secure the Tezos network. They:</p>
             <ul>
                 <li><strong>Create blocks</strong> — Bakers are assigned block creation rights based on their staking power</li>
-                <li><strong>Attest blocks</strong> — Validate blocks created by other bakers (67% threshold for rewards)</li>
+                <li><strong>Attest blocks</strong> — Validate blocks created by other bakers; cycle participation below two-thirds reduces attestation rewards</li>
                 <li><strong>Vote on upgrades</strong> — Participate in on-chain <a href="/governance" style="color:var(--accent);">governance</a></li>
                 <li><strong>Earn rewards</strong> — Block rewards + attestation rewards, shared with delegators/stakers</li>
             </ul>
@@ -189,8 +189,8 @@
     </footer>
 
     <script type="module">
-        import '/js/landing/site-nav.js?v=422';
-        import { loadBakerData, loadStakingData } from '/js/landing/live-data.js?v=20260704a';
+        import '/js/landing/site-nav.js?v=423';
+        import { loadBakerData, loadStakingData } from '/js/landing/live-data.js?v=20260711a';
         loadBakerData();
         loadStakingData();
     </script>

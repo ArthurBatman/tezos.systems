@@ -29,7 +29,7 @@ const LOADING_COPY = {
     'total-supply': 'Sifting supply',
     'total-burned': 'Tending the oven',
     'baking-power': 'Weighing baking power',
-    'reward-accounts': 'Counting reward trays',
+    'reward-accounts': 'Counting staking roles',
     proposal: 'Opening the governance oven',
     'voting-period': 'Checking the voting clock',
     participation: 'Counting baker ballots',

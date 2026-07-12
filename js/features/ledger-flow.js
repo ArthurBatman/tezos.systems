@@ -5,13 +5,14 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=422';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=423';
 const DEFAULT_WINDOW = '30d';
 const TRANSFER_LIMIT = 60;
 const MAX_VISIBLE_COUNTERPARTIES = 12;
@@ -701,7 +702,7 @@ function renderEmptyState(container) {
     container.innerHTML = `
         <div class="chamber-header lb-header ledger-flow-header chamber-anim-fade">
             <div class="chamber-title-row">
-                <h2 class="chamber-title">Ledger Flow</h2>
+                <h2 class="chamber-title" id="ledger-flow-title">Ledger Flow</h2>
                 <span class="chamber-badge current">Account map</span>
             </div>
             <div class="chamber-proposal-info">Map sent, received, and first-funding paths around a Tezos account.</div>
@@ -736,7 +737,7 @@ function renderLedgerFlow(data) {
     container.innerHTML = `
         <div class="chamber-header lb-header ledger-flow-header chamber-anim-fade">
             <div class="chamber-title-row">
-                <h2 class="chamber-title">Ledger Flow</h2>
+                <h2 class="chamber-title" id="ledger-flow-title">Ledger Flow</h2>
                 <span class="chamber-badge live">TzKT</span>
             </div>
             <div class="chamber-proposal-info">
@@ -950,10 +951,6 @@ function unlockPageScroll() {
     savedHtmlOverflow = null;
 }
 
-function handleEscape(event) {
-    if (event.key === 'Escape') closeLedgerFlowChamber();
-}
-
 function defaultTarget() {
     return localStorage.getItem(LAST_TARGET_KEY)
         || localStorage.getItem(STORAGE_KEY)
@@ -967,9 +964,10 @@ export async function openLedgerFlowChamber(target = '') {
         overlay = document.createElement('div');
         overlay.id = 'ledger-flow-modal';
         overlay.className = 'modal-overlay chamber-overlay lb-overlay ledger-flow-overlay';
+        overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
-            <div class="modal-content modal-large chamber-content lb-content ledger-flow-content">
-                <button class="modal-close chamber-close" aria-label="Close" style="z-index:3">&times;</button>
+            <div class="modal-content modal-large chamber-content lb-content ledger-flow-content" role="dialog" aria-modal="true" aria-labelledby="ledger-flow-title" tabindex="-1">
+                <button class="modal-close chamber-close" type="button" aria-label="Close Ledger Flow Chamber" style="z-index:3">&times;</button>
                 <div class="chamber-body lb-body ledger-flow-body"></div>
             </div>
         `;
@@ -980,8 +978,13 @@ export async function openLedgerFlowChamber(target = '') {
         });
     }
 
-    document.addEventListener('keydown', handleEscape);
     overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeLedgerFlowChamber,
+        dialogSelector: '.ledger-flow-content',
+        titleId: 'ledger-flow-title',
+        label: 'Ledger Flow Chamber'
+    });
     lockPageScroll();
     const content = overlay.querySelector('.ledger-flow-content');
     if (content) content.scrollTop = 0;
@@ -995,9 +998,11 @@ export async function openLedgerFlowChamber(target = '') {
 }
 
 export function closeLedgerFlowChamber() {
-    document.removeEventListener('keydown', handleEscape);
     const overlay = document.getElementById('ledger-flow-modal');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        deactivateChamberDialog(overlay);
+    }
     unlockPageScroll();
 }
 
@@ -1023,15 +1028,12 @@ function ensureLedgerFlowEntryCard() {
         card = document.createElement('div');
         card.id = 'ledger-flow-entry-card';
         card.className = 'stat-card chamber-entry-card chamber-entry-wide ledger-flow-entry-card chamber-entry-adoption';
-        card.setAttribute('role', 'button');
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', 'Open Ledger Flow Chamber');
         card.dataset.updatedLabel = 'TzKT account transfers';
         card.innerHTML = `
             <button class="card-copy-link" type="button" data-copy-hash="#ledger-flow" aria-label="Copy Ledger Flow direct link" title="Copy Ledger Flow link">🔗</button>
             <div class="card-inner">
                 <div class="card-front ledger-flow-entry-front">
-                    <h2 class="stat-label">Ledger Flow</h2>
+                    <h2 class="stat-label" id="ledger-flow-entry-title">Ledger Flow</h2>
                     <div class="ledger-flow-entry-main">
                         ${miniMapSvg()}
                         <div class="ledger-flow-entry-copy">
@@ -1056,19 +1058,12 @@ function ensureLedgerFlowEntryCard() {
         grid.appendChild(card);
     }
 
-    if (!card.dataset.ledgerFlowWired) {
-        const open = (event) => {
-            if (event?.target?.closest?.('button, a, .card-tooltip')) return;
-            openLedgerFlowChamber();
-        };
-        card.addEventListener('click', open);
-        card.addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            open(event);
-        });
-        card.dataset.ledgerFlowWired = '1';
-    }
+    wireChamberLauncher(card, {
+        open: openLedgerFlowChamber,
+        label: 'Open Ledger Flow Chamber',
+        titleSelector: '#ledger-flow-entry-title, .stat-label'
+    });
+    card.dataset.ledgerFlowWired = '1';
 
     return card;
 }

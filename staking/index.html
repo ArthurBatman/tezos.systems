@@ -4,18 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tezos Staking — Earn Rewards with XTZ | Live APY & Stats</title>
-    <meta name="description" content="Stake XTZ and earn ~9% APY. Learn how Tezos staking works, compare delegation vs direct staking, and track live staking statistics. No lockups required.">
+    <meta name="description" content="Learn how Tezos delegation and direct staking differ, including liquidity, unstaking, rewards, and live network estimates.">
     <meta name="keywords" content="Tezos staking, XTZ staking, Tezos APY, delegation, baking, proof of stake rewards, liquid staking, Tezos yield">
     <link rel="canonical" href="https://tezos.systems/staking/">
 
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://tezos.systems/staking/">
-    <meta property="og:title" content="Tezos Staking — Earn ~9% APY with XTZ">
-    <meta property="og:description" content="Learn how Tezos staking works. Compare delegation vs direct staking. Live APY and staking stats updated in real time.">
+    <meta property="og:title" content="Tezos Staking — Delegation, Direct Stake & Live Estimates">
+    <meta property="og:description" content="Compare liquid delegation with frozen direct staking. Live reward estimates appear when network source inputs are available.">
     <meta property="og:image" content="https://tezos.systems/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Tezos Staking — Earn ~9% APY with XTZ">
-    <meta name="twitter:description" content="Learn how Tezos staking works. Compare delegation vs direct staking. Live APY and staking stats.">
+    <meta name="twitter:title" content="Tezos Staking — Delegation, Direct Stake & Live Estimates">
+    <meta name="twitter:description" content="Compare liquid delegation with frozen direct staking and inspect source-backed live reward estimates.">
     <meta name="twitter:image" content="https://tezos.systems/og-image.png">
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -23,7 +23,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/landing.css?v=20260705a">
-    <link rel="stylesheet" href="/css/site-map.css?v=422">
+    <link rel="stylesheet" href="/css/site-map.css?v=423">
 
     <script type="application/ld+json">
     {
@@ -55,7 +55,7 @@
                 "name": "What is Tezos staking?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Tezos staking (called 'baking') lets you earn rewards by helping secure the network. You can delegate your XTZ to a baker or stake directly. No lockup is required for delegation."
+                    "text": "Tezos lets holders delegate XTZ to a baker or stake directly with one. Delegation does not freeze the balance; direct staking does. Baking is the validator role that produces and attests blocks."
                 }
             },
             {
@@ -63,7 +63,7 @@
                 "name": "How much APY can I earn staking Tezos?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Direct stakers currently earn approximately 8-10% APY. Delegators earn approximately 3-4% APY after baker fees. Rates are dynamic and adjust based on network participation."
+                    "text": "Rates are dynamic and depend on network participation, protocol issuance, and baker policy. This page shows a current estimate only when its live source inputs are available."
                 }
             },
             {
@@ -79,7 +79,7 @@
                 "name": "Are my XTZ locked when staking?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Delegated XTZ are never locked — you maintain full custody and can transfer at any time. Direct staking involves a short unstaking period."
+                    "text": "Delegated XTZ are not frozen — you maintain custody and can transfer at any time. Directly staked XTZ are frozen and must pass through the protocol unstaking and finalization process before becoming spendable again."
                 }
             }
         ]
@@ -99,23 +99,23 @@
 
     <header class="landing-hero">
         <h1>Tezos Staking</h1>
-        <p class="subtitle">Earn rewards by securing one of the most resilient blockchains in crypto. No lockups. No minimum for delegation.</p>
+        <p class="subtitle">Earn rewards while supporting Tezos. Delegation stays liquid; direct staking freezes XTZ until the protocol unstaking process completes.</p>
 
         <div class="live-stats-row">
             <div class="live-stat">
-                <span class="live-stat-value" data-live="staking-apy">~9%</span>
+                <span class="live-stat-value" data-live="staking-apy">—</span>
                 <span class="live-stat-label">Staking APY</span>
             </div>
             <div class="live-stat">
-                <span class="live-stat-value" data-live="delegate-apy">~3%</span>
+                <span class="live-stat-value" data-live="delegate-apy">—</span>
                 <span class="live-stat-label">Delegation APY</span>
             </div>
             <div class="live-stat">
-                <span class="live-stat-value" data-live="staking-ratio">~50%</span>
+                <span class="live-stat-value" data-live="staking-ratio">—</span>
                 <span class="live-stat-label">Staking Ratio</span>
             </div>
             <div class="live-stat">
-                <span class="live-stat-value" data-live="total-bakers">~250</span>
+                <span class="live-stat-value" data-live="total-bakers">—</span>
                 <span class="live-stat-label">Active Bakers</span>
             </div>
         </div>
@@ -124,19 +124,19 @@
     <main class="landing-content">
         <section class="landing-section">
             <h2>What Is Tezos Staking?</h2>
-            <p>Tezos uses Liquid Proof-of-Stake, where validators (called <strong>bakers</strong>) create blocks and earn rewards. Unlike many blockchains, Tezos lets you participate without locking your tokens.</p>
+            <p>Tezos uses Liquid Proof-of-Stake, where validators (called <strong>bakers</strong>) create blocks and earn rewards. Delegation does not freeze your XTZ; direct staking does.</p>
             <p>There are two ways to earn staking rewards:</p>
 
             <div class="landing-cards">
                 <div class="landing-card">
                     <h3>Delegation</h3>
-                    <div class="value" data-live="delegate-apy">~3%</div>
-                    <p style="margin-top:8px; font-size:0.85rem; color:var(--text-dim);">Keep full custody. No lockup. Point your XTZ at a baker and earn passively. Baker takes a small fee.</p>
+                    <div class="value" data-live="delegate-apy">—</div>
+                    <p style="margin-top:8px; font-size:0.85rem; color:var(--text-dim);">Keep full custody. No lockup. Point your XTZ at a baker. Reward payout timing, rate, and any fee are the baker's off-chain policy, so verify the terms directly.</p>
                 </div>
                 <div class="landing-card">
                     <h3>Direct Staking</h3>
-                    <div class="value" data-live="staking-apy">~9%</div>
-                    <p style="margin-top:8px; font-size:0.85rem; color:var(--text-dim);">Stake directly with a baker for higher rewards. XTZ is locked during staking with a short unstaking period.</p>
+                    <div class="value" data-live="staking-apy">—</div>
+                    <p style="margin-top:8px; font-size:0.85rem; color:var(--text-dim);">Stake directly with a baker for protocol-distributed rewards. The baker's on-chain external-staker edge determines the reward split. XTZ remains frozen until the protocol unstaking and finalization process completes.</p>
                 </div>
             </div>
         </section>
@@ -146,9 +146,9 @@
             <ul>
                 <li><strong>Get a wallet</strong> — Temple, Kukai, or Umami all support delegation</li>
                 <li><strong>Get XTZ</strong> — Buy on any major exchange and transfer to your wallet</li>
-                <li><strong>Choose a baker</strong> — Pick from <a href="/bakers" style="color:var(--accent);">250+ active bakers</a> based on reliability and fees</li>
-                <li><strong>Delegate</strong> — One click in your wallet. Rewards start after ~3 cycles (~3 days)</li>
-                <li><strong>Optional: Direct stake</strong> — For higher APY, stake directly with a baker that accepts external stakers</li>
+                <li><strong>Choose a baker</strong> — Browse the <a href="/bakers" style="color:var(--accent);">live baker directory</a> for capacity and community context, then verify the baker's published payout terms</li>
+                <li><strong>Delegate</strong> — Set a delegate in your wallet; reward payouts are sent under the baker's off-chain timing, rate, and fee policy</li>
+                <li><strong>Optional: Direct stake</strong> — Stake with a baker that accepts external stakers after checking its on-chain edge and available staking capacity</li>
             </ul>
         </section>
 
@@ -162,7 +162,7 @@
                 </div>
                 <div class="landing-card">
                     <h3>Staking Ratio</h3>
-                    <div class="value" data-live="staking-ratio">~50%</div>
+                    <div class="value" data-live="staking-ratio">—</div>
                 </div>
                 <div class="landing-card">
                     <h3>Total Staked</h3>
@@ -173,7 +173,7 @@
                     <div class="value" data-live="total-delegated">—</div>
                 </div>
             </div>
-            <p style="font-size:0.8rem; color:var(--text-dim);">APY is dynamic — it adjusts based on the TzKT-reported total staked XTZ and delegated participation network-wide.</p>
+            <p style="font-size:0.8rem; color:var(--text-dim);">APY is an estimate from live protocol issuance, supply, staked XTZ, and delegated participation. If those inputs cannot be verified, the page leaves the rate unavailable.</p>
         </section>
 
         <section class="landing-section">
@@ -183,24 +183,25 @@
                     <tr><th></th><th>Delegation</th><th>Direct Staking</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>APY</td><td data-live="delegate-apy">~3%</td><td data-live="staking-apy">~9%</td></tr>
+                    <tr><td>APY estimate</td><td data-live="delegate-apy">—</td><td data-live="staking-apy">—</td></tr>
                     <tr><td>Minimum</td><td>None</td><td>None (baker sets limit)</td></tr>
-                    <tr><td>Lockup</td><td>None — fully liquid</td><td>Short unstaking period</td></tr>
+                    <tr><td>Availability</td><td>Not frozen — transferable</td><td>Frozen while staked, then subject to protocol unstaking/finalization</td></tr>
                     <tr><td>Custody</td><td>You keep your keys</td><td>You keep your keys</td></tr>
-                    <tr><td>Slashing risk</td><td>None</td><td>Minimal (shared with baker)</td></tr>
-                    <tr><td>Baker fee</td><td>~5-10%</td><td>~5-10%</td></tr>
+                    <tr><td>Protocol penalties</td><td>Delegated balance is not slashable</td><td>Stake can share penalties for punishable baker offenses</td></tr>
+                    <tr><td>Reward terms</td><td>Off-chain baker payout policy; verify timing, rate, and fee directly</td><td>On-chain 0–100% external-staker edge; the baker retains that share of direct-staking rewards</td></tr>
                 </tbody>
             </table>
+            <p style="font-size:0.8rem; color:var(--text-dim);">The on-chain <code>edge_of_baking_over_staking</code> applies to direct external staking: external stakers share the portion remaining after the baker's edge. It is not a delegation fee. Delegation payouts are baker-operated transfers whose policy is not enforced by the protocol.</p>
         </section>
 
         <section class="landing-section">
             <h2>Why Stake on Tezos?</h2>
             <ul>
-                <li><strong>Self-amending</strong> — The protocol upgrades itself through on-chain governance. No hard forks since launch in 2018.</li>
+                <li><strong>Self-amending</strong> — The protocol upgrades through on-chain governance, with no persistent upgrade-driven community split in the tracked history.</li>
                 <li><strong>Liquid delegation</strong> — Your XTZ are never locked when delegating. Transfer anytime.</li>
                 <li><strong>Low barrier</strong> — No minimum to delegate. Run a baker with 6,000 XTZ.</li>
                 <li><strong>Energy efficient</strong> — Proof-of-stake since day one. Negligible energy per transaction.</li>
-                <li><strong>Battle-tested</strong> — <span data-live="days-live">2,700+</span> days live. 21+ protocol upgrades. Zero downtime.</li>
+                <li><strong>Battle-tested</strong> — Mainnet since 2018, with 21+ protocol upgrades and a documented on-chain amendment record.</li>
             </ul>
         </section>
 
@@ -223,8 +224,8 @@
     </footer>
 
     <script type="module">
-        import '/js/landing/site-nav.js?v=422';
-        import { loadStakingData, loadBakerData } from '/js/landing/live-data.js?v=20260704a';
+        import '/js/landing/site-nav.js?v=423';
+        import { loadStakingData, loadBakerData } from '/js/landing/live-data.js?v=20260711a';
         loadStakingData();
         loadBakerData(); // for total-bakers count
     </script>

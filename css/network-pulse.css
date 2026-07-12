@@ -172,6 +172,45 @@
     justify-content: flex-end;
 }
 
+.network-pulse-entry-open {
+    appearance: none;
+    position: absolute;
+    bottom: 0.58rem;
+    left: var(--chamber-card-inline-padding, 1.45rem);
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 32px;
+    padding: 0.32rem 0.64rem;
+    border: 1px solid color-mix(in srgb, var(--network-pulse-accent) 38%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--network-pulse-accent) 9%, transparent);
+    color: color-mix(in srgb, var(--network-pulse-accent) 72%, var(--text-primary));
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.62rem;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.network-pulse-entry-open:hover,
+.network-pulse-entry-open:focus-visible {
+    border-color: var(--network-pulse-accent);
+    background: color-mix(in srgb, var(--network-pulse-accent) 15%, transparent);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.network-pulse-entry-open:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--network-pulse-accent) 76%, white);
+    outline-offset: 2px;
+}
+
 #chambers-grid .network-pulse-entry-card:hover .network-pulse-entry-value {
     transform: none;
 }

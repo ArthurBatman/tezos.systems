@@ -596,11 +596,26 @@ const HenMode = (() => {
         return primary + secondary;
     }
 
+    function henPath(params) {
+        var query = params instanceof URLSearchParams ? params.toString() : String(params || '').replace(/^\?/, '');
+        return '/hen/' + (query ? '?' + query : '');
+    }
+
+    function canonicalizeHenLocation() {
+        var params = new URLSearchParams(window.location.search);
+        var hadLegacyParam = params.has('hen');
+        params.delete('hen');
+        var pathname = window.location.pathname.replace(/\/index\.html$/, '/');
+        if (pathname !== '/hen/' || hadLegacyParam) {
+            history.replaceState(null, '', henPath(params));
+        }
+    }
+
     function pieceUrl(token) {
         if (isHenToken(token)) {
-            return window.location.origin + '/?hen=1&teia=' + encodeURIComponent(token.token_id);
+            return window.location.origin + '/hen/?teia=' + encodeURIComponent(token.token_id);
         }
-        return window.location.origin + '/?hen=1&objkt=' + token.fa_contract + '/' + token.token_id;
+        return window.location.origin + '/hen/?objkt=' + token.fa_contract + '/' + token.token_id;
     }
 
     // .tez domain resolution
@@ -1548,7 +1563,7 @@ const HenMode = (() => {
         var exp = expanded();
         if (exp) exp.classList.remove('active');
         restoreShareMeta();
-        history.replaceState(null, '', '/?hen=1');
+        history.replaceState(null, '', '/hen/');
         if (expandedReturnFocus && typeof expandedReturnFocus.focus === 'function' && expandedReturnFocus.isConnected) {
             expandedReturnFocus.focus({ preventScroll: true });
         }
@@ -1603,7 +1618,7 @@ const HenMode = (() => {
         var sourceLabel = isHenToken(token) ? 'Teia / HEN' : 'OBJKT';
         var ownedQty = viewerHoldings.get(tokenKey(token)) || 0;
 
-        history.replaceState(null, '', isHenToken(token) ? '/?hen=1&teia=' + encodeURIComponent(token.token_id) : '/?hen=1&objkt=' + token.fa_contract + '/' + token.token_id);
+        history.replaceState(null, '', isHenToken(token) ? '/hen/?teia=' + encodeURIComponent(token.token_id) : '/hen/?objkt=' + token.fa_contract + '/' + token.token_id);
 
         var tezName = await resolveTezName(creator);
         var displayName = tezName || shortAddr(creator);
@@ -2186,7 +2201,7 @@ const HenMode = (() => {
         resetPageState();
         clearCliOutput();
         if (message) showCliOutput(['> ' + message]);
-        history.replaceState(null, '', mode === DEFAULT_FEED_MODE ? '/?hen=1' : '/?hen=1&mode=' + encodeURIComponent(mode));
+        history.replaceState(null, '', mode === DEFAULT_FEED_MODE ? '/hen/' : '/hen/?mode=' + encodeURIComponent(mode));
         loadPage();
     }
 
@@ -2548,10 +2563,16 @@ const HenMode = (() => {
     }
 
     async function activate() {
+        canonicalizeHenLocation();
         if (isActive) return;
         isActive = true;
         var ov = overlay();
         if (!ov) return;
+        window.__henBlackoutClaimed = true;
+        if (window.__henBlackoutFailOpenTimer) {
+            clearTimeout(window.__henBlackoutFailOpenTimer);
+            window.__henBlackoutFailOpenTimer = null;
+        }
 
         document.body.classList.add('hen-glitching');
         await sleep(300);
@@ -2612,6 +2633,10 @@ const HenMode = (() => {
         }
         document.body.classList.remove('hen-active');
         clearInitialBlackout();
+        if (document.body?.dataset.henStandalone === 'true') {
+            window.location.assign('/');
+            return;
+        }
         history.replaceState(null, '', '/');
         tokens = [];
         offset = 0;
@@ -2695,7 +2720,7 @@ const HenMode = (() => {
             launcher.addEventListener('click', function(e) {
                 if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return;
                 e.preventDefault();
-                history.replaceState(null, '', '/?hen=1');
+                history.replaceState(null, '', '/hen/');
                 activate();
             });
         });
@@ -2946,7 +2971,8 @@ if (document.readyState === 'loading') {
 
 (function() {
     var params = new URLSearchParams(window.location.search);
-    if (params.has('hen')) {
+    var pathname = window.location.pathname.replace(/\/index\.html$/, '/');
+    if (params.has('hen') || pathname === '/hen/') {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() { HenMode.activate(); });
         } else {

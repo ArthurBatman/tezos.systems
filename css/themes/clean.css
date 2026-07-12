@@ -11,8 +11,15 @@
     --glass-border: rgba(0, 50, 120, 0.08);
     --text-primary: #1A1D26;
     --text-secondary: #4A5568;
-    --text-tertiary: #8892A4;
-    --text-muted: #C0C8D8;
+    --text-tertiary: #5F6F86;
+    --text-muted: #5F6F86;
+    --surface-heading-color: #1E2022;
+    --surface-data-color: #1E2022;
+    --surface-link-color: #0369A1;
+    --surface-link-hover: #0369A1;
+    --surface-control-bg: rgba(255, 255, 255, 0.5);
+    --surface-control-border: #D5DAE2;
+    --surface-control-color: #6C757D;
     --accent-cyan: #2563EB;
     --accent-purple: #2563EB;
     --accent-pink: #DC2626;
@@ -715,18 +722,18 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
 }
 [data-theme="clean"] a{
-    color: #0784c3 !important;
+    color: var(--surface-link-color) !important;
 }
 [data-theme="clean"] .glass-button{
-    border: 1px solid #d5dae2;
-    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid var(--surface-control-border);
+    background: var(--surface-control-bg);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    color: #6c757d;
+    color: var(--surface-control-color);
 }
 [data-theme="clean"] .glass-button:hover{
-    border-color: #0784c3;
-    color: #0784c3;
+    border-color: var(--surface-link-color);
+    color: var(--surface-link-color);
     box-shadow: 0 2px 8px rgba(7, 132, 195, 0.12);
 }
 [data-theme="clean"] .header-nft-feed-btn{
@@ -755,10 +762,10 @@
     color: #dc3545 !important;
 }
 [data-theme="clean"] .stat-card .stat-value{
-    color: #1e2022 !important;
+    color: var(--surface-data-color) !important;
 }
 [data-theme="clean"] .metric-card .metric-value{
-    color: #1e2022 !important;
+    color: var(--surface-data-color) !important;
 }
 [data-theme="clean"] .timeline-grid{
     gap: 8px;
@@ -769,33 +776,68 @@
 }
 [data-theme="clean"] h1{
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
-    color: #1e2022 !important;
+    color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
 }
 [data-theme="clean"] h2{
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
-    color: #1e2022 !important;
+    color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
 }
 [data-theme="clean"] h3{
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
-    color: #1e2022 !important;
+    color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
 }
 [data-theme="clean"] h4{
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
-    color: #1e2022 !important;
+    color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
 }
 [data-theme="clean"] h5{
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
-    color: #1e2022 !important;
+    color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
 }
 [data-theme="clean"] h6{
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
-    color: #1e2022 !important;
+    color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
+}
+[data-theme="clean"] .chamber-content:not(.maxis-content):not(.staking-chamber-content){
+    --chamber-surface-bg: #07101D;
+    --surface-heading-color: #F2F7FF;
+    --surface-data-color: #F2F7FF;
+    --surface-link-color: #7DD3FC;
+    --surface-link-hover: #BAE6FD;
+    --surface-control-bg: rgba(255, 255, 255, 0.055);
+    --surface-control-border: rgba(186, 230, 253, 0.24);
+    --surface-control-color: #D7E3F2;
+    --bg-primary: #07101D;
+    --bg-secondary: #0C1624;
+    --bg-tertiary: #121E2E;
+    --glass-bg: rgba(255, 255, 255, 0.045);
+    --glass-border: rgba(186, 230, 253, 0.13);
+    --text-primary: #F2F7FF;
+    --text-secondary: #BECBDD;
+    --text-tertiary: #91A2B8;
+    --text-muted: #7D8FA8;
+    --accent-cyan: #60A5FA;
+    --accent-purple: #A78BFA;
+    --accent-pink: #FB7185;
+    --accent-blue: #60A5FA;
+    --chamber-live-color: #5EEAB5;
+    --chamber-good-color: #5EEAB5;
+    --chamber-watch-color: #F9C56B;
+    --chamber-risk-color: #FF8B8B;
+    color: var(--text-primary);
+    color-scheme: dark;
+}
+[data-theme="clean"] .chamber-content:not(.maxis-content):not(.staking-chamber-content) :is(.stat-value, .metric-value, .value-text, .big-number, .large-stat, .protocol-number){
+    color: var(--surface-data-color) !important;
+}
+[data-theme="clean"] .chamber-content:not(.maxis-content):not(.staking-chamber-content) a:hover{
+    color: var(--surface-link-hover) !important;
 }
 [data-theme="clean"] *{
     text-shadow: none !important;

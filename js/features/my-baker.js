@@ -5,7 +5,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatNumber } from '../core/utils.js';
-import { fetchSharedStats, getTzktTotalDelegated, getTzktTotalStaked } from '../core/api.js';
+import { fetchProtocolConstants, fetchStakingAPY, fetchWithDeadline, getExternalStakerApy } from '../core/api.js';
 import { fetchBakerLiquidityBakingVote } from './liquidity-baking.js';
 import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
 
@@ -39,7 +39,7 @@ function isTezDomain(input) {
  */
 async function resolveForwardDomain(name) {
     try {
-        const resp = await fetch('https://api.tezos.domains/graphql', {
+        const resp = await fetchWithDeadline('https://api.tezos.domains/graphql', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -104,7 +104,7 @@ function octezVersionDisplay(software, latestVersion) {
  */
 async function resolveDomain(address) {
     try {
-        const resp = await fetch(`https://api.tezos.domains/graphql`, {
+        const resp = await fetchWithDeadline('https://api.tezos.domains/graphql', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -119,47 +119,13 @@ async function resolveDomain(address) {
     }
 }
 
-/**
- * Fetch current staking APY from Octez RPC + TzKT (same logic as api.js fetchStakingAPY)
- */
 async function getStakingAPY() {
-    try {
-        const [rateResp, stakeResp, supplyResp, stats] = await Promise.all([
-            fetch(`${API_URLS.octez}/chains/main/blocks/head/context/issuance/current_yearly_rate`),
-            fetch(`${API_URLS.octez}/chains/main/blocks/head/context/total_frozen_stake`),
-            fetch(`${API_URLS.octez}/chains/main/blocks/head/context/total_supply`),
-            fetchSharedStats()
-        ]);
-        const [rateText, stakeText, supplyText] = await Promise.all([
-            rateResp.text(),
-            stakeResp.text(),
-            supplyResp.text()
-        ]);
-        const netIssuance = parseFloat(rateText.replace(/"/g, ''));
-        const supplyMutez = Number(stats.totalSupply || 0) || parseInt(String(supplyText).replace(/"/g, ''), 10) || 0;
-        const stakedMutez = getTzktTotalStaked(stats)
-            || parseInt(String(stakeText).replace(/"/g, ''), 10)
-            || 0;
-        const supply = supplyMutez / 1e6;
-        const staked = stakedMutez / 1e6;
-        const delegated = getTzktTotalDelegated(stats) / 1e6;
-        if (!Number.isFinite(netIssuance) || netIssuance <= 0 || supply <= 0 || staked <= 0) {
-            throw new Error('Missing staking APY inputs');
-        }
-        const edge = 2;
-        const effective = (staked / supply) + (delegated / supply) / (1 + edge);
-        const stakeAPY = (netIssuance / 100) / effective * 100;
-        const delegateAPY = stakeAPY / (1 + edge);
-        return { delegateAPY: Math.round(delegateAPY * 10) / 10, stakeAPY: Math.round(stakeAPY * 10) / 10 };
-    } catch {
-        return { delegateAPY: 3.1, stakeAPY: 9.2 };
-    }
+    return fetchStakingAPY();
 }
 
 async function getDelegationLimit() {
     if (_delegationLimitPromise) return _delegationLimitPromise;
-    _delegationLimitPromise = fetch(`${API_URLS.octez}/chains/main/blocks/head/context/constants`, { cache: 'no-store' })
-        .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error('Protocol constants unavailable')))
+    _delegationLimitPromise = fetchProtocolConstants()
         .then((constants) => {
             const limit = Number(constants?.limit_of_delegation_over_baking);
             if (Number.isFinite(limit) && limit > 0) _delegationLimit = limit;
@@ -187,21 +153,27 @@ async function fetchMissedRights(bakerAddr, cycle) {
     const enc = encodeURIComponent(bakerAddr);
     const safeFetch = async (url, retries = 3) => {
         for (let i = 0; i <= retries; i++) {
+            let timeout;
             try {
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout per query
+                timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout per query
                 const r = await fetch(url, { signal: controller.signal });
-                clearTimeout(timeout);
                 if (r.status === 429) {
                     await new Promise(res => setTimeout(res, 2000 * (i + 1)));
                     continue;
                 }
-                if (!r.ok) return 0;
-                const n = parseInt(await r.text(), 10);
-                return isNaN(n) ? 0 : n;
-            } catch { if (i === retries) return 0; }
+                if (!r.ok) return null;
+                const raw = (await r.text()).trim();
+                if (!/^\d+$/.test(raw)) return null;
+                const count = Number(raw);
+                return Number.isSafeInteger(count) && count >= 0 ? count : null;
+            } catch {
+                if (i === retries) return null;
+            } finally {
+                clearTimeout(timeout);
+            }
         }
-        return 0;
+        return null;
     };
     try {
         // Current cycle misses are fast (small dataset) — fetch these first
@@ -503,31 +475,67 @@ async function renderBakerData(address, container) {
         const stakedAmt = (account.stakedBalance || 0) / 1e6;
         const balanceAmt = (account.balance || 0) / 1e6;
         const rewardBase = stakedAmt > 0 ? stakedAmt : balanceAmt;
+        const hasRewardRole = Boolean(bakerData || stakedAmt > 0 || account.delegate?.address);
+        const rewardRoleActive = bakerData
+            ? bakerData.active !== false
+            : account.delegate?.address
+                ? account.delegate.active !== false && delegateBakerData?.active !== false
+                : false;
 
-        // Determine the baker's edge fee for APY adjustment
         const bakerEdge = activeBaker?.edgeOfBakingOverStaking != null
-            ? activeBaker.edgeOfBakingOverStaking / 1e9
-            : 0;
+            ? Number(activeBaker.edgeOfBakingOverStaking) / 1e9
+            : null;
 
-        let apyRate, apyLabel;
-        if (stakedAmt > 0) {
-            // For stakers: effective APY = raw stakeAPY reduced by baker's edge fee
-            apyRate = bakerEdge > 0
-                ? Math.round(apy.stakeAPY / (1 + bakerEdge) * 10) / 10
-                : apy.stakeAPY;
-            apyLabel = 'Staker';
+        let apyRate;
+        let apyLabel;
+        let apyTooltip;
+        if (stakedAmt > 0 && bakerData) {
+            apyRate = Number.isFinite(apy.stakeAPY) ? apy.stakeAPY : null;
+            apyLabel = 'Baker own stake';
+            apyTooltip = 'Gross protocol staking estimate for this baker’s own frozen stake.';
+        } else if (stakedAmt > 0) {
+            apyRate = getExternalStakerApy(apy.stakeAPY, activeBaker?.edgeOfBakingOverStaking);
+            apyLabel = 'External staker';
+            apyTooltip = Number.isFinite(bakerEdge)
+                ? `Gross protocol staking estimate after the baker keeps ${(bakerEdge * 100).toFixed(1)}% of externally staked rewards.`
+                : 'The baker’s on-chain staking edge is unavailable, so no personalized estimate is shown.';
         } else {
             apyRate = apy.delegateAPY;
-            apyLabel = 'Delegator';
+            apyLabel = 'Delegation gross';
+            apyTooltip = 'Protocol-level delegation estimate only. A baker’s off-chain payout policy and fees can change the amount received.';
         }
 
-        if (rewardBase > 0 && apyRate > 0) {
+        if (!hasRewardRole) {
+            grid.appendChild(createStatItem(
+                'Reward Status',
+                'Not active',
+                'This address is not currently baking, staking, or delegating.'
+            ));
+        } else if (!rewardRoleActive) {
+            grid.appendChild(createStatItem(
+                'Reward Status',
+                'Baker inactive',
+                'No current reward estimate is shown while the baker or delegate is inactive.'
+            ));
+        } else if (!Number.isFinite(apyRate) || apyRate < 0) {
+            grid.appendChild(createStatItem(
+                `APY (${apyLabel})`,
+                'Unavailable',
+                apyTooltip || 'The live issuance or staking inputs could not be verified, so no estimate is shown.'
+            ));
+        } else if (apyLabel === 'Delegation gross') {
+            grid.appendChild(createStatItem('Gross APY (Delegation)', `${apyRate}%`, apyTooltip));
+            grid.appendChild(createStatItem(
+                'Personal Projection',
+                'Policy-dependent',
+                'No daily, monthly, or yearly personal estimate is shown without this baker’s off-chain payout percentage and cadence.'
+            ));
+        } else if (rewardBase > 0) {
             const yearly = rewardBase * (apyRate / 100);
             const monthly = yearly / 12;
             const daily = yearly / 365.25;
 
-            const feeNote = bakerEdge > 0 ? ` (${(bakerEdge * 100).toFixed(0)}% fee)` : '';
-            grid.appendChild(createStatItem(`APY (${apyLabel})${feeNote}`, `${apyRate}%`));
+            grid.appendChild(createStatItem(`APY (${apyLabel})`, `${apyRate}%`, apyTooltip));
             grid.appendChild(createStatItem('Est. Daily', `${daily.toFixed(2)} ꜩ`));
             grid.appendChild(createStatItem('Est. Monthly', `${monthly.toFixed(2)} ꜩ`));
             grid.appendChild(createStatItem('Est. Yearly', `${yearly.toFixed(2)} ꜩ`));
@@ -590,8 +598,21 @@ async function renderBakerData(address, container) {
                     if (renderSeq !== _bakerRenderSeq) return;
                     if (missedRights) {
                         const fmtN = (n) => formatNumber(n, { decimals: 0, useAbbreviation: false });
-                        missedCycleEl.querySelector('.my-baker-stat-value').textContent = `${fmtN(missedRights.cycle.blocks)} / ${fmtN(missedRights.cycle.attest)}`;
-                        missedLifetimeEl.querySelector('.my-baker-stat-value').textContent = `${fmtN(missedRights.recent.blocks)} / ${fmtN(missedRights.recent.attest)}`;
+                        const renderRightsPair = (element, pair) => {
+                            const blocksKnown = Number.isFinite(pair?.blocks);
+                            const attestKnown = Number.isFinite(pair?.attest);
+                            const value = element.querySelector('.my-baker-stat-value');
+                            if (!value) return;
+                            if (!blocksKnown && !attestKnown) {
+                                value.textContent = 'N/A';
+                                element.dataset.quality = 'unavailable';
+                                return;
+                            }
+                            value.textContent = `${blocksKnown ? fmtN(pair.blocks) : 'N/A'} / ${attestKnown ? fmtN(pair.attest) : 'N/A'}${blocksKnown && attestKnown ? '' : ' (partial)'}`;
+                            element.dataset.quality = blocksKnown && attestKnown ? 'live' : 'partial';
+                        };
+                        renderRightsPair(missedCycleEl, missedRights.cycle);
+                        renderRightsPair(missedLifetimeEl, missedRights.recent);
                     } else {
                         missedCycleEl.querySelector('.my-baker-stat-value').textContent = 'N/A';
                         missedLifetimeEl.querySelector('.my-baker-stat-value').textContent = 'N/A';

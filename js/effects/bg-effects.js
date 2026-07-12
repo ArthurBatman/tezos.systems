@@ -6,6 +6,7 @@
 import { debugLog } from '../core/utils.js';
 
 const BG_THEMES = ['void', 'ember', 'signal', 'bubblegum', 'nerv', 'abyss', 'moss', 'warzone'];
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 class VoidEffect {
     constructor(canvas, ctx) {
@@ -1581,7 +1582,7 @@ let resizeHandler = null;
 function startEffect(themeName) {
     stopEffect();
 
-    if (!BG_THEMES.includes(themeName)) return;
+    if (!BG_THEMES.includes(themeName) || reducedMotionQuery.matches) return;
 
     getOrCreateCanvas();
 
@@ -1652,7 +1653,7 @@ function animate(time) {
 
 function handleThemeChange() {
     const theme = document.body.getAttribute('data-theme');
-    if (BG_THEMES.includes(theme)) {
+    if (BG_THEMES.includes(theme) && !reducedMotionQuery.matches) {
         startEffect(theme);
     } else {
         stopEffect();
@@ -1660,6 +1661,8 @@ function handleThemeChange() {
 }
 
 window.addEventListener('themechange', handleThemeChange);
+if (reducedMotionQuery.addEventListener) reducedMotionQuery.addEventListener('change', handleThemeChange);
+else reducedMotionQuery.addListener?.(handleThemeChange);
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(handleThemeChange, 0);

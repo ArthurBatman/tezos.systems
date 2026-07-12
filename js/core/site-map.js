@@ -39,7 +39,7 @@ export const SITE_MAP = [
         hash: '#protocol-history',
         hashAliases: ['#protocol'],
         group: 'Story Rooms',
-        detail: 'Self-amendment lore, upgrade arc, debates, and zero-fork history',
+        detail: 'Self-amendment lore, upgrade arc, debates, and the documented amendment record',
         keywords: ['protocol history', 'upgrades', 'self amendment', 'archive', 'lore', 'history'],
         sitemap: { changefreq: 'daily', priority: '0.9' }
     },
@@ -354,8 +354,8 @@ export const SITE_MAP = [
     {
         id: 'hen',
         title: 'HEN Live Feed',
-        href: '/?hen=1',
-        paths: ['/hen/'],
+        href: '/hen/',
+        paths: ['/hen/', '/hen/index.html'],
         hashAliases: ['#nfts'],
         group: 'Culture & Feeds',
         detail: 'Teia and OBJKT collecting surface with live NFT context',

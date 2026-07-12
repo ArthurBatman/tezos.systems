@@ -67,7 +67,8 @@ the highest-risk gotchas.
 - `js/core/tezos-domains.js`: shared multi-label `.tez` validation and forward
   resolution with address-first, owner-fallback semantics.
 - `js/core/utils.js`: formatters, debounce/throttle, sanitization helpers.
-- `sw.js`: static/API cache logic.
+- `sw.js`: bounded shell/runtime caching and explicit offline navigation. Cross-
+  origin API responses are never cached or replayed as current data.
 - `version.json`: build metadata.
 - `LICENSE`: unmodified Mozilla Public License 2.0 terms.
 - `NOTICE`: Tezos Systems / Primate411 attribution, covered-work scope, and
@@ -150,7 +151,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v422`
+- Service worker cache name: `tezos-systems-v423`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -213,6 +214,8 @@ Frontend rendering:
 - `sw.js` also uses network-first with cache fallback for same-origin shell
   assets, so front-page JS/CSS should not lag behind deployed code after the
   updated service worker is active.
+- Cross-origin API requests bypass Cache Storage; failed requests return an
+  explicit unavailable response so stale telemetry cannot masquerade as live.
 
 Hook installation caveat:
 

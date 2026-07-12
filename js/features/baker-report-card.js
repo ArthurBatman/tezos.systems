@@ -1,10 +1,11 @@
 /**
- * Baker Report Card — Monthly shareable performance summary
- * Generates a visual "report card" for any baker with letter grades,
- * stats, and PNG export for sharing on social media.
+ * Baker Report Card — shareable baker profile
+ * Generates a visual report for any baker with a source-metric profile grade,
+ * source metrics, and PNG export for sharing on social media.
  */
 
 import { API_URLS } from '../core/config.js';
+import { fetchWithDeadline } from '../core/api.js';
 import { escapeHtml, formatMutez } from '../core/utils.js';
 import { loadHtml2Canvas, showShareModal, appendCardSeal } from '../ui/share.js';
 
@@ -33,35 +34,38 @@ export function letterGrade(score) {
  *
  * @param {object} baker       - TzKT delegate object
  * @param {object|null} participation - latest participation cycle data (or null)
- * @returns {{ overall, uptime, fee, growth, capacity, tz4 }} scores (0-100 integers)
+ * @returns {{ overall, uptime, growth, capacity, tz4, externalStakerEdge, hasParticipation }} available scores; uptime is null when participation is unavailable
  */
 const DEFAULT_DELEGATION_LIMIT = 9;
 
 export function computeBakerScores(baker, participation) {
-    // 1. Uptime score (attestation rate) — 35% weight
-    let uptimeScore = 95; // default if no data
+    // 1. Attestation score — 40% weight
+    let uptimeScore = null;
     if (participation) {
         const expected = participation.expectedAttestations || participation.expectedEndorsements || participation.expected_cycle_activity || 0;
         const missed = participation.missedAttestations || participation.missedEndorsements || participation.missed_slots || 0;
-        const attested = expected - missed;
-        const rate = expected > 0 ? (attested / expected) * 100 : 100;
-        uptimeScore = Math.min(100, rate);
+        const reportedAttestations = Number(participation.attestations ?? participation.endorsements);
+        const attested = Number.isFinite(reportedAttestations)
+            ? reportedAttestations
+            : expected - missed;
+        if (expected > 0) {
+            const rate = (attested / expected) * 100;
+            uptimeScore = Math.max(0, Math.min(100, rate));
+        }
     }
 
-    // 2. Fee competitiveness — 15% weight (lower fee = higher score, but 0% isn't necessarily best)
-    // Most bakers charge 5-15%. Score: 0% = 90, 5% = 100, 10% = 85, 15% = 70, 20%+ = 50
-    // Tallinn: fee is edgeOfBakingOverStaking in billionths (1B = 100%)
-    // Fallback to legacy stakingFee if present
-    const fee = baker.edgeOfBakingOverStaking != null
-        ? baker.edgeOfBakingOverStaking / 10_000_000  // billionths → percentage
-        : (baker.stakingFee || 0) * 100;
-    let feeScore;
-    if (fee <= 5) feeScore = 90 + (fee / 5) * 10; // 0% = 90, 5% = 100
-    else if (fee <= 10) feeScore = 100 - (fee - 5) * 3; // 5% = 100, 10% = 85
-    else if (fee <= 15) feeScore = 85 - (fee - 10) * 3; // 10% = 85, 15% = 70
-    else feeScore = Math.max(30, 70 - (fee - 15) * 4);
+    // edgeOfBakingOverStaking is an on-chain reward split for direct external
+    // staking, not a delegation fee or an operator-performance input. Surface
+    // it as an unscored fact and leave off-chain delegation terms unmodeled.
+    const rawExternalStakerEdge = Number(baker.edgeOfBakingOverStaking);
+    const externalStakerEdge = baker.edgeOfBakingOverStaking != null
+        && Number.isFinite(rawExternalStakerEdge)
+        && rawExternalStakerEdge >= 0
+        && rawExternalStakerEdge <= 1_000_000_000
+        ? rawExternalStakerEdge / 10_000_000
+        : null;
 
-    // 3. Community (delegator + staker count) — 20% weight
+    // 2. Community (delegator + staker count) — 25% weight
     const totalDelegators = (baker.numDelegators || 0) + (baker.stakersCount || 0);
     // Score: 1-5 = 60, 5-20 = 75, 20-50 = 85, 50+ = 95
     let growthScore;
@@ -70,7 +74,7 @@ export function computeBakerScores(baker, participation) {
     else if (totalDelegators >= 5) growthScore = 75 + (totalDelegators - 5) / 15 * 10;
     else growthScore = 50 + totalDelegators * 6;
 
-    // 4. Capacity remaining — 20% weight (bakers near capacity are less attractive)
+    // 3. Capacity remaining — 25% weight (bakers near capacity are less attractive)
     const ownStaked = baker.stakedBalance || baker.balance || 0;
     const externalDelegated = baker.externalDelegatedBalance || 0;
     const externalStaked = baker.externalStakedBalance || 0;
@@ -91,27 +95,32 @@ export function computeBakerScores(baker, participation) {
     else if (usedPct <= 95) capacityScore = 85 - (usedPct - 80) * 2;
     else capacityScore = Math.max(20, 55 - (usedPct - 95) * 5);
 
-    // 5. BLS key (tz4) — 10% weight (rewards modern consensus key adoption)
+    // 4. BLS key (tz4) — 10% weight (rewards modern consensus key adoption)
     const hasTz4 = baker.address?.startsWith('tz4')
         || baker.consensusAddress?.startsWith('tz4');
     const tz4Score = hasTz4 ? 100 : 0;
 
-    // Weighted overall score
-    const overallScore = Math.round(
-        uptimeScore * 0.35 +
-        feeScore * 0.15 +
-        growthScore * 0.20 +
-        capacityScore * 0.20 +
-        tz4Score * 0.10
-    );
+    // Weighted score over inputs that actually exist. Missing participation
+    // never receives an invented attestation score.
+    const weightedInputs = [
+        [uptimeScore, 0.40],
+        [growthScore, 0.25],
+        [capacityScore, 0.25],
+        [tz4Score, 0.10]
+    ].filter(([score]) => Number.isFinite(score));
+    const availableWeight = weightedInputs.reduce((sum, [, weight]) => sum + weight, 0);
+    const overallScore = availableWeight > 0
+        ? Math.round(weightedInputs.reduce((sum, [score, weight]) => sum + score * weight, 0) / availableWeight)
+        : null;
 
     return {
         overall: overallScore,
-        uptime: Math.round(uptimeScore),
-        fee: Math.round(feeScore),
+        uptime: Number.isFinite(uptimeScore) ? Math.round(uptimeScore) : null,
         growth: Math.round(growthScore),
         capacity: Math.round(capacityScore),
         tz4: tz4Score,
+        externalStakerEdge,
+        hasParticipation: Number.isFinite(uptimeScore),
     };
 }
 
@@ -120,19 +129,26 @@ export function computeBakerScores(baker, participation) {
  */
 async function fetchBakerReport(bakerAddress) {
     // Fetch baker data
-    const bakerResp = await fetch(`${TZKT}/delegates/${encodeURIComponent(bakerAddress)}`);
+    const bakerResp = await fetchWithDeadline(`${TZKT}/delegates/${encodeURIComponent(bakerAddress)}`);
     if (!bakerResp.ok) throw new Error('Baker not found');
     const baker = await bakerResp.json();
 
-    // Fetch participation (latest completed cycle from rewards endpoint)
+    // Fetch participation from a completed cycle only. Current/future rows can
+    // contain rights that have not yet come due and must not score as successes.
     let participation = null;
     try {
-        const partResp = await fetch(`${TZKT}/rewards/bakers/${encodeURIComponent(bakerAddress)}?limit=5&sort.desc=cycle&select=cycle,expectedBlocks,blocks,missedBlocks,expectedAttestations,attestations,missedAttestations`);
-        if (partResp.ok) {
+        const [partResp, headResp] = await Promise.all([
+            fetchWithDeadline(`${TZKT}/rewards/bakers/${encodeURIComponent(bakerAddress)}?limit=8&sort.desc=cycle&select=cycle,expectedBlocks,blocks,missedBlocks,expectedAttestations,attestations,missedAttestations`),
+            fetchWithDeadline(`${TZKT}/head`, { cache: 'no-store' })
+        ]);
+        if (partResp.ok && headResp.ok) {
             const partData = await partResp.json();
-            // Find first cycle with actual activity (skip future cycles where everything is 0)
+            const head = await headResp.json();
+            const currentCycle = Number(head?.cycle);
             if (Array.isArray(partData)) {
-                participation = partData.find(c => c.expectedAttestations > 0 && (c.attestations > 0 || c.missedAttestations > 0)) || null;
+                participation = Number.isFinite(currentCycle)
+                    ? partData.find((cycle) => Number(cycle?.cycle) < currentCycle && Number(cycle?.expectedAttestations) > 0) || null
+                    : null;
             }
         }
     } catch {}
@@ -142,19 +158,23 @@ async function fetchBakerReport(bakerAddress) {
     let allBakers = [];
     let allBakersFailed = false;
     try {
-        const abResp = await fetch(`${TZKT}/delegates?active=true&limit=10000&select=address,stakingBalance,bakingPower&sort.desc=id`);
+        const abResp = await fetchWithDeadline(`${TZKT}/delegates?active=true&limit=10000&select=address,stakingBalance,bakingPower&sort.desc=id`);
         if (abResp.ok) {
             const bakerRows = await abResp.json();
+            if (!Array.isArray(bakerRows)) throw new Error('Unexpected baker ranking payload');
             allBakers = bakerRows.filter((row) => Number(row.bakingPower || 0) > 0);
+            if (!allBakers.length) throw new Error('No funded bakers in ranking payload');
+        } else {
+            throw new Error(`Baker ranking HTTP ${abResp.status}`);
         }
     } catch {
         allBakers = [];
         allBakersFailed = true;
     }
 
-    // Sort by staking balance descending, then find rank
+    // Rank by current baking power, the field used by consensus.
     if (!allBakersFailed) {
-        allBakers.sort((a, b) => (b.stakingBalance || 0) - (a.stakingBalance || 0));
+        allBakers.sort((a, b) => Number(b.bakingPower || 0) - Number(a.bakingPower || 0));
     }
     const rankIndex = allBakersFailed ? -1 : allBakers.findIndex(b => b.address === bakerAddress);
     const rank = rankIndex >= 0 ? rankIndex + 1 : null;
@@ -163,10 +183,8 @@ async function fetchBakerReport(bakerAddress) {
     // Calculate scores using shared scoring function
     const scores = computeBakerScores(baker, participation);
 
-    // Derive stats for display (fee and usedPct need to be re-derived for stats block)
-    const fee = baker.edgeOfBakingOverStaking != null
-        ? baker.edgeOfBakingOverStaking / 10_000_000
-        : (baker.stakingFee || 0) * 100;
+    // Derive capacity for display. The on-chain external-staker edge is carried
+    // from computeBakerScores without treating it as a delegation fee.
     const ownStaked = baker.stakedBalance || baker.balance || 0;
     const limitMultiplier = baker.limitOfStakingOverBaking != null
         ? baker.limitOfStakingOverBaking / 1_000_000
@@ -183,10 +201,10 @@ async function fetchBakerReport(bakerAddress) {
         totalBakers,
         scores,
         stats: {
-            stakingBalance: baker.stakingBalance,
+            bakingPower: baker.bakingPower,
             delegators: baker.numDelegators || 0,
             stakers: baker.stakersCount || 0,
-            fee,
+            externalStakerEdge: scores.externalStakerEdge,
             uptimePct: scores.uptime,
             usedCapacityPct: usedPct,
             hasTz4,
@@ -199,7 +217,9 @@ async function fetchBakerReport(bakerAddress) {
  */
 function buildReportCardDOM(report) {
     const { baker, rank, totalBakers, scores, stats } = report;
-    const overall = letterGrade(scores.overall);
+    const overall = scores.hasParticipation
+        ? letterGrade(scores.overall)
+        : { grade: '—', color: '#94a3b8' };
     const name = escapeHtml(baker.alias || baker.address.slice(0, 12) + '…');
     const addr = escapeHtml(baker.address.slice(0, 8) + '…' + baker.address.slice(-4));
 
@@ -225,33 +245,37 @@ function buildReportCardDOM(report) {
                 </div>
                 <div style="text-align:center;">
                     <div style="font-size:56px;font-weight:900;color:${overall.color};line-height:1;text-shadow:0 0 20px ${overall.color}40;">${overall.grade}</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">${scores.overall}/100</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">${scores.hasParticipation ? `${scores.overall}/100` : 'Performance unavailable'}</div>
                 </div>
             </div>
 
             <!-- Rank banner -->
             <div style="background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.12);border-radius:8px;padding:10px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:13px;color:rgba(255,255,255,0.6);">Rank</span>
+                <span style="font-size:13px;color:rgba(255,255,255,0.6);">Current baking-power rank</span>
                 <span style="font-size:18px;font-weight:700;color:#00ff88;">${rank != null ? '#' + rank + ' <span style="font-size:12px;color:rgba(255,255,255,0.3);">of ' + totalBakers + '</span>' : 'N/A'}</span>
             </div>
 
             <!-- Score bars -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
-                ${buildScoreBar('Uptime', scores.uptime, '35%')}
-                ${buildScoreBar('Fee Score', scores.fee, '15%')}
-                ${buildScoreBar('Community', scores.growth, '20%')}
-                ${buildScoreBar('Capacity', scores.capacity, '20%')}
+                ${buildScoreBar('Attestation', scores.uptime, '40%')}
+                ${buildScoreBar('Community', scores.growth, '25%')}
+                ${buildScoreBar('Capacity', scores.capacity, '25%')}
                 ${buildScoreBar('BLS Key (tz4)', scores.tz4, '10%')}
             </div>
 
             <!-- Stats grid -->
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
-                ${buildStatCell('Staking Power', formatMutez(stats.stakingBalance) + ' XTZ')}
+                ${buildStatCell('Baking Power', Number.isFinite(Number(stats.bakingPower)) ? formatMutez(stats.bakingPower) + ' XTZ' : 'Unavailable')}
                 ${buildStatCell('Delegators', stats.delegators.toString())}
                 ${buildStatCell('Stakers', stats.stakers.toString())}
-                ${buildStatCell('Fee', stats.fee.toFixed(1) + '%')}
-                ${buildStatCell('Attest Rate', stats.uptimePct.toFixed(1) + '%')}
+                ${buildStatCell('External-staker edge', Number.isFinite(stats.externalStakerEdge) ? stats.externalStakerEdge.toFixed(1) + '%' : 'Unavailable')}
+                ${buildStatCell('Attest Rate', Number.isFinite(stats.uptimePct) ? stats.uptimePct.toFixed(1) + '%' : 'Unavailable')}
                 ${buildStatCell('Capacity Used', stats.usedCapacityPct.toFixed(0) + '%')}
+            </div>
+
+            <div style="font-size:10px;line-height:1.5;color:rgba(255,255,255,0.38);">
+                External-staker edge is the on-chain share of direct-staking rewards retained by the baker. Delegation payout policy is off-chain and is not scored here.
+                This profile grade combines the displayed source metrics; it is not a delegation recommendation.
             </div>
 
         </div>
@@ -261,6 +285,16 @@ function buildReportCardDOM(report) {
 }
 
 function buildScoreBar(label, score, weight) {
+    if (!Number.isFinite(score)) {
+        return `
+        <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:10px 12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:11px;color:rgba(255,255,255,0.5);">${label} <span style="color:rgba(255,255,255,0.2);">(${weight})</span></span>
+                <span style="font-size:11px;font-weight:700;color:#94a3b8;">Unavailable</span>
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;"></div>
+        </div>`;
+    }
     const { color } = letterGrade(score);
     return `
         <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:10px 12px;">
@@ -322,12 +356,25 @@ export async function showBakerReportCard(bakerAddress) {
 
         // Prepare tweet options
         const name = report.baker.alias || report.baker.address.slice(0, 12) + '…';
-        const grade = letterGrade(report.scores.overall).grade;
-        const tweetOptions = [
-            { label: '📋 Report Card', text: `${name} scores ${grade} on their Baker Report Card — ${report.rank != null ? '#' + report.rank + ' of ' + report.totalBakers : 'N/A'} bakers on Tezos.\n\nDelegators can inspect any baker at tezos.systems` },
-            { label: '📊 Delegators', text: `Baker Report Card: ${name}\nGrade: ${grade} | Rank: ${report.rank != null ? '#' + report.rank + '/' + report.totalBakers : 'N/A'}\nUptime: ${report.stats.uptimePct.toFixed(1)}% | Fee: ${report.stats.fee.toFixed(1)}%\n\nShare this with your delegators:\ntezos.systems` },
-            { label: '🏆 Challenge', text: `How does your Tezos baker stack up? ${name} earned a ${grade}.\n\nBakers: post your report card for delegators.\ntezos.systems` },
-        ];
+        const rankText = report.rank != null && report.totalBakers != null
+            ? `current baking-power rank #${report.rank} of ${report.totalBakers}`
+            : 'current baking-power rank unavailable';
+        const externalStakerEdgeText = Number.isFinite(report.stats.externalStakerEdge)
+            ? `${report.stats.externalStakerEdge.toFixed(1)}%`
+            : 'unavailable';
+        const tweetOptions = report.scores.hasParticipation
+            ? (() => {
+                const grade = letterGrade(report.scores.overall).grade;
+                return [
+                    { label: '📋 Report Card', text: `${name} scores ${grade} on their source-metric Baker Report Card — ${rankText} among active bakers on Tezos.\n\nThe grade uses attestation, community, capacity, and consensus-key inputs. tezos.systems` },
+                    { label: '📊 Source metrics', text: `Baker Report Card: ${name}\nProfile grade: ${grade} | ${rankText}\nAttestation rate: ${report.stats.uptimePct.toFixed(1)}% | External-staker edge: ${externalStakerEdgeText}\n\nDelegation payout policy is off-chain and is not scored.\ntezos.systems` },
+                    { label: '🏆 Compare', text: `How does your Tezos baker compare? ${name} earned a ${grade} from displayed attestation, community, capacity, and consensus-key inputs. The external-staker edge is shown separately.\n\ntezos.systems` },
+                ];
+            })()
+            : [
+                { label: '📋 Incomplete report', text: `Baker Report Card: ${name} · ${rankText}.\n\nRecent participation data was unavailable, so Tezos Systems did not invent an attestation score or grade.\ntezos.systems` },
+                { label: '🔎 Inspect metrics', text: `${name}'s community, capacity, consensus-key, and external-staker edge metrics are available, but the profile grade is withheld until participation data loads. Delegation payout policy is off-chain.\n\ntezos.systems` },
+            ];
 
         showShareModal(canvas, tweetOptions, `Baker Report Card: ${name}`);
 

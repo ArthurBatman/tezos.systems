@@ -231,7 +231,7 @@ export function checkMoments(prevStats, newStats) {
         // Dynamic cycle milestone
         if (rule.dynamic && rule.metric === 'cycle') {
             title = `Cycle ${newStats.cycle} Started!`;
-            tweet = `Tezos just entered Cycle ${newStats.cycle}. The network never stops.\n\nReal-time stats →`;
+            tweet = `Tezos just entered Cycle ${newStats.cycle}. Follow the current head and cycle timing live.\n\nReal-time stats →`;
         }
 
         // Dynamic governance moments
@@ -254,12 +254,12 @@ Track it live →`;
         if (rule.dynamic && rule.metric === 'upgradeCount') {
             const name = newStats.currentProtocolName || 'New protocol';
             title = `${name} is Live! Upgrade #${curr}`;
-            tweet = `Tezos just completed its ${curr}th self-amendment! ${name} is now active. Zero forks. Ever.
+            tweet = `Tezos just completed its ${curr}th named self-amendment! ${name} is now active.
 
 Explore →`;
             rule.tweetOptions = [
                 { label: '🎯 Moment', category: 'Moment', text: tweet },
-                { label: '🏛️ I was here', category: 'I was here', text: `I was watching when ${name} activated — Tezos self-amendment #${curr}. No fork. No restart. The chain just became something new.\n\ntezos.systems` }
+                { label: '🏛️ I was here', category: 'I was here', text: `I was watching when ${name} activated — Tezos self-amendment #${curr}, adopted through the on-chain upgrade path.\n\ntezos.systems` }
             ];
         }
 

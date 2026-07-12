@@ -6,6 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
@@ -848,7 +849,7 @@ function renderTz4Adoption(data, container, activeFilter = _tz4ActiveFilter) {
                 <span>Consensus keys</span>
             </div>
             <div class="chamber-title-row">
-                <h2 class="chamber-title">tz4 Adoption Chamber</h2>
+                <h2 class="chamber-title" id="tz4-adoption-title">tz4 Adoption Chamber</h2>
                 <span class="chamber-badge ${data.pendingCount ? 'current' : 'live'}">${formatPercent(data.adoptionPct)} active</span>
                 <span class="lb-live-pill lb-refresh-pill" id="tz4-refresh-state">auto-refresh ${Math.round(MODAL_REFRESH_MS / 1000)}s</span>
             </div>
@@ -911,10 +912,6 @@ async function refreshTz4AdoptionChamber({ initial = false } = {}) {
     }
 }
 
-function handleEscape(event) {
-    if (event.key === 'Escape') closeTz4AdoptionChamber();
-}
-
 function startModalRefresh() {
     stopModalRefresh();
     const overlay = document.getElementById('tz4-adoption-modal');
@@ -940,9 +937,10 @@ export async function openTz4AdoptionChamber() {
         overlay = document.createElement('div');
         overlay.id = 'tz4-adoption-modal';
         overlay.className = 'modal-overlay chamber-overlay lb-overlay tz4-overlay';
+        overlay.setAttribute('aria-hidden', 'true');
         overlay.innerHTML = `
-            <div class="modal-content modal-large chamber-content lb-content tz4-content">
-                <button class="modal-close chamber-close" aria-label="Close" style="z-index:3">&times;</button>
+            <div class="modal-content modal-large chamber-content lb-content tz4-content" role="dialog" aria-modal="true" aria-labelledby="tz4-adoption-title" tabindex="-1">
+                <button class="modal-close chamber-close" type="button" aria-label="Close tz4 Adoption Chamber" style="z-index:3">&times;</button>
                 <div class="chamber-body lb-body tz4-body">
                     <div class="chamber-loading">
                         <div class="chamber-loading-text">Loading tz4 adoption...</div>
@@ -958,8 +956,13 @@ export async function openTz4AdoptionChamber() {
         });
     }
 
-    document.addEventListener('keydown', handleEscape);
     overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeTz4AdoptionChamber,
+        dialogSelector: '.tz4-content',
+        titleId: 'tz4-adoption-title',
+        label: 'tz4 Adoption Chamber'
+    });
     lockPageScroll();
     const content = overlay.querySelector('.tz4-content');
     if (content) content.scrollTop = 0;
@@ -991,10 +994,12 @@ export async function openTz4AdoptionChamber() {
 }
 
 export function closeTz4AdoptionChamber() {
-    document.removeEventListener('keydown', handleEscape);
     stopModalRefresh();
     const overlay = document.getElementById('tz4-adoption-modal');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        deactivateChamberDialog(overlay);
+    }
     unlockPageScroll();
 }
 
@@ -1005,27 +1010,10 @@ function wireTz4AdoptionTile() {
     card.classList.add('chamber-entry-card', 'tz4-entry-card');
     syncTz4EntryCardHeight(card);
     wireTz4EntryResize();
-    card.style.cursor = 'pointer';
-    card.title = 'Open tz4 Adoption Chamber';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-    card.setAttribute('aria-label', 'Open tz4 Adoption Chamber');
-
-    const shouldIgnore = (target) => Boolean(target?.closest(
-        '.card-info-btn, .card-tooltip, .card-share-btn, .card-history-btn, .card-copy-link, a, button'
-    ));
-
-    const openFromTile = (event) => {
-        if (shouldIgnore(event.target)) return;
-        openTz4AdoptionChamber();
-    };
-
-    card.addEventListener('click', openFromTile);
-    card.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        if (shouldIgnore(event.target)) return;
-        event.preventDefault();
-        openTz4AdoptionChamber();
+    wireChamberLauncher(card, {
+        open: openTz4AdoptionChamber,
+        label: 'Open tz4 Adoption Chamber',
+        titleSelector: '.stat-label'
     });
 }
 

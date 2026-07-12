@@ -32,7 +32,7 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
 
     <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net https://esm.sh gc.zgo.at; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' api.coingecko.com *.tzkt.io tzkt.io api.tezos.domains tezos.domains *.rpc.tez.capital *.supabase.co data.objkt.com *.goatcounter.com https://*.gke.papers.tech https://*.papers.tech wss://*.papers.tech api.github.com cdn.jsdelivr.net https://esm.sh i.github.com fonts.googleapis.com fonts.gstatic.com *.octez.io https://*.octez.io teztale-server-mainnet-ro-prd.octez.tech https://teztale-server-mainnet-ro-prd.octez.tech wss://*.octez.io wss://relay.walletconnect.com https://relay.walletconnect.com api.llama.fi explorer.etherlink.com node.mainnet.etherlink.com; img-src 'self' data: *.objkt.com assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net https://esm.sh gc.zgo.at; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' api.coingecko.com *.tzkt.io tzkt.io api.tezos.domains tezos.domains *.rpc.tez.capital *.supabase.co data.objkt.com *.goatcounter.com https://*.gke.papers.tech https://*.papers.tech wss://*.papers.tech api.github.com cdn.jsdelivr.net https://esm.sh i.github.com fonts.googleapis.com fonts.gstatic.com *.octez.io https://*.octez.io teztale-server-mainnet-ro-prd.octez.tech https://teztale-server-mainnet-ro-prd.octez.tech wss://*.octez.io wss://relay.walletconnect.com https://relay.walletconnect.com api.llama.fi explorer.etherlink.com node.mainnet.etherlink.com; img-src 'self' data: *.objkt.com assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; media-src 'self' blob: data: assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; object-src 'none'; base-uri 'self'; form-action 'self';">
 
     <!-- Google Fonts - Techy font for title -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,16 +52,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=422">
-    <link rel="stylesheet" href="/css/loading.css?v=422">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=422">
-    <link rel="stylesheet" href="/css/site-map.css?v=422">
-    <link rel="stylesheet" href="/css/hen-mode.css?v=94">
-    <script src="/js/core/hen-init.js?v=78" defer></script>
+    <link rel="stylesheet" href="/css/styles.min.css?v=423">
+    <link rel="stylesheet" href="/css/loading.css?v=423">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=423">
+    <link rel="stylesheet" href="/css/site-map.css?v=423">
+    <link rel="stylesheet" href="/css/hen-mode.css?v=95">
+    <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=422">
+    <link rel="modulepreload" href="/js/core/app.js?v=423">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/utils.js">
@@ -79,192 +79,78 @@
     <link rel="modulepreload" href="/js/features/ctez.js">
     <link rel="modulepreload" href="/js/features/ledger-flow.js">
     <link rel="modulepreload" href="/js/features/maxis.js">
-
-    <!-- JSON-LD Structured Data -->
+    <!-- Route-specific structured data: generated, do not edit in route shells -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Staking Chamber",
+    "headline": "Staking Chamber - Large Tezos Stake and Unstake Moves",
+    "url": "https://tezos.systems/stake/",
+    "description": "Track large Tezos stake and unstake operations, the current staking share, and the complete history above 10,000 tez.",
+    "primaryImageOfPage": "https://tezos.systems/og/stake.png",
+    "isPartOf": {
+      "@type": "WebSite",
       "name": "Tezos Systems",
-      "url": "https://tezos.systems",
-      "description": "Real-time Tezos blockchain dashboard — live baker counts, staking ratios, governance tracking, protocol upgrade timeline. The blockchain that upgrades itself: 20+ self-amendments, zero hard forks since 2018.",
-      "applicationCategory": "FinanceApplication",
-      "operatingSystem": "Web",
-      "browserRequirements": "Requires JavaScript",
-      "screenshot": "https://tezos.systems/og-image.png",
-      "featureList": [
-        "Tezos Chambers",
-        "My Tezos",
-        "Protocol Anthology",
-        "Tezos L1 Governance",
-        "Network Pulse",
-        "Staking Chamber",
-        "Tezos Maxis",
-        "Network Health",
-        "Liquidity Baking",
-        "Tezos X",
-        "Tezos X Governance",
-        "tz4 Adoption",
-        "Ledger Flow",
-        "Tezos Domains",
-        "ctez Oven Exit",
-        "XTZ Market Watch",
-        "Large Tez Transfers",
-        "Dormant Wallet Movement",
-        "What's Hot Today",
-        "Staking Guide",
-        "Governance Guide",
-        "Bakers Directory Guide",
-        "Chain Compare Guide",
-        "Rewards Calculator",
-        "Baker Leaderboard",
-        "Cycle History",
-        "Network Snapshot",
-        "Live Chain Comparison",
-        "Embed Widgets",
-        "HEN Live Feed",
-        "Governance RSS",
-        "14 visual themes"
-      ],
-      "creator": {
-        "@type": "Person",
-        "name": "Primate411",
-        "url": "https://github.com/Primate411",
-        "sameAs": [
-          "https://github.com/Primate411"
-        ],
-        "affiliation": {
-          "@type": "Organization",
-          "name": "Tez Capital",
-          "url": "https://tez.capital"
-        }
-      },
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
+      "url": "https://tezos.systems/"
+    },
+    "about": {
+      "@type": "Thing",
+      "name": "Tezos"
+    },
+    "publisher": {
+      "@type": "Person",
+      "name": "Primate411",
+      "url": "https://github.com/Primate411",
+      "affiliation": {
+        "@type": "Organization",
+        "name": "Tez Capital",
+        "url": "https://tez.capital"
       }
     }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Dataset",
-      "name": "Tezos Network Statistics",
-      "description": "Live and historical Tezos blockchain metrics including baker counts, tz4/BLS adoption, staking ratios, issuance rates, transaction volumes, smart contract counts, and protocol upgrade history. Dashboard data shows freshness in the interface and refreshes on a slower live-data cadence to avoid noisy API churn.",
-      "url": "https://tezos.systems",
-      "license": "https://creativecommons.org/licenses/by/4.0/",
-      "temporalCoverage": "2018-09-17/..",
-      "spatialCoverage": "Global",
-      "variableMeasured": [
-        "Total network bakers (validators)",
-        "tz4/BLS key adoption percentage",
-        "Staking ratio (% of supply staked)",
-        "Annual issuance rate",
-        "24-hour transaction volume",
-        "Smart contract count",
-        "Token count",
-        "Governance participation rate",
-        "Protocol upgrade count",
-        "Days since last hard fork (zero forks ever)",
-        "Funded account count",
-        "Total supply and burn metrics"
-      ],
-      "measurementTechnique": "Real-time API aggregation from TzKT indexer and Tez Capital endpoints",
-      "distribution": {
-        "@type": "DataDownload",
-        "contentUrl": "https://api.tzkt.io/v1/",
-        "encodingFormat": "application/json"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Tezos Systems",
+        "item": "https://tezos.systems/"
       },
-      "creator": {
-        "@type": "Person",
-        "name": "Primate411",
-        "url": "https://github.com/Primate411",
-        "affiliation": {
-          "@type": "Organization",
-          "name": "Tez Capital",
-          "url": "https://tez.capital"
-        }
-      },
-      "about": {
-        "@type": "Thing",
-        "name": "Tezos",
-        "description": "Self-amending proof-of-stake blockchain with on-chain governance. 20+ protocol upgrades with zero hard forks since mainnet launch on September 17, 2018.",
-        "url": "https://tezos.com",
-        "sameAs": [
-          "https://en.wikipedia.org/wiki/Tezos",
-          "https://www.coingecko.com/en/coins/tezos"
-        ]
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Staking Chamber",
+        "item": "https://tezos.systems/stake/"
       }
-    }
+    ]
+  }
+]
     </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "What is Tezos?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Tezos is a self-amending proof-of-stake blockchain with on-chain governance. It has undergone 20+ protocol upgrades since 2018 with zero hard forks — meaning the community votes on changes and the chain upgrades itself seamlessly."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How many Tezos bakers are there?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "There are currently approximately 251 active bakers (validators) securing the Tezos network. You can track the live count at tezos.systems."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "What is the Tezos staking ratio?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "The Tezos staking ratio tracks the share of supply reported by TzKT as staked, combining own staked and external staked XTZ. Live staking data is available at tezos.systems."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Has Tezos ever had a hard fork?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "No. Tezos has had zero hard forks since mainnet launch on September 17, 2018. The self-amending governance mechanism allows protocol upgrades without chain splits."
-          }
-        }
-      ]
-    }
-    </script>
+
     <!-- GoatCounter Analytics -->
     <script src="//gc.zgo.at/count.js" async></script>
     <script src="/js/core/goatcounter-init.js"></script>
-    <!-- Price Intelligence Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Tezos Systems",
-      "url": "https://tezos.systems",
-      "description": "Live Tezos blockchain dashboard with price intelligence, staking analytics, and network health monitoring.",
-      "applicationCategory": "FinanceApplication",
-      "operatingSystem": "Web"
-    }
-    </script>
+    <style data-chamber-route-shell>
+      .chamber-route-shell-intro{box-sizing:border-box;max-width:1160px;margin:0 auto 1rem;padding:clamp(1rem,3vw,1.75rem);border:1px solid color-mix(in srgb,var(--chamber-route-accent) 52%,transparent);border-radius:16px;background:linear-gradient(135deg,rgba(8,15,28,.96),rgba(13,22,38,.9));color:#edf4ff;box-shadow:0 18px 48px rgba(0,0,0,.22)}
+      .chamber-route-shell-intro nav{margin:0 0 .7rem;color:#aebdd1;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase}.chamber-route-shell-intro nav a{color:var(--chamber-route-accent)}
+      .chamber-route-shell-intro h1{margin:0;color:#fff;font-size:clamp(1.65rem,4vw,2.7rem);line-height:1.08}.chamber-route-shell-intro p{max-width:68ch;margin:.75rem 0 0;color:#d4deec;line-height:1.6}.chamber-route-shell-intro small{display:block;margin-top:.8rem;color:var(--chamber-route-accent);font-weight:700}
+    </style>
 </head>
 <body>
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=422"></script>
+    <script src="/js/core/theme-preload.js?v=423"></script>
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
         <button id="corner-gift-toggle" class="corner-gift-toggle" type="button" aria-label="Open corner tools: HEN, ctez, and TzSafe" aria-expanded="false" aria-controls="corner-gift-items" title="Corner tools">
             <span aria-hidden="true">🎁</span>
         </button>
         <div id="corner-gift-items" class="corner-gift-items">
-            <a id="hen-launcher" class="hen-launcher corner-gift-item" href="/?hen=1" aria-label="Enter HEN mode" title="Enter HEN mode">
+            <a id="hen-launcher" class="hen-launcher corner-gift-item" href="/hen/" aria-label="Enter HEN mode" title="Enter HEN mode">
                 <span aria-hidden="true">🐔</span>
             </a>
             <button id="ctez-launcher" class="ctez-launcher corner-gift-item" type="button" aria-label="Open ctez End of Life" title="ctez End of Life">
@@ -372,7 +258,7 @@
                                 <button class="feature-copy-link" type="button" data-copy-hash="#maxis" aria-label="Copy Tezos Maxis link" title="Copy direct link">🔗</button>
                             </div>
                             <div class="feature-launcher-row">
-                                <a id="hen-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/?hen=1" data-hen-launch aria-label="Enter HEN live Teia and OBJKT feed" title="Enter HEN live feed">
+                                <a id="hen-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/hen/" data-hen-launch aria-label="Enter HEN live Teia and OBJKT feed" title="Enter HEN live feed">
                                     <span class="ctez-feature-icon hen-feature-icon">hen<span class="uptime-pulse-dot" aria-hidden="true"></span></span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">HEN / Teia Collecting</span><span class="dropdown-hint">Watch Teia and OBJKT mints and collects as they land.</span></span>
                                     <span class="feature-status feature-status-live">Live</span>
@@ -534,7 +420,7 @@
                     </div>
                 </div>
 
-                <a class="glass-button header-nav-btn header-nft-feed-btn" href="/?hen=1" data-hen-launch aria-label="Enter live NFT feed — Teia and OBJKT" title="Enter live NFT feed — Teia and OBJKT">
+                <a class="glass-button header-nav-btn header-nft-feed-btn" href="/hen/" data-hen-launch aria-label="Enter live NFT feed — Teia and OBJKT" title="Enter live NFT feed — Teia and OBJKT">
                     <span class="nft-feed-icon" aria-hidden="true"></span>
                     <span class="nav-label">NFT feed</span>
                 </a>
@@ -580,13 +466,13 @@
             <div class="top-continuity-row">
                 <div class="top-continuity-lead">
                     <div class="top-uptime-cluster">
-                        <button class="top-continuity-history" id="top-continuity-history" type="button" aria-label="100% uptime since 2018. Open Protocol Anthology Chamber" aria-haspopup="dialog" aria-controls="protocol-history-chamber-modal" title="Open Protocol Anthology">
+                        <button class="top-continuity-history" id="top-continuity-history" type="button" aria-label="Tezos mainnet history since 2018. Open Protocol Anthology Chamber" aria-haspopup="dialog" aria-controls="protocol-history-chamber-modal" title="Open Protocol Anthology">
                             <span class="top-continuity-statement">
                                 <span class="top-continuity-primary-line">
                                     <strong class="top-continuity-runtime" id="hero-chain-uptime-counter">—</strong>
                                 </span>
                                 <span class="top-continuity-subline">
-                                    <span class="top-continuity-claim">100% uptime</span>
+                                    <span class="top-continuity-claim">mainnet age</span>
                                     <span class="top-continuity-separator" aria-hidden="true">&middot;</span>
                                     <span class="top-continuity-origin">since 2018</span>
                                     <span class="top-continuity-arrow" aria-hidden="true">↗</span>
@@ -659,6 +545,12 @@
 
     <!-- Main content -->
     <main class="main-content" role="main">
+        <section class="chamber-route-shell-intro" aria-labelledby="chamber-route-title" style="--chamber-route-accent:#a78bfa">
+            <nav aria-label="Breadcrumb"><a href="/">Tezos Systems</a><span aria-hidden="true"> / </span>Stake / Unstake</nav>
+            <h1 id="chamber-route-title">Staking Chamber</h1>
+            <p>Track large Tezos stake and unstake operations, the current staking share, and the complete history above 10,000 tez.</p>
+            <small>Opening the live room…</small>
+        </section>
 
         <section class="stats-section governance-alert-section" id="governance-alert-strip" aria-live="polite" hidden></section>
 
@@ -779,6 +671,24 @@
                         <span class="calc-apy-value" id="calc-apy-display">—</span>
                     </div>
                 </div>
+                <div class="calc-baker-fields" id="calc-delegate-fields" style="display:none;">
+                    <div class="calc-baker-row">
+                        <div class="calc-amount-wrap">
+                            <label for="calc-delegate-payout-assumption" class="calc-label">Baker payout (% of gross rewards)</label>
+                            <input type="number" id="calc-delegate-payout-assumption" class="calc-input" placeholder="Enter your baker’s policy" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" aria-describedby="calc-delegate-assumption-note">
+                            <p class="calc-assumption-note" id="calc-delegate-assumption-note" style="margin:.55rem 0 0;color:var(--text-secondary);font-size:.78rem;line-height:1.5">Required for a personal projection. Delegation fees and payout cadence are off-chain baker policy.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="calc-baker-fields" id="calc-stake-fields" style="display:none;">
+                    <div class="calc-baker-row">
+                        <div class="calc-amount-wrap">
+                            <label for="calc-stake-edge-assumption" class="calc-label">Baker external-staker edge (%)</label>
+                            <input type="number" id="calc-stake-edge-assumption" class="calc-input" placeholder="Enter the on-chain edge" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" aria-describedby="calc-stake-assumption-note">
+                            <p class="calc-assumption-note" id="calc-stake-assumption-note" style="margin:.55rem 0 0;color:var(--text-secondary);font-size:.78rem;line-height:1.5">Required for a personal projection. The baker keeps this share of externally staked rewards; 0% and 100% are valid.</p>
+                        </div>
+                    </div>
+                </div>
                 <div class="calc-baker-fields" id="calc-baker-fields" style="display:none;">
                     <div class="calc-baker-row">
                         <div class="calc-amount-wrap">
@@ -786,7 +696,7 @@
                             <input type="number" id="calc-ext-staked" class="calc-input" placeholder="100000" min="0" step="any" inputmode="decimal" autocomplete="off">
                         </div>
                         <div class="calc-amount-wrap">
-                            <label for="calc-staking-fee" class="calc-label">Staking Fee (%)</label>
+                            <label for="calc-staking-fee" class="calc-label">External-staker edge (%)</label>
                             <input type="number" id="calc-staking-fee" class="calc-input" placeholder="5" min="0" max="100" step="any" inputmode="decimal" autocomplete="off" value="5">
                         </div>
                     </div>
@@ -1079,25 +989,25 @@
                     </div>
                     <div class="card-tooltip" id="tooltip-staking-apy">
                         <div class="tooltip-content">
-                            <h4>Staking APY</h4>
-                            <p>Estimated annual yield for staking XTZ. Delegators earn less (~3%) than direct stakers (~9%) due to baker fees.</p>
+                            <h4>Protocol APY Context</h4>
+                            <p>Gross protocol reward-rate context for delegation and direct staking. Personal projections require the baker's off-chain delegation payout policy or on-chain external-staker edge.</p>
                             <a href="https://stake.tezos.com" target="_blank" rel="noopener">Start staking →</a>
                         </div>
                     </div>
                     <div class="card-inner">
                         <div class="card-front">
-                            <h2 class="stat-label">Staking APY</h2>
+                            <h2 class="stat-label">Protocol APY Context</h2>
                             <div class="stat-value stat-value-dual" id="staking-apy-front">
                                 <span class="loading loading-skeleton">Preheating the oven</span>
                             </div>
                             <div class="sparkline-container"><canvas id="staking-apy-sparkline" class="sparkline-chart"></canvas><span class="trend-arrow" id="staking-apy-trend"></span></div>
                         </div>
                         <div class="card-back" aria-hidden="true">
-                            <h2 class="stat-label">Staking APY</h2>
+                            <h2 class="stat-label">Protocol APY Context</h2>
                             <div class="stat-value stat-value-dual" id="staking-apy-back">
                                 <span class="loading loading-skeleton">Preheating the oven</span>
                             </div>
-                            <p class="stat-description">Delegate / Stake</p>
+                            <p class="stat-description">Gross context · Delegate / Stake</p>
                         </div>
                     </div>
                 </div>
@@ -1262,7 +1172,7 @@
                     </div>
                 </div>
 
-                <!-- Reward Accounts Card -->
+                <!-- Staker + Delegator Accounts Card -->
                 <div class="stat-card" data-stat="reward-accounts">
                     <div class="card-info-btn" data-tooltip="reward-accounts">
                         <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
@@ -1271,21 +1181,21 @@
                     </div>
                     <div class="card-tooltip" id="tooltip-reward-accounts">
                         <div class="tooltip-content">
-                            <h4>Reward Accounts</h4>
-                            <p>Accounts participating in Tezos staking economics through direct staking or liquid delegation to bakers.</p>
+                            <h4>Staker + Delegator Accounts</h4>
+                            <p>Current TzKT account counts for direct stakers plus liquid delegators. This is a role count, not proof that every account received a reward payout.</p>
                             <a href="https://stake.tezos.com" target="_blank" rel="noopener">Start staking →</a>
                         </div>
                     </div>
                     <div class="card-inner">
                         <div class="card-front">
-                            <h2 class="stat-label">Reward Accounts</h2>
+                            <h2 class="stat-label">Staker + Delegator Accounts</h2>
                             <div class="stat-value" id="reward-accounts-front">
                                 <span class="loading loading-skeleton">Preheating the oven</span>
                             </div>
                             <p class="stat-description" id="reward-accounts-description">Delegators + stakers</p>
                         </div>
                         <div class="card-back" aria-hidden="true">
-                            <h2 class="stat-label">Reward Accounts</h2>
+                            <h2 class="stat-label">Staker + Delegator Accounts</h2>
                             <div class="stat-value" id="reward-accounts-back">
                                 <span class="loading loading-skeleton">Preheating the oven</span>
                             </div>
@@ -1706,6 +1616,7 @@
             </div>
             <div class="comparison-footer">
                 <span class="comparison-last-updated" id="comparison-last-updated"></span>
+                <a href="/compare/">Methodology and primary references</a>
             </div>
         </section>
 
@@ -1752,16 +1663,22 @@
             <div class="modal-body">
                 <p>
                     Side-by-side comparison of Tezos with Ethereum, Solana, Cardano, and Algorand across key blockchain metrics.
-                    <strong>Tezos data is live</strong> from the network; peer-chain data is static and updated periodically.
+                    Available Tezos metrics update from TzKT and Octez RPC. Peer-chain values are a
+                    <strong>dated static snapshot</strong>, not equally live measurements.
                 </p>
                 <ul>
-                    <li><strong>Green highlight</strong>: The winner for each metric</li>
+                    <li><strong>No composite winner</strong>: Different chains optimize for different jobs and risk models</li>
                     <li><strong>Block Time</strong>: Time between blocks (lower = faster)</li>
-                    <li><strong>Finality</strong>: Time until a transaction is irreversible</li>
-                    <li><strong>Self-Amendments</strong>: On-chain upgrades without hard forks — unique to Tezos</li>
+                    <li><strong>Finality</strong>: Each chain's documented finality condition, not merely confirmation speed</li>
+                    <li><strong>Concentration</strong>: Threshold and address-versus-operator methodology must match before ranking</li>
+                    <li><strong>Upgrade path</strong>: Context about protocol change, not a universal numeric score</li>
                 </ul>
                 <div class="modal-note">
-                    <p>All comparison data is verifiable from public sources. ETH/SOL/ADA/ALGO values are approximate and may vary.</p>
+                    <p>Peer values were last verified February 28, 2026 and may have changed.</p>
+                </div>
+                <div class="modal-links">
+                    <a href="/compare/">Open methodology and primary references</a>
+                    <a href="/health/">Open live Tezos concentration thresholds</a>
                 </div>
             </div>
         </div>
@@ -1797,10 +1714,10 @@
             <div class="modal-body">
                 <p>
                     Tezos uses <strong>Tenderbake</strong>, a consensus mechanism inspired by classical BFT algorithms.
-                    It provides fast finality—once a block is confirmed, it's permanent.
+                    Tenderbake provides deterministic two-level finality when its quorum and network assumptions hold.
                 </p>
                 <ul>
-                    <li><strong>Deterministic finality</strong>: Transactions final after 2 blocks (~12 seconds)</li>
+                    <li><strong>Deterministic finality</strong>: Two-level finality, normally around 12 seconds when consensus progresses on target</li>
                     <li><strong>Energy efficient</strong>: Proof of Stake, not mining</li>
                     <li><strong>Liquid staking</strong>: Delegate without locking tokens</li>
                     <li><strong>Self-amendment</strong>: Protocol upgrades via on-chain voting</li>
@@ -1820,7 +1737,7 @@
             <h3 class="modal-title">Tezos On-Chain Governance</h3>
             <div class="modal-body">
                 <p>
-                    Tezos can upgrade itself without hard forks through <strong>on-chain governance</strong>.
+                    Tezos can activate approved protocol changes through <strong>on-chain governance</strong> without requiring a separately maintained upgrade branch.
                     Bakers vote on protocol proposals in a structured 5-period process.
                 </p>
                 <ul>
@@ -1892,21 +1809,23 @@
         </div>
     </div>
 
-    <!-- Zero Forks Info Modal -->
+    <!-- Protocol continuity info modal -->
     <div class="modal-overlay" id="zero-forks-modal" aria-hidden="true">
         <div class="modal-content">
             <button class="modal-close" id="zero-forks-modal-close" aria-label="Close">&times;</button>
-            <h3 class="modal-title">Zero Forks</h3>
+            <h3 class="modal-title">Protocol Continuity</h3>
             <div class="modal-body">
                 <p>
-                    Tezos has <strong>never forked</strong>. Unlike most blockchains that split into competing chains
-                    when major upgrades happen, Tezos upgrades itself through <strong>on-chain governance</strong>.
+                    Tezos has no persistent, upgrade-driven community chain split in its mainnet history.
+                    Protocol changes are adopted through <strong>on-chain governance</strong> instead of requiring
+                    users to choose between separately maintained upgrade branches. This is a historical record,
+                    not a guarantee about future consensus or availability.
                 </p>
                 <ul>
                     <li><strong>Self-amending</strong>: Protocol changes are proposed, tested, and voted on-chain by bakers</li>
-                    <li><strong>No community splits</strong>: Upgrades are consensus-driven — no "Tezos Classic" scenarios</li>
-                    <li><strong>20+ upgrades and counting</strong>: From Athens (2019) through Ushuaia (2026), every upgrade adopted seamlessly</li>
-                    <li><strong>Why it matters</strong>: Forks split communities, liquidity, and developer attention — Tezos avoids all of that</li>
+                    <li><strong>One adopted protocol</strong>: No "Tezos Classic"-style upgrade branch has persisted</li>
+                    <li><strong>Public upgrade record</strong>: Successive amendments are recorded on-chain and documented in Protocol Anthology</li>
+                    <li><strong>Why it matters</strong>: A shared upgrade path reduces the risk of fragmenting users, liquidity, and developer attention</li>
                 </ul>
                 <div class="modal-links">
                     <a href="https://docs.tezos.com/architecture/governance" target="_blank" rel="noopener">Tezos Docs: Governance</a>
@@ -1916,24 +1835,26 @@
         </div>
     </div>
 
-    <!-- Days Live / Uptime Info Modal -->
+    <!-- Mainnet age info modal -->
     <div class="modal-overlay" id="days-live-modal" aria-hidden="true">
         <div class="modal-content">
             <button class="modal-close" id="days-live-modal-close" aria-label="Close">&times;</button>
-            <h3 class="modal-title">Tezos Uptime</h3>
+            <h3 class="modal-title">Tezos Mainnet Age</h3>
             <div class="modal-body">
                 <p>
-                    Tezos mainnet launched on <strong>September 17, 2018</strong> and has maintained
-                    <strong>100% uptime with zero outages</strong> — no downtime, no halts, no emergency restarts.
+                    Tezos mainnet launched on <strong>September 17, 2018</strong>. The first-screen counter shows
+                    elapsed wall-clock time from that launch date. It is a <strong>chain-age and continuity
+                    marker</strong>, not an independently measured availability percentage or complete incident ledger.
                 </p>
                 <ul>
-                    <li><strong>Always online</strong>: The chain has never stopped producing blocks since genesis</li>
-                    <li><strong>No emergency patches</strong>: Unlike some chains that required manual intervention or halts</li>
-                    <li><strong>Battle-tested consensus</strong>: Tenderbake (now with 6-second blocks) has proven rock-solid</li>
-                    <li><strong>Deterministic finality</strong>: Blocks are final after 2 confirmations (~12 seconds)</li>
+                    <li><strong>Chain age</strong>: The counter is derived from the launch timestamp, not a status-page SLA</li>
+                    <li><strong>Upgrade history</strong>: Protocol amendments are adopted on-chain without resetting that history</li>
+                    <li><strong>Live liveness</strong>: The separate block ticker reports the current head and its freshness</li>
+                    <li><strong>Deterministic finality</strong>: Under normal quorum conditions, blocks finalize after two levels (about 12 seconds)</li>
                 </ul>
                 <div class="modal-links">
                     <a href="https://tzkt.io" target="_blank" rel="noopener">TzKT: Block Explorer</a>
+                    <a href="https://status.tezos.com/" target="_blank" rel="noopener">Tezos Ecosystem Status</a>
                     <a href="https://docs.tezos.com/architecture" target="_blank" rel="noopener">Tezos Docs: Architecture</a>
                 </div>
             </div>
@@ -2305,8 +2226,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
     <!-- Load app as module -->
-    <script src="/js/features/hen-mode.js?v=93"></script>
-    <script type="module" src="/js/core/app.js?v=422"></script>
+    <script src="/js/features/hen-mode.js?v=94"></script>
+    <script type="module" src="/js/core/app.js?v=423"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content">
@@ -2345,12 +2266,12 @@
                     Estimate your Tezos staking rewards across three modes:
                 </p>
                 <ul>
-                    <li><strong>Delegate</strong>: Earn ~3% APY by delegating to a baker (no lock-up)</li>
-                    <li><strong>Stake</strong>: Earn ~9% APY by staking directly (funds locked)</li>
-                    <li><strong>Baker</strong>: Full income breakdown — own stake rewards + staking fees from external stakers + delegation income</li>
+                    <li><strong>Delegate</strong>: Start from live gross protocol context, then supply your baker's off-chain payout percentage.</li>
+                    <li><strong>Stake</strong>: Start from live gross staking context, then supply the baker's on-chain external-staker edge; funds are frozen.</li>
+                    <li><strong>Baker</strong>: Model own-stake rewards, external-staker edge income, and an assumed delegator payout.</li>
                 </ul>
                 <p>
-                    APY is calculated from the current protocol issuance rate and network participation. Includes 1-5 year compound projections.
+                    APY context is calculated from the current protocol issuance rate and network participation. Projections are scenarios based on the assumptions you enter, not promised returns.
                 </p>
             </div>
         </div>
@@ -2362,15 +2283,15 @@
             <button class="modal-close" id="leaderboard-modal-close" aria-label="Close">&times;</button>
             <h3 class="modal-title">Baker Leaderboard</h3>
             <div class="modal-body">
-                <p>All active Tezos bakers ranked by staking power.</p>
+                <p>Funded active Tezos baker addresses ranked by TzKT staking balance.</p>
                 <ul>
-                    <li><strong>Staking Power</strong>: Total XTZ backing this baker (own + external staked + delegated)</li>
+                    <li><strong>Staking Balance</strong>: TzKT's balance measure across the baker's own stake, external stake, and delegation</li>
                     <li><strong>Delegators</strong>: Number of addresses delegating to this baker</li>
                     <li><strong>Stakers</strong>: Number of addresses directly staking with this baker</li>
                     <li><strong>Capacity</strong>: Delegation capacity usage under the current protocol limit, read from Octez RPC when the leaderboard refreshes</li>
-                    <li><strong>tz4</strong>: Whether the baker uses BLS signatures (required for future network optimizations)</li>
+                    <li><strong>tz4</strong>: Whether the baker currently uses a BLS consensus address</li>
                 </ul>
-                <p>Click any column header to sort. Click a row to view full details in My Baker.</p>
+                <p>Use a column header to sort. Use the baker-name button to review that baker in My Tezos.</p>
             </div>
         </div>
     </div>
@@ -2418,19 +2339,19 @@
             <button class="modal-close" id="about-tezos-modal-close" aria-label="Close">&times;</button>
             <h3 class="modal-title">What is Tezos?</h3>
             <div class="modal-body">
-                <p>Tezos is a self-amending proof-of-stake blockchain. Unlike other networks that hard fork to upgrade, Tezos evolves through <strong>on-chain governance</strong> — token holders vote on protocol changes directly.</p>
+                <p>Tezos is a self-amending proof-of-stake blockchain. Protocol changes can be adopted through <strong>on-chain governance</strong>: bakers cast stake-weighted votes, while holders can choose the baker that represents their delegated or staked tez.</p>
                 <div class="about-tezos-stats">
                     <div class="about-tezos-stat">
-                        <span class="about-tezos-stat-value" id="about-apy">~9.1%</span>
-                        <span class="about-tezos-stat-label">Staking APY</span>
+                        <span class="about-tezos-stat-value" id="about-apy">—</span>
+                        <span class="about-tezos-stat-label">Gross Staking APY</span>
                     </div>
                     <div class="about-tezos-stat">
-                        <span class="about-tezos-stat-value" id="about-upgrades">21</span>
-                        <span class="about-tezos-stat-label">Upgrades, Zero Forks</span>
+                        <span class="about-tezos-stat-value" id="about-upgrades">—</span>
+                        <span class="about-tezos-stat-label">Named On-Chain Upgrades</span>
                     </div>
                     <div class="about-tezos-stat">
-                        <span class="about-tezos-stat-value" id="about-days">2,783</span>
-                        <span class="about-tezos-stat-label">Days Live, 0 Outages</span>
+                        <span class="about-tezos-stat-value" id="about-days">—</span>
+                        <span class="about-tezos-stat-label">Days Since Mainnet Launch</span>
                     </div>
                 </div>
                 <p><strong>Bakers</strong> are validators who secure the network and earn rewards. You can delegate or stake your XTZ to a baker to earn passive income.</p>
@@ -2469,7 +2390,7 @@
     <div id="moments-toast-container"></div>
 
     <!-- HEN Mode Overlay -->
-    <div id="hen-overlay" class="hen-overlay">
+    <div id="hen-overlay" class="hen-overlay" role="main" aria-label="HEN live Tezos NFT feed">
         <div id="hen-boot" class="hen-boot"></div>
         <div class="hen-header">
             <div class="hen-logo">hen</div>

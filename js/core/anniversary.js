@@ -30,7 +30,7 @@ export function getTezosUptimeAnniversary(now = Date.now(), launchIso = MAINNET_
             totalDays: 0,
             startsAt: 0,
             endsAt: 0,
-            claimText: '100% uptime',
+            claimText: 'mainnet age',
             originText: 'since 2018',
             message: '',
             hotText: '',
@@ -48,7 +48,6 @@ export function getTezosUptimeAnniversary(now = Date.now(), launchIso = MAINNET_
     const totalDays = Math.max(0, Math.floor((nowMs - launchMs) / DAY_MS));
     const ordinalYears = ordinal(years);
     const formattedDays = totalDays.toLocaleString('en-US');
-    const yearLabel = years === 1 ? 'year' : 'years';
 
     return {
         isAnniversary,
@@ -59,10 +58,10 @@ export function getTezosUptimeAnniversary(now = Date.now(), launchIso = MAINNET_
         endsAt,
         dayKey: new Date(startsAt).toISOString().slice(0, 10),
         monthDay: new Date(startsAt).toISOString().slice(5, 10),
-        claimText: `${years} ${yearLabel} of uptime`,
+        claimText: `${ordinalYears} anniversary`,
         originText: `happy ${ordinalYears}, Tezos`,
-        message: `Happy ${ordinalYears} anniversary, Tezos. ${formattedDays} days live with 100% uptime.`,
-        hotText: `Tezos turns ${years} today: ${formattedDays} days live with 100% uptime, zero outages, and zero hard forks.`,
-        detail: `${formattedDays} days live`
+        message: `Happy ${ordinalYears} anniversary, Tezos. ${formattedDays} days of mainnet history since launch.`,
+        hotText: `Tezos turns ${years} today: ${formattedDays} days of mainnet history and protocol upgrades adopted on-chain.`,
+        detail: `${formattedDays} days of mainnet history`
     };
 }
