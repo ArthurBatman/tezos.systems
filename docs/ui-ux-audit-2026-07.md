@@ -35,9 +35,10 @@ The bounded wins shipped from this pass are:
 - A progressively disclosed **Explore** launcher that promotes the canonical
   Network Pulse, Staking Chamber, and Tezos Maxis starters, keeps the remaining
   categories folded, and removes duplicate live telemetry from the menu.
-- A mobile corner-tool tray that stays with the top price rail, scrolls away
-  before the centered wordmark reaches it, and no longer leaves a hidden tall
-  hitbox over the header.
+- A mobile corner-tool tray with its own slot beside the top price rail, an
+  explicit no-overlap gutter, and scroll-away behavior before the centered
+  wordmark reaches it; the closed tray also leaves no hidden hitbox over the
+  header.
 
 The forced first-visit redirect, sitewide glossary, shared-header rebuild,
 focused Chamber-shell rewrite, breakpoint consolidation, and theme-token cleanup

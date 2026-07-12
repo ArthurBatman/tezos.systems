@@ -248,9 +248,9 @@ inline modal styles in `js/core/app.js`.
 - Explore is a progressively disclosed launcher rather than a second dashboard:
   Chambers stays the hero, the three canonical starter rooms fit in the first
   mobile view, and live signals, baker tools, account tools, markets, publishing,
-  and recovery open only when requested. Its mobile corner gift launcher belongs
-  to the top price rail and scrolls away with that rail instead of covering the
-  centered wordmark.
+  and recovery open only when requested. Its mobile corner gift launcher owns a
+  dedicated in-flow slot beside the top price rail and scrolls away with that
+  rail instead of painting over telemetry or the centered wordmark.
 - Chambers section is visible by default and orders the chamber rows as Network
   Pulse, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
   tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis, then

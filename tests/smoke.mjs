@@ -4027,20 +4027,50 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
     const closedTray = await page.evaluate(() => {
       const tray = document.querySelector('#corner-gift-tray');
       const toggle = document.querySelector('#corner-gift-toggle');
+      const priceBar = document.querySelector('#price-bar');
       const trayRect = tray?.getBoundingClientRect();
       const toggleRect = toggle?.getBoundingClientRect();
+      const priceBarRect = priceBar?.getBoundingClientRect();
       const probe = toggleRect ? document.elementFromPoint(toggleRect.left + (toggleRect.width / 2), toggleRect.bottom + 24) : null;
+      const overlapWidth = toggleRect && priceBarRect
+        ? Math.max(0, Math.min(toggleRect.right, priceBarRect.right) - Math.max(toggleRect.left, priceBarRect.left))
+        : 0;
+      const overlapHeight = toggleRect && priceBarRect
+        ? Math.max(0, Math.min(toggleRect.bottom, priceBarRect.bottom) - Math.max(toggleRect.top, priceBarRect.top))
+        : 0;
       return {
         position: tray ? getComputedStyle(tray).position : '',
         trayHeight: trayRect?.height || 0,
         toggleHeight: toggleRect?.height || 0,
+        priceBarOverlapArea: overlapWidth * overlapHeight,
+        giftToPriceGap: toggleRect && priceBarRect ? priceBarRect.left - toggleRect.right : 0,
         probeId: probe?.id || '',
         probeInsideTray: Boolean(probe?.closest?.('#corner-gift-tray'))
       };
     });
-    assert(closedTray.position === 'absolute', `${label}: mobile corner tray must scroll with the top rail ${JSON.stringify(closedTray)}`);
+    assert(closedTray.position === 'relative', `${label}: mobile corner tray must own an in-flow utility slot ${JSON.stringify(closedTray)}`);
     assert(closedTray.trayHeight <= closedTray.toggleHeight + 1, `${label}: hidden corner tools inflate the closed tray hitbox ${JSON.stringify(closedTray)}`);
+    assert(closedTray.priceBarOverlapArea <= 1, `${label}: mobile corner gift is layered over the top telemetry rail ${JSON.stringify(closedTray)}`);
+    assert(closedTray.giftToPriceGap >= 7.5, `${label}: mobile corner gift needs a visible gutter before telemetry ${JSON.stringify(closedTray)}`);
     assert(!closedTray.probeInsideTray, `${label}: invisible corner tray intercepts the header below its toggle ${JSON.stringify(closedTray)}`);
+
+    await page.setViewportSize({ width: 320, height: viewport.height });
+    const narrowTopRail = await page.evaluate(() => {
+      const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect() || null;
+      const priceBar = rect('#price-bar');
+      const cycle = rect('#cycle-chip');
+      const bake = rect('.price-cta[title="Bake on Tezos"]');
+      return {
+        viewportWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        priceBarRight: priceBar?.right || 0,
+        cycleWidth: cycle?.width || 0,
+        bakeRight: bake?.right || 0
+      };
+    });
+    await page.setViewportSize(viewport);
+    assert(narrowTopRail.scrollWidth <= narrowTopRail.viewportWidth + 1, `${label}: 320px utility rail causes horizontal overflow ${JSON.stringify(narrowTopRail)}`);
+    assert(narrowTopRail.cycleWidth > 0 && narrowTopRail.bakeRight <= narrowTopRail.priceBarRight + 1, `${label}: 320px utility rail clips cycle or Bake action ${JSON.stringify(narrowTopRail)}`);
 
     const scrolledTray = await page.evaluate(() => {
       const gift = document.querySelector('#corner-gift-toggle')?.getBoundingClientRect();
@@ -4059,7 +4089,7 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
         overlapArea: overlapWidth * overlapHeight
       };
     });
-    assert(scrolledTray.trayPosition === 'absolute' && scrolledTray.giftBottom <= 0 && scrolledTray.overlapArea === 0, `${label}: corner gift must leave with the mobile header instead of overlapping the title ${JSON.stringify(scrolledTray)}`);
+    assert(scrolledTray.trayPosition === 'relative' && scrolledTray.giftBottom <= 0 && scrolledTray.overlapArea === 0, `${label}: corner gift must leave with the mobile header instead of overlapping the title ${JSON.stringify(scrolledTray)}`);
   }
   await expectCount(page, '#chambers-section #tezlink-entry-card.chamber-entry-wide .card-copy-link[data-copy-hash="#tezosx"]', 1, `${label} Tezos X chamber card`);
   await assertChamberOrder(page, label);

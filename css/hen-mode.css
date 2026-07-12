@@ -377,16 +377,39 @@
 }
 
 @media (max-width: 640px) {
+    .top-utility-row {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr);
+        align-items: start;
+        column-gap: 8px;
+        padding:
+            env(safe-area-inset-top, 0px)
+            env(safe-area-inset-right, 0px)
+            0
+            calc(6px + env(safe-area-inset-left, 0px));
+    }
+
+    .top-utility-row > .price-bar {
+        min-width: 0;
+        padding: 4px;
+        overflow: hidden;
+    }
+
     .corner-gift-tray {
-        position: absolute;
-        top: calc(4px + env(safe-area-inset-top, 0px));
-        left: calc(6px + env(safe-area-inset-left, 0px));
+        position: relative;
+        top: auto;
+        left: auto;
+        margin-top: 4px;
         gap: 7px;
     }
 
     .corner-gift-toggle {
         width: 30px;
         height: 30px;
+        box-shadow:
+            0 0 0 1px rgba(255, 214, 108, 0.08),
+            0 3px 10px rgba(0, 0, 0, 0.24),
+            0 0 8px rgba(255, 214, 108, 0.1);
     }
 
     .corner-gift-toggle span {
@@ -403,6 +426,41 @@
         padding-top: 7px;
     }
 
+    .corner-gift-tray:hover .corner-gift-toggle,
+    .corner-gift-tray:focus-within .corner-gift-toggle,
+    .corner-gift-tray.open .corner-gift-toggle {
+        box-shadow:
+            0 0 0 1px rgba(255, 214, 108, 0.14),
+            0 4px 12px rgba(0, 0, 0, 0.26),
+            0 0 10px rgba(255, 214, 108, 0.14);
+    }
+
+}
+
+@media (max-width: 350px) {
+    .price-bar-content .price-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 24px;
+        padding: 0;
+        font-size: 0;
+    }
+
+    .price-bar-content .price-cta[title="Stake XTZ"]::before {
+        content: '🥩' !important;
+        display: block;
+        font-size: 0.72rem;
+        line-height: 1;
+    }
+
+    .price-bar-content .price-cta[title="Bake on Tezos"]::before {
+        content: '🍞' !important;
+        display: block;
+        font-size: 0.72rem;
+        line-height: 1;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
