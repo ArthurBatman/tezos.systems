@@ -199,8 +199,9 @@ arrival panel float off-flow over the feed. Live arrival chrome is suppressed
 while the expanded piece viewer is open, `now playing` is throttled to avoid
 interrupting readers, and the sticky new-mints pill accumulates unseen mints
 until the visitor jumps back to the top. The visible HEN filter bar is the
-primary collecting surface: it exposes for-sale, price, search, edition, sort,
-saved, hide-owned, and shuffle controls without requiring the CLI; desktop gets
+primary collecting surface: explicit Source, Price (ꜩ), Edition, and Sort
+labels keep its for-sale, price, search, edition, sort, saved, hide-owned, and
+shuffle controls understandable without requiring the CLI; desktop gets
 a clipped edge fade when controls overflow, while mobile keeps the controls
 collapsed behind an anchored `filters` toggle; opening it drops the filter tray
 below the status line without dislodging the toggle. First-time HEN visitors see
@@ -798,7 +799,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v423`, including hero search, theme
+- Current aligned shell cache stamp: `v424`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
@@ -854,6 +855,11 @@ These pages, the welcome page, HEN gateway, 404 page, and widget builder all
 render contextual next steps plus a collapsed, on-demand copy of the complete
 manifest-backed footer map. Contextual recommendations stay visible; the atlas
 does not consume the page until a visitor requests it.
+The staking, governance, and baker guides keep their shared navigation on one
+desktop row and collapse it into a contained `Explore` disclosure on mobile.
+Primary dashboard, Chamber, guide, HEN, comparison, welcome, and 404 templates
+also expose a skip link, while static dashboard modal shells carry dialog names
+and modal state before JavaScript initializes.
 Comparison rails live outside `#compare-content` so static and browser-side
 comparison regeneration cannot erase them.
 

@@ -253,8 +253,8 @@ export async function loadGovernanceData() {
         console.warn('Live governance data unavailable:', e);
         inject('voting-period', 'Open Chamber');
         inject('voting-period-detail', 'Live governance status is retrying');
-        inject('voting-time-left', 'RSS ready');
-        inject('voting-time-detail', 'Use /feed.xml or the Chamber while data retries');
+        inject('voting-time-left', 'Still syncing');
+        inject('voting-time-detail', 'Open the Chamber for live status while this clock retries');
         inject('governance-freshness', 'Source: TzKT + Octez RPC · live data retrying in browser.');
     }
 }

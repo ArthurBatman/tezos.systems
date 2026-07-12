@@ -65,12 +65,38 @@ function renderNav() {
     const ids = ['staking', 'governance-guide', 'bakers-guide', 'anthology', 'health', 'home'];
     nav.classList.add('landing-nav');
     nav.setAttribute('data-site-nav', 'true');
+    nav.setAttribute('aria-label', 'Tezos Systems guides');
     nav.innerHTML = `
         <a href="/" class="landing-nav-logo">TEZOS SYSTEMS</a>
-        <ul class="landing-nav-links">
-            ${ids.map((id) => findSiteMapEntry(id)).filter(Boolean).map((entry) => navEntryHtml(entry, current)).join('')}
-        </ul>
+        <details class="landing-nav-menu" open>
+            <summary class="landing-nav-toggle"><span>Explore</span><span aria-hidden="true">⌄</span></summary>
+            <ul class="landing-nav-links">
+                ${ids.map((id) => findSiteMapEntry(id)).filter(Boolean).map((entry) => navEntryHtml(entry, current)).join('')}
+            </ul>
+        </details>
     `;
+
+    const menu = nav.querySelector('.landing-nav-menu');
+    const toggle = nav.querySelector('.landing-nav-toggle');
+    const mobileMenuMedia = window.matchMedia('(max-width: 640px)');
+    const syncMenuMode = () => {
+        if (mobileMenuMedia.matches) menu?.removeAttribute('open');
+        else menu?.setAttribute('open', '');
+    };
+    syncMenuMode();
+    mobileMenuMedia.addEventListener?.('change', syncMenuMode);
+    menu?.addEventListener('click', (event) => {
+        if (mobileMenuMedia.matches && event.target.closest('a')) menu.removeAttribute('open');
+    });
+    document.addEventListener('click', (event) => {
+        if (mobileMenuMedia.matches && menu?.open && !nav.contains(event.target)) menu.removeAttribute('open');
+    });
+    nav.addEventListener('keydown', (event) => {
+        if (!mobileMenuMedia.matches || event.key !== 'Escape' || !menu?.open) return;
+        event.preventDefault();
+        menu.removeAttribute('open');
+        toggle?.focus();
+    });
 }
 
 function normalizeEntries(entries) {
@@ -184,6 +210,9 @@ function renderFooter() {
             (count, entry) => count + 1 + siteMapDirectoryChildren(entry).length,
             0
         );
+        const startHereAction = normalizePath(window.location.pathname) === '/landing.html/'
+            ? ''
+            : '<a href="/landing.html">Start here</a>';
         footer.classList.add('site-map-shell', 'site-map-footer');
         footer.setAttribute('data-site-footer', 'true');
         footer.innerHTML = `
@@ -193,6 +222,7 @@ function renderFooter() {
                     <h2>Pick another path</h2>
                 </div>
                 <nav class="site-map-cta" aria-label="Tezos Systems discovery tools">
+                    ${startHereAction}
                     <a href="/#search">Search everything</a>
                 </nav>
             </div>

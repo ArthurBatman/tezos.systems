@@ -5,6 +5,14 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-12',
+        entries: [
+            { type: '🎨', text: 'Staking, Governance, and Bakers guides now keep their mobile header to one readable row and place the full guide navigation behind a native Explore disclosure' },
+            { type: '🔧', text: 'Keyboard visitors now get a sitewide skip link, consistent visible focus, and correctly named dialog semantics in the initial HTML before application scripts finish loading' },
+            { type: '🔧', text: 'Governance retry copy now keeps its time label meaningful, HEN filters expose visible Source, Price, Edition, and Sort groups, and the calm Start Here page is linked without forcing a first-visit redirect' }
+        ]
+    },
+    {
         date: '2026-07-11',
         entries: [
             { type: '🔧', text: 'Mainnet age is now labeled as elapsed chain history rather than a 100% availability claim, with incident monitoring, live block freshness, and protocol continuity explained as separate measurements' },

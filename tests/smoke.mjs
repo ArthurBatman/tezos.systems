@@ -9484,9 +9484,13 @@ async function smokeHenMode(browser, baseUrl) {
   const initialUiState = await page.evaluate(() => ({
     walletStatus: document.querySelector('#hen-wallet-status')?.textContent || '',
     searchVisible: Boolean(document.querySelector('#hen-search-input')?.offsetParent),
-    listedButton: document.querySelector('#hen-filter-listed')?.getAttribute('aria-pressed') || ''
+    listedButton: document.querySelector('#hen-filter-listed')?.getAttribute('aria-pressed') || '',
+    visibleGroupLabels: Array.from(document.querySelectorAll('.hen-filter-group-label'))
+      .filter((label) => Boolean(label.offsetParent))
+      .map((label) => label.textContent?.trim().toLowerCase())
   }));
   assert((/connect to flag pieces you own/i.test(initialUiState.walletStatus) || /\.tez|tz1/i.test(initialUiState.walletStatus)) && initialUiState.searchVisible && initialUiState.listedButton === 'false', `HEN mode filter/wallet controls missing initial affordances: ${JSON.stringify(initialUiState)}`);
+  assert(['source', 'price ꜩ', 'edition', 'sort'].every((label) => initialUiState.visibleGroupLabels.includes(label)), `HEN mode filter groups are not visibly labelled: ${JSON.stringify(initialUiState.visibleGroupLabels)}`);
   try {
     await page.waitForFunction((address) => {
       const inputValue = document.querySelector('#hen-wallet-input')?.value || '';
@@ -9920,6 +9924,54 @@ async function smokeRouteFormatting(browser, baseUrl) {
       assert((response?.status() || 0) < 500, `route formatting ${label}: route returned ${response?.status()}: ${route}`);
       await page.locator('body').waitFor({ state: 'attached', timeout: 5000 });
       await page.waitForTimeout(300);
+
+      if (['/staking/', '/governance/', '/bakers/'].includes(route)) {
+        const navState = await page.evaluate(() => {
+          const nav = document.querySelector('.landing-nav');
+          const menu = document.querySelector('.landing-nav-menu');
+          const toggle = document.querySelector('.landing-nav-toggle');
+          const links = document.querySelector('.landing-nav-links');
+          const navRect = nav?.getBoundingClientRect();
+          const linksRect = links?.getBoundingClientRect();
+          return {
+            open: Boolean(menu?.open),
+            toggleDisplay: toggle ? getComputedStyle(toggle).display : '',
+            linksDisplay: links ? getComputedStyle(links).display : '',
+            linkCount: links?.querySelectorAll('a').length || 0,
+            nav: navRect ? { left: navRect.left, right: navRect.right, top: navRect.top, bottom: navRect.bottom } : null,
+            links: linksRect ? { left: linksRect.left, right: linksRect.right, top: linksRect.top, bottom: linksRect.bottom } : null,
+            viewportWidth: window.innerWidth
+          };
+        });
+        assert(navState.linkCount === 6, `route formatting ${label}: ${route} guide nav should expose six routes: ${JSON.stringify(navState)}`);
+        if (label === 'desktop') {
+          assert(navState.open && navState.toggleDisplay === 'none' && navState.linksDisplay === 'flex'
+            && navState.links && navState.nav
+            && navState.links.left >= navState.nav.left - 1 && navState.links.right <= navState.nav.right + 1
+            && navState.links.top >= navState.nav.top - 1 && navState.links.bottom <= navState.nav.bottom + 1,
+          `route formatting desktop: ${route} guide nav must stay visible in one header row: ${JSON.stringify(navState)}`);
+        } else {
+          assert(!navState.open && navState.toggleDisplay === 'inline-flex' && navState.linksDisplay === 'none',
+            `route formatting mobile: ${route} guide nav must start collapsed: ${JSON.stringify(navState)}`);
+          await page.locator('.landing-nav-toggle').click();
+          const openState = await page.evaluate(() => {
+            const menu = document.querySelector('.landing-nav-menu');
+            const links = document.querySelector('.landing-nav-links');
+            const rect = links?.getBoundingClientRect();
+            return {
+              open: Boolean(menu?.open),
+              display: links ? getComputedStyle(links).display : '',
+              left: rect?.left ?? null,
+              right: rect?.right ?? null,
+              viewportWidth: window.innerWidth
+            };
+          });
+          assert(openState.open && openState.display === 'grid'
+            && openState.left >= -1 && openState.right <= openState.viewportWidth + 1,
+          `route formatting mobile: ${route} guide nav disclosure must stay inside the viewport: ${JSON.stringify(openState)}`);
+          await page.locator('.landing-nav-toggle').click();
+        }
+      }
 
       const routeIssues = await page.evaluate(() => {
         const found = [];

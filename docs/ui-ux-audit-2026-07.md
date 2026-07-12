@@ -7,13 +7,38 @@
 **Method:** static code review plus a rendered walkthrough (desktop 1440px
 and mobile 390px) of the dashboard, guide pages, several Chamber pages, and
 the 404 page via a local server and headless Chromium.
-**Status:** analysis only — no application code was changed to produce this
-document.
+**Status:** audit complete; the July 12 implementation follow-up is recorded
+below. No application code was changed to produce the original audit.
 
 Live TzKT/RPC data was unreachable from the environment this audit ran in,
 so several captures show loading/error states rather than populated data.
 That is noted inline wherever it affects a specific finding; no conclusion
 below rests on how live numbers look, only on layout, copy, and structure.
+
+## July 12 implementation follow-up
+
+The audit was checked against current repository contracts before implementation.
+The bounded wins shipped from this pass are:
+
+- A persistent **Start here** footer route to `landing.html`, without forcing a
+  first-visit redirect. The dashboard's passive onboarding is intentional, and
+  `landing.html` canonicalizes to `/`, so adding a second sitemap URL would be
+  misleading.
+- A native **Explore** disclosure for guide-page navigation below 640px, keeping
+  the sticky header to one readable row while preserving the full six-link nav.
+- Coherent governance retry copy: **Time Remaining** now falls back to **Still
+  syncing**, not the unrelated **RSS ready** value.
+- Skip-to-content links, shared keyboard focus visibility, and complete static
+  dialog names/roles before application JavaScript runs.
+- Visible **Source**, **Price ꜩ**, **Edition**, and **Sort** labels in HEN's
+  existing filter groups.
+
+The forced first-visit redirect, sitewide glossary, shared-header rebuild,
+focused Chamber-shell rewrite, breakpoint consolidation, broader Command Center
+disclosure, and theme-token cleanup remain separate product or architecture
+projects. The Chamber-wide governance error state also stays with the focused
+route-shell work; changing only its presentation would not actually localize the
+failed data dependency.
 
 The throughline across almost every finding: the site already has strong
 underlying infrastructure — a canonical destination registry

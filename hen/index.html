@@ -22,8 +22,8 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net https://esm.sh; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' api.coingecko.com api.tzkt.io api.tezos.domains *.rpc.tez.capital data.objkt.com https://*.gke.papers.tech https://*.papers.tech wss://*.papers.tech cdn.jsdelivr.net https://esm.sh wss://relay.walletconnect.com https://relay.walletconnect.com; img-src 'self' data: *.objkt.com assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; media-src 'self' blob: data: assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; object-src 'none'; base-uri 'self'; form-action 'self';">
     <link rel="icon" href="/favicon.svg">
-    <link rel="stylesheet" href="/css/hen-mode.css?v=95">
-    <link rel="stylesheet" href="/css/site-map.css?v=423">
+    <link rel="stylesheet" href="/css/hen-mode.css?v=96">
+    <link rel="stylesheet" href="/css/site-map.css?v=424">
     <style>
         html, body { margin: 0; min-height: 100%; background: #111; color: #e0e0e0; }
         .hen-doorway { box-sizing: border-box; display: grid; min-height: 100vh; place-content: center; gap: 1rem; padding: 2rem; text-align: center; font-family: 'JetBrains Mono', ui-monospace, monospace; }
@@ -58,7 +58,8 @@
     </script>
 </head>
 <body data-hen-standalone="true">
-    <main class="hen-doorway" id="hen-doorway">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <main class="hen-doorway" id="main-content">
         <h1>hen</h1>
         <p>Opening the live Teia and OBJKT feed with collecting filters, wallet-owned flags, and direct collect links.</p>
         <noscript><p>JavaScript is required for the live feed. <a href="/">Return to Tezos Systems</a>.</p></noscript>
@@ -71,6 +72,7 @@
         <div class="hen-header">
             <div class="hen-logo">hen</div>
             <div class="hen-source-tabs" role="group" aria-label="NFT source filter">
+                <span class="hen-filter-group-label hen-source-label" aria-hidden="true">source</span>
                 <button type="button" class="hen-source-tab" data-hen-mode="all" aria-pressed="true">all</button>
                 <button type="button" class="hen-source-tab" data-hen-mode="teia" aria-pressed="false">teia</button>
                 <button type="button" class="hen-source-tab" data-hen-mode="objkt" aria-pressed="false">objkt</button>
@@ -82,8 +84,9 @@
             <span id="hen-status-line" class="hen-status-line" aria-live="polite"></span>
             <button type="button" id="hen-mobile-filter-toggle" class="hen-mobile-filter-toggle" aria-expanded="false" aria-controls="hen-filterbar hen-wallet-controls">filters</button>
             <div id="hen-filterbar" class="hen-filterbar" aria-label="HEN feed filters">
-                <button type="button" id="hen-filter-listed" class="hen-filter-toggle" aria-pressed="false">for sale</button>
                 <div class="hen-filter-group" role="group" aria-label="Maximum price">
+                    <span class="hen-filter-group-label" aria-hidden="true">price ꜩ</span>
+                    <button type="button" id="hen-filter-listed" class="hen-filter-toggle" aria-pressed="false">for sale</button>
                     <button type="button" class="hen-filter-chip" data-hen-price="1000000" aria-pressed="false">≤1</button>
                     <button type="button" class="hen-filter-chip" data-hen-price="5000000" aria-pressed="false">≤5</button>
                     <button type="button" class="hen-filter-chip" data-hen-price="25000000" aria-pressed="false">≤25</button>
@@ -92,11 +95,13 @@
                 <label class="hen-search-label" for="hen-search-input">search</label>
                 <input id="hen-search-input" class="hen-search-input" type="search" placeholder="name..." autocomplete="off" spellcheck="false">
                 <div class="hen-filter-group" role="group" aria-label="Edition size">
+                    <span class="hen-filter-group-label" aria-hidden="true">edition</span>
                     <button type="button" class="hen-filter-chip" data-hen-edition="1" aria-pressed="false">1/1</button>
                     <button type="button" class="hen-filter-chip" data-hen-edition="10" aria-pressed="false">≤10</button>
                     <button type="button" class="hen-filter-chip" data-hen-edition="any" aria-pressed="true">any</button>
                 </div>
                 <div class="hen-filter-group" role="group" aria-label="Sort feed">
+                    <span class="hen-filter-group-label" aria-hidden="true">sort</span>
                     <button type="button" class="hen-filter-chip" data-hen-sort="newest" aria-pressed="true">newest</button>
                     <button type="button" class="hen-filter-chip" data-hen-sort="cheapest" aria-pressed="false">cheap</button>
                     <button type="button" class="hen-filter-chip" data-hen-sort="scarce" aria-pressed="false">scarce</button>
@@ -129,7 +134,7 @@
             <div class="hen-expanded-inner"></div>
         </div>
     </div>
-    <script type="module" src="/js/landing/site-nav.js?v=423"></script>
+    <script type="module" src="/js/landing/site-nav.js?v=425"></script>
     <script src="/js/features/hen-mode.js?v=94"></script>
 </body>
 </html>

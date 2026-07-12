@@ -22,8 +22,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/landing.css?v=20260705a">
-    <link rel="stylesheet" href="/css/site-map.css?v=423">
+    <link rel="stylesheet" href="/css/landing.css?v=20260712a">
+    <link rel="stylesheet" href="/css/site-map.css?v=424">
 
     <script type="application/ld+json">
     {
@@ -87,14 +87,18 @@
     </script>
 </head>
 <body data-site-context="staking">
-    <nav class="landing-nav">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <nav class="landing-nav" aria-label="Tezos Systems guides">
         <a href="/" class="landing-nav-logo">TEZOS SYSTEMS</a>
-        <ul class="landing-nav-links">
-            <li><a href="/staking" class="active">Staking</a></li>
-            <li><a href="/governance">Governance</a></li>
-            <li><a href="/bakers">Bakers</a></li>
-            <li><a href="/">Dashboard</a></li>
-        </ul>
+        <details class="landing-nav-menu" open>
+            <summary class="landing-nav-toggle"><span>Explore</span><span aria-hidden="true">⌄</span></summary>
+            <ul class="landing-nav-links">
+                <li><a href="/staking" class="active">Staking</a></li>
+                <li><a href="/governance">Governance</a></li>
+                <li><a href="/bakers">Bakers</a></li>
+                <li><a href="/">Dashboard</a></li>
+            </ul>
+        </details>
     </nav>
 
     <header class="landing-hero">
@@ -121,7 +125,7 @@
         </div>
     </header>
 
-    <main class="landing-content">
+    <main class="landing-content" id="main-content">
         <section class="landing-section">
             <h2>What Is Tezos Staking?</h2>
             <p>Tezos uses Liquid Proof-of-Stake, where validators (called <strong>bakers</strong>) create blocks and earn rewards. Delegation does not freeze your XTZ; direct staking does.</p>
@@ -224,8 +228,8 @@
     </footer>
 
     <script type="module">
-        import '/js/landing/site-nav.js?v=423';
-        import { loadStakingData, loadBakerData } from '/js/landing/live-data.js?v=20260711a';
+        import '/js/landing/site-nav.js?v=425';
+        import { loadStakingData, loadBakerData } from '/js/landing/live-data.js?v=20260712a';
         loadStakingData();
         loadBakerData(); // for total-bakers count
     </script>

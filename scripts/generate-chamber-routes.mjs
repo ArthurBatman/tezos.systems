@@ -133,8 +133,8 @@ function renderRoute(route, dashboardShell) {
   html = replaceTag(html, /\n<\/head>/, `\n${ROUTE_INTRO_STYLES}\n</head>`);
   html = replaceTag(
     html,
-    /<main class="main-content" role="main">/,
-    `<main class="main-content" role="main">${renderRouteIntro(route)}`
+    /<main class="main-content" id="main-content" role="main">/,
+    `<main class="main-content" id="main-content" role="main">${renderRouteIntro(route)}`
   );
   return html.replace(/[ \t]+$/gm, '');
 }

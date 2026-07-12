@@ -1355,7 +1355,7 @@ async function checkSelectorContracts() {
     ['HEN standalone canonical URL', '<link rel="canonical" href="https://tezos.systems/hen/">', henPage],
     ['HEN standalone live overlay', 'id="hen-overlay"', henPage],
     ['HEN standalone auto activator', '/js/features/hen-mode.js?v=94', henPage],
-    ['HEN CSS cache stamp', 'css/hen-mode.css?v=95', index],
+    ['HEN CSS cache stamp', 'css/hen-mode.css?v=96', index],
     ['HEN JS cache stamp', 'js/features/hen-mode.js?v=94', index],
     ['HEN setup status strip', 'id="hen-status-strip"', index],
     ['HEN permanent now line', 'id="hen-now-line"', index],
@@ -2041,6 +2041,98 @@ async function checkSelectorContracts() {
     if (index.includes(rawLink)) fail(`dashboard should not link directly to raw widget endpoint: ${rawLink}`);
   }
   pass('dashboard widget utility avoids raw widget endpoint links');
+}
+
+async function checkUxAuditContracts() {
+  const index = await readText('index.html');
+  const siteMapCss = await readText('css/site-map.css');
+  const landingCss = await readText('css/landing.css');
+  const siteNav = await readText('js/landing/site-nav.js');
+  const liveData = await readText('js/landing/live-data.js');
+  const henCss = await readText('css/hen-mode.css');
+  const henPage = await readText('hen/index.html');
+  const changelog = await readText('js/features/changelog.js');
+  const skipPages = [
+    ['index.html', index],
+    ['landing.html', await readText('landing.html')],
+    ['staking/index.html', await readText('staking/index.html')],
+    ['governance/index.html', await readText('governance/index.html')],
+    ['bakers/index.html', await readText('bakers/index.html')],
+    ['compare/index.html', await readText('compare/index.html')],
+    ['hen/index.html', henPage],
+    ['404.html', await readText('404.html')]
+  ];
+
+  for (const [file, html] of skipPages) {
+    if (!html.includes('class="skip-link" href="#main-content"') || !html.includes('id="main-content"')) {
+      fail(`${file} must expose a skip-to-content target`);
+    }
+  }
+  for (const route of CHAMBER_ROUTES) {
+    const html = await readText(`${route.slug}/index.html`);
+    if (!html.includes('class="skip-link" href="#main-content"') || !html.includes('id="main-content"')) {
+      fail(`${route.slug}/index.html must inherit the dashboard skip-to-content contract`);
+    }
+  }
+  for (const file of ['compare/tezos-vs-ethereum.html', 'compare/tezos-vs-solana.html', 'compare/tezos-vs-cardano.html', 'compare/tezos-vs-algorand.html']) {
+    const html = await readText(file);
+    if (!html.includes('class="skip-link" href="#main-content"') || !html.includes('id="main-content"')) {
+      fail(`${file} must inherit the comparison skip-to-content contract`);
+    }
+  }
+  if (!siteMapCss.includes('.skip-link')
+    || !siteMapCss.includes('button:not([disabled])')
+    || !siteMapCss.includes('[tabindex]:not([tabindex="-1"])):focus-visible')) {
+    fail('shared site-map CSS must provide skip-link and broad focus-visible coverage');
+  }
+
+  for (const [, html] of skipPages.filter(([file]) => /^(staking|governance|bakers)\//.test(file))) {
+    if (!html.includes('class="landing-nav-menu"') || !html.includes('class="landing-nav-toggle"')) {
+      fail('guide pages must retain a no-JS native mobile navigation disclosure');
+    }
+  }
+  if (!siteNav.includes('<details class="landing-nav-menu" open>')
+    || !siteNav.includes('<summary class="landing-nav-toggle">')
+    || !siteNav.includes("window.matchMedia('(max-width: 640px)')")
+    || !landingCss.includes('.landing-nav-menu:not([open]) > .landing-nav-links')) {
+    fail('shared guide navigation must render and style the mobile Explore disclosure');
+  }
+
+  if (!liveData.includes("inject('voting-time-left', 'Still syncing')")
+    || liveData.includes("inject('voting-time-left', 'RSS ready')")) {
+    fail('governance retry copy must remain coherent with the Time Remaining label');
+  }
+
+  const staticDialogs = [...index.matchAll(/<div class="modal-overlay[^"]*" id="([^"]+)"[^>]*>\s*<div class="[^"]*\bmodal-content\b[^"]*"([^>]*)>/g)];
+  if (staticDialogs.length < 18) fail(`expected at least 18 static modal dialogs, found ${staticDialogs.length}`);
+  for (const [, modalId, attributes] of staticDialogs) {
+    const labelId = attributes.match(/aria-labelledby="([^"]+)"/)?.[1] || '';
+    if (!/role="dialog"/.test(attributes)
+      || !/aria-modal="true"/.test(attributes)
+      || !/tabindex="-1"/.test(attributes)
+      || !labelId
+      || !index.includes(`id="${labelId}"`)) {
+      fail(`#${modalId} must ship complete static dialog semantics and an existing label`);
+    }
+  }
+  if (!/class="changelog-modal-content"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="changelog-modal-title"/.test(index)) {
+    fail('Changelog must ship complete static dialog semantics');
+  }
+
+  for (const label of ['source', 'price ꜩ', 'edition', 'sort']) {
+    if (!index.includes(`>${label}</span>`) || !henPage.includes(`>${label}</span>`)) {
+      fail(`dashboard and standalone HEN filters must expose the visible ${label} group label`);
+    }
+  }
+  if (!henCss.includes('.hen-filter-group-label')) fail('HEN visible filter group labels must be styled');
+  if (!index.includes('<a href="/landing.html">Start here</a>') || !siteNav.includes('<a href="/landing.html">Start here</a>')) {
+    fail('dashboard and standalone footers must expose the non-forced Start here route');
+  }
+  if (!changelog.includes('Keyboard visitors now get a sitewide skip link')) {
+    fail('changelog must disclose the July UI/UX audit implementation');
+  }
+
+  pass('July UI/UX audit quick-win contracts checked');
 }
 
 async function checkWidgetRuntimeContracts() {
@@ -4660,6 +4752,7 @@ async function main() {
   await checkCsp();
   await checkSitemapCoverage();
   await checkSelectorContracts();
+  await checkUxAuditContracts();
   await checkWidgetRuntimeContracts();
   await checkMainnetLaunchCopy();
   await checkModuleImportVersions();
