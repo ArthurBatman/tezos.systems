@@ -44,8 +44,8 @@
         },
         {
             target: '#features-gear',
-            title: 'Open the Command Center',
-            text: 'Explore opens the Command Center: Chambers first, Happening Now signals, Tezos-native tools, shareables, and collapsed Recovery tools.',
+            title: 'Explore without the wall of choices',
+            text: 'Explore leads with Chambers, Network Pulse, Staking, and Maxis. Live signals and specialist tools stay folded by category until you need them.',
         },
         {
             target: '#settings-gear',

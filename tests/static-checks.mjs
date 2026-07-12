@@ -875,6 +875,9 @@ async function checkSitemapCoverage() {
 
 async function checkSelectorContracts() {
   const index = await readText('index.html');
+  const siteMapSource = await readText('js/core/site-map.js');
+  const siteMapModuleUrl = `data:text/javascript;base64,${Buffer.from(siteMapSource).toString('base64')}`;
+  const { siteMapStarters } = await import(siteMapModuleUrl);
   const governanceLanding = await readText('governance/index.html');
   const landingLiveData = await readText('js/landing/live-data.js');
   const shareSnippetSource = await readText('js/ui/share.js');
@@ -929,10 +932,14 @@ async function checkSelectorContracts() {
 
   const requiredSnippets = [
     ['feature launcher grouped menu', 'class="settings-dropdown feature-launcher"'],
-    ['feature launcher command center title', 'Command Center'],
-    ['feature launcher happening now group', 'Happening Now'],
+    ['feature launcher Explore title', 'class="feature-launcher-intro-copy"'],
+    ['feature launcher progressive-disclosure copy', 'Start with a live room, then open a category when you need more.'],
+    ['feature launcher starter group', '<div class="dropdown-section-label">Start here</div>'],
+    ['feature launcher disclosure groups', 'class="feature-launcher-group feature-launcher-disclosure"'],
+    ['feature launcher disclosure grid', 'class="feature-launcher-disclosure-grid"'],
+    ['feature launcher explicit close control', 'data-dropdown-close aria-label="Close Explore"'],
     ['feature launcher Tezos Domains row', 'id="domains-feature-link"'],
-    ['feature launcher legacy group', 'feature-launcher-group feature-launcher-legacy'],
+    ['feature launcher legacy group', 'feature-launcher-group feature-launcher-disclosure feature-launcher-legacy'],
     ['combined chambers launcher copy link', 'data-copy-hash="#chambers"'],
     ['direct feature copy links', 'data-copy-hash="#compare"'],
     ['widget embed utility panel', 'class="widget-utility-panel"'],
@@ -978,13 +985,33 @@ async function checkSelectorContracts() {
   }
 
   const chambersLauncherIndex = index.indexOf('id="chambers-toggle"');
+  const pulseLauncherIndex = index.indexOf('id="tezos-stats-toggle"');
+  const stakingLauncherIndex = index.indexOf('id="staking-chamber-feature-link"');
+  const maxisLauncherIndex = index.indexOf('id="maxis-feature-link"');
   const ctezLauncherIndex = index.indexOf('id="ctez-feature-btn"');
-  const legacyLauncherIndex = index.indexOf('feature-launcher-group feature-launcher-legacy');
+  const legacyLauncherIndex = index.indexOf('feature-launcher-group feature-launcher-disclosure feature-launcher-legacy');
   if (chambersLauncherIndex < 0 || ctezLauncherIndex < 0 || chambersLauncherIndex > ctezLauncherIndex) {
     fail('Explore launcher must keep Chambers ahead of ctez recovery tools');
   }
+  if (![chambersLauncherIndex, pulseLauncherIndex, stakingLauncherIndex, maxisLauncherIndex].every((position) => position >= 0)
+      || !(chambersLauncherIndex < pulseLauncherIndex && pulseLauncherIndex < stakingLauncherIndex && stakingLauncherIndex < maxisLauncherIndex)) {
+    fail('Explore starter order must be Chambers, Network Pulse, Staking Chamber, then Tezos Maxis');
+  }
   if (legacyLauncherIndex < 0 || ctezLauncherIndex < 0 || legacyLauncherIndex > ctezLauncherIndex) {
     fail('Explore launcher ctez recovery tools must stay inside the legacy group');
+  }
+
+  const promotedStarterIds = [...index.matchAll(/data-site-map-starter="([^"]+)"/g)].map((match) => match[1]);
+  if (JSON.stringify(promotedStarterIds) !== JSON.stringify(['pulse', 'staking-chamber', 'maxis'])) {
+    fail(`Explore promoted starter set drifted: ${promotedStarterIds.join(', ')}`);
+  }
+  const canonicalStarterIds = new Set(siteMapStarters().map((entry) => entry.id));
+  if (promotedStarterIds.some((id) => !canonicalStarterIds.has(id))) {
+    fail('Explore promoted rows must come from the canonical site-map starter set');
+  }
+
+  for (const retiredSnippet of ['feature-live-crumb', 'explore-chambers-live', 'my-tezos-feature-btn']) {
+    if (index.includes(retiredSnippet)) fail(`Explore launcher contains retired duplicate surface: ${retiredSnippet}`);
   }
   pass('Explore launcher hierarchy checked');
 
@@ -1349,13 +1376,15 @@ async function checkSelectorContracts() {
     ['TzSafe feature row polish', '.tzsafe-feature-link', henModeCss],
     ['TzSafe tray icon style', '.tzsafe-launcher', henModeCss],
     ['TzSafe key mark style', '.tzsafe-logo-key', henModeCss],
+    ['corner gift items removed from closed tray layout', 'position: absolute;\n    top: 100%;\n    left: 50%;', henModeCss],
+    ['mobile corner gift scrolls with top rail', 'position: absolute;\n        top: calc(4px + env(safe-area-inset-top, 0px));', henModeCss],
     ['HEN source all tab', 'data-hen-mode="all"', index],
     ['HEN source Teia tab', 'data-hen-mode="teia"', index],
     ['HEN source OBJKT tab', 'data-hen-mode="objkt"', index],
     ['HEN standalone canonical URL', '<link rel="canonical" href="https://tezos.systems/hen/">', henPage],
     ['HEN standalone live overlay', 'id="hen-overlay"', henPage],
     ['HEN standalone auto activator', '/js/features/hen-mode.js?v=94', henPage],
-    ['HEN CSS cache stamp', 'css/hen-mode.css?v=96', index],
+    ['HEN CSS cache stamp', 'css/hen-mode.css?v=97', index],
     ['HEN JS cache stamp', 'js/features/hen-mode.js?v=94', index],
     ['HEN setup status strip', 'id="hen-status-strip"', index],
     ['HEN permanent now line', 'id="hen-now-line"', index],
@@ -3162,7 +3191,7 @@ async function checkTourAndShareCaptureContracts() {
     'Read the latest head',
     'Protocol Anthology',
     'Network Context',
-    'Explore opens the Command Center',
+    'Explore leads with Chambers, Network Pulse, Staking, and Maxis',
     'Help is available when you want it',
     'Show help',
     'Not now'

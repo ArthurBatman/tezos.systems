@@ -111,7 +111,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=424';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=425';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -241,38 +241,6 @@ function setLauncherToggleState(btn, isOn) {
     }
 }
 
-function updateExploreChambersLiveLine() {
-    const liveLine = document.getElementById('explore-chambers-live');
-    const protocol = document.getElementById('header-current-protocol')?.textContent?.trim() || 'Tezos';
-    if (liveLine) {
-        liveLine.textContent = 'Running ';
-        const protocolName = document.createElement('strong');
-        protocolName.textContent = protocol;
-        liveLine.appendChild(protocolName);
-    }
-
-    const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-    const setCrumb = (id, value) => {
-        const el = document.getElementById(id);
-        if (el && value) el.textContent = value;
-    };
-
-    const bakerEl = document.getElementById('hero-chain-uptime-bakers');
-    const bakers = clean(bakerEl?.dataset?.finalText || bakerEl?.textContent);
-    const health = clean(document.getElementById('network-health-status')?.textContent);
-    const cycle = clean(document.getElementById('cycle-chip')?.textContent);
-    const price = clean(document.querySelector('.price-value')?.textContent);
-    const priceChange = clean(document.querySelector('.price-change')?.textContent);
-    const whaleCount = window.whaleTracker?.transactions?.length || 0;
-    const awakeningCount = window.sleepingGiantsData?.awakenings?.length || 0;
-
-    setCrumb('explore-network-crumb', [health && !/loading/i.test(health) ? `Health ${health}` : 'TzKT + RPC live', cycle].filter(Boolean).join(' · '));
-    setCrumb('explore-baker-crumb', bakers ? `${bakers} active bakers` : 'Active bakers syncing');
-    setCrumb('explore-market-crumb', [price, priceChange].filter(Boolean).join(' ') || 'Price syncing');
-    setCrumb('explore-whale-crumb', whaleCount ? `${whaleCount} recent large moves` : 'Watching TzKT');
-    setCrumb('explore-giants-crumb', awakeningCount ? `${awakeningCount} recent dormant moves` : 'Dormancy watch');
-}
-
 function countExploreEvent(path) {
     try {
         window.goatcounter?.count?.({ path, event: true });
@@ -282,8 +250,7 @@ function countExploreEvent(path) {
 if (typeof window !== 'undefined') {
     window.tezosSystemsLauncher = {
         ...(window.tezosSystemsLauncher || {}),
-        setToggleState: setLauncherToggleState,
-        updateLiveState: updateExploreChambersLiveLine
+        setToggleState: setLauncherToggleState
     };
 }
 
@@ -4751,6 +4718,16 @@ function initCornerGiftTray() {
 }
 
 function initSmartDock() {
+    const closeDropdown = (dropdown, { restoreFocus = false } = {}) => {
+        if (!dropdown) return;
+        dropdown.classList.remove('open');
+        const owner = document.querySelector(`[aria-controls="${dropdown.id}"]`);
+        if (owner) {
+            owner.setAttribute('aria-expanded', 'false');
+            if (restoreFocus) owner.focus();
+        }
+    };
+
     // Generic dropdown setup
     function setupDropdown(gearId, dropdownId, onOpen) {
         const g = document.getElementById(gearId);
@@ -4762,11 +4739,7 @@ function initSmartDock() {
             e.stopPropagation();
             // Close other dropdowns first
             document.querySelectorAll('.settings-dropdown.open').forEach(el => {
-                if (el !== d) {
-                    el.classList.remove('open');
-                    const owner = document.querySelector(`[aria-controls="${el.id}"]`);
-                    if (owner) owner.setAttribute('aria-expanded', 'false');
-                }
+                if (el !== d) closeDropdown(el);
             });
             d.classList.toggle('open');
             const isOpen = d.classList.contains('open');
@@ -4776,13 +4749,19 @@ function initSmartDock() {
         d.addEventListener('click', (e) => e.stopPropagation());
     }
 
+    const featureLauncher = document.getElementById('features-dropdown');
+    const revealActiveExploreGroups = () => {
+        featureLauncher?.querySelectorAll('details.feature-launcher-disclosure').forEach((group) => {
+            if (group.querySelector('.feature-toggle.active')) group.open = true;
+        });
+    };
+
     setupDropdown('features-gear', 'features-dropdown', () => {
-        updateExploreChambersLiveLine();
+        revealActiveExploreGroups();
         countExploreEvent('explore/open');
     });
     setupDropdown('settings-gear', 'settings-dropdown');
 
-    const featureLauncher = document.getElementById('features-dropdown');
     if (featureLauncher && featureLauncher.dataset.analyticsReady !== 'true') {
         featureLauncher.dataset.analyticsReady = 'true';
         featureLauncher.addEventListener('click', (event) => {
@@ -4790,31 +4769,23 @@ function initSmartDock() {
             if (!item || !featureLauncher.contains(item) || !item.id) return;
             countExploreEvent(`explore/${item.id}`);
         });
-    }
-    const myTezosFeatureBtn = document.getElementById('my-tezos-feature-btn');
-    if (myTezosFeatureBtn && myTezosFeatureBtn.dataset.launcherReady !== 'true') {
-        myTezosFeatureBtn.dataset.launcherReady = 'true';
-        myTezosFeatureBtn.addEventListener('click', (event) => {
+        featureLauncher.querySelector('[data-dropdown-close]')?.addEventListener('click', (event) => {
             event.preventDefault();
-            document.getElementById('my-tezos-btn')?.click();
+            closeDropdown(featureLauncher, { restoreFocus: true });
         });
     }
 
     // Close all dropdowns on outside click
     document.addEventListener('click', () => {
         document.querySelectorAll('.settings-dropdown.open').forEach(el => {
-            el.classList.remove('open');
-            const owner = document.querySelector(`[aria-controls="${el.id}"]`);
-            if (owner) owner.setAttribute('aria-expanded', 'false');
+            closeDropdown(el);
         });
     });
 
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
         document.querySelectorAll('.settings-dropdown.open').forEach(el => {
-            el.classList.remove('open');
-            const owner = document.querySelector(`[aria-controls="${el.id}"]`);
-            if (owner) owner.setAttribute('aria-expanded', 'false');
+            closeDropdown(el, { restoreFocus: true });
         });
     });
 }

@@ -32,10 +32,16 @@ The bounded wins shipped from this pass are:
   dialog names/roles before application JavaScript runs.
 - Visible **Source**, **Price ꜩ**, **Edition**, and **Sort** labels in HEN's
   existing filter groups.
+- A progressively disclosed **Explore** launcher that promotes the canonical
+  Network Pulse, Staking Chamber, and Tezos Maxis starters, keeps the remaining
+  categories folded, and removes duplicate live telemetry from the menu.
+- A mobile corner-tool tray that stays with the top price rail, scrolls away
+  before the centered wordmark reaches it, and no longer leaves a hidden tall
+  hitbox over the header.
 
 The forced first-visit redirect, sitewide glossary, shared-header rebuild,
-focused Chamber-shell rewrite, breakpoint consolidation, broader Command Center
-disclosure, and theme-token cleanup remain separate product or architecture
+focused Chamber-shell rewrite, breakpoint consolidation, and theme-token cleanup
+remain separate product or architecture
 projects. The Chamber-wide governance error state also stays with the focused
 route-shell work; changing only its presentation would not actually localize the
 failed data dependency.
@@ -287,26 +293,32 @@ itself rather than the controls that operate it.
 
 **Priority: P2 · Effort: M–L**
 
-The header "Explore" dropdown surfaces 30+ tools in one scroll — the site's
+**Status: implemented July 12.** Explore now keeps its starter set visible and
+places six specialist groups behind native disclosures; active pinned toggles
+reopen their own group when the launcher opens.
+
+Before this follow-up, the header "Explore" dropdown surfaced every launcher
+tool in one scroll — the site's
 own structured data lists 32 distinct features. `site-map.js` already
 carries `starter` and `searchChip` fields marking a handful of destinations
 as entry points, and `js/ui/wayfinder.js`'s doc comment already states the
 intended principle ("keep exhaustive directories behind an explicit
-disclosure") — but the dropdown itself doesn't apply it; every section is
+disclosure") — but the dropdown itself did not apply it; every section was
 expanded by default.
 
 **Evidence**
 - `index.html:339-421` — feature-launcher dropdown, 5+ fully-expanded groups
   visible on open.
 - `index.html:~95-125` — JSON-LD `featureList`, 32 entries.
-- `js/core/site-map.js` — `starter` field exists on only 3 of dozens of
-  entries.
+- `js/core/site-map.js` — a small ordered `starter` set already identifies the
+  intended first paths.
 
 **Recommendation**
-Use the existing `starter`/`searchChip` data to visually promote 3–5 entry
-points by default, and collapse the remaining groups behind disclosure —
-applying a principle the codebase has already written down but not yet
-built.
+The implementation uses the existing starter order to promote Network Pulse,
+Staking Chamber, and Tezos Maxis after the Chambers hero, then collapses the
+remaining groups behind disclosure. My Tezos stays in the primary header, and
+Network Health/Liquidity Baking stay reachable through Chambers rather than
+being duplicated in the compact launcher.
 
 ### 11. One 23,000-line stylesheet carries all 14 themes
 

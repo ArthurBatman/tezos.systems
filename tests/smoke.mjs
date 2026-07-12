@@ -2834,6 +2834,15 @@ async function clickFeatureLauncher(page, selector) {
   await ensureDropdownOpen(page, '#features-gear', '#features-dropdown');
   const button = page.locator(selector);
   await assertLocatorCount(button, 1, selector);
+  const disclosureId = await button.evaluate((node) => node.closest('details.feature-launcher-disclosure')?.id || '');
+  if (disclosureId) {
+    const disclosure = page.locator(`#${disclosureId}`);
+    if (!(await disclosure.evaluate((node) => node.open))) {
+      const summary = disclosure.locator(':scope > summary');
+      await assertLocatorCount(summary, 1, `${selector} disclosure summary`);
+      await summary.click();
+    }
+  }
   await button.click();
 }
 
@@ -4014,6 +4023,43 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
       mobileGutters.chambers && mobileGutters.ticker && Math.abs(mobileGutters.chambers.left - mobileGutters.ticker.left) <= 1.5,
       `${label}: Chambers area should match live bar mobile gutter: ${JSON.stringify(mobileGutters)}`
     );
+
+    const closedTray = await page.evaluate(() => {
+      const tray = document.querySelector('#corner-gift-tray');
+      const toggle = document.querySelector('#corner-gift-toggle');
+      const trayRect = tray?.getBoundingClientRect();
+      const toggleRect = toggle?.getBoundingClientRect();
+      const probe = toggleRect ? document.elementFromPoint(toggleRect.left + (toggleRect.width / 2), toggleRect.bottom + 24) : null;
+      return {
+        position: tray ? getComputedStyle(tray).position : '',
+        trayHeight: trayRect?.height || 0,
+        toggleHeight: toggleRect?.height || 0,
+        probeId: probe?.id || '',
+        probeInsideTray: Boolean(probe?.closest?.('#corner-gift-tray'))
+      };
+    });
+    assert(closedTray.position === 'absolute', `${label}: mobile corner tray must scroll with the top rail ${JSON.stringify(closedTray)}`);
+    assert(closedTray.trayHeight <= closedTray.toggleHeight + 1, `${label}: hidden corner tools inflate the closed tray hitbox ${JSON.stringify(closedTray)}`);
+    assert(!closedTray.probeInsideTray, `${label}: invisible corner tray intercepts the header below its toggle ${JSON.stringify(closedTray)}`);
+
+    const scrolledTray = await page.evaluate(() => {
+      const gift = document.querySelector('#corner-gift-toggle')?.getBoundingClientRect();
+      const title = document.querySelector('.header-title-row')?.getBoundingClientRect();
+      const tray = document.querySelector('#corner-gift-tray');
+      const trayPosition = tray ? getComputedStyle(tray).position : '';
+      const scrollDelta = 80;
+      const giftShift = trayPosition === 'fixed' ? 0 : scrollDelta;
+      const giftAfter = gift ? { left: gift.left, right: gift.right, top: gift.top - giftShift, bottom: gift.bottom - giftShift } : null;
+      const titleAfter = title ? { left: title.left, right: title.right, top: title.top - scrollDelta, bottom: title.bottom - scrollDelta } : null;
+      const overlapWidth = giftAfter && titleAfter ? Math.max(0, Math.min(giftAfter.right, titleAfter.right) - Math.max(giftAfter.left, titleAfter.left)) : 0;
+      const overlapHeight = giftAfter && titleAfter ? Math.max(0, Math.min(giftAfter.bottom, titleAfter.bottom) - Math.max(giftAfter.top, titleAfter.top)) : 0;
+      return {
+        trayPosition,
+        giftBottom: giftAfter?.bottom ?? 0,
+        overlapArea: overlapWidth * overlapHeight
+      };
+    });
+    assert(scrolledTray.trayPosition === 'absolute' && scrolledTray.giftBottom <= 0 && scrolledTray.overlapArea === 0, `${label}: corner gift must leave with the mobile header instead of overlapping the title ${JSON.stringify(scrolledTray)}`);
   }
   await expectCount(page, '#chambers-section #tezlink-entry-card.chamber-entry-wide .card-copy-link[data-copy-hash="#tezosx"]', 1, `${label} Tezos X chamber card`);
   await assertChamberOrder(page, label);
@@ -4044,7 +4090,8 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
 
   await openDropdown(page, '#features-gear', '#features-dropdown');
   await expectCount(page, '#features-dropdown.feature-launcher', 1, label);
-  await expectCount(page, '#features-dropdown .feature-launcher-group', 7, label);
+  await assertLocatorCount(page.locator('#features-dropdown details.feature-launcher-disclosure'), 6, `${label} Explore disclosure groups`);
+  await assertLocatorCount(page.locator('#features-dropdown [data-site-map-starter]'), 3, `${label} Explore promoted starters`);
   await expectCount(page, '#features-dropdown button.feature-copy-link', 10, label);
   await expectCount(page, '#features-dropdown .feature-launcher-directory-link[href="/#site-map"]', 1, label);
   await expectCount(page, '#features-dropdown #search-everything-feature-link', 0, label);
@@ -4058,10 +4105,36 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await expectCount(page, '#features-dropdown #tzsafe-feature-link[href="https://tzsafe.tez.page/"]', 1, label);
   await expectCount(page, '#features-dropdown .feature-external-link[href="https://tzsafe.tez.page/"]', 1, label);
   assert((await page.locator('#features-dropdown #tzsafe-feature-link').evaluate((el) => el.textContent || '')).includes('legacy TzSafe KT1 safes'), `${label}: TzSafe launcher copy missing`);
+  const exploreGeometry = await page.evaluate(() => {
+    const launcher = document.querySelector('#features-dropdown');
+    const launcherRect = launcher?.getBoundingClientRect();
+    const starters = Array.from(document.querySelectorAll('#features-dropdown [data-site-map-starter]'));
+    const disclosures = Array.from(document.querySelectorAll('#features-dropdown details.feature-launcher-disclosure'));
+    return {
+      launcherInside: Boolean(launcherRect && launcherRect.left >= -1 && launcherRect.right <= innerWidth + 1 && launcherRect.top >= -1 && launcherRect.bottom <= innerHeight + 1),
+      starterOrder: starters.map((row) => row.getAttribute('data-site-map-starter')),
+      startersVisible: starters.every((row) => {
+        const rect = row.getBoundingClientRect();
+        return launcherRect && rect.top >= launcherRect.top && rect.bottom <= launcherRect.bottom;
+      }),
+      directoryVisible: (() => {
+        const rect = document.querySelector('#site-map-feature-link')?.getBoundingClientRect();
+        return Boolean(launcherRect && rect && rect.top >= launcherRect.top && rect.bottom <= launcherRect.bottom);
+      })(),
+      openDisclosures: disclosures.filter((group) => group.open).map((group) => group.id),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  const directoryFitsFirstView = viewport.width > 720 || exploreGeometry.directoryVisible;
+  assert(exploreGeometry.launcherInside && exploreGeometry.startersVisible && directoryFitsFirstView && exploreGeometry.horizontalOverflow <= 1, `${label}: Explore sheet, starter rows, or mobile complete-directory exit escape the first view ${JSON.stringify(exploreGeometry)}`);
+  assert(exploreGeometry.starterOrder.join(',') === 'pulse,staking-chamber,maxis', `${label}: Explore starter order drifted ${JSON.stringify(exploreGeometry)}`);
+  assert(exploreGeometry.openDisclosures.length === 0, `${label}: secondary Explore groups should start collapsed ${JSON.stringify(exploreGeometry)}`);
   await assertLocatorCount(page.locator('#features-dropdown #chamber-toggle, #features-dropdown #liquidity-baking-toggle, #features-dropdown #tz4-adoption-toggle'), 0, `${label} individual chamber launchers`);
-  assert((await page.locator('#features-dropdown a[href="/widgets/builder.html"]').innerText()).includes('Tezos Widgets'), `${label}: launcher should point widgets to Tezos Widgets`);
+  assert((await page.locator('#features-dropdown a[href="/widgets/builder.html"]').evaluate((node) => node.textContent || '')).includes('Tezos Widgets'), `${label}: launcher should point widgets to Tezos Widgets`);
+  await page.locator('#explore-markets > summary').click();
   await page.locator('.feature-copy-link[data-copy-hash="#compare"]').click();
   await page.waitForFunction(() => document.querySelector('.feature-copy-link[data-copy-hash="#compare"]')?.textContent?.trim() === '✓', null, { timeout: 3000 });
+  await page.locator('#explore-bakers-staking > summary').click();
   await page.locator('#calc-toggle').click();
   await expectClassContains(page.locator('#calculator-section'), 'visible', `${label} #calculator-section`);
   await page.locator('#calc-amount').fill('10000');
@@ -4069,6 +4142,10 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
     const text = document.querySelector('#calc-daily-xtz')?.textContent?.trim() || '';
     return text && text !== '-';
   }, null, { timeout: 5000 });
+
+  await page.locator('#features-dropdown .feature-launcher-close').click();
+  assert(!(await page.locator('#features-dropdown').evaluate((node) => node.classList.contains('open'))), `${label}: Explore close button did not close the sheet`);
+  assert(await page.locator('#features-gear').evaluate((node) => node === document.activeElement), `${label}: Explore close button did not return focus to its trigger`);
 
   await page.locator('#my-tezos-btn').click();
   await expectClassContains(page.locator('#my-tezos-drawer'), 'open', `${label} #my-tezos-drawer`);
@@ -8362,7 +8439,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
     { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Chambers explain the chain', 'Protocol Anthology'] },
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
     { selector: '#tezos-loop-chips', label: 'loop console step', snippets: ['Use the recipe console', 'Market lanes'] },
-    { selector: '#features-gear', label: 'explore step', snippets: ['Command Center', 'Happening Now', 'Recovery tools'] },
+    { selector: '#features-gear', label: 'explore step', snippets: ['Explore without the wall of choices', 'Network Pulse', 'folded by category'] },
     { selector: '#settings-gear', label: 'settings step', snippets: ['Tune and export', '14 themes'] }
   ];
 

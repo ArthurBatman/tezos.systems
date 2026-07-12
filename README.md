@@ -139,9 +139,10 @@ tezos.systems/
    During proposal and ballot windows, a compact Governance Alert strip sits
    above Chambers and reuses the live voting/My Tezos baker-vote logic to expose
    Chamber, My Tezos, RSS, and browser-reminder actions. Outside active voting
-   windows, the strip stays hidden. Network Pulse now opens as a Chamber from
-   Explore's Happening Now group; legacy `#section=...` links can still reveal
-   the inline stat sections for focused QA and deep links.
+   windows, the strip stays hidden. Explore now leads with the canonical Network
+   Pulse, Staking Chamber, and Tezos Maxis starter paths, while live signals and
+   specialist tools stay folded by category; legacy `#section=...` links can
+   still reveal the inline stat sections for focused QA and deep links.
 6. Background refreshes update hero stats, comparison data, governance state,
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
    tools, leaderboard, My Tezos, and share-ready UI. Welcome, streak,
@@ -244,6 +245,12 @@ inline modal styles in `js/core/app.js`.
 
 ## Main Surfaces
 
+- Explore is a progressively disclosed launcher rather than a second dashboard:
+  Chambers stays the hero, the three canonical starter rooms fit in the first
+  mobile view, and live signals, baker tools, account tools, markets, publishing,
+  and recovery open only when requested. Its mobile corner gift launcher belongs
+  to the top price rail and scrolls away with that rail instead of covering the
+  centered wordmark.
 - Chambers section is visible by default and orders the chamber rows as Network
   Pulse, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
   tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis, then
@@ -799,7 +806,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v424`, including hero search, theme
+- Current aligned shell cache stamp: `v425`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v317`.
 - `version.json` is stamped by `.githooks/pre-commit`.
