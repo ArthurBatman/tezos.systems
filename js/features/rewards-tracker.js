@@ -7,6 +7,7 @@
  */
 import { API_URLS } from '../core/config.js';
 import { fetchProtocolConstants, fetchWithDeadline } from '../core/api.js';
+import { fetchXTZPrice } from './price.js';
 
 
 const CONTAINER_ID = 'rewards-tracker-container';
@@ -674,6 +675,13 @@ export async function initRewardsTracker(stats, xtzPrice, options = {}) {
 
   destroyRewardsTracker();
   buildCSS();
+
+  if (!parsePrice(xtzPrice)) {
+    try {
+      const sharedPrice = await fetchXTZPrice();
+      xtzPrice = Number(sharedPrice?.usd) || xtzPrice;
+    } catch (_) {}
+  }
 
   let rewardReport = {
     rows: [],

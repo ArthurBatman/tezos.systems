@@ -4,7 +4,10 @@
  */
 
 import { debounce, escapeHtml } from '../core/utils.js';
+import { loadDataAsset } from '../core/data-assets.js';
 import {
+    findSiteMapEntry,
+    navigateSiteMapEntry,
     searchSiteMap,
     searchSiteMapIntents,
     siteMapBrowseEntries,
@@ -18,8 +21,7 @@ import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
-const PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=429';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=430';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -36,8 +38,12 @@ function livePulseChip() {
     const signal = getTopHotSignal();
     if (!signal?.route) return null;
     const label = String(signal.title || signal.routeLabel || 'Live pulse').replace(/\s+/g, ' ').trim();
+    const fullLabel = `Live: ${label}`;
+    const compactLabel = fullLabel.length <= 24
+        ? fullLabel
+        : `${fullLabel.slice(0, 23).replace(/\s+\S*$/, '').trim()}…`;
     return {
-        label: `Live: ${label}`.slice(0, 24),
+        label: compactLabel,
         route: signal.route
     };
 }
@@ -158,8 +164,7 @@ function monthYear(date) {
 async function loadProtocols() {
     if (protocols.length) return protocols;
     if (!protocolsPromise) {
-        protocolsPromise = fetch(PROTOCOL_DATA_URL, { cache: 'no-store' })
-            .then((resp) => resp.ok ? resp.json() : null)
+        protocolsPromise = loadDataAsset('protocolData')
             .then((data) => {
                 protocols = Array.isArray(data?.protocols) ? data.protocols : [];
                 return protocols;
@@ -236,8 +241,8 @@ function siteMapResult(entry, { starter = false, browse = false } = {}) {
         title: entry.title,
         detail: entry.detail,
         badge: entry.fresh ? 'new' : entry.group,
-        action: buttonTarget ? 'button' : rootHashEntry ? 'hash' : 'page',
-        value: buttonTarget || (rootHashEntry ? entry.hash : route),
+        action: buttonTarget ? 'button' : entry.hash ? 'site-map' : rootHashEntry ? 'hash' : 'page',
+        value: buttonTarget || (entry.hash ? entry.id : rootHashEntry ? entry.hash : route),
         aliases: entry.keywords
     };
 }
@@ -645,6 +650,9 @@ function runResult(result) {
         navigateHash(result.value);
         return true;
     }
+    if (result.action === 'site-map') {
+        return navigateSiteMapEntry(result.value);
+    }
     if (result.action === 'page') {
         window.location.href = result.value;
         return true;
@@ -671,8 +679,10 @@ function runResult(result) {
     return false;
 }
 
-function runRoute(route) {
+function runRoute(route, entryId = '') {
     if (!route) return false;
+    const entry = entryId ? findSiteMapEntry(entryId) : null;
+    if (entry) return navigateSiteMapEntry(entry);
     if (route.startsWith('#')) {
         navigateHash(route);
         return true;
@@ -846,6 +856,7 @@ export function initHeroSearch() {
         if (document.activeElement !== input) input.focus();
         if (!isOpen) {
             setOpen(true);
+            if (input.value) input.select();
             ensureProtocols();
             render();
         }
@@ -926,7 +937,7 @@ export function initHeroSearch() {
         if (routeChip) {
             const buttonTarget = SITE_MAP_BUTTON_TARGETS.get(routeChip.dataset.heroEntry || '');
             if (buttonTarget) document.getElementById(buttonTarget)?.click();
-            else runRoute(routeChip.dataset.heroRoute || '');
+            else runRoute(routeChip.dataset.heroRoute || '', routeChip.dataset.heroEntry || '');
             setOpen(false);
             return;
         }

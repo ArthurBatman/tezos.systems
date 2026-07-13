@@ -4,6 +4,7 @@
  */
 
 import { API_URLS, CACHE_TTLS, FETCH_LIMITS, HISTORY_START } from './config.js';
+import { loadDataAsset } from './data-assets.js';
 import { calculatePercentage } from './utils.js';
 
 // API endpoint configurations
@@ -605,12 +606,7 @@ function proposalDisplayName(proposal) {
 let _governanceReportPromise = null;
 async function fetchGovernanceReport() {
     if (!_governanceReportPromise) {
-        _governanceReportPromise = fetchWithRetry(
-            '/data/governance-refresh-report.json?v=1',
-            { cache: 'no-store', memoryCache: false },
-            2
-        )
-            .catch(() => null);
+        _governanceReportPromise = loadDataAsset('governanceReport').catch(() => null);
     }
     return _governanceReportPromise;
 }

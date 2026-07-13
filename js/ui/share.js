@@ -3,6 +3,7 @@
  */
 
 import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgradeOrdinal } from '../core/protocol-count.js';
+import { loadDataAsset } from '../core/data-assets.js';
 import { siteMapCanonicalRoute } from '../core/site-map.js';
 import { loadStats } from '../core/storage.js';
 import { releaseToastSafeArea, reserveToastSafeArea } from './toast-queue.js';
@@ -2210,8 +2211,7 @@ let protocolDataCache = null;
 async function getProtocolData() {
     if (protocolDataCache) return protocolDataCache;
     try {
-        const resp = await fetch('/data/protocol-data.json');
-        protocolDataCache = await resp.json();
+        protocolDataCache = await loadDataAsset('protocolData');
         return protocolDataCache;
     } catch (e) {
         console.error('Failed to load protocol-data.json', e);

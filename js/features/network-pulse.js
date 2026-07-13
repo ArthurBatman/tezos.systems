@@ -13,13 +13,13 @@ import {
 } from '../core/api.js';
 import { siteMapCanonicalRoute, siteMapRelated, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
-import { escapeHtml, formatLarge, formatPercentage, formatSupply } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=429';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=430';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -33,6 +33,12 @@ const SOURCE_TABLES = {
     networkHealth: DOMAIN_HISTORY_TABLES.networkHealth,
     tezosx: DOMAIN_HISTORY_TABLES.tezosx,
     governance: DOMAIN_HISTORY_TABLES.governance
+};
+const SOURCE_LABELS = {
+    market: 'Market history',
+    networkHealth: 'Network Health',
+    tezosx: 'Tezos X history',
+    governance: 'Governance history'
 };
 const EMPTY_DOMAIN_ROWS = Object.freeze({
     market: [],
@@ -361,12 +367,6 @@ function latestMetricValue(rows = [], column) {
     return null;
 }
 
-function formatHistoryTime(timestamp) {
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
 function formatDateShort(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'date unavailable';
@@ -408,7 +408,7 @@ function metricFreshness(metric, context = {}) {
     const limit = HISTORY_FRESHNESS_LIMITS[table] || 90 * 60 * 1000;
     const stale = Date.now() - time > limit;
     return {
-        text: `${stale ? 'stale - ' : ''}as of ${formatHistoryTime(timestamp)}`,
+        text: `${stale ? 'stale · ' : ''}${formatFreshnessStamp(timestamp, { source: SOURCE_LABELS[source] || table })}`,
         stale
     };
 }
@@ -681,9 +681,8 @@ function summaryLine(stats = {}) {
     return 'Live stats chamber';
 }
 
-function freshnessLabel(prefix = 'refreshed') {
-    if (!lastStatsAt) return 'cached - refreshing';
-    return `${prefix} ${new Date(lastStatsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+function freshnessLabel(source = 'TzKT + RPC') {
+    return formatFreshnessStamp(lastStatsAt || null, { source });
 }
 
 function refreshWindowLabel() {
@@ -754,9 +753,10 @@ function entryFreshnessLabel(stats = {}) {
     const sample = entryHistorySample(stats);
     if (sample) {
         const hasLiveStats = Boolean(stats && Object.keys(stats).length);
-        return `${hasLiveStats ? 'Live + ' : ''}${sample.stale ? 'stale ' : ''}history ${formatHistoryTime(sample.timestamp)}`;
+        const source = hasLiveStats ? 'Live + history' : 'History';
+        return `${sample.stale ? 'stale · ' : ''}${formatFreshnessStamp(sample.timestamp, { source })}`;
     }
-    return stats && Object.keys(stats).length ? `Pulse ${freshnessLabel()}` : '';
+    return stats && Object.keys(stats).length ? freshnessLabel() : '';
 }
 
 function entryMetricPresentation(metric, stats = {}) {
@@ -983,8 +983,11 @@ function historyPoints(metric, rows = lastHistoryRows) {
 function baselinePoint(points) {
     if (points.length < 2) return null;
     const target = Date.now() - DAY_MS;
-    const older = points.filter((point) => point.timestamp <= target);
-    return older.length ? older[older.length - 1] : points[0];
+    const nearest = points.reduce((best, point) => {
+        if (!best) return point;
+        return Math.abs(point.timestamp - target) < Math.abs(best.timestamp - target) ? point : best;
+    }, null);
+    return nearest && Math.abs(nearest.timestamp - target) <= 3 * 60 * 60 * 1000 ? nearest : null;
 }
 
 function formatDeltaValue(delta, metric) {

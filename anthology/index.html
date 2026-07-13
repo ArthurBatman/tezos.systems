@@ -39,9 +39,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Critical font: always needed -->
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <!-- Theme fonts: lazy-loaded, only fetched when needed -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&family=Chakra+Petch:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Archivo+Black&family=Major+Mono+Display&family=Nunito:wght@400;500;600;700;800;900&family=Silkscreen:wght@400;700&display=swap">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&family=Chakra+Petch:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Archivo+Black&family=Major+Mono+Display&family=Nunito:wght@400;500;600;700;800;900&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet"></noscript>
+    <!-- Theme fonts are injected by theme-preload.js for the active theme only. -->
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -52,18 +51,19 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=429">
-    <link rel="stylesheet" href="/css/loading.css?v=429">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=429">
-    <link rel="stylesheet" href="/css/site-map.css?v=429">
+    <link rel="stylesheet" href="/css/styles.min.css?v=430">
+    <link rel="stylesheet" href="/css/loading.css?v=430">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=430">
+    <link rel="stylesheet" href="/css/site-map.css?v=430">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=429">
+    <link rel="modulepreload" href="/js/core/app.js?v=430">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
+    <link rel="modulepreload" href="/js/core/data-assets.js">
     <link rel="modulepreload" href="/js/core/utils.js">
     <link rel="modulepreload" href="/js/core/wallet.js">
     <link rel="modulepreload" href="/js/ui/animations.js">
@@ -144,7 +144,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=429"></script>
+    <script src="/js/core/theme-preload.js?v=430"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -236,10 +236,10 @@
 
                         <div class="feature-launcher-group feature-launcher-primary">
                             <div class="feature-launcher-row feature-launcher-hero">
-                                <button id="chambers-toggle" class="glass-button feature-launcher-item feature-toggle active" aria-label="Show or hide Tezos Chambers" aria-pressed="true" title="Tezos Chambers: Showing" data-status-on="Start here" data-status-off="Start here">
+                                <button id="chambers-toggle" class="glass-button feature-launcher-item feature-toggle active" aria-label="Show or hide Tezos Chambers" aria-pressed="true" title="Tezos Chambers: Showing" data-status-on="Rooms" data-status-off="Rooms">
                                     <span class="chambers-toggle-icon">🏛️</span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">Tezos Chambers</span><span class="dropdown-hint">Protocol, staking, governance, health, Domains, Tezos X, and Anthology.</span></span>
-                                    <span class="feature-status feature-status-start">Start here</span>
+                                    <span class="feature-status feature-status-start">Rooms</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#chambers" aria-label="Copy Chambers link" title="Copy direct link">🔗</button>
                             </div>
@@ -248,15 +248,15 @@
                         <div class="feature-launcher-group feature-launcher-featured" data-site-map-starters>
                             <div class="dropdown-section-label">Start here</div>
                             <div class="feature-launcher-row" data-site-map-starter="pulse">
-                                <button id="tezos-stats-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open live Tezos Network Pulse Chamber" aria-pressed="false" title="Network Pulse Chamber: Open" data-status-on="Open" data-status-off="Open" data-open-chamber="network-pulse">
+                                <button id="tezos-stats-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open live Tezos Network Pulse Chamber" aria-pressed="false" title="Network Pulse Chamber: Open" data-status-on="Live" data-status-off="Live" data-open-chamber="network-pulse">
                                     <span class="tezos-stats-toggle-icon">📊</span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">Network Pulse</span><span class="dropdown-hint">Consensus, staking, bakers, market, and chain health in one chamber.</span></span>
-                                    <span class="feature-status feature-status-live">Open</span>
+                                    <span class="feature-status feature-status-live">Live</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#pulse" aria-label="Copy Network Pulse link" title="Copy direct link">🔗</button>
                             </div>
                             <div class="feature-launcher-row" data-site-map-starter="staking-chamber">
-                                <a id="staking-chamber-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/stake/" aria-label="Open live Staking Chamber" title="Open Staking Chamber">
+                                <a id="staking-chamber-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/stake/" data-site-map-entry="staking-chamber" aria-label="Open live Staking Chamber" title="Open Staking Chamber">
                                     <span class="tezos-stats-toggle-icon">↕</span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">Staking Chamber</span><span class="dropdown-hint">Latest &gt;10K stake and unstake receipts, with complete history.</span></span>
                                     <span class="feature-status feature-status-live">Live</span>
@@ -264,7 +264,7 @@
                                 <button class="feature-copy-link" type="button" data-copy-hash="#staking" aria-label="Copy Staking Chamber link" title="Copy direct link">🔗</button>
                             </div>
                             <div class="feature-launcher-row" data-site-map-starter="maxis">
-                                <a id="maxis-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/maxis/" aria-label="Open Tezos Maxis crowns, seasons, Passports, and Champions" title="Open Tezos Maxis">
+                                <a id="maxis-feature-link" class="glass-button feature-launcher-item feature-launcher-link" href="/maxis/" data-site-map-entry="maxis" aria-label="Open Tezos Maxis crowns, seasons, Passports, and Champions" title="Open Tezos Maxis">
                                     <span class="tezos-stats-toggle-icon" aria-hidden="true">♛</span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">Tezos Maxis</span><span class="dropdown-hint">Crowns, protocol seasons, wallet Passports, and permanent Champions.</span></span>
                                     <span class="feature-status feature-status-live">Live</span>
@@ -338,7 +338,7 @@
                             </summary>
                             <div class="feature-launcher-disclosure-body">
                             <div class="feature-launcher-row">
-                                <a id="domains-feature-link" href="/domains/" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Tezos Domains Chamber" title="Open Tezos Domains">
+                                <a id="domains-feature-link" href="/domains/" data-site-map-entry="domains" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Tezos Domains Chamber" title="Open Tezos Domains">
                                     <span class="ctez-feature-icon domains-feature-icon">.tez</span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">Tezos Domains</span><span class="dropdown-hint">Lookup names, auctions, offers, and expiring .tez identity.</span></span>
                                     <span class="feature-status feature-status-live">Live</span>
@@ -346,7 +346,7 @@
                                 <button class="feature-copy-link" type="button" data-copy-hash="#domains" aria-label="Copy Tezos Domains link" title="Copy direct link">🔗</button>
                             </div>
                             <div class="feature-launcher-row">
-                                <a id="ledger-flow-feature-link" href="/ledger-flow/" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Ledger Flow account transfer paths" title="Open Ledger Flow">
+                                <a id="ledger-flow-feature-link" href="/ledger-flow/" data-site-map-entry="ledger-flow" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Ledger Flow account transfer paths" title="Open Ledger Flow">
                                     <span class="tezos-stats-toggle-icon" aria-hidden="true">⇄</span>
                                     <span class="feature-launcher-text"><span class="dropdown-label">Ledger Flow</span><span class="dropdown-hint">Trace sent, received, and first-funding paths around any account.</span></span>
                                     <span class="feature-status feature-status-tool">Tool</span>
@@ -485,6 +485,9 @@
                         </button>
                         <button id="shortcuts-btn" class="glass-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
                             <span>⌨️</span> <span class="dropdown-label">Shortcuts</span>
+                        </button>
+                        <button id="replay-tour-btn" class="glass-button" aria-label="Replay guided tour" title="Replay guided tour">
+                            <span>🧭</span> <span class="dropdown-label">Guided tour</span>
                         </button>
                         <button id="changelog-btn" class="glass-button" aria-label="Changelog" title="Changelog">
                             <span>📋</span> <span class="dropdown-label">Changelog</span>
@@ -2154,21 +2157,6 @@
               <span id="drawer-wallet-status" class="wallet-connect-status" aria-live="polite">No wallet connected</span>
             </div>
           </div>
-          <div class="empty-preview-blur">
-            <div style="padding:16px;opacity:0.15;filter:blur(2px);">
-              <div style="background:rgba(255,255,255,0.1);height:14px;width:60%;border-radius:4px;margin-bottom:12px;"></div>
-              <div style="display:flex;gap:12px;">
-                <div style="background:rgba(0,212,255,0.1);height:48px;flex:1;border-radius:6px;"></div>
-                <div style="background:rgba(0,212,255,0.1);height:48px;flex:1;border-radius:6px;"></div>
-              </div>
-              <div style="background:rgba(255,255,255,0.06);height:14px;width:40%;border-radius:4px;margin-top:12px;"></div>
-              <div style="display:flex;gap:8px;margin-top:12px;">
-                <div style="background:rgba(255,255,255,0.05);height:24px;width:80px;border-radius:12px;"></div>
-                <div style="background:rgba(255,255,255,0.05);height:24px;width:80px;border-radius:12px;"></div>
-                <div style="background:rgba(255,255,255,0.05);height:24px;width:80px;border-radius:12px;"></div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Connected state (shown when address is set) -->
@@ -2243,6 +2231,14 @@
           <!-- Network Context (daily briefing, separated) -->
           <div class="drawer-section" id="drawer-network"></div>
 
+          <div class="drawer-section drawer-saved-section" id="drawer-saved-section"></div>
+
+          <!-- Secondary journeys stay available after the wallet's live signal -->
+          <div class="drawer-section drawer-more-section" id="drawer-more-section">
+            <span class="drawer-more-label">Do more with this address</span>
+            <div id="drawer-more-actions" class="drawer-more-actions"></div>
+          </div>
+
           <!-- Share stats (Feature 5) -->
           <div class="drawer-section drawer-share-section">
             <button id="drawer-share-btn" class="glass-button drawer-share-btn" style="width:100%;">📸 Share My Stats</button>
@@ -2262,7 +2258,7 @@
 
     <!-- Load app as module -->
     <script src="/js/features/hen-mode.js?v=94"></script>
-    <script type="module" src="/js/core/app.js?v=429"></script>
+    <script type="module" src="/js/core/app.js?v=430"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">
@@ -2492,6 +2488,6 @@
             <div class="hen-expanded-inner"></div>
         </div>
     </div>
-    <script src="/js/features/tooltip-tour.js?v=349" defer></script>
+    <script src="/js/features/tooltip-tour.js?v=350" defer></script>
 </body>
 </html>

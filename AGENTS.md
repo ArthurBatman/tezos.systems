@@ -143,7 +143,8 @@ Licensing boundaries:
 
 Current verified intervals in `js/core/config.js`:
 
-- Main refresh: 2 hours
+- Headline telemetry refresh: 15 minutes
+- Full dashboard refresh: 2 hours
 - Sparkline refresh: 10 minutes
 - Price refresh: 30 minutes
 - Memory cache TTL: 1 minute
@@ -151,7 +152,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v429`
+- Service worker cache name: `tezos-systems-v430`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 

@@ -180,6 +180,40 @@ export function formatLiveAge(value) {
     return `${Math.floor(days / 365)}y ago`;
 }
 
+/**
+ * One freshness dialect for live UI surfaces: source + relative age while the
+ * observation is recent, then an explicit UTC timestamp.
+ */
+export function formatFreshnessStamp(value, { source = '', relativeUnderMs = 60 * 60 * 1000 } = {}) {
+    if (value === null || value === undefined || value === '') return `${source ? `${source} · ` : ''}refreshing`;
+    const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+    const prefix = source ? `${source} · ` : '';
+    if (!Number.isFinite(time)) return `${prefix}refreshing`;
+
+    const age = Date.now() - time;
+    if (age < relativeUnderMs) return `${prefix}${formatLiveAge(time)}`;
+
+    const date = new Date(time);
+    const now = new Date();
+    const sameUtcDay = date.getUTCFullYear() === now.getUTCFullYear()
+        && date.getUTCMonth() === now.getUTCMonth()
+        && date.getUTCDate() === now.getUTCDate();
+    const timeLabel = date.toLocaleTimeString('en-US', {
+        timeZone: 'UTC',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+    if (sameUtcDay) return `${prefix}${timeLabel} UTC`;
+
+    const dateLabel = date.toLocaleDateString('en-US', {
+        timeZone: 'UTC',
+        month: 'short',
+        day: 'numeric'
+    });
+    return `${prefix}${dateLabel}, ${timeLabel} UTC`;
+}
+
 export function formatLiveCountdown(value, options = {}) {
     const time = new Date(value).getTime();
     if (!Number.isFinite(time)) return options.emptyText || 'Timing unknown';

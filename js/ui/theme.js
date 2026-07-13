@@ -7,7 +7,20 @@ const THEME_KEY = 'tezos-systems-theme';
 export const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
 // Aurora — bespoke animated default; striking but legible.
 export const DEFAULT_THEME = 'aurora';
-const THEME_CSS_VERSION = '429';
+const THEME_CSS_VERSION = '430';
+const THEME_FONT_FAMILIES = {
+    aurora: ['Chakra+Petch:wght@400;600;700'],
+    matrix: ['Share+Tech+Mono'],
+    default: ['Chakra+Petch:wght@400;600;700'],
+    void: ['Exo+2:wght@300;400;600'],
+    ember: ['Chakra+Petch:wght@400;600;700'],
+    signal: ['IBM+Plex+Mono:wght@400;500;600;700'],
+    nerv: ['IBM+Plex+Mono:wght@400;500;600;700', 'Archivo+Black'],
+    bubblegum: ['Nunito:wght@400;500;600;700;800;900'],
+    abyss: ['Exo+2:wght@300;400;600', 'IBM+Plex+Mono:wght@400;500;600;700'],
+    moss: ['Major+Mono+Display', 'Nunito:wght@400;500;600;700;800;900'],
+    warzone: ['Chakra+Petch:wght@400;600;700', 'IBM+Plex+Mono:wght@400;500;600;700', 'Silkscreen:wght@400;700']
+};
 
 // Theme color definitions for the picker dots
 export const THEME_COLORS = {
@@ -54,6 +67,16 @@ function ensureThemeStylesheet(theme) {
     link.id = id;
     link.rel = 'stylesheet';
     link.href = themeCssHref(theme);
+    document.head.appendChild(link);
+}
+
+function ensureThemeFonts(theme) {
+    const families = THEME_FONT_FAMILIES[theme] || [];
+    if (!families.length || document.getElementById(`theme-fonts-${theme}`)) return;
+    const link = document.createElement('link');
+    link.id = `theme-fonts-${theme}`;
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?${families.map((family) => `family=${family}`).join('&')}&display=swap`;
     document.head.appendChild(link);
 }
 
@@ -313,6 +336,7 @@ export function setTheme(theme, isPreview = false) {
 
     // Apply theme to body
     ensureThemeStylesheet(theme);
+    ensureThemeFonts(theme);
     document.body.setAttribute('data-theme', theme);
 
     // Always dispatch themechange so canvas effects (matrix rain, particles) start/stop

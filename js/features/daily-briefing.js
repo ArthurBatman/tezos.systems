@@ -4,6 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { loadDataAsset } from '../core/data-assets.js';
 import { getTezosUptimeAnniversary } from '../core/anniversary.js';
 import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
 import { escapeHtml } from '../core/utils.js';
@@ -1273,9 +1274,7 @@ async function maybeDispatchProtocolLoreSignal() {
   if (stamp === today || stamp === `${today}:none`) return;
   protocolLoreSignalInFlight = true;
   try {
-    const response = await fetch('/data/protocol-data.json', { cache: 'force-cache' });
-    if (!response.ok) return;
-    const data = await response.json();
+    const data = await loadDataAsset('protocolData');
     const protocols = Array.isArray(data?.protocols) ? data.protocols : [];
     const monthDay = today.slice(5);
     const protocol = protocols.find((item) => String(item?.date || '').slice(5) === monthDay);

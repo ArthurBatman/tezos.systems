@@ -21,7 +21,8 @@ export const API_URLS = {
 
 // Refresh intervals (milliseconds)
 export const REFRESH_INTERVALS = {
-  main: 7200000,        // 2 hours
+  scalar: 900000,       // 15 minutes for lightweight headline telemetry
+  heavy: 7200000,       // 2 hours for full-card and directory refreshes
   sparkline: 600000,    // 10 minutes
   price: 1800000        // 30 minutes (matches price.js cache TTL)
 };

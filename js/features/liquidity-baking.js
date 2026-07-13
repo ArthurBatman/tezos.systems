@@ -4,6 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { loadDataAsset } from '../core/data-assets.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
@@ -20,7 +21,6 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LB_OPEN_TEZOS_URL = 'https://opentezos.com/defi/dexs/#liquidity-baking';
 const LB_OCTEZ_DOCS_URL = 'https://octez.tezos.com/docs/alpha/liquidity_baking.html';
 const LB_PURPLEMATTER_URL = 'https://purplematter.com/lb/';
-const LB_PROTOCOL_DATA_URL = '/data/protocol-data.json?v=2';
 const LB_LORE_PROTOCOLS = ['Granada', 'Ithaca', 'Jakarta'];
 
 let _lbCache = null;
@@ -434,9 +434,7 @@ function extractLiquidityBakingLore(protocol) {
 
 async function fetchLiquidityBakingLore() {
     if (_lbLoreCache) return _lbLoreCache;
-    const response = await fetch(LB_PROTOCOL_DATA_URL, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Protocol history HTTP ${response.status}`);
-    const data = await response.json();
+    const data = await loadDataAsset('protocolData');
     const protocols = Array.isArray(data?.protocols) ? data.protocols : [];
     _lbLoreCache = LB_LORE_PROTOCOLS
         .map((name) => protocols.find((protocol) => protocol.name === name))

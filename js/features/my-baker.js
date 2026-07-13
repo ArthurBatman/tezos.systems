@@ -449,15 +449,15 @@ async function renderBakerData(address, container) {
             const pct = expected > 0 ? ((attested / expected) * 100) : 0;
             const ok = pct >= 66.67;
             const icon = ok ? '✅' : '❌';
-            grid.appendChild(createStatItem('Attest Rate', `${icon} ${pct.toFixed(2)}%`, 'Consensus attestation rate for current cycle'));
+            grid.appendChild(createStatItem('Attestation power (cycle)', `${icon} ${pct.toFixed(2)}%`, 'Octez current-cycle expected activity minus missed attestation slots'));
         }
 
         // Missed rights: render placeholder cards, then fill async
         let missedCycleEl = null;
         let missedLifetimeEl = null;
         if (participationAddr && currentCycle) {
-            missedCycleEl = createStatItem('Bkr Missed (Cycle)', 'Checking rights', 'Baker missed blocks / missed attestation rights this cycle');
-            missedLifetimeEl = createStatItem('Bkr Missed (10d)', 'Checking rights', 'Baker missed blocks / missed attestation rights over the last ~10 cycles');
+            missedCycleEl = createStatItem('Missed rights (cycle)', 'Checking rights', 'TzKT missed baking rights and missed attestation rights in the current cycle');
+            missedLifetimeEl = createStatItem('Missed rights (10 cycles)', 'Checking rights', 'TzKT missed baking rights and missed attestation rights over the last 10 cycles');
             grid.appendChild(missedCycleEl);
             grid.appendChild(missedLifetimeEl);
         }
@@ -468,7 +468,7 @@ async function renderBakerData(address, container) {
             const attestable = dalParticipation.delegate_attestable_dal_slots || 0;
             const icon = ok ? '✅' : '❌';
             const ratio = attestable > 0 ? `${attested}/${attestable}` : 'N/A';
-            grid.appendChild(createStatItem('DAL', `${icon} ${ratio} slots`));
+            grid.appendChild(createStatItem('DAL power (cycle)', `${icon} ${ratio} slots`, 'Octez delegate-attested / delegate-attestable DAL slots at the current RPC head'));
         }
 
         // Estimated rewards based on staked balance or total balance
@@ -608,7 +608,7 @@ async function renderBakerData(address, container) {
                                 element.dataset.quality = 'unavailable';
                                 return;
                             }
-                            value.textContent = `${blocksKnown ? fmtN(pair.blocks) : 'N/A'} / ${attestKnown ? fmtN(pair.attest) : 'N/A'}${blocksKnown && attestKnown ? '' : ' (partial)'}`;
+                            value.textContent = `${blocksKnown ? fmtN(pair.blocks) : 'N/A'} blocks · ${attestKnown ? fmtN(pair.attest) : 'N/A'} attestations${blocksKnown && attestKnown ? '' : ' (partial)'}`;
                             element.dataset.quality = blocksKnown && attestKnown ? 'live' : 'partial';
                         };
                         renderRightsPair(missedCycleEl, missedRights.cycle);

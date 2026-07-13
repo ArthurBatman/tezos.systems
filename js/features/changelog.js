@@ -7,9 +7,14 @@ const CHANGELOG = [
     {
         date: '2026-07-13',
         entries: [
+            { type: '🔧', text: 'Pretty Chamber routes now open in place from the dashboard, follow Back and close state correctly, and avoid reloading the room already in view' },
+            { type: '🔧', text: 'My Tezos now leads with the wallet’s live operator and reward signal, labels attestation power and missed-right windows explicitly, shares the cached XTZ price, and keeps optional address journeys at the bottom' },
+            { type: '⚡', text: 'Headline telemetry now refreshes every 15 minutes while heavier sweeps stay on two hours, and shared protocol and governance JSON assets load once per session' },
+            { type: '🎨', text: 'Freshness stamps now use one source-aware relative-or-UTC dialect, guide pages have local slash search, and the guided tour can be replayed from Settings without colliding with search' },
+            { type: '🎨', text: 'Controls inherit the site typeface, terminal UI uses one mono, theme fonts load only when active, numeric chips stop reflowing, and mobile ticker and overlay edges stay contained' },
             { type: '🎨', text: 'Staking now sits between tz4 Adoption and Liquidity Baking in one balanced row, every Chamber uses the same compact uppercase title treatment, and info popovers stay inside the viewport' },
             { type: '🔧', text: 'Every Chamber card now opens from its quiet surface as well as its Open control, while links, sharing, snapshots, and info controls keep their own actions' },
-            { type: '🔧', text: 'Finality now starts unavailable until three live blocks establish cadence, partial network snapshots no longer replace good cached data, and calculator compounding follows current protocol cycle timing' },
+            { type: '🔧', text: 'Finality now starts from an honest cached or protocol estimate while live cadence samples, partial network snapshots no longer replace good cached data, and calculator compounding follows current protocol cycle timing' },
             { type: '🎨', text: 'Clean-theme launcher accents, health states, freshness labels, footer metadata, dark-theme descriptions, HEN lore controls, and first-visit help now remain readable without overlapping' },
             { type: '⚡', text: 'Widget baker counts use the aggregate endpoint, all widget refreshes pause in hidden tabs, and Markdown output now links to the live widget instead of treating HTML as an image' },
             { type: '🔒', text: 'Embeddable widgets no longer load third-party analytics, security reporting metadata is now published, and plugin metadata points to a site-owned read-only OpenAPI document' },

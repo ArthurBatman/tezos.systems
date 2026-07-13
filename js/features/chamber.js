@@ -13,13 +13,11 @@
 
 import { escapeHtml, formatLiveCountdown, setDataFreshnessState, startLiveTimeTicker } from '../core/utils.js';
 import { API_URLS } from '../core/config.js';
+import { loadDataAsset } from '../core/data-assets.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
-const PROTOCOL_DATA_URL = '/data/protocol-data.json';
-const GOVERNANCE_VOTES_URL = '/data/governance-votes.json';
-const GOVERNANCE_REPORT_URL = '/data/governance-refresh-report.json';
 const HISTORY_CONTEXT_ROWS = 20;
 const CHAMBER_ENTRY_REFRESH_MS = 60000;
 const CHAMBER_MARK_SVG = '<svg class="chamber-entry-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M12 25h40M18 25v25M30 25v25M42 25v25M14 50h36M10 56h44M32 8l22 12H10L32 8Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -422,8 +420,7 @@ function extractProtoName(hash, protocols = []) {
 
 async function loadProtocolHistory() {
     if (!_protocolHistoryPromise) {
-        _protocolHistoryPromise = fetch(PROTOCOL_DATA_URL, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : Promise.reject(new Error(`protocol data HTTP ${r.status}`)))
+        _protocolHistoryPromise = loadDataAsset('protocolData')
             .then(data => Array.isArray(data.protocols) ? data.protocols : [])
             .catch(err => {
                 console.warn('Chamber: protocol history unavailable', err);
@@ -435,8 +432,7 @@ async function loadProtocolHistory() {
 
 async function loadGovernanceVotes() {
     if (!_governanceVotesPromise) {
-        _governanceVotesPromise = fetch(GOVERNANCE_VOTES_URL, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : Promise.reject(new Error(`governance votes HTTP ${r.status}`)))
+        _governanceVotesPromise = loadDataAsset('governanceVotes')
             .catch(err => {
                 console.warn('Chamber: local governance vote history unavailable', err);
                 return null;
@@ -447,8 +443,7 @@ async function loadGovernanceVotes() {
 
 async function loadGovernanceReport() {
     if (!_governanceReportPromise) {
-        _governanceReportPromise = fetch(GOVERNANCE_REPORT_URL, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : Promise.reject(new Error(`governance report HTTP ${r.status}`)))
+        _governanceReportPromise = loadDataAsset('governanceReport')
             .catch(err => {
                 console.warn('Chamber: governance report unavailable', err);
                 return null;
@@ -2039,11 +2034,11 @@ async function navigateEpoch(direction) {
     const body = document.querySelector('.chamber-body');
     if (!body) return;
     
-    body.innerHTML = `<div class="chamber-loading"><div class="chamber-loading-text">Preheating Epoch ${escapeHtml(String(newIndex))}</div><div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div></div>`;
+    body.innerHTML = `<div class="chamber-loading"><div class="chamber-pending-context"><span>Tezos Systems</span><b aria-hidden="true">/</b><strong>L1 Governance</strong></div><div class="chamber-loading-text">Preheating Epoch ${escapeHtml(String(newIndex))}</div><div class="chamber-loading-subtext">The Chamber frame stays here while its vote ledger changes.</div><div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div></div>`;
     
     const data = await fetchChamberData(newIndex);
     if (!data) {
-        body.innerHTML = `<div class="chamber-error"><div class="error-icon">⚠️</div><div class="error-title">Epoch ${escapeHtml(String(newIndex))} not found</div><button class="chamber-retry-btn" data-chamber-nav="${-direction}">Go back</button></div>`;
+        body.innerHTML = `<div class="chamber-error"><div class="chamber-pending-context"><span>Tezos Systems</span><b aria-hidden="true">/</b><strong>L1 Governance</strong></div><div class="error-icon">⚠️</div><div class="error-title">Epoch ${escapeHtml(String(newIndex))} not found</div><button class="chamber-retry-btn" data-chamber-nav="${-direction}">Go back</button></div>`;
         const retryBtn = body.querySelector('[data-chamber-nav]');
         if (retryBtn) retryBtn.addEventListener('click', () => navigateEpoch(Number(retryBtn.dataset.chamberNav)));
         return;
@@ -2082,6 +2077,7 @@ export async function openChamber() {
                 <button class="modal-close chamber-close" aria-label="Close" style="z-index:3">&times;</button>
                 <div class="chamber-body">
                     <div class="chamber-loading">
+                        <div class="chamber-pending-context"><span>Tezos Systems</span><b aria-hidden="true">/</b><strong>L1 Governance</strong></div>
                         <div class="chamber-loading-text">Preheating Tezos L1 Governance</div>
                         <div class="chamber-loading-subtext">Fetching current period, epoch votes, and protocol context</div>
                         <div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div>
@@ -2110,6 +2106,7 @@ export async function openChamber() {
     if (!data) {
         overlay.querySelector('.chamber-body').innerHTML = `
             <div class="chamber-error">
+                <div class="chamber-pending-context"><span>Tezos Systems</span><b aria-hidden="true">/</b><strong>L1 Governance</strong></div>
                 <div class="error-icon">⚠️</div>
                 <div class="error-title">Couldn't reach governance data</div>
                 <div class="error-detail">TzKT API may be temporarily unavailable. Try again in a moment.</div>

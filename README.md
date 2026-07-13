@@ -157,7 +157,7 @@ tezos.systems/
 
 Current refresh and cache intervals from `js/core/config.js`:
 
-- Main dashboard refresh: 2 hours.
+- Headline telemetry refresh: 15 minutes; full dashboard refresh: 2 hours.
 - Sparkline refresh: 10 minutes.
 - Price refresh: 30 minutes.
 - Memory cache TTL: 1 minute.
@@ -806,7 +806,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v429`, including hero search, theme
+- Current aligned shell cache stamp: `v430`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

@@ -1,4 +1,4 @@
-import { findSiteMapEntry, siteMapRelated, siteMapRoute } from '../core/site-map.js';
+import { findSiteMapEntry, navigateSiteMapEntry, siteMapRelated, siteMapRoute } from '../core/site-map.js';
 
 const OVERLAY_ENTRY_IDS = Object.freeze({
     'chamber-modal': 'chamber',
@@ -78,6 +78,12 @@ function createSemanticLink(entry) {
     link.className = 'site-wayfinder-link';
     link.href = fullInternalRoute(entry);
     link.dataset.siteWayfinderEntry = entry.id;
+    link.dataset.siteMapEntry = entry.id;
+    link.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigateSiteMapEntry(entry);
+    });
 
     const title = document.createElement('span');
     title.className = 'site-wayfinder-link-title';

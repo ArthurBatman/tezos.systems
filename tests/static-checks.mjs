@@ -538,6 +538,11 @@ async function checkSiteMapGraphContracts() {
     const actual = searchSiteMap(query)[0]?.id;
     if (actual !== expectedId) fail(`site map search ${JSON.stringify(query)} should rank ${expectedId} first, got ${actual || 'none'}`);
   }
+  const governanceOrder = searchSiteMap('governance').map((entry) => entry.id);
+  if (!(governanceOrder.indexOf('chamber') < governanceOrder.indexOf('governance-guide')
+    && governanceOrder.indexOf('governance-guide') < governanceOrder.indexOf('maxis'))) {
+    fail(`site map search "governance" should keep the chamber first and rank the guide above Maxis, got ${governanceOrder.slice(0, 5).join(', ')}`);
+  }
 
   const rankedSubfeatureIntent = {
     season: ['maxis-season', '/maxis/?view=season'],
@@ -888,6 +893,7 @@ async function checkSitemapCoverage() {
 
 async function checkSelectorContracts() {
   const index = await readText('index.html');
+  const themePreload = await readText('js/core/theme-preload.js');
   const siteMapSource = await readText('js/core/site-map.js');
   const siteMapModuleUrl = `data:text/javascript;base64,${Buffer.from(siteMapSource).toString('base64')}`;
   const { siteMapStarters } = await import(siteMapModuleUrl);
@@ -1930,7 +1936,7 @@ async function checkSelectorContracts() {
       fail(`Aurora uptime palette should keep the recommended teal-to-violet token ${color}`);
     }
   }
-  if (!/family=Nunito:wght@400;500;600;700;800;900/.test(index)) {
+  if (!/Nunito:wght@400;500;600;700;800;900/.test(themePreload)) {
     fail('theme font request should load the rounded Nunito family used by Bubblegum and Moss');
   }
   const bubblegumTypography = styles.match(/\[data-theme="bubblegum"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
@@ -3735,7 +3741,7 @@ async function checkReadmeContracts() {
     'npm run check:readme',
     'npm run test:smoke:list',
     'SKIP_README_GUARD=1',
-    'Main dashboard refresh: 2 hours',
+    'Headline telemetry refresh: 15 minutes; full dashboard refresh: 2 hours',
     'Sparkline refresh: 10 minutes',
     'Price refresh: 30 minutes',
     'Memory cache TTL: 1 minute',

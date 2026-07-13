@@ -259,7 +259,7 @@ export const SITE_MAP = [
         href: '/governance/',
         group: 'Guides',
         detail: 'How Tezos self-amendment works, live voting, and governance RSS',
-        keywords: ['governance guide', 'voting', 'self-amending', 'how governance works'],
+        keywords: ['governance', 'governance guide', 'voting', 'self-amending', 'how governance works'],
         sitemap: { changefreq: 'daily', priority: '0.9' }
     },
     {
@@ -440,6 +440,59 @@ export function siteMapCanonicalRoute(value) {
     return entry ? siteMapRoute(entry) : `/${route}`;
 }
 
+function isUnmodifiedDashboardShell() {
+    if (typeof document === 'undefined') return false;
+    return Boolean(document.getElementById('hero-slot'))
+        && !document.documentElement?.hasAttribute('data-chamber-route');
+}
+
+/**
+ * Navigate to a canonical site-map destination.
+ *
+ * The root dashboard can move between Chamber routes without reloading while
+ * keeping human-facing pretty paths such as /chamber/ and /pulse/. Generated
+ * standalone Chamber shells deliberately keep normal page navigation because
+ * their route-specific intro and metadata belong to the document that loaded.
+ */
+export function navigateSiteMapEntry(entryOrId, { replace = false } = {}) {
+    const entry = typeof entryOrId === 'string' ? findSiteMapEntry(entryOrId) : entryOrId;
+    if (!entry) return false;
+
+    const route = siteMapRoute(entry);
+    if (!route || typeof window === 'undefined') return false;
+
+    let destination;
+    try {
+        destination = new URL(route, window.location.origin);
+    } catch {
+        return false;
+    }
+
+    const sameOrigin = destination.origin === window.location.origin;
+    const nextRoute = `${destination.pathname}${destination.search}${destination.hash}`;
+    const currentRoute = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (sameOrigin && nextRoute === currentRoute) {
+        window.dispatchEvent(new CustomEvent('tezos:routechange', {
+            detail: { entryId: entry.id, route: nextRoute, replace, current: true }
+        }));
+        return true;
+    }
+
+    const canRouteInPlace = sameOrigin && Boolean(entry.hash) && isUnmodifiedDashboardShell();
+    if (!canRouteInPlace) {
+        window.location.assign(destination.href);
+        return true;
+    }
+
+    const method = replace ? 'replaceState' : 'pushState';
+    window.history[method]({ ...(window.history.state || {}), tezosSystemsRoute: entry.id }, '', nextRoute);
+
+    window.dispatchEvent(new CustomEvent('tezos:routechange', {
+        detail: { entryId: entry.id, route: nextRoute, replace, current: false }
+    }));
+    return true;
+}
+
 export function siteMapSearchText(entry) {
     return [
         entry.id,
@@ -479,9 +532,10 @@ export function siteMapSearchScore(entry, query) {
     if (q === String(entry.href || '').toLowerCase() || q === String(entry.hash || '').toLowerCase()) return 120;
     if (q.startsWith('/') && hash === bare) return 118;
     if (normalized === title || normalized === id || normalized === hash) return 115;
+    if (title.includes(normalized) && normalizedKeywords.includes(normalized)) return 113;
+    if (title.startsWith(normalized) || id.startsWith(normalized)) return 112;
     if (normalizedKeywords.includes(normalized)) return 110;
     if (href === `/${bare}` || href === `/${bare}/` || href === `/#${bare}`) return 105;
-    if (title.startsWith(normalized) || id.startsWith(normalized)) return 90;
     if (normalizedKeywords.some((keyword) => keyword.startsWith(normalized))) return 85;
     if (title.includes(normalized) || id.includes(normalized)) return 75;
     if (haystack.includes(q) || haystack.includes(bare)) return 50;

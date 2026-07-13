@@ -1642,7 +1642,7 @@
 
 .governance-phase-main strong {
     color: var(--text-primary);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: clamp(1.12rem, 2.25vw, 1.78rem);
     font-weight: 950;
     line-height: 1.12;
@@ -1718,7 +1718,7 @@
     padding: 0.32rem 0.58rem;
     border: 1px solid currentColor;
     border-radius: 999px;
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.68rem;
     font-weight: 950;
     line-height: 1;
@@ -1747,7 +1747,7 @@
 
 .health-verdict-copy span {
     color: var(--text-secondary);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.68rem;
     line-height: 1.25;
 }
@@ -2891,4 +2891,78 @@
 
 .theme-row:focus-within .theme-tagline-hint {
     opacity: 1;
+}
+
+.chamber-pending-context {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    margin-bottom: 0.9rem;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.chamber-pending-context strong { color: var(--accent-cyan); }
+.chamber-pending-context b { opacity: 0.45; }
+
+.drawer-more-section {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.drawer-more-label {
+    color: var(--text-tertiary);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.drawer-more-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.drawer-more-actions .drawer-ledger-flow-card,
+.drawer-more-actions .drawer-maxi-passport-card {
+    min-height: 86px !important;
+    margin-top: 0 !important;
+    padding: 0.68rem !important;
+}
+
+.drawer-more-actions .drawer-ledger-flow-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: 'copy' !important;
+}
+
+.drawer-more-actions .drawer-ledger-flow-visual,
+.drawer-more-actions .drawer-ledger-flow-legend,
+.drawer-more-actions .drawer-maxi-passport-copy small {
+    display: none !important;
+}
+
+.drawer-more-actions .drawer-maxi-passport-card {
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+}
+
+.drawer-more-actions .drawer-maxi-passport-seal {
+    width: 2rem;
+    height: 2rem;
+}
+
+@media (max-width: 440px) {
+    .drawer-more-actions { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+    .chamber-overlay * { scrollbar-width: none; }
+    .chamber-overlay *::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
 }

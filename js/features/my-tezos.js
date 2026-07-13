@@ -5,7 +5,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import { countsAsProtocolUpgrade } from '../core/protocol-count.js';
 import { fetchStakingAPY, fetchWithRetry, getExternalStakerApy } from '../core/api.js';
 import { fetchXTZPrice } from './price.js';
@@ -434,10 +434,26 @@ function summarizeLiveOperatorStatus(latestBlock, recentAttestations) {
     };
 }
 
+async function fetchOperatorHead() {
+    const tzktHead = await fetchJsonWithTimeout(`${TZKT}/head`, null, 8000);
+    if (Number.isFinite(Number(tzktHead?.level))) return tzktHead;
+
+    const [header, metadata] = await Promise.all([
+        fetchJsonWithTimeout(`${OCTEZ}/chains/main/blocks/head/header`, null, 8000),
+        fetchJsonWithTimeout(`${OCTEZ}/chains/main/blocks/head/metadata`, null, 8000)
+    ]);
+    if (!Number.isFinite(Number(header?.level))) return null;
+    return {
+        ...header,
+        cycle: metadata?.level_info?.cycle ?? null,
+        source: 'Octez RPC fallback'
+    };
+}
+
 async function fetchBakerOperatorStatus(bakerAddr, participation) {
     if (!bakerAddr) return null;
     const [head, blockDelaySeconds, dalParticipation, octez] = await Promise.all([
-        fetchJsonWithTimeout(`${TZKT}/head`, null, 8000),
+        fetchOperatorHead(),
         fetchBlockDelaySeconds(),
         fetchDALParticipation(bakerAddr),
         fetchBakerOctezSoftware(bakerAddr)
@@ -932,7 +948,7 @@ function renderBakerOperatorStatus(status, isBaker) {
         status.live.detail,
         status.live.state
     );
-    const attest = renderOperatorTile('Attestation', status.attestation.value, status.attestation.detail, status.attestation.state);
+    const attest = renderOperatorTile('Attestation signal', status.attestation.value, status.attestation.detail, status.attestation.state);
     const dal = renderOperatorTile('DAL', status.dal.value, status.dal.detail, status.dal.state);
     const octez = renderOperatorTile(
         'Octez',
@@ -1313,7 +1329,7 @@ function buildOvernightCard(data, snapshot) {
     if (snapshot.healthScore !== null && data.healthScore !== null && snapshot.healthScore !== data.healthScore) {
         const better = data.healthScore > snapshot.healthScore;
         const color = better ? 'var(--color-success, #10b981)' : 'var(--color-error, #ef4444)';
-        bullets.push(`Baker health <span style="color:${color}"><strong>${better ? 'improved' : 'declined'}</strong></span> — ${data.health.icon} ${data.attestRate || ''}%`);
+        bullets.push(`Baker cycle attestation power <span style="color:${color}"><strong>${better ? 'improved' : 'declined'}</strong></span> — ${data.health.icon} ${data.attestRate || ''}%`);
     }
 
     // Streak milestone
@@ -1408,7 +1424,7 @@ function buildMorningBrief(data) {
         const color = live.state === 'issue' ? 'var(--color-error, #ef4444)' : live.state === 'ok' ? 'var(--color-success, #10b981)' : 'var(--text-dim, #888)';
         healthText = `<strong>${escapeHtml(data.bakerName)}</strong> — <strong style="color:${color}">${escapeHtml(live.value)}</strong><br><span class="brief-sub">${escapeHtml(live.detail)}</span>`;
     } else if (data.healthScore !== null && data.attestRate) {
-        healthText = `<strong>${escapeHtml(data.bakerName)}</strong> ${data.health.icon} ${data.attestRate}% attestation`;
+        healthText = `<strong>${escapeHtml(data.bakerName)}</strong> ${data.health.icon} ${data.attestRate}% cycle attestation power`;
     } else {
         healthText = `<strong>${escapeHtml(data.bakerName || 'No baker')}</strong>`;
     }
@@ -2484,9 +2500,9 @@ function updateFreshness({ signalLive = false } = {}) {
     const el = document.getElementById('drawer-freshness');
     if (!el) return;
     const now = new Date();
-    const label = signalLive ? 'Live signal' : 'Updated';
+    const source = signalLive ? 'Operator signal' : 'My Tezos';
     el.innerHTML = `
-        <span class="freshness-time">${label} ${now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'})}</span>
+        <span class="freshness-time" title="Operator signal checks every 15 seconds; drawer totals refresh every 30 seconds.">${formatFreshnessStamp(now, { source })}</span>
         <button id="drawer-refresh" class="freshness-refresh">↻ Refresh</button>
     `;
     document.getElementById('drawer-refresh')?.addEventListener('click', (e) => {
@@ -2624,7 +2640,22 @@ function initDrawerLiveRefresh() {
 
 // ─── Init & Export ───────────────────────────────────
 
+function organizeDrawerJourneys() {
+    const actions = document.getElementById('drawer-more-actions');
+    const savedSection = document.getElementById('drawer-saved-section');
+    const savedAddresses = document.getElementById('drawer-saved-addresses');
+    if (savedSection && savedAddresses && savedAddresses.parentElement !== savedSection) {
+        savedSection.appendChild(savedAddresses);
+    }
+    if (!actions) return;
+    ['my-tezos-ledger-flow-link', 'my-tezos-maxi-passport-link'].forEach((id) => {
+        const link = document.getElementById(id);
+        if (link && link.parentElement !== actions) actions.appendChild(link);
+    });
+}
+
 export function initMyTezos() {
+    organizeDrawerJourneys();
     // Create minibar under price bar
     createMinibar();
     initDrawerLiveRefresh();

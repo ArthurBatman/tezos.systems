@@ -4,12 +4,11 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { loadDataAsset } from '../core/data-assets.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
 import { countProtocolUpgrades } from '../core/protocol-count.js';
 
 const TZKT_BASE = API_URLS.tzkt;
-const PROTOCOL_DATA_URL = '/data/protocol-data.json';
-const GOVERNANCE_REPORT_URL = '/data/governance-refresh-report.json';
 
 // Cache for protocol list (avoid redundant fetches within a session)
 let _protocolsCache = null;
@@ -26,9 +25,7 @@ async function loadProtocolLore() {
     }
 
     try {
-        const response = await fetch(`${PROTOCOL_DATA_URL}?v=2`, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
+        const data = await loadDataAsset('protocolData');
         _protocolLoreCache = Array.isArray(data.protocols) ? data.protocols : [];
         _protocolLoreCacheTime = Date.now();
         return _protocolLoreCache;
@@ -44,9 +41,7 @@ async function loadGovernanceReport() {
     }
 
     try {
-        const response = await fetch(`${GOVERNANCE_REPORT_URL}?v=1`, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        _governanceReportCache = await response.json();
+        _governanceReportCache = await loadDataAsset('governanceReport');
         _governanceReportCacheTime = Date.now();
         return _governanceReportCache;
     } catch (_) {

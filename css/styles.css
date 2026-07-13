@@ -39,6 +39,13 @@
     scrollbar-color: rgba(0, 212, 255, 0.25) rgba(0, 20, 0, 0.3);
 }
 
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
 /* ==========================================
    CSS Variables
    ========================================== */
@@ -48,7 +55,7 @@
 
     /* Theme typography roles. Aurora/default intentionally keep the existing
        system UI + Orbitron identity; only the large runtime gets a new face. */
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
     --font-display: 'Orbitron', sans-serif;
     --font-data: 'JetBrains Mono', monospace;
     --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
@@ -110,7 +117,7 @@
 }
 
 [data-theme="default"] {
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
     --font-display: 'Orbitron', sans-serif;
     --font-data: 'JetBrains Mono', monospace;
     --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
@@ -138,7 +145,7 @@
    Deep indigo base, drifting aurora glow, full-spectrum accents.
    ═══════════════════════════════════════════ */
 [data-theme="aurora"] {
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
     --font-display: 'Orbitron', sans-serif;
     --font-data: 'JetBrains Mono', monospace;
     --font-runtime: 'Chakra Petch', 'JetBrains Mono', monospace;
@@ -344,10 +351,10 @@ body[data-theme="aurora"]::after {
 }
 
 [data-theme="signal"] {
-    --font-ui: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-    --font-display: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-ui: 'JetBrains Mono', monospace;
+    --font-display: 'JetBrains Mono', monospace;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'JetBrains Mono', monospace;
     --bg-primary: #060A08;
     --bg-secondary: #0C1410;
     --bg-tertiary: #121E18;
@@ -383,9 +390,9 @@ body[data-theme="aurora"]::after {
 
 /* --- Clean: Professional light theme — Apple Finance aesthetic --- */
 [data-theme="clean"] {
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-    --font-display: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-    --font-data: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-data: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-runtime: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
     --bg-primary: #F8F9FC;
     --bg-secondary: #FFFFFF;
@@ -478,10 +485,10 @@ body[data-theme="aurora"]::after {
 
 /* --- NERV: Evangelion Operations Console --- */
 [data-theme="nerv"] {
-    --font-ui: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-ui: 'JetBrains Mono', monospace;
     --font-display: 'Archivo Black', 'Arial Black', sans-serif;
-    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'JetBrains Mono', monospace;
     --bg-primary: #000000;
     --bg-secondary: #0A0804;
     --bg-tertiary: #141008;
@@ -519,9 +526,9 @@ body[data-theme="aurora"]::after {
 
 /* --- Dark: Achromatic zen theme — pure data, no distractions --- */
 [data-theme="dark"] {
-    --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-    --font-display: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-    --font-data: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-data: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-runtime: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
     --bg-primary: #161616;
     --bg-secondary: #1E1E1E;
@@ -562,7 +569,7 @@ body[data-theme="aurora"]::after {
 [data-theme="abyss"] {
     --font-ui: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-display: 'Exo 2', 'Orbitron', sans-serif;
-    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-data: 'JetBrains Mono', monospace;
     --font-runtime: 'Exo 2', 'IBM Plex Mono', sans-serif;
     --bg-primary: #020A1E;
     --bg-secondary: #081430;
@@ -642,8 +649,8 @@ body[data-theme="aurora"]::after {
 [data-theme="warzone"] {
     --font-ui: 'Chakra Petch', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-display: 'Silkscreen', 'Orbitron', monospace;
-    --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-    --font-runtime: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    --font-data: 'JetBrains Mono', monospace;
+    --font-runtime: 'JetBrains Mono', monospace;
     --bg-primary: #080A02;
     --bg-secondary: #121608;
     --bg-tertiary: #1E2410;
@@ -1567,12 +1574,17 @@ body::before {
     }
 
     .block-ticker-baker {
-        flex-basis: 14ch;
-        max-width: 14ch;
+        flex-basis: 12ch;
+        max-width: 12ch;
     }
 
-    .block-ticker-power {
+    .block-ticker-power,
+    .block-ticker-octez {
         display: none;
+    }
+
+    .block-ticker-level .block-ticker-value {
+        width: 10.8ch;
     }
 
 }
@@ -6087,7 +6099,7 @@ body.high-combo .stat-card {
     border-radius: 25px;
     cursor: pointer;
     color: var(--text-secondary);
-    font-family: 'Inter', sans-serif;
+    font-family: sans-serif;
     font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.5px;
@@ -11135,7 +11147,7 @@ body.high-combo .stat-card {
     -webkit-text-fill-color: #0277BD !important;
     background-clip: unset !important;
     color: #0277BD !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
     font-weight: 700 !important;
     text-transform: none !important;
     letter-spacing: 0.02em !important;
@@ -11322,7 +11334,7 @@ body.high-combo .stat-card {
 
 /* Clean theme display font — system monospace for data */
 [data-theme="clean"] .title {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-weight: 600;
 }
 [data-theme="clean"] .upgrade-number,
@@ -11375,14 +11387,14 @@ body.high-combo .stat-card {
     -webkit-background-clip: unset !important;
     background-clip: unset !important;
     text-shadow: none !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
 }
 
 /* Force system font for number displays, not Orbitron */
 [data-theme="clean"] .big-number,
 [data-theme="clean"] .large-stat,
 [data-theme="clean"] .protocol-number {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     font-size: 1.5rem;
     font-weight: 600;
     letter-spacing: 0;
@@ -11433,7 +11445,7 @@ body.high-combo .stat-card {
     letter-spacing: 0.05em;
     color: #6c757e;
     font-weight: 600;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
 
 /* Links/buttons */
@@ -11508,7 +11520,7 @@ body.high-combo .stat-card {
 [data-theme="clean"] h4, 
 [data-theme="clean"] h5, 
 [data-theme="clean"] h6 {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     color: var(--surface-heading-color) !important;
     letter-spacing: 0 !important;
 }
@@ -12202,7 +12214,7 @@ body {
 
 /* System font for all numbers - NO Orbitron */
 [data-theme="dark"] .title {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
 }
 
 [data-theme="dark"] .upgrade-number,
@@ -12222,7 +12234,7 @@ body {
 [data-theme="dark"] .calc-compound-year,
 [data-theme="dark"] .calc-compound-xtz,
 [data-theme="dark"] .my-baker-title {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     font-weight: 600;
     letter-spacing: 0;
 }
@@ -12247,7 +12259,7 @@ body {
 [data-theme="dark"] .volume-stat .volume-number,
 [data-theme="dark"] .market-stat .market-value {
     color: #E8E8E8 !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
 }
 
 /* Large numbers use system font */
@@ -12255,7 +12267,7 @@ body {
 [data-theme="dark"] .big-number,
 [data-theme="dark"] .large-stat,
 [data-theme="dark"] .protocol-number {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     color: #E8E8E8 !important;
     font-weight: 700;
 }
@@ -12367,7 +12379,7 @@ body {
 [data-theme="dark"] h4, 
 [data-theme="dark"] h5, 
 [data-theme="dark"] h6 {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     color: #E8E8E8;
 }
 
@@ -12505,7 +12517,7 @@ body {
     -webkit-background-clip: unset !important;
     -webkit-text-fill-color: #E8EAED !important;
     background-clip: unset !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     font-size: clamp(1.75rem, 3.5vw, 2.25rem) !important;
     font-weight: 300 !important;
     color: #E8EAED !important;
@@ -12521,7 +12533,7 @@ body {
 [data-theme="dark"] h4, 
 [data-theme="dark"] h5, 
 [data-theme="dark"] h6 {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', 'Segoe UI', sans-serif !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif !important;
     color: #E8E8E8 !important;
     letter-spacing: 0 !important;
     text-transform: none !important;
@@ -15007,7 +15019,6 @@ body {
     min-height: 300px;
     gap: 16px;
 }
-
 .chamber-loading-text {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
@@ -18432,7 +18443,7 @@ body {
     color: #f5f8ff;
     -webkit-text-fill-color: currentColor;
     background: none;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 1.18rem;
     font-weight: 900;
     letter-spacing: 0;
@@ -18444,7 +18455,7 @@ body {
 .ctez-header .chamber-badge {
     min-height: 26px;
     padding: 5px 10px;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.68rem;
     letter-spacing: 0;
     text-transform: none;
@@ -18452,7 +18463,7 @@ body {
 
 .ctez-header .proposal-name {
     color: #edf4ff;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.92rem;
     line-height: 1.36;
     margin-bottom: 4px;
@@ -18511,7 +18522,7 @@ body {
     padding: 17px 28px;
     background: #152782;
     color: #f4f8ff;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 1.02rem;
     font-weight: 800;
     line-height: 1.3;
@@ -18576,7 +18587,7 @@ body {
 .ctez-panel-kicker {
     margin-bottom: 4px;
     color: #92a7d6;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0;
@@ -18588,7 +18599,7 @@ body {
 .ctez-detail-head h3 {
     margin: 0;
     color: #f5f8ff;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 1.08rem;
     font-weight: 900;
     line-height: 1.25;
@@ -18611,7 +18622,7 @@ body {
     min-height: 42px;
     padding: 10px 15px;
     border-radius: 6px;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.78rem;
     font-weight: 900;
     line-height: 1.2;
@@ -18649,7 +18660,7 @@ body {
 .ctez-wallet-review,
 .ctez-oven-status {
     min-width: 0;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.78rem;
     line-height: 1.42;
     overflow-wrap: anywhere;
@@ -18680,7 +18691,7 @@ body {
 .ctez-summary-title {
     min-width: 0;
     color: #f5f8ff;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 1.08rem;
     font-weight: 900;
     line-height: 1.25;
@@ -18696,7 +18707,7 @@ body {
 .ctez-detail-meter span {
     display: block;
     color: #b9c4df;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.76rem;
     font-weight: 650;
     line-height: 1.32;
@@ -18710,7 +18721,7 @@ body {
     display: block;
     min-width: 0;
     color: #f6f9ff;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.98rem;
     font-weight: 900;
     line-height: 1.28;
@@ -18824,7 +18835,7 @@ body {
     border-radius: 999px;
     color: #8be7c8;
     background: rgba(128, 229, 194, 0.08);
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.68rem;
     font-weight: 900;
     line-height: 1.2;
@@ -18855,7 +18866,7 @@ body {
     padding-bottom: 12px;
     border-bottom: 1px solid rgba(220, 232, 255, 0.12);
     color: #f6f9ff;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 0.98rem;
     font-weight: 900;
     line-height: 1.25;
@@ -19002,7 +19013,7 @@ body {
     color: #f5f8ff;
     -webkit-text-fill-color: currentColor;
     background: none;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
     font-size: 1.18rem;
     font-weight: 900;
     letter-spacing: 0;
@@ -20013,7 +20024,7 @@ body {
     background: rgba(7, 12, 20, 0.98);
     box-shadow: 0 18px 38px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.045);
     color: var(--text-secondary, #888);
-    font-family: -apple-system, BlinkMacSystemFont, Inter, 'SF Pro Display', 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
     font-size: 0.76rem;
     font-weight: 500;
     letter-spacing: 0;
@@ -21943,7 +21954,7 @@ body[data-theme="nerv"]::after {
     min-width: 0;
     overflow-wrap: anywhere;
     color: var(--text-primary);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 1.05rem;
     line-height: 1.15;
 }
@@ -22040,7 +22051,7 @@ body[data-theme="nerv"]::after {
     border-radius: 50%;
     color: var(--text-tertiary);
     background: rgba(255,255,255,0.03);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.58rem;
     font-weight: 900;
 }
@@ -22139,7 +22150,7 @@ body[data-theme="nerv"]::after {
     border-radius: 50%;
     background: rgba(255,255,255,0.06);
     color: var(--accent-cyan, #45e0c8);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     font-weight: 900;
 }
@@ -22299,7 +22310,7 @@ body[data-theme="nerv"]::after {
 }
 .drawer-operator-value {
     color: var(--text-primary);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 1.28rem;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;

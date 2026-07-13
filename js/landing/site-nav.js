@@ -6,7 +6,8 @@ import {
     siteMapDirectoryChildren,
     siteMapGroup,
     siteMapRelated,
-    siteMapRoute
+    siteMapRoute,
+    searchSiteMap
 } from '../core/site-map.js';
 
 const FALLBACK_RELATED_IDS = ['pulse', 'staking-chamber', 'maxis', 'health'];
@@ -68,6 +69,10 @@ function renderNav() {
     nav.setAttribute('aria-label', 'Tezos Systems guides');
     nav.innerHTML = `
         <a href="/" class="landing-nav-logo">TEZOS SYSTEMS</a>
+        <form class="landing-nav-search" role="search" autocomplete="off">
+            <input type="search" name="q" placeholder="Find a room or guide" aria-label="Search Tezos Systems" aria-controls="landing-nav-search-results" aria-expanded="false">
+            <div class="landing-nav-search-results" id="landing-nav-search-results" role="listbox" hidden></div>
+        </form>
         <details class="landing-nav-menu" open>
             <summary class="landing-nav-toggle"><span>Explore</span><span aria-hidden="true">⌄</span></summary>
             <ul class="landing-nav-links">
@@ -75,6 +80,43 @@ function renderNav() {
             </ul>
         </details>
     `;
+
+    const searchForm = nav.querySelector('.landing-nav-search');
+    const searchInput = searchForm?.querySelector('input');
+    const searchResults = searchForm?.querySelector('.landing-nav-search-results');
+    const closeSearch = () => {
+        if (!searchResults || !searchInput) return;
+        searchResults.hidden = true;
+        searchInput.setAttribute('aria-expanded', 'false');
+    };
+    const renderSearch = () => {
+        if (!searchResults || !searchInput) return;
+        const query = searchInput.value.trim();
+        if (!query) { closeSearch(); return; }
+        const matches = searchSiteMap(query).slice(0, 6);
+        searchResults.innerHTML = matches.length
+            ? matches.map((entry) => `<a role="option" href="${escapeHtml(entryRoute(entry))}"><strong>${escapeHtml(entry.title)}</strong><span>${escapeHtml(entry.detail || entry.group || '')}</span></a>`).join('')
+            : '<p>No matching Tezos Systems destination.</p>';
+        searchResults.hidden = false;
+        searchInput.setAttribute('aria-expanded', 'true');
+    };
+    searchInput?.addEventListener('input', renderSearch);
+    searchInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') { closeSearch(); searchInput.blur(); }
+    });
+    searchForm?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const first = searchResults?.querySelector('a');
+        if (first) window.location.assign(first.href);
+    });
+    document.addEventListener('keydown', (event) => {
+        const tag = document.activeElement?.tagName;
+        if (event.key !== '/' || ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+        event.preventDefault();
+        searchInput?.focus();
+        searchInput?.select();
+        renderSearch();
+    });
 
     const menu = nav.querySelector('.landing-nav-menu');
     const toggle = nav.querySelector('.landing-nav-toggle');
@@ -90,6 +132,7 @@ function renderNav() {
     });
     document.addEventListener('click', (event) => {
         if (mobileMenuMedia.matches && menu?.open && !nav.contains(event.target)) menu.removeAttribute('open');
+        if (searchForm && !searchForm.contains(event.target)) closeSearch();
     });
     nav.addEventListener('keydown', (event) => {
         if (!mobileMenuMedia.matches || event.key !== 'Escape' || !menu?.open) return;

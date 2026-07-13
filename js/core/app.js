@@ -9,6 +9,7 @@ import {
     SITE_MAP_NAV_GROUPS,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
+    navigateSiteMapEntry,
     siteMapCanonicalRoute,
     siteMapDirectoryChildren,
     siteMapGroup,
@@ -53,7 +54,7 @@ import { initEtherlinkGovernanceChamber } from '../features/etherlink-governance
 import { initCtezChamber } from '../features/ctez.js';
 import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
-import { initNetworkPulseChamber, openNetworkPulseChamber } from '../features/network-pulse.js';
+import { initNetworkPulseChamber } from '../features/network-pulse.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
 
@@ -89,6 +90,7 @@ import { initPriceBar } from '../features/price.js';
 import { initStreak } from '../features/streak.js';
 import { updatePageTitle } from '../ui/title.js';
 import { REFRESH_INTERVALS, STAKING_TARGET, MAINNET_LAUNCH, API_URLS } from './config.js';
+import { loadDataAsset } from './data-assets.js';
 import { getTezosUptimeAnniversary } from './anniversary.js';
 import { initComparison, updateComparison } from '../features/comparison.js';
 import { init as initMyBaker, refresh as refreshMyBaker } from '../features/my-baker.js';
@@ -111,8 +113,9 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=429';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=430';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
+const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
 function isContentiousProtocol(protocol, lore = null) {
     return Boolean(protocol?.contention || lore?.contention || lore?.history);
@@ -133,8 +136,9 @@ const state = {
     currentStats: {},
     protocols: [],
     lastUpdate: null,
-    refreshInterval: REFRESH_INTERVALS.main,
-    refreshTimer: null,
+    lastScalarRefreshAt: 0,
+    lastHeavyRefreshAt: 0,
+    refreshTimers: [],
 };
 
 function statsObservationDate(stats, fallbackTimestamp = 0) {
@@ -357,6 +361,7 @@ async function init() {
     safe('navButtons', initNavButtons);
     safe('siteFooterMap', initSiteFooterMap);
     safe('siteWayfinder', initSiteWayfinder);
+    safe('siteMapRouter', initSiteMapRouter);
     safe('heroSearch', initHeroSearch);
     safe('nativeExplorer', initNativeExplorer);
     safe('uptimeClock', initUptimeClock);
@@ -444,6 +449,8 @@ async function init() {
     // Setup URL deep-linking
     applyDeepLink();
     window.addEventListener('hashchange', applyDeepLink);
+    window.addEventListener('popstate', applyDeepLink);
+    window.addEventListener('tezos:routechange', applyDeepLink);
 
     // Setup keyboard shortcuts
     initKeyboardShortcuts();
@@ -552,12 +559,11 @@ function showDeltasPanel(deltas) {
 /**
  * Refresh data in background without showing loading states
  */
-async function refreshInBackground() {
-    debugLog('🔄 Fetching fresh data in background...');
+async function refreshInBackground({ includeHeavy = true } = {}) {
+    debugLog(`🔄 Fetching ${includeHeavy ? 'full' : 'headline'} data in background...`);
     
     try {
-        // Always update protocol/hero data
-        await updateUpgradeClock();
+        if (includeHeavy) await updateUpgradeClock();
         const heroStats = await fetchHeroStats();
         // Silent failure (rate-limit / network): keep the last good UI, flag it.
         if (looksEmptyStats(heroStats)) {
@@ -574,7 +580,7 @@ async function refreshInBackground() {
         const statsVisible = localStorage.getItem(STATS_VISIBLE_KEY);
         let fullStatsPublished = false;
         let qualityStats = heroStats;
-        if (statsVisible === 'true') {
+        if (includeHeavy && statsVisible === 'true') {
             const newStats = await fetchAllStats();
             debugLog('✅ Fresh stats received');
             
@@ -613,17 +619,25 @@ async function refreshInBackground() {
         updatePriceIntelligence(comparisonStats, bgXtzPrice);
 
         if (!fullStatsPublished) {
+            state.lastUpdate = statsObservationDate(heroStats);
+            updateLastRefreshTime();
+        }
+        state.lastScalarRefreshAt = Date.now();
+
+        if (!fullStatsPublished) {
             window.dispatchEvent(new CustomEvent('stats-updated', {
                 detail: { stats: comparisonStats, source: 'hero' }
             }));
         }
 
         
-        // Refresh My Baker/Leaderboard if visible
-        refreshMyBaker();
-        refreshLeaderboard();
-        refreshMyTezos();
-        refreshNetworkHealth({ force: true });
+        if (includeHeavy) {
+            refreshMyBaker();
+            refreshLeaderboard();
+            refreshMyTezos();
+            refreshNetworkHealth({ force: true });
+            state.lastHeavyRefreshAt = Date.now();
+        }
 
         reportDataQuality(qualityStats);
         // resetCountdown();
@@ -661,6 +675,8 @@ async function refresh() {
         await updateStats(newStats);
         syncLiveSparklineMetrics(newStats);
         state.lastUpdate = statsObservationDate(newStats);
+        state.lastScalarRefreshAt = Date.now();
+        state.lastHeavyRefreshAt = Date.now();
         updateLastRefreshTime();
         await updateUpgradeClock(); // Update protocol + days live
 
@@ -2367,7 +2383,7 @@ function initTezosStatsToggle() {
         toggleBtn.title = 'Network Pulse Chamber: Open';
         toggleBtn.addEventListener('click', (event) => {
             event.preventDefault();
-            openNetworkPulseChamber();
+            navigateSiteMapEntry('pulse');
         });
         return;
     }
@@ -2553,11 +2569,16 @@ function initUptimeClock() {
 
     const LAUNCH = new Date(MAINNET_LAUNCH).getTime();
     const TOP_CONTINUITY_SHUFFLE_MS = 1500;
+    const FINALITY_CACHE_KEY = 'tezos-systems-finality-seconds';
     let lastBlockLevel = 0;
     let lastBlockTime = null;
     let recentBlockTimes = []; // last N block timestamps for finality avg
     let chainBakersText = '';
-    let chainFinalityText = '—';
+    let cachedFinalitySeconds = NaN;
+    try { cachedFinalitySeconds = Number(localStorage.getItem(FINALITY_CACHE_KEY)); } catch (_) {}
+    let chainFinalityText = Number.isFinite(cachedFinalitySeconds) && cachedFinalitySeconds > 0
+        ? `${Math.round(cachedFinalitySeconds)}s`
+        : '~12s';
     let chainStakedText = '';
     let chainIssuanceText = '';
     const topContinuityAnimations = new Map();
@@ -2582,6 +2603,15 @@ function initUptimeClock() {
     let uptimeMilestoneArrivalTimer = null;
     let renderedUptimeMilestoneSignature = '__unset__';
     const UPTIME_MILESTONE_ARRIVAL_MS = 1900;
+
+    const finalityButton = document.querySelector('[data-card-history="finality"]');
+    finalityButton?.classList.remove('is-loading');
+    finalityButton?.removeAttribute('aria-busy');
+    if (finalityButton) {
+        finalityButton.title = Number.isFinite(cachedFinalitySeconds)
+            ? 'Last observed Tenderbake finality estimate; live cadence is sampling now.'
+            : 'Tenderbake finality estimate; live cadence is sampling now.';
+    }
 
     function cleanUptimeMilestoneText(value) {
         return String(value || '').replace(/\s+/g, ' ').trim();
@@ -3222,9 +3252,10 @@ function initUptimeClock() {
                     const finalityText = `${finality}s`;
                     const finalityChanged = chainFinalityText !== finalityText;
                     chainFinalityText = finalityText;
-                    const finalityButton = document.querySelector('[data-card-history="finality"]');
                     finalityButton?.classList.remove('is-loading');
                     finalityButton?.removeAttribute('aria-busy');
+                    if (finalityButton) finalityButton.title = 'Live Tenderbake finality estimate from recent block cadence.';
+                    try { localStorage.setItem(FINALITY_CACHE_KEY, String(finality)); } catch (_) {}
                     const liveFinalityOptions = { changed: finalityChanged, animateInitial: true };
                     if (finalityEl) setMagicNumber(finalityEl, finalityText, liveFinalityOptions);
                     setChainText('chain-uptime-finality', finalityText, liveFinalityOptions);
@@ -3327,6 +3358,10 @@ function setupEventListeners() {
     if (ultraToggle) {
         ultraToggle.addEventListener('click', toggleUltraMode);
     }
+
+    document.getElementById('replay-tour-btn')?.addEventListener('click', () => {
+        window.TezosSystemsTour?.replay?.();
+    });
 
     // Setup modals
     setupModal('stake-o-meter-info-btn', 'stake-o-meter-modal', 'stake-o-meter-modal-close');
@@ -3484,8 +3519,11 @@ function setupModal(triggerBtnId, modalId, closeBtnId) {
  * Start refresh timer
  */
 function startRefreshTimer() {
-    if (state.refreshTimer) clearInterval(state.refreshTimer);
-    state.refreshTimer = setInterval(refresh, state.refreshInterval);
+    state.refreshTimers.forEach(clearInterval);
+    state.refreshTimers = [
+        setInterval(() => refreshInBackground({ includeHeavy: false }), REFRESH_INTERVALS.scalar),
+        setInterval(() => refreshInBackground({ includeHeavy: true }), REFRESH_INTERVALS.heavy)
+    ];
     // startCountdown();
 }
 
@@ -3504,13 +3542,12 @@ function updateLastRefreshTime() {
  */
 function handleVisibilityChange() {
     if (document.visibilityState === 'visible') {
-        // Refresh if it's been a while
-        if (state.lastUpdate) {
-            const elapsed = Date.now() - state.lastUpdate.getTime();
-            if (elapsed > state.refreshInterval * 0.9) {
-                refresh();
-            }
-        }
+        const now = Date.now();
+        const heavyDue = !state.lastHeavyRefreshAt
+            || now - state.lastHeavyRefreshAt > REFRESH_INTERVALS.heavy * 0.9;
+        const scalarDue = !state.lastScalarRefreshAt
+            || now - state.lastScalarRefreshAt > REFRESH_INTERVALS.scalar * 0.9;
+        if (heavyDue || scalarDue) refreshInBackground({ includeHeavy: heavyDue });
         // startCountdown();
     }
 }
@@ -3727,8 +3764,7 @@ let _protocolDataCache = null;
 async function loadProtocolData() {
     if (_protocolDataCache) return _protocolDataCache;
     try {
-        const resp = await fetch('/data/protocol-data.json?v=2', { cache: 'no-store' });
-        _protocolDataCache = await resp.json();
+        _protocolDataCache = await loadDataAsset('protocolData');
         return _protocolDataCache;
     } catch (e) { return null; }
 }
@@ -4481,6 +4517,7 @@ function initTezosLoopConsole() {
         title.textContent = profile.title;
         line.textContent = profile.line;
         link.href = siteMapRoute(entry);
+        link.dataset.siteMapEntry = entry?.id || '';
         link.dataset.loopAction = profile.action || '';
         link.textContent = profile.label;
         search.dataset.heroQuery = profile.query;
@@ -4496,7 +4533,7 @@ function initTezosLoopConsole() {
         const destinations = [entry, ...siteMapRelated(profile.entryId, 4)]
             .filter((item, index, items) => item && items.findIndex((candidate) => candidate?.id === item.id) === index);
         nextStops.innerHTML = destinations.map((item, index) => `
-            <a class="tezos-loop-next-link ${index === 0 ? 'is-primary' : ''}" href="${escapeHtml(siteMapRoute(item))}">
+            <a class="tezos-loop-next-link ${index === 0 ? 'is-primary' : ''}" href="${escapeHtml(siteMapRoute(item))}" data-site-map-entry="${escapeHtml(item.id)}">
                 <span>${escapeHtml(item.title)}</span>
                 ${item.fresh ? '<small>New</small>' : ''}
             </a>
@@ -5250,6 +5287,13 @@ function applyDeepLink() {
     const hash = window.location.hash.slice(1);
     const params = new URLSearchParams(hash);
 
+    if (ROOT_DASHBOARD_TITLE) {
+        const currentEntry = findCurrentSiteMapEntry();
+        document.title = currentEntry?.id && currentEntry.id !== 'home'
+            ? `${currentEntry.title} | tezos.systems`
+            : ROOT_DASHBOARD_TITLE;
+    }
+
     const showToggleSection = (toggleId, sectionId, options = {}) => {
         const toggle = document.getElementById(toggleId);
         const section = document.getElementById(sectionId);
@@ -5496,7 +5540,13 @@ function applyDeepLink() {
         }
 
         const pathTarget = getMyTezosPathTarget();
-        if (pathTarget) openMyTezosTarget(pathTarget);
+        if (pathTarget) {
+            openMyTezosTarget(pathTarget);
+            return;
+        }
+        if (document.querySelector('.chamber-overlay.active, #history-modal.active, #protocol-history-modal, #native-explorer-overlay.active')) {
+            closeHashModalSurfaces().catch((error) => console.warn('Failed to close routed overlay', error));
+        }
         return;
     }
 
@@ -5794,7 +5844,7 @@ function footerMapLink(entry, className = 'site-map-link') {
     const type = String(entry.href || '').endsWith('.xml') ? ' type="application/rss+xml"' : '';
     const fresh = entry.fresh ? '<small>New</small>' : '';
     return `
-        <a class="${className}" href="${escapeHtml(siteMapRoute(entry))}"${type}>
+        <a class="${className}" href="${escapeHtml(siteMapRoute(entry))}" data-site-map-entry="${escapeHtml(entry.id || '')}"${type}>
             <span>${escapeHtml(entry.title)}</span>
             ${fresh}
         </a>
@@ -5828,6 +5878,68 @@ function initSiteFooterMap() {
     const grid = document.querySelector('[data-site-map-grid]');
     if (!grid) return;
     grid.innerHTML = SITE_MAP_NAV_GROUPS.map(footerMapGroup).join('');
+}
+
+const ROUTED_OVERLAY_ENTRIES = Object.freeze({
+    'chamber-modal': { entryIds: ['chamber'], hashes: ['chamber', 'the-chamber'] },
+    'protocol-history-chamber-modal': { entryIds: ['anthology'], hashes: ['protocol-history', 'protocol'] },
+    'network-pulse-modal': { entryIds: ['pulse'], hashes: ['pulse', 'network-pulse'] },
+    'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },
+    'maxis-modal': { entryIds: ['maxis'], hashes: ['maxis', 'tezos-maxis'] },
+    'network-health-modal': { entryIds: ['health'], hashes: ['health', 'network-health'] },
+    'tezlink-modal': { entryIds: ['tezosx'], hashes: ['tezosx', 'tezlink'] },
+    'etherlink-governance-modal': { entryIds: ['l2-governance'], hashes: ['l2chamber', 'etherlink-governance', 'etherlink-gov', 'etherlink'] },
+    'tz4-adoption-modal': { entryIds: ['tz4'], hashes: ['tz4', 'tz4-adoption'] },
+    'liquidity-baking-modal': { entryIds: ['liquidity-baking'], hashes: ['lb', 'liquidity-baking'] },
+    'ctez-modal': { entryIds: ['ctez'], hashes: ['ctez', 'ctez-oven', 'ctez-guide'] },
+    'ledger-flow-modal': { entryIds: ['ledger-flow'], hashes: ['ledger-flow', 'flow'] },
+    'tezos-domains-modal': { entryIds: ['domains'], hashes: ['domains', 'tezos-domains'] },
+    'history-modal': { entryIds: ['history'], hashes: ['history'] },
+    'native-explorer-overlay': { entryIds: [], hashes: ['account', 'contract', 'operation', 'op', 'block'] }
+});
+
+function currentRouteHashKey() {
+    return window.location.hash.replace(/^#/, '').split('=')[0];
+}
+
+function routedOverlayOwnsCurrentLocation(overlayId) {
+    const route = ROUTED_OVERLAY_ENTRIES[overlayId];
+    if (!route) return false;
+    const entryId = findCurrentSiteMapEntry()?.id || '';
+    return route.entryIds.includes(entryId) || route.hashes.includes(currentRouteHashKey());
+}
+
+function initSiteMapRouter() {
+    document.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const link = event.target.closest('a[data-site-map-entry]');
+        if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
+        const entry = findSiteMapEntry(link.dataset.siteMapEntry || '');
+        if (!entry) return;
+        event.preventDefault();
+        navigateSiteMapEntry(entry);
+    });
+
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            const overlay = mutation.target;
+            if (!(overlay instanceof HTMLElement) || !ROUTED_OVERLAY_ENTRIES[overlay.id]) continue;
+            const wasActive = String(mutation.oldValue || '').split(/\s+/).includes('active');
+            if (!wasActive || overlay.classList.contains('active')) continue;
+            queueMicrotask(() => {
+                if (overlay.classList.contains('active') || !routedOverlayOwnsCurrentLocation(overlay.id)) return;
+                if (document.documentElement.hasAttribute('data-chamber-route')) return;
+                window.history.replaceState({ ...(window.history.state || {}), tezosSystemsRoute: 'home' }, '', '/');
+                if (ROOT_DASHBOARD_TITLE) document.title = ROOT_DASHBOARD_TITLE;
+            });
+        }
+    });
+    observer.observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class'],
+        attributeOldValue: true
+    });
 }
 
 // ==========================================

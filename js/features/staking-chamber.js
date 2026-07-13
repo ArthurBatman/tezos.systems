@@ -7,11 +7,11 @@ import { API_URLS } from '../core/config.js';
 import { fetchHistoricalData, fetchStakingRatio } from '../core/api.js';
 import { siteMapRelated, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp } from '../core/storage.js';
-import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=429';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=430';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
@@ -362,7 +362,7 @@ function renderEntryMove(action, row) {
 function renderEntryData(card, data) {
     const tape = card.querySelector('#staking-entry-tape');
     if (tape) tape.innerHTML = `${renderEntryMove('stake', data?.stake)}${renderEntryMove('unstake', data?.unstake)}`;
-    card.dataset.updatedLabel = `TzKT · checked ${formatAge(entryCheckedAt)}`;
+    card.dataset.updatedLabel = formatFreshnessStamp(entryCheckedAt, { source: 'TzKT' });
     card.setAttribute('aria-busy', 'false');
     setDataFreshnessState(card, entryCheckedAt, ENTRY_STALE_MS);
     window.syncChamberEntryFooters?.(document.getElementById('chambers-grid'));
@@ -371,7 +371,7 @@ function renderEntryData(card, data) {
 function renderEntryError(card) {
     if (entryData) {
         renderEntryData(card, entryData);
-        card.dataset.updatedLabel = `TzKT delayed · last checked ${formatAge(entryCheckedAt)}`;
+        card.dataset.updatedLabel = `delayed · ${formatFreshnessStamp(entryCheckedAt, { source: 'TzKT' })}`;
         card.classList.add('chamber-data-stale');
         window.syncChamberEntryFooters?.(document.getElementById('chambers-grid'));
         return;

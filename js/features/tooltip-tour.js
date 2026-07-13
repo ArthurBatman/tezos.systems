@@ -5,11 +5,10 @@
     const TOAST_SAFE_AREA_KEY = 'tour-nudge';
     const VIEWPORT_PAD = 16;
     const TOOLTIP_GAP = 16;
-    if (localStorage.getItem(TOUR_KEY) || localStorage.getItem(WELCOMED_KEY)) return;
-
-    // Deep links should go straight to their target. Do not consume the tour flag.
     const hash = window.location.hash.slice(1);
-    if (hash) return;
+    const shouldOfferTour = !localStorage.getItem(TOUR_KEY)
+        && !localStorage.getItem(WELCOMED_KEY)
+        && !hash;
 
     const steps = [
         {
@@ -124,7 +123,7 @@
 
     function hasActiveSurface() {
         return Boolean(document.querySelector(
-            '.my-tezos-drawer.open, .modal-overlay.active, .chamber-overlay.active, .share-modal-overlay.visible, .share-modal-overlay.active, .settings-dropdown.open, .visit-streak-toast.visible, .moment-toast.visible'
+            'body.hero-search-mode, .my-tezos-drawer.open, .modal-overlay.active, .chamber-overlay.active, .share-modal-overlay.visible, .share-modal-overlay.active, .settings-dropdown.open, .visit-streak-toast.visible, .moment-toast.visible'
         ));
     }
 
@@ -345,8 +344,8 @@
         setTimeout(function () { show(current); }, 200);
     }
 
-    function end() {
-        localStorage.setItem(TOUR_KEY, '1');
+    function end(markComplete = true) {
+        if (markComplete) localStorage.setItem(TOUR_KEY, '1');
         document.removeEventListener('keydown', onKey);
         window.removeEventListener('resize', schedulePosition);
         window.removeEventListener('scroll', schedulePosition);
@@ -361,8 +360,10 @@
         }
 
         if (overlay) {
-            overlay.style.opacity = '0';
-            setTimeout(function () { overlay.remove(); overlay = null; }, 300);
+            var oldOverlay = overlay;
+            overlay = null;
+            oldOverlay.style.opacity = '0';
+            setTimeout(function () { oldOverlay.remove(); }, 300);
         }
         if (nudge) {
             removeNudge();
@@ -375,6 +376,13 @@
         stopWatchingActiveSurfaces();
         create();
         show(0);
+    }
+
+    function replayTour() {
+        end(false);
+        localStorage.removeItem(TOUR_KEY);
+        current = 0;
+        setTimeout(startTour, 320);
     }
 
     function createNudge() {
@@ -401,12 +409,16 @@
         nudge.querySelector('.tour-dismiss').addEventListener('click', end);
     }
 
-    // Offer the tour after page settles without blocking the dashboard.
-    watchActiveSurfaces();
-    setTimeout(function () {
-        if (window.scrollY > 300) return;
-        if (document.activeElement && document.activeElement.id === 'hero-search-input') return;
-        if (hasActiveSurface()) { deferNudge(); return; }
-        createNudge();
-    }, 4000);
+    window.TezosSystemsTour = { replay: replayTour };
+
+    if (shouldOfferTour) {
+        // Offer the tour after page settles without blocking the dashboard.
+        watchActiveSurfaces();
+        setTimeout(function () {
+            if (window.scrollY > 300) return;
+            if (document.activeElement && document.activeElement.id === 'hero-search-input') return;
+            if (hasActiveSurface()) { deferNudge(); return; }
+            createNudge();
+        }, 4000);
+    }
 })();

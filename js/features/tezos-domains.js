@@ -3,7 +3,7 @@
  * Live identity, auction, market, and expiration pulse for .tez names.
  */
 
-import { debounce, escapeHtml, formatLiveDuration, startLiveTimeTicker } from '../core/utils.js';
+import { debounce, escapeHtml, formatFreshnessStamp, formatLiveDuration, startLiveTimeTicker } from '../core/utils.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TEZOS_DOMAINS_ENDPOINT = 'https://api.tezos.domains/graphql';
@@ -774,7 +774,7 @@ function updateEntryCard(data) {
     });
     const tape = card.querySelector('#tezos-domains-entry-tape');
     if (tape) tape.innerHTML = renderEntryTape(data);
-    card.dataset.updatedLabel = `Tezos Domains · ${formatAge(data.freshTimestamp)}`;
+    card.dataset.updatedLabel = formatFreshnessStamp(data.freshTimestamp, { source: 'Tezos Domains' });
     card.classList.toggle('chamber-data-stale', Date.now() - new Date(data.freshTimestamp).getTime() > STALE_MS);
     window.syncChamberEntryFooters?.(card);
 }

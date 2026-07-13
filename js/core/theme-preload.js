@@ -8,8 +8,21 @@
  */
 (function () {
     var DEFAULT = 'aurora';
-    var THEME_CSS_VERSION = '429';
+    var THEME_CSS_VERSION = '430';
     var VALID = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
+    var THEME_FONTS = {
+        aurora: ['Chakra+Petch:wght@400;600;700'],
+        matrix: ['Share+Tech+Mono'],
+        default: ['Chakra+Petch:wght@400;600;700'],
+        void: ['Exo+2:wght@300;400;600'],
+        ember: ['Chakra+Petch:wght@400;600;700'],
+        signal: ['IBM+Plex+Mono:wght@400;500;600;700'],
+        nerv: ['IBM+Plex+Mono:wght@400;500;600;700', 'Archivo+Black'],
+        bubblegum: ['Nunito:wght@400;500;600;700;800;900'],
+        abyss: ['Exo+2:wght@300;400;600', 'IBM+Plex+Mono:wght@400;500;600;700'],
+        moss: ['Major+Mono+Display', 'Nunito:wght@400;500;600;700;800;900'],
+        warzone: ['Chakra+Petch:wght@400;600;700', 'IBM+Plex+Mono:wght@400;500;600;700', 'Silkscreen:wght@400;700']
+    };
     var t = null;
     try {
         var h = new URLSearchParams(window.location.hash.slice(1)).get('theme');
@@ -22,6 +35,16 @@
     }
     if (!t || VALID.indexOf(t) === -1) t = DEFAULT;
     document.body.setAttribute('data-theme', t);
+    var fonts = THEME_FONTS[t] || [];
+    if (fonts.length) {
+        var fontLink = document.createElement('link');
+        fontLink.id = 'theme-fonts-' + t;
+        fontLink.rel = 'stylesheet';
+        fontLink.href = 'https://fonts.googleapis.com/css2?' + fonts.map(function (family) {
+            return 'family=' + family;
+        }).join('&') + '&display=swap';
+        document.head.appendChild(fontLink);
+    }
     var link = document.createElement('link');
     link.id = 'theme-css-' + t;
     link.rel = 'stylesheet';
