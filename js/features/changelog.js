@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-13',
         entries: [
+            { type: '🎨', text: 'Governance vote logs now wrap long status context and reserve enough room for turnout values on narrow mobile screens' },
             { type: '🎨', text: 'The Tezos X Chamber card now keeps its live tape clear of the freshness and Open rail on narrow mobile screens and fallback fonts' },
             { type: '🎨', text: 'The live block ticker now reserves enough font-relative room for eight-digit mainnet levels across browser and font environments' },
             { type: '🔧', text: 'Pretty Chamber routes now open in place from the dashboard, follow Back and close state correctly, and avoid reloading the room already in view' },

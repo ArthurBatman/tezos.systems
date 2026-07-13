@@ -16951,8 +16951,8 @@ body {
     }
 
     .vote-log-row {
-        grid-template-columns: 28px minmax(0, 1fr) 72px;
-        grid-template-rows: minmax(19px, max-content) minmax(17px, max-content) minmax(17px, max-content) minmax(17px, max-content);
+        grid-template-columns: 28px minmax(0, 1fr) 88px;
+        grid-template-rows: minmax(19px, max-content) minmax(17px, max-content) auto minmax(17px, max-content);
         align-items: start;
         gap: 4px 8px;
         min-height: 91px;
@@ -16977,6 +16977,11 @@ body {
     .vote-log-meta {
         grid-column: 2 / -1;
         grid-row: 3;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.35;
     }
 
     .vote-log-metric {
