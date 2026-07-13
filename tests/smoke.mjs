@@ -5683,7 +5683,10 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topPriceBarHasBlockAge: Boolean(priceBar?.querySelector('#uptime-block-age')),
       topPriceBarHasPulseDot: Boolean(priceBar?.querySelector('#uptime-pulse-dot')),
       blockTickerBlockWidth: tickerBlockValue ? parseFloat(getComputedStyle(tickerBlockValue).width) : 0,
+      blockTickerBlockCapacity: measureTickerText(tickerBlockValue, '#99,999,999'),
       blockTickerBakerWidth: tickerBakerValue ? parseFloat(getComputedStyle(tickerBakerValue).width) : 0,
+      blockTickerBakerLongNameWidth: measureTickerText(tickerBakerValue, 'Established Tezos Baker'),
+      blockTickerBakerMaxWidth: measureTickerText(tickerBakerValue, '1234567890123456789012345678'),
       blockTickerHealthWidth: tickerHealthValue ? parseFloat(getComputedStyle(tickerHealthValue).width) : 0,
       blockTickerDegradedWidth: measureTickerText(tickerHealthValue, 'Degraded'),
       blockTickerOctezText: tickerOctezValue?.textContent || '',
@@ -5842,8 +5845,12 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.blockTickerPulseWidth >= 8 && /rgb\(53, 232, 148\)/.test(healthState.blockTickerPulseBg), `network health chamber: ticker pulse should be the green live signal, saw ${healthState.blockTickerPulseWidth}px ${healthState.blockTickerPulseBg}`);
   assert(!healthState.topPriceBarHasBlockReadout && !healthState.topPriceBarHasBlockAge && !healthState.topPriceBarHasPulseDot, `network health chamber: top price bar should not carry block/age/pulse readouts: ${healthState.topPriceBarText}`);
   assert(healthState.blockTickerSignature.split(':').length >= 5, `network health chamber: ticker signature incomplete: ${healthState.blockTickerSignature}`);
-  assert(healthState.blockTickerBlockWidth >= 90, `network health chamber: block column too narrow: ${healthState.blockTickerBlockWidth}`);
-  assert(healthState.blockTickerBakerWidth >= 190 && healthState.blockTickerBakerWidth <= 220, `network health chamber: baker column should fit longer names without taking over: ${healthState.blockTickerBakerWidth}`);
+  assert(healthState.blockTickerBlockWidth >= healthState.blockTickerBlockCapacity, `network health chamber: block column cannot fit an eight-digit level: ${healthState.blockTickerBlockWidth}/${healthState.blockTickerBlockCapacity}`);
+  assert(
+    healthState.blockTickerBakerWidth >= healthState.blockTickerBakerLongNameWidth
+      && healthState.blockTickerBakerWidth <= healthState.blockTickerBakerMaxWidth,
+    `network health chamber: baker column should fit longer names without taking over: ${healthState.blockTickerBakerWidth}/${healthState.blockTickerBakerLongNameWidth}-${healthState.blockTickerBakerMaxWidth}`
+  );
   assert(healthState.blockTickerHealthWidth >= healthState.blockTickerDegradedWidth + 1, `network health chamber: health slot cannot fit Degraded: slot ${healthState.blockTickerHealthWidth}, degraded ${healthState.blockTickerDegradedWidth}`);
   assert(healthState.blockTickerOctezWidth >= 45, `network health chamber: Octez slot is too narrow: ${healthState.blockTickerOctezWidth}`);
   assert(healthState.blockTickerValueAlignments.every((align) => ['left', 'start'].includes(align)), `network health chamber: ticker values should sit near their labels, saw ${healthState.blockTickerValueAlignments.join(', ')}`);

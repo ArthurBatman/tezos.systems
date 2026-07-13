@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-13',
         entries: [
+            { type: '🎨', text: 'The live block ticker now reserves enough font-relative room for eight-digit mainnet levels across browser and font environments' },
             { type: '🔧', text: 'Pretty Chamber routes now open in place from the dashboard, follow Back and close state correctly, and avoid reloading the room already in view' },
             { type: '🔧', text: 'My Tezos now leads with the wallet’s live operator and reward signal, labels attestation power and missed-right windows explicitly, shares the cached XTZ price, and keeps optional address journeys at the bottom' },
             { type: '⚡', text: 'Headline telemetry now refreshes every 15 minutes while heavier sweeps stay on two hours, and shared protocol and governance JSON assets load once per session' },
