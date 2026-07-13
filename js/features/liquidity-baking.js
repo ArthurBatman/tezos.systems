@@ -5,6 +5,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
+import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const LB_THRESHOLD = 1000000000;
@@ -1232,7 +1233,13 @@ export function initLiquidityBaking() {
         launcherBtn.addEventListener('click', openLiquidityBakingMonitor);
     }
 
-    if (document.getElementById('lb-entry-card')) {
+    const existingCard = document.getElementById('lb-entry-card');
+    if (existingCard) {
+        wireChamberLauncher(existingCard, {
+            open: openLiquidityBakingMonitor,
+            label: 'Open Liquidity Baking Monitor',
+            titleSelector: '.stat-label'
+        });
         startEntryCardRefresh();
         return;
     }
@@ -1259,7 +1266,7 @@ export function initLiquidityBaking() {
             </div>
         </div>
         <div class="card-inner">
-            <div class="card-front chamber-entry-front lb-entry-open-target" role="button" tabindex="0" aria-label="Open Liquidity Baking Monitor">
+            <div class="card-front chamber-entry-front lb-entry-open-target">
                 <h2 class="stat-label">LB Monitor</h2>
                 <div class="stat-value lb-entry-ema" id="lb-entry-ema"><span class="loading loading-skeleton">Preheating LB votes</span></div>
                 <p class="stat-description" id="lb-entry-description">EMA + baker toggle votes</p>
@@ -1276,43 +1283,17 @@ export function initLiquidityBaking() {
             </div>
         </div>
     `;
-    card.style.cursor = 'pointer';
-    card.title = 'Open Liquidity Baking Monitor';
-    const infoBtn = card.querySelector('.card-info-btn');
-    const tooltip = card.querySelector('.card-tooltip');
-    infoBtn?.addEventListener('click', (event) => {
-        event.stopPropagation();
-        tooltip?.classList.toggle('is-open');
-    });
-    tooltip?.addEventListener('click', (event) => event.stopPropagation());
-    // Dismiss on outside click or Escape — previously it could only be closed
-    // by re-clicking the info button, so it got stuck (e.g. behind the modal).
-    document.addEventListener('click', (event) => {
-        if (!tooltip?.classList.contains('is-open')) return;
-        if (infoBtn?.contains(event.target) || tooltip.contains(event.target)) return;
-        tooltip.classList.remove('is-open');
-    });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') tooltip?.classList.remove('is-open');
-    });
-    const openTarget = card.querySelector('.lb-entry-open-target');
-    openTarget?.addEventListener('click', (event) => {
-        event.stopPropagation();
-        openLiquidityBakingMonitor();
-    });
-    openTarget?.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        event.stopPropagation();
-        openLiquidityBakingMonitor();
-    });
-    card.addEventListener('click', openLiquidityBakingMonitor);
     const priorityCard = document.getElementById('tezlink-entry-card') || document.getElementById('chamber-entry-card');
     if (priorityCard?.parentElement === grid) {
         priorityCard.after(card);
     } else {
         grid.prepend(card);
     }
+    wireChamberLauncher(card, {
+        open: openLiquidityBakingMonitor,
+        label: 'Open Liquidity Baking Monitor',
+        titleSelector: '.stat-label'
+    });
     loadEntryCardStatus({ force: true });
     startEntryCardRefresh();
 }

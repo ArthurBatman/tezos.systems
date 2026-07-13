@@ -248,7 +248,7 @@ function maybeSendCycleNotif(currentCycle) {
   if (lastKnownCycle !== null && currentCycle !== lastKnownCycle) {
     new Notification('🏆 Tezos Cycle Complete!', {
       body: `Cycle ${lastKnownCycle} ended. Check your rewards on tezos.systems`,
-      icon: '/favicon.ico',
+      icon: '/icon-192.png',
     });
   }
   lastKnownCycle = currentCycle;

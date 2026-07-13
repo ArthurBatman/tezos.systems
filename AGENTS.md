@@ -151,7 +151,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v426`
+- Service worker cache name: `tezos-systems-v429`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -212,8 +212,9 @@ Frontend rendering:
 - `sw.js` treats `/version.json` as network-first so the footer sanity check is
   not quietly fed stale cache metadata.
 - `sw.js` also uses network-first with cache fallback for same-origin shell
-  assets, so front-page JS/CSS should not lag behind deployed code after the
-  updated service worker is active.
+  assets. New workers wait for the visible Update action before taking control,
+  preventing mixed HTML/module builds. Offline navigations deliberately render
+  `offline.html`; cached assets are not presented as an offline live dashboard.
 - Cross-origin API requests bypass Cache Storage; failed requests return an
   explicit unavailable response so stale telemetry cannot masquerade as live.
 
@@ -265,7 +266,7 @@ Stamping gotchas:
 - Staking Chamber: `js/features/staking-chamber.js`; strict applied explicit
   stake/unstake moves over 10,000 tez, with `/stake/` as the chamber route.
   Preserve `/staking/` for the existing explanatory guide.
-- OBJKT/HEN: `objkt.js`, `objkt-ui.js`, `hen-mode.js`
+- OBJKT/HEN: `objkt.js`, `hen-mode.js`
 - Extras: `streak.js`, `state-of-tezos.js`, `upgrade-effect.js`,
   `tooltip-tour.js`, `changelog.js`
 

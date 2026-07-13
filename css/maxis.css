@@ -7,6 +7,12 @@
     --maxis-readable-muted: color-mix(in srgb, var(--text-tertiary) 65%, var(--text-primary));
 }
 
+[data-theme="clean"] .maxis-entry-card {
+    --maxis-gold: #92400E;
+    --maxis-violet: #6D28D9;
+    --maxis-cyan: #0369A1;
+}
+
 .maxis-content {
     --maxis-corner-inset: 0.75rem;
     width: min(1180px, calc(100vw - 28px));
@@ -2263,6 +2269,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-entry-season-copy { min-width: 0; }
 .maxis-entry-season-label { display: inline-flex; align-items: center; gap: 0.34rem; color: var(--maxis-gold); font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
 .maxis-entry-season-title { margin-top: 0.28rem; color: var(--text-primary); font-family: var(--font-display, 'Orbitron', sans-serif); font-size: clamp(1.1rem, 2vw, 1.55rem); font-weight: 900; line-height: 1.15; }
+#chambers-grid .maxis-entry-season-title.chamber-entry-title { color: var(--text-secondary); font-family: var(--font-ui) !important; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; line-height: normal; text-transform: uppercase; }
 .maxis-entry-season-copy p { max-width: 33rem; margin: 0.32rem 0 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.45; }
 .maxis-entry-season-meta { display: flex; flex-wrap: wrap; gap: 0.34rem; margin-top: 0.62rem; }
 .maxis-entry-season-meta span { padding: 0.25rem 0.42rem; border: 1px solid rgba(255, 255, 255, 0.065); border-radius: 999px; color: var(--maxis-readable-muted); background: rgba(255, 255, 255, 0.022); font-size: 0.6rem; }

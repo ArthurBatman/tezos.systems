@@ -63,8 +63,6 @@
   </div>
   <a class="footer" href="https://tezos.systems/?utm_source=tezos_systems&utm_medium=widget_attribution&utm_campaign=tezos_systems_widgets&utm_content=combo" target="_blank" rel="noopener">powered by tezos.systems -></a>
 </div>
-<script src="//gc.zgo.at/count.js" async></script>
-<script src="../js/core/goatcounter-init.js"></script>
 <script type="module">
 import {
   applyWidgetTheme,
@@ -116,17 +114,22 @@ import {
     const fetches=[];
 
     if(needs.has('bakers')){
-      fetches.push(
-        fetchWidgetJson(WIDGET_ENDPOINTS.activeBakers())
-          .then(bakers=>{
-            setVal('bakers',formatCount(poweredBakers(bakers).length));
-            if(needs.has('tz4'))setVal('tz4',formatPercent(summarizeTz4Power(bakers),1));
-          })
-          .catch(()=>{
-            setVal('bakers','—');
-            if(needs.has('tz4'))setVal('tz4','—');
-          })
-      );
+      if(needs.has('tz4')){
+        fetches.push(
+          fetchWidgetJson(WIDGET_ENDPOINTS.activeBakers())
+            .then(bakers=>{
+              setVal('bakers',formatCount(poweredBakers(bakers).length));
+              setVal('tz4',formatPercent(summarizeTz4Power(bakers),1));
+            })
+            .catch(()=>{setVal('bakers','—');setVal('tz4','—')})
+        );
+      }else{
+        fetches.push(
+          fetchWidgetJson(WIDGET_ENDPOINTS.activeBakerCount())
+            .then(count=>setVal('bakers',formatCount(count)))
+            .catch(()=>setVal('bakers','—'))
+        );
+      }
     } else if(needs.has('tz4')){
       fetches.push(
         fetchWidgetJson(WIDGET_ENDPOINTS.activeBakers())

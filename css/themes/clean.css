@@ -24,6 +24,11 @@
     --accent-purple: #2563EB;
     --accent-pink: #DC2626;
     --accent-blue: #2563EB;
+    --accent: var(--accent-cyan);
+    --accent-color: var(--accent-cyan);
+    --border: var(--glass-border);
+    --border-color: var(--glass-border);
+    --text-dim: var(--text-tertiary);
     --chamber-live-color: #047857;
     --chamber-good-color: #047857;
     --chamber-watch-color: #B45309;
@@ -49,11 +54,53 @@
     --top-pill-issuance: #C026D3;
     --top-pill-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
-[data-theme="clean"] .build-version{
-    color: rgba(0, 0, 0, 0.22);
+[data-theme="clean"] .block-ticker-health.peak .block-ticker-value{
+    color: #047857;
 }
-[data-theme="clean"] .build-version:hover{
-    color: rgba(0, 0, 0, 0.5);
+[data-theme="clean"] .block-ticker-health.healthy .block-ticker-value{
+    color: #047857;
+}
+[data-theme="clean"] .block-ticker-health.watch .block-ticker-value{
+    color: #92400E;
+}
+[data-theme="clean"] .block-ticker-health.degraded .block-ticker-value{
+    color: #B91C1C;
+}
+[data-theme="clean"] .network-health-status.healthy{
+    color: #047857;
+}
+[data-theme="clean"] .network-health-score.healthy{
+    color: #047857;
+}
+[data-theme="clean"] .network-health-period.healthy .network-health-period-value{
+    color: #047857;
+}
+[data-theme="clean"] .network-health-block.healthy .network-health-block-bar{
+    color: #047857;
+}
+[data-theme="clean"] .network-health-status.watch{
+    color: #92400E;
+}
+[data-theme="clean"] .network-health-score.watch{
+    color: #92400E;
+}
+[data-theme="clean"] .network-health-period.watch .network-health-period-value{
+    color: #92400E;
+}
+[data-theme="clean"] .network-health-block.watch .network-health-block-bar{
+    color: #92400E;
+}
+[data-theme="clean"] .network-health-status.degraded{
+    color: #B91C1C;
+}
+[data-theme="clean"] .network-health-score.degraded{
+    color: #B91C1C;
+}
+[data-theme="clean"] .network-health-period.degraded .network-health-period-value{
+    color: #B91C1C;
+}
+[data-theme="clean"] .network-health-block.degraded .network-health-block-bar{
+    color: #B91C1C;
 }
 [data-theme="clean"] .visit-streak-toast{
     --streak-toast-bg: rgba(255, 255, 255, 0.96);
@@ -908,6 +955,11 @@
     color: #2563eb;
 }
 [data-theme="clean"] .moments-empty{ color: rgba(0, 0, 0, 0.35); }
+[data-theme="clean"] .offline-banner{
+    color: #991B1B;
+    background: rgba(254, 226, 226, 0.96);
+    border-bottom-color: #FCA5A5;
+}
 [data-theme="clean"] .upgrade-effect-pill.active{
     background: rgba(37, 99, 235, 0.1);
     border-color: rgba(37, 99, 235, 0.4);
@@ -929,6 +981,15 @@
     color: #2563EB;
     border-color: #2563EB;
     background: rgba(37, 99, 235, 0.08);
+}
+[data-theme="clean"] .chamber-entry-freshness{
+    color: #475569;
+    opacity: 1;
+}
+[data-theme="clean"] .chamber-entry-card.chamber-data-stale .chamber-entry-freshness{
+    color: #92400E;
+    opacity: 1;
+    text-shadow: none;
 }
 [data-theme="clean"] .my-tezos-drawer{ background: #ffffff; border-left-color: #e2e8f0; box-shadow: -4px 0 24px rgba(0,0,0,0.1); }
 [data-theme="clean"] .tezos-story-identity{

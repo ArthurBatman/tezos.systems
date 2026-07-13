@@ -1,0 +1,97 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tezos Systems Public Data",
+    "version": "1.0.0",
+    "description": "Read-only, generated Tezos Systems metadata and research artifacts. Each document carries its own source and freshness fields where applicable."
+  },
+  "servers": [
+    {
+      "url": "https://tezos.systems"
+    }
+  ],
+  "paths": {
+    "/version.json": {
+      "get": {
+        "operationId": "getBuildMetadata",
+        "summary": "Get served build metadata",
+        "responses": {
+          "200": {
+            "description": "Current committed build stamp",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonDocument"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/data/protocol-data.json": {
+      "get": {
+        "operationId": "getProtocolHistory",
+        "summary": "Get the curated Tezos protocol history",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/governance-votes.json": {
+      "get": {
+        "operationId": "getGovernanceVotes",
+        "summary": "Get generated Tezos governance voting history",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/nakamoto-sources.json": {
+      "get": {
+        "operationId": "getNakamotoSources",
+        "summary": "Get dated Nakamoto-coefficient source reports",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis-leaders.json": {
+      "get": {
+        "operationId": "getMaxisLeaders",
+        "summary": "Get the canonical mixed-clock Tezos Maxis snapshot",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JsonDocument": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "responses": {
+      "JsonDocument": {
+        "description": "A Tezos Systems JSON document",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/JsonDocument"
+            }
+          }
+        }
+      }
+    }
+  }
+}

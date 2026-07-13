@@ -12,8 +12,9 @@ const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
 const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
+const LEGACY_CACHE_KEYS = [1, 2, 3, 4].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=426';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=429';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -695,6 +696,10 @@ export function initLeaderboard() {
     const toggleBtn = document.getElementById('leaderboard-toggle');
     const container = document.getElementById('leaderboard-results');
     if (!toggleBtn || !container) return;
+
+    try {
+        LEGACY_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
+    } catch {}
 
     // Restore sort preference
     try {

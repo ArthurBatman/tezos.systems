@@ -33,6 +33,10 @@ const DELTA_MIN_GAP = 60 * 60 * 1000;
  */
 export function saveStats(stats) {
     try {
+        if (stats?._quality?.status !== 'live') {
+            debugLog('💾 Partial or unavailable stats were not cached');
+            return;
+        }
         const observedAt = Date.parse(stats?._quality?.observedAt || '');
         const timestamp = Number.isFinite(observedAt) && observedAt > 0
             ? Math.min(Date.now(), observedAt)
@@ -171,7 +175,7 @@ export function getCacheAge() {
  */
 export function saveVisitSnapshot(stats) {
     try {
-        if (['stale', 'unavailable'].includes(stats?._quality?.status)) return;
+        if (stats?._quality?.status !== 'live') return;
         const lastVisit = localStorage.getItem(STORAGE_KEYS.lastVisit);
         const now = Date.now();
         
@@ -194,7 +198,7 @@ export function saveVisitSnapshot(stats) {
  */
 export function getVisitDeltas(currentStats) {
     try {
-        if (['stale', 'unavailable'].includes(currentStats?._quality?.status)) return null;
+        if (currentStats?._quality?.status !== 'live') return null;
         const lastVisit = localStorage.getItem(STORAGE_KEYS.lastVisit);
         const lastStats = localStorage.getItem(STORAGE_KEYS.lastVisitStats);
         const lastVisitVersion = localStorage.getItem(STORAGE_KEYS.lastVisitVersion);

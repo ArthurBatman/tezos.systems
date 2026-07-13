@@ -42,7 +42,7 @@ import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js
 import { initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
-import { setToastGate } from '../ui/toast-queue.js';
+import { enqueueToast, setToastGate } from '../ui/toast-queue.js';
 import { fetchProtocols } from '../features/governance.js';
 import { initGovernanceAlerts } from '../features/governance-alerts.js';
 import { initChamber } from '../features/chamber.js';
@@ -111,7 +111,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=426';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=429';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -1488,10 +1488,6 @@ const CHAMBER_CARD_PAIRS = [
         selectors: ['#network-pulse-entry-card']
     },
     {
-        key: 'staking',
-        selectors: ['#staking-entry-card']
-    },
-    {
         key: 'health-governance',
         selectors: ['[data-stat="network-health"]', '#chamber-entry-card']
     },
@@ -1500,8 +1496,8 @@ const CHAMBER_CARD_PAIRS = [
         selectors: ['#tezlink-entry-card', '#etherlink-governance-entry-card']
     },
     {
-        key: 'tz4-liquidity',
-        selectors: ['[data-stat="tz4-adoption"]', '#lb-entry-card']
+        key: 'tz4-staking-liquidity',
+        selectors: ['[data-stat="tz4-adoption"]', '#staking-entry-card', '#lb-entry-card']
     },
     {
         key: 'ledger-history',
@@ -1617,6 +1613,60 @@ function getChamberInfoCopy(card) {
 
 let activeChamberInfoButton = null;
 let chamberInfoGlobalWired = false;
+let chamberInfoPositionFrame = 0;
+
+function positionChamberInfoTooltip(button) {
+    const card = button?.closest('.chamber-entry-card');
+    const tooltip = button ? document.getElementById(button.getAttribute('aria-controls')) : null;
+    if (!card || !tooltip) return;
+
+    const viewportMargin = 12;
+    const anchorGap = 8;
+    tooltip.style.removeProperty('--card-tooltip-top');
+    tooltip.style.removeProperty('--card-tooltip-left');
+    tooltip.style.removeProperty('--card-tooltip-right');
+    tooltip.style.setProperty('--card-tooltip-max-height', `${Math.max(160, window.innerHeight - (viewportMargin * 2))}px`);
+
+    const cardRect = card.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth || tooltipRect.width;
+    const tooltipHeight = tooltip.offsetHeight || tooltipRect.height;
+    const minTop = viewportMargin - cardRect.top;
+    const maxTop = window.innerHeight - viewportMargin - cardRect.top - tooltipHeight;
+    const belowTop = buttonRect.bottom - cardRect.top + anchorGap;
+    const aboveTop = buttonRect.top - cardRect.top - tooltipHeight - anchorGap;
+    const fitsBelow = cardRect.top + belowTop + tooltipHeight <= window.innerHeight - viewportMargin;
+    const fitsAbove = cardRect.top + aboveTop >= viewportMargin;
+    const top = fitsBelow
+        ? belowTop
+        : fitsAbove
+            ? aboveTop
+            : Math.min(Math.max(belowTop, minTop), Math.max(minTop, maxTop));
+
+    const minLeft = viewportMargin - cardRect.left;
+    const maxLeft = window.innerWidth - viewportMargin - cardRect.left - tooltipWidth;
+    const preferredLeft = buttonRect.right - cardRect.left - tooltipWidth;
+    const left = Math.min(Math.max(preferredLeft, minLeft), Math.max(minLeft, maxLeft));
+    const arrowCenter = Math.min(
+        Math.max((buttonRect.left + (buttonRect.width / 2)) - cardRect.left - left, 16),
+        Math.max(16, tooltipWidth - 16)
+    );
+
+    tooltip.style.setProperty('--card-tooltip-top', `${top}px`);
+    tooltip.style.setProperty('--card-tooltip-left', `${left}px`);
+    tooltip.style.setProperty('--card-tooltip-right', 'auto');
+    tooltip.style.setProperty('--card-tooltip-arrow-left', `${arrowCenter}px`);
+}
+
+function queueChamberInfoPosition(button = activeChamberInfoButton) {
+    if (!button) return;
+    if (chamberInfoPositionFrame) cancelAnimationFrame(chamberInfoPositionFrame);
+    chamberInfoPositionFrame = requestAnimationFrame(() => {
+        chamberInfoPositionFrame = 0;
+        positionChamberInfoTooltip(button);
+    });
+}
 
 function setChamberInfoOpen(button, open) {
     if (!button) return;
@@ -1624,7 +1674,10 @@ function setChamberInfoOpen(button, open) {
     button.classList.toggle('is-open', open);
     button.setAttribute('aria-expanded', open ? 'true' : 'false');
     tooltip?.classList.toggle('is-open', open);
-    if (open) activeChamberInfoButton = button;
+    if (open) {
+        activeChamberInfoButton = button;
+        queueChamberInfoPosition(button);
+    }
     else if (activeChamberInfoButton === button) activeChamberInfoButton = null;
 }
 
@@ -1643,6 +1696,8 @@ function wireChamberInfoGlobals() {
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') closeActiveChamberInfo();
     });
+    window.addEventListener('resize', () => queueChamberInfoPosition(), { passive: true });
+    window.addEventListener('scroll', () => queueChamberInfoPosition(), { passive: true, capture: true });
 }
 
 function ensureChamberInfoButton(card) {
@@ -1693,14 +1748,14 @@ function ensureChamberInfoButton(card) {
             setChamberInfoOpen(info, false);
             info.focus({ preventScroll: true });
         });
+        info.addEventListener('pointerenter', () => queueChamberInfoPosition(info));
+        info.addEventListener('focus', () => queueChamberInfoPosition(info));
     }
     wireChamberInfoGlobals();
 
     if (!tooltip) {
         tooltip = document.createElement('div');
         tooltip.className = 'card-tooltip';
-        tooltip.id = `tooltip-${key}`;
-        tooltip.setAttribute('role', 'tooltip');
         tooltip.innerHTML = `
             <div class="tooltip-content">
                 <h4>${escapeHtml(copy.title)}</h4>
@@ -1709,6 +1764,9 @@ function ensureChamberInfoButton(card) {
             </div>
         `;
     }
+
+    tooltip.id = `tooltip-${key}`;
+    tooltip.setAttribute('role', 'tooltip');
 
     if (tooltip.previousElementSibling !== info) {
         info.insertAdjacentElement('afterend', tooltip);
@@ -2499,7 +2557,7 @@ function initUptimeClock() {
     let lastBlockTime = null;
     let recentBlockTimes = []; // last N block timestamps for finality avg
     let chainBakersText = '';
-    let chainFinalityText = '12s';
+    let chainFinalityText = '—';
     let chainStakedText = '';
     let chainIssuanceText = '';
     const topContinuityAnimations = new Map();
@@ -3164,6 +3222,9 @@ function initUptimeClock() {
                     const finalityText = `${finality}s`;
                     const finalityChanged = chainFinalityText !== finalityText;
                     chainFinalityText = finalityText;
+                    const finalityButton = document.querySelector('[data-card-history="finality"]');
+                    finalityButton?.classList.remove('is-loading');
+                    finalityButton?.removeAttribute('aria-busy');
                     const liveFinalityOptions = { changed: finalityChanged, animateInitial: true };
                     if (finalityEl) setMagicNumber(finalityEl, finalityText, liveFinalityOptions);
                     setChainText('chain-uptime-finality', finalityText, liveFinalityOptions);
@@ -3184,9 +3245,13 @@ function initUptimeClock() {
         }
     }
 
-    // Poll immediately then every 6 seconds (one block time)
-    pollBlock();
-    setInterval(pollBlock, 6000);
+    // Poll immediately then every 6 seconds while the document is visible.
+    const pollBlockWhenVisible = () => {
+        if (document.visibilityState === 'visible') pollBlock();
+    };
+    pollBlockWhenVisible();
+    setInterval(pollBlockWhenVisible, 6000);
+    document.addEventListener('visibilitychange', pollBlockWhenVisible);
 
     // Expose update function for baker/staking/issuance data from main refresh cycle
     window._updateUptimeClock = function(data) {
@@ -4911,8 +4976,78 @@ window.TezosStats = { refresh };
 // ==========================================
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
+        let updateToastVisible = false;
+        let reloadRequested = false;
+        let reloading = false;
+
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!reloadRequested || reloading) return;
+            reloading = true;
+            window.location.reload();
+        });
+
+        const showUpdatePrompt = (reg) => {
+            if (updateToastVisible || !reg.waiting || !navigator.serviceWorker.controller) return;
+            updateToastVisible = true;
+            enqueueToast({
+                priority: 0,
+                duration: 15000,
+                show(done, duration) {
+                    const toast = document.createElement('div');
+                    toast.className = 'visit-streak-toast service-worker-update-toast';
+                    toast.setAttribute('role', 'status');
+                    toast.setAttribute('aria-live', 'polite');
+                    const copy = document.createElement('span');
+                    copy.className = 'visit-streak-copy';
+                    copy.textContent = 'A fresh Tezos Systems build is ready.';
+                    const button = document.createElement('button');
+                    button.className = 'visit-streak-share';
+                    button.type = 'button';
+                    button.textContent = 'Update';
+                    toast.append(copy, button);
+                    document.body.appendChild(toast);
+                    requestAnimationFrame(() => toast.classList.add('visible'));
+
+                    let closed = false;
+                    const close = () => {
+                        if (closed) return;
+                        closed = true;
+                        toast.classList.remove('visible');
+                        window.setTimeout(() => {
+                            toast.remove();
+                            updateToastVisible = false;
+                            done();
+                        }, 500);
+                    };
+                    button.addEventListener('click', () => {
+                        reloadRequested = true;
+                        button.disabled = true;
+                        button.textContent = 'Updating…';
+                        reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
+                    });
+                    window.setTimeout(close, duration);
+                }
+            });
+        };
+
         navigator.serviceWorker.register('/sw.js').then((reg) => {
             debugLog('📦 Service Worker registered, scope:', reg.scope);
+            showUpdatePrompt(reg);
+            reg.addEventListener('updatefound', () => {
+                const worker = reg.installing;
+                worker?.addEventListener('statechange', () => {
+                    if (worker.state === 'installed') showUpdatePrompt(reg);
+                });
+            });
+
+            let lastUpdateCheck = 0;
+            const checkForUpdate = () => {
+                if (document.visibilityState !== 'visible' || Date.now() - lastUpdateCheck < 60 * 60 * 1000) return;
+                lastUpdateCheck = Date.now();
+                reg.update().catch(() => {});
+            };
+            document.addEventListener('visibilitychange', checkForUpdate);
+            checkForUpdate();
         }).catch((err) => {
             console.warn('SW registration failed:', err);
         });
@@ -4929,7 +5064,7 @@ function initOfflineIndicator() {
         if (banner) return;
         banner = document.createElement('div');
         banner.className = 'offline-banner';
-        banner.textContent = '📡 Offline — showing cached data';
+        banner.textContent = '📡 Offline — live network data unavailable';
         document.body.prepend(banner);
     }
 

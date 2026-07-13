@@ -124,12 +124,12 @@ const ETHERLINK_UPVOTERS_BIGMAP = '990002';
 const ETHERLINK_UPVOTE_COUNTS_BIGMAP = '990003';
 const EXPECTED_CHAMBER_ORDER = [
   'network-pulse-entry-card',
-  'staking-entry-card',
   'network-health',
   'chamber-entry-card',
   'tezlink-entry-card',
   'etherlink-governance-entry-card',
   'tz4-adoption',
+  'staking-entry-card',
   'lb-entry-card',
   'ledger-flow-entry-card',
   'protocol-history-entry-card',
@@ -402,7 +402,8 @@ const SPARKLINE_LATEST_EXPECTATIONS = [
 
 async function assertAllSparklineLatestValues(page, label) {
   await page.waitForFunction((expectations) => {
-    const stats = JSON.parse(localStorage.getItem('tezos-systems-stats') || 'null');
+    const stats = window.__smokeLatestStats
+      || JSON.parse(localStorage.getItem('tezos-systems-stats') || 'null');
     if (!stats) return false;
 
     return expectations.every(([, canvasId, statKey]) => {
@@ -413,10 +414,11 @@ async function assertAllSparklineLatestValues(page, label) {
       const actual = Number(values.at(-1));
       return Number.isFinite(expected) && chart && values.length >= 2 && Number.isFinite(actual) && Math.abs(actual - expected) <= 0.01;
     });
-  }, SPARKLINE_LATEST_EXPECTATIONS, { timeout: 10000 });
+  }, SPARKLINE_LATEST_EXPECTATIONS, { timeout: 10000 }).catch(() => {});
 
   const state = await page.evaluate((expectations) => {
-    const stats = JSON.parse(localStorage.getItem('tezos-systems-stats') || 'null');
+    const stats = window.__smokeLatestStats
+      || JSON.parse(localStorage.getItem('tezos-systems-stats') || 'null');
     if (!stats) return { ready: false, missingStats: true, mismatches: [] };
 
     const mismatches = [];
@@ -1064,6 +1066,8 @@ async function installStakingChamberMocks(page, requestLog) {
 
 async function installFeatureMocks(context, options = {}) {
   let lbBlocksHead = 12345678;
+  let rpcHeaderLevel = 12345678;
+  let rpcHeaderTimestamp = Date.now();
   const blockHeadLagMs = Number(options.blockHeadLagMs) || 0;
   const networkHealthBlocksDelayMs = Number(options.networkHealthBlocksDelayMs) || 0;
   const etherlinkQuiet = Boolean(options.etherlinkQuiet);
@@ -1071,7 +1075,6 @@ async function installFeatureMocks(context, options = {}) {
   const governanceNoProposal = Boolean(options.governanceNoProposal);
   const governanceLiveVote = Boolean(options.governanceLiveVote);
   const governanceAdoptionPeriod = Boolean(options.governanceAdoptionPeriod);
-  const nakamotoStale = Boolean(options.nakamotoStale);
   const nullCycleTiming = Boolean(options.nullCycleTiming);
   const forwardDomainAddress = Object.prototype.hasOwnProperty.call(options, 'forwardDomainAddress')
     ? options.forwardDomainAddress
@@ -1174,12 +1177,6 @@ async function installFeatureMocks(context, options = {}) {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        headers: nakamotoStale ? {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Expose-Headers': 'X-Tezos-Systems-Cache, X-Tezos-Systems-Observed-At',
-          'X-Tezos-Systems-Cache': 'stale',
-          'X-Tezos-Systems-Observed-At': '2026-07-10T12:34:56.000Z'
-        } : {},
         body: JSON.stringify([
           '300',
           [
@@ -1417,7 +1414,10 @@ async function installFeatureMocks(context, options = {}) {
         });
       }
       if (url.includes('/header')) {
-        return fulfillJson(route, { level: 12345678, timestamp: new Date().toISOString() });
+        const level = rpcHeaderLevel++;
+        const timestamp = new Date(rpcHeaderTimestamp).toISOString();
+        rpcHeaderTimestamp += 6000;
+        return fulfillJson(route, { level, timestamp });
       }
       if (url.includes('/dal_participation')) {
         return fulfillJson(route, {
@@ -2300,10 +2300,9 @@ async function assertChamberOrder(page, label) {
   );
   const expectedPairs = [
     ['network-pulse-entry-card'],
-    ['staking-entry-card'],
     ['network-health', 'chamber-entry-card'],
     ['tezlink-entry-card', 'etherlink-governance-entry-card'],
-    ['tz4-adoption', 'lb-entry-card'],
+    ['tz4-adoption', 'staking-entry-card', 'lb-entry-card'],
     ['ledger-flow-entry-card', 'protocol-history-entry-card'],
     ['maxis-entry-card'],
     ['tezos-domains-entry-card']
@@ -2317,8 +2316,8 @@ async function assertChamberOrder(page, label) {
     `${label}: Network Pulse must stay as its own top strip, saw ${JSON.stringify(chamberState.pairs.at(0))}`
   );
   assert(
-    chamberState.pairs.at(1)?.length === 1 && chamberState.pairs.at(1)?.[0] === 'staking-entry-card',
-    `${label}: Staking Chamber must stay as its own narrow strip below Network Pulse, saw ${JSON.stringify(chamberState.pairs.at(1))}`
+    chamberState.pairs.at(3)?.join(',') === 'tz4-adoption,staking-entry-card,lb-entry-card',
+    `${label}: Staking Chamber must sit between tz4 Adoption and Liquidity Baking, saw ${JSON.stringify(chamberState.pairs.at(3))}`
   );
   assert(
     chamberState.pairs.at(-1)?.length === 1 && chamberState.pairs.at(-1)?.[0] === 'tezos-domains-entry-card',
@@ -2329,12 +2328,14 @@ async function assertChamberOrder(page, label) {
 async function assertChamberControlGeometry(page, label) {
   const issues = await page.evaluate(() => {
     const cardSelectors = [
+      '#network-pulse-entry-card',
       '#chamber-entry-card',
       '#staking-entry-card',
       '#tezlink-entry-card',
       '#etherlink-governance-entry-card',
       '#lb-entry-card',
       '#ledger-flow-entry-card',
+      '#protocol-history-entry-card',
       '#maxis-entry-card',
       '#tezos-domains-entry-card',
       '#chambers-section [data-stat="tz4-adoption"]',
@@ -2519,6 +2520,57 @@ async function assertChamberControlGeometry(page, label) {
   assert(issues.length === 0, `${label}: chamber controls should not overlap content or each other: ${JSON.stringify(issues)}`);
 }
 
+async function assertChamberInfoTooltipsContained(page, label) {
+  const selectors = [
+    '#staking-entry-card',
+    '#chambers-section [data-stat="tz4-adoption"]',
+    '#lb-entry-card',
+    '#chambers-section [data-stat="network-health"]'
+  ];
+
+  for (const selector of selectors) {
+    const button = page.locator(`${selector} > .card-info-btn`);
+    await button.scrollIntoViewIfNeeded();
+    await button.click();
+    await page.waitForFunction((cardSelector) => (
+      document.querySelector(`${cardSelector} > .card-info-btn`)?.getAttribute('aria-expanded') === 'true'
+    ), selector, { timeout: 5000 });
+    await page.waitForTimeout(350);
+
+    const geometry = await page.locator(selector).evaluate((card) => {
+      const tooltip = card.querySelector(':scope > .card-tooltip');
+      const box = tooltip?.getBoundingClientRect();
+      return {
+        left: box?.left ?? -1,
+        right: box?.right ?? -1,
+        top: box?.top ?? -1,
+        bottom: box?.bottom ?? -1,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        visible: Boolean(tooltip && getComputedStyle(tooltip).visibility === 'visible'),
+        tooltipClass: tooltip?.className || '',
+        buttonClass: card.querySelector(':scope > .card-info-btn')?.className || '',
+        expanded: card.querySelector(':scope > .card-info-btn')?.getAttribute('aria-expanded') || '',
+        adjacent: tooltip?.previousElementSibling === card.querySelector(':scope > .card-info-btn'),
+        scrollable: Boolean(tooltip && tooltip.scrollHeight > tooltip.clientHeight + 1),
+        maxHeight: tooltip ? getComputedStyle(tooltip).maxHeight : ''
+      };
+    });
+    assert(
+      geometry.visible
+        && geometry.left >= 10
+        && geometry.top >= 10
+        && geometry.right <= geometry.viewportWidth - 10
+        && geometry.bottom <= geometry.viewportHeight - 10,
+      `${label}: ${selector} info tooltip must remain fully inside the viewport: ${JSON.stringify(geometry)}`
+    );
+    await page.keyboard.press('Escape');
+    await page.waitForFunction((cardSelector) => (
+      document.querySelector(`${cardSelector} > .card-info-btn`)?.getAttribute('aria-expanded') === 'false'
+    ), selector, { timeout: 5000 });
+  }
+}
+
 async function readMaxisLauncherGeometry(page) {
   return page.locator('#maxis-entry-card').evaluate((card) => {
     const visible = (node) => {
@@ -2592,6 +2644,7 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     await page.locator('#chamber-entry-card.chamber-entry-wide[data-chamber-entry-size="wide"] .chamber-entry-metric strong').first().waitFor({ state: 'visible', timeout: 10000 });
   }
   await assertChamberControlGeometry(page, label);
+  await assertChamberInfoTooltipsContained(page, label);
 
   const state = await page.evaluate(() => {
     const rect = (node) => {
@@ -2615,12 +2668,28 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       footerText: card.querySelector('.chamber-entry-footer .chamber-entry-freshness')?.textContent?.trim() || '',
       hasOpenCue: Boolean(card.querySelector('.chamber-entry-footer > .chamber-expand-cue'))
     }));
+    const titles = Array.from(document.querySelectorAll('#chambers-section .chamber-entry-card')).map((card) => {
+      const title = card.querySelector(':scope .card-front .chamber-entry-title');
+      const style = title ? window.getComputedStyle(title) : null;
+      return {
+        id: card.id || card.dataset.stat || '',
+        title: title?.textContent?.trim() || '',
+        fontFamily: style?.fontFamily || '',
+        fontSize: style?.fontSize || '',
+        fontWeight: style?.fontWeight || '',
+        letterSpacing: style?.letterSpacing || '',
+        textTransform: style?.textTransform || '',
+        surfaceWired: card.dataset.chamberSurfaceWired || '',
+        cueTag: card.querySelector('.chamber-entry-footer > .chamber-expand-cue')?.tagName || ''
+      };
+    });
     return {
       chamberWide: document.querySelector('#chamber-entry-card')?.classList.contains('chamber-entry-wide') || false,
       chamberText: document.querySelector('#chamber-entry-card')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       metricColumns,
       metricTruncations,
       footers,
+      titles,
       tezlinkTitleClip: Boolean(tezlinkCardBox && tezlinkLabelBox && tezlinkLabelBox.top < tezlinkCardBox.top - 1),
       tezlinkCardBox,
       tezlinkLabelBox
@@ -2632,6 +2701,14 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
   assert(viewport.width >= 760 ? state.metricColumns === 2 : state.metricColumns >= 1, `${label}: unexpected live vote metric columns: ${state.metricColumns}`);
   assert(!state.tezlinkTitleClip, `${label}: Tezos X title should remain inside the card: ${JSON.stringify({ card: state.tezlinkCardBox, label: state.tezlinkLabelBox })}`);
   assert(state.footers.length >= 6 && state.footers.every((footer) => footer.updatedLabel === footer.footerText && footer.hasOpenCue), `${label}: chamber footer rail should own freshness and open cue on every card: ${JSON.stringify(state.footers)}`);
+  assert(state.titles.length === EXPECTED_CHAMBER_ORDER.length, `${label}: expected a normalized title for every Chamber card: ${JSON.stringify(state.titles)}`);
+  const referenceTitle = state.titles.find((title) => title.id === 'network-health') || state.titles[0];
+  assert(state.titles.every((title) => title.title && title.surfaceWired === '1' && title.cueTag === 'BUTTON'), `${label}: every Chamber must expose the shared card surface and native Open action: ${JSON.stringify(state.titles)}`);
+  assert(state.titles.every((title) => title.fontFamily === referenceTitle.fontFamily
+    && title.fontSize === referenceTitle.fontSize
+    && title.fontWeight === referenceTitle.fontWeight
+    && title.letterSpacing === referenceTitle.letterSpacing
+    && title.textTransform === 'uppercase'), `${label}: Chamber title typography must match the compact uppercase reference: ${JSON.stringify(state.titles)}`);
   assert(issues.length === 0, `${label}: browser issues:\n${issues.join('\n')}`);
   await context.close();
 }
@@ -3082,6 +3159,7 @@ async function smokeAppShell(browser, baseUrl) {
       csp,
       cssVersion,
       faviconCount: document.querySelectorAll('link[rel="icon"]').length,
+      faviconHrefs: Array.from(document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="mask-icon"]')).map((link) => link.getAttribute('href') || ''),
       footerAffiliationHref: document.querySelector('.powered-by a[href="https://tez.capital"]')?.getAttribute('href') || '',
       footerBuilderHref: document.querySelector('.powered-by a[href="https://github.com/Primate411"]')?.getAttribute('href') || '',
       footerBuilderText: document.querySelector('.powered-by')?.textContent?.trim() || '',
@@ -3123,8 +3201,9 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.manifest.json?.name === 'Tezos Systems', `app shell: manifest name mismatch: ${shell.manifest.json?.name}`);
   assert((shell.manifest.json?.icons || []).length >= 4, 'app shell: manifest should expose standard and maskable icons');
   assert(shell.iconResults.every((icon) => icon.ok), `app shell: manifest icons failed: ${shell.iconResults.filter((icon) => !icon.ok).map((icon) => `${icon.src} ${icon.status}`).join(', ')}`);
-  assert(shell.manifestHref === 'site.webmanifest', `app shell: manifest link mismatch: ${shell.manifestHref}`);
+  assert(shell.manifestHref === '/site.webmanifest', `app shell: manifest link mismatch: ${shell.manifestHref}`);
   assert(shell.faviconCount >= 3, `app shell: expected multiple favicon links, saw ${shell.faviconCount}`);
+  assert(shell.faviconHrefs.every((href) => href.startsWith('/')), `app shell: favicon links must survive route rewrites: ${shell.faviconHrefs.join(', ')}`);
   assert(shell.canonical === 'https://tezos.systems/', `app shell: canonical URL mismatch: ${shell.canonical}`);
   assert(shell.license.ok && shell.license.text.startsWith('Mozilla Public License Version 2.0'), `app shell: /LICENSE missing or invalid (${shell.license.status})`);
   assert(shell.licenseMetaHref === '/LICENSE' && shell.footerLicenseHref === '/LICENSE', `app shell: MPL-2.0 metadata/footer links missing (${shell.licenseMetaHref}, ${shell.footerLicenseHref})`);
@@ -3187,6 +3266,7 @@ async function smokeAppShell(browser, baseUrl) {
 }
 
 async function smokeHeroCommandBar(browser, baseUrl) {
+  const intentNavigationTimeout = 15000;
   const issues = [];
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
@@ -3301,6 +3381,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(firstProtocolInHistory === 'Ushuaia', `hero command bar: Protocol History Chamber should start at current protocol, saw ${firstProtocolInHistory}`);
   await page.locator('#protocol-history-chamber-modal .chamber-close').click();
   await page.locator('#protocol-history-chamber-modal').waitFor({ state: 'detached', timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'header-protocol-chip', null, { timeout: 5000 });
 
   await page.keyboard.press('/');
   await page.waitForFunction(() => document.activeElement?.id === 'hero-search-input', null, { timeout: 5000 });
@@ -3477,9 +3558,10 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   const intentPage = await context.newPage();
   attachIssueCollectors(intentPage, 'hero command bar exact intents', issues);
   const seedIntent = async (query, expectedTitle) => {
-    const intentResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+    const intentResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'commit' });
     assert(intentResponse?.ok(), `hero command bar exact intents: dashboard failed with HTTP ${intentResponse?.status()}`);
     await intentPage.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 10000 });
+    await intentPage.waitForFunction(() => document.querySelectorAll('#hero-search-chips button').length > 0, null, { timeout: 10000 });
     await intentPage.locator('#hero-search-input').fill(query);
     await intentPage.waitForFunction(({ value, title }) => {
       const input = document.getElementById('hero-search-input');
@@ -3490,6 +3572,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   const immediateResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(immediateResponse?.ok(), `hero command bar immediate intent: dashboard failed with HTTP ${immediateResponse?.status()}`);
+  await intentPage.waitForFunction(() => document.querySelectorAll('#hero-search-chips button').length > 0, null, { timeout: 10000 });
   await intentPage.locator('#hero-search-input').focus();
   await intentPage.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'My Tezos', null, { timeout: 5000 });
   await intentPage.evaluate(() => {
@@ -3498,7 +3581,9 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
   });
-  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('lane') === 'transaction' && !url.searchParams.has('view'), { timeout: 5000 });
+  await intentPage.waitForFunction(() => location.pathname === '/maxis/'
+    && new URLSearchParams(location.search).get('lane') === 'transaction'
+    && !new URLSearchParams(location.search).has('view'), null, { timeout: 5000 });
 
   await seedIntent('my tezos', 'My Tezos');
   await intentPage.locator('#hero-search-input').press('Enter');
@@ -3513,23 +3598,23 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await seedIntent(SAMPLE_ADDRESS, 'Inspect account');
   await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: `Open ${SAMPLE_ADDRESS} in Maxi Passport` }).click();
-  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'passport' && url.searchParams.get('address') === SAMPLE_ADDRESS, { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'passport' && url.searchParams.get('address') === SAMPLE_ADDRESS, { timeout: intentNavigationTimeout });
 
   await seedIntent('transaction maxi', 'Transaction Maxi');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('lane') === 'transaction' && !url.searchParams.has('view'), { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('lane') === 'transaction' && !url.searchParams.has('view'), { timeout: intentNavigationTimeout });
 
   await seedIntent('transaction season', 'Transaction Maxi Season');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'transaction', { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'transaction', { timeout: intentNavigationTimeout });
 
   await seedIntent('delegation maxi', 'Delegation Maxi Season');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'delegation', { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === 'season' && url.searchParams.get('lane') === 'delegation', { timeout: intentNavigationTimeout });
 
   await seedIntent('tezos vs ethereum', 'Tezos vs Ethereum');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/compare/tezos-vs-ethereum.html', { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/compare/tezos-vs-ethereum.html', { timeout: intentNavigationTimeout });
 
   await seedIntent('/changelog', '/changelog');
   await intentPage.locator('#hero-search-input').press('Enter');
@@ -3540,7 +3625,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await seedIntent('/stake', 'Staking Chamber');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/stake/' && !url.hash, { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/stake/' && !url.hash, { timeout: intentNavigationTimeout });
 
   for (const [query, title, view] of [
     ['maxi passport', 'Maxi Passport', 'passport'],
@@ -3549,12 +3634,12 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   ]) {
     await seedIntent(query, title);
     await intentPage.locator('#hero-search-input').press('Enter');
-    await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === view && !url.hash, { timeout: 5000 });
+    await intentPage.waitForURL((url) => url.pathname === '/maxis/' && url.searchParams.get('view') === view && !url.hash, { timeout: intentNavigationTimeout });
   }
 
   await seedIntent('nft', 'HEN Live Feed');
   await intentPage.locator('#hero-search-input').press('Enter');
-  await intentPage.waitForURL((url) => url.pathname === '/hen/' && !url.searchParams.has('hen'), { timeout: 5000 });
+  await intentPage.waitForURL((url) => url.pathname === '/hen/' && !url.searchParams.has('hen'), { timeout: intentNavigationTimeout });
 
   await context.close();
 
@@ -3805,6 +3890,7 @@ async function smokeStakingChamber(browser, baseUrl) {
       cardWidth: rect?.width || 0,
       gridWidth: gridRect?.width || 0,
       pair: pair?.dataset.chamberPair || '',
+      pairOrder: Array.from(pair?.querySelectorAll(':scope > .chamber-entry-card') || []).map((entry) => entry.id || entry.dataset.stat || ''),
       pairWidth: pairRect?.width || 0,
       ratio: document.querySelector('#staking-entry-ratio')?.textContent?.trim() || '',
       rows: card?.querySelectorAll('.staking-entry-move').length || 0,
@@ -3814,7 +3900,13 @@ async function smokeStakingChamber(browser, baseUrl) {
   assert(cardState.rows === 2 && cardState.actions.join(',') === 'stake,unstake', `${label}: launcher must be a fixed two-row stake/unstake tape ${JSON.stringify(cardState)}`);
   assert(cardState.amounts.join(',') === '25500000000,32000000000', `${label}: launcher selected exact actual amounts instead of strict >10K receipts ${JSON.stringify(cardState)}`);
   assert(cardState.ratio === '27.62%', `${label}: launcher must show the canonical current staking ratio, saw ${cardState.ratio}`);
-  assert(!cardState.wide && cardState.pair === 'staking' && cardState.cardWidth <= 466 && cardState.cardWidth < cardState.gridWidth * 0.5, `${label}: launcher is not the requested narrow standalone chamber ${JSON.stringify(cardState)}`);
+  assert(
+    !cardState.wide
+      && cardState.pair === 'tz4-staking-liquidity'
+      && cardState.pairOrder.join(',') === 'tz4-adoption,staking-entry-card,lb-entry-card'
+      && cardState.cardWidth < cardState.gridWidth * 0.35,
+    `${label}: launcher must sit between tz4 Adoption and Liquidity Baking in the shared row ${JSON.stringify(cardState)}`
+  );
 
   await page.locator('#staking-entry-card').click();
   await page.locator('#staking-chamber-modal.active .staking-chamber-content').waitFor({ state: 'visible', timeout: 10000 });
@@ -3939,6 +4031,8 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
     cardTag: document.querySelector('#network-pulse-entry-card')?.tagName || '',
     cardRole: document.querySelector('#network-pulse-entry-card')?.getAttribute('role'),
     cardTabIndex: document.querySelector('#network-pulse-entry-card')?.getAttribute('tabindex'),
+    surfaceWired: document.querySelector('#network-pulse-entry-card')?.dataset.chamberSurfaceWired || '',
+    cueTag: document.querySelector('#network-pulse-entry-card .chamber-expand-cue')?.tagName || '',
     explicitOpenActions: document.querySelectorAll('#network-pulse-entry-card .network-pulse-entry-open').length,
     metricCount: document.querySelectorAll('#network-pulse-entry-metrics [data-pulse-entry-key]').length,
     freshness: document.querySelector('#network-pulse-entry-freshness')?.textContent?.trim() || '',
@@ -3950,7 +4044,7 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
 
   assert(state.statsVisible === null, `${label}: legacy full-stats visibility must remain unset, saw ${state.statsVisible}`);
   assert(!state.modalOpen, `${label}: regression must hydrate without opening the Network Pulse modal`);
-  assert(state.cardTag === 'ARTICLE' && state.cardRole === null && state.cardTabIndex === null, `${label}: entry card must be a non-interactive article around its controls: ${JSON.stringify(state)}`);
+  assert(state.cardTag === 'ARTICLE' && state.cardRole === 'article' && state.cardTabIndex === null && state.surfaceWired === '1' && state.cueTag === 'BUTTON', `${label}: entry card must expose the shared full-card surface and native Open control: ${JSON.stringify(state)}`);
   assert(state.explicitOpenActions === 1, `${label}: entry card needs one explicit Open action: ${JSON.stringify(state)}`);
   assert(state.metricCount === 10, `${label}: expected 10 launcher metrics, saw ${state.metricCount}`);
   assert(/history/i.test(state.freshness), `${label}: mixed-source freshness should disclose history fallback, saw ${state.freshness}`);
@@ -3958,6 +4052,11 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
     Object.entries(expected).every(([key, value]) => state.values[key] === value),
     `${label}: history-backed lower row did not hydrate: ${JSON.stringify(state.values)}`
   );
+
+  await page.locator('#network-pulse-entry-card .chamber-entry-title').click();
+  await page.locator('#network-pulse-modal.active').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#network-pulse-modal .chamber-close').click();
+  await page.locator('#network-pulse-modal').waitFor({ state: 'hidden', timeout: 5000 });
 
   await page.locator('#network-pulse-entry-card .network-pulse-entry-open').click();
   await page.locator('#network-pulse-modal.active [data-network-pulse-section="rooms"]').waitFor({ state: 'visible', timeout: 10000 });
@@ -3979,6 +4078,7 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
     serviceWorkers: 'block'
   });
   await context.grantPermissions(['clipboard-write'], { origin: baseUrl });
+  await installFeatureMocks(context);
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
@@ -5236,7 +5336,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
   });
-  await installFeatureMocks(context, { blockHeadLagMs: 90000, networkHealthBlocksDelayMs: 500, nakamotoStale: true });
+  await installFeatureMocks(context, { blockHeadLagMs: 90000, networkHealthBlocksDelayMs: 500 });
   await context.addInitScript((myBakerAddress) => {
     window.__tezosSystemsIntervals = [];
     window.__healthPrintState = { html: '', focused: false, printed: false };
@@ -5311,6 +5411,10 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
 
   const response = await page.goto(`${baseUrl}/#health`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `network health chamber: dashboard failed with HTTP ${response?.status()}`);
+  assert(
+    (await page.locator('#hero-chain-uptime-finality').textContent())?.trim() === '—',
+    'network health chamber: finality should remain unknown until three block observations exist'
+  );
   await page.locator('#network-health-modal.active .health-content').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#network-health-modal.active .chamber-loading-fill').waitFor({ state: 'visible', timeout: 5000 });
   const loaderState = await page.evaluate(async () => {
@@ -5350,6 +5454,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.waitForFunction(() => /Octez Versions/.test(document.querySelector('#health-octez-versions')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /Block/.test(document.querySelector('#block-ticker-line')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => /\d+s/.test(document.querySelector('#hero-chain-uptime-finality')?.textContent || ''), null, { timeout: 20000 });
 
   const healthState = await page.evaluate(() => {
     const modal = document.querySelector('#network-health-modal');
@@ -5636,7 +5741,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.teztaleNomadicHref.includes('gitlab.com/nomadic-labs/teztale'), `network health chamber: Teztale source credit link missing: ${healthState.teztaleNomadicHref}`);
   assert(healthState.nakamotoImmediatelyBeforeTeztale, 'network health chamber: Nakamoto Coefficients should sit directly above the Teztale Consensus Lens');
   assert(healthState.nakamoto33 === '1' && healthState.nakamoto66 === '2', `network health chamber: live Nakamoto thresholds mismatch: ${healthState.nakamoto33}/${healthState.nakamoto66}`);
-  assert(/cached current-cycle snapshot/i.test(healthState.nakamotoText) && /2026-07-10 12:34 UTC/.test(healthState.nakamotoText), `network health chamber: stale Nakamoto provenance missing: ${healthState.nakamotoText}`);
+  assert(/live current-cycle snapshot/i.test(healthState.nakamotoText), `network health chamber: live Nakamoto provenance missing: ${healthState.nakamotoText}`);
   assert(/Halt \/ fault boundary/.test(healthState.nakamotoText) && /Unilateral quorum control/.test(healthState.nakamotoText), `network health chamber: Nakamoto threshold labels missing: ${healthState.nakamotoText}`);
   assert(/Chainspect/.test(healthState.nakamotoText) && /Edinburgh EDI/.test(healthState.nakamotoText) && /CoinClear/.test(healthState.nakamotoText), `network health chamber: external Nakamoto sources missing: ${healthState.nakamotoText}`);
   assert(/33% claimed/.test(healthState.nakamotoText) && /50%/.test(healthState.nakamotoText) && /threshold unstated/.test(healthState.nakamotoText), `network health chamber: external threshold context missing: ${healthState.nakamotoText}`);
@@ -7302,6 +7407,7 @@ async function smokeTezlinkChamber(browser, baseUrl) {
   await openButton.focus();
   await openButton.click();
   await page.locator('#tezlink-modal.active .tezlink-content').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('#tezlink-refresh-state')?.textContent?.startsWith('auto-refresh'), null, { timeout: 10000 });
   await page.evaluate(() => {
     const dialog = document.querySelector('#tezlink-modal.active .tezlink-content');
     const focusable = Array.from(dialog?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])') || [])
@@ -8575,7 +8681,8 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await page.locator('#tour-overlay').waitFor({ state: 'detached', timeout: 2000 }).catch(() => {
     throw new Error('first visit tour: tour overlay should not block first paint before Start');
   });
-  await page.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 6000 });
+  await page.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 12000 });
+  await assertLocatorCount(page.locator('.visit-streak-toast.visible'), 0, 'first visit welcome and help nudge overlap');
   const nudgeText = await page.locator('.tour-nudge').innerText();
   assert(/Need a hand/i.test(nudgeText) && /Help is available/i.test(nudgeText) && /Show help/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
   await assertLocatorCount(page.locator('.tour-nudge .tour-start'), 1, 'first visit tour start');
@@ -8629,7 +8736,8 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   response = await mobilePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `first visit tour mobile: dashboard failed with HTTP ${response?.status()}`);
   await mobilePage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
-  await mobilePage.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 6000 });
+  await mobilePage.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 12000 });
+  await assertLocatorCount(mobilePage.locator('.visit-streak-toast.visible'), 0, 'mobile first visit welcome and help nudge overlap');
   await mobilePage.locator('#features-gear').click();
   await mobilePage.locator('#features-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
   await mobilePage.locator('.tour-nudge').waitFor({ state: 'detached', timeout: 3000 });
@@ -8702,7 +8810,6 @@ async function smokeUxChanges(browser, baseUrl) {
   assert(/255,\s*255,\s*255/.test(pickerColors.bg), `ux changes: clean share picker background not white (${pickerColors.bg})`);
   await page.locator('#section-picker-modal .share-modal-close').click();
 
-  await installFeatureMocks(context);
   const cleanChambers = [
     { hash: 'pulse', content: '#network-pulse-modal.active .network-pulse-content', title: '.network-pulse-header .chamber-title' },
     { hash: 'health', content: '#network-health-modal.active .health-content', title: '.health-header .chamber-title' },
@@ -8774,6 +8881,10 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
   await installFeatureMocks(context);
   await context.addInitScript(() => {
+    window.__smokeLatestStats = null;
+    window.addEventListener('stats-updated', (event) => {
+      if (event.detail?.stats) window.__smokeLatestStats = event.detail.stats;
+    });
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-systems-stats-visible', 'true');
     localStorage.setItem('tezos-toured', '1');
@@ -9536,7 +9647,7 @@ async function smokeWidgetBuilder(browser, baseUrl) {
 
   await page.locator('.code-tab[data-tab="markdown"]').click();
   const markdownCode = await page.locator('#code-text').innerText();
-  assert(markdownCode.includes('![Tezos'), 'widget builder markdown code should render');
+  assert(markdownCode.startsWith('[Open the Tezos price widget]('), `widget builder Markdown should render a direct widget link: ${markdownCode}`);
   assert(markdownCode.includes('utm_medium=widget_markdown') && markdownCode.includes('utm_campaign=tezos_systems_widgets'), `widget builder markdown should carry attribution params: ${markdownCode}`);
   const previewUrl = await page.locator('#preview-frame').getAttribute('src');
   assert(previewUrl.includes('utm_medium=widget') && previewUrl.includes('utm_content=price'), `widget builder preview URL should carry widget attribution params: ${previewUrl}`);

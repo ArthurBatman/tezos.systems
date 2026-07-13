@@ -918,6 +918,13 @@ export function init() {
         target.textContent = message || '';
         if (tone) target.dataset.tone = tone;
         else delete target.dataset.tone;
+        if (tone === 'error') {
+            target.setAttribute('role', 'alert');
+            target.setAttribute('aria-live', 'assertive');
+        } else {
+            target.removeAttribute('role');
+            target.setAttribute('aria-live', 'polite');
+        }
     }
 
     async function normalizeAddressInput(raw, statusEl) {
@@ -1039,11 +1046,11 @@ export function init() {
     // Drawer empty-state connect button
     const drawerConnectBtn = document.getElementById('drawer-connect-btn');
     const drawerAddressInput = document.getElementById('drawer-address-input');
+    const drawerAddressStatus = document.getElementById('drawer-address-status');
     if (drawerConnectBtn && drawerAddressInput) {
         drawerConnectBtn.addEventListener('click', async () => {
             const raw = drawerAddressInput.value.trim();
-            if (!raw) return;
-            await saveAddress(raw, { statusEl: errorMsg, openDrawer: false });
+            await saveAddress(raw, { statusEl: drawerAddressStatus, openDrawer: false });
         });
         drawerAddressInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') drawerConnectBtn.click();

@@ -14,6 +14,7 @@
 import { escapeHtml, formatLiveCountdown, setDataFreshnessState, startLiveTimeTicker } from '../core/utils.js';
 import { API_URLS } from '../core/config.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
+import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const PROTOCOL_DATA_URL = '/data/protocol-data.json';
@@ -2162,7 +2163,13 @@ export function initChamber() {
     }
     
     const grid = document.getElementById('chambers-grid') || govSection?.querySelector('.stats-grid');
-    if (document.getElementById('chamber-entry-card')) {
+    const existingCard = document.getElementById('chamber-entry-card');
+    if (existingCard) {
+        wireChamberLauncher(existingCard, {
+            open: openChamber,
+            label: 'Open Tezos L1 Governance Chamber',
+            titleSelector: '.stat-label'
+        });
         loadEntryCardStatus({ force: true });
         startEntryCardRefresh();
         return;
@@ -2183,9 +2190,12 @@ export function initChamber() {
                 </div>
             </div>
         `;
-        card.style.cursor = 'pointer';
-        card.addEventListener('click', openChamber);
         grid.prepend(card);
+        wireChamberLauncher(card, {
+            open: openChamber,
+            label: 'Open Tezos L1 Governance Chamber',
+            titleSelector: '.stat-label'
+        });
         
         loadEntryCardStatus({ force: true });
         startEntryCardRefresh();

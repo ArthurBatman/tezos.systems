@@ -9,7 +9,8 @@ import { fetchXTZPrice } from './price.js';
 
 const STORAGE_KEY = 'tezos-calc-state';
 const DEBOUNCE_MS = 300;
-const CYCLES_PER_YEAR = 486.7;
+const HOURS_PER_YEAR = 365.25 * 24;
+const FALLBACK_CYCLE_HOURS = 18;
 const FALLBACK_ACTIVATION_DELAY_CYCLES = 2;
 
 let debounceTimer = null;
@@ -92,9 +93,9 @@ function calcRewards(amount, apyPct) {
     };
 }
 
-function calcCompound(amount, apyPct, years) {
+function calcCompound(amount, apyPct, years, cyclesPerYear) {
     const rate = apyPct / 100;
-    return amount * Math.pow(1 + rate / CYCLES_PER_YEAR, CYCLES_PER_YEAR * years);
+    return amount * Math.pow(1 + rate / cyclesPerYear, cyclesPerYear * years);
 }
 
 function saveState() {
@@ -165,14 +166,16 @@ async function getProtocolTiming() {
         cachedProtocolTiming = {
             verified: Number.isFinite(delay) && delay >= 0,
             activationDelayCycles: Number.isFinite(delay) && delay >= 0 ? delay : FALLBACK_ACTIVATION_DELAY_CYCLES,
-            cycleHours: liveCycleHours || (365.25 * 24 / CYCLES_PER_YEAR)
+            cycleVerified: Number.isFinite(liveCycleHours),
+            cycleHours: liveCycleHours || FALLBACK_CYCLE_HOURS
         };
         return cachedProtocolTiming;
     } catch (_) {
         cachedProtocolTiming = {
             verified: false,
             activationDelayCycles: FALLBACK_ACTIVATION_DELAY_CYCLES,
-            cycleHours: 365.25 * 24 / CYCLES_PER_YEAR
+            cycleVerified: false,
+            cycleHours: FALLBACK_CYCLE_HOURS
         };
         return cachedProtocolTiming;
     }
@@ -341,7 +344,7 @@ async function updateResults() {
     removeBreakdown();
     if (amount <= 0) { clearResults(); return; }
 
-    const [apy, price] = await Promise.all([getAPY(), getXTZPrice()]);
+    const [apy, price, timing] = await Promise.all([getAPY(), getXTZPrice(), getProtocolTiming()]);
     if (updateId !== updateSequence || mode !== currentMode) return;
     const grossApy = mode === 'stake' ? apy.stakeAPY : apy.delegateAPY;
     if (!Number.isFinite(grossApy) || grossApy <= 0) {
@@ -388,7 +391,7 @@ async function updateResults() {
     setUsdResult('calc-yearly-usd', rewards.yearly, price);
     renderPayoutLine();
 
-    renderCompound(amount, apyPct, price, assumptionLabel);
+    renderCompound(amount, apyPct, price, assumptionLabel, timing);
 }
 
 async function updateBakerResults(ownStake, updateId) {
@@ -399,7 +402,7 @@ async function updateBakerResults(ownStake, updateId) {
 
     if (ownStake <= 0 && extStaked <= 0 && extDelegated <= 0) { clearResults(); return; }
 
-    const [apy, price] = await Promise.all([getAPY(), getXTZPrice()]);
+    const [apy, price, timing] = await Promise.all([getAPY(), getXTZPrice(), getProtocolTiming()]);
     if (updateId !== updateSequence || currentMode !== 'baker') return;
     if (!Number.isFinite(apy?.stakeAPY) || apy.stakeAPY <= 0
         || !Number.isFinite(apy?.delegateAPY) || apy.delegateAPY <= 0) {
@@ -466,12 +469,14 @@ async function updateBakerResults(ownStake, updateId) {
     }
 
     // Compound based on total income reinvested to own stake
-    renderCompound(ownStake, effectiveAPY, price, `${stakingFee}% external-staker edge · ${delegPayout}% delegator payout`);
+    renderCompound(ownStake, effectiveAPY, price, `${stakingFee}% external-staker edge · ${delegPayout}% delegator payout`, timing);
 }
 
-function renderCompound(amount, apyPct, price, assumptionLabel = '') {
+function renderCompound(amount, apyPct, price, assumptionLabel = '', timing = null) {
     const compoundRows = document.getElementById('calc-compound-body');
     if (!compoundRows || amount <= 0) { clearCompound(); return; }
+    const cycleHours = Number(timing?.cycleHours) > 0 ? Number(timing.cycleHours) : FALLBACK_CYCLE_HOURS;
+    const cyclesPerYear = HOURS_PER_YEAR / cycleHours;
 
     while (compoundRows.firstChild) compoundRows.removeChild(compoundRows.firstChild);
     latestProjection = {
@@ -480,11 +485,13 @@ function renderCompound(amount, apyPct, price, assumptionLabel = '') {
         price,
         mode: currentMode,
         assumptionLabel,
+        cycleHours,
+        cycleVerified: timing?.cycleVerified === true,
         rows: []
     };
 
     for (let y = 1; y <= 5; y++) {
-        const total = calcCompound(amount, apyPct, y);
+        const total = calcCompound(amount, apyPct, y, cyclesPerYear);
         const earned = total - amount;
         const gainPct = (earned / amount) * 100;
         latestProjection.rows.push({ year: y, total, earned, gainPct });
@@ -528,8 +535,8 @@ async function shareProjection(showAmounts, overlay) {
         }
         const { loadHtml2Canvas, showShareModal, appendCardSeal } = await import('../ui/share.js');
         await loadHtml2Canvas();
-        const timing = await getProtocolTiming();
-        const cycleLabel = formatCycleHours(timing.cycleHours);
+        const cycleLabel = formatCycleHours(latestProjection.cycleHours);
+        const cycleSource = latestProjection.cycleVerified ? 'current protocol timing' : 'an 18h fallback cadence';
         const fiveYear = latestProjection.rows[latestProjection.rows.length - 1];
         const gainText = `+${formatNum(fiveYear.gainPct, 1)}%`;
         const modeLabel = latestProjection.mode === 'delegate'
@@ -561,7 +568,7 @@ async function shareProjection(showAmounts, overlay) {
                 <div style="width:220px;height:1px;background:#00ff88;opacity:0.5;margin:14px 0 28px;"></div>
                 <div style="font-size:13px;color:rgba(255,255,255,0.42);text-transform:uppercase;font-weight:850;letter-spacing:0;">${modeLabel}</div>
                 <h1 style="margin:12px 0 10px;font-size:58px;line-height:1;font-weight:900;color:#ffffff;">${gainText} over 5 years</h1>
-                <p style="margin:0 0 24px;font-size:19px;line-height:1.38;color:rgba(255,255,255,0.62);">Current network context · ${assumptionText}. Model assumes reinvestment every ~${cycleLabel}; returns are not promised. ${showAmounts ? 'Amounts included by request.' : 'Percentages only.'}</p>
+                <p style="margin:0 0 24px;font-size:19px;line-height:1.38;color:rgba(255,255,255,0.62);">Current network context · ${assumptionText}. Model assumes reinvestment every ~${cycleLabel} from ${cycleSource}; returns are not promised. ${showAmounts ? 'Amounts included by request.' : 'Percentages only.'}</p>
                 <div style="display:grid;gap:0;margin-top:8px;">${rowsHtml}</div>
             </div>
         `;

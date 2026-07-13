@@ -14,11 +14,12 @@ import {
 import { siteMapCanonicalRoute, siteMapRelated, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
 import { escapeHtml, formatLarge, formatPercentage, formatSupply } from '../core/utils.js';
+import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=426';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=429';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1534,6 +1535,14 @@ function bindEntryOpenAction(card) {
     button.addEventListener('click', () => openNetworkPulseChamber());
 }
 
+function wireEntryLauncher(card) {
+    wireChamberLauncher(card, {
+        open: openNetworkPulseChamber,
+        label: 'Open Network Pulse Chamber',
+        titleSelector: '#network-pulse-entry-title, .stat-label'
+    });
+}
+
 export async function openNetworkPulseChamber() {
     ensureNetworkPulseCss();
     const overlay = ensureOverlay();
@@ -1571,6 +1580,7 @@ export function initNetworkPulseChamber() {
         const existing = document.getElementById('network-pulse-entry-card');
         bindEntryMetricJumps(existing);
         bindEntryOpenAction(existing);
+        wireEntryLauncher(existing);
         updateEntryCard(lastKnownStats());
         scheduleEntryHistoryRefresh();
         return;
@@ -1602,6 +1612,7 @@ export function initNetworkPulseChamber() {
     bindEntryOpenAction(card);
 
     grid.prepend(card);
+    wireEntryLauncher(card);
     updateEntryCard(lastKnownStats());
     scheduleEntryHistoryRefresh();
 }

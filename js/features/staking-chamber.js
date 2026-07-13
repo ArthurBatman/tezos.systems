@@ -8,9 +8,10 @@ import { fetchHistoricalData, fetchStakingRatio } from '../core/api.js';
 import { siteMapRelated, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp } from '../core/storage.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
+import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=426';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=429';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
@@ -403,8 +404,6 @@ function ensureEntryCard() {
         card = document.createElement('div');
         card.id = 'staking-entry-card';
         card.className = 'stat-card chamber-entry-card staking-entry-card chamber-entry-live';
-        card.setAttribute('role', 'group');
-        card.setAttribute('aria-label', 'Open Staking Chamber');
         card.setAttribute('aria-busy', 'true');
         card.dataset.updatedLabel = 'Opening TzKT tape';
         card.innerHTML = `
@@ -413,7 +412,7 @@ function ensureEntryCard() {
                 <div class="card-front staking-entry-front">
                     <div class="staking-entry-head">
                         <div>
-                            <h2 class="stat-label"><button class="staking-entry-title-open" type="button">Staking Chamber</button></h2>
+                            <h2 class="stat-label">Staking Chamber</h2>
                             <span class="staking-entry-threshold">&gt;10K ꜩ</span>
                         </div>
                         <div class="staking-entry-ratio"><span>Network staked</span><strong id="staking-entry-ratio">—</strong></div>
@@ -433,13 +432,12 @@ function ensureEntryCard() {
         grid.appendChild(card);
     }
 
-    if (!card.dataset.stakingWired) {
-        card.addEventListener('click', (event) => {
-            if (event.target.closest('.card-copy-link, .card-share-btn, .card-info-btn, .card-tooltip')) return;
-            openStakingChamber();
-        });
-        card.dataset.stakingWired = '1';
-    }
+    wireChamberLauncher(card, {
+        open: openStakingChamber,
+        label: 'Open Staking Chamber',
+        titleSelector: '.stat-label'
+    });
+    card.dataset.stakingWired = '1';
     return card;
 }
 

@@ -51,5 +51,5 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run core browser smoke
-        run: node tests/smoke.mjs --only app-shell,hen-mode,route-crawl
+      - name: Run full browser smoke
+        run: npm run test:smoke

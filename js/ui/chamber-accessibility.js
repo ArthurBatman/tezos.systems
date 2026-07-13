@@ -13,6 +13,18 @@ const DIALOG_FOCUSABLE_SELECTOR = [
 ].join(',');
 
 const dialogStates = new WeakMap();
+const launcherOpens = new WeakMap();
+const CHAMBER_INTERACTIVE_SELECTOR = [
+    'a[href]',
+    'button',
+    'input',
+    'select',
+    'textarea',
+    'summary',
+    '[role="button"]',
+    '[contenteditable="true"]',
+    '.card-tooltip'
+].join(',');
 
 function visibleFocusableElements(root) {
     return [...root.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR)].filter((element) => (
@@ -25,6 +37,7 @@ function visibleFocusableElements(root) {
 function ensureLauncherTitle(card, titleSelector, fallbackId) {
     const title = card.querySelector(titleSelector || 'h1, h2, h3, .stat-label');
     if (!title) return '';
+    title.classList.add('chamber-entry-title');
     if (!title.id) title.id = fallbackId;
     return title.id;
 }
@@ -54,7 +67,8 @@ export function findChamberLauncher(cardSelector) {
 }
 
 /**
- * Make a Chamber card a labelled article with one explicit native Open action.
+ * Make a Chamber card a labelled article whose quiet surface and explicit
+ * native Open action launch the room. Nested controls retain their own action.
  */
 export function wireChamberLauncher(card, {
     open,
@@ -69,7 +83,19 @@ export function wireChamberLauncher(card, {
     else card.setAttribute('aria-label', label);
     card.removeAttribute('tabindex');
     card.removeAttribute('title');
-    card.style.cursor = 'default';
+    card.style.cursor = 'pointer';
+    card.classList.add('chamber-entry-launcher');
+    launcherOpens.set(card, open);
+
+    if (card.dataset.chamberSurfaceWired !== '1') {
+        card.dataset.chamberSurfaceWired = '1';
+        card.addEventListener('click', (event) => {
+            if (event.defaultPrevented) return;
+            const target = event.target instanceof Element ? event.target : null;
+            if (!target || target.closest(CHAMBER_INTERACTIVE_SELECTOR)) return;
+            launcherOpens.get(card)?.();
+        });
+    }
 
     const button = ensureOpenButton(card, label);
     if (!button) return null;
@@ -78,7 +104,7 @@ export function wireChamberLauncher(card, {
         button.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
-            open();
+            launcherOpens.get(card)?.();
         });
     }
     return button;

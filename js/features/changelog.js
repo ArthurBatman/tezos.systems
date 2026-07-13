@@ -5,6 +5,19 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-13',
+        entries: [
+            { type: '🎨', text: 'Staking now sits between tz4 Adoption and Liquidity Baking in one balanced row, every Chamber uses the same compact uppercase title treatment, and info popovers stay inside the viewport' },
+            { type: '🔧', text: 'Every Chamber card now opens from its quiet surface as well as its Open control, while links, sharing, snapshots, and info controls keep their own actions' },
+            { type: '🔧', text: 'Finality now starts unavailable until three live blocks establish cadence, partial network snapshots no longer replace good cached data, and calculator compounding follows current protocol cycle timing' },
+            { type: '🎨', text: 'Clean-theme launcher accents, health states, freshness labels, footer metadata, dark-theme descriptions, HEN lore controls, and first-visit help now remain readable without overlapping' },
+            { type: '⚡', text: 'Widget baker counts use the aggregate endpoint, all widget refreshes pause in hidden tabs, and Markdown output now links to the live widget instead of treating HTML as an image' },
+            { type: '🔒', text: 'Embeddable widgets no longer load third-party analytics, security reporting metadata is now published, and plugin metadata points to a site-owned read-only OpenAPI document' },
+            { type: '🔧', text: 'Service-worker updates now wait for a visible Update action, offline navigation has one honest explanation page, route-rewritten favicons stay rooted, and hash theme links apply before first paint' },
+            { type: '🔧', text: 'My Tezos address errors now appear beside the active empty-state form with live assistive announcements, notifications use an existing app icon, and legacy leaderboard caches are retired' }
+        ]
+    },
+    {
         date: '2026-07-12',
         entries: [
             { type: '🎨', text: 'Explore now fits its useful first choices on one mobile view: Chambers leads, Network Pulse, Staking, and Maxis follow, and specialist categories stay folded until requested' },

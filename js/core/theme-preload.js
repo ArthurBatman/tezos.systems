@@ -8,12 +8,14 @@
  */
 (function () {
     var DEFAULT = 'aurora';
-    var THEME_CSS_VERSION = '426';
+    var THEME_CSS_VERSION = '429';
     var VALID = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
     var t = null;
     try {
+        var h = new URLSearchParams(window.location.hash.slice(1)).get('theme');
+        if (h && VALID.indexOf(h) !== -1) t = h;
         var p = new URLSearchParams(window.location.search).get('theme');
-        if (p && VALID.indexOf(p) !== -1) t = p;
+        if (!t && p && VALID.indexOf(p) !== -1) t = p;
     } catch (e) {}
     if (!t) {
         try { t = localStorage.getItem('tezos-systems-theme'); } catch (e) {}

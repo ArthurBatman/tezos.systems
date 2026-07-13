@@ -25,15 +25,65 @@
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
 }
 
-#chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="staking"] {
-    grid-template-columns: minmax(0, 29rem);
-    justify-content: center;
+#chambers-grid .chamber-entry-card > .card-tooltip {
+    top: var(--card-tooltip-top, 3rem);
+    right: var(--card-tooltip-right, 0.5rem);
+    left: var(--card-tooltip-left, auto);
+    width: min(280px, calc(100% - 1rem));
+    max-width: calc(100% - 1rem);
+    max-height: var(--card-tooltip-max-height, calc(100vh - 24px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear !important;
 }
 
-#chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="staking"] > .staking-entry-card {
-    grid-column: 1 / -1 !important;
-    width: 100%;
-    max-width: 29rem;
+#chambers-grid .chamber-entry-card > .card-info-btn.is-open + .card-tooltip,
+#chambers-grid .chamber-entry-card > .card-tooltip.is-open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) scale(1) !important;
+    pointer-events: auto !important;
+}
+
+#chambers-grid .chamber-entry-card > .card-tooltip::before {
+    right: auto;
+    left: calc(var(--card-tooltip-arrow-left, calc(100% - 28px)) - 6px);
+}
+
+#chambers-grid .chamber-card-pair:has(> .chamber-entry-card > .card-info-btn:is(:hover, :focus-visible, .is-open)),
+#chambers-grid .chamber-card-pair:has(> .chamber-entry-card > .card-tooltip:is(:hover, .is-open)) {
+    position: relative;
+    z-index: 390;
+}
+
+#chambers-grid .chamber-entry-card:has(> .card-info-btn:is(:hover, :focus-visible, .is-open)),
+#chambers-grid .chamber-entry-card:has(> .card-tooltip:is(:hover, .is-open)) {
+    z-index: 400;
+    overflow: visible;
+}
+
+@media (min-width: 760px) and (max-width: 1099px) {
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tz4-staking-liquidity"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tz4-staking-liquidity"] > .tz4-entry-card {
+        grid-column: 1 / -1 !important;
+    }
+
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tz4-staking-liquidity"] > :is(.staking-entry-card, .lb-entry-card) {
+        grid-column: auto !important;
+    }
+}
+
+@media (min-width: 1100px) {
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tz4-staking-liquidity"] {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tz4-staking-liquidity"] > .chamber-entry-card {
+        grid-column: auto !important;
+    }
 }
 
 .staking-entry-card {
@@ -85,29 +135,13 @@
     min-width: 0;
     margin: 0;
     overflow: hidden;
-    color: var(--text-primary);
-    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.staking-entry-title-open {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-weight: inherit;
-    letter-spacing: inherit;
-    cursor: pointer;
-}
-
-.staking-entry-title-open:is(:hover, :focus-visible) {
-    color: var(--staking-accent);
-    outline: none;
-    text-decoration: underline;
-    text-underline-offset: 3px;
 }
 
 .staking-entry-threshold,
@@ -1056,14 +1090,6 @@
 @media (max-width: 759px) {
     .staking-chamber-overlay {
         padding: 0.4375rem;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="staking"] {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="staking"] > .staking-entry-card {
-        max-width: none;
     }
 
     #chambers-grid .staking-entry-card {

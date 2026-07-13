@@ -6,7 +6,7 @@
  * so installing an update does not download the whole site.
  */
 
-const CACHE_NAME = 'tezos-systems-v426';
+const CACHE_NAME = 'tezos-systems-v429';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CURRENT_CACHES = new Set([CACHE_NAME, RUNTIME_CACHE]);
 
@@ -16,8 +16,6 @@ const API_NETWORK_TIMEOUT_MS = 12_000;
 // Minimum viable shell. The rest of the module graph is cached as the browser
 // requests it during normal use.
 const SHELL_ASSETS = [
-    '/',
-    '/index.html',
     '/offline.html',
     '/css/styles.min.css',
     '/css/loading.css',
@@ -140,8 +138,11 @@ self.addEventListener('install', (event) => {
             .then((cache) => Promise.allSettled(
                 SHELL_ASSETS.map((url) => cache.add(url).catch(() => console.warn('SW: skip', url)))
             ))
-            .then(() => self.skipWaiting())
     );
+});
+
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

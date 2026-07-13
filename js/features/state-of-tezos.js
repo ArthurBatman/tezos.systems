@@ -4,7 +4,7 @@
  * the current state of the Tezos network.
  */
 
-import { API_URLS } from '../core/config.js';
+import { API_URLS, REFRESH_INTERVALS } from '../core/config.js';
 import { loadHtml2Canvas, showShareModal } from '../ui/share.js';
 import { fetchVotingStatus, getVotingPeriodName } from '../features/governance.js';
 import { getTzktTotalStaked } from '../core/api.js';
@@ -138,13 +138,15 @@ async function fetchSnapshotData() {
         }
     } catch { /* graceful fallback */ }
 
-    // 4. XTZ price from localStorage cache
+    // 4. XTZ price from the shared session cache (kept warm by price.js).
     try {
-        const cached = localStorage.getItem('tezos-systems-price-cache');
+        const cached = sessionStorage.getItem('tezos_price_cache');
         if (cached) {
             const parsed = JSON.parse(cached);
-            if (parsed.price) {
-                data.price = `$${Number(parsed.price).toFixed(4)}`;
+            const price = Number(parsed?.data?.usd);
+            const age = Date.now() - Number(parsed?.timestamp || 0);
+            if (Number.isFinite(price) && price > 0 && age >= 0 && age <= REFRESH_INTERVALS.price) {
+                data.price = `$${price.toFixed(4)}`;
             }
         }
     } catch { /* graceful fallback */ }

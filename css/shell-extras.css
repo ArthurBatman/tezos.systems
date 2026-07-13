@@ -2286,6 +2286,10 @@
 }
 
 .hen-lore-line button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 24px;
     width: 24px;
     height: 24px;
     border: 1px solid var(--hen-line, var(--border));
@@ -2484,9 +2488,17 @@
     }
 
     .hen-lore-line {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 32px;
         align-items: flex-start;
         justify-content: space-between;
         text-align: left;
+    }
+
+    .hen-lore-line button {
+        width: 32px;
+        height: 32px;
+        margin-top: -4px;
     }
 }
 

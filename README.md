@@ -806,9 +806,9 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v425`, including hero search, theme
+- Current aligned shell cache stamp: `v429`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
-- Current Tezos Domains lazy CSS stamp: `v317`.
+- Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated
   surfaces, runs focused README contract checks, then stamps version metadata.
@@ -890,10 +890,11 @@ The builder renders its widget type buttons, theme swatches, combo-stat
 checkboxes, preview URLs, and embed snippets from `widgets/runtime.js`. The
 combo widget supports baker count, XTZ price, block height, staking ratio,
 current protocol, cycle, head freshness, and tz4 baking-power adoption, capped
-to four stats per embed. Builder iframe and Markdown snippets add widget UTM
-params, and raw widgets load the shared GoatCounter initializer so embed
-impressions and copy events can be measured. Builder copy success uses the
-site-owner language and heartbeat affordance from the dashboard polish pass.
+to four stats per embed. Builder iframe and Markdown-link snippets add widget
+UTM params. Raw widgets retain visible Tezos Systems attribution but do not load
+third-party analytics in an embedding site; the first-party builder can still
+measure its own copy actions. Builder copy success uses the site-owner language
+and heartbeat affordance from the dashboard polish pass.
 
 ## SEO And Analytics
 
@@ -906,10 +907,12 @@ site-owner language and heartbeat affordance from the dashboard polish pass.
 - `index.html` includes CSP, Open Graph/Twitter metadata, and JSON-LD.
 - `.well-known/ai-plugin.json` describes the current live/historical data model
   using the canonical September 17, 2018 mainnet date and avoids stale
-  two-minute refresh claims.
+  two-minute refresh claims. It points to the site-owned read-only OpenAPI
+  document; `.well-known/security.txt` publishes private reporting routes.
 - GoatCounter is used for privacy-friendly analytics: `tezsys.goatcounter.com`.
   The shared initializer also exposes loop events for share actions,
-  governance-alert actions, and widget-builder copy events.
+  governance-alert actions, and widget-builder copy events. Embeddable raw
+  widgets do not load GoatCounter in third-party pages.
 - Shared PNG/tweet/native share flows rewrite Tezos Systems links with campaign
   params, keep X copy editable in the modal, and can persist an optional handle
   for card credit; the History modal has a direct `#history` copy control plus
@@ -919,6 +922,10 @@ site-owner language and heartbeat affordance from the dashboard polish pass.
 
 - Service worker cache can hide changes during QA. Hard refresh or unregister
   the service worker if local behavior looks stale.
+- A newly installed service worker waits until the visible Update action is
+  accepted before taking control, preventing a mid-session HTML/module split.
+  Offline navigations deliberately render `offline.html`; the shell/runtime
+  cache is an asset accelerator, not an offline copy of live telemetry.
 - `index.html` serves `css/styles.min.css`; editing only `css/styles.css` is
   not enough for deploy.
 - Share captures are fragile around chart rendering, gradient text, canvas

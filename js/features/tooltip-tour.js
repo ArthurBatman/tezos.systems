@@ -124,7 +124,7 @@
 
     function hasActiveSurface() {
         return Boolean(document.querySelector(
-            '.my-tezos-drawer.open, .modal-overlay.active, .chamber-overlay.active, .share-modal-overlay.visible, .share-modal-overlay.active, .settings-dropdown.open'
+            '.my-tezos-drawer.open, .modal-overlay.active, .chamber-overlay.active, .share-modal-overlay.visible, .share-modal-overlay.active, .settings-dropdown.open, .visit-streak-toast.visible, .moment-toast.visible'
         ));
     }
 

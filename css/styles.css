@@ -407,6 +407,11 @@ body[data-theme="aurora"]::after {
     --accent-purple: #2563EB;
     --accent-pink: #DC2626;
     --accent-blue: #2563EB;
+    --accent: var(--accent-cyan);
+    --accent-color: var(--accent-cyan);
+    --border: var(--glass-border);
+    --border-color: var(--glass-border);
+    --text-dim: var(--text-tertiary);
     --chamber-live-color: #047857;
     --chamber-good-color: #047857;
     --chamber-watch-color: #B45309;
@@ -1458,6 +1463,19 @@ body::before {
 .block-ticker-health.degraded .block-ticker-value,
 .block-ticker-strip[data-block-health="degraded"] .block-ticker-dot {
     color: #ff6b7a;
+}
+
+[data-theme="clean"] .block-ticker-health.peak .block-ticker-value,
+[data-theme="clean"] .block-ticker-health.healthy .block-ticker-value {
+    color: #047857;
+}
+
+[data-theme="clean"] .block-ticker-health.watch .block-ticker-value {
+    color: #92400E;
+}
+
+[data-theme="clean"] .block-ticker-health.degraded .block-ticker-value {
+    color: #B91C1C;
 }
 
 @keyframes blockTickerPanelPulse {
@@ -3237,6 +3255,27 @@ body::before {
     border-color: rgba(255, 68, 102, 0.28);
     color: #ff4466;
     background: rgba(255, 68, 102, 0.1);
+}
+
+[data-theme="clean"] .network-health-status.healthy,
+[data-theme="clean"] .network-health-score.healthy,
+[data-theme="clean"] .network-health-period.healthy .network-health-period-value,
+[data-theme="clean"] .network-health-block.healthy .network-health-block-bar {
+    color: #047857;
+}
+
+[data-theme="clean"] .network-health-status.watch,
+[data-theme="clean"] .network-health-score.watch,
+[data-theme="clean"] .network-health-period.watch .network-health-period-value,
+[data-theme="clean"] .network-health-block.watch .network-health-block-bar {
+    color: #92400E;
+}
+
+[data-theme="clean"] .network-health-status.degraded,
+[data-theme="clean"] .network-health-score.degraded,
+[data-theme="clean"] .network-health-period.degraded .network-health-period-value,
+[data-theme="clean"] .network-health-block.degraded .network-health-block-bar {
+    color: #B91C1C;
 }
 
 .network-health-blocks {
@@ -5320,8 +5359,8 @@ body::before {
 }
 
 .build-version {
-    font-size: 0.55rem;
-    color: rgba(255, 255, 255, 0.18);
+    font-size: 0.625rem;
+    color: var(--text-tertiary);
     font-family: 'SF Mono', 'Fira Code', monospace;
     margin-top: 1.35rem;
     letter-spacing: 0;
@@ -5329,13 +5368,7 @@ body::before {
     transition: color 0.4s;
 }
 .build-version:hover {
-    color: rgba(255, 255, 255, 0.45);
-}
-[data-theme="clean"] .build-version {
-    color: rgba(0, 0, 0, 0.22);
-}
-[data-theme="clean"] .build-version:hover {
-    color: rgba(0, 0, 0, 0.5);
+    color: var(--text-secondary);
 }
 
 .error-message {
@@ -8462,6 +8495,10 @@ body.high-combo .stat-card {
 
 .visit-streak-toast.milestone {
     border-color: var(--streak-toast-strong-border);
+    pointer-events: auto;
+}
+
+.visit-streak-toast.service-worker-update-toast {
     pointer-events: auto;
 }
 
@@ -12056,7 +12093,7 @@ body {
 /* Force all stat values to #E8E8E8 */
 [data-theme="dark"] .stat-value { color: #E8E8E8 !important; }
 [data-theme="dark"] .stat-label { color: #9A9A9A; }
-[data-theme="dark"] .stat-description { color: #737373; }
+[data-theme="dark"] .stat-description { color: #A0A0A0; }
 [data-theme="dark"] .title { color: #E8EAED; background: none; -webkit-text-fill-color: #E8EAED; }
 [data-theme="dark"] .glass-button:hover { border-color: #484848; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
 
@@ -13499,6 +13536,12 @@ body {
 
 .offline-banner.hidden {
     transform: translateY(-100%);
+}
+
+[data-theme="clean"] .offline-banner {
+    color: #991B1B;
+    background: rgba(254, 226, 226, 0.96);
+    border-bottom-color: #FCA5A5;
 }
 
 /* ==========================================
@@ -17101,6 +17144,17 @@ body {
     text-transform: uppercase;
 }
 
+[data-theme="clean"] .chamber-entry-freshness {
+    color: #475569;
+    opacity: 1;
+}
+
+[data-theme="clean"] .chamber-entry-card.chamber-data-stale .chamber-entry-freshness {
+    color: #92400E;
+    opacity: 1;
+    text-shadow: none;
+}
+
 .chamber-entry-card.chamber-data-stale .chamber-entry-freshness {
     color: var(--chamber-watch-color, #f5b84b);
     opacity: 0.96;
@@ -17326,7 +17380,7 @@ body {
         grid-column: span 2;
     }
 
-    #chambers-grid > .chamber-card-pair:is([data-chamber-pair="tezlink-governance"], [data-chamber-pair="tz4-liquidity"]) > .chamber-entry-card {
+    #chambers-grid > .chamber-card-pair:is([data-chamber-pair="tezlink-governance"], [data-chamber-pair="tz4-staking-liquidity"]) > .chamber-entry-card {
         height: 228px;
     }
 
@@ -21097,7 +21151,7 @@ body {
     }
 
     .tz4-entry-card.chamber-entry-wide .stat-label {
-        font-size: 0.86rem;
+        font-size: 0.75rem;
     }
 
     .tz4-entry-card.chamber-entry-wide .stat-value {
@@ -22528,7 +22582,7 @@ body[data-theme="nerv"]::after {
     --accent-color: var(--hen-cyan);
     --border: var(--hen-line);
     --border-color: var(--hen-line);
-    --text-dim: #707070;
+    --text-dim: #8A8A8A;
     --chamber-live-color: var(--hen-green);
     --chamber-good-color: var(--hen-green);
     --chamber-watch-color: var(--hen-amber);

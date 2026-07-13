@@ -72,14 +72,11 @@
   <div class="sub" id="sub">Tezos network</div>
   <a class="footer" href="https://tezos.systems/?utm_source=tezos_systems&utm_medium=widget_attribution&utm_campaign=tezos_systems_widgets&utm_content=baker-count" target="_blank" rel="noopener">powered by tezos.systems -></a>
 </div>
-<script src="//gc.zgo.at/count.js" async></script>
-<script src="../js/core/goatcounter-init.js"></script>
 <script type="module">
 import {
   applyWidgetTheme,
   fetchWidgetJson,
   formatCount,
-  poweredBakers,
   startWidgetRefresh,
   WIDGET_ENDPOINTS
 } from './runtime.js';
@@ -92,9 +89,9 @@ import {
 
   async function fetchData(){
     try{
-      const bakers=await fetchWidgetJson(WIDGET_ENDPOINTS.activeBakers());
-      if(Array.isArray(bakers)){
-        valEl.textContent=formatCount(poweredBakers(bakers).length);
+      const count=await fetchWidgetJson(WIDGET_ENDPOINTS.activeBakerCount());
+      if(Number.isFinite(Number(count))){
+        valEl.textContent=formatCount(count);
         valEl.classList.remove('loading');
         subEl.textContent='Active on Tezos mainnet';
       }

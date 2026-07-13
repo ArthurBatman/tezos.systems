@@ -183,7 +183,7 @@ function checkAlerts(price) {
       if (Notification.permission === 'granted') {
         new Notification(`XTZ Price Alert`, {
           body: `XTZ ${a.direction === 'above' ? 'reached' : 'dropped to'} $${fmt(price, 3)} (target: $${fmt(a.target, 3)})`,
-          icon: '/favicon.ico'
+          icon: '/icon-192.png'
         });
       }
     } else {

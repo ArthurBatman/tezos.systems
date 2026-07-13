@@ -235,6 +235,10 @@ async function checkRequiredFiles() {
     'version.json',
     'LICENSE',
     'NOTICE',
+    'SECURITY.md',
+    '.well-known/ai-plugin.json',
+    '.well-known/openapi.json',
+    '.well-known/security.txt',
     'widgets/runtime.js',
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
@@ -772,6 +776,15 @@ async function checkCacheBustAlignment() {
   if (!shellAssetsBlock.includes("'/offline.html'") || !sw.includes("caches.match('/offline.html')")) {
     fail('sw.js must precache and serve the self-contained offline navigation page');
   }
+  if (shellAssetsBlock.includes("'/'") || shellAssetsBlock.includes("'/index.html'")) {
+    fail('sw.js must not precache navigable dashboard HTML when offline navigations deliberately use offline.html');
+  }
+  if (!sw.includes("event.data?.type === 'SKIP_WAITING'") || !app.includes("reg.waiting?.postMessage({ type: 'SKIP_WAITING' })")) {
+    fail('service-worker updates must wait for an explicit visible user action');
+  }
+  if (!themePreload.includes("window.location.hash.slice(1)") || !themePreload.includes("get('theme')")) {
+    fail('theme-preload.js must honor hash theme deep links before first paint');
+  }
   pass('service worker uses a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
 
   if (!index.includes('<meta property="og:image:width" content="1200">') || !index.includes('<meta property="og:image:height" content="630">')) {
@@ -1119,10 +1132,17 @@ async function checkSelectorContracts() {
     ['Protocol History Chamber reveal helper', 'function revealProtocolHistorySection', app],
     ['shared Chamber launcher article semantics', "card.setAttribute('role', 'article')", chamberAccessibility],
     ['shared Chamber native Open action', "cue.tagName !== 'BUTTON'", chamberAccessibility],
+    ['shared Chamber title normalization', "title.classList.add('chamber-entry-title')", chamberAccessibility],
+    ['shared Chamber full-card launcher', "card.dataset.chamberSurfaceWired !== '1'", chamberAccessibility],
+    ['shared Chamber nested control exclusion', 'target.closest(CHAMBER_INTERACTIVE_SELECTOR)', chamberAccessibility],
     ['shared Chamber focus trap', "event.key !== 'Tab'", chamberAccessibility],
     ['shared Chamber Escape close', "event.key === 'Escape'", chamberAccessibility],
     ['shared Chamber opener restoration', 'state?.opener?.isConnected', chamberAccessibility],
     ['Protocol Anthology accessible launcher', 'wireChamberLauncher(card', app],
+    ['Network Pulse accessible launcher', 'wireChamberLauncher(card', networkPulse],
+    ['Tezos L1 Governance accessible launcher', 'wireChamberLauncher(card', chamber],
+    ['Liquidity Baking accessible launcher', 'wireChamberLauncher(card', lb],
+    ['Staking accessible launcher', 'wireChamberLauncher(card', stakingChamber],
     ['Tezos X accessible launcher and dialog', 'activateChamberDialog(overlay', tezlink],
     ['Tezos X Governance accessible launcher and dialog', 'activateChamberDialog(overlay', etherlinkGovernance],
     ['tz4 accessible launcher and dialog', 'activateChamberDialog(overlay', tz4],
@@ -1130,6 +1150,9 @@ async function checkSelectorContracts() {
     ['Tezos Domains accessible launcher and dialog', 'activateChamberDialog(overlay', tezosDomains],
     ['Network Health accessible launcher', 'wireChamberLauncher(card', health],
     ['Tezos Maxis accessible launcher', 'wireChamberLauncher(card', maxis],
+    ['Staking uses the shared plain Chamber label', '<h2 class="stat-label">Staking Chamber</h2>', stakingChamber],
+    ['Staking compact Chamber label size', 'font-size: 0.75rem;', stakingChamberCss],
+    ['Maxis compact Chamber label override', '#chambers-grid .maxis-entry-season-title.chamber-entry-title', maxisCss],
     ['Protocol History Chamber timeline toggle target', 'protocol-timeline-toggle-btn', app],
     ['Protocol History Chamber action styles', '.protocol-history-chamber-action', heroSearchCss],
     ['Hero search mode body class', "document.body.classList.toggle('hero-search-mode'", search],
@@ -1244,8 +1267,6 @@ async function checkSelectorContracts() {
     ['API aggregate quality receipt', 'qualityFromSettled', api],
     ['API failed category receipt', 'failedCategories', api],
     ['API unavailable APY receipt', "status: 'unavailable'", api],
-    ['API service-worker stale receipt', "response.headers.get('X-Tezos-Systems-Cache') !== 'stale'", api],
-    ['API stale memory-cache guard', "memoryCache && provenance?.status !== 'stale'", api],
     ['Network Pulse XTZ price card history', "'xtz-price'", history],
     ['Network Pulse market cap card history', "'market-cap'", history],
     ['Network Pulse L2 transactions card history', "'l2-transactions'", history],
@@ -1254,7 +1275,7 @@ async function checkSelectorContracts() {
     ['Staking Chamber legacy short hash route', "hash === 'stake'", app],
     ['Staking Chamber pretty route opens without hash redirect', "case 'staking':", app],
     ['Staking Chamber modal cleanup', 'closeStakingChamber', app],
-    ['Staking Chamber card pair', "key: 'staking'", app],
+    ['Staking Chamber card pair', "key: 'tz4-staking-liquidity'", app],
     ['Staking Chamber card copy link', 'data-copy-hash="#staking"', stakingChamber],
     ['Staking Chamber card ratio', 'id="staking-entry-ratio"', stakingChamber],
     ['Staking Chamber two-action tape', "renderEntryMove('stake', data?.stake)}${renderEntryMove('unstake', data?.unstake)", stakingChamber],
@@ -1276,9 +1297,10 @@ async function checkSelectorContracts() {
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
     ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
     ['Staking Chamber share route', 'siteMapCanonicalRoute', share],
-    ['Staking Chamber narrow desktop pair', 'grid-template-columns: minmax(0, 29rem)', stakingChamberCss],
-    ['Staking Chamber narrow desktop cap', 'max-width: 29rem', stakingChamberCss],
-    ['Staking Chamber mobile single-column pair', 'grid-template-columns: minmax(0, 1fr)', stakingChamberCss],
+    ['Staking Chamber sits between tz4 and Liquidity Baking', "selectors: ['[data-stat=\"tz4-adoption\"]', '#staking-entry-card', '#lb-entry-card']", app],
+    ['Staking Chamber shared three-card desktop row', 'data-chamber-pair="tz4-staking-liquidity"', stakingChamberCss],
+    ['Chamber info tooltip viewport positioning', 'positionChamberInfoTooltip(button)', app],
+    ['Chamber info tooltip bounded height', '--card-tooltip-max-height', stakingChamberCss],
     ['Staking Chamber mobile operation rows', '.staking-operation-row {', stakingChamberCss],
     ['Chamber card copy link', 'data-copy-hash="#chamber"', chamber],
     ['Tezos L1 Governance card label', 'Tezos L1 Governance', chamber],
@@ -1977,6 +1999,7 @@ async function checkSelectorContracts() {
     ['Chamber rich share panel label', 'Visible Chamber Panel', share],
     ['Chamber generated info helper', 'function ensureChamberInfoButton(card)', app],
     ['Chamber generated info copy', 'CHAMBER_INFO_COPY', app],
+    ['Chamber generated info canonical tooltip id', 'tooltip.id = `tooltip-${key}`;', app],
     ['Chamber top control lane', '--chamber-control-lane', styles],
     ['Chamber content avoids top-right controls', 'padding-right: var(--chamber-control-lane);', styles],
     ['Chamber controls layer above card content', '#chambers-grid .chamber-entry-card > .card-copy-link', styles],
@@ -2076,6 +2099,12 @@ async function checkSelectorContracts() {
 
 async function checkUxAuditContracts() {
   const index = await readText('index.html');
+  const api = await readText('js/core/api.js');
+  const app = await readText('js/core/app.js');
+  const storage = await readText('js/core/storage.js');
+  const calculator = await readText('js/features/calculator.js');
+  const stateOfTezos = await readText('js/features/state-of-tezos.js');
+  const tooltipTour = await readText('js/features/tooltip-tour.js');
   const siteMapCss = await readText('css/site-map.css');
   const landingCss = await readText('css/landing.css');
   const siteNav = await readText('js/landing/site-nav.js');
@@ -2159,6 +2188,28 @@ async function checkUxAuditContracts() {
   if (!index.includes('<a href="/landing.html">Start here</a>') || !siteNav.includes('<a href="/landing.html">Start here</a>')) {
     fail('dashboard and standalone footers must expose the non-forced Start here route');
   }
+  for (const href of ['/favicon.svg', '/favicon-48.png', '/favicon-32.png', '/favicon-16.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/site.webmanifest']) {
+    if (!index.includes(`href="${href}"`)) fail(`root shell asset must survive history route rewrites: ${href}`);
+  }
+  if (!index.includes('id="drawer-address-status"') || !index.includes('id="hero-chain-uptime-finality">—</strong>')) {
+    fail('My Tezos validation and finality must ship honest visible initial states');
+  }
+  if (api.includes('X-Tezos-Systems-Observed-At') || api.includes("response.headers.get('X-Tezos-Systems-Cache')")) {
+    fail('api.js must not keep dead service-worker stale-response readers');
+  }
+  if (!storage.includes("stats?._quality?.status !== 'live'")) {
+    fail('partial or unavailable aggregate stats must not replace the last good storage cache');
+  }
+  if (!stateOfTezos.includes("sessionStorage.getItem('tezos_price_cache')") || stateOfTezos.includes('tezos-systems-price-cache')) {
+    fail('State of Tezos must use the actual shared XTZ price cache schema');
+  }
+  if (calculator.includes('486.7') || !calculator.includes('HOURS_PER_YEAR / cycleHours')) {
+    fail('calculator compounding cadence must derive from protocol cycle timing');
+  }
+  if (!app.includes("document.addEventListener('visibilitychange', pollBlockWhenVisible)") || !tooltipTour.includes('.visit-streak-toast.visible')) {
+    fail('RPC polling and first-visit surfaces must respect document visibility and toast occupancy');
+  }
+  if (await pathExists('js/features/objkt-ui.js')) fail('orphaned OBJKT UI module must stay retired');
   if (!changelog.includes('Keyboard visitors now get a sitewide skip link')) {
     fail('changelog must disclose the July UI/UX audit implementation');
   }
@@ -2204,9 +2255,8 @@ async function checkWidgetRuntimeContracts() {
     'WIDGET_UTM_CAMPAIGN',
     'export function trackedDashboardUrl',
     "params.set('utm_medium', 'widget')",
-    "trackWidgetEvent('impression'",
     'widget_attribution',
-    'widget_markdown'
+    'export function markdownCode'
   ]) {
     if (!runtimeSource.includes(snippet)) fail(`widget attribution runtime missing ${snippet}`);
   }
@@ -2232,8 +2282,8 @@ async function checkWidgetRuntimeContracts() {
     if (!text.includes('powered by tezos.systems ->')) {
       fail(`${file} footer must visibly credit tezos.systems`);
     }
-    if (!text.includes('../js/core/goatcounter-init.js')) {
-      fail(`${file} must load the shared GoatCounter initializer for widget impressions`);
+    if (text.includes('gc.zgo.at') || text.includes('../js/core/goatcounter-init.js')) {
+      fail(`${file} must not load third-party analytics inside an embedding site`);
     }
   }
 
@@ -2253,6 +2303,16 @@ async function checkWidgetRuntimeContracts() {
   }
   if (!builder.includes('widget_builder_copy')) {
     fail('widgets/builder.html must track embed-code copy events');
+  }
+  if (!runtimeSource.includes('activeBakerCount()') || !runtimeSource.includes('/delegates/count?active=true&bakingPower.gt=0')) {
+    fail('baker-count widgets must use the TzKT aggregate count endpoint');
+  }
+  if (!runtimeSource.includes('document.hidden') || !runtimeSource.includes("document.addEventListener('visibilitychange'")) {
+    fail('widget refresh loops must pause while their document is hidden');
+  }
+  if (!runtimeSource.includes("directUrl.searchParams.set('utm_medium', 'widget_markdown')")
+      || !/return `\[Open the Tezos \$\{type\} widget\]\(\$\{directUrl\.toString\(\)\}\)`/.test(runtimeSource)) {
+    fail('Markdown widget output must be a directly attributed working link, not image syntax pointed at HTML');
   }
 
   if (!sw.includes('RUNTIME_CACHE_LIMIT') || !sw.includes('putBounded(RUNTIME_CACHE')) {
@@ -2312,6 +2372,15 @@ async function checkMainnetLaunchCopy() {
   }
   if (!aiPlugin.includes('visible freshness markers')) {
     fail('.well-known/ai-plugin.json must describe freshness without stale two-minute claims');
+  }
+  const aiPluginJson = JSON.parse(aiPlugin);
+  const openApi = JSON.parse(await readText('.well-known/openapi.json'));
+  const securityTxt = await readText('.well-known/security.txt');
+  if (aiPluginJson?.api?.url !== 'https://tezos.systems/.well-known/openapi.json' || !openApi.openapi || !openApi.paths?.['/version.json']) {
+    fail('AI plugin metadata must point to the site-owned OpenAPI document');
+  }
+  if (!/Contact: mailto:support@tez\.capital/.test(securityTxt) || !/Canonical: https:\/\/tezos\.systems\/\.well-known\/security\.txt/.test(securityTxt)) {
+    fail('security.txt must expose canonical private reporting contacts');
   }
 
   pass('mainnet launch copy uses Sep 17, 2018 in user-facing surfaces');
@@ -2484,7 +2553,7 @@ async function checkHistoricalPagination() {
     }
   }
   const ciWorkflow = await readText('.github/workflows/ci.yml');
-  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', '--only app-shell,hen-mode,route-crawl']) {
+  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke']) {
     if (!ciWorkflow.includes(snippet)) fail(`site validation workflow must include ${snippet}`);
   }
 

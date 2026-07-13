@@ -2126,7 +2126,7 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
                 await nativeShare(canvas, getEditableTweet(), shareContext);
             } catch (err) {
                 if (err.name !== 'AbortError') {
-                    showNotification('Share failed.', 'error');
+                    showNotification('Snapshot failed. Try again.', 'error');
                 }
             }
         });

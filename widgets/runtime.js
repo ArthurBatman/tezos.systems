@@ -117,6 +117,9 @@ const PROTOCOL_HASH_NAMES = {
 };
 
 export const WIDGET_ENDPOINTS = {
+    activeBakerCount() {
+        return `${API_URLS.tzkt}/delegates/count?active=true&bakingPower.gt=0`;
+    },
     activeBakers() {
         return `${API_URLS.tzkt}/delegates?active=true&select=address,alias,consensusAddress,bakingPower&limit=${FETCH_LIMITS.bakers}`;
     },
@@ -176,21 +179,6 @@ export function trackedDashboardUrl({
     return url.toString();
 }
 
-function trackWidgetEvent(action, details = {}) {
-    window.trackTezosSystemsEvent?.(`widget_${action}`, {
-        type: getWidgetTypeFromPath(),
-        ...details
-    });
-}
-
-function isEmbeddedWidget() {
-    try {
-        return window.self !== window.top;
-    } catch (_) {
-        return true;
-    }
-}
-
 export function normalizeWidgetTheme(value) {
     const key = String(value || '').trim().toLowerCase();
     if (WIDGET_THEMES[key]) return key;
@@ -239,13 +227,6 @@ export function applyWidgetTheme(settings = getWidgetSettings()) {
         link.textContent = 'powered by tezos.systems ->';
         link.dataset.trackedAttribution = 'true';
     });
-    if (!window.__tezosSystemsWidgetTracked) {
-        window.__tezosSystemsWidgetTracked = true;
-        trackWidgetEvent('impression', {
-            theme: settings.theme,
-            embedded: isEmbeddedWidget() ? 'iframe' : 'direct'
-        });
-    }
     return settings;
 }
 
@@ -284,11 +265,9 @@ export function iframeCode(url, width, height) {
 }
 
 export function markdownCode(url, type) {
-    return `[![Tezos ${type} widget](${url})](${trackedDashboardUrl({
-        origin: 'https://tezos.systems',
-        medium: 'widget_markdown',
-        content: type
-    })})`;
+    const directUrl = new URL(url, 'https://tezos.systems');
+    directUrl.searchParams.set('utm_medium', 'widget_markdown');
+    return `[Open the Tezos ${type} widget](${directUrl.toString()})`;
 }
 
 export function normalizeComboStats(stats, fallback = ['bakers', 'price', 'blocks']) {
@@ -305,8 +284,19 @@ export async function fetchWidgetJson(url, options = {}) {
 }
 
 export function startWidgetRefresh(fetcher, refreshMs) {
-    fetcher();
-    return window.setInterval(fetcher, Math.max(WIDGET_REFRESH_MIN_SECONDS * 1000, refreshMs));
+    const intervalMs = Math.max(WIDGET_REFRESH_MIN_SECONDS * 1000, refreshMs);
+    let lastRun = 0;
+    const runIfVisible = () => {
+        if (document.hidden) return;
+        lastRun = Date.now();
+        Promise.resolve(fetcher()).catch(() => {});
+    };
+    const intervalId = window.setInterval(runIfVisible, intervalMs);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && Date.now() - lastRun >= intervalMs) runIfVisible();
+    });
+    runIfVisible();
+    return intervalId;
 }
 
 export function escapeHtml(value) {

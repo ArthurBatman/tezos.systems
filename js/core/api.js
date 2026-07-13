@@ -47,8 +47,6 @@ const historicalDataCache = new Map();
 const reportedHistoryFetchFailures = new Set();
 const lastGoodCategoryValues = new Map();
 let lastGoodStakingAPY = null;
-let responseQualitySequence = 0;
-const staleResponseEvents = [];
 export const DOMAIN_HISTORY_TABLES = {
     market: 'market_history',
     networkHealth: 'network_health_history',
@@ -62,65 +60,6 @@ export const HISTORY_FRESHNESS_LIMITS = {
     governance_period_history: 90 * 60 * 1000,
     tezosx_history: 90 * 60 * 1000
 };
-
-function staleCategoryHint(url) {
-    const value = String(url || '');
-    if (/\/delegates(?:\?|$)/.test(value)) return 'bakers';
-    if (/\/voting\//.test(value)) return 'governance';
-    if (/issuance|liquidity_baking|lbToggleEma/.test(value)) return 'issuance';
-    if (/total_frozen_stake|total_supply|statistics\/current/.test(value)) return 'staking';
-    if (/operations\/transactions/.test(value)) return 'networkActivity';
-    if (/\/accounts/.test(value)) return 'accounts';
-    if (/\/contracts/.test(value)) return 'contracts';
-    if (/\/tokens/.test(value)) return 'tokens';
-    if (/smart_rollups/.test(value)) return 'rollups';
-    if (/\/head|\/header|\/metadata|\/constants/.test(value)) return 'cycle';
-    return 'upstreamApiCache';
-}
-
-function responseQuality(response, url) {
-    if (response.headers.get('X-Tezos-Systems-Cache') !== 'stale') return null;
-    const observedAt = response.headers.get('X-Tezos-Systems-Observed-At') || null;
-    const event = {
-        sequence: ++responseQualitySequence,
-        category: staleCategoryHint(url),
-        observedAt
-    };
-    staleResponseEvents.push(event);
-    if (staleResponseEvents.length > 100) staleResponseEvents.splice(0, staleResponseEvents.length - 100);
-    return { status: 'stale', observedAt, source: 'service-worker-cache' };
-}
-
-function attachResponseQuality(data, quality) {
-    if (!quality || data == null || (typeof data !== 'object' && typeof data !== 'function')) return data;
-    try {
-        Object.defineProperty(data, '_quality', {
-            configurable: true,
-            enumerable: false,
-            value: quality
-        });
-    } catch (_) {}
-    return data;
-}
-
-function mergeStaleResponseQuality(quality, sequenceAtStart) {
-    const events = staleResponseEvents.filter((event) => event.sequence > sequenceAtStart);
-    if (!events.length) return quality;
-
-    const categories = [...new Set(events.map((event) => event.category))];
-    for (const category of categories) {
-        if (!quality.failedCategories.includes(category)) quality.failedCategories.push(category);
-        if (!quality.staleCategories.includes(category)) quality.staleCategories.push(category);
-    }
-    quality.status = quality.status === 'live' ? 'stale' : quality.status;
-    quality.staleObservedAt = quality.staleObservedAt || {};
-    for (const event of events) {
-        if (event.observedAt && !quality.staleObservedAt[event.category]) {
-            quality.staleObservedAt[event.category] = event.observedAt;
-        }
-    }
-    return quality;
-}
 
 function qualityFromSettled(entries, fallbacks) {
     const values = {};
@@ -358,15 +297,9 @@ export async function fetchWithRetry(url, options = {}, retries = 3) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const provenance = responseQuality(response, url);
-            const data = attachResponseQuality(
-                responseType === 'text' ? await response.text() : await response.json(),
-                provenance
-            );
+            const data = responseType === 'text' ? await response.text() : await response.json();
             
-            // A service-worker fallback is already stale. Keep it usable for
-            // this call, but never refresh the in-memory TTL with it.
-            if (memoryCache && provenance?.status !== 'stale') {
+            if (memoryCache) {
                 cache.data[url] = data;
                 cache.timestamps[url] = Date.now();
             }
@@ -978,7 +911,6 @@ async function fetchRecentActivityCutoffLevel() {
  * Matches TzKT's Proof-of-Stake totals: own staked + external staked.
  */
 export async function fetchStakingRatio() {
-    const responseSequenceAtStart = responseQualitySequence;
     try {
         const [statsResult, frozenStakeResult, supplyResult] = await Promise.allSettled([
             fetchSharedStats(),
@@ -1069,7 +1001,7 @@ export async function fetchStakingRatio() {
         ];
         const hasCompleteStats = missingFields.length === 0;
 
-        const stakingQuality = mergeStaleResponseQuality({
+        const stakingQuality = {
             status: hasCompleteStats ? 'live' : 'partial',
             observedAt: new Date().toISOString(),
             failedCategories: hasCompleteStats ? [] : ['networkStats'],
@@ -1079,7 +1011,7 @@ export async function fetchStakingRatio() {
                 missingFields,
                 error: `TzKT network totals unavailable: ${missingFields.join(', ')}`
             })
-        }, responseSequenceAtStart);
+        };
         return {
             _quality: stakingQuality,
             stakingRatio,
@@ -1201,7 +1133,6 @@ async function fetchRollups() {
  */
 export async function fetchStakingAPY() {
     let failedInputs = [];
-    const responseSequenceAtStart = responseQualitySequence;
     try {
         const [rateResult, statsResult, frozenStakeResult, supplyResult, constantsResult] = await Promise.allSettled([
             fetchSharedYearlyRate(),
@@ -1276,13 +1207,13 @@ export async function fetchStakingAPY() {
         }
         
         const observedAt = new Date().toISOString();
-        const apyQuality = mergeStaleResponseQuality({
+        const apyQuality = {
             status: 'live',
             observedAt,
             failedCategories: [],
             staleCategories: [],
             unavailableCategories: []
-        }, responseSequenceAtStart);
+        };
         const result = {
             delegateAPY: Math.round(delegateAPY * 10) / 10, 
             stakeAPY: Math.round(stakeAPY * 10) / 10,
@@ -1328,7 +1259,6 @@ export async function fetchStakingAPY() {
  */
 export async function fetchAllStats() {
     try {
-        const responseSequenceAtStart = responseQualitySequence;
         const [
             bakersData,
             cycleInfo,
@@ -1404,8 +1334,6 @@ export async function fetchAllStats() {
             rollups: null,
             stakingAPY: { delegateAPY: null, stakeAPY: null, _quality: { status: 'unavailable', observedAt: null } }
         });
-        mergeStaleResponseQuality(quality, responseSequenceAtStart);
-
         if (quality.failedCategories.length >= 2) {
             console.warn('Multiple API categories failed, showing cached/stale data');
         }
@@ -1485,7 +1413,6 @@ export async function fetchAllStats() {
  */
 export async function fetchHeroStats() {
     try {
-        const responseSequenceAtStart = responseQualitySequence;
         const [bakersData, stakingData, issuanceData, cycleData] = await Promise.allSettled([
             fetchBakers(),
             fetchStakingRatio(),
@@ -1504,7 +1431,6 @@ export async function fetchHeroStats() {
             issuance: { total: null },
             cycle: { cycle: null, progress: null, timeRemaining: '—' }
         });
-        mergeStaleResponseQuality(quality, responseSequenceAtStart);
         const bakers = values.bakers;
         const staking = values.staking;
         const issuanceRate = values.issuance.total ?? null;
