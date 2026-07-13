@@ -5502,6 +5502,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const commandDeckPanelStyles = commandDeckPanel ? getComputedStyle(commandDeckPanel) : null;
     const tickerPulseStyles = tickerPulse ? getComputedStyle(tickerPulse) : null;
     const tickerBlockValue = tickerLine?.querySelector('.block-ticker-level .block-ticker-value');
+    const tickerBakerSegment = tickerLine?.querySelector('.block-ticker-baker');
     const tickerBakerValue = tickerLine?.querySelector('.block-ticker-baker .block-ticker-value');
     const tickerHealthValue = tickerLine?.querySelector('.block-ticker-health .block-ticker-value');
     const tickerOctezSegment = tickerLine?.querySelector('.block-ticker-octez');
@@ -5692,7 +5693,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       blockTickerBlockCapacity: measureTickerText(tickerBlockValue, '#99,999,999'),
       blockTickerBakerWidth: tickerBakerValue ? parseFloat(getComputedStyle(tickerBakerValue).width) : 0,
       blockTickerBakerLongNameWidth: measureTickerText(tickerBakerValue, 'Established Tezos Baker'),
-      blockTickerBakerMaxWidth: measureTickerText(tickerBakerValue, '1234567890123456789012345678'),
+      blockTickerBakerMaxWidth: measureTickerText(tickerBakerSegment, '0'.repeat(26)),
       blockTickerHealthWidth: tickerHealthValue ? parseFloat(getComputedStyle(tickerHealthValue).width) : 0,
       blockTickerDegradedWidth: measureTickerText(tickerHealthValue, 'Degraded'),
       blockTickerOctezText: tickerOctezValue?.textContent || '',
