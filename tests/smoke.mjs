@@ -5519,7 +5519,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       probe.style.position = 'absolute';
       probe.style.visibility = 'hidden';
       probe.style.whiteSpace = 'nowrap';
-      probe.style.font = style.font;
+      probe.style.fontFamily = style.fontFamily;
+      probe.style.fontSize = style.fontSize;
+      probe.style.fontWeight = style.fontWeight;
+      probe.style.fontStyle = style.fontStyle;
+      probe.style.fontStretch = style.fontStretch;
+      probe.style.fontVariant = style.fontVariant;
+      probe.style.lineHeight = style.lineHeight;
       probe.style.fontVariantNumeric = style.fontVariantNumeric;
       probe.style.letterSpacing = style.letterSpacing;
       document.body.appendChild(probe);
