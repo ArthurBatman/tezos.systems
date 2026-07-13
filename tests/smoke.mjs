@@ -4411,7 +4411,7 @@ async function smokeMyTezosBakerLiveSignal(browser, baseUrl) {
       const freshness = (document.querySelector('#drawer-freshness')?.innerText || '').toLowerCase();
       return text.includes('back online')
         && text.includes('last 10 attestations ok')
-        && freshness.includes('live signal');
+        && freshness.includes('operator signal');
     }, null, { timeout: 15000 });
   } catch {
     const state = await readSignalState();
@@ -4499,7 +4499,10 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
   assert(state.bakerText.toLowerCase().includes('octez version') && state.bakerText.includes('v25.0'), `my tezos drawer live refresh: baker grid missed Octez version ${JSON.stringify(state)}`);
   assert(state.octezClass.includes('my-baker-octez-watch'), `my tezos drawer live refresh: stale same-major Octez version should be yellow/watch ${JSON.stringify(state)}`);
   assert(state.header.includes('1,750,000 XTZ'), `my tezos drawer live refresh: header kept stale balance ${JSON.stringify(state)}`);
-  assert(state.freshness.toLowerCase().includes('updated'), `my tezos drawer live refresh: freshness stamp missing ${JSON.stringify(state)}`);
+  assert(
+    state.freshness.toLowerCase().includes('my tezos') && state.freshness.toLowerCase().includes('just now'),
+    `my tezos drawer live refresh: standardized freshness stamp missing ${JSON.stringify(state)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `my tezos drawer live refresh browser issues:\n${issues.join('\n')}`);
@@ -4804,7 +4807,7 @@ async function smokeMyTezosStakerRewards(browser, baseUrl) {
         rewardCase.expectedLifetime,
         rewardCase.expectedCurrent,
         'APY (External staker)',
-        'Bkr Missed (10d)'
+        'Missed rights (10 cycles)'
       ]
     });
 
@@ -4817,7 +4820,7 @@ async function smokeMyTezosStakerRewards(browser, baseUrl) {
     assert(Math.abs(Number(state.rewardsLastCycle) - rewardCase.expectedLastCycle) < 0.00001, `${rewardCase.label}: Morning Brief reward amount wrong: ${state.rewardsLastCycle}`);
     assert(state.isStaker === true, `${rewardCase.label}: Morning Brief should mark account as a staker`);
     assert(Number(state.staked) / Number(state.totalXTZ) >= rewardCase.minStakeRatio, `${rewardCase.label}: stake ratio should match a mostly-staked account: ${state.staked}/${state.totalXTZ}`);
-    assert(state.statsLabels.includes('Bkr Missed (10d)'), `${rewardCase.label}: baker missed-right label should be explicit, saw ${state.statsLabels.join(', ')}`);
+    assert(state.statsLabels.includes('Missed rights (10 cycles)'), `${rewardCase.label}: baker missed-right window should be explicit, saw ${state.statsLabels.join(', ')}`);
     assert(state.statsLabels.includes('APY (External staker)'), `${rewardCase.label}: APY label should identify the external-staker reward split, saw ${state.statsLabels.join(', ')}`);
     assert(state.statsText.includes(`${rewardCase.expectedApy}%`) && state.activeRewardEstimate === true && Math.abs(Number(state.apyRate) - rewardCase.expectedApy) < 0.001, `${rewardCase.label}: external-staker APY should apply gross × (1 - baker edge): ${JSON.stringify(state)}`);
     assert(!state.statsLabels.includes('Missed (10d)'), `${rewardCase.label}: ambiguous missed-right label is still present`);
@@ -4853,7 +4856,7 @@ async function smokeMyTezosDelegatorRewards(browser, baseUrl) {
         rewardCase.expectedLifetime,
         rewardCase.expectedCurrent,
         'Gross APY (Delegation)',
-        'Bkr Missed (10d)'
+        'Missed rights (10 cycles)'
       ]
     });
 
@@ -4869,7 +4872,7 @@ async function smokeMyTezosDelegatorRewards(browser, baseUrl) {
     assert(state.statsLabels.includes('Gross APY (Delegation)'), `${rewardCase.label}: delegation APY must be labeled gross before baker policy, saw ${state.statsLabels.join(', ')}`);
     assert(state.statsLabels.includes('Personal Projection') && state.statsText.includes('Policy-dependent'), `${rewardCase.label}: My Baker should withhold a personal delegation projection without baker payout terms: ${state.statsText}`);
     assert(state.activeRewardEstimate === false && state.estAnnual === null, `${rewardCase.label}: My Tezos must not turn gross delegation context into personal annual yield: ${JSON.stringify(state)}`);
-    assert(state.statsLabels.includes('Bkr Missed (10d)'), `${rewardCase.label}: delegated wallet should still label baker missed rights explicitly, saw ${state.statsLabels.join(', ')}`);
+    assert(state.statsLabels.includes('Missed rights (10 cycles)'), `${rewardCase.label}: delegated wallet should still label the baker missed-right window explicitly, saw ${state.statsLabels.join(', ')}`);
     assert(!state.lifetimeText.includes('Protocol staking rewards'), `${rewardCase.label}: delegator report should not use staking copy: ${state.lifetimeText}`);
     assert(!state.lifetimeText.includes('9.1000 XTZ'), `${rewardCase.label}: old generic baker mock leaked into lifetime card: ${state.lifetimeText}`);
   }
@@ -5411,9 +5414,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
 
   const response = await page.goto(`${baseUrl}/#health`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `network health chamber: dashboard failed with HTTP ${response?.status()}`);
+  const initialFinality = (await page.locator('#hero-chain-uptime-finality').textContent())?.trim() || '';
+  const initialFinalityTitle = await page.locator('[data-card-history="finality"]').getAttribute('title') || '';
   assert(
-    (await page.locator('#hero-chain-uptime-finality').textContent())?.trim() === '—',
-    'network health chamber: finality should remain unknown until three block observations exist'
+    initialFinality === '~12s' && /sampling now/i.test(initialFinalityTitle),
+    `network health chamber: finality should show an honest estimate while live cadence samples, saw ${initialFinality} / ${initialFinalityTitle}`
   );
   await page.locator('#network-health-modal.active .health-content').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#network-health-modal.active .chamber-loading-fill').waitFor({ state: 'visible', timeout: 5000 });
@@ -5454,7 +5459,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.waitForFunction(() => /Octez Versions/.test(document.querySelector('#health-octez-versions')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /Block/.test(document.querySelector('#block-ticker-line')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent || ''), null, { timeout: 10000 });
-  await page.waitForFunction(() => /\d+s/.test(document.querySelector('#hero-chain-uptime-finality')?.textContent || ''), null, { timeout: 20000 });
+  await page.waitForFunction(() => /^\d+s$/.test((document.querySelector('#hero-chain-uptime-finality')?.textContent || '').trim()), null, { timeout: 20000 });
 
   const healthState = await page.evaluate(() => {
     const modal = document.querySelector('#network-health-modal');
@@ -8762,6 +8767,7 @@ async function smokeUxChanges(browser, baseUrl) {
     viewport: { width: 1366, height: 900 },
     serviceWorkers: 'block'
   });
+  await installFeatureMocks(context);
   await context.grantPermissions(['clipboard-write'], { origin: baseUrl });
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'clean');
@@ -9411,14 +9417,14 @@ async function smokeThemeSelection(browser, baseUrl) {
     default: { ui: '-apple-system', display: 'Orbitron', data: 'JetBrains Mono', runtime: 'Chakra Petch' },
     void: { ui: 'Exo 2', display: 'Exo 2', data: 'JetBrains Mono', runtime: 'Exo 2' },
     ember: { ui: 'Chakra Petch', display: 'Chakra Petch', data: 'JetBrains Mono', runtime: 'Chakra Petch' },
-    signal: { ui: 'IBM Plex Mono', display: 'IBM Plex Mono', data: 'IBM Plex Mono', runtime: 'IBM Plex Mono' },
-    nerv: { ui: 'IBM Plex Mono', display: 'Archivo Black', data: 'IBM Plex Mono', runtime: 'IBM Plex Mono' },
+    signal: { ui: 'JetBrains Mono', display: 'JetBrains Mono', data: 'JetBrains Mono', runtime: 'JetBrains Mono' },
+    nerv: { ui: 'JetBrains Mono', display: 'Archivo Black', data: 'JetBrains Mono', runtime: 'JetBrains Mono' },
     clean: { ui: '-apple-system', display: '-apple-system', data: '-apple-system', runtime: 'JetBrains Mono' },
     dark: { ui: '-apple-system', display: '-apple-system', data: '-apple-system', runtime: 'JetBrains Mono' },
     bubblegum: { ui: 'Nunito', display: 'Nunito', data: 'Nunito', runtime: 'Nunito' },
-    abyss: { ui: 'Exo 2', display: 'Exo 2', data: 'IBM Plex Mono', runtime: 'Exo 2' },
+    abyss: { ui: 'Exo 2', display: 'Exo 2', data: 'JetBrains Mono', runtime: 'Exo 2' },
     moss: { ui: 'Nunito', display: 'Major Mono Display', data: 'Nunito', runtime: 'Nunito' },
-    warzone: { ui: 'Chakra Petch', display: 'Silkscreen', data: 'IBM Plex Mono', runtime: 'IBM Plex Mono' }
+    warzone: { ui: 'Chakra Petch', display: 'Silkscreen', data: 'JetBrains Mono', runtime: 'JetBrains Mono' }
   };
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
