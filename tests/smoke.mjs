@@ -9831,14 +9831,19 @@ async function smokeHenMode(browser, baseUrl) {
   }
   assert(stableShell.teiaClass && stableShell.objktClass, `HEN mode platform identity classes missing: ${JSON.stringify(stableShell)}`);
 
-  await page.waitForTimeout(350);
-  const cardTopBeforeHint = await page.locator('#hen-grid .hen-card').first().evaluate((node) => node.getBoundingClientRect().top);
+  const loopHintPosition = await page.locator('#hen-loop-hint').evaluate((node) => getComputedStyle(node).position);
+  assert(loopHintPosition === 'absolute', `HEN mode loop hint should stay outside feed flow, got ${loopHintPosition}`);
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await page.waitForTimeout(100);
+  const gridTopBeforeHint = await page.locator('#hen-grid').evaluate((node) => node.getBoundingClientRect().top);
   await page.locator('#hen-loop-hint-dismiss').click();
   await page.waitForTimeout(80);
-  const cardTopAfterHint = await page.locator('#hen-grid .hen-card').first().evaluate((node) => node.getBoundingClientRect().top);
-  assert(Math.abs(cardTopAfterHint - cardTopBeforeHint) <= 1, `HEN mode loop hint dismissal shifted grid from ${cardTopBeforeHint} to ${cardTopAfterHint}`);
+  const gridTopAfterHint = await page.locator('#hen-grid').evaluate((node) => node.getBoundingClientRect().top);
+  assert(Math.abs(gridTopAfterHint - gridTopBeforeHint) <= 1, `HEN mode loop hint dismissal shifted grid from ${gridTopBeforeHint} to ${gridTopAfterHint}`);
 
-  const cardTopBeforeCli = await page.locator('#hen-grid .hen-card').first().evaluate((node) => node.getBoundingClientRect().top);
+  const gridTopBeforeCli = await page.locator('#hen-grid').evaluate((node) => node.getBoundingClientRect().top);
   await enterHenCommand('filters');
   await page.locator('#hen-cli-output.visible').waitFor({ state: 'visible', timeout: 5000 });
   const cliChrome = await page.evaluate(() => {
@@ -9850,8 +9855,8 @@ async function smokeHenMode(browser, baseUrl) {
       text: output?.innerText || ''
     };
   });
-  const cardTopAfterCli = await page.locator('#hen-grid .hen-card').first().evaluate((node) => node.getBoundingClientRect().top);
-  assert(Math.abs(cardTopAfterCli - cardTopBeforeCli) <= 1, `HEN mode CLI output shifted grid from ${cardTopBeforeCli} to ${cardTopAfterCli}`);
+  const gridTopAfterCli = await page.locator('#hen-grid').evaluate((node) => node.getBoundingClientRect().top);
+  assert(Math.abs(gridTopAfterCli - gridTopBeforeCli) <= 1, `HEN mode CLI output shifted grid from ${gridTopBeforeCli} to ${gridTopAfterCli}`);
   assert(cliChrome.parent === 'hen-overlay' && cliChrome.position === 'absolute' && !cliChrome.feedContainsOutput && /filters/i.test(cliChrome.text), `HEN mode CLI output must be off-flow scrollback: ${JSON.stringify(cliChrome)}`);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#hen-cli-output')?.classList.contains('visible'), null, { timeout: 5000 });
