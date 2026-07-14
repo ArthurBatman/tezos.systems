@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-14',
+        entries: [
+            { type: '🔧', text: 'Public builder attribution now uses Primate and links directly to the BakingBenjamins X profile across the site, metadata, and shared cards' }
+        ]
+    },
+    {
         date: '2026-07-13',
         entries: [
             { type: '🎨', text: 'Governance vote logs now wrap long status context and reserve enough room for turnout values on narrow mobile screens' },
@@ -61,7 +67,7 @@ const CHANGELOG = [
             { type: '✨', text: 'The new Staking Chamber shows the latest stake and unstake moves over 10,000 tez, the current staking ratio and 7-day direction, a complete applied-operation archive, and per-mover Ledger Flow and receipt trails' },
             { type: '🔧', text: 'Header stat explainers now fully disappear after dismissal instead of lingering as translucent panels over the live ticker and search controls' },
             { type: '🎨', text: 'Themes now carry their own UI, display, and data typefaces, with a larger dedicated uptime counter and a truly centered mobile uptime line even during milestone celebrations' },
-            { type: '🔧', text: 'Tezos Systems source now uses MPL-2.0 file-level copyleft, with Primate411 project authorship, Tez Capital co-founding affiliation and RPC credit, and public Source and license links in the footer' },
+            { type: '🔧', text: 'Tezos Systems source now uses MPL-2.0 file-level copyleft, with Primate project authorship, Tez Capital co-founding affiliation and RPC credit, and public Source and license links in the footer' },
             { type: '✨', text: 'Maxi Passport now opens from .tez names and subdomains, resolves address-first with the owner as a safe fallback, and leaves the saved My Tezos identity unchanged' },
             { type: '🔧', text: 'Visit streaks now appear only when a new local day is recorded, skip the redundant Day 1 toast, and explain their browser-local, just-for-fun rules from Settings' },
             { type: '✨', text: 'My Tezos now keeps a visible local wallet set and can explicitly combine saved XTZ balances with privacy context and partial-result handling' },

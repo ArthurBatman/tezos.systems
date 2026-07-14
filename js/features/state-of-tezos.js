@@ -514,7 +514,7 @@ function buildSnapshotDOM(data) {
         flex: 1;
         min-width: 0;
     `;
-    footerCenter.textContent = 'PRIMATE411 · RPC BY TEZ CAPITAL';
+    footerCenter.textContent = 'PRIMATE · RPC BY TEZ CAPITAL';
 
     footer.appendChild(footerLeft);
     footer.appendChild(footerCenter);

@@ -3094,20 +3094,21 @@ async function checkRepositoryLicense() {
   if (packageJson.license !== 'MPL-2.0' || packageLock?.packages?.['']?.license !== 'MPL-2.0') {
     fail('package.json and the root package-lock entry must declare MPL-2.0');
   }
-  if (packageJson.author !== 'Primate411') {
-    fail('package.json must preserve the Primate411 project authorship');
+  if (packageJson.author !== 'Primate') {
+    fail('package.json must preserve the Primate project authorship');
   }
 
   const noticeSnippets = [
     'Tezos Systems',
-    'Copyright (c) 2026 Primate411',
+    'Copyright (c) 2026 Primate',
     'https://github.com/Primate411/tezos.systems',
-    'developed by Primate411',
+    'developed by Primate',
+    'https://x.com/BakingBenjamins',
     'Mozilla Public License, v. 2.0',
     'https://mozilla.org/MPL/2.0/',
     'Third-party software',
     'separately offered under CC BY 4.0',
-    'extent Primate411 owns those rights',
+    'extent Primate owns those rights',
     'co-founding member of',
     'Tez Capital name and brand are',
     "repository's current copyright holder",
@@ -3126,11 +3127,11 @@ async function checkRepositoryLicense() {
     'modified covered files must remain available under MPL-2.0',
     'Third-party software',
     '[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)',
-    'Primate411 owns those rights',
+    'Primate owns those rights',
     'co-founding member of',
     'Tez Capital brand is represented',
     'RPC infrastructure: [Tez Capital](https://tez.capital)',
-    'Built by: [Primate411](https://github.com/Primate411)',
+    'Built by: [Primate](https://x.com/BakingBenjamins)',
     'copyright notice in [NOTICE](NOTICE)',
     'current copyright holder',
     'earlier revisions carried MIT or ISC declarations'
@@ -3142,10 +3143,11 @@ async function checkRepositoryLicense() {
   const agentMapSnippets = [
     'License: Mozilla Public License 2.0 (`MPL-2.0`)',
     '`LICENSE`: unmodified Mozilla Public License 2.0 terms',
-    '`NOTICE`: Tezos Systems / Primate411 attribution',
-    'Tezos Systems is built by Primate411, a co-founding member',
+    '`NOTICE`: Tezos Systems / Primate attribution',
+    'Tezos Systems is built by Primate, linked to the',
+    '[BakingBenjamins X profile](https://x.com/BakingBenjamins)',
     'represent Tez Capital as the affiliated brand and RPC',
-    "keep Primate411 as the repository's current copyright holder",
+    "keep Primate as the repository's current copyright holder",
     'and site/schema creator, and as publisher where publisher metadata is present',
     'live footer and document metadata must retain public Source and MPL-2.0'
   ];
@@ -3155,22 +3157,23 @@ async function checkRepositoryLicense() {
 
   const deployedNoticeSnippets = [
     '<link rel="license" href="/LICENSE">',
-    '<meta name="author" content="Primate411">',
+    '<meta name="author" content="Primate">',
     'href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a>',
     'href="/LICENSE" rel="license">MPL-2.0</a>',
-    'Built by <a href="https://github.com/Primate411" target="_blank" rel="noopener">Primate411</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
+    'Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
     'RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
     '"license": "https://creativecommons.org/licenses/by/4.0/"'
   ];
   for (const snippet of deployedNoticeSnippets) {
     if (!index.includes(snippet)) fail(`index.html missing deployed license text: ${snippet}`);
   }
-  if ((index.match(/"name": "Primate411"/g) || []).length < 2) {
-    fail('index.html must credit Primate411 as both WebApplication and Dataset creator');
+  if ((index.match(/"name": "Primate"/g) || []).length < 2
+    || (index.match(/"url": "https:\/\/x\.com\/BakingBenjamins"/g) || []).length < 2) {
+    fail('index.html must credit Primate and link BakingBenjamins on X as both WebApplication and Dataset creator');
   }
   if ((index.match(/"affiliation": \{/g) || []).length < 2
     || (index.match(/"name": "Tez Capital"/g) || []).length < 2) {
-    fail('index.html must represent Tez Capital as Primate411\'s WebApplication and Dataset affiliation');
+    fail('index.html must represent Tez Capital as Primate\'s WebApplication and Dataset affiliation');
   }
   if (index.includes('Powered by <a href="https://tez.capital"') || index.includes('"sourceOrganization"')) {
     fail('index.html must not present Tez Capital as the product owner or source organization');
@@ -3180,7 +3183,8 @@ async function checkRepositoryLicense() {
     for (const snippet of deployedNoticeSnippets.filter((item) => !item.includes('creativecommons.org'))) {
       if (!routeShell.includes(snippet)) fail(`${route.slug}/index.html missing deployed license text: ${snippet}`);
     }
-    if ((routeShell.match(/"name": "Primate411"/g) || []).length < 1
+    if ((routeShell.match(/"name": "Primate"/g) || []).length < 1
+      || (routeShell.match(/"url": "https:\/\/x\.com\/BakingBenjamins"/g) || []).length < 1
       || (routeShell.match(/"affiliation": \{/g) || []).length < 1
       || (routeShell.match(/"name": "Tez Capital"/g) || []).length < 1
       || !routeShell.includes('"@type": "WebPage"')
@@ -3190,37 +3194,37 @@ async function checkRepositoryLicense() {
       fail(`${route.slug}/index.html has stale product ownership attribution`);
     }
   }
-  if (!changelog.includes('Primate411 project authorship, Tez Capital co-founding affiliation and RPC credit')) {
+  if (!changelog.includes('Primate project authorship, Tez Capital co-founding affiliation and RPC credit')) {
     fail('changelog must disclose the public MPL-2.0 source-license change');
   }
 
   const standalonePages = ['staking/index.html', 'governance/index.html', 'bakers/index.html'];
   for (const file of standalonePages) {
     const page = await readText(file);
-    if (!/"publisher":\s*\{\s*"@type": "Person",\s*"name": "Primate411",\s*"url": "https:\/\/github\.com\/Primate411",\s*"affiliation":\s*\{\s*"@type": "Organization",\s*"name": "Tez Capital",\s*"url": "https:\/\/tez\.capital"\s*\}\s*\}/s.test(page)) {
-      fail(`${file} must identify Primate411 as its publisher with Tez Capital affiliation`);
+    if (!/"publisher":\s*\{\s*"@type": "Person",\s*"name": "Primate",\s*"url": "https:\/\/x\.com\/BakingBenjamins",\s*"sameAs": "https:\/\/github\.com\/Primate411",\s*"affiliation":\s*\{\s*"@type": "Organization",\s*"name": "Tez Capital",\s*"url": "https:\/\/tez\.capital"\s*\}\s*\}/s.test(page)) {
+      fail(`${file} must identify Primate as its publisher, link BakingBenjamins on X, and retain Tez Capital affiliation`);
     }
-    if (!page.includes('Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+    if (!page.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
       || !page.includes('<a href="https://tez.capital">RPC by Tez Capital</a>')
       || page.includes('Powered by Tez Capital')) {
-      fail(`${file} must show Primate411 authorship, Tez Capital affiliation, and Tez Capital RPC credit`);
+      fail(`${file} must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit`);
     }
   }
-  if (!landing.includes('Built by <a href="https://github.com/Primate411"')
+  if (!landing.includes('Built by <a href="https://x.com/BakingBenjamins"')
     || !landing.includes('a co-founding member of <a href="https://tez.capital"')
     || !landing.includes('RPC by <a href="https://tez.capital"')
     || landing.includes('Powered by <a href="https://tez.capital"')) {
-    fail('landing.html must show Primate411 authorship, Tez Capital affiliation, and Tez Capital RPC credit');
+    fail('landing.html must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit');
   }
-  if (!landingNav.includes('Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+  if (!landingNav.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
     || !landingNav.includes('RPC by <a href="https://tez.capital">Tez Capital</a>')) {
-    fail('landing footer runtime must show Primate411 authorship, Tez Capital affiliation, and Tez Capital RPC credit');
+    fail('landing footer runtime must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit');
   }
-  if (!share.includes('Built by <span style="color:${brandColor};font-weight:600;">Primate411</span> · RPC by')) {
-    fail('share cards must credit Primate411 and retain the Tez Capital RPC brand credit');
+  if (!share.includes('Built by <span style="color:${brandColor};font-weight:600;">Primate</span> · RPC by')) {
+    fail('share cards must credit Primate and retain the Tez Capital RPC brand credit');
   }
-  if (!stateOfTezos.includes("'PRIMATE411 · RPC BY TEZ CAPITAL'")) {
-    fail('State of Tezos cards must credit Primate411 and retain the Tez Capital RPC brand credit');
+  if (!stateOfTezos.includes("'PRIMATE · RPC BY TEZ CAPITAL'")) {
+    fail('State of Tezos cards must credit Primate and retain the Tez Capital RPC brand credit');
   }
   if (!aiPlugin.description_for_model.includes('co-founding member of Tez Capital')
     || !aiPlugin.description_for_model.includes('Tez Capital RPC infrastructure')

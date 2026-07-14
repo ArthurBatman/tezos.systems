@@ -72,7 +72,7 @@ function getShareCreditHtml(brandColor) {
     if (handle) {
         return `Shared by <span style="color:${brandColor};font-weight:700;">@${escapeHtml(handle)}</span>`;
     }
-    return `Built by <span style="color:${brandColor};font-weight:600;">Primate411</span> · RPC by <span style="color:${brandColor};font-weight:600;">Tez Capital</span>`;
+    return `Built by <span style="color:${brandColor};font-weight:600;">Primate</span> · RPC by <span style="color:${brandColor};font-weight:600;">Tez Capital</span>`;
 }
 
 function parseBlockLevel(value) {

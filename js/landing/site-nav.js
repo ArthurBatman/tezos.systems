@@ -227,7 +227,7 @@ function footerGroupHtml(label, current) {
 
 function defaultAttributionHtml() {
     return `
-        <span>Built by <a href="https://github.com/Primate411">Primate411</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a></span>
+        <span>Built by <a href="https://x.com/BakingBenjamins">Primate</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a></span>
         <span>Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital">Tez Capital</a></span>
     `;
 }

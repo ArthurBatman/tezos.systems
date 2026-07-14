@@ -965,10 +965,10 @@ the project.
 The Tezos Network Statistics dataset advertised in the site's structured data
 is separately offered under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 only for original selection, arrangement, and commentary to the extent
-Primate411 owns those rights. Underlying facts and third-party API data remain
+Primate owns those rights. Underlying facts and third-party API data remain
 subject to their source terms.
 
-Tezos Systems is built by Primate411, a co-founding member of
+Tezos Systems is built by Primate, a co-founding member of
 [Tez Capital](https://tez.capital). The Tez Capital brand is represented
 through that affiliation, and Tez Capital provides RPC infrastructure used by
 the site. The copyright notice in [NOTICE](NOTICE) identifies the repository's
@@ -981,7 +981,7 @@ historical copies were received.
 ## Credits
 
 - Data: [TzKT](https://tzkt.io), CoinGecko, Tezos Domains, OBJKT, and Supabase.
-- Built by: [Primate411](https://github.com/Primate411), a co-founding member
+- Built by: [Primate](https://x.com/BakingBenjamins), a co-founding member
   of [Tez Capital](https://tez.capital).
 - RPC infrastructure: [Tez Capital](https://tez.capital).
 

@@ -45,8 +45,12 @@ function renderRouteStructuredData(route, url, image) {
       },
       publisher: {
         '@type': 'Person',
-        name: 'Primate411',
-        url: 'https://github.com/Primate411',
+        name: 'Primate',
+        url: 'https://x.com/BakingBenjamins',
+        sameAs: [
+          'https://x.com/BakingBenjamins',
+          'https://github.com/Primate411'
+        ],
         affiliation: {
           '@type': 'Organization',
           name: 'Tez Capital',

@@ -3161,7 +3161,7 @@ async function smokeAppShell(browser, baseUrl) {
       faviconCount: document.querySelectorAll('link[rel="icon"]').length,
       faviconHrefs: Array.from(document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="mask-icon"]')).map((link) => link.getAttribute('href') || ''),
       footerAffiliationHref: document.querySelector('.powered-by a[href="https://tez.capital"]')?.getAttribute('href') || '',
-      footerBuilderHref: document.querySelector('.powered-by a[href="https://github.com/Primate411"]')?.getAttribute('href') || '',
+      footerBuilderHref: document.querySelector('.powered-by a[href="https://x.com/BakingBenjamins"]')?.getAttribute('href') || '',
       footerBuilderText: document.querySelector('.powered-by')?.textContent?.trim() || '',
       footerLicenseHref: document.querySelector('.footer-contribute a[href="/LICENSE"][rel~="license"]')?.getAttribute('href') || '',
       footerRpcHref: document.querySelector('.footer-source-line a[href="https://eu.rpc.tez.capital"]')?.getAttribute('href') || '',
@@ -3208,10 +3208,10 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.license.ok && shell.license.text.startsWith('Mozilla Public License Version 2.0'), `app shell: /LICENSE missing or invalid (${shell.license.status})`);
   assert(shell.licenseMetaHref === '/LICENSE' && shell.footerLicenseHref === '/LICENSE', `app shell: MPL-2.0 metadata/footer links missing (${shell.licenseMetaHref}, ${shell.footerLicenseHref})`);
   assert(shell.footerSourceHref === 'https://github.com/Primate411/tezos.systems', `app shell: public source link mismatch: ${shell.footerSourceHref}`);
-  assert(shell.footerBuilderHref === 'https://github.com/Primate411'
+  assert(shell.footerBuilderHref === 'https://x.com/BakingBenjamins'
     && shell.footerAffiliationHref === 'https://tez.capital'
-    && shell.footerBuilderText === 'Built by Primate411, a co-founding member of Tez Capital',
-  `app shell: Primate411 builder and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
+    && shell.footerBuilderText === 'Built by Primate, a co-founding member of Tez Capital',
+  `app shell: Primate builder, BakingBenjamins X link, and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
   assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');
   assert(shell.stylesheet && shell.appScript && shell.appPreload, `app shell: missing stamped stylesheet/app script (${shell.stylesheet}, ${shell.appPreload}, ${shell.appScript})`);
@@ -9207,7 +9207,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await page.evaluate(() => document.querySelector('[data-stat="total-bakers"] .card-share-btn')?.click());
   await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
   const cardShareCredit = await page.evaluate(() => String(window.__lastHtml2CanvasText || ''));
-  assert(cardShareCredit.includes('Built by Primate411') && cardShareCredit.includes('RPC by Tez Capital'), `feature workflows card share: ownership credit mismatch: ${cardShareCredit}`);
+  assert(cardShareCredit.includes('Built by Primate') && cardShareCredit.includes('RPC by Tez Capital'), `feature workflows card share: ownership credit mismatch: ${cardShareCredit}`);
   await expectShareModal(page, 'feature workflows card share', issues);
   log('ok - feature workflow: card share');
 
@@ -9227,7 +9227,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await page.locator('#state-of-tezos-btn').click();
   await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
   const stateShareCredit = await page.evaluate(() => String(window.__lastHtml2CanvasText || ''));
-  assert(stateShareCredit.includes('PRIMATE411 · RPC BY TEZ CAPITAL'), `feature workflows state of tezos: ownership credit mismatch: ${stateShareCredit}`);
+  assert(stateShareCredit.includes('PRIMATE · RPC BY TEZ CAPITAL'), `feature workflows state of tezos: ownership credit mismatch: ${stateShareCredit}`);
   await expectShareModal(page, 'feature workflows state of tezos share', issues);
   log('ok - feature workflow: state of tezos share');
 

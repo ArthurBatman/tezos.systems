@@ -71,7 +71,7 @@ the highest-risk gotchas.
   origin API responses are never cached or replayed as current data.
 - `version.json`: build metadata.
 - `LICENSE`: unmodified Mozilla Public License 2.0 terms.
-- `NOTICE`: Tezos Systems / Primate411 attribution, covered-work scope, and
+- `NOTICE`: Tezos Systems / Primate attribution, covered-work scope, and
   third-party/trademark boundary.
 - `data/*.json`: protocol history, governance refresh artifacts, protocol
   debates, and tweet/share templates.
@@ -103,15 +103,18 @@ Licensing boundaries:
 - Original source code and repository-authored documentation are covered by
   MPL-2.0 through the root `LICENSE` and `NOTICE`.
 - The Tezos Network Statistics dataset schema advertises CC BY 4.0 only for
-  original selection, arrangement, and commentary to the extent Primate411
+  original selection, arrangement, and commentary to the extent Primate
   owns those rights; underlying facts and third-party API data retain their
   source terms.
-- Public identity: Tezos Systems is built by Primate411, a co-founding member
-  of Tez Capital; represent Tez Capital as the affiliated brand and RPC
+- Public identity: Tezos Systems is built by Primate, linked to the
+  [BakingBenjamins X profile](https://x.com/BakingBenjamins), and Primate is a
+  co-founding member of Tez Capital; represent Tez Capital as the affiliated brand and RPC
   infrastructure provider.
-- Legal metadata: keep Primate411 as the repository's current copyright holder
+- Legal metadata: keep Primate as the repository's current copyright holder
   and site/schema creator, and as publisher where publisher metadata is present,
-  unless ownership actually changes.
+  unless ownership actually changes. Keep `Primate411` only in technical GitHub
+  repository, API, issue, security, and source URLs while that remains the
+  account name.
 - The live footer and document metadata must retain public Source and MPL-2.0
   links when `index.html` or generated chamber shells are refreshed.
 
