@@ -12,10 +12,12 @@ import {
   MILESTONE_REFRESH_COMMITS,
   MILESTONE_REFRESH_DAYS,
   extendMilestoneThresholds,
+  generatedMilestoneAnchor,
+  generatedMilestoneMoments,
   generatedMilestoneThresholds,
   milestoneCatalogCadence
 } from '../js/features/milestone-catalog.mjs';
-import { advanceMilestoneTrack, claimMilestoneArrival, normalizeMilestoneStore, qualifyMilestoneNearState } from '../js/features/milestone-lifecycle.mjs';
+import { advanceMilestoneTrack, claimMilestoneArrival, deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS, normalizeMilestoneStore, qualifyMilestoneNearState } from '../js/features/milestone-lifecycle.mjs';
 import {
   compileContractCoverage,
   rankAppActivity,
@@ -3347,6 +3349,7 @@ async function checkDailyBriefingPriceContracts() {
 
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
+  const shellExtras = await readText('css/shell-extras.css');
   const requiredSiteMapRoutes = {
     staking: 'staking-chamber',
     governance: 'chamber',
@@ -3358,6 +3361,7 @@ async function checkNetworkContextNavigationContracts() {
     tz4: 'tz4',
     etherlink: 'tezosx',
     ledger: 'ledger-flow',
+    maxis: 'maxis',
     network: 'pulse'
   };
 
@@ -3377,10 +3381,11 @@ async function checkNetworkContextNavigationContracts() {
     'hotPoolSignals()',
     'LS_DAILY_SNAPSHOT',
     'HOT_SIGNAL_RENDER_CAP = 12',
+    'HOT_SIGNAL_VISIBLE_MIN = 4',
     'HOT_SIGNAL_CATEGORY_BUDGET = 2',
     'HOT_SIGNAL_EVENT_DECAY_PER_HOUR = 8',
     "if (value == null || value === '') return null;",
-    'MILESTONE_MOMENT_TTL_MS = 72 * HOUR_MS',
+    'MILESTONE_MOMENT_TTL_MS',
     'advanceMilestoneTrack(momentStore',
     "milestoneStatus: 'crossed'",
     "milestoneStatus: 'near'",
@@ -3394,14 +3399,23 @@ async function checkNetworkContextNavigationContracts() {
     'dailySnapshotReference',
     'captureDailySnapshot(stats)',
     'const kind = normalizeSignalKind',
+    'SPECTACLE_LEVELS',
+    'normalizeSpectacle',
+    'selectHotSignalSet',
+    'const itemLeft = strip.scrollLeft + itemRect.left - rect.left',
+    'data-hot-spectacle=',
+    'data-hot-visual=',
+    'hot-today-species-mark',
     'scoreBoostFor(category, profile)',
     'fetchNftPulse',
     'maybeDispatchProtocolLoreSignal',
     'delta: normalizeDelta',
-    'BRIEFING_SCHEMA_VERSION = 10',
+    'BRIEFING_SCHEMA_VERSION = 11',
     'MILESTONE_NEAR_MAX_DAYS = 30',
     'MILESTONE_CATALOG_URL',
     'generatedMilestoneThresholds',
+    'generatedMilestoneAnchor',
+    'resolveExactBlockMilestoneMoment',
     'data-hot-milestone-share',
     'captureNetworkMomentShare',
     '<a class="network-focus-chip"',
@@ -3416,7 +3430,34 @@ async function checkNetworkContextNavigationContracts() {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
   }
 
-  pass('Network Context feature routes stay clickable');
+  for (const snippet of [
+    '.is-spectacle-quiet',
+    '.is-spectacle-headliner',
+    '.is-spectacle-peacock',
+    '.hot-today-milestone-shell.is-milestone-crossed',
+    '[data-hot-visual="whale"]',
+    '[data-hot-visual="domains"]',
+    '[data-hot-visual="maxis"]'
+  ]) {
+    if (!shellExtras.includes(snippet)) fail(`What is hot today spectacle CSS missing: ${snippet}`);
+  }
+
+  const chamberSignalContracts = [
+    ['js/features/staking-chamber.js', "visual: 'staking'", "route: '/stake/'"],
+    ['js/features/liquidity-baking.js', 'dispatchLiquidityBakingHotSignal', "visual: 'lb'"],
+    ['js/features/maxis.js', 'dispatchMaxisHotSignals', "spectacle: 'historic'"],
+    ['js/features/whales.js', "visual: 'whale'", "spectacle: amountXtz >= 1_000_000 ? 'peacock' : 'headliner'"],
+    ['js/features/tezos-domains.js', "visual: 'domains'", "spectacle: 'headliner'"],
+    ['js/features/tezlink.js', "visual: 'etherlink'", "transactionsToday >= 100_000 ? 'headliner' : 'curious'"]
+  ];
+  for (const [file, ...snippets] of chamberSignalContracts) {
+    const source = await readText(file);
+    for (const snippet of snippets) {
+      if (!source.includes(snippet)) fail(`${file} missing What is hot today signal contract: ${snippet}`);
+    }
+  }
+
+  pass('Network Context feature routes and spectacle signals stay clickable');
 }
 
 function checkMilestoneLifecycleBehavior() {
@@ -3489,6 +3530,28 @@ function checkMilestoneLifecycleBehavior() {
     assert.equal(claimMilestoneArrival(arrivals, 'blocks|100|event'), false);
     assert.equal(claimMilestoneArrival(arrivals, 'blocks|200|event'), true);
 
+    const catalogMoments = deriveMilestoneMoments({
+      currentValue: 112,
+      thresholds,
+      now: now + (24 * 60 * 60 * 1000),
+      ttlMs,
+      anchorValue: 95,
+      anchorObservedAt: now
+    });
+    assert.equal(catalogMoments.length, 1);
+    assert.equal(catalogMoments[0].target, 100);
+    assert.ok(catalogMoments[0].createdAt > now);
+    assert.equal(catalogMoments[0].expiresAt, catalogMoments[0].createdAt + MILESTONE_MOMENT_TTL_MS);
+    const staleCatalogMoments = deriveMilestoneMoments({
+      currentValue: 180,
+      thresholds,
+      now: now + (10 * 24 * 60 * 60 * 1000),
+      ttlMs,
+      anchorValue: 95,
+      anchorObservedAt: now
+    });
+    assert.equal(staleCatalogMoments.length, 0);
+
     const tooEarly = qualifyMilestoneNearState({
       currentValue: 2852,
       thresholds: [3000],
@@ -3525,7 +3588,7 @@ function checkMilestoneLifecycleBehavior() {
       absoluteMaxDays: 30
     });
     assert.equal(Math.ceil(insideAbsoluteCap.etaDays), 29);
-    pass('milestone lifecycle behavior covers baseline, crossing, TTL, tombstones, one-time arrival, and the 30-day near cap');
+    pass('milestone lifecycle behavior covers shared receipts, baseline, crossing, TTL, tombstones, one-time arrival, and the 30-day near cap');
   } catch (error) {
     fail(`milestone lifecycle behavior failed: ${error.message}`);
   }
@@ -3539,6 +3602,8 @@ async function checkMilestoneCatalogContracts() {
     assert.equal(catalog.cadence?.commits, MILESTONE_REFRESH_COMMITS);
     assert.ok(Number.isFinite(Number(catalog.generatedAtCommitCount)));
     assert.ok(Number.isFinite(Date.parse(catalog.generatedAt)));
+    assert.ok(generatedMilestoneAnchor(catalog, 'blocks'));
+    assert.ok(Array.isArray(generatedMilestoneMoments(catalog, 'blocks')));
 
     for (const trackId of Object.keys(MILESTONE_BASE_THRESHOLDS)) {
       const generated = generatedMilestoneThresholds(catalog, trackId);
@@ -3559,6 +3624,8 @@ async function checkMilestoneCatalogContracts() {
     for (const snippet of ['MILESTONE_REFRESH_DAYS', 'MILESTONE_REFRESH_COMMITS', '--project-next-commit']) {
       assert.ok(generator.includes(snippet) || orchestrator.includes(snippet), `milestone cadence missing ${snippet}`);
     }
+    assert.ok(generator.includes('recentCrossings'));
+    assert.ok(generator.includes('MILESTONE_MOMENT_TTL_MS'));
     assert.ok(orchestrator.includes("MILESTONE_TARGETS = ['data/milestone-catalog.json']"));
     pass('milestone catalog preserves curated thresholds and regenerates after 14 days or 100 commits');
   } catch (error) {

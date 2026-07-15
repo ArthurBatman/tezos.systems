@@ -1,4 +1,5 @@
 export const MILESTONE_STORE_SCHEMA = 2;
+export const MILESTONE_MOMENT_TTL_MS = 72 * 60 * 60 * 1000;
 
 export function claimMilestoneArrival(seen, identity) {
   if (!(seen instanceof Set) || !identity || seen.has(identity)) return false;
@@ -98,6 +99,58 @@ function sortedThresholds(values) {
     .map(finitePositive)
     .filter(value => value != null))]
     .sort((a, b) => a - b);
+}
+
+function normalizedMoment(entry, now) {
+  const target = finitePositive(entry?.target);
+  const createdAt = finiteTimestamp(entry?.createdAt || entry?.crossedAt);
+  const expiresAt = finiteTimestamp(entry?.expiresAt);
+  if (target == null || createdAt == null || expiresAt == null || createdAt > now || expiresAt <= now) return null;
+  return {
+    target,
+    createdAt,
+    expiresAt,
+    crossedValue: finitePositive(entry?.crossedValue) ?? target
+  };
+}
+
+export function deriveMilestoneMoments({
+  currentValue,
+  thresholds,
+  now = Date.now(),
+  ttlMs = MILESTONE_MOMENT_TTL_MS,
+  anchorValue,
+  anchorObservedAt,
+  receipts = []
+} = {}) {
+  const observedAt = finiteTimestamp(now);
+  const lifetime = finitePositive(ttlMs);
+  if (observedAt == null || lifetime == null) return [];
+
+  const moments = new Map();
+  (Array.isArray(receipts) ? receipts : []).forEach((entry) => {
+    const moment = normalizedMoment(entry, observedAt);
+    if (moment) moments.set(targetKey(moment.target), moment);
+  });
+
+  const current = finitePositive(currentValue);
+  const anchor = finitePositive(anchorValue);
+  const anchorAt = finiteTimestamp(anchorObservedAt);
+  if (current != null && anchor != null && anchorAt != null && current > anchor && observedAt > anchorAt) {
+    sortedThresholds(thresholds)
+      .filter(target => anchor < target && target <= current)
+      .forEach((target) => {
+        const key = targetKey(target);
+        if (moments.has(key)) return;
+        const progress = (target - anchor) / (current - anchor);
+        const createdAt = Math.round(anchorAt + ((observedAt - anchorAt) * progress));
+        const expiresAt = createdAt + lifetime;
+        if (createdAt > observedAt || expiresAt <= observedAt) return;
+        moments.set(key, { target, createdAt, expiresAt, crossedValue: current });
+      });
+  }
+
+  return [...moments.values()].sort((a, b) => b.createdAt - a.createdAt || b.target - a.target);
 }
 
 export function qualifyMilestoneNearState({

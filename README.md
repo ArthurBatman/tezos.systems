@@ -432,10 +432,15 @@ inline modal styles in `js/core/app.js`.
   compact `What's hot today` live pulse
   sits above Chambers as a horizontally scrolling strip for non-obvious daily
   signals instead of repeating the header's cycle, baker, staking, or security
-  facts, and leads with a larger uptime-anniversary card on September 17 UTC.
+  facts. Quiet, curious, headliner, peacock, and historic tiers give stronger
+  stories progressively larger and more distinctive cards, while September 17
+  UTC still leads with the uptime anniversary.
   Pace-aware milestone cards normally appear only within the final 14 days and
   are hard-capped at 30 days before a target; newly crossed milestones remain
-  celebratory for 72 hours. Each milestone card can open the existing branded
+  celebratory for 72 hours. Generated catalog receipts make that window shared
+  across visitors, target block timestamps provide exact block-height timing,
+  and bounded local observation remains only as a fallback. Each milestone card
+  can open the existing branded
   image-share composer with milestone-specific promotional tweet styles.
   Internal routes open My Tezos, baker profiles, protocol lore/history,
   Chambers, themes, calculator, comparisons, leaderboard, whale/giant feeds,
@@ -649,8 +654,9 @@ current evaluator's category constants.
 The milestone generator is cadence-gated: scheduled runs refresh it after 14
 days, while pre-commit runs refresh it after 100 commits, whichever happens
 first. `npm run refresh:milestones` forces a manual refresh. The browser consumes
-the generated thresholds and falls back to its shared base catalog when the
-manifest is unavailable. The pre-commit hook runs the same orchestrator in
+the generated thresholds plus unexpired crossing receipts and falls back to its
+shared base catalog when the manifest is unavailable. The pre-commit hook runs
+the same orchestrator in
 commit mode so fast-moving generated outputs update with each normal commit.
 `.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
 and commits only when generated outputs change.
@@ -806,7 +812,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v433`, including hero search, theme
+- Current aligned shell cache stamp: `v438`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

@@ -9,8 +9,8 @@ import { getTezosUptimeAnniversary } from '../core/anniversary.js';
 import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
 import { escapeHtml } from '../core/utils.js';
 import { findSiteMapEntry } from '../core/site-map.js';
-import { generatedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
-import { advanceMilestoneTrack, claimMilestoneArrival, normalizeMilestoneStore, qualifyMilestoneNearState } from './milestone-lifecycle.mjs';
+import { generatedMilestoneAnchor, generatedMilestoneMoments, generatedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
+import { advanceMilestoneTrack, claimMilestoneArrival, deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS, normalizeMilestoneStore, qualifyMilestoneNearState } from './milestone-lifecycle.mjs';
 import { fetchXTZPrice } from './price.js';
 
 const LS_BASELINE  = 'tezos-systems-briefing-baseline';
@@ -20,7 +20,7 @@ const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
 const LS_PROTOCOL_LORE_DAY = 'tezos-systems-protocol-lore-hot-day';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
-const BRIEFING_SCHEMA_VERSION = 10;
+const BRIEFING_SCHEMA_VERSION = 11;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const NFT_FETCH_TIMEOUT_MS = 2500;
 const MILESTONE_FETCH_TIMEOUT_MS = 2800;
@@ -31,6 +31,7 @@ const HOT_SIGNAL_RENDER_THROTTLE_MS = 1000;
 const HOT_SIGNAL_RENDER_CAP = 12;
 const HOT_SIGNAL_CATEGORY_BUDGET = 2;
 const HOT_SIGNAL_MILESTONE_BUDGET = 12;
+const HOT_SIGNAL_VISIBLE_MIN = 4;
 const HOT_SIGNAL_EVENT_DECAY_PER_HOUR = 8;
 const MILESTONE_CARD_ARRIVAL_MS = 1700;
 const HOT_HISTORY_DAYS = 7;
@@ -38,7 +39,6 @@ const ACTIVITY_NEUTRAL_PCT = 1;
 const ACTIVITY_MEANINGFUL_PCT = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
-const MILESTONE_MOMENT_TTL_MS = 72 * HOUR_MS;
 const MILESTONE_NEAR_LEAD_DAYS = 14;
 const MILESTONE_NEAR_MAX_DAYS = 30;
 const MILESTONE_RATE_MIN_SAMPLE_MS = HOUR_MS;
@@ -47,27 +47,30 @@ const OBJKT_GRAPHQL_ENDPOINT = 'https://data.objkt.com/v3/graphql';
 const OBJKT_SALES_SAMPLE_LIMIT = 500;
 
 const CATEGORY_META = {
-  baker: { label: 'Baker', icon: '🍞', tone: 'operator', detail: 'Personal operator signal' },
-  price: { label: 'Market', icon: '💸', tone: 'market', detail: 'XTZ price movement' },
-  staking: { label: 'Staking', icon: '🥩', tone: 'staking', detail: 'Security and yield' },
-  volume: { label: 'Activity', icon: '⚡', tone: 'activity', detail: 'Transaction flow' },
-  contracts: { label: 'Contracts', icon: '🧩', tone: 'activity', detail: 'App and DeFi pulse' },
-  whales: { label: 'Whales', icon: '🐋', tone: 'capital', detail: 'Large value movement' },
-  governance: { label: 'Governance', icon: '🏛️', tone: 'governance', detail: 'Protocol decision lane' },
-  ecosystem: { label: 'Growth', icon: '🌱', tone: 'growth', detail: 'New account flow' },
-  cycle: { label: 'Cycle', icon: '⏱️', tone: 'cycle', detail: 'Cycle runway' },
-  security: { label: 'Security', icon: '🛡️', tone: 'security', detail: 'Bakers, stake, and finality' },
-  domains: { label: 'Domains', icon: '.tez', tone: 'activity', detail: 'Tezos Domains lane' },
-  nft: { label: 'NFTs', icon: '◈', tone: 'activity', detail: 'HEN live culture' },
-  lb: { label: 'Liquidity Baking', icon: 'LB', tone: 'governance', detail: 'LB vote and liquidity lane' },
-  tz4: { label: 'tz4', icon: 'tz4', tone: 'security', detail: 'BLS consensus key adoption' },
-  etherlink: { label: 'Etherlink', icon: 'L2', tone: 'activity', detail: 'Tezos X activity lane' },
-  ledger: { label: 'Ledger Flow', icon: '↔', tone: 'network', detail: 'Account transfer paths' },
-  anniversary: { label: 'Anniversary', icon: '∞', tone: 'anniversary', detail: 'Tezos mainnet anniversary' },
-  milestone: { label: 'Milestone', icon: 'M', tone: 'milestone', detail: 'Round-number network marker' },
-  moment: { label: 'Milestone', icon: '✦', tone: 'growth', detail: 'Network milestone' },
-  network: { label: 'Network', icon: '🌐', tone: 'network', detail: 'Daily Tezos pulse' }
+  baker: { label: 'Baker', icon: '🍞', tone: 'operator', visual: 'operator', detail: 'Personal operator signal' },
+  price: { label: 'Market', icon: '💸', tone: 'market', visual: 'market', detail: 'XTZ price movement' },
+  staking: { label: 'Staking', icon: '🥩', tone: 'staking', visual: 'staking', detail: 'Security and yield' },
+  volume: { label: 'Activity', icon: '⚡', tone: 'activity', visual: 'activity', detail: 'Transaction flow' },
+  contracts: { label: 'Contracts', icon: '🧩', tone: 'activity', visual: 'forge', detail: 'App and DeFi pulse' },
+  whales: { label: 'Whales', icon: '🐋', tone: 'capital', visual: 'whale', detail: 'Large value movement' },
+  governance: { label: 'Governance', icon: '🏛️', tone: 'governance', visual: 'governance', detail: 'Protocol decision lane' },
+  ecosystem: { label: 'Growth', icon: '🌱', tone: 'growth', visual: 'growth', detail: 'New account flow' },
+  cycle: { label: 'Cycle', icon: '⏱️', tone: 'cycle', visual: 'consensus', detail: 'Cycle runway' },
+  security: { label: 'Security', icon: '🛡️', tone: 'security', visual: 'consensus', detail: 'Bakers, stake, and finality' },
+  domains: { label: 'Domains', icon: '.tez', tone: 'activity', visual: 'domains', detail: 'Tezos Domains lane' },
+  nft: { label: 'NFTs', icon: '◈', tone: 'activity', visual: 'nft', detail: 'HEN live culture' },
+  lb: { label: 'Liquidity Baking', icon: 'LB', tone: 'governance', visual: 'lb', detail: 'LB vote and liquidity lane' },
+  tz4: { label: 'tz4', icon: 'tz4', tone: 'security', visual: 'tz4', detail: 'BLS consensus key adoption' },
+  etherlink: { label: 'Etherlink', icon: 'L2', tone: 'activity', visual: 'etherlink', detail: 'Tezos X activity lane' },
+  ledger: { label: 'Ledger Flow', icon: '↔', tone: 'network', visual: 'ledger', detail: 'Account transfer paths' },
+  maxis: { label: 'Tezos Maxis', icon: '♛', tone: 'governance', visual: 'maxis', detail: 'Crown and protocol-season movement' },
+  anniversary: { label: 'Anniversary', icon: '∞', tone: 'anniversary', visual: 'anniversary', detail: 'Tezos mainnet anniversary' },
+  milestone: { label: 'Milestone', icon: 'M', tone: 'milestone', visual: 'milestone', detail: 'Round-number network marker' },
+  moment: { label: 'Milestone', icon: '✦', tone: 'growth', visual: 'moment', detail: 'Network milestone' },
+  network: { label: 'Network', icon: '🌐', tone: 'network', visual: 'network', detail: 'Daily Tezos pulse' }
 };
+
+const SPECTACLE_LEVELS = ['quiet', 'curious', 'headliner', 'peacock', 'historic'];
 
 const NETWORK_FEATURE_SITE_MAP_IDS = {
   staking: 'staking-chamber',
@@ -82,7 +85,8 @@ const NETWORK_FEATURE_SITE_MAP_IDS = {
   lb: 'liquidity-baking',
   tz4: 'tz4',
   etherlink: 'tezosx',
-  ledger: 'ledger-flow'
+  ledger: 'ledger-flow',
+  maxis: 'maxis'
 };
 
 const NETWORK_FEATURE_FALLBACK_ROUTES = {
@@ -100,6 +104,7 @@ const NETWORK_FEATURE_FALLBACK_ROUTES = {
   cycle: '#health',
   security: '#health',
   milestone: '#hot-today',
+  maxis: '#maxis',
   network: '#pulse'
 };
 
@@ -121,6 +126,7 @@ const NETWORK_FEATURE_FALLBACK_LABELS = {
   tz4: 'Open tz4 Adoption',
   etherlink: 'Open Tezos X',
   ledger: 'Open Ledger Flow',
+  maxis: 'Open Tezos Maxis',
   anniversary: 'Open Protocol Anthology',
   milestone: 'Open live Tezos milestones',
   moment: 'Open live Tezos pulse',
@@ -144,6 +150,7 @@ let hotTodayActiveIndex = 0;
 let hotTodayRotationPaused = false;
 let hotTodayManualPauseTimer = null;
 let hotTodayHasRendered = false;
+let lastHotTodayLeadId = '';
 let hotSignalRenderTimer = null;
 let lastHotSignalRenderAt = 0;
 let hotSignalListenerWired = false;
@@ -151,6 +158,8 @@ let protocolLoreSignalInFlight = false;
 let lastMilestoneStats = {};
 let generatedMilestoneCatalog = null;
 let generatedMilestoneCatalogPromise = null;
+const exactMilestoneMomentPromises = new Map();
+const exactMilestoneMoments = new Map();
 const hotSignalPool = new Map();
 const seenMilestoneArrivals = new Set();
 
@@ -401,7 +410,7 @@ const MILESTONE_TRACKS = [
     snapshotField: 'blockLevel',
     trustedDailyRate: 7_200,
     nearWindow: 24_000,
-    afterWindow: 36_000
+    afterWindow: 50_000
   },
   {
     id: 'funded-wallets',
@@ -584,6 +593,16 @@ function milestoneThresholds(track) {
   return generated.length ? generated : track.thresholds;
 }
 
+function milestoneCatalogRate(track, currentValue, now = Date.now()) {
+  const anchor = generatedMilestoneAnchor(generatedMilestoneCatalog, track.id);
+  const current = finiteNumber(currentValue);
+  if (!anchor || current == null || current <= anchor.current) return null;
+  const elapsedMs = now - anchor.observedAt;
+  if (elapsedMs < MILESTONE_RATE_MIN_SAMPLE_MS || elapsedMs > MILESTONE_RATE_MAX_SAMPLE_MS) return null;
+  const rate = ((current - anchor.current) / elapsedMs) * DAY_MS;
+  return rate > 0 ? rate : null;
+}
+
 async function loadGeneratedMilestoneCatalog() {
   if (generatedMilestoneCatalog) return generatedMilestoneCatalog;
   if (generatedMilestoneCatalogPromise) return generatedMilestoneCatalogPromise;
@@ -660,6 +679,9 @@ function milestoneGapLabel(track, value) {
 }
 
 function milestoneDailyRate(track, currentValue, momentStore, snapshot, now = Date.now()) {
+  const catalogRate = milestoneCatalogRate(track, currentValue, now);
+  if (catalogRate != null) return catalogRate;
+
   const trustedRate = finiteNumber(track?.trustedDailyRate);
   if (trustedRate != null && trustedRate > 0) return trustedRate;
 
@@ -684,6 +706,39 @@ function milestoneDailyRate(track, currentValue, momentStore, snapshot, now = Da
   }
 
   return null;
+}
+
+function exactMilestoneMoment(trackId, target, now = Date.now()) {
+  const moment = exactMilestoneMoments.get(`${trackId}:${target}`);
+  return moment && moment.createdAt <= now && moment.expiresAt > now ? moment : null;
+}
+
+async function resolveExactBlockMilestoneMoment(stats = {}) {
+  const track = MILESTONE_TRACKS.find(entry => entry.id === 'blocks');
+  const current = track?.value(stats);
+  if (!track || !hasMilestoneNumber(current)) return null;
+  const target = [...milestoneThresholds(track)].reverse().find(value => value <= current);
+  if (!target || Number(current) - target > track.afterWindow) return null;
+
+  const key = `${track.id}:${target}`;
+  const existing = exactMilestoneMoment(track.id, target);
+  if (existing) return existing;
+  if (exactMilestoneMomentPromises.has(key)) return exactMilestoneMomentPromises.get(key);
+
+  const promise = fetchMilestoneJson(`${API_URLS.tzkt}/blocks/${target}`).then((block) => {
+    const createdAt = Date.parse(block?.timestamp || '');
+    if (Number(block?.level) !== Number(target) || !Number.isFinite(createdAt)) return null;
+    const moment = {
+      target: Number(target),
+      createdAt,
+      expiresAt: createdAt + MILESTONE_MOMENT_TTL_MS,
+      crossedValue: Number(current)
+    };
+    exactMilestoneMoments.set(key, moment);
+    return moment.expiresAt > Date.now() ? moment : null;
+  }).catch(() => null);
+  exactMilestoneMomentPromises.set(key, promise);
+  return promise;
 }
 
 function readMilestoneMomentLog() {
@@ -761,6 +816,9 @@ function buildMilestoneSignals(stats = {}) {
     const current = track.value(stats);
     const thresholds = milestoneThresholds(track);
     const dailyRate = milestoneDailyRate(track, current, momentStore, snapshotReference, now);
+    const priorTrack = momentStore.tracks?.[track.id];
+    const priorValue = finiteNumber(priorTrack?.lastValue);
+    const priorObservedAt = finiteNumber(priorTrack?.lastObservedAt);
     const lifecycle = advanceMilestoneTrack(momentStore, {
       trackId: track.id,
       currentValue: current,
@@ -770,7 +828,32 @@ function buildMilestoneSignals(stats = {}) {
     });
     if (lifecycle.changed) momentLogChanged = true;
 
-    lifecycle.activeMoments.forEach((moment) => {
+    const catalogAnchor = generatedMilestoneAnchor(generatedMilestoneCatalog, track.id);
+    const catalogMoments = deriveMilestoneMoments({
+      currentValue: current,
+      thresholds,
+      now,
+      ttlMs: MILESTONE_MOMENT_TTL_MS,
+      anchorValue: catalogAnchor?.current,
+      anchorObservedAt: catalogAnchor?.observedAt,
+      receipts: generatedMilestoneMoments(generatedMilestoneCatalog, track.id, now)
+    });
+    const locallyObservedMoments = deriveMilestoneMoments({
+      currentValue: current,
+      thresholds,
+      now,
+      ttlMs: MILESTONE_MOMENT_TTL_MS,
+      anchorValue: priorValue,
+      anchorObservedAt: priorObservedAt
+    }).filter(moment => Math.max(0, Number(current) - moment.target) <= (finiteNumber(track.afterWindow) ?? Number.POSITIVE_INFINITY));
+    const exactMoment = track.id === 'blocks'
+      ? exactMilestoneMoment(track.id, [...thresholds].reverse().find(value => value <= current), now)
+      : null;
+    const activeMoments = new Map();
+    [...locallyObservedMoments, ...catalogMoments, ...(exactMoment ? [exactMoment] : [])]
+      .forEach(moment => activeMoments.set(String(moment.target), moment));
+
+    activeMoments.forEach((moment) => {
       const currentValue = hasMilestoneNumber(current) ? Number(current) : moment.crossedValue;
       const state = {
         status: 'crossed',
@@ -798,7 +881,7 @@ function buildMilestoneSignals(stats = {}) {
       }));
     });
 
-    if (lifecycle.activeMoments.length) return;
+    if (activeMoments.size) return;
     const state = qualifyMilestoneNearState({
       currentValue: current,
       thresholds,
@@ -923,6 +1006,22 @@ function categoryMeta(category) {
   return CATEGORY_META[category] || CATEGORY_META.network;
 }
 
+function normalizeSpectacle(value, signal = {}) {
+  const requested = safeCssToken(value || '');
+  if (SPECTACLE_LEVELS.includes(requested)) return requested;
+  const score = finiteNumber(signal.score) || 0;
+  const tone = safeCssToken(signal.tone || '');
+  if (signal.category === 'anniversary' || (tone === 'milestone' && signal.milestoneStatus === 'crossed')) return 'historic';
+  if (tone === 'milestone' || score >= 115) return signal.kind === 'event' ? 'peacock' : 'headliner';
+  if (signal.kind === 'event' || ['capital-hot', 'governance-hot'].includes(tone)) return 'headliner';
+  if (score >= 65) return 'curious';
+  return 'quiet';
+}
+
+function normalizeVisual(value, category = 'network') {
+  return safeCssToken(value || categoryMeta(category).visual || category);
+}
+
 function isDashboardShell() {
   if (typeof window === 'undefined') return true;
   const path = window.location.pathname.replace(/\/index\.html$/i, '/') || '/';
@@ -1035,6 +1134,12 @@ function scoreBoostFor(category, profile) {
 function makeSignal(category, score, text, options = {}) {
   const meta = categoryMeta(category);
   const kind = normalizeSignalKind(options.kind || (options.breaking ? 'event' : 'state'));
+  const tone = options.tone || meta.tone;
+  const milestoneStatus = options.milestoneStatus === 'crossed'
+    ? 'crossed'
+    : options.milestoneStatus === 'near'
+      ? 'near'
+      : null;
   return {
     id: safeCssToken(options.id || category),
     category,
@@ -1045,12 +1150,10 @@ function makeSignal(category, score, text, options = {}) {
     shortLabel: String(options.shortLabel || options.title || meta.label),
     icon: options.icon || meta.icon,
     detail: options.detail || meta.detail,
-    tone: options.tone || meta.tone,
-    milestoneStatus: options.milestoneStatus === 'crossed'
-      ? 'crossed'
-      : options.milestoneStatus === 'near'
-        ? 'near'
-        : null,
+    tone,
+    visual: normalizeVisual(options.visual || meta.visual, category),
+    spectacle: normalizeSpectacle(options.spectacle, { category, kind, score, tone, milestoneStatus }),
+    milestoneStatus,
     milestoneTrack: options.milestoneTrack ? safeCssToken(options.milestoneTrack) : null,
     route: normalizeRoute(options.route),
     delta: normalizeDelta(options.delta),
@@ -1240,6 +1343,8 @@ function dispatchNftHotSignals(pulse) {
       id: 'nft-market-pulse',
       category: 'nft',
       kind: 'state',
+      visual: 'nft',
+      spectacle: 'curious',
       score: 86,
       title: 'NFT pulse',
       detail: 'OBJKT indexed sales',
@@ -1256,13 +1361,15 @@ function dispatchNftHotSignals(pulse) {
       id: `nft-big-sale-${top.id}`,
       category: 'nft',
       kind: 'event',
+      visual: 'nft',
+      spectacle: top.priceXtz >= 5_000 ? 'peacock' : 'headliner',
       score: 108,
       title: 'Big NFT sale',
       detail: `${formatTez(top.priceXtz)} XTZ`,
       text: `${top.name || 'An OBJKT piece'} sold for ${formatTez(top.priceXtz)} XTZ.`,
       route: '/hen/',
       createdAt: soldAt,
-      ttlMs: (12 * HOUR_MS) - ageMs
+      ttlMs: 12 * HOUR_MS
     });
   }
 }
@@ -1344,6 +1451,7 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
     addSignal('price', score, tmpl(vars), {
       detail: absPct24h >= 2 ? 'Portfolio-sized move' : 'Market temperature',
       tone: pct24h >= 0 ? 'market-up' : 'market-down',
+      spectacle: absPct24h >= 4 ? 'headliner' : absPct24h >= 1 ? 'curious' : 'quiet',
       delta: signedDelta(pct24h, '%', 1)
     });
   }
@@ -1369,6 +1477,7 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
     addSignal('volume', score, pick(TEMPLATES.volume)({ vol: stats.transactionVolume24h, ...narrative }), {
       detail: narrative.isMeaningful ? 'Activity changed meaningfully' : 'Activity baseline',
       tone: narrative.tone,
+      spectacle: Math.abs(sp) > 20 ? 'headliner' : narrative.isMeaningful ? 'curious' : 'quiet',
       delta: signedDelta(sp, '%', 1)
     });
   }
@@ -1381,17 +1490,30 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
     addSignal('contracts', score, pick(TEMPLATES.contracts)({ count: stats.contractCalls24h, delta }), {
       detail: Math.abs(delta) > 1000 ? `${delta > 0 ? '+' : ''}${delta.toLocaleString()} calls vs baseline` : 'App usage baseline',
       tone: delta >= 0 ? 'activity' : 'quiet',
+      spectacle: Math.abs(delta) > 5000 ? 'headliner' : Math.abs(delta) > 1000 ? 'curious' : 'quiet',
       delta: signedDelta(delta, 'count')
     });
   }
 
   // WHALES
   {
-    const score = whales.count > 10 ? 88 : whales.count > 5 ? 70 : whales.count > 0 ? 50 : 20;
+    const score = whales.top >= 1_000_000
+      ? 124
+      : whales.top >= 250_000
+        ? 108
+        : whales.count > 10
+          ? 88
+          : whales.count > 5
+            ? 70
+            : whales.count > 0
+              ? 50
+              : 20;
     const tmpl  = whales.count > 0 && whales.top > 0 ? pick(TEMPLATES.whales) : TEMPLATES.whales[0];
     addSignal('whales', score, tmpl({ count: whales.count, top: whales.top }), {
       detail: whales.top > 0 ? `Largest move ${whales.top.toLocaleString()} XTZ` : 'No major transfer spike',
-      tone: whales.count > 10 ? 'capital-hot' : whales.count > 0 ? 'capital' : 'quiet'
+      tone: whales.count > 10 ? 'capital-hot' : whales.count > 0 ? 'capital' : 'quiet',
+      visual: 'whale',
+      spectacle: whales.top >= 1_000_000 ? 'peacock' : whales.top >= 250_000 ? 'headliner' : whales.count > 0 ? 'curious' : 'quiet'
     });
   }
 
@@ -1418,7 +1540,8 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
     const score = delta > 1000 ? 65 : delta > 200 ? 45 : 25;
     addSignal('ecosystem', score, pick(TEMPLATES.ecosystem)({ n, bakers: stats.totalBakers || '?' }), {
       detail: n > 200 ? 'New accounts worth noticing' : 'Onboarding baseline',
-      tone: n > 200 ? 'growth' : 'quiet'
+      tone: n > 200 ? 'growth' : 'quiet',
+      spectacle: n > 1000 ? 'headliner' : n > 200 ? 'curious' : 'quiet'
     });
   }
 
@@ -1428,7 +1551,8 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
     const tmpl  = bakerStats.missed > 0 ? TEMPLATES.baker[1] : pick([TEMPLATES.baker[0], TEMPLATES.baker[2]]);
     addSignal('baker', score, tmpl({ pct: bakerStats.attestPct, missed: bakerStats.missed }), {
       detail: bakerStats.missed > 0 ? 'Personal baker watch item' : 'Personal baker check',
-      tone: bakerStats.missed > 0 ? 'watch' : 'operator'
+      tone: bakerStats.missed > 0 ? 'watch' : 'operator',
+      spectacle: bakerStats.missed > 0 ? 'headliner' : 'curious'
     });
   }
 
@@ -1464,7 +1588,10 @@ async function generate(stats, xtzPrice) {
   const sourceStats = stats || {};
   const cycle = sourceStats.cycle ?? 0;
   const profile = getCurrentMyTezosProfile();
-  const priceContext = await resolvePriceContext(sourceStats, xtzPrice);
+  const [priceContext] = await Promise.all([
+    resolvePriceContext(sourceStats, xtzPrice),
+    resolveExactBlockMilestoneMoment(sourceStats)
+  ]);
   const nextStats = priceContext.stats;
   const currentPrice = priceContext.xtzPrice;
   const currentChange24h = priceContext.priceChange24h;
@@ -1565,22 +1692,27 @@ function normalizeSignal(signal, index = 0) {
   const category = safeCssToken(signal?.category || 'network');
   const meta = categoryMeta(category);
   const kind = normalizeSignalKind(signal?.kind || (signal?.breaking ? 'event' : 'state'));
+  const tone = safeCssToken(signal?.tone || meta.tone);
+  const milestoneStatus = signal?.milestoneStatus === 'crossed'
+    ? 'crossed'
+    : signal?.milestoneStatus === 'near'
+      ? 'near'
+      : null;
+  const score = finiteNumber(signal?.score) ?? (20 - index);
   return {
     id: safeCssToken(signal?.id || category),
     category,
     kind,
-    score: finiteNumber(signal?.score) ?? (20 - index),
+    score,
     text: String(signal?.text || ''),
     title: String(signal?.title || meta.label),
     shortLabel: String(signal?.shortLabel || signal?.title || meta.label),
     icon: String(signal?.icon || meta.icon),
     detail: String(signal?.detail || meta.detail),
-    tone: safeCssToken(signal?.tone || meta.tone),
-    milestoneStatus: signal?.milestoneStatus === 'crossed'
-      ? 'crossed'
-      : signal?.milestoneStatus === 'near'
-        ? 'near'
-        : null,
+    tone,
+    visual: normalizeVisual(signal?.visual || meta.visual, category),
+    spectacle: normalizeSpectacle(signal?.spectacle, { category, kind, score, tone, milestoneStatus }),
+    milestoneStatus,
     milestoneTrack: signal?.milestoneTrack ? safeCssToken(signal.milestoneTrack) : null,
     route: normalizeRoute(signal?.route),
     delta: normalizeDelta(signal?.delta),
@@ -1981,6 +2113,22 @@ function mergeHotSignals(liveSignals, poolSignals, briefingSignals) {
   return merged;
 }
 
+function selectHotSignalSet(signals = []) {
+  const notable = signals.filter(signal => signal.spectacle !== 'quiet');
+  if (notable.length >= HOT_SIGNAL_VISIBLE_MIN) return notable.slice(0, HOT_SIGNAL_RENDER_CAP);
+  const selectedIds = new Set(notable.map(signal => signal.id));
+  const selected = [...notable];
+  for (const signal of signals) {
+    if (selected.length >= HOT_SIGNAL_VISIBLE_MIN) break;
+    if (selectedIds.has(signal.id)) continue;
+    selected.push(signal);
+    selectedIds.add(signal.id);
+  }
+  return selected
+    .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
+    .slice(0, HOT_SIGNAL_RENDER_CAP);
+}
+
 function isHeaderDuplicateSignal(signal) {
   if (!signal) return true;
   if (signal.tone === 'milestone') return false;
@@ -2162,6 +2310,8 @@ function renderHotSignal(signal, index) {
   const breakingClass = signal.breaking && !milestoneStatus ? ' is-hot-breaking' : '';
   const milestoneClass = milestoneStatus ? ` is-milestone-${milestoneStatus}` : '';
   const milestoneArrivalClass = milestoneArriving ? ' is-milestone-arriving' : '';
+  const spectacleClass = ` is-spectacle-${safeCssToken(signal.spectacle)}`;
+  const visual = normalizeVisual(signal.visual, signal.category);
   const milestoneAttributes = milestoneStatus
     ? ` data-milestone-status="${milestoneStatus}" data-milestone-label="${milestoneStatusText}"`
     : '';
@@ -2174,8 +2324,12 @@ function renderHotSignal(signal, index) {
   const ariaLabel = milestoneStatus
     ? `${milestoneStatusText}. ${routeLabel}: ${signal.detail}`
     : `${routeLabel}: ${signal.detail}`;
+  const speciesMark = milestoneStatus ? '' : `
+      <span class="hot-today-species-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+  `;
   const cardMarkup = `
-    <a class="hot-today-card hot-today-card-${signal.tone}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-index="${index}" data-network-route="${escapeHtml(route)}"${milestoneAttributes} aria-label="${escapeHtml(ariaLabel)}">
+    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${milestoneAttributes} aria-label="${escapeHtml(ariaLabel)}">
+      ${speciesMark}
       <span class="hot-today-rank">${escapeHtml(signal.icon)}</span>
       <span class="hot-today-copy">
         ${milestoneStatusMarkup}
@@ -2188,7 +2342,7 @@ function renderHotSignal(signal, index) {
   `;
   if (!milestoneStatus) return cardMarkup;
   return `
-    <div class="hot-today-milestone-shell">
+    <div class="hot-today-milestone-shell is-milestone-${milestoneStatus}">
       ${cardMarkup}
       <button class="hot-today-milestone-share" type="button" data-hot-milestone-share="${index}" aria-label="${escapeHtml(`Share ${signal.title} milestone`)}" title="Share milestone">
         <span aria-hidden="true">↗</span><span>Share</span>
@@ -2219,7 +2373,9 @@ function applyHotTodayActive(index = hotTodayActiveIndex, { scroll = true } = {}
     const visibleHeight = rect ? Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0)) : 0;
     const stripIsVisible = rect && visibleHeight >= Math.min(rect.height || 0, 80) * 0.75;
     if (strip && stripIsVisible) {
-      const targetLeft = scrollItem.offsetLeft - ((strip.clientWidth - scrollItem.clientWidth) / 2);
+      const itemRect = scrollItem.getBoundingClientRect();
+      const itemLeft = strip.scrollLeft + itemRect.left - rect.left;
+      const targetLeft = itemLeft - ((strip.clientWidth - itemRect.width) / 2);
       strip.scrollTo({ left: Math.max(0, targetLeft), behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     }
   }
@@ -2370,8 +2526,9 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   const fallbackBriefing = briefingSignals
     .filter(signal => !['cycle', 'security', 'network', 'staking'].includes(signal.category))
     .filter(signal => !(stripHasGovernance && signal.category === 'governance'));
-  const signals = mergeHotSignals(buildLiveHotSignals(stats), hotPoolSignals(), [...nonRedundantBriefing, ...fallbackBriefing])
-    .slice(0, HOT_SIGNAL_RENDER_CAP);
+  const signals = selectHotSignalSet(
+    mergeHotSignals(buildLiveHotSignals(stats), hotPoolSignals(), [...nonRedundantBriefing, ...fallbackBriefing])
+  );
   if (!signals.length) {
     hotTodaySignals = [];
     scheduleHotSignalExpiryRefresh([]);
@@ -2384,9 +2541,14 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   hotTodaySignals = signals;
   scheduleHotSignalExpiryRefresh(hotTodaySignals);
   const arrivingMilestoneIndex = signals.findIndex(milestoneArrivalIsUnseen);
-  hotTodayActiveIndex = arrivingMilestoneIndex >= 0 || signals[0]?.category === 'anniversary'
-    ? Math.max(0, arrivingMilestoneIndex)
-    : hotTodayActiveIndex % hotTodaySignals.length;
+  const nextLeadId = signals[0]?.id || '';
+  const leadChanged = nextLeadId !== lastHotTodayLeadId;
+  hotTodayActiveIndex = arrivingMilestoneIndex >= 0
+    ? arrivingMilestoneIndex
+    : (!hotTodayHasRendered || leadChanged || signals[0]?.category === 'anniversary')
+      ? 0
+      : hotTodayActiveIndex % hotTodaySignals.length;
+  lastHotTodayLeadId = nextLeadId;
   const history = hotHistorySummary(signals[0]);
   const memoryChip = history?.chip
     ? `<span class="hot-today-memory-chip">${escapeHtml(history.chip)}</span>`

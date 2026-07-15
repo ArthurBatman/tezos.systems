@@ -3310,7 +3310,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     const island = document.getElementById('hot-today-island');
     return island
       && island.querySelector('.hot-today-strip')
-      && island.querySelectorAll('[data-hot-signal-index]').length >= 3;
+      && island.querySelectorAll('[data-hot-signal-index]').length >= 4;
   }, null, { timeout: 10000 });
   const livePulseState = await page.evaluate(() => ({
     stripScrollWidth: document.querySelector('#hot-today-island .hot-today-strip')?.scrollWidth || 0,
@@ -3319,12 +3319,20 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     metricCount: document.querySelectorAll('#hot-today-island .hot-today-metric').length,
     cardCount: document.querySelectorAll('#hot-today-island [data-hot-signal-index]').length,
     activeCount: document.querySelectorAll('#hot-today-island .hot-today-card.is-hot-active').length,
+    firstCardActive: document.querySelector('#hot-today-island [data-hot-signal-index="0"]')?.classList.contains('is-hot-active') || false,
+    activeMilestone: Boolean(document.querySelector('#hot-today-island .hot-today-card.is-hot-active[data-milestone-status]')),
+    visuals: [...new Set(Array.from(document.querySelectorAll('#hot-today-island [data-hot-visual]'), (card) => card.dataset.hotVisual))],
+    spectacles: [...new Set(Array.from(document.querySelectorAll('#hot-today-island [data-hot-spectacle]'), (card) => card.dataset.hotSpectacle))],
+    missingSignalIdentity: document.querySelectorAll('#hot-today-island [data-hot-signal-index]:not([data-hot-visual]), #hot-today-island [data-hot-signal-index]:not([data-hot-spectacle])').length,
     clock: document.querySelector('#hot-today-island [data-hot-live="clock"]')?.textContent?.trim() || ''
   }));
   assert(!livePulseState.hasOldLead && livePulseState.metricCount === 0, `hero command bar: live pulse should be one scrolling strip, saw ${JSON.stringify(livePulseState)}`);
-  assert(livePulseState.cardCount >= 3, `hero command bar: live pulse should keep multiple signals in the strip, saw ${JSON.stringify(livePulseState)}`);
+  assert(livePulseState.cardCount >= 4, `hero command bar: live pulse should keep at least four ranked signals in the strip, saw ${JSON.stringify(livePulseState)}`);
   assert(livePulseState.stripScrollWidth > livePulseState.stripClientWidth, `hero command bar: live pulse strip should scroll horizontally, saw ${JSON.stringify(livePulseState)}`);
   assert(livePulseState.activeCount === 1, `hero command bar: live pulse should keep one ranked signal active, saw ${JSON.stringify(livePulseState)}`);
+  assert(livePulseState.firstCardActive || livePulseState.activeMilestone, `hero command bar: strongest signal or a newly arriving milestone should lead the initial strip, saw ${JSON.stringify(livePulseState)}`);
+  assert(livePulseState.visuals.length >= 3 && livePulseState.missingSignalIdentity === 0, `hero command bar: live pulse cards should expose varied visual species, saw ${JSON.stringify(livePulseState)}`);
+  assert(livePulseState.spectacles.some((level) => level !== 'quiet'), `hero command bar: live pulse should contain at least one notable spectacle tier, saw ${JSON.stringify(livePulseState)}`);
   await page.waitForFunction((previousClock) => {
     const nextClock = document.querySelector('#hot-today-island [data-hot-live="clock"]')?.textContent?.trim() || '';
     return nextClock && nextClock !== previousClock;

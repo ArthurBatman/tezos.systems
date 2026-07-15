@@ -10,10 +10,12 @@ import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessib
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=433';
+const MAXIS_CSS_URL = '/css/maxis.css?v=438';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
+const MAXIS_HOT_SNAPSHOT_KEY = 'tezos-systems-maxis-hot-snapshot-v1';
+const MAXIS_HOT_SIGNAL_TTL_MS = 24 * 60 * 60 * 1000;
 const VIEW_KEYS = ['maxis', 'season', 'passport', 'champions'];
 const VIEW_ALIASES = {
     crown: 'maxis',
@@ -262,6 +264,12 @@ function safeLocalStorageGet(key) {
     } catch {
         return '';
     }
+}
+
+function safeLocalStorageSet(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch { /* storage unavailable */ }
 }
 
 function readShareLedger() {
@@ -694,6 +702,105 @@ function seasonPhase(season = seasonById()) {
     if (['final', 'finalized', 'complete', 'archived'].includes(status)) return 'finalized';
     if (['settling', 'finalizing'].includes(status)) return 'settling';
     return 'active';
+}
+
+function maxiLeaderIdentity(leader) {
+    return textValue(leader?.address, leader?.wallet, leader?.account?.address, leaderName(leader)).toLowerCase();
+}
+
+function dispatchMaxisHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function dispatchMaxisHotSignals(legacy, manifest, summary) {
+    if (!legacy || !manifest) return;
+    let previous = null;
+    try {
+        const parsed = JSON.parse(safeLocalStorageGet(MAXIS_HOT_SNAPSHOT_KEY) || 'null');
+        previous = parsed && typeof parsed === 'object' ? parsed : null;
+    } catch { /* start a fresh snapshot */ }
+
+    const ongoingLeader = normalizedRanking(legacy, 'unicorn')[0] || null;
+    const season = summary ? normalizedSeasons(manifest, summary)[0] : null;
+    const seasonLeader = summary ? normalizedRanking(summary, 'unicorn')[0] || null : null;
+    const next = {
+        ongoingLeaderId: maxiLeaderIdentity(ongoingLeader),
+        ongoingLeaderName: leaderName(ongoingLeader),
+        seasonId: season?.id || previous?.seasonId || '',
+        seasonLeaderId: summary ? maxiLeaderIdentity(seasonLeader) : previous?.seasonLeaderId || '',
+        seasonLeaderName: summary ? leaderName(seasonLeader) : previous?.seasonLeaderName || '',
+        seasonPhase: season ? seasonPhase(season) : previous?.seasonPhase || '',
+        recordedAt: Date.now()
+    };
+    safeLocalStorageSet(MAXIS_HOT_SNAPSHOT_KEY, JSON.stringify(next));
+    if (!previous) return;
+
+    if (previous.ongoingLeaderId && next.ongoingLeaderId && previous.ongoingLeaderId !== next.ongoingLeaderId) {
+        dispatchMaxisHotSignal({
+            id: `maxis-unicorn-${next.ongoingLeaderId}`,
+            category: 'maxis',
+            kind: 'event',
+            visual: 'maxis',
+            spectacle: 'peacock',
+            score: 126,
+            title: 'New Tezos Unicorn',
+            icon: '♛',
+            text: `${next.ongoingLeaderName} took the cross-lane Maxis crown.`,
+            detail: 'Ongoing identities changed leader',
+            route: '/maxis/?lane=unicorn',
+            ttlMs: MAXIS_HOT_SIGNAL_TTL_MS
+        });
+    }
+
+    if (summary && previous.seasonId && next.seasonId && previous.seasonId !== next.seasonId) {
+        dispatchMaxisHotSignal({
+            id: `maxis-season-open-${next.seasonId}`,
+            category: 'maxis',
+            kind: 'event',
+            visual: 'maxis',
+            spectacle: 'peacock',
+            score: 124,
+            title: 'New Maxis season',
+            icon: '✺',
+            text: `${season?.displayLabel || season?.protocol || 'A new protocol season'} opened a fresh set of crown races.`,
+            detail: 'Protocol boundary',
+            route: '/maxis/?view=season',
+            ttlMs: MAXIS_HOT_SIGNAL_TTL_MS
+        });
+    } else if (summary && previous.seasonLeaderId && next.seasonLeaderId && previous.seasonLeaderId !== next.seasonLeaderId) {
+        dispatchMaxisHotSignal({
+            id: `maxis-season-unicorn-${next.seasonId}-${next.seasonLeaderId}`,
+            category: 'maxis',
+            kind: 'event',
+            visual: 'maxis',
+            spectacle: 'headliner',
+            score: 118,
+            title: 'Season crown changed hands',
+            icon: '♛',
+            text: `${next.seasonLeaderName} moved into the protocol-season Unicorn lead.`,
+            detail: season?.displayLabel || season?.protocol || 'Current Maxis season',
+            route: '/maxis/?view=season&lane=unicorn',
+            ttlMs: MAXIS_HOT_SIGNAL_TTL_MS
+        });
+    }
+
+    if (summary && previous.seasonId === next.seasonId && previous.seasonPhase && previous.seasonPhase !== 'finalized' && next.seasonPhase === 'finalized') {
+        dispatchMaxisHotSignal({
+            id: `maxis-season-final-${next.seasonId}`,
+            category: 'maxis',
+            kind: 'event',
+            visual: 'maxis',
+            spectacle: 'historic',
+            score: 136,
+            title: 'Maxis champions sealed',
+            icon: '◇',
+            text: `${season?.displayLabel || season?.protocol || 'The protocol season'} is now a permanent crown archive.`,
+            detail: 'Finalized protocol season',
+            route: '/maxis/?view=champions',
+            ttlMs: MAXIS_HOT_SIGNAL_TTL_MS
+        });
+    }
 }
 
 function seasonContextError() {
@@ -3001,6 +3108,7 @@ function updateEntryCard(legacy, manifest = null, summary = null) {
     if (!card) return;
     const front = card.querySelector('.maxis-entry-front');
     if (front) front.innerHTML = renderEntryContents(legacy, manifest, summary);
+    dispatchMaxisHotSignals(legacy, manifest, summary);
     const state = freshness(legacy || summary);
     const identityCount = categoriesFor(legacy || {}).length;
     card.dataset.updatedLabel = `Maxis · ${state.stale ? 'previous valid' : state.label}`;

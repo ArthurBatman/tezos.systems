@@ -94,13 +94,15 @@ function dispatchTz4HotSignals(data) {
                 id: `tz4-switch-${latest.address || 'latest'}`,
                 category: 'tz4',
                 kind: 'event',
+                visual: 'tz4',
+                spectacle: 'headliner',
                 score: 112,
                 title: 'tz4 switch',
                 detail: `${formatPercent(data.adoptionPct)} adoption`,
                 text: `${bakerName(latest)} switched to tz4 keys ${formatRecentAge(latest.switchedAt)} - ${formatCount(data.pendingCount)} more queued.`,
                 route: '/tz4/',
                 createdAt: switchedAt,
-                ttlMs: TZ4_SWITCH_TTL_MS - age
+                ttlMs: TZ4_SWITCH_TTL_MS
             });
         }
     }
@@ -109,6 +111,8 @@ function dispatchTz4HotSignals(data) {
             id: 'tz4-pending-queue',
             category: 'tz4',
             kind: 'state',
+            visual: 'tz4',
+            spectacle: 'curious',
             score: 76,
             title: 'tz4 queue',
             detail: 'Consensus key migration',

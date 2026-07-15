@@ -155,7 +155,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v433`
+- Service worker cache name: `tezos-systems-v438`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -417,7 +417,10 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
 - `scripts/generate-milestone-catalog.mjs`: refreshes
   `data/milestone-catalog.json` from a compact TzKT snapshot when either 14 days
   or 100 commits have elapsed. The pre-commit path projects the pending commit;
-  scheduled runs use wall-clock age, and `--force` bypasses both gates.
+  scheduled runs use wall-clock age, and `--force` bypasses both gates. Preserve
+  unexpired `recentCrossings` receipts across refreshes so every visitor shares
+  the same 72-hour celebration window; block-height milestones refine that
+  catalog timing from the target block's TzKT timestamp in the browser.
 - `scripts/refresh-nakamoto-sources.mjs`: refreshes reproducible Chainspect and
   Edinburgh EDI rows server-side, preserves manual/secondary reports and
   last-known-good data, and validates locally with `--check` during pre-commit.

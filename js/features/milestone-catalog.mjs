@@ -70,6 +70,34 @@ export function generatedMilestoneThresholds(catalog, trackId) {
   return [...new Set(values.map(positiveNumber).filter(value => value != null))].sort((a, b) => a - b);
 }
 
+export function generatedMilestoneAnchor(catalog, trackId) {
+  if (!catalog || Number(catalog.schema) !== MILESTONE_CATALOG_SCHEMA) return null;
+  const current = positiveNumber(catalog.tracks?.[trackId]?.current);
+  const observedAt = Date.parse(catalog.generatedAt || '');
+  if (current == null || !Number.isFinite(observedAt) || observedAt <= 0) return null;
+  return { current, observedAt };
+}
+
+export function generatedMilestoneMoments(catalog, trackId, now = Date.now()) {
+  if (!catalog || Number(catalog.schema) !== MILESTONE_CATALOG_SCHEMA) return [];
+  const values = catalog.tracks?.[trackId]?.recentCrossings;
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((entry) => ({
+      target: positiveNumber(entry?.target),
+      createdAt: Number(entry?.createdAt || entry?.crossedAt),
+      expiresAt: Number(entry?.expiresAt),
+      crossedValue: positiveNumber(entry?.crossedValue) || positiveNumber(entry?.target)
+    }))
+    .filter(entry => entry.target != null
+      && Number.isFinite(entry.createdAt)
+      && entry.createdAt > 0
+      && entry.createdAt <= now
+      && Number.isFinite(entry.expiresAt)
+      && entry.expiresAt > now)
+    .sort((a, b) => b.createdAt - a.createdAt || b.target - a.target);
+}
+
 export function milestoneCatalogCadence({
   generatedAt,
   generatedAtCommitCount,

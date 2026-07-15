@@ -610,6 +610,7 @@
 
 .hot-today-strip {
     display: flex;
+    align-items: flex-start;
     gap: 0.68rem;
     width: 100%;
     max-width: 100%;
@@ -693,6 +694,9 @@
 }
 
 .hot-today-card {
+    --hot-visual-accent: var(--accent-cyan);
+    --hot-card-base: rgba(255, 255, 255, 0.025);
+    position: relative;
     flex: 0 0 clamp(300px, 34vw, 410px);
     display: grid;
     grid-template-columns: 1.9rem minmax(0, 1fr);
@@ -701,11 +705,18 @@
     padding: 0.78rem;
     border: 1px solid rgba(255, 255, 255, 0.075);
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.025);
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--hot-card-base);
     color: var(--text-primary);
     scroll-snap-align: start;
     text-decoration: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.hot-today-card > :not(.hot-today-species-mark) {
+    position: relative;
+    z-index: 1;
 }
 
 .hot-today-card:hover,
@@ -717,13 +728,82 @@
 
 .hot-today-card.is-hot-active {
     border-color: color-mix(in srgb, var(--accent-cyan) 42%, var(--glass-border));
-    background: color-mix(in srgb, var(--accent-cyan) 7%, rgba(255, 255, 255, 0.03));
+    --hot-card-base: color-mix(in srgb, var(--accent-cyan) 7%, rgba(255, 255, 255, 0.03));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 10%, transparent);
 }
 
 .hot-today-card.is-hot-breaking {
     border-color: color-mix(in srgb, var(--accent-pink, #f49ad1) 48%, var(--glass-border));
     animation: hotTodayBreaking 1.2s ease-out 1;
+}
+
+.hot-today-card.is-spectacle-quiet {
+    flex-basis: clamp(260px, 27vw, 330px);
+    min-height: 102px;
+    opacity: 0.76;
+}
+
+.hot-today-card.is-spectacle-curious {
+    min-height: 116px;
+}
+
+.hot-today-card.is-spectacle-headliner {
+    flex-basis: clamp(370px, 42vw, 520px);
+    grid-template-columns: 2.35rem minmax(0, 1fr);
+    min-height: 138px;
+    padding: 0.95rem;
+    border-width: 1px 1px 1px 3px;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hot-visual-accent) 8%, transparent);
+}
+
+.hot-today-card.is-spectacle-peacock {
+    flex-basis: clamp(440px, 52vw, 640px);
+    grid-template-columns: 3rem minmax(0, 1fr);
+    min-height: 166px;
+    padding: 1.08rem 1.15rem;
+    border-width: 1px 1px 1px 4px;
+    border-color: color-mix(in srgb, var(--hot-visual-accent) 72%, var(--glass-border));
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--hot-visual-accent) 15%, transparent),
+        0 18px 48px color-mix(in srgb, var(--hot-visual-accent) 13%, transparent);
+    animation: hotTodayPeacockArrival 0.8s cubic-bezier(0.16, 0.84, 0.22, 1) 1;
+}
+
+.hot-today-card.is-spectacle-historic {
+    flex-basis: clamp(500px, 60vw, 720px);
+    grid-template-columns: 3.2rem minmax(0, 1fr);
+    min-height: 178px;
+    padding: 1.15rem 1.25rem;
+    border-width: 1px 1px 1px 5px;
+}
+
+.hot-today-card:is(.is-spectacle-headliner, .is-spectacle-peacock, .is-spectacle-historic) .hot-today-rank {
+    width: 100%;
+    height: 2.35rem;
+    font-size: 0.9rem;
+    background: color-mix(in srgb, var(--hot-visual-accent) 16%, rgba(255, 255, 255, 0.05));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hot-visual-accent) 26%, transparent);
+}
+
+.hot-today-card:is(.is-spectacle-peacock, .is-spectacle-historic) .hot-today-rank {
+    height: 3rem;
+    font-size: 1.02rem;
+}
+
+.hot-today-card.is-spectacle-headliner .hot-today-copy strong {
+    font-size: clamp(0.98rem, 1.18vw, 1.16rem);
+}
+
+.hot-today-card:is(.is-spectacle-peacock, .is-spectacle-historic) .hot-today-copy strong {
+    max-width: calc(100% - 6rem);
+    color: color-mix(in srgb, var(--text-primary) 88%, var(--hot-visual-accent));
+    font-size: clamp(1.12rem, 1.45vw, 1.42rem);
+    letter-spacing: -0.015em;
+}
+
+.hot-today-card:is(.is-spectacle-headliner, .is-spectacle-peacock, .is-spectacle-historic) .hot-today-copy > span {
+    max-width: 90%;
+    font-size: 0.84rem;
 }
 
 .hot-today-card-anniversary {
@@ -772,6 +852,14 @@
     scroll-snap-align: start;
 }
 
+.hot-today-milestone-shell.is-milestone-near {
+    flex-basis: clamp(370px, 42vw, 520px);
+}
+
+.hot-today-milestone-shell.is-milestone-crossed {
+    flex-basis: clamp(520px, 62vw, 760px);
+}
+
 .hot-today-milestone-shell > .hot-today-card {
     width: 100%;
     height: 100%;
@@ -796,6 +884,17 @@
         inset 4px 0 0 color-mix(in srgb, var(--milestone-blue) 82%, transparent),
         inset 0 0 0 1px color-mix(in srgb, var(--milestone-blue) 16%, transparent);
     transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+}
+
+.hot-today-card-milestone.is-milestone-near {
+    min-height: 148px;
+}
+
+.hot-today-card-milestone.is-milestone-crossed {
+    grid-template-columns: 3.2rem minmax(0, 1fr);
+    min-height: 184px;
+    padding: 1.12rem 4.8rem 1.08rem 1.18rem;
+    border-width: 1px 1px 1px 5px;
 }
 
 .hot-today-milestone-share {
@@ -901,12 +1000,26 @@
 }
 
 .hot-today-card-milestone.is-milestone-crossed .hot-today-rank {
+    width: 3.2rem;
+    height: 3.2rem;
+    font-size: 0.92rem;
     border-color: color-mix(in srgb, var(--milestone-cyan) 78%, white);
     background: linear-gradient(135deg, #2469d8, #159fb2 58%, #b653a8);
     color: #ffffff;
     box-shadow:
         inset 0 0 0 1px color-mix(in srgb, white 28%, transparent),
         inset 0 -4px 0 color-mix(in srgb, #083e91 48%, transparent);
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-copy strong {
+    max-width: calc(100% - 7rem);
+    font-size: clamp(1.24rem, 1.65vw, 1.58rem);
+    letter-spacing: -0.02em;
+}
+
+.hot-today-card-milestone.is-milestone-crossed .hot-today-copy > span:not(.hot-today-milestone-status) {
+    max-width: 92%;
+    font-size: 0.88rem;
 }
 
 .hot-today-card-milestone .hot-today-copy {
@@ -1200,13 +1313,13 @@
 .hot-today-card-market-down,
 .hot-today-card-watch {
     border-color: rgba(245, 184, 75, 0.3);
-    background: rgba(245, 184, 75, 0.05);
+    --hot-card-base: rgba(245, 184, 75, 0.05);
 }
 
 .hot-today-card-governance,
 .hot-today-card-governance-hot {
     border-color: rgba(155, 140, 255, 0.26);
-    background: rgba(155, 140, 255, 0.045);
+    --hot-card-base: rgba(155, 140, 255, 0.045);
 }
 
 .hot-today-card-activity {
@@ -1225,6 +1338,166 @@
 .hot-today-card-capital,
 .hot-today-card-capital-hot {
     border-color: rgba(244, 154, 209, 0.26);
+}
+
+.hot-today-card[data-hot-visual]:not(.hot-today-card-milestone):not(.hot-today-card-anniversary) {
+    background:
+        radial-gradient(circle at 88% 16%, color-mix(in srgb, var(--hot-visual-accent) 14%, transparent), transparent 35%),
+        linear-gradient(112deg, color-mix(in srgb, var(--hot-visual-accent) 7%, transparent), transparent 46%),
+        var(--hot-card-base);
+}
+
+.hot-today-card[data-hot-visual="whale"],
+.hot-today-card[data-hot-visual="giant"] { --hot-visual-accent: #f49ad1; }
+.hot-today-card[data-hot-visual="staking"] { --hot-visual-accent: #35e894; }
+.hot-today-card[data-hot-visual="consensus"] { --hot-visual-accent: #4cded6; }
+.hot-today-card[data-hot-visual="governance"],
+.hot-today-card[data-hot-visual="maxis"] { --hot-visual-accent: #9b8cff; }
+.hot-today-card[data-hot-visual="lb"] { --hot-visual-accent: #cf8cff; }
+.hot-today-card[data-hot-visual="tz4"] { --hot-visual-accent: #55d59a; }
+.hot-today-card[data-hot-visual="etherlink"],
+.hot-today-card[data-hot-visual="ledger"] { --hot-visual-accent: #45e0c8; }
+.hot-today-card[data-hot-visual="domains"] { --hot-visual-accent: #5ba8ff; }
+.hot-today-card[data-hot-visual="nft"] { --hot-visual-accent: #ff83c8; }
+.hot-today-card[data-hot-visual="forge"] { --hot-visual-accent: #ff9d5c; }
+.hot-today-card[data-hot-visual="market"] { --hot-visual-accent: #35e894; }
+.hot-today-card[data-hot-visual="growth"] { --hot-visual-accent: #6fe596; }
+.hot-today-card[data-hot-visual="operator"] { --hot-visual-accent: #f5b84b; }
+
+.hot-today-species-mark {
+    position: absolute;
+    top: 0.72rem;
+    right: 0.78rem;
+    z-index: 0;
+    width: 5.6rem;
+    height: 3.8rem;
+    overflow: hidden;
+    opacity: 0.24;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.hot-today-card.is-spectacle-headliner .hot-today-species-mark { opacity: 0.5; transform: scale(1.08); }
+.hot-today-card.is-spectacle-peacock .hot-today-species-mark,
+.hot-today-card.is-spectacle-historic .hot-today-species-mark { opacity: 0.78; transform: scale(1.2); }
+.hot-today-card.is-hot-active .hot-today-species-mark { opacity: 0.9; }
+
+.hot-today-species-mark > span {
+    position: absolute;
+    display: block;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--hot-visual-accent) 68%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--hot-visual-accent) 25%, transparent);
+}
+
+.hot-today-card[data-hot-visual="whale"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="giant"] .hot-today-species-mark > span {
+    right: -0.2rem;
+    bottom: -1rem;
+    width: 3rem;
+    height: 3rem;
+    border: 1px solid color-mix(in srgb, var(--hot-visual-accent) 78%, transparent);
+    background: transparent;
+}
+.hot-today-card[data-hot-visual="whale"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="giant"] .hot-today-species-mark > span:nth-child(2) { right: 0.68rem; bottom: -0.1rem; width: 1.7rem; height: 1.7rem; }
+.hot-today-card[data-hot-visual="whale"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="giant"] .hot-today-species-mark > span:nth-child(3) { right: 1.25rem; bottom: 0.45rem; width: 0.6rem; height: 0.6rem; background: var(--hot-visual-accent); }
+
+.hot-today-card[data-hot-visual="etherlink"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="ledger"] .hot-today-species-mark > span {
+    right: 0;
+    width: 5rem;
+    height: 0.18rem;
+    transform: skewX(-34deg);
+}
+.hot-today-card[data-hot-visual="etherlink"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="ledger"] .hot-today-species-mark > span:nth-child(1) { top: 0.6rem; }
+.hot-today-card[data-hot-visual="etherlink"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="ledger"] .hot-today-species-mark > span:nth-child(2) { top: 1.65rem; right: 0.8rem; width: 3.9rem; }
+.hot-today-card[data-hot-visual="etherlink"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="ledger"] .hot-today-species-mark > span:nth-child(3) { top: 2.7rem; right: 1.6rem; width: 2.8rem; }
+
+.hot-today-card[data-hot-visual="domains"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="forge"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="maxis"] .hot-today-species-mark > span {
+    bottom: 0.3rem;
+    width: 1.15rem;
+    border-radius: 0.2rem 0.2rem 0 0;
+}
+.hot-today-card[data-hot-visual="domains"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="forge"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="maxis"] .hot-today-species-mark > span:nth-child(1) { right: 0.2rem; height: 2.2rem; }
+.hot-today-card[data-hot-visual="domains"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="forge"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="maxis"] .hot-today-species-mark > span:nth-child(2) { right: 1.7rem; height: 3rem; }
+.hot-today-card[data-hot-visual="domains"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="forge"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="maxis"] .hot-today-species-mark > span:nth-child(3) { right: 3.2rem; height: 1.45rem; }
+
+.hot-today-card[data-hot-visual="consensus"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="market"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="activity"] .hot-today-species-mark > span {
+    top: 1.9rem;
+    width: 2rem;
+    height: 0.16rem;
+    border-radius: 0;
+    transform-origin: right center;
+}
+.hot-today-card[data-hot-visual="consensus"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="market"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="activity"] .hot-today-species-mark > span:nth-child(1) { right: 3.4rem; transform: rotate(-30deg); }
+.hot-today-card[data-hot-visual="consensus"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="market"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="activity"] .hot-today-species-mark > span:nth-child(2) { right: 1.8rem; transform: rotate(48deg); }
+.hot-today-card[data-hot-visual="consensus"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="market"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="activity"] .hot-today-species-mark > span:nth-child(3) { right: 0.2rem; transform: rotate(-24deg); }
+
+.hot-today-card[data-hot-visual="staking"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="governance"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="tz4"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="lb"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="operator"] .hot-today-species-mark > span,
+.hot-today-card[data-hot-visual="growth"] .hot-today-species-mark > span {
+    right: 0.2rem;
+    width: 4.8rem;
+    height: 0.28rem;
+}
+.hot-today-card[data-hot-visual="staking"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="governance"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="tz4"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="lb"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="operator"] .hot-today-species-mark > span:nth-child(1),
+.hot-today-card[data-hot-visual="growth"] .hot-today-species-mark > span:nth-child(1) { top: 0.65rem; }
+.hot-today-card[data-hot-visual="staking"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="governance"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="tz4"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="lb"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="operator"] .hot-today-species-mark > span:nth-child(2),
+.hot-today-card[data-hot-visual="growth"] .hot-today-species-mark > span:nth-child(2) { top: 1.75rem; right: 1rem; width: 4rem; }
+.hot-today-card[data-hot-visual="staking"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="governance"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="tz4"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="lb"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="operator"] .hot-today-species-mark > span:nth-child(3),
+.hot-today-card[data-hot-visual="growth"] .hot-today-species-mark > span:nth-child(3) { top: 2.85rem; right: 2rem; width: 3rem; }
+
+.hot-today-card[data-hot-visual="nft"] .hot-today-species-mark > span {
+    inset: 0.35rem 0.25rem auto auto;
+    width: 3.4rem;
+    height: 2.8rem;
+    border: 1px solid color-mix(in srgb, var(--hot-visual-accent) 72%, transparent);
+    border-radius: 0.28rem;
+    background: transparent;
+}
+.hot-today-card[data-hot-visual="nft"] .hot-today-species-mark > span:nth-child(2) { inset: 0.8rem 0.7rem auto auto; width: 2.5rem; height: 1.9rem; }
+.hot-today-card[data-hot-visual="nft"] .hot-today-species-mark > span:nth-child(3) { inset: 1.25rem 1.15rem auto auto; width: 1.6rem; height: 1rem; background: color-mix(in srgb, var(--hot-visual-accent) 42%, transparent); }
+
+@keyframes hotTodayPeacockArrival {
+    0% { opacity: 0.52; transform: translateY(10px) scale(0.985); }
+    68% { opacity: 1; transform: translateY(-2px) scale(1.005); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .hot-today-section.is-live-pulsing .hot-today-card.is-hot-active,
@@ -1254,6 +1527,8 @@
     .hot-today-section.is-live-pulsing .hot-today-card.is-hot-active,
     .hot-today-section.is-live-pulsing .hot-today-clock-dot,
     .hot-today-card.is-hot-breaking,
+    .hot-today-card.is-spectacle-peacock,
+    .hot-today-card.is-spectacle-historic,
     .hot-today-card-milestone .hot-today-rank,
     .hot-today-card-milestone .hot-today-milestone-status,
     .hot-today-card-milestone .hot-today-milestone-trace > span,
@@ -1267,6 +1542,7 @@
     }
 
     .hot-today-card-milestone,
+    .hot-today-species-mark,
     .hot-today-card-milestone .hot-today-rank,
     .hot-today-card-milestone .hot-today-milestone-status,
     .hot-today-card-milestone .hot-today-milestone-trace > span,
@@ -1554,6 +1830,31 @@
         max-width: calc(100vw - 2rem);
     }
 
+    .hot-today-card.is-spectacle-quiet {
+        flex-basis: min(76vw, 280px);
+    }
+
+    .hot-today-card.is-spectacle-headliner {
+        flex-basis: min(96%, 350px);
+        min-height: 148px;
+    }
+
+    .hot-today-card:is(.is-spectacle-peacock, .is-spectacle-historic) {
+        flex-basis: min(100%, 370px);
+        grid-template-columns: 2.7rem minmax(0, 1fr);
+        min-height: 172px;
+        padding: 1rem;
+    }
+
+    .hot-today-card:is(.is-spectacle-peacock, .is-spectacle-historic) .hot-today-copy strong {
+        max-width: calc(100% - 3.8rem);
+        font-size: 1.08rem;
+    }
+
+    .hot-today-card:is(.is-spectacle-peacock, .is-spectacle-historic) .hot-today-copy > span {
+        max-width: 100%;
+    }
+
     .hot-today-progress {
         width: 100%;
     }
@@ -1569,6 +1870,20 @@
         min-height: 142px;
     }
 
+    .hot-today-milestone-shell.is-milestone-near {
+        flex-basis: min(96%, 350px);
+    }
+
+    .hot-today-milestone-shell.is-milestone-crossed {
+        flex-basis: min(100%, 390px);
+    }
+
+    .hot-today-card-milestone.is-milestone-crossed {
+        grid-template-columns: 2.8rem minmax(0, 1fr);
+        min-height: 184px;
+        padding: 1rem 3.85rem 1rem 1rem;
+    }
+
     .hot-today-milestone-shell {
         flex-basis: min(86vw, 340px);
     }
@@ -1579,6 +1894,11 @@
 
     .hot-today-card-milestone .hot-today-copy strong {
         font-size: 1rem;
+    }
+
+    .hot-today-card-milestone.is-milestone-crossed .hot-today-copy strong {
+        max-width: calc(100% - 2.6rem);
+        font-size: 1.14rem;
     }
 
     .hot-today-card-milestone .hot-today-rank {

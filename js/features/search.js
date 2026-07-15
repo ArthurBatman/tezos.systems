@@ -21,7 +21,7 @@ import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
 import { getTopHotSignal } from './daily-briefing.js';
 
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=433';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=438';
 
 const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;

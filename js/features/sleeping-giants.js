@@ -145,6 +145,8 @@ function dispatchAwakeningHotSignal(awakening) {
         id: `giant-awakening-${safeHotId(opHash || awakening?.address)}`,
         category: 'whales',
         kind: 'event',
+        visual: 'giant',
+        spectacle: 'peacock',
         score: 126,
         title: 'Giant awakening',
         detail: operationLabel(awakening?.operation),

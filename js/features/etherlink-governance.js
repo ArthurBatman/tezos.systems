@@ -611,6 +611,8 @@ function dispatchEtherlinkGovernanceHotSignal(data) {
         id: `etherlink-governance-${track.key}`,
         category: 'etherlink',
         kind: 'event',
+        visual: 'governance',
+        spectacle: 'headliner',
         score: 110,
         title: 'L2 governance live',
         detail: `${track.label} ${period}`,

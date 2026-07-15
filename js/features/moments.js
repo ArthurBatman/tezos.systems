@@ -184,6 +184,9 @@ function dispatchHotMomentSignal(moment, rule) {
         detail: {
             category,
             id: `moment-${moment.id}`,
+            kind: 'event',
+            visual: category === 'security' || category === 'cycle' ? 'consensus' : category,
+            spectacle: 'headliner',
             score: 111,
             title: 'Network milestone',
             icon: moment.emoji || '✦',

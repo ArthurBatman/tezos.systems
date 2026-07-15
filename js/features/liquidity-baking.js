@@ -18,6 +18,7 @@ const LB_LIVE_REFRESH_MS = 6000;
 const LB_ENTRY_REFRESH_MS = 60000;
 const CACHE_TTL = 60000;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
+const LB_HOT_STATE_KEY = 'tezos-systems-lb-hot-state-v1';
 const LB_OPEN_TEZOS_URL = 'https://opentezos.com/defi/dexs/#liquidity-baking';
 const LB_OCTEZ_DOCS_URL = 'https://octez.tezos.com/docs/alpha/liquidity_baking.html';
 const LB_PURPLEMATTER_URL = 'https://purplematter.com/lb/';
@@ -35,6 +36,69 @@ let _lbEntryTimer = null;
 let _lbEntryRefreshInFlight = false;
 let _lbEntryVisibilityWired = false;
 let _lbLoreCache = null;
+
+function dispatchHotSignal(detail) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
+}
+
+function readLiquidityBakingHotState() {
+    try {
+        const state = JSON.parse(localStorage.getItem(LB_HOT_STATE_KEY) || 'null');
+        return state && typeof state === 'object' ? state : null;
+    } catch {
+        return null;
+    }
+}
+
+function dispatchLiquidityBakingHotSignal(data) {
+    if (!data || !Number.isFinite(Number(data.emaPct))) return;
+    const previous = readLiquidityBakingHotState();
+    const disabled = Boolean(data.disabled);
+    const emaPct = Number(data.emaPct);
+    const thresholdGap = Math.abs(50 - emaPct);
+    try {
+        localStorage.setItem(LB_HOT_STATE_KEY, JSON.stringify({ disabled, emaPct, recordedAt: Date.now() }));
+    } catch { /* storage unavailable */ }
+
+    if (previous && Boolean(previous.disabled) !== disabled) {
+        dispatchHotSignal({
+            id: `lb-subsidy-flip-${disabled ? 'off' : 'on'}-${Number(data.latest?.level || Date.now())}`,
+            category: 'lb',
+            kind: 'event',
+            visual: 'lb',
+            spectacle: 'peacock',
+            score: 128,
+            title: disabled ? 'LB subsidy switched off' : 'LB subsidy switched on',
+            icon: disabled ? '⊘' : '≈',
+            text: `Liquidity Baking crossed the toggle threshold at ${emaPct.toFixed(1)}%.`,
+            detail: 'Protocol subsidy state changed',
+            route: '/lb/',
+            createdAt: data.latest?.timestamp ? new Date(data.latest.timestamp).getTime() : Date.now(),
+            ttlMs: 24 * 60 * 60 * 1000
+        });
+        return;
+    }
+
+    if (disabled || thresholdGap <= 5) {
+        dispatchHotSignal({
+            id: disabled ? 'lb-subsidy-disabled' : 'lb-threshold-watch',
+            category: 'lb',
+            kind: 'state',
+            visual: 'lb',
+            spectacle: disabled || thresholdGap <= 2 ? 'headliner' : 'curious',
+            score: disabled ? 106 : thresholdGap <= 2 ? 96 : 88,
+            title: disabled ? 'LB subsidy is off' : 'LB threshold watch',
+            icon: disabled ? '⊘' : '≈',
+            text: disabled
+                ? `Liquidity Baking remains disabled with the EMA at ${emaPct.toFixed(1)}%.`
+                : `The Liquidity Baking EMA is ${thresholdGap.toFixed(1)} points from the toggle threshold.`,
+            detail: 'Per-block baker votes',
+            route: '/lb/',
+            ttlMs: LB_ENTRY_REFRESH_MS * 2
+        });
+    }
+}
 
 function formatCount(value) {
     return Number(value || 0).toLocaleString('en-US');
@@ -1326,6 +1390,7 @@ async function loadEntryCardStatus({ force = false } = {}) {
     _lbEntryRefreshInFlight = true;
     try {
         const data = await fetchLiquidityBakingData(LB_ENTRY_BLOCK_LIMIT, { force });
+        dispatchLiquidityBakingHotSignal(data);
         const status = data.disabled ? 'disabled' : 'active';
         if (ema) ema.textContent = `${data.emaPct.toFixed(1)}%`;
         if (description) description.textContent = `Subsidy ${status}`;

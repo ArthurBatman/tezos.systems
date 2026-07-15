@@ -11,7 +11,7 @@ import { escapeHtml, formatFreshnessStamp, setDataFreshnessState } from '../core
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=433';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=438';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
@@ -20,6 +20,7 @@ const TABLE_PAGE_SIZE = 50;
 const ENTRY_REFRESH_MS = 2 * 60 * 1000;
 const ARCHIVE_CACHE_MS = 30 * 1000;
 const ENTRY_STALE_MS = 10 * 60 * 1000;
+const STAKING_HOT_SIGNAL_TTL_MS = 24 * 60 * 60 * 1000;
 
 let entryPromise = null;
 let entryData = null;
@@ -146,6 +147,38 @@ function formatDateTime(timestamp) {
     });
 }
 
+function safeHotId(value, fallback = 'move') {
+    return String(value || fallback).replace(/[^a-z0-9-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || fallback;
+}
+
+function dispatchLargeMoveHotSignal(row) {
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function' || !isLargeMove(row)) return;
+    const occurredAt = new Date(row?.timestamp || '').getTime();
+    const age = Date.now() - occurredAt;
+    if (!Number.isFinite(age) || age < 0 || age >= STAKING_HOT_SIGNAL_TTL_MS) return;
+    const amountXtz = amountMutez(row) / 1e6;
+    const action = row?.action === 'unstake' ? 'unstake' : 'stake';
+    const actor = accountLabel(row?.staker || row?.sender);
+    const target = row?.baker ? ` with ${accountLabel(row.baker)}` : '';
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+        detail: {
+            id: `staking-${action}-${safeHotId(row?.hash || row?.id)}`,
+            category: 'staking',
+            kind: 'event',
+            visual: 'staking',
+            spectacle: amountXtz >= 1_000_000 ? 'peacock' : amountXtz >= 250_000 ? 'headliner' : 'curious',
+            score: amountXtz >= 1_000_000 ? 128 : amountXtz >= 250_000 ? 114 : 98,
+            title: action === 'unstake' ? 'Large unstake' : 'Large stake',
+            icon: action === 'unstake' ? '↘' : '↗',
+            text: `${actor} ${action === 'unstake' ? 'unstaked' : 'staked'} ${formatCompactXtz(row.amount)}${target}.`,
+            detail: `Applied ${action} · block ${formatCount(row?.level)}`,
+            route: '/stake/',
+            createdAt: occurredAt,
+            ttlMs: STAKING_HOT_SIGNAL_TTL_MS
+        }
+    }));
+}
+
 function normalizeRichRow(row, fallbackAction = '') {
     const staker = row?.staker || row?.sender || null;
     return {
@@ -214,6 +247,7 @@ async function fetchLatestLargeMoves({ force = false } = {}) {
         entryData = { stake, unstake };
         entryCheckedAt = Date.now();
         [stake, unstake].filter(Boolean).forEach((row) => richRowCache.set(row.id, row));
+        [stake, unstake].filter(Boolean).forEach(dispatchLargeMoveHotSignal);
         return entryData;
     }).finally(() => {
         entryPromise = null;

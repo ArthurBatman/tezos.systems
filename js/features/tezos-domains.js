@@ -298,6 +298,8 @@ function dispatchTezosDomainsHotSignals(data) {
             id: 'domains-registrations-24h',
             category: 'domains',
             kind: 'state',
+            visual: 'domains',
+            spectacle: 'curious',
             score: 82,
             title: '.tez registrations',
             detail: 'Identity pulse',
@@ -318,13 +320,15 @@ function dispatchTezosDomainsHotSignals(data) {
             id: `domains-live-auction-${safeHotId(auctionName)}`,
             category: 'domains',
             kind: 'event',
+            visual: 'domains',
+            spectacle: 'headliner',
             score: 100,
             title: 'Live .tez auction',
             detail: `ends in ${formatTimeDistance(auctionEndsAt)}`,
             text: `${auctionName} auction is at ${formatTez(auctionBid)}.`,
             route: '/domains/',
             createdAt: new Date(liveAuction?.highestBid?.timestamp || Date.now()).getTime(),
-            ttlMs: auctionTtl
+            expiresAt: auctionEnds
         });
     }
 
@@ -338,13 +342,15 @@ function dispatchTezosDomainsHotSignals(data) {
                 id: `domains-auction-settled-${safeHotId(eventKey(settlement))}`,
                 category: 'domains',
                 kind: 'event',
+                visual: 'domains',
+                spectacle: 'headliner',
                 score: 106,
                 title: 'Auction settled',
                 detail: formatTez(eventValueNumber(settlement)),
                 text: `${name} sold at auction for ${formatTez(eventValueNumber(settlement))}.`,
                 route: '/domains/',
                 createdAt: settledAt,
-                ttlMs: (24 * 60 * 60 * 1000) - age
+                ttlMs: 24 * 60 * 60 * 1000
             });
         }
     }
@@ -355,6 +361,8 @@ function dispatchTezosDomainsHotSignals(data) {
             id: 'domains-expiring-soon',
             category: 'domains',
             kind: 'state',
+            visual: 'domains',
+            spectacle: 'curious',
             score: 70,
             title: '.tez expiry pressure',
             detail: 'Renewal window',

@@ -10,8 +10,10 @@ import {
   MILESTONE_REFRESH_COMMITS,
   MILESTONE_REFRESH_DAYS,
   extendMilestoneThresholds,
+  generatedMilestoneMoments,
   milestoneCatalogCadence
 } from '../js/features/milestone-catalog.mjs';
+import { deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS } from '../js/features/milestone-lifecycle.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_FILE = path.join(ROOT, 'data/milestone-catalog.json');
@@ -153,10 +155,20 @@ async function main() {
   for (const trackId of Object.keys(MILESTONE_BASE_THRESHOLDS)) {
     const current = finitePositive(values[trackId]);
     const thresholds = extendMilestoneThresholds(trackId, current);
+    const recentCrossings = deriveMilestoneMoments({
+      currentValue: current,
+      thresholds,
+      now,
+      ttlMs: MILESTONE_MOMENT_TTL_MS,
+      anchorValue: existing?.tracks?.[trackId]?.current,
+      anchorObservedAt: Date.parse(existing?.generatedAt || ''),
+      receipts: generatedMilestoneMoments(existing, trackId, now)
+    });
     tracks[trackId] = {
       current,
       nextTarget: nextTarget(thresholds, current),
-      thresholds
+      thresholds,
+      recentCrossings
     };
   }
 

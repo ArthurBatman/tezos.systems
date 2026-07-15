@@ -67,13 +67,17 @@ function dispatchHotWhaleSignal(tx) {
     window.dispatchEvent(new CustomEvent('hot-signal', {
         detail: {
             category: 'whales',
-            id: 'whale-breaking',
-            score: 120,
+            id: `whale-${String(tx?.hash || tx?.id || Date.now()).replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
+            kind: 'event',
+            visual: 'whale',
+            spectacle: amountXtz >= 1_000_000 ? 'peacock' : 'headliner',
+            score: amountXtz >= 1_000_000 ? 132 : 120,
             title: 'Large transfer',
             icon: '🐋',
             text: `${Math.round(amountXtz).toLocaleString('en-US')} ꜩ moved in one transaction.`,
             detail: 'Live whale feed',
             tone: 'capital-hot',
+            createdAt: tx?.timestamp ? new Date(tx.timestamp).getTime() : Date.now(),
             ttlMs: 90000,
             route: '#whales'
         }
