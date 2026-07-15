@@ -3346,8 +3346,10 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   const bottomScrollTarget = await page.evaluate(() => {
     const target = document.getElementById('recruit-section') || document.getElementById('comparison-section');
     const targetTop = Math.round(target.getBoundingClientRect().top + window.scrollY);
-    window.scrollTo(0, targetTop);
-    return { targetTop, targetId: target.id };
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const expectedTop = Math.min(targetTop, maxScroll);
+    window.scrollTo({ top: expectedTop, behavior: 'instant' });
+    return { targetTop: expectedTop, targetId: target.id };
   });
   await page.waitForFunction((targetTop) => Math.abs(window.scrollY - targetTop) <= 12, bottomScrollTarget.targetTop, { timeout: 3000 });
   const bottomScrollState = {
@@ -3365,16 +3367,14 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     });
   });
   assert(bottomMapOrder.every((item) => item.position >= 0), `hero command bar: missing lower map section: ${JSON.stringify(bottomMapOrder)}`);
-  assert(bottomMapOrder[1].position > bottomMapOrder[0].position, `hero command bar: search map should sit after dashboard tools: ${JSON.stringify(bottomMapOrder)}`);
-  await page.waitForFunction(() => {
-    const section = document.getElementById('recruit-section');
-    return section && Number.parseFloat(getComputedStyle(section).marginTop) >= 88;
-  }, null, { timeout: 5000 });
-  const searchMapTopMargin = await page.evaluate(() => {
-    const section = document.getElementById('recruit-section');
-    return section ? Number.parseFloat(getComputedStyle(section).marginTop) : Number.NaN;
+  assert(bottomMapOrder[1].position > bottomMapOrder[0].position, `hero command bar: Handoff should sit after dashboard tools: ${JSON.stringify(bottomMapOrder)}`);
+  const handoffGap = await page.evaluate(() => {
+    const main = document.querySelector('main');
+    const handoff = document.getElementById('recruit-section');
+    if (!main || !handoff) return Number.NaN;
+    return Math.round(handoff.getBoundingClientRect().top - main.getBoundingClientRect().bottom);
   });
-  assert(Number.isFinite(searchMapTopMargin) && searchMapTopMargin >= 88, `hero command bar: search map should land with lower-page breathing room, saw margin ${searchMapTopMargin}`);
+  assert(Number.isFinite(handoffGap) && handoffGap >= 24 && handoffGap <= 128, `hero command bar: Handoff should close the old dead seam while retaining a deliberate threshold, saw ${handoffGap}px`);
   const deckChromeState = await page.evaluate(() => ({
     commandDeckHeadCount: document.querySelectorAll('.command-deck-head').length,
     upgradeShareCount: document.querySelectorAll('#upgrade-share-btn').length
@@ -3547,21 +3547,34 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.waitForFunction(() => window.location.hash === '#calculator', null, { timeout: 5000 });
   await page.locator('#calculator-section.visible').waitFor({ state: 'visible', timeout: 5000 });
 
-  await page.locator('#tezos-loop-console').scrollIntoViewIfNeeded();
-  const loopGuideText = await page.locator('#tezos-loop-console').innerText();
-  assert(/Start from anything/i.test(loopGuideText) && /KT1/i.test(loopGuideText) && /\/price/i.test(loopGuideText), `hero command bar: compact loop console should explain search inputs: ${loopGuideText}`);
-  await page.locator('#tezos-loop-search').click();
-  await page.waitForFunction(() => document.activeElement?.id === 'hero-search-input', null, { timeout: 5000 });
-  await page.waitForFunction(() => /My Tezos/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
-  assert((await page.locator('#hero-search-input').inputValue()).toLowerCase() === 'my tezos', 'hero command bar: compact loop action should seed My Tezos query');
-  const loopState = await page.evaluate(() => ({
-    aura: document.querySelector('#tezos-loop-console')?.dataset.aura || '',
-    title: document.querySelector('#tezos-loop-title')?.textContent || '',
-    activeCards: document.querySelectorAll('.recruit-card.is-active').length,
-    activeChips: document.querySelectorAll('.tezos-loop-chip.active').length
-  }));
-  assert(loopState.aura === 'holder' && /Start from anything/i.test(loopState.title), `hero command bar: Tezos loop holder state mismatch ${JSON.stringify(loopState)}`);
-  assert(loopState.activeCards === 0 && loopState.activeChips === 1, `hero command bar: compact Tezos loop state mismatch ${JSON.stringify(loopState)}`);
+  await page.locator('#recruit-section.site-handoff-shell').scrollIntoViewIfNeeded();
+  const handoffState = await page.evaluate(() => {
+    const footer = document.getElementById('recruit-section');
+    const disclosure = footer?.querySelector('.site-map-disclosure');
+    return {
+      text: footer?.innerText || '',
+      steps: footer?.querySelectorAll('.site-handoff-step').length || 0,
+      currentPhases: footer?.querySelectorAll('.site-handoff-step.is-current-phase').length || 0,
+      nextSteps: footer?.querySelectorAll('.site-handoff-step.is-next').length || 0,
+      primaryHref: footer?.querySelector('.site-handoff-primary')?.getAttribute('href') || '',
+      sideActions: footer?.querySelectorAll('.site-handoff-side-actions a').length || 0,
+      disclosureOpen: disclosure?.hasAttribute('open') || false,
+      legacyRecipes: footer?.querySelectorAll('[data-loop-aura], .tezos-loop-chip').length || 0
+    };
+  });
+  for (const label of ['the handoff', 'now', 'you', 'flow', 'power', 'memory', 'people', 'open the complete map']) {
+    assert(handoffState.text.toLowerCase().includes(label), `hero command bar: Handoff missing ${label}: ${JSON.stringify(handoffState)}`);
+  }
+  assert(handoffState.steps === 6 && handoffState.currentPhases === 1 && handoffState.nextSteps === 1, `hero command bar: Handoff lifeline state mismatch ${JSON.stringify(handoffState)}`);
+  assert(handoffState.primaryHref === '/pulse/' && handoffState.sideActions === 2, `hero command bar: dashboard Handoff should recommend Network Pulse with two quiet exits: ${JSON.stringify(handoffState)}`);
+  assert(!handoffState.disclosureOpen && handoffState.legacyRecipes === 0, `hero command bar: complete map should start folded with no retired recipe controls: ${JSON.stringify(handoffState)}`);
+  const handoffDisclosure = page.locator('#recruit-section .site-map-disclosure');
+  const handoffDisclosureText = await handoffDisclosure.locator('summary').innerText();
+  const handoffDestinationCount = Number.parseInt(handoffDisclosureText.match(/(\d+) destinations/)?.[1] || '', 10);
+  await handoffDisclosure.locator('summary').click();
+  const handoffDirectoryLinks = await handoffDisclosure.locator('.site-map-link, .site-map-sublink').count();
+  assert(handoffDirectoryLinks === handoffDestinationCount, `hero command bar: opened Handoff map rendered ${handoffDirectoryLinks} of ${handoffDestinationCount} destinations`);
+  await handoffDisclosure.locator('summary').click();
 
   const intentPage = await context.newPage();
   attachIssueCollectors(intentPage, 'hero command bar exact intents', issues);
@@ -8601,7 +8614,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
     { selector: '#hero-search-form', label: 'command bar step', snippets: ['Find anything', 'Press /', 'Chamber'] },
     { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Chambers explain the chain', 'Protocol Anthology'] },
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
-    { selector: '#tezos-loop-chips', label: 'loop console step', snippets: ['Use the recipe console', 'Market lanes'] },
+    { selector: '#recruit-section .site-handoff-head', label: 'Handoff step', snippets: ['Follow the lifeline', 'complete map stays folded'] },
     { selector: '#features-gear', label: 'explore step', snippets: ['Explore without the wall of choices', 'Network Pulse', 'folded by category'] },
     { selector: '#settings-gear', label: 'settings step', snippets: ['Tune and export', '14 themes'] }
   ];
@@ -9508,7 +9521,7 @@ async function smokeThemeSelection(browser, baseUrl) {
       const title = document.querySelector('.title');
       const runtime = document.querySelector('.top-continuity-runtime');
       const dataRail = document.querySelector('.top-continuity-panel');
-      const specialtyDisplay = ['.hot-today-head h2', '.tezos-loop-title']
+      const specialtyDisplay = ['.hot-today-head h2', '.site-handoff-head h2']
         .map((selector) => document.querySelector(selector))
         .filter(Boolean);
       const typographyFixture = document.createElement('div');
@@ -10126,7 +10139,7 @@ async function smokeStandaloneLinks(browser, baseUrl) {
   await disclosure.waitFor({ state: 'visible', timeout: 5000 });
   assert((await disclosure.getAttribute('open')) === null, 'standalone links: exhaustive directory should start collapsed');
   const disclosureLabel = await disclosure.locator('summary').innerText();
-  const disclosureCount = Number.parseInt(disclosureLabel.match(/Browse all (\d+) destinations/)?.[1] || '', 10);
+  const disclosureCount = Number.parseInt(disclosureLabel.match(/(\d+) destinations/)?.[1] || '', 10);
   assert(Number.isFinite(disclosureCount) && disclosureCount > 0, `standalone links: invalid disclosure count: ${disclosureLabel}`);
   await disclosure.locator('summary').click();
   assert((await disclosure.getAttribute('open')) !== null, 'standalone links: directory disclosure did not open');

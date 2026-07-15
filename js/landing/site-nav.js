@@ -1,14 +1,12 @@
 import {
     SITE_MAP,
-    SITE_MAP_NAV_GROUPS,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
-    siteMapDirectoryChildren,
-    siteMapGroup,
     siteMapRelated,
     siteMapRoute,
     searchSiteMap
 } from '../core/site-map.js';
+import { renderSiteHandoffFooter } from '../core/site-handoff.js';
 
 const FALLBACK_RELATED_IDS = ['pulse', 'staking-chamber', 'maxis', 'health'];
 const renderedFooters = new WeakSet();
@@ -203,39 +201,6 @@ function renderCirculation() {
     });
 }
 
-function footerGroupHtml(label, current) {
-    const entries = siteMapGroup(label);
-    if (!entries.length) return '';
-    return `
-        <section class="site-map-group" aria-labelledby="site-map-group-${escapeHtml(label.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}">
-            <h3 id="site-map-group-${escapeHtml(label.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}">${escapeHtml(label)}</h3>
-            <div class="site-map-links">
-                ${entries.map((entry) => {
-                    const active = isActive(entry, current);
-                    const children = siteMapDirectoryChildren(entry);
-                    return `
-                        <div class="site-map-link-cluster${children.length ? ' has-children' : ''}">
-                            <a class="site-map-link${active ? ' is-active' : ''}" href="${escapeHtml(entryRoute(entry))}"${active ? ' aria-current="page"' : ''}>${escapeHtml(entry.title)}</a>
-                            ${children.length ? `<div class="site-map-sublinks">${children.map((child) => `<a class="site-map-sublink" href="${escapeHtml(entryRoute(child))}">${escapeHtml(child.title)}</a>`).join('')}</div>` : ''}
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        </section>
-    `;
-}
-
-function defaultAttributionHtml() {
-    return `
-        <span>Built by <a href="https://x.com/BakingBenjamins">Primate</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a></span>
-        <span>Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital">Tez Capital</a></span>
-    `;
-}
-
-function legalAttributionHtml() {
-    return '<span><a href="https://github.com/Primate411/tezos.systems">Source</a> · <a href="/LICENSE" rel="license">MPL-2.0</a></span>';
-}
-
 function originalAttributionHtml(footer) {
     const explicit = footer.querySelector('[data-site-footer-attribution]');
     if (explicit) return explicit.innerHTML.trim();
@@ -248,38 +213,10 @@ function renderFooter() {
         if (renderedFooters.has(footer)) return;
         renderedFooters.add(footer);
         const current = contextEntry(footer);
-        const attribution = originalAttributionHtml(footer) || defaultAttributionHtml();
-        const destinationCount = SITE_MAP.reduce(
-            (count, entry) => count + 1 + siteMapDirectoryChildren(entry).length,
-            0
-        );
-        const startHereAction = normalizePath(window.location.pathname) === '/landing.html/'
-            ? ''
-            : '<a href="/landing.html">Start here</a>';
-        footer.classList.add('site-map-shell', 'site-map-footer');
-        footer.setAttribute('data-site-footer', 'true');
-        footer.innerHTML = `
-            <div class="site-map-head">
-                <div>
-                    <span class="site-map-kicker">Tezos Systems</span>
-                    <h2>Pick another path</h2>
-                </div>
-                <nav class="site-map-cta" aria-label="Tezos Systems discovery tools">
-                    ${startHereAction}
-                    <a href="/#search">Search everything</a>
-                </nav>
-            </div>
-            <details class="site-map-disclosure">
-                <summary>
-                    <span class="site-map-disclosure-label">Browse all ${destinationCount} destinations</span>
-                    <span class="site-map-disclosure-hint">Rooms, guides, tools, views, widgets, and feeds</span>
-                </summary>
-                <nav class="site-map-grid" aria-label="Complete Tezos Systems map">
-                    ${SITE_MAP_NAV_GROUPS.map((label) => footerGroupHtml(label, current)).join('')}
-                </nav>
-            </details>
-            <div class="site-map-footer-base" data-site-footer-attribution>${attribution}${legalAttributionHtml()}</div>
-        `;
+        renderSiteHandoffFooter(footer, {
+            currentEntry: current,
+            attributionHtml: originalAttributionHtml(footer)
+        });
     });
 }
 

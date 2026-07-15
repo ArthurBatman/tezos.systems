@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-15',
         entries: [
+            { type: '🎨', text: 'The bottom of every page now becomes one Handoff: a contextual next destination, a six-stop Tezos Systems lifeline, an optional choose-for-me route, and the complete map folded quietly underneath' },
             { type: '✨', text: 'Network milestones now use shared catalog and on-chain timing, so round-number crossings arrive consistently, expire honestly after 72 hours, and become the live pulse’s largest ceremonial cards' },
             { type: '🎨', text: 'What’s Hot Today now grows from quiet signals into headliners, peacocks, and historic cards, with distinct visual species for whales, consensus, domains, staking, Maxis, NFTs, Tezos X, and more' },
             { type: '✨', text: 'The live pulse now catches large stake moves, Liquidity Baking threshold changes, Maxis crown changes, and more Chamber-native events while routine filler yields to the strongest four or more stories' }

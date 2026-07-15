@@ -6,16 +6,12 @@
 import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth, fetchWithDeadline } from './api.js';
 import {
-    SITE_MAP_NAV_GROUPS,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
     navigateSiteMapEntry,
-    siteMapCanonicalRoute,
-    siteMapDirectoryChildren,
-    siteMapGroup,
-    siteMapRelated,
-    siteMapRoute
+    siteMapCanonicalRoute
 } from './site-map.js';
+import { renderSiteHandoffFooter } from './site-handoff.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
 import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
@@ -113,7 +109,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=438';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=439';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -359,7 +355,7 @@ async function init() {
         }
     });
     safe('navButtons', initNavButtons);
-    safe('siteFooterMap', initSiteFooterMap);
+    safe('siteHandoffFooter', initSiteHandoffFooter);
     safe('siteWayfinder', initSiteWayfinder);
     safe('siteMapRouter', initSiteMapRouter);
     safe('heroSearch', initHeroSearch);
@@ -369,8 +365,6 @@ async function init() {
     safe('tezosStatsToggle', initTezosStatsToggle);
     safe('networkHealth', initNetworkHealth);
     safe('chambersOrder', orderChambersSurface);
-    safe('tezosLoopConsole', initTezosLoopConsole);
-
     // Setup event listeners
     setupEventListeners();
     
@@ -4430,133 +4424,15 @@ function positionTooltip(e, tooltipEl) {
     tooltipEl.style.top = y + 'px';
 }
 
-const TEZOS_LOOP_STORAGE_KEY = 'tezos-systems-loop-aura';
-const TEZOS_LOOP_AURAS = {
-    holder: {
-        entryId: 'my-tezos',
-        title: 'Start from anything.',
-        line: 'Start from any Tezos receipt: wallet address, .tez name, baker, contract, operation, or block. My Tezos remembers the account and turns raw chain data into a daily state view.',
-        query: 'my tezos',
-        searchLabel: 'Try My Tezos',
-        action: 'my-tezos',
-        label: 'Open My Tezos'
-    },
-    baker: {
-        entryId: 'staking-chamber',
-        title: 'Earn, stake, and choose a baker',
-        line: 'Search a baker name or address, inspect live stake and unstake moves, compare capacity, and follow the trail into rewards and Ledger Flow.',
-        query: '/stake',
-        searchLabel: 'Search staking',
-        label: 'Open Staking Chamber'
-    },
-    builder: {
-        entryId: 'widgets',
-        title: 'Contracts, operations, and blocks',
-        line: 'Paste a KT1 contract, operation hash, block hash, or level. Search now opens native Tezos.Systems receipts first, with TzKT kept as an audit trail.',
-        query: 'KT1',
-        searchLabel: 'Try KT1 / ops',
-        label: 'Grab a live widget'
-    },
-    collector: {
-        entryId: 'hen',
-        title: 'HEN live art feed',
-        line: 'Type /nfts or enter HEN for the Teia-first live feed, OBJKT listings, creator history, and collector context.',
-        query: '/nfts',
-        searchLabel: 'Open HEN lane',
-        label: 'Enter HEN'
-    },
-    governance: {
-        entryId: 'chamber',
-        title: 'Governance and protocol lore',
-        line: 'Try /chamber, /health, Ushuaia, or Liquidity Baking to jump into live rooms, current vote state, and protocol memory.',
-        query: '/chamber',
-        searchLabel: 'Search governance',
-        label: 'Enter the Chamber'
-    },
-    price: {
-        entryId: 'price',
-        title: 'Market and history context',
-        line: 'Search price, /compare, /history, or cycle terms for XTZ market data, captured history, chain comparison, and issuance context.',
-        query: 'price',
-        searchLabel: 'Open price intel',
-        label: 'Open price intel'
-    }
-};
-
-function initTezosLoopConsole() {
-    const consoleEl = document.getElementById('tezos-loop-console');
-    const title = document.getElementById('tezos-loop-title');
-    const line = document.getElementById('tezos-loop-line');
-    const link = document.getElementById('tezos-loop-link');
-    const search = document.getElementById('tezos-loop-search');
-    const nextStops = document.getElementById('tezos-loop-next');
-    if (!consoleEl || !title || !line || !link || !search || !nextStops) return;
-
-    const chips = Array.from(consoleEl.querySelectorAll('.tezos-loop-chip[data-loop-aura]'));
-    const cards = Array.from(consoleEl.querySelectorAll('.recruit-card[data-loop-aura]'));
-    if (!chips.length) return;
-
-    const getSavedAura = () => {
-        try {
-            return localStorage.getItem(TEZOS_LOOP_STORAGE_KEY) || '';
-        } catch (_) {
-            return '';
-        }
-    };
-
-    const saveAura = (aura) => {
-        try {
-            localStorage.setItem(TEZOS_LOOP_STORAGE_KEY, aura);
-        } catch (_) {}
-    };
-
-    const activate = (aura, persist = true) => {
-        const profile = TEZOS_LOOP_AURAS[aura] || TEZOS_LOOP_AURAS.holder;
-        consoleEl.dataset.aura = TEZOS_LOOP_AURAS[aura] ? aura : 'holder';
-        const entry = findSiteMapEntry(profile.entryId);
-        title.textContent = profile.title;
-        line.textContent = profile.line;
-        link.href = siteMapRoute(entry);
-        link.dataset.siteMapEntry = entry?.id || '';
-        link.dataset.loopAction = profile.action || '';
-        link.textContent = profile.label;
-        search.dataset.heroQuery = profile.query;
-        search.textContent = profile.searchLabel || `Search ${profile.query}`;
-        chips.forEach((chip) => {
-            const active = chip.dataset.loopAura === consoleEl.dataset.aura;
-            chip.classList.toggle('active', active);
-            chip.setAttribute('aria-pressed', active ? 'true' : 'false');
-        });
-        cards.forEach((card) => {
-            card.classList.toggle('is-active', card.dataset.loopAura === consoleEl.dataset.aura);
-        });
-        const destinations = [entry, ...siteMapRelated(profile.entryId, 4)]
-            .filter((item, index, items) => item && items.findIndex((candidate) => candidate?.id === item.id) === index);
-        nextStops.innerHTML = destinations.map((item, index) => `
-            <a class="tezos-loop-next-link ${index === 0 ? 'is-primary' : ''}" href="${escapeHtml(siteMapRoute(item))}" data-site-map-entry="${escapeHtml(item.id)}">
-                <span>${escapeHtml(item.title)}</span>
-                ${item.fresh ? '<small>New</small>' : ''}
-            </a>
-        `).join('');
-        nextStops.setAttribute('aria-label', `${profile.title} next steps`);
-        if (persist) saveAura(consoleEl.dataset.aura);
-    };
-
-    chips.forEach((chip) => {
-        chip.addEventListener('click', () => activate(chip.dataset.loopAura || 'holder'));
+function initSiteHandoffFooter() {
+    const footer = document.querySelector('.footer[data-site-footer]');
+    if (!footer) return;
+    const attribution = footer.querySelector('[data-site-footer-attribution]')?.innerHTML.trim() || '';
+    renderSiteHandoffFooter(footer, {
+        currentEntry: findCurrentSiteMapEntry() || findSiteMapEntry('home'),
+        attributionHtml: attribution,
+        includeBuildVersion: true
     });
-    cards.forEach((card) => {
-        card.addEventListener('click', () => activate(card.dataset.loopAura || 'holder'));
-    });
-    link.addEventListener('click', (event) => {
-        if (link.dataset.loopAction !== 'my-tezos') return;
-        const myTezosButton = document.getElementById('my-tezos-btn');
-        if (!myTezosButton) return;
-        event.preventDefault();
-        myTezosButton.click();
-    });
-
-    activate(getSavedAura() || 'holder', false);
 }
 
 /**
@@ -4663,7 +4539,13 @@ async function renderBuildVersion() {
     el.title = titleParts.join(' · ');
 }
 
-renderBuildVersion();
+// Start this only after the GitHub endpoint constant above is initialized. The
+// footer shell itself is rendered synchronously by init before this point.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderBuildVersion);
+} else {
+    renderBuildVersion();
+}
 
 // Collapsible sections — works on ALL section types
 function initCollapsibleSections() {
@@ -5837,47 +5719,6 @@ function applyDeepLink() {
             }, 800);
         }
     }
-}
-
-function footerMapLink(entry, className = 'site-map-link') {
-    if (!entry) return '';
-    const type = String(entry.href || '').endsWith('.xml') ? ' type="application/rss+xml"' : '';
-    const fresh = entry.fresh ? '<small>New</small>' : '';
-    return `
-        <a class="${className}" href="${escapeHtml(siteMapRoute(entry))}" data-site-map-entry="${escapeHtml(entry.id || '')}"${type}>
-            <span>${escapeHtml(entry.title)}</span>
-            ${fresh}
-        </a>
-    `;
-}
-
-function footerMapEntry(entry) {
-    const children = siteMapDirectoryChildren(entry);
-    return `
-        <div class="site-map-link-cluster${children.length ? ' has-children' : ''}">
-            ${footerMapLink(entry)}
-            ${children.length ? `<div class="site-map-sublinks">${children.map((child) => footerMapLink(child, 'site-map-sublink')).join('')}</div>` : ''}
-        </div>
-    `;
-}
-
-function footerMapGroup(label) {
-    const entries = siteMapGroup(label);
-    if (!entries.length) return '';
-    return `
-        <section class="site-map-group" aria-label="${escapeHtml(label)}">
-            <h3>${escapeHtml(label)}</h3>
-            <div class="site-map-links">
-                ${entries.map(footerMapEntry).join('')}
-            </div>
-        </section>
-    `;
-}
-
-function initSiteFooterMap() {
-    const grid = document.querySelector('[data-site-map-grid]');
-    if (!grid) return;
-    grid.innerHTML = SITE_MAP_NAV_GROUPS.map(footerMapGroup).join('');
 }
 
 const ROUTED_OVERLAY_ENTRIES = Object.freeze({

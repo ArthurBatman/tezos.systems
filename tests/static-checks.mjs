@@ -649,9 +649,10 @@ async function checkSiteMapGraphContracts() {
   const search = await readText('js/features/search.js');
   const app = await readText('js/core/app.js');
   const index = await readText('index.html');
+  const siteHandoff = await readText('js/core/site-handoff.js');
   const wayfinder = await readText('js/ui/wayfinder.js');
   if (/const\s+CHAMBERS\s*=/.test(search)) fail('hero search must not keep a duplicate Chamber catalog');
-  if (!index.includes('data-site-footer-map') || !index.includes('data-site-map-grid')) fail('dashboard footer must expose the manifest-backed complete map');
+  if (!index.includes('data-site-footer data-site-context="home"') || !siteHandoff.includes('SITE_MAP_NAV_GROUPS.map')) fail('dashboard footer must expose the shared manifest-backed Handoff and complete map');
   if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapRelated')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
   if (!index.includes('data-site-map-complete') || !index.includes('class="feature-launcher-directory-link"') || !index.includes('href="/#site-map"')) {
     fail('Explore must expose one quiet complete-directory utility');
@@ -897,6 +898,7 @@ async function checkSelectorContracts() {
   const index = await readText('index.html');
   const themePreload = await readText('js/core/theme-preload.js');
   const siteMapSource = await readText('js/core/site-map.js');
+  const siteHandoffSource = await readText('js/core/site-handoff.js');
   const siteMapModuleUrl = `data:text/javascript;base64,${Buffer.from(siteMapSource).toString('base64')}`;
   const { siteMapStarters } = await import(siteMapModuleUrl);
   const governanceLanding = await readText('governance/index.html');
@@ -923,12 +925,6 @@ async function checkSelectorContracts() {
     'hero-search-input',
     'hero-search-panel',
     'recruit-section',
-    'tezos-loop-console',
-    'tezos-loop-title',
-    'tezos-loop-line',
-    'tezos-loop-hints',
-    'tezos-loop-search',
-    'tezos-loop-link',
     'comparison-summary',
     'widgets-gallery',
     'settings-gear',
@@ -969,10 +965,12 @@ async function checkSelectorContracts() {
     ['share picker styles hook', 'section-picker-note'],
     ['price bar change surface', 'class="price-change"'],
     ['price bar cycle health launcher', 'class="cycle-chip" id="cycle-chip" href="#health"'],
-    ['Tezos loop console', 'class="tezos-loop-console"'],
-    ['Tezos loop aura chip rail', 'class="tezos-loop-chips"'],
-    ['Tezos loop start-anywhere copy', 'Start from anything.'],
-    ['Tezos loop accepted inputs', 'Paste a wallet address or .tez name, baker, KT1 contract, operation hash, block, protocol, or slash command'],
+    ['Tezos Handoff footer hook', 'data-site-footer data-site-context="home"'],
+    ['Tezos Handoff attribution hook', 'data-site-footer-attribution'],
+    ['Tezos Handoff title', 'The system continues from here.', siteHandoffSource],
+    ['Tezos Handoff lifeline', 'class="site-handoff-lifeline"', siteHandoffSource],
+    ['Tezos Handoff complete map disclosure', 'Open the complete map · ${totalDestinations} destinations', siteHandoffSource],
+    ['Tezos Handoff choose-for-me route', 'Choose for me', siteHandoffSource],
     ['hero command bar placeholder copy', 'Search every feature or paste any Tezos ID…'],
     ['timeline share fallback host', 'document.querySelector(\'.upgrade-badges\')'],
     ['timeline share protocol history chamber fallback', 'document.querySelector(\'#protocol-history-chamber-modal .protocol-history-chamber-header\')'],
@@ -980,8 +978,6 @@ async function checkSelectorContracts() {
     ['command deck shell', 'class="upgrade-clock command-deck"'],
     ['hero command bar slot', 'class="hero-slot" id="hero-slot"'],
     ['hero command bar combobox', 'aria-controls="hero-search-panel"'],
-    ['My Tezos recruit prompt', 'data-hero-query="my tezos"'],
-    ['Price watcher recipe chip', 'data-loop-aura="price"'],
     ['Governance alert strip shell', 'class="stats-section governance-alert-section"'],
     ['History modal direct link copy button', 'id="history-copy-link" data-copy-hash="#history"'],
     ['Governance SEO nonblank voting fallback', 'data-live="voting-period">Checking TzKT', governanceLanding],
@@ -997,6 +993,10 @@ async function checkSelectorContracts() {
     }
   }
   pass(`new UX selector contracts checked: ${requiredSnippets.length}`);
+
+  if (index.includes('Start from anything.') || index.includes('data-loop-aura')) {
+    fail('dashboard footer must not restore the retired search-recipe console');
+  }
 
   const uptimeClusterStart = index.indexOf('<div class="top-uptime-cluster">');
   const milestoneMarkerIndex = index.indexOf('<a class="top-continuity-milestone-info"', uptimeClusterStart);
@@ -1049,9 +1049,11 @@ async function checkSelectorContracts() {
 
   const app = await readText('js/core/app.js');
   const siteMap = await readText('js/core/site-map.js');
+  const siteHandoff = await readText('js/core/site-handoff.js');
   const siteNav = await readText('js/landing/site-nav.js');
   const search = await readText('js/features/search.js');
   const heroSearchCss = await readText('css/hero-search.css');
+  const siteMapCss = await readText('css/site-map.css');
   const shellExtrasCss = await readText('css/shell-extras.css');
   const loadingCss = await readText('css/loading.css');
   const henModeCss = await readText('css/hen-mode.css');
@@ -1096,6 +1098,9 @@ async function checkSelectorContracts() {
   const ledgerFlowCss = await readText('css/ledger-flow.css');
   const maxisCss = await readText('css/maxis.css');
   const tezosDomainsCss = await readText('css/tezos-domains.css');
+  if (/TEZOS_LOOP_STORAGE_KEY|initTezosLoopConsole|initSiteFooterMap/.test(app)) {
+    fail('app.js must not retain the retired loop-console or duplicate dashboard footer renderers');
+  }
   const deepLinkContracts = [
     ['Chamber hash route', "hash === 'chamber'", app],
     ['Chambers hash route', "hash === 'chambers'", app],
@@ -1177,6 +1182,12 @@ async function checkSelectorContracts() {
     ['Site map manifest includes anthology route', "href: '/anthology/'", siteMap],
     ['Site map manifest includes Network Pulse route', "href: '/pulse/'", siteMap],
     ['Landing pages share site nav renderer', 'function renderFooter()', siteNav],
+    ['Shared Handoff renderer', 'function renderSiteHandoffFooter', siteHandoff],
+    ['Shared Handoff stable lifeline', "{ id: 'now', label: 'Now', entryId: 'pulse' }", siteHandoff],
+    ['Shared Handoff contextual recommendation', 'function recommendedEntry', siteHandoff],
+    ['Shared Handoff directory uses canonical groups', 'SITE_MAP_NAV_GROUPS.map', siteHandoff],
+    ['Shared Handoff desktop lifeline styles', '.site-handoff-lifeline', siteMapCss],
+    ['Shared Handoff mobile vertical lifeline styles', 'flex-direction: column;', siteMapCss],
     ['Hero search runtime-only quick chips', 'RUNTIME_QUICK_CHIPS', search],
     ['Hero search runtime-only commands', 'RUNTIME_COMMANDS', search],
     ['Hero search complete browse index', 'siteMapBrowseEntries', search],
@@ -1196,12 +1207,8 @@ async function checkSelectorContracts() {
     ['Hero search Maxi Passport intent route', '/maxis/?view=passport', siteMap],
     ['Hero search Maxis Season intent route', '/maxis/?view=season', siteMap],
     ['Hero search address-scoped Maxi Passport route', 'view=passport&address=${encodeURIComponent(target)}', search],
-    ['Tezos loop console initializer', 'function initTezosLoopConsole()', app],
-    ['Tezos loop aura persistence', 'TEZOS_LOOP_STORAGE_KEY', app],
-    ['Tezos loop console styles', '.tezos-loop-console', heroSearchCss],
-    ['Tezos loop active chip styles', '.tezos-loop-chip.active', heroSearchCss],
     ['Hero search explicit full-directory mode', 'data-hero-browse-all="true"', search],
-    ['Standalone footer progressive disclosure', 'class="site-map-disclosure"', siteNav],
+    ['Standalone footer progressive disclosure', 'class="site-map-disclosure"', siteHandoff],
     ['Hero search manifest page result adapter', 'function siteMapResult', search],
     ['LB tile hash route', "hash === 'lb-tile'", app],
     ['tz4 hash route', "hash === 'tz4'", app],
@@ -1220,9 +1227,9 @@ async function checkSelectorContracts() {
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
     ['Pretty chamber route resolves through site map', 'findCurrentSiteMapEntry({', app],
     ['Pretty chamber route uses canonical hash identity', "entry.hash.replace(/^#/, '')", app],
-    ['Dashboard footer uses site map renderer', 'function initSiteFooterMap', app],
-    ['Dashboard footer map shell hook', 'data-site-footer-map', index],
-    ['Dashboard footer map grid hook', 'data-site-map-grid', index],
+    ['Dashboard footer uses shared Handoff renderer', 'renderSiteHandoffFooter', app],
+    ['Dashboard footer Handoff hook', 'data-site-footer data-site-context="home"', index],
+    ['Dashboard footer canonical map id', "sequence === 1 ? 'site-map'", siteHandoff],
     ['Pretty chamber route generator hydrates dashboard shell', "dashboardShell = await fs.readFile", chamberRouteGenerator],
     ['Network Pulse feature import', 'initNetworkPulseChamber', app],
     ['Network Pulse card copy link', 'data-copy-hash="#pulse"', networkPulse],
@@ -1685,7 +1692,7 @@ async function checkSelectorContracts() {
     ['top continuity identity claim styles', '.top-continuity-claim', heroSearchCss],
     ['top continuity statement runtime scale', 'font-size: clamp(1.5rem, 2.15vw, 2rem);', heroSearchCss],
     ['top continuity dedicated runtime font role', 'font-family: var(--font-runtime);', heroSearchCss],
-    ['recipe console display font role', 'font-family: var(--font-display, Orbitron', heroSearchCss],
+    ['Handoff display font role', 'font-family: var(--font-display, Orbitron', siteMapCss],
     ['hot-today display font role', 'font-family: var(--font-display, Orbitron', shellExtrasCss],
     ['Maxis display font role', "font-family: var(--font-display, 'Orbitron'", maxisCss],
     ['top continuity runtime readability scale', 'font-size: 1.08em;', heroSearchCss],
@@ -2114,6 +2121,7 @@ async function checkUxAuditContracts() {
   const stateOfTezos = await readText('js/features/state-of-tezos.js');
   const tooltipTour = await readText('js/features/tooltip-tour.js');
   const siteMapCss = await readText('css/site-map.css');
+  const siteHandoff = await readText('js/core/site-handoff.js');
   const landingCss = await readText('css/landing.css');
   const siteNav = await readText('js/landing/site-nav.js');
   const liveData = await readText('js/landing/live-data.js');
@@ -2193,7 +2201,7 @@ async function checkUxAuditContracts() {
     }
   }
   if (!henCss.includes('.hen-filter-group-label')) fail('HEN visible filter group labels must be styled');
-  if (!index.includes('<a href="/landing.html">Start here</a>') || !siteNav.includes('<a href="/landing.html">Start here</a>')) {
+  if (!index.includes('<a href="/landing.html">Start here</a>') || !siteHandoff.includes('<a href="/landing.html">Start here</a>')) {
     fail('dashboard and standalone footers must expose the non-forced Start here route');
   }
   for (const href of ['/favicon.svg', '/favicon-48.png', '/favicon-32.png', '/favicon-16.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/site.webmanifest']) {
@@ -3076,7 +3084,7 @@ async function checkRepositoryLicense() {
   const index = await readText('index.html');
   const changelog = await readText('js/features/changelog.js');
   const landing = await readText('landing.html');
-  const landingNav = await readText('js/landing/site-nav.js');
+  const landingNav = await readText('js/core/site-handoff.js');
   const share = await readText('js/ui/share.js');
   const stateOfTezos = await readText('js/features/state-of-tezos.js');
   const aiPlugin = JSON.parse(await readText('.well-known/ai-plugin.json'));
@@ -3218,8 +3226,9 @@ async function checkRepositoryLicense() {
     || landing.includes('Powered by <a href="https://tez.capital"')) {
     fail('landing.html must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit');
   }
-  if (!landingNav.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
-    || !landingNav.includes('RPC by <a href="https://tez.capital">Tez Capital</a>')) {
+  if (!landingNav.includes('Built by <a href="https://x.com/BakingBenjamins"')
+    || !landingNav.includes('a co-founding member of <a href="https://tez.capital"')
+    || !landingNav.includes('RPC by <a href="https://tez.capital"')) {
     fail('landing footer runtime must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit');
   }
   if (!share.includes('Built by <span style="color:${brandColor};font-weight:600;">Primate</span> · RPC by')) {
@@ -3274,6 +3283,8 @@ async function checkTourAndShareCaptureContracts() {
     'Read the latest head',
     'Protocol Anthology',
     'Network Context',
+    'Follow the lifeline',
+    'complete map stays folded',
     'Explore leads with Chambers, Network Pulse, Staking, and Maxis',
     'Help is available when you want it',
     'Show help',
@@ -3287,7 +3298,7 @@ async function checkTourAndShareCaptureContracts() {
     '#hero-search-form',
     '#chambers-section .section-header',
     '#my-tezos-btn',
-    '#tezos-loop-chips',
+    '#recruit-section .site-handoff-head',
     '#features-gear',
     '#settings-gear'
   ]) {

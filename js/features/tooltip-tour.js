@@ -37,9 +37,9 @@
             text: 'Add a wallet or .tez name to pull baker activity, rewards, NFTs, governance attribution, Your Tezos Story, and Network Context into one drawer.',
         },
         {
-            target: '#tezos-loop-chips',
-            title: 'Use the recipe console',
-            text: 'Wallet, Baker, Contracts, NFTs, Governance, and Market lanes seed the command bar when you are not sure what to type.',
+            target: '#recruit-section .site-handoff-head',
+            title: 'Follow the lifeline',
+            text: 'At the bottom of every page, one recommended next signal leads into Now, You, Flow, Power, Memory, and People. The complete map stays folded underneath.',
         },
         {
             target: '#features-gear',

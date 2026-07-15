@@ -2728,7 +2728,7 @@ body::before {
 .main-content {
     max-width: var(--page-col);
     margin: 0 auto;
-    padding: 0 2rem 4rem;
+    padding: 0 2rem;
 }
 
 .stats-section {
@@ -5193,18 +5193,6 @@ body::before {
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
 }
 
-.footer-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-    font-size: 0.875rem;
-}
-
-.footer-content:empty {
-    display: none;
-}
-
 .update-info,
 .countdown-info {
     font-weight: 400;
@@ -5396,14 +5384,6 @@ body::before {
 /* ==========================================
    Responsive
    ========================================== */
-
-@media (min-width: 768px) {
-    .footer-content {
-        flex-direction: row;
-        justify-content: center;
-        gap: 2rem;
-    }
-}
 
 @media (max-width: 640px) {
     /* Tighter vertical rhythm on mobile — base padding (2rem/2rem/3rem) left
@@ -22879,7 +22859,7 @@ body[data-theme="hen"]::after {
     box-shadow: none !important;
 }
 
-[data-theme="hen"] .tezos-loop-title,
+[data-theme="hen"] .site-handoff-head h2,
 [data-theme="hen"] .section-title {
     color: #e0e0e0;
     text-shadow: none;
@@ -23250,18 +23230,18 @@ body[data-theme="hen"]::after {
     font-family: var(--font-display) !important;
 }
 
-[data-theme="matrix"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="hen"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="void"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="ember"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="signal"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="nerv"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="clean"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="dark"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="bubblegum"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="abyss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="moss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
-[data-theme="warzone"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .tezos-loop-title, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong) {
+[data-theme="matrix"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="hen"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="void"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="ember"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="signal"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="nerv"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="clean"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="dark"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="bubblegum"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="abyss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="moss"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong),
+[data-theme="warzone"] :is(.section-title, .section-header h2, .modal-title, .changelog-modal-header h2, .card-history-title, .chamber-title, .keyboard-help-card h3, .hot-today-head h2, .site-handoff-head h2, .my-baker-title, .maxis-entry-season-title, .maxis-entry-season-pulse > strong) {
     font-family: var(--font-display) !important;
 }
 

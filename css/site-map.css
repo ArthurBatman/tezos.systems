@@ -71,7 +71,7 @@
 .site-map-related .site-map-head h2 {
     margin: 3px 0 0;
     color: var(--site-map-text);
-    font-family: Orbitron, system-ui, sans-serif;
+    font-family: var(--font-display, Orbitron, system-ui, sans-serif);
     font-size: clamp(1rem, 2.2vw, 1.35rem);
     line-height: 1.25;
     letter-spacing: 0.01em;
@@ -203,6 +203,286 @@
     border: 1px solid var(--site-map-border);
     border-radius: 14px;
     background: color-mix(in srgb, var(--site-map-panel) 88%, transparent);
+}
+
+.footer.site-handoff-shell {
+    width: min(1120px, calc(100% - 32px));
+    margin: 0 auto 32px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--site-map-accent) 11%, transparent), transparent 38%),
+        linear-gradient(135deg, color-mix(in srgb, var(--site-map-panel) 94%, transparent), color-mix(in srgb, var(--site-map-panel) 78%, transparent));
+    color: var(--site-map-text);
+    text-align: left;
+}
+
+.footer.site-handoff-shell::before {
+    display: none;
+}
+
+.site-handoff-main {
+    padding: clamp(22px, 3.5vw, 40px);
+}
+
+.site-handoff-head {
+    max-width: 720px;
+}
+
+.site-handoff-head h2 {
+    margin: 5px 0 0;
+    color: var(--site-map-text);
+    font-family: var(--font-display, Orbitron, system-ui, sans-serif);
+    font-size: clamp(1.2rem, 2.5vw, 1.75rem);
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+}
+
+.site-handoff-head p {
+    margin: 8px 0 0;
+    color: var(--site-map-dim);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.site-handoff-lifeline {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 28px;
+}
+
+.site-handoff-lifeline::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 9px;
+    right: 7.5%;
+    left: 7.5%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--site-map-accent) 45%, var(--site-map-border)) 8%, color-mix(in srgb, var(--site-map-accent) 24%, var(--site-map-border)) 92%, transparent);
+}
+
+.site-handoff-step {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    color: var(--site-map-dim);
+    text-align: center;
+    text-decoration: none;
+}
+
+.site-handoff-node {
+    width: 19px;
+    height: 19px;
+    display: block;
+    border: 1px solid color-mix(in srgb, var(--site-map-accent) 34%, var(--site-map-border));
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--site-map-panel) 96%, var(--site-map-text) 4%);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--site-map-panel) 92%, transparent);
+    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.site-handoff-step strong {
+    margin-top: 9px;
+    color: var(--site-map-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.site-handoff-step small {
+    margin-top: 3px;
+    color: var(--site-map-dim);
+    font-size: 0.66rem;
+    line-height: 1.35;
+}
+
+.site-handoff-step.is-current-phase .site-handoff-node {
+    border-color: var(--site-map-accent);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--site-map-panel) 92%, transparent), 0 0 22px color-mix(in srgb, var(--site-map-accent) 36%, transparent);
+}
+
+.site-handoff-step.is-next .site-handoff-node {
+    border-color: var(--site-map-accent);
+    background: var(--site-map-accent);
+}
+
+.site-handoff-step:hover .site-handoff-node,
+.site-handoff-step:focus-visible .site-handoff-node {
+    border-color: var(--site-map-accent);
+    transform: scale(1.12);
+}
+
+.site-handoff-step:hover strong,
+.site-handoff-step:focus-visible strong,
+.site-handoff-step.is-current-phase strong,
+.site-handoff-step.is-next strong {
+    color: var(--site-map-accent);
+}
+
+.site-handoff-step:focus-visible {
+    outline: none;
+}
+
+.site-handoff-recommendation {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px 24px;
+    margin-top: 28px;
+    padding: clamp(16px, 2.5vw, 24px);
+    border: 1px solid color-mix(in srgb, var(--site-map-accent) 28%, var(--site-map-border));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--site-map-accent) 5%, var(--site-map-panel));
+}
+
+.site-handoff-recommendation-copy > span {
+    color: var(--site-map-accent);
+    font-size: 0.63rem;
+    font-weight: 850;
+    letter-spacing: 0.12em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.site-handoff-recommendation-copy h3 {
+    margin: 5px 0 0;
+    color: var(--site-map-text);
+    font-family: var(--font-display, Orbitron, system-ui, sans-serif);
+    font-size: 1rem;
+    line-height: 1.25;
+}
+
+.site-handoff-recommendation-copy p {
+    max-width: 680px;
+    margin: 6px 0 0;
+    color: var(--site-map-dim);
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+
+.site-handoff-primary {
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 17px;
+    border: 1px solid var(--site-map-accent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--site-map-accent) 14%, transparent);
+    color: var(--site-map-accent);
+    font-size: 0.78rem;
+    font-weight: 850;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.site-handoff-primary:hover,
+.site-handoff-primary:focus-visible {
+    background: var(--site-map-accent);
+    color: var(--bg, var(--bg-primary, #0a0e1a));
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.site-handoff-side-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.site-handoff-side-actions a {
+    min-height: 44px;
+    min-width: min(190px, 100%);
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px 12px;
+    border: 1px solid var(--site-map-border);
+    border-radius: 8px;
+    color: var(--site-map-text);
+    text-decoration: none;
+}
+
+.site-handoff-side-actions span {
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.site-handoff-side-actions small {
+    margin-top: 2px;
+    color: var(--site-map-dim);
+    font-size: 0.62rem;
+    line-height: 1.25;
+}
+
+.site-handoff-side-actions a:hover,
+.site-handoff-side-actions a:focus-visible {
+    border-color: var(--site-map-accent);
+    color: var(--site-map-accent);
+    outline: none;
+}
+
+.site-handoff-shell.site-map-footer .site-map-disclosure {
+    border-top: 1px solid var(--site-map-border);
+}
+
+.site-handoff-shell.site-map-footer .site-map-disclosure > summary {
+    min-height: 68px;
+    padding: 14px clamp(22px, 3.5vw, 40px);
+    border: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--site-map-panel) 55%, transparent);
+}
+
+.site-handoff-shell.site-map-footer .site-map-disclosure > .site-map-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0 20px;
+    margin: 0;
+    padding: 10px clamp(22px, 3.5vw, 40px) 28px;
+    background: color-mix(in srgb, var(--site-map-panel) 42%, transparent);
+}
+
+.site-handoff-shell .site-map-group {
+    padding: 14px 0;
+    border: 0;
+    border-top: 1px solid color-mix(in srgb, var(--site-map-border) 72%, transparent);
+    border-radius: 0;
+    background: transparent;
+}
+
+.site-handoff-shell .site-map-footer-base {
+    justify-content: flex-start;
+    margin: 0;
+    padding: 18px clamp(22px, 3.5vw, 40px);
+    text-align: left;
+}
+
+.site-handoff-shell .site-map-footer-base :is(.powered-by, .footer-source-line, .footer-contribute) {
+    margin: 0;
+    color: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+}
+
+.site-handoff-shell .build-version {
+    margin: 0;
+    padding: 0 clamp(22px, 3.5vw, 40px) 18px;
+    color: var(--site-map-dim);
+    font-size: 0.62rem;
+    text-align: left;
 }
 
 .site-map-shell .site-map-grid {
@@ -564,6 +844,101 @@
         min-height: 0;
     }
 
+    .footer.site-handoff-shell {
+        width: min(100% - 20px, 1120px);
+        margin-bottom: 20px;
+    }
+
+    .site-handoff-main {
+        padding: 22px 18px;
+    }
+
+    .site-handoff-head h2 {
+        font-size: 1.15rem;
+    }
+
+    .site-handoff-lifeline {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        margin-top: 22px;
+    }
+
+    .site-handoff-lifeline::before {
+        top: 10px;
+        right: auto;
+        bottom: 10px;
+        left: 9px;
+        width: 1px;
+        height: auto;
+        background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--site-map-accent) 42%, var(--site-map-border)) 6%, color-mix(in srgb, var(--site-map-accent) 24%, var(--site-map-border)) 94%, transparent);
+    }
+
+    .site-handoff-step {
+        min-height: 48px;
+        grid-template-columns: 20px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        align-items: center;
+        justify-items: start;
+        column-gap: 12px;
+        padding: 5px 0;
+        text-align: left;
+    }
+
+    .site-handoff-node {
+        grid-row: 1 / span 2;
+        width: 19px;
+        height: 19px;
+    }
+
+    .site-handoff-step strong {
+        align-self: end;
+        margin-top: 0;
+    }
+
+    .site-handoff-step small {
+        align-self: start;
+        margin-top: 1px;
+    }
+
+    .site-handoff-recommendation {
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-top: 22px;
+        padding: 16px;
+    }
+
+    .site-handoff-primary {
+        width: 100%;
+    }
+
+    .site-handoff-side-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .site-handoff-side-actions a {
+        min-width: 0;
+    }
+
+    .site-handoff-shell.site-map-footer .site-map-disclosure > summary {
+        min-height: 60px;
+        padding: 12px 18px;
+    }
+
+    .site-handoff-shell.site-map-footer .site-map-disclosure > .site-map-grid {
+        grid-template-columns: 1fr;
+        padding: 8px 18px 22px;
+    }
+
+    .site-handoff-shell .site-map-footer-base {
+        padding: 16px 18px;
+    }
+
+    .site-handoff-shell .build-version {
+        padding: 0 18px 16px;
+    }
+
     .site-map-footer .site-map-disclosure > summary {
         min-height: 48px;
         padding: 10px 12px;
@@ -598,6 +973,11 @@
     .site-map-shell a.site-map-cta,
     .site-map-related a.site-map-cta,
     .site-map-related .site-wayfinder-card {
+        transition: none;
+    }
+
+    .site-handoff-node,
+    .site-handoff-primary {
         transition: none;
     }
 
