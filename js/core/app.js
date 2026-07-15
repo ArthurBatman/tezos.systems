@@ -11,7 +11,7 @@ import {
     navigateSiteMapEntry,
     siteMapCanonicalRoute
 } from './site-map.js';
-import { renderSiteHandoffFooter } from './site-handoff.js';
+import { renderSiteHandoff } from './site-handoff.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
 import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
@@ -109,7 +109,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=439';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=440';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -355,7 +355,7 @@ async function init() {
         }
     });
     safe('navButtons', initNavButtons);
-    safe('siteHandoffFooter', initSiteHandoffFooter);
+    safe('siteHandoff', initSiteHandoff);
     safe('siteWayfinder', initSiteWayfinder);
     safe('siteMapRouter', initSiteMapRouter);
     safe('heroSearch', initHeroSearch);
@@ -4424,14 +4424,11 @@ function positionTooltip(e, tooltipEl) {
     tooltipEl.style.top = y + 'px';
 }
 
-function initSiteHandoffFooter() {
-    const footer = document.querySelector('.footer[data-site-footer]');
-    if (!footer) return;
-    const attribution = footer.querySelector('[data-site-footer-attribution]')?.innerHTML.trim() || '';
-    renderSiteHandoffFooter(footer, {
-        currentEntry: findCurrentSiteMapEntry() || findSiteMapEntry('home'),
-        attributionHtml: attribution,
-        includeBuildVersion: true
+function initSiteHandoff() {
+    const handoff = document.querySelector('[data-site-handoff]');
+    if (!handoff) return;
+    renderSiteHandoff(handoff, {
+        currentEntry: findCurrentSiteMapEntry() || findSiteMapEntry('home')
     });
 }
 

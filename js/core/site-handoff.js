@@ -150,26 +150,10 @@ function destinationCount() {
     );
 }
 
-function defaultAttributionHtml() {
-    return `
-        <span class="powered-by">Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
-        <span class="footer-source-line">Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
-        <span class="footer-contribute"><a href="/landing.html">Start here</a></span>
-    `;
-}
-
-function withLegalAttribution(attributionHtml) {
-    const attribution = attributionHtml || defaultAttributionHtml();
-    if (/MPL-2\.0/.test(attribution)) return attribution;
-    return `${attribution}<span class="footer-contribute"><a href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a> · <a href="/LICENSE" rel="license">MPL-2.0</a></span>`;
-}
-
-export function renderSiteHandoffFooter(footer, {
-    currentEntry = null,
-    attributionHtml = '',
-    includeBuildVersion = false
+export function renderSiteHandoff(container, {
+    currentEntry = null
 } = {}) {
-    if (!footer) return;
+    if (!container) return;
     const sequence = ++handoffSequence;
     const current = currentEntry || findSiteMapEntry('home') || SITE_MAP[0] || null;
     const steps = handoffEntries();
@@ -180,10 +164,10 @@ export function renderSiteHandoffFooter(footer, {
     const mapId = sequence === 1 ? 'site-map' : `site-map-${sequence}`;
     const currentTitle = current?.title || 'this page';
 
-    footer.classList.add('site-map-shell', 'site-map-footer', 'site-handoff-shell');
-    footer.setAttribute('data-site-footer', 'true');
-    footer.setAttribute('aria-labelledby', titleId);
-    footer.innerHTML = `
+    container.classList.add('site-map-shell', 'site-map-footer', 'site-handoff-shell');
+    container.setAttribute('data-site-handoff', 'true');
+    container.setAttribute('aria-labelledby', titleId);
+    container.innerHTML = `
         <div class="site-handoff-main">
             <header class="site-handoff-head">
                 <span class="site-map-kicker">The Handoff</span>
@@ -229,7 +213,5 @@ export function renderSiteHandoffFooter(footer, {
                 ${SITE_MAP_NAV_GROUPS.map((label) => directoryGroupHtml(label, current, sequence)).join('')}
             </nav>
         </details>
-        <div class="site-map-footer-base" data-site-footer-attribution>${withLegalAttribution(attributionHtml)}</div>
-        ${includeBuildVersion ? '<p id="build-version" class="build-version" aria-live="polite"></p>' : ''}
     `;
 }

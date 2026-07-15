@@ -6,7 +6,7 @@ import {
     siteMapRoute,
     searchSiteMap
 } from '../core/site-map.js';
-import { renderSiteHandoffFooter } from '../core/site-handoff.js';
+import { renderSiteHandoff } from '../core/site-handoff.js';
 
 const FALLBACK_RELATED_IDS = ['pulse', 'staking-chamber', 'maxis', 'health'];
 const renderedFooters = new WeakSet();
@@ -208,15 +208,39 @@ function originalAttributionHtml(footer) {
     return raw && !footer.querySelector('.site-map-footer-map') ? raw : '';
 }
 
+function defaultAttributionHtml() {
+    return `
+        <span class="powered-by">Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
+        <span class="footer-source-line">Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
+        <span class="footer-contribute"><a href="/landing.html">Start here</a></span>
+    `;
+}
+
+function withLegalAttribution(attributionHtml) {
+    const attribution = attributionHtml || defaultAttributionHtml();
+    if (/MPL-2\.0/.test(attribution)) return attribution;
+    return `${attribution}<span class="footer-contribute"><a href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a> · <a href="/LICENSE" rel="license">MPL-2.0</a></span>`;
+}
+
 function renderFooter() {
     document.querySelectorAll('[data-site-footer], .landing-footer').forEach((footer) => {
         if (renderedFooters.has(footer)) return;
         renderedFooters.add(footer);
         const current = contextEntry(footer);
-        renderSiteHandoffFooter(footer, {
-            currentEntry: current,
-            attributionHtml: originalAttributionHtml(footer)
+        const attributionHtml = originalAttributionHtml(footer);
+        const handoff = footer.previousElementSibling?.matches('[data-site-handoff]')
+            ? footer.previousElementSibling
+            : document.createElement('section');
+        if (!handoff.isConnected) footer.before(handoff);
+        handoff.setAttribute('data-site-handoff', 'true');
+        if (current?.id) handoff.setAttribute('data-site-context', current.id);
+        renderSiteHandoff(handoff, {
+            currentEntry: current
         });
+        footer.classList.add('site-footer-separate');
+        footer.setAttribute('data-site-footer', 'true');
+        footer.setAttribute('role', 'contentinfo');
+        footer.innerHTML = `<div class="site-footer-inner" data-site-footer-attribution>${withLegalAttribution(attributionHtml)}</div>`;
     });
 }
 

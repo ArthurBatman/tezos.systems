@@ -652,7 +652,11 @@ async function checkSiteMapGraphContracts() {
   const siteHandoff = await readText('js/core/site-handoff.js');
   const wayfinder = await readText('js/ui/wayfinder.js');
   if (/const\s+CHAMBERS\s*=/.test(search)) fail('hero search must not keep a duplicate Chamber catalog');
-  if (!index.includes('data-site-footer data-site-context="home"') || !siteHandoff.includes('SITE_MAP_NAV_GROUPS.map')) fail('dashboard footer must expose the shared manifest-backed Handoff and complete map');
+  if (!index.includes('data-site-handoff data-site-context="home"')
+    || !index.includes('data-site-footer data-site-context="home"')
+    || !siteHandoff.includes('SITE_MAP_NAV_GROUPS.map')) {
+    fail('dashboard must expose separate manifest-backed Handoff and footer surfaces');
+  }
   if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapRelated')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
   if (!index.includes('data-site-map-complete') || !index.includes('class="feature-launcher-directory-link"') || !index.includes('href="/#site-map"')) {
     fail('Explore must expose one quiet complete-directory utility');
@@ -965,7 +969,9 @@ async function checkSelectorContracts() {
     ['share picker styles hook', 'section-picker-note'],
     ['price bar change surface', 'class="price-change"'],
     ['price bar cycle health launcher', 'class="cycle-chip" id="cycle-chip" href="#health"'],
-    ['Tezos Handoff footer hook', 'data-site-footer data-site-context="home"'],
+    ['Tezos Handoff navigation hook', 'data-site-handoff data-site-context="home"'],
+    ['Separate Tezos footer hook', 'data-site-footer data-site-context="home"'],
+    ['Separate Tezos footer styling hook', 'class="footer site-footer-separate"'],
     ['Tezos Handoff attribution hook', 'data-site-footer-attribution'],
     ['Tezos Handoff title', 'The system continues from here.', siteHandoffSource],
     ['Tezos Handoff lifeline', 'class="site-handoff-lifeline"', siteHandoffSource],
@@ -1182,7 +1188,7 @@ async function checkSelectorContracts() {
     ['Site map manifest includes anthology route', "href: '/anthology/'", siteMap],
     ['Site map manifest includes Network Pulse route', "href: '/pulse/'", siteMap],
     ['Landing pages share site nav renderer', 'function renderFooter()', siteNav],
-    ['Shared Handoff renderer', 'function renderSiteHandoffFooter', siteHandoff],
+    ['Shared Handoff renderer', 'function renderSiteHandoff', siteHandoff],
     ['Shared Handoff stable lifeline', "{ id: 'now', label: 'Now', entryId: 'pulse' }", siteHandoff],
     ['Shared Handoff contextual recommendation', 'function recommendedEntry', siteHandoff],
     ['Shared Handoff directory uses canonical groups', 'SITE_MAP_NAV_GROUPS.map', siteHandoff],
@@ -1227,8 +1233,10 @@ async function checkSelectorContracts() {
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
     ['Pretty chamber route resolves through site map', 'findCurrentSiteMapEntry({', app],
     ['Pretty chamber route uses canonical hash identity', "entry.hash.replace(/^#/, '')", app],
-    ['Dashboard footer uses shared Handoff renderer', 'renderSiteHandoffFooter', app],
-    ['Dashboard footer Handoff hook', 'data-site-footer data-site-context="home"', index],
+    ['Dashboard uses shared Handoff renderer', 'renderSiteHandoff', app],
+    ['Dashboard Handoff hook', 'data-site-handoff data-site-context="home"', index],
+    ['Dashboard separate footer hook', 'data-site-footer data-site-context="home"', index],
+    ['Dashboard separate footer styles', '.site-footer-separate', siteMapCss],
     ['Dashboard footer canonical map id', "sequence === 1 ? 'site-map'", siteHandoff],
     ['Pretty chamber route generator hydrates dashboard shell', "dashboardShell = await fs.readFile", chamberRouteGenerator],
     ['Network Pulse feature import', 'initNetworkPulseChamber', app],
@@ -2201,7 +2209,7 @@ async function checkUxAuditContracts() {
     }
   }
   if (!henCss.includes('.hen-filter-group-label')) fail('HEN visible filter group labels must be styled');
-  if (!index.includes('<a href="/landing.html">Start here</a>') || !siteHandoff.includes('<a href="/landing.html">Start here</a>')) {
+  if (!index.includes('<a href="/landing.html">Start here</a>') || !siteNav.includes('<a href="/landing.html">Start here</a>')) {
     fail('dashboard and standalone footers must expose the non-forced Start here route');
   }
   for (const href of ['/favicon.svg', '/favicon-48.png', '/favicon-32.png', '/favicon-16.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/site.webmanifest']) {
@@ -3084,7 +3092,7 @@ async function checkRepositoryLicense() {
   const index = await readText('index.html');
   const changelog = await readText('js/features/changelog.js');
   const landing = await readText('landing.html');
-  const landingNav = await readText('js/core/site-handoff.js');
+  const landingNav = await readText('js/landing/site-nav.js');
   const share = await readText('js/ui/share.js');
   const stateOfTezos = await readText('js/features/state-of-tezos.js');
   const aiPlugin = JSON.parse(await readText('.well-known/ai-plugin.json'));

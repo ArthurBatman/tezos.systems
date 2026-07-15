@@ -3549,17 +3549,22 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await page.locator('#recruit-section.site-handoff-shell').scrollIntoViewIfNeeded();
   const handoffState = await page.evaluate(() => {
-    const footer = document.getElementById('recruit-section');
-    const disclosure = footer?.querySelector('.site-map-disclosure');
+    const handoff = document.getElementById('recruit-section');
+    const footer = document.querySelector('[data-site-footer]');
+    const disclosure = handoff?.querySelector('.site-map-disclosure');
     return {
-      text: footer?.innerText || '',
-      steps: footer?.querySelectorAll('.site-handoff-step').length || 0,
-      currentPhases: footer?.querySelectorAll('.site-handoff-step.is-current-phase').length || 0,
-      nextSteps: footer?.querySelectorAll('.site-handoff-step.is-next').length || 0,
-      primaryHref: footer?.querySelector('.site-handoff-primary')?.getAttribute('href') || '',
-      sideActions: footer?.querySelectorAll('.site-handoff-side-actions a').length || 0,
+      text: handoff?.innerText || '',
+      steps: handoff?.querySelectorAll('.site-handoff-step').length || 0,
+      currentPhases: handoff?.querySelectorAll('.site-handoff-step.is-current-phase').length || 0,
+      nextSteps: handoff?.querySelectorAll('.site-handoff-step.is-next').length || 0,
+      primaryHref: handoff?.querySelector('.site-handoff-primary')?.getAttribute('href') || '',
+      sideActions: handoff?.querySelectorAll('.site-handoff-side-actions a').length || 0,
       disclosureOpen: disclosure?.hasAttribute('open') || false,
-      legacyRecipes: footer?.querySelectorAll('[data-loop-aura], .tezos-loop-chip').length || 0
+      legacyRecipes: handoff?.querySelectorAll('[data-loop-aura], .tezos-loop-chip').length || 0,
+      handoffContainsFooter: Boolean(handoff?.querySelector('[data-site-footer]')),
+      footerContainsHandoff: Boolean(footer?.querySelector('[data-site-handoff]')),
+      separateSiblings: handoff?.nextElementSibling === footer,
+      footerHasAttribution: Boolean(footer?.querySelector('[data-site-footer-attribution]'))
     };
   });
   for (const label of ['the handoff', 'now', 'you', 'flow', 'power', 'memory', 'people', 'open the complete map']) {
@@ -3568,6 +3573,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(handoffState.steps === 6 && handoffState.currentPhases === 1 && handoffState.nextSteps === 1, `hero command bar: Handoff lifeline state mismatch ${JSON.stringify(handoffState)}`);
   assert(handoffState.primaryHref === '/pulse/' && handoffState.sideActions === 2, `hero command bar: dashboard Handoff should recommend Network Pulse with two quiet exits: ${JSON.stringify(handoffState)}`);
   assert(!handoffState.disclosureOpen && handoffState.legacyRecipes === 0, `hero command bar: complete map should start folded with no retired recipe controls: ${JSON.stringify(handoffState)}`);
+  assert(handoffState.separateSiblings && handoffState.footerHasAttribution && !handoffState.handoffContainsFooter && !handoffState.footerContainsHandoff, `hero command bar: Handoff and footer must remain separate sibling surfaces: ${JSON.stringify(handoffState)}`);
   const handoffDisclosure = page.locator('#recruit-section .site-map-disclosure');
   const handoffDisclosureText = await handoffDisclosure.locator('summary').innerText();
   const handoffDestinationCount = Number.parseInt(handoffDisclosureText.match(/(\d+) destinations/)?.[1] || '', 10);
@@ -10135,6 +10141,16 @@ async function smokeStandaloneLinks(browser, baseUrl) {
 
   const disclosureResponse = await page.goto(`${baseUrl}/staking/`, { waitUntil: 'domcontentloaded' });
   assert(disclosureResponse?.ok(), 'standalone links: staking disclosure route failed');
+  const footerSeparation = await page.evaluate(() => {
+    const handoff = document.querySelector('[data-site-handoff]');
+    const footer = document.querySelector('[data-site-footer]');
+    return {
+      separateSiblings: handoff?.nextElementSibling === footer,
+      footerHasAttribution: Boolean(footer?.querySelector('[data-site-footer-attribution]')),
+      nestedEitherWay: Boolean(handoff?.querySelector('[data-site-footer]') || footer?.querySelector('[data-site-handoff]'))
+    };
+  });
+  assert(footerSeparation.separateSiblings && footerSeparation.footerHasAttribution && !footerSeparation.nestedEitherWay, `standalone links: Handoff and footer should render as separate sibling surfaces: ${JSON.stringify(footerSeparation)}`);
   const disclosure = page.locator('.site-map-footer .site-map-disclosure');
   await disclosure.waitFor({ state: 'visible', timeout: 5000 });
   assert((await disclosure.getAttribute('open')) === null, 'standalone links: exhaustive directory should start collapsed');
