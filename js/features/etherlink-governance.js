@@ -1284,8 +1284,8 @@ function renderTrackPanel(track) {
                 ${renderProposalPanel(track)}
                 ${renderPromotionPanel(track)}
                 ${renderEmptyPanel(track)}
-                ${renderHistoricalProposals(track)}
                 ${renderMergedTimeline(track)}
+                ${renderHistoricalProposals(track)}
             </div>
         </div>
     `;

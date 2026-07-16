@@ -1953,7 +1953,7 @@ async function installFeatureMocks(context, options = {}) {
           balance: 199382376272,
           stakedBalance: 199362178211,
           delegate: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker', active: true },
-          firstActivity: 5544332,
+          firstActivity: 5544432,
           firstActivityTime: '2024-02-20T00:00:00Z'
         });
       }
@@ -8091,6 +8091,36 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
           width: box.width
         };
       })(),
+      activeVoteLayout: (() => {
+        const proposal = document.querySelector('#etherlink-governance-modal .etherlink-gov-proposal-hash')?.closest('.etherlink-gov-panel');
+        const timeline = document.querySelector('#etherlink-governance-modal #etherlink-gov-timeline');
+        const history = document.querySelector('#etherlink-governance-modal .etherlink-gov-history-panel');
+        const rect = (node) => {
+          if (!node) return null;
+          const box = node.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+        };
+        const proposalRect = rect(proposal);
+        const timelineRect = rect(timeline);
+        const historyRect = rect(history);
+        return {
+          proposalRect,
+          timelineRect,
+          historyRect,
+          timelineBesideProposal: Boolean(
+            proposalRect
+            && timelineRect
+            && timelineRect.left >= proposalRect.right + 8
+            && Math.abs(timelineRect.top - proposalRect.top) <= 2
+          ),
+          historyBelowVotePair: Boolean(
+            proposalRect
+            && timelineRect
+            && historyRect
+            && historyRect.top >= Math.max(proposalRect.bottom, timelineRect.bottom) + 8
+          )
+        };
+      })(),
       voterRows: document.querySelectorAll('#etherlink-governance-modal .etherlink-gov-voter-row').length,
       activityRows: document.querySelectorAll('#etherlink-governance-modal #etherlink-gov-timeline .etherlink-gov-timeline-row').length,
       footer: compactText('#etherlink-governance-modal .chamber-footer'),
@@ -8123,6 +8153,8 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(etherlinkState.timelineStyle?.display === 'grid' && etherlinkState.timelineStyle.columnCount >= 4, `governance testing period: Etherlink timeline rows should use the themed grid, saw ${JSON.stringify(etherlinkState.timelineStyle)}`);
   assert(!/underline/i.test(etherlinkState.timelineStyle?.textDecorationLine || ''), `governance testing period: Etherlink timeline rows should not render as default underlined links: ${JSON.stringify(etherlinkState.timelineStyle)}`);
   assert(!/rgb\(0,\s*0,\s*238\)/.test(etherlinkState.timelineStyle?.color || ''), `governance testing period: Etherlink timeline rows should not render default browser link blue: ${JSON.stringify(etherlinkState.timelineStyle)}`);
+  assert(etherlinkState.activeVoteLayout.timelineBesideProposal, `governance testing period: Etherlink live action log should occupy the open column beside the proposal panel: ${JSON.stringify(etherlinkState.activeVoteLayout)}`);
+  assert(etherlinkState.activeVoteLayout.historyBelowVotePair, `governance testing period: Etherlink history should remain below the active vote/action pair: ${JSON.stringify(etherlinkState.activeVoteLayout)}`);
   assert(etherlinkState.voterRows >= 3, `governance testing period: Etherlink upvoter rows missing, saw ${etherlinkState.voterRows}`);
   assert(etherlinkState.activityRows >= 3, `governance testing period: Etherlink merged activity rows missing, saw ${etherlinkState.activityRows}`);
   assert(/Direct: \/l2chamber\//.test(etherlinkState.footer), `governance testing period: Tezos X Governance direct footer missing: ${etherlinkState.footer}`);
@@ -8147,11 +8179,17 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       modalOverflow: modal ? modal.scrollWidth - modal.clientWidth : 0,
       panelOverflows: panels.map((panel) => panel.scrollWidth - panel.clientWidth),
       tabColumns: window.getComputedStyle(document.querySelector('#etherlink-governance-modal .etherlink-gov-tabs')).gridTemplateColumns.split(' ').filter(Boolean).length,
-      phaseColumns: window.getComputedStyle(document.querySelector('#etherlink-governance-phase-hero .governance-phase-stepper')).gridTemplateColumns.split(' ').filter(Boolean).length
+      phaseColumns: window.getComputedStyle(document.querySelector('#etherlink-governance-phase-hero .governance-phase-stepper')).gridTemplateColumns.split(' ').filter(Boolean).length,
+      timelineBelowProposal: (() => {
+        const proposal = document.querySelector('#etherlink-governance-modal .etherlink-gov-proposal-hash')?.closest('.etherlink-gov-panel')?.getBoundingClientRect();
+        const timeline = document.querySelector('#etherlink-governance-modal #etherlink-gov-timeline')?.getBoundingClientRect();
+        return Boolean(proposal && timeline && timeline.top >= proposal.bottom + 8);
+      })()
     };
   });
   assert(etherlinkMobileState.pageOverflow <= 2 && etherlinkMobileState.modalOverflow <= 2 && etherlinkMobileState.panelOverflows.every((value) => value <= 2), `governance testing period: Etherlink mobile current-state panels overflow: ${JSON.stringify(etherlinkMobileState)}`);
   assert(etherlinkMobileState.tabColumns === 3 && etherlinkMobileState.phaseColumns === 4, `governance testing period: Etherlink mobile governance clock or tabs collapsed incorrectly: ${JSON.stringify(etherlinkMobileState)}`);
+  assert(etherlinkMobileState.timelineBelowProposal, `governance testing period: Etherlink mobile action log should stack directly after the proposal panel: ${JSON.stringify(etherlinkMobileState)}`);
   await page.setViewportSize({ width: 1440, height: 1000 });
 
   await page.locator('#etherlink-governance-modal [data-etherlink-track="slow"]').click();

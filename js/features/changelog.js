@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-16',
         entries: [
+            { type: '🎨', text: 'The L2 live action log now occupies the open column beside an active proposal or Promotion vote instead of leaving a large blank desktop lane' },
             { type: '✨', text: 'Tezos X Governance now leads with the active L2 phase, countdown, next gate, thresholds, recent baker actions, and direct paths to the official vote, docs, and L1 Chamber' },
             { type: '🔧', text: 'Active L2 votes now become the highest-priority What’s Hot alert immediately, without waiting for the slower historical proposal scan' },
             { type: '🔧', text: 'Footer credits now preserve natural spacing around linked names and sit in their own clearly separated zone below the Handoff' }
