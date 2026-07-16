@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-15',
         entries: [
+            { type: '🎨', text: 'The separate site footer is now a compact colophon rail, keeping identity, infrastructure, links, and build status together on one composed desktop line' },
             { type: '🎨', text: 'The Handoff now ends as its own navigation surface, with the quieter attribution, source, license, and build footer restored as a distinct layer underneath' },
             { type: '🎨', text: 'The bottom of every page now becomes one Handoff: a contextual next destination, a six-stop Tezos Systems lifeline, an optional choose-for-me route, and the complete map folded quietly underneath' },
             { type: '✨', text: 'Network milestones now use shared catalog and on-chain timing, so round-number crossings arrive consistently, expire honestly after 72 hours, and become the live pulse’s largest ceremonial cards' },

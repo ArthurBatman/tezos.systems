@@ -3145,6 +3145,16 @@ async function smokeAppShell(browser, baseUrl) {
     const appPreloadVersion = appPreload.match(/\?v=(\d+)/)?.[1] || '';
     const buildVersionText = document.querySelector('#build-version')?.textContent?.trim() || '';
     const buildVersionTitle = document.querySelector('#build-version')?.getAttribute('title') || '';
+    const footer = document.querySelector('#site-footer');
+    const footerAttribution = footer?.querySelector('.site-footer-inner');
+    const footerBuild = footer?.querySelector('.build-version');
+    const handoff = footer?.previousElementSibling?.matches('[data-site-handoff]')
+      ? footer.previousElementSibling
+      : null;
+    const footerRect = footer?.getBoundingClientRect();
+    const attributionRect = footerAttribution?.getBoundingClientRect();
+    const buildRect = footerBuild?.getBoundingClientRect();
+    const handoffRect = handoff?.getBoundingClientRect();
 
     return {
       appPreload,
@@ -3167,6 +3177,15 @@ async function smokeAppShell(browser, baseUrl) {
       footerRpcHref: document.querySelector('.footer-source-line a[href="https://eu.rpc.tez.capital"]')?.getAttribute('href') || '',
       footerRpcText: document.querySelector('.footer-source-line')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       footerSourceHref: document.querySelector('.footer-contribute a[href="https://github.com/Primate411/tezos.systems"]')?.getAttribute('href') || '',
+      footerLayout: {
+        display: footer ? getComputedStyle(footer).display : '',
+        gapFromHandoff: footerRect && handoffRect ? footerRect.top - handoffRect.bottom : Number.NaN,
+        height: footerRect?.height || 0,
+        sameRow: attributionRect && buildRect
+          ? Math.abs((attributionRect.top + attributionRect.height / 2) - (buildRect.top + buildRect.height / 2)) <= 3
+          : false,
+        overflow: footer ? footer.scrollWidth - footer.clientWidth : Number.NaN
+      },
       iconResults,
       license,
       licenseMetaHref: document.querySelector('link[rel="license"]')?.getAttribute('href') || '',
@@ -3213,6 +3232,13 @@ async function smokeAppShell(browser, baseUrl) {
     && shell.footerBuilderText === 'Built by Primate, a co-founding member of Tez Capital',
   `app shell: Primate builder, BakingBenjamins X link, and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
   assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
+  assert(shell.footerLayout.display === 'flex'
+    && shell.footerLayout.sameRow
+    && shell.footerLayout.height <= 64
+    && shell.footerLayout.gapFromHandoff >= 0
+    && shell.footerLayout.gapFromHandoff <= 10
+    && shell.footerLayout.overflow <= 1,
+  `app shell: desktop footer should be a compact one-line rail directly beneath the Handoff: ${JSON.stringify(shell.footerLayout)}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');
   assert(shell.stylesheet && shell.appScript && shell.appPreload, `app shell: missing stamped stylesheet/app script (${shell.stylesheet}, ${shell.appPreload}, ${shell.appScript})`);
   assert(shell.cacheVersion && shell.cacheVersion === shell.cssVersion && shell.cacheVersion === shell.appPreloadVersion && shell.cacheVersion === shell.appScriptVersion, `app shell: cache stamps mismatch cache=${shell.cacheVersion} css=${shell.cssVersion} preload=${shell.appPreloadVersion} script=${shell.appScriptVersion}`);

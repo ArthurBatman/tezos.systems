@@ -207,7 +207,7 @@
 
 .site-handoff-shell {
     width: min(1120px, calc(100% - 32px));
-    margin: 0 auto 18px;
+    margin: 0 auto 8px;
     padding: 0;
     overflow: hidden;
     border-radius: 16px;
@@ -463,44 +463,82 @@
     --site-footer-accent: var(--accent, var(--accent-cyan, #45e0c8));
     --site-footer-text: var(--text-dim, var(--text-secondary, #93a0b5));
     --site-footer-border: var(--border, var(--glass-border, rgba(255, 255, 255, 0.12)));
+    --site-footer-panel: var(--surface, var(--bg-card, rgba(255, 255, 255, 0.035)));
     width: min(1120px, calc(100% - 32px));
-    margin: 0 auto 32px;
-    padding: 18px clamp(22px, 3.5vw, 40px) 4px;
-    border: 0;
-    border-top: 1px solid var(--site-footer-border);
-    background: transparent;
+    min-height: 48px;
+    margin: 0 auto 20px;
+    padding: 8px 11px;
+    border: 1px solid color-mix(in srgb, var(--site-footer-border) 78%, transparent);
+    border-radius: 13px;
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--site-footer-accent) 4%, transparent), transparent 28%, transparent 72%, color-mix(in srgb, var(--site-footer-accent) 3%, transparent)),
+        color-mix(in srgb, var(--site-footer-panel) 58%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--site-footer-accent) 8%, transparent), 0 10px 28px rgba(0, 0, 0, 0.06);
     color: var(--site-footer-text);
     box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     text-align: center;
 }
 
 .footer.site-footer-separate,
 .landing-footer.site-footer-separate {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
 .site-footer-separate::before {
-    display: none;
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 8%;
+    left: 8%;
+    width: auto;
+    max-width: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--site-footer-accent) 55%, transparent), transparent);
+    opacity: 0.72;
+    transform: none;
 }
 
 .site-footer-inner {
     display: flex;
-    flex-wrap: wrap;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
-    gap: 6px 14px;
+    gap: 0 10px;
+    min-width: 0;
     color: var(--site-footer-text);
-    font-size: 0.68rem;
+    font-size: clamp(0.65rem, 0.72vw, 0.68rem);
     line-height: 1.5;
 }
 
 .site-footer-separate .site-footer-inner :is(.powered-by, .footer-source-line, .footer-contribute) {
     margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     color: inherit;
     font-size: inherit;
     letter-spacing: inherit;
     line-height: inherit;
+    white-space: nowrap;
+}
+
+.site-footer-separate .site-footer-inner > span + span::before {
+    content: "";
+    width: 3px;
+    height: 3px;
+    margin-right: 10px;
+    border-radius: 50%;
+    background: var(--site-footer-accent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--site-footer-accent) 48%, transparent);
+    opacity: 0.5;
+    flex: 0 0 auto;
 }
 
 .site-footer-separate .site-footer-inner a {
@@ -517,10 +555,32 @@
 }
 
 .site-footer-separate .build-version {
-    margin: 10px 0 0;
+    margin: 0;
+    padding: 5px 9px;
+    border: 1px solid color-mix(in srgb, var(--site-footer-border) 72%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--site-footer-accent) 4%, transparent);
     color: var(--site-footer-text);
-    font-size: 0.6rem;
+    font-size: clamp(0.5rem, 0.55vw, 0.55rem);
+    line-height: 1.35;
     text-align: center;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+@media (max-width: 1050px) {
+    .footer.site-footer-separate,
+    .landing-footer.site-footer-separate {
+        display: grid;
+        justify-items: center;
+        gap: 6px;
+        padding-block: 10px;
+    }
+
+    .site-footer-inner {
+        flex-wrap: wrap;
+        row-gap: 3px;
+    }
 }
 
 .site-map-shell .site-map-grid {
@@ -859,7 +919,7 @@
 
     .site-handoff-shell {
         width: min(100% - 20px, 1120px);
-        margin-bottom: 14px;
+        margin-bottom: 8px;
     }
 
     .site-handoff-main {
@@ -946,13 +1006,25 @@
 
     .site-footer-separate {
         width: min(100% - 20px, 1120px);
-        margin-bottom: 20px;
-        padding: 16px 10px 2px;
+        min-height: 0;
+        margin-bottom: 16px;
+        padding: 11px 12px;
+        border-radius: 12px;
     }
 
     .site-footer-inner {
-        gap: 5px 10px;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 4px;
         font-size: 0.65rem;
+    }
+
+    .site-footer-separate .site-footer-inner :is(.powered-by, .footer-source-line, .footer-contribute) {
+        white-space: normal;
+    }
+
+    .site-footer-separate .site-footer-inner > span + span::before {
+        display: none;
     }
 
     .site-map-footer .site-map-disclosure > summary {
