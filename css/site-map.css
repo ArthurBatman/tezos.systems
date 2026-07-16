@@ -207,7 +207,7 @@
 
 .site-handoff-shell {
     width: min(1120px, calc(100% - 32px));
-    margin: 0 auto 8px;
+    margin: 0 auto 88px;
     padding: 0;
     overflow: hidden;
     border-radius: 16px;
@@ -519,18 +519,18 @@
 
 .site-footer-separate .site-footer-inner :is(.powered-by, .footer-source-line, .footer-contribute) {
     margin: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-block;
     color: inherit;
     font-size: inherit;
     letter-spacing: inherit;
     line-height: inherit;
+    vertical-align: middle;
     white-space: nowrap;
 }
 
 .site-footer-separate .site-footer-inner > span + span::before {
     content: "";
+    display: inline-block;
     width: 3px;
     height: 3px;
     margin-right: 10px;
@@ -538,7 +538,7 @@
     background: var(--site-footer-accent);
     box-shadow: 0 0 8px color-mix(in srgb, var(--site-footer-accent) 48%, transparent);
     opacity: 0.5;
-    flex: 0 0 auto;
+    vertical-align: middle;
 }
 
 .site-footer-separate .site-footer-inner a {
@@ -919,7 +919,7 @@
 
     .site-handoff-shell {
         width: min(100% - 20px, 1120px);
-        margin-bottom: 8px;
+        margin-bottom: 88px;
     }
 
     .site-handoff-main {

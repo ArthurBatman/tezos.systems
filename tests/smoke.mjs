@@ -3145,6 +3145,8 @@ async function smokeAppShell(browser, baseUrl) {
     const appPreloadVersion = appPreload.match(/\?v=(\d+)/)?.[1] || '';
     const buildVersionText = document.querySelector('#build-version')?.textContent?.trim() || '';
     const buildVersionTitle = document.querySelector('#build-version')?.getAttribute('title') || '';
+    const footerBuilderHtml = document.querySelector('.powered-by')?.innerHTML || '';
+    const footerLinksHtml = document.querySelector('.footer-contribute')?.innerHTML || '';
     const footer = document.querySelector('#site-footer');
     const footerAttribution = footer?.querySelector('.site-footer-inner');
     const footerBuild = footer?.querySelector('.build-version');
@@ -3172,11 +3174,13 @@ async function smokeAppShell(browser, baseUrl) {
       faviconHrefs: Array.from(document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="mask-icon"]')).map((link) => link.getAttribute('href') || ''),
       footerAffiliationHref: document.querySelector('.powered-by a[href="https://tez.capital"]')?.getAttribute('href') || '',
       footerBuilderHref: document.querySelector('.powered-by a[href="https://x.com/BakingBenjamins"]')?.getAttribute('href') || '',
+      footerBuilderHtml,
       footerBuilderText: document.querySelector('.powered-by')?.textContent?.trim() || '',
       footerLicenseHref: document.querySelector('.footer-contribute a[href="/LICENSE"][rel~="license"]')?.getAttribute('href') || '',
       footerRpcHref: document.querySelector('.footer-source-line a[href="https://eu.rpc.tez.capital"]')?.getAttribute('href') || '',
       footerRpcText: document.querySelector('.footer-source-line')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       footerSourceHref: document.querySelector('.footer-contribute a[href="https://github.com/Primate411/tezos.systems"]')?.getAttribute('href') || '',
+      footerLinksHtml,
       footerLayout: {
         display: footer ? getComputedStyle(footer).display : '',
         gapFromHandoff: footerRect && handoffRect ? footerRect.top - handoffRect.bottom : Number.NaN,
@@ -3231,12 +3235,16 @@ async function smokeAppShell(browser, baseUrl) {
     && shell.footerAffiliationHref === 'https://tez.capital'
     && shell.footerBuilderText === 'Built by Primate, a co-founding member of Tez Capital',
   `app shell: Primate builder, BakingBenjamins X link, and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
+  assert(/Built by\s+<a/.test(shell.footerBuilderHtml)
+    && /of\s+<a/.test(shell.footerBuilderHtml)
+    && /<\/a>\s+·\s+<a/.test(shell.footerLinksHtml),
+  `app shell: footer credit links should preserve visible word and separator spacing: ${JSON.stringify({ builder: shell.footerBuilderHtml, links: shell.footerLinksHtml })}`);
   assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
   assert(shell.footerLayout.display === 'flex'
     && shell.footerLayout.sameRow
     && shell.footerLayout.height <= 64
-    && shell.footerLayout.gapFromHandoff >= 0
-    && shell.footerLayout.gapFromHandoff <= 10
+    && shell.footerLayout.gapFromHandoff >= 80
+    && shell.footerLayout.gapFromHandoff <= 100
     && shell.footerLayout.overflow <= 1,
   `app shell: desktop footer should be a compact one-line rail directly beneath the Handoff: ${JSON.stringify(shell.footerLayout)}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');

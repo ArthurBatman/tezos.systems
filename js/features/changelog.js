@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-16',
+        entries: [
+            { type: '🔧', text: 'Footer credits now preserve natural spacing around linked names and sit in their own clearly separated zone below the Handoff' }
+        ]
+    },
+    {
         date: '2026-07-15',
         entries: [
             { type: '🎨', text: 'The separate site footer is now a compact colophon rail, keeping identity, infrastructure, links, and build status together on one composed desktop line' },
