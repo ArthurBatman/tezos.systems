@@ -5,7 +5,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
-import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
@@ -32,6 +32,7 @@ let _savedHtmlOverflow = null;
 let _lbLiveTimer = null;
 let _lbRefreshInFlight = false;
 let _lbActiveFilter = 'all';
+let _lbSearchQuery = '';
 let _lbEntryTimer = null;
 let _lbEntryRefreshInFlight = false;
 let _lbEntryVisibilityWired = false;
@@ -255,7 +256,7 @@ function summarizeBlocks(blocks) {
         blockCounts: countVotes(blocks),
         bakerSummary: summarizeBakers(blocks),
         timeSpan: latest && oldest ? formatSpan(oldest.timestamp, latest.timestamp) : 'n/a',
-        blockRange: latest && oldest ? `${formatLevel(oldest.level)} -> ${formatLevel(latest.level)}` : 'n/a',
+        blockRange: latest && oldest ? `${formatLevel(oldest.level)} → ${formatLevel(latest.level)}` : 'n/a',
         blockRangeShort: latest && oldest ? formatCompactLevelRange(oldest.level, latest.level) : 'n/a',
         emaPct: latest ? emaPct(latest.lbToggleEma) : 0,
         disabled: latest ? subsidyDisabled(latest.lbToggleEma) : false
@@ -367,7 +368,7 @@ function renderEmaHistoryPanel(data) {
         <section class="lb-panel lb-history-panel chamber-anim-fade" id="lb-ema-history" style="animation-delay:150ms">
             <div class="lb-panel-title">EMA History Strip</div>
             ${renderEmaHistorySparkline(data.blocks)}
-            <div class="lb-panel-subtitle">${drift ? `Sample ${formatLevel(drift.first.level)} -> ${formatLevel(drift.last.level)} · ${drift.first.pct.toFixed(2)}% -> ${drift.last.pct.toFixed(2)}%` : 'Waiting for sampled history.'}</div>
+            <div class="lb-panel-subtitle">${drift ? `Sample ${formatLevel(drift.first.level)} → ${formatLevel(drift.last.level)} · ${drift.first.pct.toFixed(2)}% → ${drift.last.pct.toFixed(2)}%` : 'Waiting for sampled history.'}</div>
         </section>
     `;
 }
@@ -400,7 +401,7 @@ function renderVoteChangeFeed(data) {
     const body = changes.length ? changes.map((change) => `
         <div class="lb-table-row lb-change-row">
             <div class="lb-baker-cell">${bakerLinks(change.address, change.name)}</div>
-            <span><span class="lb-vote-badge ${change.from.className}">${change.from.label}</span> -> <span class="lb-vote-badge ${change.to.className}">${change.to.label}</span></span>
+            <span><span class="lb-vote-badge ${change.from.className}">${change.from.label}</span> → <span class="lb-vote-badge ${change.to.className}">${change.to.label}</span></span>
             <span>${formatLevel(change.level)} · ${escapeHtml(formatAge(change.timestamp))}</span>
         </div>
     `).join('') : '<div class="lb-empty-inline">No baker vote changes inside this sample.</div>';
@@ -507,14 +508,17 @@ async function fetchLiquidityBakingLore() {
     return _lbLoreCache;
 }
 
-export async function fetchBakerLiquidityBakingVote(bakerAddress) {
+export async function fetchBakerLiquidityBakingVote(bakerAddress, { priority = 'normal' } = {}) {
     if (!bakerAddress) return null;
     const cached = _bakerVoteCache.get(bakerAddress);
     if (cached && Date.now() - cached.time < CACHE_TTL) return cached.value;
 
     try {
         const url = `${TZKT}/blocks?sort.desc=level&limit=1&producer=${encodeURIComponent(bakerAddress)}&select=level,timestamp,producer,lbToggle,lbToggleEma`;
-        const response = await fetch(url, { cache: 'no-store' });
+        const response = await fetch(url, {
+            cache: 'no-store',
+            ...(priority === 'interactive' ? { __tezosSystemsPriority: 'interactive' } : {})
+        });
         if (!response.ok) throw new Error(`TzKT baker blocks HTTP ${response.status}`);
         const blocks = await response.json();
         const block = Array.isArray(blocks) ? blocks[0] : null;
@@ -639,7 +643,7 @@ function renderLiquidityBakingLoreShell() {
                     <span class="lb-lore-arrow" aria-hidden="true"></span>
                     <span class="lb-lore-copy">
                         <span class="lb-lore-heading">Protocol History Lore</span>
-                        <span class="lb-lore-compact">Granada -> Ithaca -> Jakarta</span>
+                        <span class="lb-lore-compact">Granada → Ithaca → Jakarta</span>
                     </span>
                 </button>
                 ${renderHelpTooltip({
@@ -651,7 +655,7 @@ function renderLiquidityBakingLoreShell() {
                 })}
             </div>
             <div class="lb-lore-collapsible" id="lb-lore-body-wrap" role="region" aria-labelledby="lb-lore-toggle" hidden>
-                <div class="lb-lore-source">Sourced from the curated protocol timeline: Granada -> Ithaca -> Jakarta.</div>
+                <div class="lb-lore-source">Sourced from the curated protocol timeline: Granada → Ithaca → Jakarta.</div>
                 <div class="lb-lore-timeline" id="lb-lore-body">
                     <div class="lb-lore-loading">Loading protocol-history lore...</div>
                 </div>
@@ -823,7 +827,7 @@ function renderSavedBaker(data) {
         return `
             <section class="lb-panel lb-saved-baker lb-saved-baker-compact lb-panel-has-help chamber-anim-fade" data-lb-saved-signature="${escapeHtml(signature)}" style="animation-delay:160ms">
                 <div class="lb-panel-title">
-                    Top Baker Signals
+                    Fresh Signal Tape
                     ${renderHelpTooltip({
                         label: 'Explain baker Liquidity Baking vote tracking',
                         title: 'Why these bakers?',
@@ -912,8 +916,11 @@ function renderRecentBlocks(blocks) {
     `;
 }
 
-function filterBakers(bakers, filter) {
-    return filter === 'all' ? bakers : bakers.filter((baker) => baker.vote.key === filter);
+function filterBakers(bakers, filter, query = _lbSearchQuery) {
+    return bakers.filter((baker) => {
+        if (filter !== 'all' && baker.vote.key !== filter) return false;
+        return matchesTextQuery(query, baker.name, baker.address);
+    });
 }
 
 function renderBakerRows(bakers) {
@@ -944,6 +951,7 @@ function renderBakerVotes(data, activeFilter = _lbActiveFilter) {
                 })}
             </div>
             <div class="lb-panel-subtitle">One row per baker, using each baker's latest block inside this sample.</div>
+            <label class="chamber-table-search">Find baker<input type="search" data-lb-search value="${escapeHtml(_lbSearchQuery)}" placeholder="Alias or tz address" autocomplete="off"></label>
             <div class="lb-filter-row">
                 <button class="lb-filter-btn ${filter === 'all' ? 'active' : ''}" data-lb-filter="all">All ${formatCount(bakers.length)}</button>
                 <button class="lb-filter-btn ${filter === 'off' ? 'active' : ''}" data-lb-filter="off">OFF ${formatCount(counts.off)}</button>
@@ -964,14 +972,21 @@ function initBakerFilters(activeFilter = _lbActiveFilter) {
     if (!container || !list || !window._lbBakers) return;
     _lbActiveFilter = ['all', 'off', 'on', 'pass'].includes(activeFilter) ? activeFilter : 'all';
 
+    const rerender = () => {
+        list.innerHTML = renderBakerRows(filterBakers(window._lbBakers, _lbActiveFilter));
+        initBakerProfileLinks(list);
+    };
     container.querySelectorAll('.lb-filter-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
             container.querySelectorAll('.lb-filter-btn').forEach((other) => other.classList.remove('active'));
             btn.classList.add('active');
             _lbActiveFilter = btn.dataset.lbFilter || 'all';
-            list.innerHTML = renderBakerRows(filterBakers(window._lbBakers, _lbActiveFilter));
-            initBakerProfileLinks(list);
+            rerender();
         });
+    });
+    container.querySelector('[data-lb-search]')?.addEventListener('input', (event) => {
+        _lbSearchQuery = event.target.value || '';
+        rerender();
     });
 }
 
@@ -1102,7 +1117,7 @@ function updateBakerVoteList(data, activeFilter = _lbActiveFilter) {
 
     const list = document.getElementById('lb-baker-vote-list');
     if (!list) return;
-    const filtered = filterBakers(bakers, filter);
+    const filtered = filterBakers(bakers, filter, _lbSearchQuery);
     const signature = filtered.slice(0, 60).map((baker) => `${baker.address}:${baker.vote.key}:${baker.level}`).join('|');
     if (list.dataset.lbRowsSignature === signature) return;
     list.dataset.lbRowsSignature = signature;

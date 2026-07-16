@@ -7,18 +7,19 @@ import { API_URLS } from '../core/config.js';
 import { fetchHistoricalData, fetchStakingRatio } from '../core/api.js';
 import { siteMapRelated, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp } from '../core/storage.js';
-import { escapeHtml, formatFreshnessStamp, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, matchesTextQuery, pluralize, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=444';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=445';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
 const ARCHIVE_SCAN_LIMIT = 10_000;
 const TABLE_PAGE_SIZE = 50;
 const ENTRY_REFRESH_MS = 2 * 60 * 1000;
-const ARCHIVE_CACHE_MS = 30 * 1000;
+const ARCHIVE_CACHE_MS = 5 * 60 * 1000;
+const ARCHIVE_STORAGE_KEY = 'tezos-systems-staking-large-moves-v2';
 const ENTRY_STALE_MS = 10 * 60 * 1000;
 const STAKING_HOT_SIGNAL_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -34,7 +35,10 @@ let archiveProgress = null;
 let archiveViewCount = TABLE_PAGE_SIZE;
 let archiveAction = 'all';
 let archiveSort = 'newest';
+let archiveQuery = '';
 let archiveTableRequest = 0;
+let archiveCacheLoaded = false;
+let archiveBoundaries = { stake: 0, unstake: 0 };
 let overviewData = null;
 let lastFocusedElement = null;
 let savedBodyOverflow = null;
@@ -203,13 +207,14 @@ function normalizeCompactRow(row, action) {
     };
 }
 
-async function fetchStakingPage({ action, limit, cursor = null, rich = false, staker = '' }) {
+async function fetchStakingPage({ action, limit, cursor = null, afterId = 0, rich = false, staker = '' }) {
     const params = new URLSearchParams();
     params.set('action', action);
     params.set('status', 'applied');
     params.set('sort.desc', 'id');
     params.set('limit', String(limit));
     if (cursor) params.set('offset.cr', String(cursor));
+    if (afterId) params.set('id.gt', String(afterId));
     if (staker) params.set('staker', staker);
     params.set('select', rich
         ? 'id,level,timestamp,hash,staker,sender,baker,action,amount,status'
@@ -259,16 +264,19 @@ function emitArchiveProgress(progress) {
     archiveProgress = progress;
     const status = document.getElementById('staking-archive-progress');
     if (!status) return;
-    status.textContent = `Scanning ${formatCount(progress.scanned)} applied operations · ${formatCount(progress.matches)} moves over 10K found`;
+    const mode = progress.incremental ? 'Checking new' : 'Scanning';
+    status.textContent = `${mode} ${formatCount(progress.scanned)} applied ${pluralize(progress.scanned, 'operation')} · ${formatCount(progress.matches)} moves over 10K found`;
 }
 
-async function scanActionArchive(action, sharedProgress) {
+async function scanActionArchive(action, sharedProgress, afterId = 0) {
     const rows = [];
     let cursor = null;
+    let newestId = afterId;
     while (true) {
-        const page = await fetchStakingPage({ action, limit: ARCHIVE_SCAN_LIMIT, cursor });
+        const page = await fetchStakingPage({ action, limit: ARCHIVE_SCAN_LIMIT, cursor, afterId });
         const normalized = page.map((row) => normalizeCompactRow(row, action));
         rows.push(...normalized.filter(isLargeMove));
+        newestId = Math.max(newestId, ...normalized.map((row) => row.id));
         sharedProgress.scanned += normalized.length;
         sharedProgress.matches += normalized.filter(isLargeMove).length;
         emitArchiveProgress(sharedProgress);
@@ -277,25 +285,69 @@ async function scanActionArchive(action, sharedProgress) {
         if (!next || next === cursor) throw new Error(`TzKT ${action} cursor did not advance`);
         cursor = next;
     }
-    return rows;
+    return { rows, newestId };
+}
+
+function loadStoredArchive() {
+    if (archiveCacheLoaded) return;
+    archiveCacheLoaded = true;
+    try {
+        const stored = JSON.parse(localStorage.getItem(ARCHIVE_STORAGE_KEY) || 'null');
+        if (stored?.version !== 2 || !Array.isArray(stored.rows)) return;
+        const rows = stored.rows
+            .map((row) => normalizeRichRow(row, row?.action))
+            .filter((row) => row.id && isLargeMove(row));
+        rows.forEach((row) => richRowCache.set(row.id, row));
+        archiveRows = rows.sort((a, b) => b.id - a.id);
+        archiveCheckedAt = Number(stored.checkedAt) || 0;
+        archiveBoundaries = {
+            stake: Number(stored.boundaries?.stake) || 0,
+            unstake: Number(stored.boundaries?.unstake) || 0
+        };
+    } catch {
+        localStorage.removeItem(ARCHIVE_STORAGE_KEY);
+    }
+}
+
+function saveStoredArchive() {
+    try {
+        localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify({
+            version: 2,
+            checkedAt: archiveCheckedAt,
+            boundaries: archiveBoundaries,
+            rows: archiveRows || []
+        }));
+    } catch {
+        // The in-memory archive remains usable when storage is unavailable.
+    }
 }
 
 async function fetchLargeMoveArchive({ force = false } = {}) {
+    loadStoredArchive();
     if (!force && archiveRows && Date.now() - archiveCheckedAt < ARCHIVE_CACHE_MS) return archiveRows;
     if (archivePromise) return archivePromise;
-    const progress = { scanned: 0, matches: 0 };
+    const hasStoredArchive = Array.isArray(archiveRows) && (archiveBoundaries.stake > 0 || archiveBoundaries.unstake > 0);
+    const progress = { scanned: 0, matches: 0, incremental: hasStoredArchive };
     emitArchiveProgress(progress);
     archivePromise = Promise.all([
-        scanActionArchive('stake', progress),
-        scanActionArchive('unstake', progress)
-    ]).then(([stakes, unstakes]) => {
+        scanActionArchive('stake', progress, hasStoredArchive ? archiveBoundaries.stake : 0),
+        scanActionArchive('unstake', progress, hasStoredArchive ? archiveBoundaries.unstake : 0)
+    ]).then(async ([stakes, unstakes]) => {
+        const additions = await hydrateRows([...stakes.rows, ...unstakes.rows]);
         const unique = new Map();
-        [...stakes, ...unstakes].forEach((row) => {
-            if (row.id && !unique.has(row.id)) unique.set(row.id, row);
+        [...(archiveRows || []), ...additions].forEach((row) => {
+            const normalized = normalizeRichRow(row, row.action);
+            if (normalized.id && !unique.has(normalized.id)) unique.set(normalized.id, normalized);
         });
         archiveRows = [...unique.values()].sort((a, b) => b.id - a.id);
         archiveCheckedAt = Date.now();
+        archiveBoundaries = {
+            stake: Math.max(archiveBoundaries.stake, stakes.newestId),
+            unstake: Math.max(archiveBoundaries.unstake, unstakes.newestId)
+        };
         archiveProgress = { ...progress, complete: true };
+        archiveRows.forEach((row) => richRowCache.set(row.id, row));
+        saveStoredArchive();
         return archiveRows;
     }).finally(() => {
         archivePromise = null;
@@ -607,11 +659,67 @@ function archiveSummary(rows) {
 
 function filteredArchiveRows() {
     const rows = Array.isArray(archiveRows) ? [...archiveRows] : [];
-    const filtered = archiveAction === 'all' ? rows : rows.filter((row) => row.action === archiveAction);
+    const filtered = rows.filter((row) => {
+        if (archiveAction !== 'all' && row.action !== archiveAction) return false;
+        return matchesTextQuery(
+            archiveQuery,
+            row.id,
+            row.hash,
+            row.action,
+            row.staker?.alias,
+            row.staker?.address,
+            row.baker?.alias,
+            row.baker?.address
+        );
+    });
     if (archiveSort === 'oldest') filtered.sort((a, b) => a.id - b.id);
     else if (archiveSort === 'largest') filtered.sort((a, b) => b.amount - a.amount || b.id - a.id);
     else filtered.sort((a, b) => b.id - a.id);
     return filtered;
+}
+
+function csvCell(value) {
+    const text = String(value ?? '');
+    return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportArchiveCsv() {
+    const rows = filteredArchiveRows();
+    const header = [
+        'operation_id',
+        'level',
+        'timestamp_utc',
+        'action',
+        'amount_xtz',
+        'staker_address',
+        'staker_alias',
+        'baker_address',
+        'baker_alias',
+        'hash',
+        'tzkt_url'
+    ];
+    const lines = rows.map((row) => [
+        row.id,
+        row.level,
+        row.timestamp,
+        row.action,
+        row.amount / 1e6,
+        row.staker?.address,
+        row.staker?.alias,
+        row.baker?.address,
+        row.baker?.alias,
+        row.hash,
+        `https://tzkt.io/${row.hash}`
+    ].map(csvCell).join(','));
+    const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tezos-staking-moves-over-10k-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 function accountActionLinks(account, className = '') {
@@ -685,7 +793,7 @@ async function updateArchiveTable({ reset = false } = {}) {
             : renderArchiveState(`No ${archiveAction === 'all' ? '' : `${archiveAction} `}moves match this view.`);
         container.setAttribute('aria-busy', 'false');
         if (count) {
-            count.textContent = `Showing ${formatCount(Math.min(visible.length, filtered.length))} of ${formatCount(filtered.length)} complete >10K moves`;
+            count.textContent = `Showing ${formatCount(Math.min(visible.length, filtered.length))} of ${formatCount(filtered.length)} complete >10K ${pluralize(filtered.length, 'move')}`;
         }
         if (more) {
             more.hidden = visible.length >= filtered.length;
@@ -820,8 +928,8 @@ function renderRoom() {
         </section>
 
         <section class="staking-flow-strip chamber-anim-fade" aria-label="Large operation flow over the last 24 hours">
-            <div data-staking-flow="stake"><span>&gt;10K gross stake · 24h</span><strong>${escapeHtml(formatCompactXtz(summary.stakeVolume24h))}</strong><small>${formatCount(summary.stakeCount24h)} operations</small></div>
-            <div data-staking-flow="unstake"><span>&gt;10K gross unstake · 24h</span><strong>${escapeHtml(formatCompactXtz(summary.unstakeVolume24h))}</strong><small>${formatCount(summary.unstakeCount24h)} operations</small></div>
+            <div data-staking-flow="stake"><span>&gt;10K gross stake · 24h</span><strong>${escapeHtml(formatCompactXtz(summary.stakeVolume24h))}</strong><small>${formatCount(summary.stakeCount24h)} ${pluralize(summary.stakeCount24h, 'operation')}</small></div>
+            <div data-staking-flow="unstake"><span>&gt;10K gross unstake · 24h</span><strong>${escapeHtml(formatCompactXtz(summary.unstakeVolume24h))}</strong><small>${formatCount(summary.unstakeCount24h)} ${pluralize(summary.unstakeCount24h, 'operation')}</small></div>
             <div data-staking-flow="net"><span>&gt;10K net operation flow</span><strong class="${summary.netVolume24h >= 0 ? 'is-positive' : 'is-negative'}">${escapeHtml(formatSignedXtz(summary.netVolume24h))}</strong><small>Explicit operations only</small></div>
         </section>
 
@@ -837,9 +945,9 @@ function renderRoom() {
                 <div>
                     <span>Complete history</span>
                     <h2 id="staking-archive-title" tabindex="-1">All applied moves over 10,000 ꜩ</h2>
-                    <small>${formatCount(archiveRows.length)} matching receipts · ${formatCount(summary.stakeCount)} stakes / ${formatCount(summary.unstakeCount)} unstakes · back to ${escapeHtml(formatDateTime(summary.oldest))}</small>
+                    <small>${formatCount(archiveRows.length)} matching receipts · ${formatCount(summary.stakeCount)} ${pluralize(summary.stakeCount, 'stake')} / ${formatCount(summary.unstakeCount)} ${pluralize(summary.unstakeCount, 'unstake')} · back to ${escapeHtml(formatDateTime(summary.oldest))}</small>
                 </div>
-                <span class="staking-complete-badge">scan complete · ${escapeHtml(formatAge(archiveCheckedAt))}</span>
+                <span class="staking-complete-badge">incremental receipt cache · ${escapeHtml(formatAge(archiveCheckedAt))}</span>
             </div>
             <div class="staking-archive-controls">
                 <div class="staking-action-filter" role="group" aria-label="Filter staking operations">
@@ -847,6 +955,9 @@ function renderRoom() {
                     <button type="button" data-staking-filter="stake" aria-pressed="${archiveAction === 'stake'}">Stake</button>
                     <button type="button" data-staking-filter="unstake" aria-pressed="${archiveAction === 'unstake'}">Unstake</button>
                 </div>
+                <label class="staking-archive-search">Find
+                    <input type="search" id="staking-archive-search" value="${escapeHtml(archiveQuery)}" placeholder="Alias, address, hash, or ID" autocomplete="off">
+                </label>
                 <label>Sort
                     <select id="staking-archive-sort">
                         <option value="newest"${archiveSort === 'newest' ? ' selected' : ''}>Newest</option>
@@ -854,6 +965,7 @@ function renderRoom() {
                         <option value="largest"${archiveSort === 'largest' ? ' selected' : ''}>Largest</option>
                     </select>
                 </label>
+                <button type="button" id="staking-export-csv">Export CSV</button>
             </div>
             <div class="staking-table-head" aria-hidden="true"><span>Action</span><span>Amount</span><span>Staker</span><span>Baker</span><span>When</span><span>Proof</span></div>
             <div class="staking-archive-rows" id="staking-archive-rows" aria-live="polite"></div>
@@ -866,7 +978,7 @@ function renderRoom() {
         <section class="staking-method-panel chamber-anim-fade">
             <div>
                 <span>Method</span>
-                <p><strong>Strictly over 10,000 ꜩ.</strong> TzKT does not expose an amount filter here, so this room cursor-scans every applied explicit <code>stake</code> and <code>unstake</code>, then filters the actual processed <code>amount</code> in your browser. Exactly 10,000 ꜩ is excluded.</p>
+                <p><strong>Strictly over 10,000 ꜩ.</strong> TzKT does not expose an amount filter here, so the first visit cursor-scans applied explicit <code>stake</code> and <code>unstake</code> receipts, filters the actual processed <code>amount</code>, then keeps a versioned local receipt cache. Later visits request only operation IDs newer than each action’s saved high-water mark. Exactly 10,000 ꜩ is excluded.</p>
                 <p>Rewards, slashes, automatic baker staking, and unstake finalization are separate protocol events and are not presented as new user stake decisions.</p>
             </div>
             <nav aria-label="Staking Chamber sources and routes">
@@ -941,6 +1053,11 @@ function wireRoomInteractions() {
         archiveSort = event.target.value || 'newest';
         await updateArchiveTable({ reset: true });
     });
+    document.getElementById('staking-archive-search')?.addEventListener('input', async (event) => {
+        archiveQuery = event.target.value || '';
+        await updateArchiveTable({ reset: true });
+    });
+    document.getElementById('staking-export-csv')?.addEventListener('click', exportArchiveCsv);
     document.getElementById('staking-load-more')?.addEventListener('click', async (event) => {
         event.currentTarget.disabled = true;
         archiveViewCount += TABLE_PAGE_SIZE;
@@ -1041,7 +1158,7 @@ async function loadRoom({ force = false } = {}) {
         const merged = new Map(archiveRows.map((row) => [row.id, row]));
         [latest?.stake, latest?.unstake].filter((row) => row?.id && isLargeMove(row)).forEach((row) => {
             richRowCache.set(row.id, row);
-            merged.set(row.id, normalizeCompactRow(row, row.action));
+            merged.set(row.id, normalizeRichRow(row, row.action));
         });
         archiveRows = [...merged.values()].sort((a, b) => b.id - a.id);
         renderRoom();

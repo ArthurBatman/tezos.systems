@@ -296,7 +296,12 @@ inline modal styles in `js/core/app.js`.
   compact track chips visible even when all tracks are idle, keeps its open
   control clear of those chips, computes period countdowns from the current
   head block, and the open chamber now includes track rules, track memory, and
-  a merged submission/vote timeline for each L2 governance track.
+  a merged submission/vote timeline for each L2 governance track. Active
+  proposal and Promotion views lead with the latest five represented baker
+  receipts, their ballot or upvote, exact matching L1-period voting power, and
+  each baker's share of the quorum required to pass. Shared voting-key calls are
+  expanded into the baker accounts they represent and retain operation links
+  for audit.
 - Tezos X Chamber with direct `#tezosx` access, atomic L2 TVL, daily
   transactions, gas, addresses, grouped Blockscout transaction tape rows, and
   DefiLlama protocol TVL sourced from current Etherlink rails. The open chamber
@@ -312,8 +317,10 @@ inline modal styles in `js/core/app.js`.
   keeps one latest applied stake and one latest applied unstake strictly over
   10,000 tez visible. The opened room shows the canonical current staking ratio,
   seven-day direction, threshold-scoped 24-hour gross/net flow, a cursor-scanned
-  complete history of qualifying TzKT receipts, and full per-mover stake/unstake
-  trails with Ledger Flow and TzKT links. It uses each operation's processed
+  persistent incremental history of qualifying TzKT receipts, local address
+  search, filtered CSV export, and full per-mover stake/unstake trails with
+  Ledger Flow and TzKT links. The archive resumes from per-action high-water
+  marks instead of rebuilding the same history on every visit. It uses each operation's processed
   `amount`; `requestedAmount`, finalize operations, rewards, slashes, and baker
   autostaking are not presented as new user staking decisions.
 - Tezos Maxis Chamber with direct `#maxis` and `/maxis/` access, organized into
@@ -517,10 +524,12 @@ inline modal styles in `js/core/app.js`.
   collapsed Recovery tools Explore entry, a native Tezos.Systems My Ovens
   summary/detail console,
   Octez.Connect pairing, TzKT contract storage and big-map discovery for ovens
-  owned by the connected wallet, wallet-reviewed one-batch close requests that
+  owned by the connected wallet, read-only address inspection that does not
+  replace the saved wallet, and wallet-reviewed one-batch close requests that
   burn outstanding ctez before withdrawing tez when both legs are needed,
-  Purple Matter/community fallback links, and signing-safety reminders for users
-  recovering tez from old ctez ovens.
+  remain disabled until the connected wallet matches the inspected owner.
+  Purple Matter/community fallback links and signing-safety reminders remain
+  available for users recovering tez from old ctez ovens.
 - TzSafe Recovery as an external stewardship entry in the corner gift tray and
   Explore's collapsed Recovery tools group, linking to
   `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
@@ -607,7 +616,9 @@ The core statistics payload also exposes TzKT's all-time transaction operation
 count as `totalTransactions`, which feeds the pace-aware transaction milestone.
 
 Visitor-side TzKT fetches are paced in the browser by `js/core/tzkt-throttle.js`
-at six request starts per second. This shim is installed by the dashboard,
+at six request starts per second. Request deadlines begin when a queued call
+actually leaves the throttle, so time spent waiting for the shared budget does
+not consume the upstream fetch timeout. This shim is installed by the dashboard,
 SEO landing pages, standalone compare pages, and TzKT-backed widgets so embeds
 do not bypass the visitor-side request budget. The core API helper also honors
 TzKT `429` Retry-After responses and shares the current governance-period

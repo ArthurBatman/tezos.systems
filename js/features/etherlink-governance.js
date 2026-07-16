@@ -4,16 +4,19 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatUtcDateTime, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const BLOCK_SECONDS = 6;
 const ENTRY_REFRESH_MS = 60 * 1000;
+const ENTRY_MAX_BACKOFF_MS = 15 * 60 * 1000;
 const CHAMBER_REFRESH_MS = 60 * 1000;
 const CACHE_TTL = 45 * 1000;
 const HISTORY_CACHE_TTL = 15 * 60 * 1000;
+const VOTING_POWER_CACHE_TTL = 60 * 1000;
+const RECENT_BAKER_VOTE_LIMIT = 5;
 const GOVERNANCE_BASE = 'https://governance.etherlink.com/governance';
 const GOVERNANCE_DOCS = 'https://docs.etherlink.com/governance/how-is-etherlink-governed/';
 const GOVERNANCE_CONTRACT_CREATOR = 'tz1VGpuq8GkCwf4x6MupTz6QAcJLivQcaAsb';
@@ -101,9 +104,14 @@ let dataInFlight = null;
 let historicalProposalCache = null;
 let historicalProposalCacheAt = 0;
 let historicalProposalInFlight = null;
+let votingPowerSnapshotCache = null;
+let votingPowerSnapshotCacheAt = 0;
+let votingPowerSnapshotInFlight = null;
 let activeTrackKey = 'fast';
 let selectActiveTrackOnNextRender = true;
 let entryTimer = null;
+let entryFailureCount = 0;
+let entryVisibilityWired = false;
 let chamberTimer = null;
 let chamberInFlight = false;
 let savedBodyOverflow = null;
@@ -134,9 +142,24 @@ function bigPercent(value, total) {
     return Number((numerator * 10000n) / denominator) / 100;
 }
 
+function requiredVotingPower(total, requiredPercent) {
+    const votingPower = toBigInt(total);
+    const thresholdBps = BigInt(Math.max(0, Math.round(Number(requiredPercent || 0) * 100)));
+    if (votingPower <= 0n || thresholdBps <= 0n) return 0n;
+    return (votingPower * thresholdBps + 9999n) / 10000n;
+}
+
 function formatPercent(value, decimals = 1) {
     if (!Number.isFinite(value)) return '--';
     return `${value.toFixed(decimals)}%`;
+}
+
+function formatRequirementShare(value) {
+    if (!Number.isFinite(value)) return 'Weight delayed';
+    if (value > 0 && value < 0.01) return '<0.01%';
+    if (value < 1) return `${value.toFixed(2)}%`;
+    if (value < 100) return `${value.toFixed(1)}%`;
+    return `${Math.round(value)}%`;
 }
 
 function dispatchHotSignal(detail) {
@@ -161,12 +184,7 @@ function compactHash(hash) {
 function formatDate(value) {
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) return '--';
-    return date.toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    return `${formatUtcDateTime(date)} UTC`;
 }
 
 function formatAge(timestamp) {
@@ -452,10 +470,14 @@ async function hydrateHistoricalProposals(data, { force = false } = {}) {
 
 async function enrichUpvoters(keys) {
     const rows = keys.map((key) => ({
+        id: key.id || 0,
         address: key.key?.key_hash || key.key || '',
         firstLevel: key.firstLevel,
+        lastLevel: key.lastLevel,
         proposal: key.key?.bytes || null
-    })).filter((row) => row.address);
+    }))
+        .filter((row) => row.address)
+        .sort((a, b) => Number(b.firstLevel || 0) - Number(a.firstLevel || 0) || Number(b.id || 0) - Number(a.id || 0));
     const aliases = await fetchAccounts(rows.map((row) => row.address));
     return rows.map((row) => ({
         ...row,
@@ -468,7 +490,7 @@ async function buildProposalState(storage) {
     if (!proposal) return null;
     const [proposalsResult, upvotersResult] = await Promise.allSettled([
         fetchBigmapKeys(proposal.proposals),
-        fetchBigmapKeys(proposal.upvoters_proposals, 'limit=100')
+        fetchBigmapKeys(proposal.upvoters_proposals, 'limit=100&sort.desc=firstLevel')
     ]);
     const proposals = proposalsResult.status === 'fulfilled' ? proposalsResult.value : [];
     const upvoterKeys = upvotersResult.status === 'fulfilled' ? upvotersResult.value : [];
@@ -529,9 +551,149 @@ function buildPromotionState(storage) {
         pass,
         totalVotingPower,
         totalCast,
+        votersPtr: promotion.voters || null,
         participation: bigPercent(totalCast, totalVotingPower),
         supermajority
     };
+}
+
+async function loadCurrentVotingPowerSnapshot({ force = false } = {}) {
+    if (!force && votingPowerSnapshotCache && Date.now() - votingPowerSnapshotCacheAt < VOTING_POWER_CACHE_TTL) {
+        return votingPowerSnapshotCache;
+    }
+    if (votingPowerSnapshotInFlight) return votingPowerSnapshotInFlight;
+    votingPowerSnapshotInFlight = fetchJson(`${TZKT}/voting/periods/current/voters?limit=10000&select=delegate,votingPower`)
+        .then((rows) => {
+            const byAddress = new Map();
+            let totalVotingPower = 0n;
+            for (const row of Array.isArray(rows) ? rows : []) {
+                const address = row?.delegate?.address || '';
+                if (!address) continue;
+                const votingPower = toBigInt(row.votingPower);
+                totalVotingPower += votingPower;
+                byAddress.set(address, {
+                    address,
+                    alias: row.delegate?.alias || '',
+                    votingPower
+                });
+            }
+            votingPowerSnapshotCache = { byAddress, totalVotingPower };
+            votingPowerSnapshotCacheAt = Date.now();
+            return votingPowerSnapshotCache;
+        })
+        .finally(() => {
+            votingPowerSnapshotInFlight = null;
+        });
+    return votingPowerSnapshotInFlight;
+}
+
+function receiptOperation(track, receipt) {
+    const level = Number(receipt.level || 0);
+    const candidates = (track.activity || []).filter((op) => (
+        Number(op.level || 0) === level
+        && ['upvote', 'upvote_proposal', 'vote'].includes(op.entrypoint)
+    ));
+    return candidates.find((op) => op.sender?.address === receipt.address) || candidates[0] || null;
+}
+
+function recentProposalReceipts(track) {
+    return (track.proposal?.upvoters || []).map((voter) => ({
+        id: voter.id || 0,
+        address: voter.address,
+        alias: voter.alias || '',
+        level: voter.firstLevel || voter.lastLevel || 0,
+        vote: 'upvote'
+    }));
+}
+
+async function recentPromotionReceipts(track) {
+    if (!track.promotion?.votersPtr) return [];
+    const rows = await fetchBigmapKeys(track.promotion.votersPtr, 'limit=100&sort.desc=lastLevel');
+    return rows.map((row) => ({
+        id: row.id || 0,
+        address: typeof row.key === 'string' ? row.key : row.key?.key_hash || '',
+        alias: '',
+        level: row.lastLevel || row.firstLevel || 0,
+        vote: typeof row.value === 'string' ? row.value.toLowerCase() : 'vote'
+    })).filter((row) => row.address);
+}
+
+async function enrichRecentBakerVotes(track, votingPowerSnapshot) {
+    let receipts = track.phase === 'promotion' && track.promotion
+        ? await recentPromotionReceipts(track)
+        : recentProposalReceipts(track);
+    receipts = receipts.sort((a, b) => Number(b.level || 0) - Number(a.level || 0) || Number(b.id || 0) - Number(a.id || 0));
+
+    const totalVotingPower = track.phase === 'promotion'
+        ? track.promotion?.totalVotingPower
+        : track.proposal?.totalVotingPower;
+    const requiredPercent = track.phase === 'promotion' ? track.promotionRequired : track.proposalRequired;
+    const thresholdVotingPower = requiredVotingPower(totalVotingPower, requiredPercent);
+    const snapshotMatches = toBigInt(totalVotingPower) > 0n
+        && votingPowerSnapshot?.totalVotingPower === toBigInt(totalVotingPower);
+
+    const recentBakerVotes = receipts.slice(0, RECENT_BAKER_VOTE_LIMIT).map((receipt) => {
+        const operation = receiptOperation(track, receipt);
+        const snapshot = votingPowerSnapshot?.byAddress?.get(receipt.address);
+        const votingPower = snapshotMatches && snapshot ? snapshot.votingPower : null;
+        return {
+            ...receipt,
+            alias: snapshot?.alias || receipt.alias || '',
+            hash: operation?.hash || '',
+            time: operation?.time || '',
+            votingKey: operation?.sender?.address && operation.sender.address !== receipt.address
+                ? operation.sender.address
+                : '',
+            votingPower: votingPower === null ? null : votingPower.toString(),
+            quorumShare: votingPower === null ? null : bigPercent(votingPower, thresholdVotingPower)
+        };
+    });
+
+    return {
+        ...track,
+        recentBakerVotes,
+        recentBakerVoteCount: receipts.length,
+        recentBakerVoteCountCapped: receipts.length >= 100,
+        recentBakerVoteThresholdPower: thresholdVotingPower.toString(),
+        recentBakerVoteSnapshotMatched: snapshotMatches,
+        recentBakerVotesReady: true
+    };
+}
+
+async function hydrateRecentBakerVotes(data, { force = false } = {}) {
+    if (!data?.tracks?.some(hasActiveTrackPayload)) return data;
+    if (!force && data.tracks.every((track) => !hasActiveTrackPayload(track) || track.recentBakerVotesReady)) return data;
+
+    let votingPowerSnapshot = null;
+    try {
+        votingPowerSnapshot = await loadCurrentVotingPowerSnapshot({ force });
+    } catch (_) {
+        // Keep the baker receipt list visible even if the L1 voting-power snapshot is delayed.
+    }
+
+    const tracks = await Promise.all(data.tracks.map(async (track) => {
+        if (!hasActiveTrackPayload(track)) return track;
+        try {
+            return await enrichRecentBakerVotes(track, votingPowerSnapshot);
+        } catch (_) {
+            return {
+                ...track,
+                recentBakerVotes: [],
+                recentBakerVoteCount: 0,
+                recentBakerVoteCountCapped: false,
+                recentBakerVoteThresholdPower: requiredVotingPower(
+                    track.phase === 'promotion' ? track.promotion?.totalVotingPower : track.proposal?.totalVotingPower,
+                    track.phase === 'promotion' ? track.promotionRequired : track.proposalRequired
+                ).toString(),
+                recentBakerVoteSnapshotMatched: false,
+                recentBakerVotesReady: true
+            };
+        }
+    }));
+
+    const enriched = { ...data, tracks };
+    if (cachedData?.updatedAt === data.updatedAt) cachedData = enriched;
+    return enriched;
 }
 
 async function fetchTrack(track, headLevel, historicalProposals = []) {
@@ -717,10 +879,8 @@ function trackCountdown(track) {
 
 function proposalQuorumGap(track) {
     if (!track.proposal) return null;
-    const total = toBigInt(track.proposal.totalVotingPower);
     const support = toBigInt(track.proposal.maxUpvotes);
-    const thresholdBps = BigInt(Math.max(0, Math.round(Number(track.proposalRequired || 0) * 100)));
-    const required = (total * thresholdBps + 9999n) / 10000n;
+    const required = requiredVotingPower(track.proposal.totalVotingPower, track.proposalRequired);
     return required > support ? required - support : 0n;
 }
 
@@ -742,6 +902,72 @@ function currentActionRows(track) {
     return (track.proposal?.upvoters || []).slice(-6).reverse().map((voter) => (
         `${voter.alias || voter.address} upvoted · level ${voter.firstLevel || '--'}`
     ));
+}
+
+function renderRecentBakerVotes(track) {
+    if (!hasActiveTrackPayload(track)) return '';
+    const votes = track.recentBakerVotes || [];
+    const phaseLabel = track.phase === 'promotion' ? 'Promotion vote' : 'proposal window';
+    const actionLabel = track.phase === 'promotion' ? 'Ballot' : 'Action';
+    const requiredPercent = track.phase === 'promotion' ? track.promotionRequired : track.proposalRequired;
+    const thresholdPower = toBigInt(track.recentBakerVoteThresholdPower);
+    const countLabel = `${track.recentBakerVoteCountCapped ? '100+' : String(track.recentBakerVoteCount || votes.length)} baker receipts`;
+    const rowTitle = votes.length === RECENT_BAKER_VOTE_LIMIT
+        ? `Latest ${RECENT_BAKER_VOTE_LIMIT} bakers in this ${phaseLabel}`
+        : `${votes.length || 'No'} recent bakers in this ${phaseLabel}`;
+    const rows = votes.map((vote) => {
+        const ballot = String(vote.vote || 'vote').toLowerCase();
+        const ballotClass = ['yea', 'nay', 'pass', 'upvote'].includes(ballot) ? ballot : 'vote';
+        const votingPower = vote.votingPower === null ? 'Weight delayed' : formatXTZ(vote.votingPower);
+        const requirementShare = formatRequirementShare(vote.quorumShare);
+        const requirementWidth = Number.isFinite(vote.quorumShare)
+            ? Math.max(vote.quorumShare > 0 ? 0.75 : 0, Math.min(100, vote.quorumShare))
+            : 0;
+        const timing = vote.time ? formatAge(vote.time) : `level ${vote.level || '--'}`;
+        const via = vote.votingKey ? ` · via ${compactHash(vote.votingKey)}` : '';
+        return `
+            <div class="etherlink-gov-baker-vote-row" role="listitem" data-baker-vote="${escapeHtml(ballot)}" data-quorum-share="${escapeHtml(Number.isFinite(vote.quorumShare) ? String(vote.quorumShare) : '')}">
+                <div class="etherlink-gov-baker-vote-main">
+                    <a class="etherlink-gov-voter-link" href="#baker=${escapeHtml(encodeURIComponent(vote.address))}">${escapeHtml(vote.alias || vote.address)}</a>
+                    <code>${escapeHtml(vote.address)}</code>
+                    <small>${escapeHtml(`${timing}${via}`)}</small>
+                </div>
+                <span class="etherlink-gov-ballot ${escapeHtml(ballotClass)}">${escapeHtml(ballot.toUpperCase())}</span>
+                <div class="etherlink-gov-baker-power">
+                    <strong>${escapeHtml(votingPower)}</strong>
+                    <span>L1 period snapshot</span>
+                </div>
+                <div class="etherlink-gov-quorum-share">
+                    <div><strong>${escapeHtml(requirementShare)}</strong><span>of quorum needed</span></div>
+                    <span class="etherlink-gov-quorum-share-bar" aria-hidden="true"><i style="width:${requirementWidth.toFixed(2)}%"></i></span>
+                </div>
+                ${vote.hash ? `<a class="etherlink-gov-vote-op" href="https://tzkt.io/${escapeHtml(vote.hash)}" target="_blank" rel="noopener" aria-label="Open ${escapeHtml(vote.alias || vote.address)} vote operation">op ↗</a>` : '<span></span>'}
+            </div>
+        `;
+    }).join('');
+
+    const snapshotNote = track.recentBakerVoteSnapshotMatched
+        ? `Each bar is that baker's share of the ${formatPercent(requiredPercent, 0)} quorum (${formatXTZ(thresholdPower)}), not its share of current turnout.`
+        : 'Baker receipts are current, but the matching L1 voting-power snapshot is delayed, so contribution sizes are temporarily unavailable.';
+
+    return `
+        <section class="etherlink-gov-recent-bakers" id="etherlink-governance-recent-bakers" aria-labelledby="etherlink-governance-recent-bakers-title">
+            <div class="etherlink-gov-recent-bakers-header">
+                <div>
+                    <span class="chamber-now-kicker">Who made up the quorum</span>
+                    <h3 id="etherlink-governance-recent-bakers-title">${escapeHtml(rowTitle)}</h3>
+                </div>
+                <span class="lb-live-pill">${escapeHtml(countLabel)}</span>
+            </div>
+            <div class="etherlink-gov-baker-vote-head" aria-hidden="true">
+                <span>Baker</span><span>${escapeHtml(actionLabel)}</span><span>Voting power</span><span>Of quorum needed</span><span></span>
+            </div>
+            <div class="etherlink-gov-baker-vote-list" role="list">
+                ${rows || '<div class="lb-empty">No current-period baker receipts are indexed yet.</div>'}
+            </div>
+            <p class="etherlink-gov-baker-vote-note">${escapeHtml(snapshotNote)} Voting-key calls are expanded into the represented L1 baker accounts.</p>
+        </section>
+    `;
 }
 
 function trackNowSummary(track) {
@@ -872,17 +1098,22 @@ function renderL2GovernanceNow(track) {
                     </div>
                 `).join('')}
             </div>
+            ${renderRecentBakerVotes(track)}
             <div class="chamber-now-watch">
                 <div>
                     <span>What to watch next</span>
                     <ul>${watchItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
                 </div>
                 <div class="chamber-now-memory">
-                    <span>Latest baker actions</span>
-                    ${actions.length
-                        ? actions.map((action) => `<p>${escapeHtml(action)}</p>`).join('')
-                        : '<p>No current-period proposal, upvote, or ballot operations are indexed yet.</p>'}
-                    <small>Voting-key actions may be sent by the assigned voting key rather than the baker address.</small>
+                    ${hasActiveTrackPayload(track)
+                        ? `<span>How this list is measured</span>
+                            <p>Each receipt is a represented L1 baker, even when one assigned voting key submitted the transaction.</p>
+                            <p>Yea, Nay, and Pass all count toward Promotion quorum; only Yea and Nay count toward supermajority.</p>
+                            <small>Voting power is the matching Tezos L1 governance-period snapshot.</small>`
+                        : `<span>Latest baker actions</span>
+                            ${actions.length
+                                ? actions.map((action) => `<p>${escapeHtml(action)}</p>`).join('')
+                                : '<p>No current-period proposal, upvote, or ballot operations are indexed yet.</p>'}`}
                 </div>
             </div>
             <div class="etherlink-governance-source-links">
@@ -957,11 +1188,16 @@ function renderEntryCard(data) {
             descriptionEl.textContent = 'L2 Governance · FAST · SLOW · Sequencer idle';
         } else if (main.phase === 'proposal' && main.proposal) {
             descriptionEl.textContent = `${main.label} ${proposalLabel(main.proposal.winner)}`;
+        } else if (main.phase === 'promotion' && main.promotion) {
+            descriptionEl.textContent = `${main.label} ${proposalLabel(main.promotion.candidate)}`;
         }
     }
     if (miniEl) {
         miniEl.classList.toggle('live', status.className === 'live' || status.className === 'good');
-        miniEl.textContent = quiet ? 'No active L2 governance proposal · refresh 60s' : `L2 Governance · ${main.label}: ${status.label}`;
+        const bakerCount = Number(main.recentBakerVoteCount || 0);
+        miniEl.textContent = quiet
+            ? 'No active L2 governance proposal · refresh 60s'
+            : `L2 Governance · ${main.label}: ${bakerCount ? `${bakerCount} bakers · ` : ''}${status.label}`;
     }
     if (metricsEl) {
         metricsEl.hidden = false;
@@ -1275,7 +1511,7 @@ function renderTrackPanel(track) {
                 <div class="lb-explainer-facts" aria-label="${escapeHtml(track.label)} period facts">
                     <span><strong>Period</strong> #${escapeHtml(String(track.period?.index ?? '--'))}</span>
                     <span><strong>Ends</strong> ${escapeHtml(trackCountdown(track))}</span>
-                    <span><strong>Blocks</strong> ${escapeHtml(String(track.period?.startLevel ?? '--'))} -> ${escapeHtml(String(track.period?.endLevel ?? '--'))}</span>
+                    <span><strong>Blocks</strong> ${escapeHtml(String(track.period?.startLevel ?? '--'))} → ${escapeHtml(String(track.period?.endLevel ?? '--'))}</span>
                 </div>
             </section>
             <div class="lb-dashboard-grid etherlink-gov-dashboard-grid">
@@ -1316,9 +1552,9 @@ function renderChamber(data, container) {
         </div>
         ${renderTrackPanel(track)}
         <div class="chamber-footer chamber-anim-fade" style="animation-delay:220ms">
-            <a href="${GOVERNANCE_BASE}/${escapeHtml(track.key)}" target="_blank" rel="noopener">Official ${escapeHtml(track.label)} track -></a>
+            <a href="${GOVERNANCE_BASE}/${escapeHtml(track.key)}" target="_blank" rel="noopener">Official ${escapeHtml(track.label)} track →</a>
             <span class="chamber-footer-sep">·</span>
-            ${track.contract ? `<a href="https://tzkt.io/${escapeHtml(track.contract)}/storage/" target="_blank" rel="noopener">TzKT storage -></a>` : '<span>TzKT discovery unavailable</span>'}
+            ${track.contract ? `<a href="https://tzkt.io/${escapeHtml(track.contract)}/storage/" target="_blank" rel="noopener">TzKT storage →</a>` : '<span>TzKT discovery unavailable</span>'}
             <span class="chamber-footer-sep">·</span>
             <a class="panel-direct-link" href="/l2chamber/" aria-label="Direct link to Tezos X Governance Chamber">Direct: /l2chamber/</a>
         </div>
@@ -1330,7 +1566,7 @@ function renderChamber(data, container) {
             renderChamber(data, container);
         });
     });
-    container.querySelectorAll('.etherlink-gov-voter-row[href^="#baker="]').forEach((link) => {
+    container.querySelectorAll('.etherlink-gov-voter-row[href^="#baker="], .etherlink-gov-voter-link[href^="#baker="]').forEach((link) => {
         link.addEventListener('click', closeEtherlinkGovernanceChamber);
     });
 }
@@ -1341,19 +1577,41 @@ async function refreshEntryCard({ force = false } = {}) {
         renderEntryCard(data);
         dispatchEtherlinkGovernanceHotSignal(data);
         void hydrateHistoricalProposals(data);
+        return true;
     } catch (error) {
-        console.warn('Tezos X governance entry refresh failed:', error);
         renderEntryError();
+        return false;
     }
 }
 
+function scheduleEntryRefresh(delay) {
+    if (entryTimer) window.clearTimeout(entryTimer);
+    entryTimer = window.setTimeout(() => runEntryRefresh(), delay);
+}
+
+async function runEntryRefresh(force = false) {
+    if (document.hidden) {
+        scheduleEntryRefresh(ENTRY_REFRESH_MS);
+        return;
+    }
+    const succeeded = await refreshEntryCard({ force });
+    if (succeeded) {
+        entryFailureCount = 0;
+        scheduleEntryRefresh(ENTRY_REFRESH_MS);
+        return;
+    }
+    entryFailureCount += 1;
+    const delay = Math.min(ENTRY_REFRESH_MS * (2 ** Math.max(0, entryFailureCount - 1)), ENTRY_MAX_BACKOFF_MS);
+    // The entry card already renders an unavailable state; retry quietly with bounded backoff.
+    scheduleEntryRefresh(delay);
+}
+
 function startEntryRefresh() {
-    if (entryTimer) return;
-    entryTimer = window.setInterval(() => {
-        if (document.visibilityState === 'visible') refreshEntryCard();
-    }, ENTRY_REFRESH_MS);
+    if (!entryTimer) void runEntryRefresh(true);
+    if (entryVisibilityWired) return;
+    entryVisibilityWired = true;
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) refreshEntryCard({ force: true });
+        if (!document.hidden) void runEntryRefresh(true);
     });
 }
 
@@ -1386,7 +1644,8 @@ async function refreshChamber({ force = false } = {}) {
     if (!overlay?.classList.contains('active') || !body || chamberInFlight) return;
     chamberInFlight = true;
     try {
-        const data = await fetchEtherlinkGovernanceData({ force });
+        let data = await fetchEtherlinkGovernanceData({ force });
+        data = await hydrateRecentBakerVotes(data, { force });
         const selectedTrack = data.tracks.find((track) => track.key === activeTrackKey);
         if (
             selectActiveTrackOnNextRender
@@ -1414,11 +1673,20 @@ async function refreshChamber({ force = false } = {}) {
                 <div class="chamber-error">
                     <div class="error-icon">!</div>
                     <div class="error-title">Could not reach Tezos X governance data</div>
-                    <div class="error-detail">TzKT contract storage may be temporarily unavailable. Try again in a moment.</div>
+                    <div class="error-detail">The request timed out or one of the indexed governance sources is delayed. Try again in a moment.</div>
                     <button class="chamber-retry-btn" id="etherlink-governance-retry">Retry</button>
                 </div>
             `;
-            body.querySelector('#etherlink-governance-retry')?.addEventListener('click', () => refreshChamber({ force: true }));
+            body.querySelector('#etherlink-governance-retry')?.addEventListener('click', async (event) => {
+                const button = event.currentTarget;
+                button.disabled = true;
+                button.textContent = 'Retrying…';
+                await refreshChamber({ force: true });
+                if (button.isConnected) {
+                    button.disabled = false;
+                    button.textContent = 'Retry';
+                }
+            });
         }
     } finally {
         body.dataset.rendered = 'true';
@@ -1494,7 +1762,6 @@ export function initEtherlinkGovernanceChamber() {
             titleSelector: '#etherlink-governance-entry-title, .stat-label'
         });
         startEntryRefresh();
-        refreshEntryCard();
         return;
     }
 
@@ -1532,6 +1799,5 @@ export function initEtherlinkGovernanceChamber() {
         titleSelector: '#etherlink-governance-entry-title'
     });
 
-    refreshEntryCard({ force: true });
     startEntryRefresh();
 }

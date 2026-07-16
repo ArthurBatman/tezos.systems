@@ -171,14 +171,24 @@ export async function fetchWithDeadline(resource, options = {}, timeoutMs = DEFA
     const controller = new AbortController();
     const fetchOptions = { ...options, signal: controller.signal };
     let timeoutId = null;
+    let deadlineStarted = false;
 
     const forwardAbort = () => controller.abort(callerSignal?.reason || abortError());
     if (callerSignal?.aborted) forwardAbort();
     else if (callerSignal) callerSignal.addEventListener('abort', forwardAbort, { once: true });
 
-    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
-        timeoutId = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
-    }
+    const startDeadline = () => {
+        if (deadlineStarted) return;
+        deadlineStarted = true;
+        if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+            timeoutId = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
+        }
+    };
+
+    const queueAware = typeof window !== 'undefined'
+        && window.__tzktThrottle?.supportsDispatchHook === true;
+    if (queueAware) fetchOptions.__tezosSystemsOnDispatch = startDeadline;
+    else startDeadline();
 
     try {
         return await fetch(resource, fetchOptions);

@@ -339,6 +339,41 @@
     font-size: 0.72rem;
 }
 
+.ledger-flow-window-empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 0.7rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(245, 184, 75, 0.28);
+    border-radius: 8px;
+    background: rgba(245, 184, 75, 0.07);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.ledger-flow-window-empty span {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.ledger-flow-window-empty small {
+    flex: 1;
+}
+
+.ledger-flow-window-empty button {
+    min-height: 36px;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid rgba(245, 184, 75, 0.35);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
 .ledger-flow-stats {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -8,10 +8,10 @@
  *     upgraded entry card with live mini-status.
  * 
  * Uses TzKT API for all governance data.
- * Falls back to last complete epoch when no active proposal exists.
+ * Keeps the live proposal window visible even before the first proposal lands.
  */
 
-import { escapeHtml, formatLiveCountdown, setDataFreshnessState, startLiveTimeTicker } from '../core/utils.js';
+import { escapeHtml, formatLiveCountdown, matchesTextQuery, setDataFreshnessState, startLiveTimeTicker } from '../core/utils.js';
 import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
@@ -198,10 +198,7 @@ async function fetchChamberData(epochIndex) {
             let activeEpoch = null;
             let isLive = false;
             
-            if (currentPeriod.status === 'active' && currentPeriod.kind !== 'proposal') {
-                activeEpoch = currentPeriod.epoch;
-                isLive = true;
-            } else if (currentPeriod.kind === 'proposal' && currentPeriod.proposalsCount > 0) {
+            if (currentPeriod.status === 'active') {
                 activeEpoch = currentPeriod.epoch;
                 isLive = true;
             }
@@ -893,21 +890,20 @@ function renderMyBakerVote(voters, votePeriod) {
 
 // ─── Top voters table ───
 
+function renderVoterRows(voters) {
+    return voters.map((v, i) => {
+        let icon = '⬜', cls = 'none';
+        if (v.status === 'voted_yay') { icon = '🟢'; cls = 'yay'; }
+        else if (v.status === 'voted_nay') { icon = '🔴'; cls = 'nay'; }
+        else if (v.status === 'voted_pass') { icon = '🟡'; cls = 'pass'; }
+        const name = escapeHtml(v.delegate.alias || v.delegate.address.slice(0, 12) + '…');
+        return `<div class="voter-row"><span class="voter-rank">${i + 1}</span><span class="voter-name" title="${escapeHtml(v.delegate.address)}">${name}</span><span class="voter-power">${fmtPower(v.votingPower)}</span><span class="voter-vote ${cls}">${icon}</span></div>`;
+    }).join('');
+}
+
 function renderTopVoters(voters) {
     if (!voters?.length) return '';
     const top20 = [...voters].sort((a, b) => b.votingPower - a.votingPower).slice(0, 20);
-    
-    function buildRows(list) {
-        return list.map((v, i) => {
-            let icon = '⬜', cls = 'none';
-            if (v.status === 'voted_yay') { icon = '🟢'; cls = 'yay'; }
-            else if (v.status === 'voted_nay') { icon = '🔴'; cls = 'nay'; }
-            else if (v.status === 'voted_pass') { icon = '🟡'; cls = 'pass'; }
-            const name = escapeHtml(v.delegate.alias || v.delegate.address.slice(0, 12) + '…');
-            return `<div class="voter-row"><span class="voter-rank">${i + 1}</span><span class="voter-name" title="${escapeHtml(v.delegate.address)}">${name}</span><span class="voter-power">${fmtPower(v.votingPower)}</span><span class="voter-vote ${cls}">${icon}</span></div>`;
-        }).join('');
-    }
-    
     const filters = `
         <div class="voters-filters">
             <button class="voter-filter-btn active" data-filter="all">All</button>
@@ -921,8 +917,9 @@ function renderTopVoters(voters) {
     const html = `<div class="chamber-voters chamber-anim-fade" style="animation-delay:600ms">
         <div class="voters-title">Top 20 Bakers by Stake</div>
         <div class="chamber-tooltip-hint" style="margin-bottom:8px">All voting data is public on-chain. Baker identities are pseudonymous blockchain addresses.</div>
+        <label class="chamber-table-search">Find baker<input type="search" data-voter-search placeholder="Alias or tz address" autocomplete="off"></label>
         ${filters}
-        <div class="voters-list" id="chamber-voters-list">${buildRows(top20)}</div>
+        <div class="voters-list" id="chamber-voters-list">${renderVoterRows(top20)}</div>
     </div>`;
     
     window._chamberVoters = voters;
@@ -932,34 +929,28 @@ function renderTopVoters(voters) {
 function initVoterFilters() {
     const container = document.querySelector('.chamber-voters');
     if (!container || !window._chamberVoters) return;
-    
+
+    const applyFilters = () => {
+        const filter = container.querySelector('.voter-filter-btn.active')?.dataset.filter || 'all';
+        const query = container.querySelector('[data-voter-search]')?.value || '';
+        let filtered = [...window._chamberVoters].sort((a, b) => b.votingPower - a.votingPower);
+        if (filter !== 'all') filtered = filtered.filter((voter) => voter.status === filter);
+        filtered = filtered.filter((voter) => matchesTextQuery(query, voter.delegate?.alias, voter.delegate?.address));
+        const list = document.getElementById('chamber-voters-list');
+        if (list) {
+            list.innerHTML = renderVoterRows(filtered.slice(0, 20))
+                || '<div class="lb-empty-inline">No bakers match this search.</div>';
+        }
+    };
+
     container.querySelectorAll('.voter-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             container.querySelectorAll('.voter-filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
-            const filter = btn.dataset.filter;
-            const voters = window._chamberVoters;
-            let filtered = [...voters].sort((a, b) => b.votingPower - a.votingPower);
-            
-            if (filter !== 'all') {
-                filtered = filtered.filter(v => v.status === filter);
-            }
-            
-            const top = filtered.slice(0, 20);
-            const list = document.getElementById('chamber-voters-list');
-            if (list) {
-                list.innerHTML = top.map((v, i) => {
-                    let icon = '⬜', cls = 'none';
-                    if (v.status === 'voted_yay') { icon = '🟢'; cls = 'yay'; }
-                    else if (v.status === 'voted_nay') { icon = '🔴'; cls = 'nay'; }
-                    else if (v.status === 'voted_pass') { icon = '🟡'; cls = 'pass'; }
-                    const name = escapeHtml(v.delegate.alias || v.delegate.address.slice(0, 12) + '…');
-                    return `<div class="voter-row"><span class="voter-rank">${i + 1}</span><span class="voter-name" title="${escapeHtml(v.delegate.address)}">${name}</span><span class="voter-power">${fmtPower(v.votingPower)}</span><span class="voter-vote ${cls}">${icon}</span></div>`;
-                }).join('');
-            }
+            applyFilters();
         });
     });
+    container.querySelector('[data-voter-search]')?.addEventListener('input', applyFilters);
 }
 
 // ─── Current stage chronological vote order ───
@@ -1116,7 +1107,15 @@ function findPeriod(epoch, kind) {
 }
 
 function proposalDisplayName(data) {
+    if (isEmptyLiveProposalWindow(data)) return 'No proposals submitted yet';
     return data?.proposal?.hash ? extractProtoName(data.proposal.hash, data.protocols || []) : 'Current proposal';
+}
+
+function isEmptyLiveProposalWindow(data) {
+    const period = data?.currentPeriod;
+    if (period?.status !== 'active' || period?.kind !== 'proposal') return false;
+    const proposals = Array.isArray(data?.epoch?.proposals) ? data.epoch.proposals : [];
+    return !data?.proposal?.hash && proposals.length === 0 && Number(period?.proposalsCount || 0) === 0;
 }
 
 function activeProtocolLore(data) {
@@ -1145,6 +1144,7 @@ function governanceResolutionLine(data) {
 }
 
 function liveProposalContext(data) {
+    if (isEmptyLiveProposalWindow(data)) return null;
     const candidates = [
         data.report?.currentGovernance?.proposalHash,
         data.report?.currentGovernance?.proposalName,
@@ -1160,14 +1160,23 @@ function liveProposalContext(data) {
 }
 
 function renderProposalIntel(data) {
+    const emptyProposalWindow = isEmptyLiveProposalWindow(data);
     const protocol = activeProtocolLore(data);
     const changes = Array.isArray(protocol?.changes) ? protocol.changes.slice(0, 3) : [];
     const liveContext = liveProposalContext(data);
     const proposalPeriod = findPeriod(data.epoch, 'proposal');
     const proposals = Array.isArray(data.epoch?.proposals) ? data.epoch.proposals : [];
     const rivals = Math.max(0, proposals.length - 1);
-    const upvotes = data.proposal?.upvotes ? `${formatCount(data.proposal.upvotes)} upvotes` : 'upvote stake unavailable';
-    const contextBullets = changes.length ? changes : liveContext?.bullets || [];
+    const upvotes = emptyProposalWindow
+        ? 'waiting for the first submission'
+        : data.proposal?.upvotes ? `${formatCount(data.proposal.upvotes)} upvotes` : 'upvote stake unavailable';
+    const contextBullets = emptyProposalWindow
+        ? [
+            'The current proposal window is open, but no protocol hash has been submitted yet.',
+            'Quorum and Yay thresholds do not apply until a proposal advances to Exploration.',
+            'Prior epoch proposals remain available below as historical receipts, not as the live race.'
+        ]
+        : changes.length ? changes : liveContext?.bullets || [];
     const context = contextBullets.length
         ? contextBullets.map((change) => `<li>${escapeHtml(change)}</li>`).join('')
         : `<li>${escapeHtml(protocol?.headline || data.report?.currentGovernance?.proposalName || 'Curated protocol bullets are pending while this proposal is live.')}</li>`;
@@ -1192,13 +1201,16 @@ function renderProposalIntel(data) {
         : data.report?.generatedAt
             ? `Report refreshed ${fmtUtcDateTime(data.report.generatedAt)} UTC`
             : 'Live timing unavailable';
+    const proposalTiming = proposalPeriod?.endTime
+        ? ` · proposal period ${proposalPeriod.status === 'active' ? 'ends' : 'ended'} ${escapeHtml(fmtUtcDateTime(proposalPeriod.endTime))} UTC`
+        : '';
 
     return `
         <section class="chamber-intel-panel chamber-anim-fade" id="chamber-proposal-intel" style="animation-delay:120ms">
             <div class="chamber-intel-title">Proposal Intel</div>
             <div class="chamber-intel-lede">${escapeHtml(governanceResolutionLine(data))}</div>
             <div class="chamber-intel-grid">
-                <div><span>Proposal race</span><strong>${escapeHtml(proposalDisplayName(data))}${rivals ? ` · ${rivals} rival${rivals === 1 ? '' : 's'}` : ''}</strong><small>${escapeHtml(upvotes)}${proposalPeriod?.endTime ? ` · proposal period ended ${escapeHtml(fmtUtcDateTime(proposalPeriod.endTime))} UTC` : ''}</small></div>
+                <div><span>Proposal race</span><strong>${escapeHtml(proposalDisplayName(data))}${rivals ? ` · ${rivals} rival${rivals === 1 ? '' : 's'}` : ''}</strong><small>${escapeHtml(upvotes)}${proposalTiming}</small></div>
                 <div><span>Context</span><ul>${context}</ul></div>
                 <div><span>Current period</span><strong>${escapeHtml(activeLabel)}</strong><small>${escapeHtml(activeDetail)} · ${escapeHtml(activeTime)}</small></div>
             </div>
@@ -1304,6 +1316,9 @@ function quietGovernanceSummary(data) {
         return `${proposalName} passed Exploration. Cooldown is the no-ballot review window before bakers get the final Promotion vote.`;
     }
     if (stage === 'proposal') {
+        if (isEmptyLiveProposalWindow(data)) {
+            return 'The proposal window is open, but no protocol hash has been submitted yet. Quorum and Yay thresholds begin only if a proposal advances to Exploration.';
+        }
         return 'Bakers are upvoting candidate protocol hashes. Quorum and Yay thresholds only become live once a proposal advances to Exploration.';
     }
     if (!data.isLive) {
@@ -1422,6 +1437,13 @@ function governanceWatchItems(data) {
         ];
     }
     if (stage === 'proposal') {
+        if (isEmptyLiveProposalWindow(data)) {
+            return [
+                'Watch for the first submitted protocol hash before treating prior-epoch lore as current.',
+                'No quorum or Yay threshold exists yet; this is still an empty proposal-selection window.',
+                'Set My Tezos if you want the next live ballot tied back to your baker.'
+            ];
+        }
         return [
             'Watch leading hash, upvotes, and initiator before Exploration starts.',
             'No quorum or Yay threshold exists yet; this is still proposal selection.',
@@ -1642,10 +1664,11 @@ function renderChronologicalVoteLog() {
             <div class="vote-log-header">
                 <div>
                     <div class="comparison-title">Chronological Vote Log</div>
-                    <div class="vote-log-context">Loading local governance vote history...</div>
+                    <div class="vote-log-context">Loading local governance vote history…</div>
                 </div>
                 <div class="vote-log-count"></div>
             </div>
+            <label class="chamber-table-search">Find vote<input type="search" data-vote-log-search placeholder="Protocol, epoch, phase, or status" autocomplete="off"></label>
             <div class="vote-log-table" role="list"></div>
         </section>
     `;
@@ -1767,9 +1790,28 @@ async function hydrateChronologicalVoteLog(data) {
 
         const first = votes[0];
         const last = votes[votes.length - 1];
-        context.textContent = `${votes.length} exploration and promotion votes, oldest to newest`;
-        if (count) count.textContent = `E${first.epoch} -> E${last.epoch}`;
-        if (rowsEl) rowsEl.innerHTML = votes.map((vote, index) => renderChronologicalVoteRow(vote, protocols, index)).join('');
+        const search = container.querySelector('[data-vote-log-search]');
+        const renderFilteredVotes = () => {
+            const query = search?.value || '';
+            const filtered = votes.filter((vote) => matchesTextQuery(
+                query,
+                voteDisplayName(vote, protocols),
+                vote.epoch,
+                vote.period,
+                kindLabel(vote.kind),
+                statusLabel(vote.status)
+            ));
+            context.textContent = query
+                ? `${filtered.length} of ${votes.length} exploration and promotion votes`
+                : `${votes.length} exploration and promotion votes, oldest to newest`;
+            if (count) count.textContent = `E${first.epoch} → E${last.epoch}`;
+            if (rowsEl) {
+                rowsEl.innerHTML = filtered.map((vote, index) => renderChronologicalVoteRow(vote, protocols, index)).join('')
+                    || '<div class="lb-empty-inline">No governance votes match this search.</div>';
+            }
+        };
+        search?.addEventListener('input', renderFilteredVotes);
+        renderFilteredVotes();
     } catch (err) {
         console.warn('Chamber: chronological vote log failed', err);
         context.textContent = 'Local governance vote history is unavailable right now.';

@@ -66,7 +66,11 @@ const PROTOCOL_ERAS = [
 // Dynamically extend PROTOCOL_ERAS from TzKT on first load
 let _erasLoaded = false;
 async function fetchTzktJson(url, attempts = 2) {
-    return fetchWithRetry(url, { cache: 'no-store', memoryCache: false }, attempts);
+    return fetchWithRetry(url, {
+        cache: 'no-store',
+        memoryCache: false,
+        __tezosSystemsPriority: 'interactive'
+    }, attempts);
 }
 
 async function ensureProtocolEras() {
@@ -237,7 +241,12 @@ async function fetchJsonWithTimeout(url, fallback = null, timeoutMs = RIGHTS_FET
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        return await fetchWithRetry(url, { signal: controller.signal, cache: 'no-store', memoryCache: false }, 2);
+        return await fetchWithRetry(url, {
+            signal: controller.signal,
+            cache: 'no-store',
+            memoryCache: false,
+            __tezosSystemsPriority: 'interactive'
+        }, 2);
     } catch {
         return fallback;
     } finally {
@@ -2241,10 +2250,22 @@ function renderBriefTabs(cards, data) {
 function createMinibar() {}
 function updateMinibar() {}
 
+function finishBriefRender(address, requestSeq) {
+    if (requestSeq !== _briefRequestSeq) return;
+    _briefRendering = false;
+    const pending = _pendingBriefAddr;
+    _pendingBriefAddr = null;
+    if (pending && pending === localStorage.getItem(STORAGE_KEY)) {
+        renderMorningBrief(pending, true).catch(() => {});
+    }
+}
+
 async function renderMorningBrief(address, force = false) {
-    // Prevent double-render of same address
-    if (!force && _briefRendering) {
-        _pendingBriefAddr = address; // queue new address for after current render
+    // Coalesce same-address refreshes so a late force refresh cannot invalidate
+    // a completed model milliseconds before it publishes. Address switches
+    // still supersede the current request immediately.
+    if (_briefRendering && _briefRenderedAddr === address) {
+        if (force) _pendingBriefAddr = address;
         return;
     }
     if (!force && _briefRenderedAddr === address) return;
@@ -2279,13 +2300,24 @@ async function renderMorningBrief(address, force = false) {
         const operatorStatusPromise = bakerAddr
             ? participationPromise.then((participation) => fetchBakerOperatorStatus(bakerAddr, participation))
             : Promise.resolve(null);
+        operatorStatusPromise.then((status) => {
+            if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) return;
+            renderBakerOperatorStatus(status, isBaker);
+        }).catch(() => {});
+        const bakerActivityPromise = isBaker
+            ? fetchRecentBakerActivity(address)
+            : Promise.resolve(null);
+        bakerActivityPromise.then((activity) => {
+            if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) return;
+            renderBakerActivity(activity);
+        }).catch(() => {});
 
         const [participation, rewards, story, bakerVote, bakerActivity, operatorStatus, greetingName, rewardBaker] = await Promise.all([
             participationPromise,
             fetchRecentRewards(address, account),
             fetchTezosStory(address, account, bakerAddr),
             bakerAddr ? fetchBakerVoteStatus(bakerAddr) : Promise.resolve(null),
-            isBaker ? fetchRecentBakerActivity(address) : Promise.resolve(null),
+            bakerActivityPromise,
             operatorStatusPromise,
             resolveTezName(address, account),
             rewardBakerPromise,
@@ -2380,8 +2412,11 @@ async function renderMorningBrief(address, force = false) {
             isStaker, hasRewardRole, story, activeProposal, bakerVote, bakerActivity, operatorStatus, greetingName,
         };
 
-        if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) {
-            if (requestSeq === _briefRequestSeq) _briefRendering = false;
+        if (
+            requestSeq !== _briefRequestSeq
+            || localStorage.getItem(STORAGE_KEY) !== address
+        ) {
+            finishBriefRender(address, requestSeq);
             return;
         }
 
@@ -2471,19 +2506,13 @@ async function renderMorningBrief(address, force = false) {
         updateMinibar(data);
 
         window.dispatchEvent(new Event('my-tezos-data-ready'));
-        _briefRendering = false;
-        const pending = _pendingBriefAddr;
-        _pendingBriefAddr = null;
-        if (pending && pending !== _briefRenderedAddr) {
-            renderMorningBrief(pending, true).catch(() => {});
-        }
+        finishBriefRender(address, requestSeq);
 
     } catch (err) {
         if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) {
-            if (requestSeq === _briefRequestSeq) _briefRendering = false;
+            finishBriefRender(address, requestSeq);
             return;
         }
-        _briefRendering = false;
         console.warn('Morning Brief error:', err);
         const container = document.getElementById('drawer-brief');
         if (container) {
@@ -2492,6 +2521,7 @@ async function renderMorningBrief(address, force = false) {
         }
         renderBakerOperatorStatus(null, false);
         renderBakerActivity(null);
+        finishBriefRender(address, requestSeq);
     }
 }
 
@@ -2541,7 +2571,7 @@ async function getOperatorSignalContext(address) {
 async function refreshOperatorSignal({ force = false } = {}) {
     const address = localStorage.getItem(STORAGE_KEY);
     if (!address) return;
-    if (!force && (!isDrawerOpen() || document.visibilityState !== 'visible' || _briefRendering)) return;
+    if (!force && (!isDrawerOpen() || document.visibilityState !== 'visible')) return;
     if (_operatorSignalInFlight) return;
 
     const requestSeq = ++_operatorSignalSeq;

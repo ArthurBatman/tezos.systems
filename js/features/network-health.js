@@ -52,7 +52,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=444';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=445';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -634,8 +634,12 @@ function summarizeMyTezosBaker(data) {
     };
 }
 
-async function fetchJson(url, retries = 2) {
-    return fetchWithRetry(url, { cache: 'no-store', memoryCache: false }, retries + 1);
+async function fetchJson(url, retries = 2, { priority = 'normal' } = {}) {
+    return fetchWithRetry(url, {
+        cache: 'no-store',
+        memoryCache: false,
+        ...(priority === 'interactive' ? { __tezosSystemsPriority: 'interactive' } : {})
+    }, retries + 1);
 }
 
 function nakamotoLiveFallback(error = '') {
@@ -1440,7 +1444,7 @@ function buildOctezVersions(rows) {
     };
 }
 
-export async function fetchOctezVersions({ force = false } = {}) {
+export async function fetchOctezVersions({ force = false, priority = 'normal' } = {}) {
     if (!force && octezVersionsCache && Date.now() - octezVersionsCacheAt < OCTEZ_VERSIONS_TTL) {
         return octezVersionsCache;
     }
@@ -1452,7 +1456,7 @@ export async function fetchOctezVersions({ force = false } = {}) {
         let offset = 0;
         while (true) {
             const url = `${TZKT}/delegates?active=true&select=${fields}&sort.desc=bakingPower&limit=${OCTEZ_VERSION_PAGE_LIMIT}&offset=${offset}`;
-            const page = await fetchJson(url, 1);
+            const page = await fetchJson(url, 1, { priority });
             if (!Array.isArray(page)) break;
             rows.push(...page);
             if (page.length < OCTEZ_VERSION_PAGE_LIMIT) break;
@@ -2238,7 +2242,7 @@ function renderHealthScorePanel(data) {
             </div>
             <div class="lb-metric-grid health-metric-grid">
                 <div><span>Missed power</span><strong id="health-summary-missed">${formatCompactPower(data.summary.missingPower)}</strong></div>
-                <div><span>Block range</span><strong id="health-summary-range">${formatCount(data.oldestLevel)} -> ${formatCount(data.headLevel)}</strong></div>
+                <div><span>Block range</span><strong id="health-summary-range">${formatCount(data.oldestLevel)} → ${formatCount(data.headLevel)}</strong></div>
                 <div><span>Updated</span><strong id="health-summary-updated"${healthAgeAttr(headTimestamp)}>${formatAge(headTimestamp)}</strong></div>
             </div>
         </section>
@@ -2248,7 +2252,8 @@ function renderHealthScorePanel(data) {
 function renderContinuityProofPanel() {
     const runtimeHtml = document.getElementById('uptime-counter')?.innerHTML || '—';
     const bakersText = document.getElementById('uptime-bakers')?.textContent || '—';
-    const finalityText = document.getElementById('uptime-finality')?.textContent || '12s';
+    const observedFinality = document.getElementById('uptime-finality')?.textContent?.trim() || '';
+    const finalityText = observedFinality && !/^(?:—|--|-)$/.test(observedFinality) ? observedFinality : '~12s';
     const stakedText = document.getElementById('uptime-staked')?.textContent || '—';
     const issuanceText = document.getElementById('uptime-issuance')?.textContent || '—';
     return `
@@ -2836,7 +2841,7 @@ function renderOctezVersionRows(rows) {
             <div class="health-octez-version-row ${row.current ? 'current' : ''}">
                 <div class="health-octez-version-main">
                     <strong>${escapeHtml(row.version)}</strong>
-                    <span>${row.current ? 'Latest observed' : `${formatCount(row.bakerCount)} bakers`}</span>
+                    <span>${row.current ? 'Latest observed' : `${formatCount(row.bakerCount)} ${Number(row.bakerCount) === 1 ? 'baker' : 'bakers'}`}</span>
                 </div>
                 <div class="health-octez-version-meter" aria-hidden="true"><span style="width:${width.toFixed(2)}%"></span></div>
                 <div class="health-octez-version-share">
@@ -3036,8 +3041,15 @@ function renderRecentBlocksPanel(data) {
     `;
 }
 
+function isMaterialMissedPower(block) {
+    const missedPower = Number(block?.missedPower || 0);
+    const committee = Number(block?.committee || 0);
+    if (missedPower <= 0) return false;
+    return missedPower >= 100 || (committee > 0 && missedPower / committee >= 0.01);
+}
+
 function latestIncident(data) {
-    const roundIncident = data.blocks.find((block) => block.blockRound > 0 || block.missedPower > 0);
+    const roundIncident = data.blocks.find((block) => block.blockRound > 0 || isMaterialMissedPower(block));
     const missedBlock = data.missedBlocks[0] || null;
     const incidents = [
         roundIncident ? {
@@ -3057,16 +3069,16 @@ function latestIncident(data) {
 function renderIncidentMemoryPanel(data) {
     const incident = latestIncident(data);
     const roundBlocks = data.blocks.filter((block) => block.blockRound > 0).length;
-    const missedPowerBlocks = data.blocks.filter((block) => block.missedPower > 0).length;
+    const missedPowerBlocks = data.blocks.filter(isMaterialMissedPower).length;
     return `
         <section class="lb-panel health-panel health-incident-panel chamber-anim-fade" id="health-incident-memory" style="animation-delay:90ms">
-            <div class="lb-panel-title">Incident Memory</div>
+            <div class="lb-panel-title">Consensus Anomaly Memory</div>
             <div class="lb-metric-grid health-metric-grid">
-                <div><span>Last incident</span><strong>${incident ? escapeHtml(formatAge(incident.timestamp)) : 'None in sample'}</strong></div>
+                <div><span>Last anomaly</span><strong>${incident ? escapeHtml(formatAge(incident.timestamp)) : 'None in sample'}</strong></div>
                 <div><span>Round > 0</span><strong>${formatCount(roundBlocks)}</strong></div>
-                <div><span>Missed power blocks</span><strong>${formatCount(missedPowerBlocks)}</strong></div>
+                <div><span>Material missed power</span><strong>${formatCount(missedPowerBlocks)}</strong></div>
             </div>
-            <div class="health-timing-note">${incident ? `${escapeHtml(incident.label)} at ${escapeHtml(incident.detail)}` : 'The current chamber sample is clean; longer period scores remain below.'}</div>
+            <div class="health-timing-note">${incident ? `${escapeHtml(incident.label)} at ${escapeHtml(incident.detail)}` : 'The current sample has no round delay, missed baking right, or block with at least 1% committee power missed.'}</div>
         </section>
     `;
 }
@@ -3164,11 +3176,11 @@ function renderNetworkHealthChamber(data, container) {
         </div>
         ${renderRecentBlocksPanel(data)}
         <div class="chamber-footer chamber-anim-fade" style="animation-delay:360ms">
-            <a href="https://tzkt.io/blocks" target="_blank" rel="noopener">TzKT Blocks -></a>
+            <a href="https://tzkt.io/blocks" target="_blank" rel="noopener">TzKT Blocks →</a>
             <span class="chamber-footer-sep">·</span>
-            <a href="https://tzkt.io/rights" target="_blank" rel="noopener">TzKT Rights -></a>
+            <a href="https://tzkt.io/rights" target="_blank" rel="noopener">TzKT Rights →</a>
             <span class="chamber-footer-sep">·</span>
-            <a href="${TEZTALE_REPORT_URL}" target="_blank" rel="noopener">Teztale by Nomadic Labs -></a>
+            <a href="${TEZTALE_REPORT_URL}" target="_blank" rel="noopener">Teztale by Nomadic Labs →</a>
             <span class="chamber-footer-sep">·</span>
             <a class="panel-direct-link" href="/health/" aria-label="Direct link to Network Health Chamber">Direct: /health/</a>
         </div>
@@ -3215,7 +3227,7 @@ function updateHealthScorePanel(data) {
         fill.style.width = `${width.toFixed(2)}%`;
     }
     setTextIfChanged('#health-summary-missed', formatCompactPower(data.summary.missingPower));
-    setTextIfChanged('#health-summary-range', `${formatCount(data.oldestLevel)} -> ${formatCount(data.headLevel)}`);
+    setTextIfChanged('#health-summary-range', `${formatCount(data.oldestLevel)} → ${formatCount(data.headLevel)}`);
     const updated = document.getElementById('health-summary-updated');
     if (updated) {
         updated.dataset.healthAge = headTimestamp || '';

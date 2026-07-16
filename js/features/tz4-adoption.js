@@ -4,7 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml, formatMutez, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatMutez, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
@@ -23,6 +23,7 @@ let _tz4CacheTime = 0;
 let _savedBodyOverflow = null;
 let _savedHtmlOverflow = null;
 let _tz4ActiveFilter = 'all';
+let _tz4SearchQuery = '';
 let _tz4ShowAllBakers = false;
 let _tz4ModalTimer = null;
 let _tz4ModalRefreshInFlight = false;
@@ -42,6 +43,7 @@ function formatDate(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Timing unavailable';
     return date.toLocaleDateString('en-US', {
+        timeZone: 'UTC',
         month: 'short',
         day: 'numeric',
         year: 'numeric'
@@ -50,12 +52,17 @@ function formatDate(value) {
 
 function formatAge(value) {
     if (!value) return 'timing unavailable';
-    const diff = Date.now() - new Date(value).getTime();
+    const date = new Date(value);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
     if (!Number.isFinite(diff) || diff < 0) return 'just now';
     const days = Math.floor(diff / 86400000);
     if (days < 1) return 'today';
     if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
+    let months = (now.getUTCFullYear() - date.getUTCFullYear()) * 12
+        + now.getUTCMonth() - date.getUTCMonth();
+    if (now.getUTCDate() < date.getUTCDate()) months -= 1;
+    months = Math.max(0, months);
     if (months < 12) return `${months}mo ago`;
     const years = Math.floor(months / 12);
     const rest = months % 12;
@@ -759,9 +766,11 @@ function renderPendingQueue(data) {
     `;
 }
 
-function filterBakers(bakers, filter) {
-    if (filter === 'all') return bakers;
-    return bakers.filter((baker) => baker.status === filter);
+function filterBakers(bakers, filter, query = _tz4SearchQuery) {
+    return bakers.filter((baker) => {
+        if (filter !== 'all' && baker.status !== filter) return false;
+        return matchesTextQuery(query, baker.name, baker.alias, baker.address, baker.consensusAddress);
+    });
 }
 
 function renderBakerRows(bakers, { showAll = false } = {}) {
@@ -791,6 +800,7 @@ function renderBakerStatus(data, activeFilter = _tz4ActiveFilter) {
         <section class="lb-panel tz4-panel tz4-bakers-panel chamber-anim-fade" style="animation-delay:300ms">
             <div class="lb-panel-title">Baker Status</div>
             <div class="lb-panel-subtitle">One row per active funded baker. Active rows are ordered by first tz4 switch timing, pending rows by activation cycle.</div>
+            <label class="chamber-table-search">Find baker<input type="search" data-tz4-search value="${escapeHtml(_tz4SearchQuery)}" placeholder="Alias or tz address" autocomplete="off"></label>
             <div class="lb-filter-row tz4-filter-row">
                 <button class="lb-filter-btn ${filter === 'all' ? 'active' : ''}" data-tz4-filter="all">All ${formatCount(data.total)}</button>
                 <button class="lb-filter-btn ${filter === 'active' ? 'active' : ''}" data-tz4-filter="active">Active ${formatCount(data.activeCount)}</button>
@@ -841,6 +851,11 @@ function initBakerFilters(activeFilter = _tz4ActiveFilter) {
             rerenderRows();
         });
     });
+    container.querySelector('[data-tz4-search]')?.addEventListener('input', (event) => {
+        _tz4SearchQuery = event.target.value || '';
+        _tz4ShowAllBakers = false;
+        rerenderRows();
+    });
     rerenderRows();
 }
 
@@ -859,7 +874,7 @@ function renderTz4Adoption(data, container, activeFilter = _tz4ActiveFilter) {
             </div>
             <div class="chamber-proposal-info">
                 <div class="proposal-name">BLS consensus-key rollout</div>
-                <div class="proposal-hash">Current cycle ${Number.isFinite(data.currentCycle) ? formatCount(data.currentCycle) : 'unknown'} - ${formatCount(data.activeCount)} active - ${formatCount(data.pendingCount)} pending</div>
+                <div class="proposal-hash">Current cycle ${Number.isFinite(data.currentCycle) ? formatCount(data.currentCycle) : 'unknown'} · ${formatCount(data.activeCount)} active · ${formatCount(data.pendingCount)} pending</div>
             </div>
         </div>
         ${renderIntro(data)}
@@ -877,9 +892,9 @@ function renderTz4Adoption(data, container, activeFilter = _tz4ActiveFilter) {
         </div>
         ${renderBakerStatus(data, activeFilter)}
         <div class="chamber-footer chamber-anim-fade" style="animation-delay:340ms">
-            <a href="https://tzkt.io/bakers" target="_blank" rel="noopener">TzKT Bakers -></a>
+            <a href="https://tzkt.io/bakers" target="_blank" rel="noopener">TzKT Bakers →</a>
             <span class="chamber-footer-sep">&middot;</span>
-            <a href="https://octez.tezos.com/docs/user/key-management.html" target="_blank" rel="noopener">Octez Key Docs -></a>
+            <a href="https://octez.tezos.com/docs/user/key-management.html" target="_blank" rel="noopener">Octez Key Docs →</a>
             <span class="chamber-footer-sep">&middot;</span>
             <a class="panel-direct-link" href="/tz4/" aria-label="Direct link to tz4 Adoption Chamber">Direct: /tz4/</a>
         </div>

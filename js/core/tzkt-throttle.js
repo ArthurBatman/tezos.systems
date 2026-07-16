@@ -11,6 +11,8 @@ export const TZKT_MIN_REQUEST_SPACING_MS = 175;
 
 const PATCH_FLAG = '__tezosSystemsTzktThrottleInstalled';
 const ORIGINAL_FETCH_KEY = '__tezosSystemsOriginalFetch';
+const DISPATCH_HOOK_KEY = '__tezosSystemsOnDispatch';
+const PRIORITY_KEY = '__tezosSystemsPriority';
 const TZKT_HOST_PATTERN = /(^|\.)api\.tzkt\.io$/;
 
 function getRequestUrl(resource) {
@@ -41,6 +43,25 @@ function createAbortError() {
     return new DOMException('The operation was aborted.', 'AbortError');
 }
 
+function nativeFetchInit(init) {
+    if (!init || typeof init !== 'object' || (!(DISPATCH_HOOK_KEY in init) && !(PRIORITY_KEY in init))) return init;
+    const {
+        [DISPATCH_HOOK_KEY]: _onDispatch,
+        [PRIORITY_KEY]: _priority,
+        ...cleanInit
+    } = init;
+    return cleanInit;
+}
+
+function notifyDispatch(init) {
+    const callback = init?.[DISPATCH_HOOK_KEY];
+    if (typeof callback === 'function') callback();
+}
+
+function requestPriority(init) {
+    return init?.[PRIORITY_KEY] === 'interactive' ? 1 : 0;
+}
+
 function installTzktThrottle(target) {
     if (!target || target[PATCH_FLAG] || typeof target.fetch !== 'function') {
         return;
@@ -50,6 +71,7 @@ function installTzktThrottle(target) {
     const queue = [];
     let timer = null;
     let nextDispatchAt = 0;
+    let sequence = 0;
 
     target[PATCH_FLAG] = true;
     target[ORIGINAL_FETCH_KEY] = originalFetch;
@@ -74,7 +96,8 @@ function installTzktThrottle(target) {
         entry.cleanup();
         nextDispatchAt = Date.now() + TZKT_MIN_REQUEST_SPACING_MS;
 
-        originalFetch(entry.resource, entry.init).then(entry.resolve, entry.reject);
+        notifyDispatch(entry.init);
+        originalFetch(entry.resource, nativeFetchInit(entry.init)).then(entry.resolve, entry.reject);
         schedule();
     }
 
@@ -90,6 +113,8 @@ function installTzktThrottle(target) {
                 init,
                 resolve,
                 reject,
+                priority: requestPriority(init),
+                sequence: sequence++,
                 started: false,
                 cleanup() {}
             };
@@ -107,20 +132,28 @@ function installTzktThrottle(target) {
 
             if (signal) signal.addEventListener('abort', onAbort, { once: true });
 
-            queue.push(entry);
+            const insertAt = queue.findIndex((queued) => (
+                queued.priority < entry.priority
+                || (queued.priority === entry.priority && queued.sequence > entry.sequence)
+            ));
+            if (insertAt < 0) queue.push(entry);
+            else queue.splice(insertAt, 0, entry);
             schedule();
         });
     }
 
     target.fetch = function tezosSystemsFetch(resource, init) {
         if (!isTzktApiRequest(resource)) {
-            return originalFetch(resource, init);
+            notifyDispatch(init);
+            return originalFetch(resource, nativeFetchInit(init));
         }
         return enqueue(resource, init);
     };
 
     target.__tzktThrottle = {
         patched: true,
+        supportsDispatchHook: true,
+        supportsPriority: true,
         maxRequestsPerSecond: TZKT_MAX_REQUESTS_PER_SECOND,
         minSpacingMs: TZKT_MIN_REQUEST_SPACING_MS,
         isTzktApiRequest,

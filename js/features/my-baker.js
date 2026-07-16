@@ -14,6 +14,7 @@ const SAVED_ADDRESSES_KEY = 'tezos-systems-saved-addresses';
 const TZKT = API_URLS.tzkt;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
 const DEFAULT_DELEGATION_LIMIT = 9;
+const INTERACTIVE_TZKT_INIT = { __tezosSystemsPriority: 'interactive' };
 let _bakerRenderSeq = 0;
 let _delegationLimit = DEFAULT_DELEGATION_LIMIT;
 let _delegationLimitPromise = null;
@@ -341,7 +342,7 @@ async function renderBakerData(address, container) {
 
     try {
         // Fetch account data
-        const accountResp = await fetch(`${TZKT}/accounts/${encodeURIComponent(address)}`);
+        const accountResp = await fetch(`${TZKT}/accounts/${encodeURIComponent(address)}`, INTERACTIVE_TZKT_INIT);
         if (!accountResp.ok) throw new Error('Account not found');
         const account = await accountResp.json();
 
@@ -349,7 +350,7 @@ async function renderBakerData(address, container) {
         let bakerData = null;
         if (account.type === 'delegate' || account.delegate?.address === address) {
             try {
-                const bakerResp = await fetch(`${TZKT}/delegates/${encodeURIComponent(address)}`);
+                const bakerResp = await fetch(`${TZKT}/delegates/${encodeURIComponent(address)}`, INTERACTIVE_TZKT_INIT);
                 if (bakerResp.ok) bakerData = await bakerResp.json();
             } catch { /* not a baker */ }
         }
@@ -358,7 +359,7 @@ async function renderBakerData(address, container) {
         let delegateBakerData = null;
         if (!bakerData && account.delegate?.address) {
             try {
-                const dResp = await fetch(`${TZKT}/delegates/${encodeURIComponent(account.delegate.address)}`);
+                const dResp = await fetch(`${TZKT}/delegates/${encodeURIComponent(account.delegate.address)}`, INTERACTIVE_TZKT_INIT);
                 if (dResp.ok) delegateBakerData = await dResp.json();
             } catch { /* ignore */ }
         }
@@ -380,8 +381,8 @@ async function renderBakerData(address, container) {
             account.delegate?.address ? resolveDomain(account.delegate.address) : Promise.resolve(null),
             participationAddr ? fetchParticipation(participationAddr) : Promise.resolve(null),
             participationAddr ? fetchDALParticipation(participationAddr) : Promise.resolve(null),
-            participationAddr ? fetchBakerLiquidityBakingVote(participationAddr) : Promise.resolve(null),
-            activeBaker ? fetchOctezVersions().catch(() => null) : Promise.resolve(null),
+            participationAddr ? fetchBakerLiquidityBakingVote(participationAddr, { priority: 'interactive' }) : Promise.resolve(null),
+            activeBaker ? fetchOctezVersions({ priority: 'interactive' }).catch(() => null) : Promise.resolve(null),
             getDelegationLimit(),
         ]);
 

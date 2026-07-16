@@ -691,6 +691,8 @@
 
 .staking-action-filter button,
 .staking-archive-controls select,
+.staking-archive-controls input,
+#staking-export-csv,
 #staking-load-more,
 .staking-room-error button {
     min-height: 36px;
@@ -723,6 +725,8 @@
 
 .staking-action-filter button:focus-visible,
 .staking-archive-controls select:focus-visible,
+.staking-archive-controls input:focus-visible,
+#staking-export-csv:focus-visible,
 #staking-load-more:focus-visible,
 .staking-room-error button:focus-visible {
     outline: 2px solid var(--staking-accent);
@@ -737,6 +741,28 @@
     font-size: 0.62rem;
     font-weight: 800;
     text-transform: uppercase;
+}
+
+.staking-archive-search {
+    flex: 1 1 16rem;
+}
+
+.staking-archive-controls input {
+    width: min(20rem, 100%);
+    min-width: 12rem;
+    padding: 0.35rem 0.55rem;
+    border-color: color-mix(in srgb, var(--glass-border) 100%, transparent);
+    background: var(--bg-secondary, #111827);
+    color: var(--text-primary);
+    text-transform: none;
+}
+
+#staking-export-csv {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.7rem;
+    border-color: color-mix(in srgb, var(--glass-border) 100%, transparent);
+    background: rgba(var(--staking-accent-rgb), 0.08);
+    color: var(--staking-accent);
 }
 
 .staking-archive-controls select {
@@ -1170,6 +1196,8 @@
 
     .staking-action-filter button,
     .staking-archive-controls select,
+    .staking-archive-controls input,
+    #staking-export-csv,
     #staking-load-more,
     .staking-panel-head > button,
     .staking-retry-inline {
@@ -1178,6 +1206,12 @@
 
     .staking-archive-controls label {
         justify-content: space-between;
+    }
+
+    .staking-archive-search,
+    .staking-archive-controls input,
+    #staking-export-csv {
+        width: 100%;
     }
 
     .staking-table-head {

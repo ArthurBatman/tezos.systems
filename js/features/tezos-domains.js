@@ -987,7 +987,7 @@ function renderEventRows(events, empty = 'No matching Tezos Domains events retur
                     <span class="td-type-chip" data-tone="${escapeHtml(tone)}">${escapeHtml(eventTypeChip(event))}</span>
                 </div>
                 <span class="td-event-action">${escapeHtml(eventLabel(event))}</span>
-                <small>${escapeHtml(actorLabel(event.sourceAddress, event.sourceAddressReverseRecord))} · <span${liveAgeAttr(event.block?.timestamp)}>${escapeHtml(formatAge(event.block?.timestamp))}</span></small>
+                <small>by ${escapeHtml(actorLabel(event.sourceAddress, event.sourceAddressReverseRecord))} · <span${liveAgeAttr(event.block?.timestamp)}>${escapeHtml(formatAge(event.block?.timestamp))}</span></small>
                 ${op ? `<a class="td-op-link" href="${escapeHtml(tzktOperationUrl(op))}" target="_blank" rel="noopener">${escapeHtml(shortHash(op))}</a>` : ''}
             </article>
         `;
@@ -1010,7 +1010,7 @@ function renderAuctionRows(rows, empty = 'No live auctions are bidding right now
             <a class="td-name-link" href="${escapeHtml(domainUrl(auction.domainName))}" target="_blank" rel="noopener">${escapeHtml(auction.domainName)}</a>
             <strong>${escapeHtml(formatTez(auction.highestBid?.amount || auction.bidAmountSum))}</strong>
             ${timing}
-            <small>${escapeHtml(formatCount(auction.bidCount))} bid${Number(auction.bidCount) === 1 ? '' : 's'} · ${escapeHtml(actorLabel(auction.highestBid?.bidder, auction.highestBid?.bidderReverseRecord))}</small>
+            <small>${escapeHtml(formatCount(auction.bidCount))} bid${Number(auction.bidCount) === 1 ? '' : 's'} · by ${escapeHtml(actorLabel(auction.highestBid?.bidder, auction.highestBid?.bidderReverseRecord))}</small>
         </article>
     `;
     }).join('');
@@ -1071,7 +1071,7 @@ function renderExpiringRows(rows) {
             <a class="td-name-link" href="${escapeHtml(domainUrl(domain.name))}" target="_blank" rel="noopener">${escapeHtml(domain.name)}</a>
             <strong${liveCountdownAttr(domain.expiresAtUtc, { prefix: 'drops in ', ended: 'renewal window passed' })}>${escapeHtml(`drops in ${formatTimeDistance(domain.expiresAtUtc)}`)}</strong>
             <span>${escapeHtml(formatDate(domain.expiresAtUtc))}</span>
-            <small>${escapeHtml(actorLabel(domain.owner, domain.ownerReverseRecord))}</small>
+            <small>owned by ${escapeHtml(actorLabel(domain.owner, domain.ownerReverseRecord))}</small>
         </article>
     `).join('');
 }
@@ -1084,7 +1084,10 @@ function renderRegistrationRows(events, newEventKeys = new Set()) {
 function renderUrgentSurface(data) {
     const expiring = (data.expiringSoon || []).slice(0, 5);
     const liveAuctions = (data.liveAuctions || []).slice(0, 4);
-    const settlement = (data.settlementAuctions || []).slice(0, 3);
+    const recentSettlementCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const settlement = (data.settlementAuctions || [])
+        .filter((auction) => new Date(auction.endsAtUtc).getTime() >= recentSettlementCutoff)
+        .slice(0, 3);
     const auctionRows = [...liveAuctions, ...settlement];
     const urgentCount = expiring.length + auctionRows.length;
     const verdict = urgentCount
@@ -1095,7 +1098,7 @@ function renderUrgentSurface(data) {
             <div class="td-urgent-head">
                 <div>
                     <span class="td-kicker">Urgency tape</span>
-                    <h3>Expiring soon, auctions live, settlement windows open.</h3>
+                    <h3>Expiring soon, auctions live, recent settlement windows open.</h3>
                 </div>
                 <strong>${escapeHtml(verdict)}</strong>
             </div>
@@ -1105,7 +1108,7 @@ function renderUrgentSurface(data) {
                     <div class="td-expiry-list td-urgent-list">${renderExpiringRows(expiring)}</div>
                 </div>
                 <div class="td-urgent-column">
-                    <div class="td-panel-title">Auction Heat <span>live bids, then settlement backlog</span></div>
+                    <div class="td-panel-title">Auction Heat <span>live bids, then recent settlement windows</span></div>
                     <div class="td-market-list td-urgent-list">
                         ${liveAuctions.length ? renderAuctionRows(liveAuctions) : ''}
                         ${settlement.length ? renderAuctionRows(settlement) : ''}
@@ -1149,7 +1152,8 @@ function renderChamber(data, options = {}) {
     const premiumCount = data.highValueRecent?.length || 0;
     const liveAuctionCount = data.liveAuctions?.length || 0;
     const settlementCount = data.settlementAuctions?.length || 0;
-    const dropCount = data.expiringSoon?.length || 0;
+    const dropCount = Number(data.counts?.expiringSoon || 0);
+    const loadedDropCount = data.expiringSoon?.length || 0;
     return `
         <div class="chamber-header lb-header tezos-domains-header chamber-anim-fade">
             <div class="lb-system-strip tezos-domains-system-strip">
@@ -1215,7 +1219,7 @@ function renderChamber(data, options = {}) {
 
             <section class="td-panel chamber-anim-fade" style="animation-delay:270ms">
                 <div class="td-panel-title">30d Drops <span>names nearing renewal pressure</span></div>
-                ${renderPanelVerdict(`${dropCount} name${dropCount === 1 ? '' : 's'} in the 30-day renewal cliff; countdowns name the action.`)}
+                ${renderPanelVerdict(`Showing the nearest ${loadedDropCount} of ${dropCount} name${dropCount === 1 ? '' : 's'} in the 30-day renewal cliff; countdowns name the action.`)}
                 <div class="td-expiry-list">${renderExpiringRows(data.expiringSoon)}</div>
             </section>
         </div>

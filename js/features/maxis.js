@@ -3,14 +3,14 @@
  * Ongoing Maxis identities, protocol seasons, address passports, and immutable champions.
  */
 
-import { escapeHtml } from '../core/utils.js';
+import { escapeHtml, formatUtcDateTime } from '../core/utils.js';
 import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=444';
+const MAXIS_CSS_URL = '/css/maxis.css?v=445';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -157,7 +157,7 @@ function freshness(data) {
     const staleAfterMs = Number(data?.staleAfterHours || 48) * 60 * 60 * 1000;
     const stale = !generatedAt || Date.now() - generatedAt.getTime() > staleAfterMs;
     const label = generatedAt
-        ? generatedAt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        ? `${formatUtcDateTime(generatedAt)} UTC`
         : 'time unknown';
     return { stale, label, generatedAt };
 }
@@ -247,7 +247,9 @@ function formatMetricAmount(value, unit) {
     if (String(unit).toLowerCase() === 'mutez') {
         return `${(amount / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 })} ꜩ`;
     }
-    return `${amount.toLocaleString(undefined, { maximumFractionDigits: 12 })} ${textValue(unit, 'activity')}`;
+    const rawUnit = textValue(unit, 'activity');
+    const displayUnit = amount === 1 && rawUnit.endsWith('s') ? rawUnit.slice(0, -1) : rawUnit;
+    return `${amount.toLocaleString(undefined, { maximumFractionDigits: 12 })} ${displayUnit}`;
 }
 
 function scoreLabel(entry) {
@@ -975,7 +977,8 @@ function renderSeasonHero() {
                 <span><strong>${escapeHtml(starts || (contextError ? 'Unavailable' : season?.isCurrent ? 'Live now' : 'Date unavailable'))}</strong>season activation</span>
                 <span><strong>${escapeHtml(boundaryCopy)}</strong>season boundary</span>
                 <span><strong>${escapeHtml(String(wallets || '—'))}</strong>${passportRecords !== null ? 'wallet Passports indexed' : 'wallets on loaded ranks'}</span>
-                <span><strong>${escapeHtml(data ? fresh.label : contextError ? 'Unavailable' : 'Preparing')}</strong>${categories.length ? `${categories.length} lanes` : contextError ? 'selected season sheet' : 'season data preparing'}</span>
+                <span><strong>${escapeHtml(data ? fresh.label : contextError ? 'Unavailable' : 'Preparing')}</strong>${contextError ? 'selected season sheet' : 'sheet snapshot'}</span>
+                <span><strong>${escapeHtml(categories.length ? String(categories.length) : '—')}</strong>${categories.length === 1 ? 'lane' : 'lanes'}</span>
             </div>
         </header>
     `;
@@ -1077,9 +1080,14 @@ function rankDeltaValue(entry) {
 function renderRankDelta(entry) {
     const delta = rankDeltaValue(entry);
     if (delta === null) return '<span class="maxis-rank-delta flat" title="No prior checkpoint">new</span>';
-    if (delta > 0) return `<span class="maxis-rank-delta" title="Up ${delta} since the prior checkpoint">↑${delta}</span>`;
-    if (delta < 0) return `<span class="maxis-rank-delta down" title="Down ${Math.abs(delta)} since the prior checkpoint">↓${Math.abs(delta)}</span>`;
-    return '<span class="maxis-rank-delta flat" title="No rank change">—</span>';
+    if (delta > 0) return `<span class="maxis-rank-delta" title="Up ${formatNumber(delta)} since the prior checkpoint">↑${formatNumber(delta)}</span>`;
+    if (delta < 0) return `<span class="maxis-rank-delta down" title="Down ${formatNumber(Math.abs(delta))} since the prior checkpoint">↓${formatNumber(Math.abs(delta))}</span>`;
+    return '';
+}
+
+function renderScoreAndRankDelta(entry) {
+    const delta = renderRankDelta(entry);
+    return `${escapeHtml(scoreLabel(entry))}${delta ? ` · ${delta}` : ''}`;
 }
 
 function rowKey(entry, category) {
@@ -1203,7 +1211,7 @@ function renderPodiumPlace(entry, place, category) {
             <span class="maxis-podium-number">#${place}</span>
             <strong title="${escapeHtml(leaderName(entry))}">${escapeHtml(leaderName(entry))}</strong>
             <code title="${escapeHtml(entry.address)}">${escapeHtml(shortAddress(entry.address))}</code>
-            <small>${escapeHtml(scoreLabel(entry))} · ${renderRankDelta(entry)}</small>
+            <small>${renderScoreAndRankDelta(entry)}</small>
             ${renderRowMenuToggle(entry, category)}
         </div>
     `;
@@ -1264,7 +1272,7 @@ function renderLaneBoard(data, category) {
                         <li class="maxis-compact-row${expanded ? ' is-expanded' : ''}" data-maxis-compact-rank="${escapeHtml(String(entry.rank))}">
                             <span class="maxis-compact-rank">#${escapeHtml(String(entry.rank))}</span>
                             <span class="maxis-compact-identity"><strong title="${escapeHtml(leaderName(entry))}">${escapeHtml(leaderName(entry))}</strong><code title="${escapeHtml(entry.address)}">${escapeHtml(shortAddress(entry.address))}</code></span>
-                            <span class="maxis-compact-score">${escapeHtml(scoreLabel(entry))} ${renderRankDelta(entry)}</span>
+                            <span class="maxis-compact-score">${renderScoreAndRankDelta(entry)}</span>
                             ${renderRowMenuToggle(entry, category)}
                             ${expanded ? renderRowActions(entry, category) : ''}
                         </li>
@@ -1321,8 +1329,8 @@ function honorDetail(honor) {
         honor?.scoreLabel,
         honor?.detail,
         honor?.description,
-        movement !== null && movement !== 0 ? `${movement > 0 ? '↑' : '↓'}${Math.abs(movement)} ranks${rank ? ` · now #${rank}` : ''}` : '',
-        rank ? `${category ? `${categoryLabel(category)} · ` : ''}#${rank}` : '',
+        movement !== null && movement !== 0 ? `${movement > 0 ? '↑' : '↓'}${formatNumber(Math.abs(movement))} ranks${rank ? ` · now #${formatNumber(rank)}` : ''}` : '',
+        rank ? `${category ? `${categoryLabel(category)} · ` : ''}#${formatNumber(rank)}` : '',
         honor?.reason,
         'Earned this season'
     );

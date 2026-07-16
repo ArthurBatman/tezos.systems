@@ -334,7 +334,7 @@ function renderTrendMetric(label, delta, fallback) {
 async function fetchTezlinkData({ force = false } = {}) {
     if (!force && cachedData && Date.now() - cachedAt < CACHE_TTL) return cachedData;
 
-    const [chainsResult, protocolsResult, statsResult, txsResult, headResult, gasResult, tvlHistoryResult, txChartResult, tokensResult, anchorResult] = await Promise.allSettled([
+    const [chainsResult, protocolsResult, statsResult, txsResult, headResult, gasResult, tvlHistoryResult, txChartResult, activeAccountsResult, tokensResult, anchorResult] = await Promise.allSettled([
         fetchJson(`${DEFILLAMA}/v2/chains`),
         fetchJson(`${DEFILLAMA}/protocols`),
         fetchJson(`${EXPLORER}/stats`),
@@ -343,6 +343,7 @@ async function fetchTezlinkData({ force = false } = {}) {
         rpcCall('eth_gasPrice'),
         fetchJson(`${DEFILLAMA}/v2/historicalChainTvl/${CHAIN_NAME}`),
         fetchJson(`${EXPLORER}/stats/charts/transactions`),
+        fetchJson(`${EXPLORER}/stats/charts/active-accounts`),
         fetchJson(`${EXPLORER}/tokens?type=ERC-20&sort=holders_count&order=desc`),
         fetchJson(`${TZKT}/smart_rollups?limit=5&sort.desc=lastActivity`)
     ]);
@@ -360,7 +361,9 @@ async function fetchTezlinkData({ force = false } = {}) {
     }, chainTvls, protocols);
     data.tvlHistory = tvlHistoryResult.status === 'fulfilled' ? normalizeTvlHistory(tvlHistoryResult.value) : [];
     data.txHistory = txChartResult.status === 'fulfilled' ? normalizeChartRows(txChartResult.value, ['transactions', 'value', 'count']) : [];
-    data.activeAccountsHistory = [];
+    data.activeAccountsHistory = activeAccountsResult.status === 'fulfilled'
+        ? normalizeChartRows(activeAccountsResult.value, ['active_accounts', 'accounts', 'value', 'count'])
+        : [];
     data.tokens = tokensResult.status === 'fulfilled' ? normalizeTokens(tokensResult.value) : [];
     data.anchor = anchorResult.status === 'fulfilled' ? normalizeAnchor(anchorResult.value) : null;
     data.gasPrices = stats?.gas_prices || {};
@@ -543,17 +546,16 @@ function renderTrendPanel(data) {
     const tvlDelta = trendDelta(data.tvlHistory, 'tvl');
     const txDelta = trendDelta(data.txHistory, 'value');
     const activeDelta = trendDelta(data.activeAccountsHistory, 'value');
-    const addressFallback = data.totalAddresses ? compactNumber(data.totalAddresses) : 'warming';
     return `
         <section class="lb-panel tezlink-panel tezlink-trend-panel chamber-anim-fade" id="tezlink-trend-panel" style="animation-delay:90ms">
             <div class="lb-panel-title">30d Direction</div>
             <div class="lb-metric-grid health-metric-grid">
                 ${renderTrendMetric('TVL', tvlDelta, 'tracking')}
                 ${renderTrendMetric('Daily tx', txDelta, 'warming')}
-                ${renderTrendMetric('Addresses', activeDelta, addressFallback)}
+                ${renderTrendMetric('Active accounts', activeDelta, 'unavailable')}
             </div>
             ${renderMiniSparkline(data.tvlHistory, 'tvl')}
-            <div class="health-timing-note">Blockscout currently exposes transaction history and total addresses; active-address history stays quiet when that chart is unavailable.</div>
+            <div class="health-timing-note">Active-account direction uses the dedicated Blockscout chart and stays unavailable when that history is absent.</div>
         </section>
     `;
 }
@@ -578,7 +580,7 @@ function renderGasOraclePanel(data) {
     const avg = toNumber(data.gasPrices?.average) ?? data.gasGwei;
     const fast = toNumber(data.gasPrices?.fast);
     const transferGas = 21000;
-    const transferEth = Number.isFinite(avg) ? (avg * 1e9 * transferGas) / 1e18 : null;
+    const transferXtz = Number.isFinite(avg) ? (avg * 1e9 * transferGas) / 1e18 : null;
     return `
         <section class="lb-panel tezlink-panel tezlink-gas-panel chamber-anim-fade" id="tezlink-gas-oracle" style="animation-delay:130ms">
             <div class="lb-panel-title">Gas Oracle</div>
@@ -587,7 +589,7 @@ function renderGasOraclePanel(data) {
                 <div><span>Average</span><strong>${formatGas(avg)}</strong></div>
                 <div><span>Fast</span><strong>${formatGas(fast)}</strong></div>
             </div>
-            <div class="health-timing-note">Simple transfer gas at average: ${transferEth === null ? '--' : `${transferEth.toFixed(8)} XTZ-equivalent gas units`}.</div>
+            <div class="health-timing-note">Estimated fee for a 21,000-gas transfer at the average price: ${transferXtz === null ? '--' : `~${transferXtz.toFixed(8)} XTZ`}.</div>
         </section>
     `;
 }
@@ -652,9 +654,9 @@ function renderTezlinkChamber(data, container) {
             ${renderTransactionPanel(data)}
         </div>
         <div class="chamber-footer chamber-anim-fade" style="animation-delay:240ms">
-            <a href="https://defillama.com/chain/Etherlink" target="_blank" rel="noopener">DefiLlama TVL -></a>
+            <a href="https://defillama.com/chain/Etherlink" target="_blank" rel="noopener">DefiLlama TVL →</a>
             <span class="chamber-footer-sep">·</span>
-            <a href="https://explorer.etherlink.com/" target="_blank" rel="noopener">Blockscout -></a>
+            <a href="https://explorer.etherlink.com/" target="_blank" rel="noopener">Blockscout →</a>
             <span class="chamber-footer-sep">·</span>
             <a class="panel-direct-link" href="/tezosx/" aria-label="Direct link to Tezos X Chamber">Direct: /tezosx/</a>
         </div>
@@ -726,7 +728,11 @@ export async function openTezlinkChamber() {
             <div class="modal-content modal-large chamber-content lb-content tezlink-content" role="dialog" aria-modal="true" aria-labelledby="tezlink-title">
                 <button class="modal-close chamber-close" type="button" aria-label="Close Tezos X Chamber">&times;</button>
                 <div class="chamber-body lb-body tezlink-body" id="tezlink-chamber-body">
-                    <div class="loading">Loading Tezos X chamber...</div>
+                    <div class="chamber-loading" role="status" aria-live="polite">
+                        <div class="chamber-loading-text">Opening Tezos X Chamber…</div>
+                        <div class="chamber-loading-subtext">Reading L2 TVL, transactions, gas, active accounts, and the L1 anchor</div>
+                        <div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div>
+                    </div>
                 </div>
             </div>
         `;

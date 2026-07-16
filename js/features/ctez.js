@@ -26,7 +26,8 @@ let _ctezState = {
     ovens: [],
     selectedIndex: 0,
     loading: false,
-    error: ''
+    error: '',
+    mode: 'idle'
 };
 let _ctezWalletBusy = false;
 
@@ -228,7 +229,9 @@ export function buildCtezCloseOvenOperations(oven, destination) {
 function getClosePlanCopy(oven, destination) {
     const debt = hasOutstandingDebt(oven);
     const balance = hasRecoverableBalance(oven);
-    const destinationText = balance ? shortAddress(destination) : 'Not needed';
+    const destinationText = balance
+        ? isTezosAccountAddress(destination) ? shortAddress(destination) : 'Connect matching wallet'
+        : 'Not needed';
     const parts = [];
     if (debt) parts.push(`burn ${formatMicroAmount(oven.ctezOutstanding, 'ctez')}`);
     if (balance) parts.push(`withdraw ${formatMicroAmount(oven.tezBalance, 'tez')}`);
@@ -322,22 +325,27 @@ function renderCtezChamber() {
                         <h3>My Ovens</h3>
                     </div>
                 </div>
-                <div class="ctez-wallet-actions">
+            <div class="ctez-wallet-actions">
                     <button id="ctez-wallet-connect" class="glass-button ctez-wallet-button" type="button">Connect wallet</button>
                     <button id="ctez-wallet-refresh" class="glass-button ctez-wallet-refresh" type="button" disabled>Refresh</button>
                     <span id="ctez-wallet-status" class="ctez-wallet-status">No wallet connected</span>
                 </div>
             </div>
+            <form class="ctez-readonly-scan" id="ctez-readonly-scan" autocomplete="off">
+                <label for="ctez-readonly-address">Read-only oven scan</label>
+                <input id="ctez-readonly-address" type="search" placeholder="tz1 / tz2 / tz3 / tz4 address" spellcheck="false">
+                <button class="glass-button ctez-wallet-refresh" type="submit">Scan address</button>
+            </form>
 
             <div class="ctez-summary-strip" id="ctez-summary-strip">
-                ${renderMetric('Total balance', '0 tez')}
-                ${renderMetric('Outstanding', '0 ctez')}
-                ${renderMetric('Potential recovery', '0 tez')}
-                ${renderMetric('Ovens found', '0')}
+                ${renderMetric('Total balance', '—')}
+                ${renderMetric('Outstanding', '—')}
+                ${renderMetric('Potential recovery', '—')}
+                ${renderMetric('Ovens found', '—')}
             </div>
 
             <div class="ctez-oven-panel" id="ctez-oven-panel" data-state="idle">
-                <div id="ctez-oven-status" class="ctez-oven-status">Connect a wallet to check for ctez ovens.</div>
+                <div id="ctez-oven-status" class="ctez-oven-status">Connect a wallet or scan an address to check for ctez ovens.</div>
                 <div id="ctez-oven-list" class="ctez-oven-list"></div>
                 <div id="ctez-action-panel" class="ctez-action-panel" hidden>
                     <div class="ctez-detail-head">
@@ -457,13 +465,15 @@ function updateCtezActionButtons(root) {
     const busy = _ctezState.loading || _ctezWalletBusy;
     const debt = hasOutstandingDebt(oven);
     const balance = hasRecoverableBalance(oven);
+    const connectedAddress = getStoredWalletAddress();
+    const walletMatchesScan = isTezosAccountAddress(connectedAddress) && connectedAddress === _ctezState.address;
 
     if (refreshButton) refreshButton.disabled = busy || !_ctezState.address;
     const connectButton = root.querySelector('#ctez-wallet-connect');
     if (connectButton) connectButton.disabled = busy;
     if (closeButton) {
-        closeButton.disabled = busy || !oven || (!debt && !balance);
-        closeButton.textContent = getCloseButtonLabel(oven);
+        closeButton.disabled = busy || !oven || (!debt && !balance) || !walletMatchesScan;
+        closeButton.textContent = walletMatchesScan ? getCloseButtonLabel(oven) : 'Connect matching wallet to close';
     }
 }
 
@@ -478,19 +488,29 @@ function renderCtezOvenState(root) {
     const selectedBadge = root.querySelector('#ctez-selected-badge');
     const oven = selectedOven();
 
-    updateCtezWalletStatus(root, _ctezState.address || getStoredWalletAddress());
+    updateCtezWalletStatus(root, getStoredWalletAddress());
     if (panel) panel.dataset.state = _ctezState.loading ? 'loading' : _ctezState.error ? 'error' : _ctezState.ovens.length ? 'ready' : _ctezState.address ? 'empty' : 'idle';
     if (summaryStrip) {
-        const totalBalance = sumMicroValues(_ctezState.ovens, 'tezBalance');
-        const totalDebt = sumMicroValues(_ctezState.ovens, 'ctezOutstanding');
-        const recoverable = sumMicroValues(_ctezState.ovens, 'tezBalance');
-        summaryStrip.innerHTML = `
-            <div class="ctez-summary-title">Oven Summary</div>
-            ${renderMetric('Total balance', formatMicroAmount(totalBalance, 'tez'))}
-            ${renderMetric('Outstanding', formatMicroAmount(totalDebt, 'ctez'))}
-            ${renderMetric('Potential recovery', formatMicroAmount(recoverable, 'tez'))}
-            ${renderMetric('Ovens found', String(_ctezState.ovens.length))}
-        `;
+        if (!_ctezState.address) {
+            summaryStrip.innerHTML = `
+                <div class="ctez-summary-title">Oven Summary</div>
+                ${renderMetric('Total balance', '—')}
+                ${renderMetric('Outstanding', '—')}
+                ${renderMetric('Potential recovery', '—')}
+                ${renderMetric('Ovens found', '—')}
+            `;
+        } else {
+            const totalBalance = sumMicroValues(_ctezState.ovens, 'tezBalance');
+            const totalDebt = sumMicroValues(_ctezState.ovens, 'ctezOutstanding');
+            const recoverable = sumMicroValues(_ctezState.ovens, 'tezBalance');
+            summaryStrip.innerHTML = `
+                <div class="ctez-summary-title">Oven Summary</div>
+                ${renderMetric('Total balance', formatMicroAmount(totalBalance, 'tez'))}
+                ${renderMetric('Outstanding', formatMicroAmount(totalDebt, 'ctez'))}
+                ${renderMetric('Potential recovery', formatMicroAmount(recoverable, 'tez'))}
+                ${renderMetric('Ovens found', String(_ctezState.ovens.length))}
+            `;
+        }
     }
 
     if (_ctezState.loading) {
@@ -510,7 +530,7 @@ function renderCtezOvenState(root) {
     }
 
     if (!_ctezState.address) {
-        if (status) status.textContent = 'Connect a wallet to check for ctez ovens.';
+        if (status) status.textContent = 'Connect a wallet or scan an address to check for ctez ovens.';
         if (list) list.innerHTML = '';
         if (actionPanel) actionPanel.hidden = true;
         updateCtezActionButtons(root);
@@ -519,7 +539,7 @@ function renderCtezOvenState(root) {
 
     if (!_ctezState.ovens.length) {
         if (status) status.textContent = `No active ctez ovens found for ${shortAddress(_ctezState.address)}.`;
-        if (list) list.innerHTML = '<div class="ctez-empty-state">No recoverable ctez oven was found for this wallet.</div>';
+        if (list) list.innerHTML = `<div class="ctez-empty-state">No recoverable ctez oven was found for this ${_ctezState.mode === 'readonly' ? 'address' : 'wallet'}.</div>`;
         if (actionPanel) actionPanel.hidden = true;
         updateCtezActionButtons(root);
         return;
@@ -527,7 +547,7 @@ function renderCtezOvenState(root) {
 
     if (status) {
         const count = _ctezState.ovens.length;
-        status.textContent = `${count} ctez oven${count === 1 ? '' : 's'} found for ${shortAddress(_ctezState.address)}.`;
+        status.textContent = `${count} ctez oven${count === 1 ? '' : 's'} found for ${shortAddress(_ctezState.address)}${_ctezState.mode === 'readonly' ? ' in read-only mode' : ''}.`;
     }
     if (list) {
         list.innerHTML = _ctezState.ovens.map((item, index) => renderOvenCard(item, index)).join('');
@@ -544,10 +564,13 @@ function renderCtezOvenState(root) {
         const balance = hasRecoverableBalance(oven);
         const utilization = formatOvenUtilization(oven);
         const withdrawable = balance ? formatMicroAmount(oven.tezBalance, 'tez') : '0 tez';
-        const destination = _ctezState.address || getStoredWalletAddress();
+        const connectedAddress = getStoredWalletAddress();
+        const destination = connectedAddress === _ctezState.address ? connectedAddress : '';
         const closePlan = getClosePlanCopy(oven, destination);
         if (selectedTitle) selectedTitle.textContent = `Oven #${oven.id || _ctezState.selectedIndex + 1}`;
-        if (selectedBadge) selectedBadge.textContent = debt && balance ? 'Batch ready' : debt ? 'Burn required' : balance ? 'Ready to withdraw' : 'Clear';
+        if (selectedBadge) selectedBadge.textContent = _ctezState.mode === 'readonly'
+            ? 'Read-only scan'
+            : debt && balance ? 'Batch ready' : debt ? 'Burn required' : balance ? 'Ready to withdraw' : 'Clear';
         summary.innerHTML = `
             <section class="ctez-detail-card ctez-detail-card-wide">
                 <h4>Oven Stats</h4>
@@ -580,7 +603,7 @@ function renderCtezOvenState(root) {
             ${renderCtezClosePlan(oven, destination)}
             <section class="ctez-detail-card">
                 <h4>Owner</h4>
-                ${renderMetric('Wallet', shortAddress(oven.owner || _ctezState.address))}
+                ${renderMetric(_ctezState.mode === 'readonly' ? 'Scanned account' : 'Wallet', shortAddress(oven.owner || _ctezState.address))}
                 ${renderMetric('Last seen level', oven.lastLevel ? formatGroupedNumber(String(oven.lastLevel)) : 'unknown')}
             </section>
             <p>${escapeHtml(closePlan.review)} ${debt ? 'Make sure this wallet has enough ctez for the burn leg before signing.' : ''}</p>
@@ -590,27 +613,28 @@ function renderCtezOvenState(root) {
     updateCtezActionButtons(root);
 }
 
-async function loadCtezOvens(root, address, { force = false } = {}) {
+async function loadCtezOvens(root, address, { force = false, mode = 'wallet' } = {}) {
     const owner = String(address || '').trim();
     if (!isTezosAccountAddress(owner)) {
-        _ctezState = { address: '', ovens: [], selectedIndex: 0, loading: false, error: '' };
+        _ctezState = { address: '', ovens: [], selectedIndex: 0, loading: false, error: '', mode: 'idle' };
         renderCtezOvenState(root);
         return;
     }
     if (_ctezState.loading && _ctezState.address === owner && !force) return;
 
-    _ctezState = { address: owner, ovens: [], selectedIndex: 0, loading: true, error: '' };
+    _ctezState = { address: owner, ovens: [], selectedIndex: 0, loading: true, error: '', mode };
     setWalletFeedback(root, '', 'neutral');
     renderCtezOvenState(root);
     try {
         const ovens = await fetchCtezOvens(owner);
-        _ctezState = { address: owner, ovens, selectedIndex: 0, loading: false, error: '' };
+        _ctezState = { address: owner, ovens, selectedIndex: 0, loading: false, error: '', mode };
     } catch (error) {
         _ctezState = {
             address: owner,
             ovens: [],
             selectedIndex: 0,
             loading: false,
+            mode,
             error: `Could not check ctez ovens: ${error?.message || error}`
         };
     }
@@ -621,6 +645,7 @@ function wireCtezWalletActions(root) {
     const connectButton = root.querySelector('#ctez-wallet-connect');
     const refreshButton = root.querySelector('#ctez-wallet-refresh');
     const closeButton = root.querySelector('#ctez-wallet-close');
+    const scanForm = root.querySelector('#ctez-readonly-scan');
 
     updateCtezWalletStatus(root);
     renderCtezOvenState(root);
@@ -642,7 +667,7 @@ function wireCtezWalletActions(root) {
                 ? `Connected ${shortAddress(account.address)}. Checking ctez ovens...`
                 : 'Wallet connected, but no account address was returned.',
                 account?.address ? 'pending' : 'warning');
-            if (account?.address) await loadCtezOvens(root, account.address, { force: true });
+            if (account?.address) await loadCtezOvens(root, account.address, { force: true, mode: 'wallet' });
         } catch (error) {
             setWalletFeedback(root, `Wallet connection failed: ${error?.message || error}`, 'error');
         } finally {
@@ -653,12 +678,26 @@ function wireCtezWalletActions(root) {
     refreshButton?.addEventListener('click', async () => {
         const address = _ctezState.address || getStoredWalletAddress();
         if (!address) return;
-        await loadCtezOvens(root, address, { force: true });
+        await loadCtezOvens(root, address, { force: true, mode: _ctezState.mode || 'wallet' });
+    });
+
+    scanForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const address = scanForm.querySelector('#ctez-readonly-address')?.value?.trim() || '';
+        if (!isTezosAccountAddress(address)) {
+            setWalletFeedback(root, 'Enter a valid tz1, tz2, tz3, or tz4 address for a read-only scan.', 'warning');
+            return;
+        }
+        await loadCtezOvens(root, address, { force: true, mode: 'readonly' });
     });
 
     closeButton?.addEventListener('click', async () => {
         const oven = selectedOven();
-        const to = _ctezState.address || getStoredWalletAddress();
+        const to = getStoredWalletAddress();
+        if (!to || to !== _ctezState.address) {
+            setWalletFeedback(root, 'Connect the wallet that owns this scanned address before closing an oven.', 'warning');
+            return;
+        }
         if (!oven || !isNatString(oven.id) || (!hasOutstandingDebt(oven) && !hasRecoverableBalance(oven))) {
             setWalletFeedback(root, 'No ctez or tez is available to close for the selected oven.', 'warning');
             return;
@@ -682,15 +721,18 @@ function wireCtezWalletActions(root) {
         const address = event.detail?.address || '';
         updateCtezWalletStatus(root, address);
         if (address && address !== _ctezState.address) {
-            loadCtezOvens(root, address).catch((error) => {
+            loadCtezOvens(root, address, { mode: 'wallet' }).catch((error) => {
                 console.warn('ctez oven refresh failed', error);
             });
+        } else if (address && address === _ctezState.address) {
+            _ctezState.mode = 'wallet';
+            renderCtezOvenState(root);
         }
     });
 
     const stored = getStoredWalletAddress();
     if (stored) {
-        loadCtezOvens(root, stored).catch((error) => {
+        loadCtezOvens(root, stored, { mode: 'wallet' }).catch((error) => {
             console.warn('ctez stored wallet refresh failed', error);
         });
     }

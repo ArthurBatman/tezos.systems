@@ -1353,6 +1353,9 @@ async function checkSelectorContracts() {
     ['Tezos X Governance merged timeline panel', 'id="etherlink-gov-timeline"', etherlinkGovernance],
     ['Tezos X Governance phase hero', 'id="etherlink-governance-phase-hero"', etherlinkGovernance],
     ['Tezos X Governance current-state panel', 'id="etherlink-governance-now"', etherlinkGovernance],
+    ['Tezos X Governance recent baker quorum panel', 'id="etherlink-governance-recent-bakers"', etherlinkGovernance],
+    ['Tezos X Governance L1 voting-power snapshot', '/voting/periods/current/voters?limit=10000', etherlinkGovernance],
+    ['Tezos X Governance voting-key expansion disclosure', 'Voting-key calls are expanded into the represented L1 baker accounts', etherlinkGovernance],
     ['Tezos X Governance background history hydration', 'hydrateHistoricalProposals(data)', etherlinkGovernance],
     ['Tezos X Governance highest-priority hot score', 'score: 260', etherlinkGovernance],
     ['Tezos X Governance historic hot treatment', "spectacle: 'historic'", etherlinkGovernance],
@@ -2076,6 +2079,7 @@ async function checkSelectorContracts() {
   const chamberRendererStyleContracts = [
     ['Tezos X Governance timeline row style', '.etherlink-gov-table .etherlink-gov-timeline-row', styles],
     ['Tezos X Governance timeline row removes browser underline', 'a.etherlink-gov-timeline-row:hover', styles],
+    ['Tezos X Governance recent baker quorum styles', '.etherlink-gov-baker-vote-row', shellExtrasCss],
     ['tz4 monthly bar rail style', '.tz4-month-bars', styles],
     ['tz4 monthly bar column style', '.tz4-month-bar {', styles],
     ['tz4 monthly bar visible count style', '.tz4-month-count', styles],

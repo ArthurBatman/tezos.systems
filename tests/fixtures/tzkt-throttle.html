@@ -19,5 +19,9 @@
         };
     </script>
     <script type="module" src="/js/core/tzkt-throttle.js"></script>
+    <script type="module">
+        import { fetchWithDeadline } from '/js/core/api.js';
+        window.__fetchWithDeadline = fetchWithDeadline;
+    </script>
 </body>
 </html>

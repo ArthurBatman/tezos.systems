@@ -2081,6 +2081,190 @@
     outline: none;
 }
 
+.etherlink-gov-recent-bakers {
+    position: relative;
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid rgba(89, 243, 166, 0.16);
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.etherlink-gov-recent-bakers-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.etherlink-gov-recent-bakers-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.88rem;
+    line-height: 1.25;
+}
+
+.etherlink-gov-baker-vote-head,
+.etherlink-gov-baker-vote-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(64px, 0.36fr) minmax(104px, 0.58fr) minmax(132px, 0.78fr) 42px;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.etherlink-gov-baker-vote-head {
+    padding: 0 9px;
+    color: var(--text-tertiary);
+    font-size: 0.58rem;
+    font-weight: 850;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.etherlink-gov-baker-vote-list {
+    display: grid;
+    gap: 5px;
+}
+
+.etherlink-gov-baker-vote-row {
+    min-height: 62px;
+    padding: 8px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.etherlink-gov-baker-vote-main {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+
+.etherlink-gov-voter-link {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    font-weight: 820;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.etherlink-gov-voter-link:hover,
+.etherlink-gov-voter-link:focus-visible {
+    color: #59f3a6;
+    outline: none;
+}
+
+.etherlink-gov-baker-vote-main code,
+.etherlink-gov-baker-vote-main small {
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.59rem;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.etherlink-gov-ballot {
+    justify-self: start;
+    padding: 3px 7px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.59rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.etherlink-gov-ballot.yea,
+.etherlink-gov-ballot.upvote {
+    color: #59f3a6;
+}
+
+.etherlink-gov-ballot.nay {
+    color: #ff6b7a;
+}
+
+.etherlink-gov-ballot.pass {
+    color: #f5d65b;
+}
+
+.etherlink-gov-baker-power,
+.etherlink-gov-quorum-share {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.etherlink-gov-baker-power strong,
+.etherlink-gov-quorum-share strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.etherlink-gov-baker-power span,
+.etherlink-gov-quorum-share span {
+    color: var(--text-tertiary);
+    font-size: 0.57rem;
+    line-height: 1.2;
+}
+
+.etherlink-gov-quorum-share > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.etherlink-gov-quorum-share-bar {
+    display: block;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.etherlink-gov-quorum-share-bar i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #59f3a6, #8fb3ff);
+}
+
+.etherlink-gov-vote-op {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.59rem;
+    font-weight: 780;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.etherlink-gov-vote-op:hover,
+.etherlink-gov-vote-op:focus-visible {
+    color: #59f3a6;
+    outline: none;
+}
+
+.etherlink-gov-baker-vote-note {
+    margin: 2px 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.62rem;
+    line-height: 1.4;
+}
+
 .health-verdict-panel {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.85rem;
@@ -2174,6 +2358,46 @@
     .etherlink-governance-source-links {
         display: grid;
         grid-template-columns: 1fr;
+    }
+
+    .etherlink-gov-recent-bakers {
+        padding: 10px;
+    }
+
+    .etherlink-gov-recent-bakers-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .etherlink-gov-baker-vote-head {
+        display: none;
+    }
+
+    .etherlink-gov-baker-vote-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 7px 10px;
+    }
+
+    .etherlink-gov-baker-vote-main,
+    .etherlink-gov-quorum-share {
+        grid-column: 1 / -1;
+    }
+
+    .etherlink-gov-baker-power {
+        justify-items: end;
+        text-align: right;
+    }
+
+    .etherlink-gov-vote-op {
+        position: absolute;
+        right: 9px;
+        top: 8px;
+    }
+
+    .etherlink-gov-baker-vote-row {
+        position: relative;
+        padding-right: 50px;
     }
 
     .health-verdict-status {
@@ -3342,11 +3566,77 @@
     height: 2rem;
 }
 
+.chamber-table-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--text-tertiary, #777);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.chamber-table-search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.16);
+    font-family: inherit;
+    font-size: 0.76rem;
+    text-transform: none;
+}
+
+.chamber-table-search input:focus-visible {
+    border-color: rgba(0, 212, 255, 0.42);
+    outline: 2px solid rgba(0, 212, 255, 0.18);
+    outline-offset: 2px;
+}
+
+.ctez-readonly-scan {
+    display: grid;
+    grid-template-columns: auto minmax(14rem, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: calc(100% - 44px);
+    margin: 14px auto 0;
+}
+
+.ctez-readonly-scan label {
+    color: #b7c2de;
+    font-family: system-ui, sans-serif;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.ctez-readonly-scan input {
+    min-width: 0;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid rgba(220, 232, 255, 0.22);
+    border-radius: 6px;
+    color: #f5f8ff;
+    background: rgba(7, 15, 50, 0.48);
+    font: 0.78rem 'JetBrains Mono', monospace;
+}
+
+.ctez-readonly-scan input:focus-visible {
+    border-color: #8fbeff;
+    outline: 2px solid rgba(143, 190, 255, 0.28);
+    outline-offset: 2px;
+}
+
 @media (max-width: 440px) {
     .drawer-more-actions { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
+    .ctez-readonly-scan { grid-template-columns: 1fr; }
+
     .chamber-overlay * { scrollbar-width: none; }
     .chamber-overlay *::-webkit-scrollbar {
         display: none;

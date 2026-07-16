@@ -409,6 +409,11 @@
 .network-pulse-delta.up::before { content: "↗ "; }
 .network-pulse-delta.down::before { content: "↘ "; }
 .network-pulse-delta.flat::before { content: "→ "; }
+.network-pulse-delta.unavailable {
+    max-width: 9.5rem;
+    border-color: rgba(245, 184, 75, 0.28);
+    color: var(--chamber-watch-color, #f5b84b);
+}
 
 .network-pulse-card strong {
     min-width: 0;

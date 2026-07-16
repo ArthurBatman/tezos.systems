@@ -7,6 +7,13 @@ const CHANGELOG = [
     {
         date: '2026-07-16',
         entries: [
+            { type: '✨', text: 'Tezos X Governance now shows the five latest represented baker votes with ballot, L1 voting power, voting-key attribution, and each baker’s share of the quorum required to pass' },
+            { type: '⚡', text: 'Queued TzKT requests now start their deadline when they actually leave the shared throttle, and Tezos X Governance retries delayed indexers with bounded backoff instead of a fixed noisy loop' },
+            { type: '🔧', text: 'Governance and Network Pulse now keep quiet proposal periods, ballot thresholds, monotonic contract totals, freshness, and unavailable history distinct instead of borrowing older or incompatible signals' },
+            { type: '✨', text: 'Staking now keeps a persistent incremental archive of qualifying moves, resumes from per-action high-water marks, and adds address search plus filtered CSV export' },
+            { type: '🔧', text: 'Tezos X now separates active-account history from lifetime addresses and labels gas estimates in XTZ, while Domains, Ledger Flow, Network Health, Maxis, tz4, and Liquidity Baking use clearer clocks, counts, and empty states' },
+            { type: '✨', text: 'ctez positions can now be inspected read-only without replacing the saved wallet, while closing remains locked to a connected matching owner' },
+            { type: '🎨', text: 'Governance, Liquidity Baking, Staking, and tz4 tables now support local search, and shared UTC, pluralization, arrows, deltas, and loading treatments are consistent across Chambers' },
             { type: '🎨', text: 'The L2 live action log now occupies the open column beside an active proposal or Promotion vote instead of leaving a large blank desktop lane' },
             { type: '✨', text: 'Tezos X Governance now leads with the active L2 phase, countdown, next gate, thresholds, recent baker actions, and direct paths to the official vote, docs, and L1 Chamber' },
             { type: '🔧', text: 'Active L2 votes now become the highest-priority What’s Hot alert immediately, without waiting for the slower historical proposal scan' },

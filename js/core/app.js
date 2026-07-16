@@ -109,7 +109,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=444';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=445';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -2101,7 +2101,7 @@ async function renderProtocolAnthologyBoard(protocols, currentProtocol = null) {
                 ${buildAnthologyMetric('Chapters', String(chapterCount), 'Paris C kept as follow-up record')}
                 ${buildAnthologyMetric('Long reads', String(longReads.length), 'curated history scenes')}
                 ${buildAnthologyMetric('Debate marks', String(debated.length), 'upgrades with dispute context')}
-                ${buildAnthologyMetric('Block time', slowest && fastest ? `${slowest}s -> ${fastest}s` : 'syncing', 'fastest recorded target')}
+                ${buildAnthologyMetric('Block time', slowest && fastest ? `${slowest}s → ${fastest}s` : 'syncing', 'fastest recorded target')}
             </div>
             <div class="protocol-anthology-featured" aria-label="Featured protocol chapters">
                 ${features.map(({ protocol, label }) => `

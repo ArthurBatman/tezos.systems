@@ -90,6 +90,31 @@ export function formatCount(num) {
     return formatNumber(num, { decimals: 0, useAbbreviation: false });
 }
 
+export function pluralize(count, singular, plural = `${singular}s`) {
+    return Number(count) === 1 ? singular : plural;
+}
+
+export function matchesTextQuery(query, ...values) {
+    const needle = String(query || '').trim().toLocaleLowerCase('en-US');
+    if (!needle) return true;
+    return values.some((value) => String(value ?? '').toLocaleLowerCase('en-US').includes(needle));
+}
+
+export function formatUtcDateTime(value, { includeYear = false } = {}) {
+    if (value === null || value === undefined || value === '') return 'time unavailable';
+    const date = value instanceof Date ? value : new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'time unavailable';
+    return date.toLocaleString('en-US', {
+        timeZone: 'UTC',
+        month: 'short',
+        day: 'numeric',
+        year: includeYear ? 'numeric' : undefined,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+}
+
 export function debugLog(...args) {
     try {
         const enabled = localStorage.getItem('tezos-systems-debug') === 'true'

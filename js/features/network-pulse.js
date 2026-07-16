@@ -13,13 +13,13 @@ import {
 } from '../core/api.js';
 import { siteMapCanonicalRoute, siteMapRelated, siteMapRoute } from '../core/site-map.js';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
-import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply, formatUtcDateTime, pluralize } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=444';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=445';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -150,7 +150,7 @@ const GROUPS = [
         label: 'Ecosystem',
         detail: 'Contracts, tokens, rollups, and active app surface.',
         metrics: [
-            { label: 'Smart Contracts', key: 'smartContracts', format: formatSafeLarge, detail: 'Total deployed Tezos smart contracts.', route: '#section=ecosystem', history: 'smart_contracts', historyCard: 'smart-contracts', deltaDecimals: 0 },
+            { label: 'Smart Contracts', key: 'smartContracts', format: formatSafeLarge, detail: 'Total deployed Tezos smart contracts.', route: '#section=ecosystem', history: 'smart_contracts', historyCard: 'smart-contracts', deltaDecimals: 0, monotonic: true, maxDailyRelativeDelta: 0.35 },
             { label: 'Active Contracts', key: 'activeContracts24h', format: formatSafeLarge, detail: 'Contracts with activity in the last 24 hours.', route: '#section=ecosystem', history: 'active_contracts_24h', historyCard: 'active-contracts', deltaDecimals: 0 },
             { label: 'Tokens', key: 'tokens', format: formatSafeLarge, detail: 'FA1.2 and FA2 token contracts and token rows.', route: '#section=ecosystem', history: 'tokens', historyCard: 'tokens', deltaDecimals: 0 },
             { label: 'Smart Rollups', key: 'rollups', format: formatCount, detail: 'L2 rollups registered on Tezos.', route: '#tezosx', history: 'rollups', historyCard: 'rollups', deltaDecimals: 0 },
@@ -273,7 +273,7 @@ function formatHeadBlockDetail(stats) {
     const parts = ['Latest block level from the live stats feed'];
     const timestamp = Date.parse(stats?.blockTime || '');
     if (Number.isFinite(timestamp)) {
-        parts.push(`last head ${new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        parts.push(`last head ${formatUtcDateTime(timestamp)} UTC`);
     }
     return `${parts.join('; ')}.`;
 }
@@ -296,11 +296,15 @@ function formatRewardDetail(stats) {
 }
 
 function formatParticipationDetail(stats) {
-    const quorum = numericValue(stats.participationQuorum) !== null ? `quorum ${formatPct(stats.participationQuorum)}` : 'quorum unavailable';
-    const yay = numericValue(stats.participationYayPct) !== null ? `yay ${formatPct(stats.participationYayPct)}` : 'yay unavailable';
     const period = cleanText(stats.govPeriodKind || stats.votingPeriod || 'period');
     const days = numericValue(stats.participationDaysLeft);
-    const daysLine = days !== null ? `${days.toFixed(days < 1 ? 1 : 0)} days left in ${period}` : `${period} timing unavailable`;
+    const dayValue = days !== null ? days.toFixed(days < 1 ? 1 : 0) : '';
+    const daysLine = days !== null ? `${dayValue} ${pluralize(Number(dayValue), 'day')} left in ${period}` : `${period} timing unavailable`;
+    if (period.toLowerCase().includes('proposal')) {
+        return `No ballot running — quorum and Yay thresholds begin in Exploration; ${daysLine}.`;
+    }
+    const quorum = numericValue(stats.participationQuorum) !== null ? `quorum ${formatPct(stats.participationQuorum)}` : 'quorum unavailable';
+    const yay = numericValue(stats.participationYayPct) !== null ? `Yay ${formatPct(stats.participationYayPct)}` : 'Yay unavailable';
     return `${quorum}, ${yay}; ${daysLine}.`;
 }
 
@@ -554,8 +558,12 @@ function formatL2GasDetail(_stats, context) {
 
 function formatL2ActiveAddressesDetail(_stats, context) {
     const row = latestRow(context.domainRows.tezosx);
+    const active = numericValue(row?.active_addresses);
     const total = numericValue(row?.total_addresses);
-    return `${total !== null ? formatLarge(total) : '--'} total addresses.`;
+    if (active === null) {
+        return `Active-address history unavailable; ${total !== null ? formatLarge(total) : '--'} total addresses.`;
+    }
+    return `${formatLarge(active)} active addresses; ${total !== null ? formatLarge(total) : '--'} total addresses.`;
 }
 
 function formatMxtz(value) {
@@ -990,6 +998,16 @@ function baselinePoint(points) {
     return nearest && Math.abs(nearest.timestamp - target) <= 3 * 60 * 60 * 1000 ? nearest : null;
 }
 
+function historyBaselineIsSound(metric, live, baseline) {
+    if (!baseline || !Number.isFinite(live) || !Number.isFinite(baseline.value)) return false;
+    if (metric.monotonic && baseline.value > live) return false;
+    if (Number.isFinite(metric.maxDailyRelativeDelta)) {
+        const denominator = Math.max(Math.abs(live), Math.abs(baseline.value), 1);
+        if (Math.abs(live - baseline.value) / denominator > metric.maxDailyRelativeDelta) return false;
+    }
+    return true;
+}
+
 function formatDeltaValue(delta, metric) {
     const abs = Math.abs(delta);
     const decimals = metric.deltaDecimals ?? (abs < 10 ? 1 : 0);
@@ -1013,6 +1031,9 @@ function renderDeltaChip(metric, stats, rows = lastHistoryRows, domainRows = las
         const points = historyPoints(metric, rowsForMetric(metric, context));
         const baseline = baselinePoint(points);
         if (!baseline) return '';
+        if (!historyBaselineIsSound(metric, live, baseline)) {
+            return '<span class="network-pulse-delta unavailable" data-pulse-delta data-pulse-delta-state="discontinuous" title="The 24-hour history point is inconsistent with the live total.">history discontinuity</span>';
+        }
         delta = live - baseline.value;
     }
     delta = numericValue(delta);

@@ -12,7 +12,7 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=444';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=445';
 const DEFAULT_WINDOW = '30d';
 const TRANSFER_LIMIT = 60;
 const MAX_VISIBLE_COUNTERPARTIES = 12;
@@ -345,6 +345,7 @@ function buildFlowModel(data) {
             if (a.firstFunding !== b.firstFunding) return a.firstFunding ? -1 : 1;
             return b.total - a.total;
         });
+    const windowCounterparties = ranked.filter((item) => item.total > 0);
 
     const thresholded = ranked.filter((item) => item.total >= threshold || item.firstFunding);
     const visibleCounterparties = thresholded.slice(0, MAX_VISIBLE_COUNTERPARTIES);
@@ -396,6 +397,7 @@ function buildFlowModel(data) {
         transfers,
         firstTx,
         counterparties: ranked,
+        windowCounterparties,
         visibleCounterparties,
         edges,
         hiddenCount: Math.max(0, thresholded.length - visibleCounterparties.length),
@@ -644,8 +646,20 @@ function renderStats(model) {
         <div class="ledger-flow-stats" aria-label="Ledger Flow summary">
             <div><span>Received</span><strong>${escapeHtml(formatCompactXTZ(model.totals.received))}</strong></div>
             <div><span>Sent</span><strong>${escapeHtml(formatCompactXTZ(model.totals.sent))}</strong></div>
-            <div><span>Counterparties</span><strong>${escapeHtml(formatCount(model.counterparties.length))}</strong></div>
+            <div><span>Counterparties</span><strong>${escapeHtml(formatCount(model.windowCounterparties.length))}</strong></div>
             <div><span>First in</span><strong>${first ? escapeHtml(formatCompactXTZ(first.amount)) : 'n/a'}</strong></div>
+        </div>
+    `;
+}
+
+function renderWindowContext(model) {
+    if (model.totals.count > 0 || activeWindow === 'all') return '';
+    const label = WINDOW_OPTIONS.find((item) => item.key === activeWindow)?.label || activeWindow.toUpperCase();
+    return `
+        <div class="ledger-flow-window-empty" role="status">
+            <span>No transfers were found in ${escapeHtml(label)}.</span>
+            <small>The first-funding path below is all-time context and is not counted as a current-window counterparty.</small>
+            <button type="button" data-ledger-window="all">Show all time</button>
         </div>
     `;
 }
@@ -747,6 +761,7 @@ function renderLedgerFlow(data) {
         <section class="lb-explainer ledger-flow-explainer chamber-anim-fade">
             ${renderControls(model)}
             ${renderStats(model)}
+            ${renderWindowContext(model)}
             ${renderLegend()}
         </section>
         <section class="lb-panel ledger-flow-panel ledger-flow-map-panel chamber-anim-fade" style="animation-delay:70ms">
