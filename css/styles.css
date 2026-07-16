@@ -4173,7 +4173,16 @@ body::before {
     }
 
     .etherlink-gov-tabs {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .etherlink-gov-tab {
+        padding: 8px 6px;
+    }
+
+    .etherlink-gov-tab strong {
+        line-height: 1.2;
+        white-space: normal;
     }
 
     .etherlink-gov-table .etherlink-gov-proposal-row,

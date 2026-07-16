@@ -13,7 +13,9 @@ const BLOCK_SECONDS = 6;
 const ENTRY_REFRESH_MS = 60 * 1000;
 const CHAMBER_REFRESH_MS = 60 * 1000;
 const CACHE_TTL = 45 * 1000;
+const HISTORY_CACHE_TTL = 15 * 60 * 1000;
 const GOVERNANCE_BASE = 'https://governance.etherlink.com/governance';
+const GOVERNANCE_DOCS = 'https://docs.etherlink.com/governance/how-is-etherlink-governed/';
 const GOVERNANCE_CONTRACT_CREATOR = 'tz1VGpuq8GkCwf4x6MupTz6QAcJLivQcaAsb';
 const HISTORICAL_PROPOSAL_SCAN_LIMIT = 32;
 const HISTORICAL_PROPOSALS_PER_TRACK = 4;
@@ -49,6 +51,13 @@ const TRACK_TEMPLATES = [
         description: 'Sequencer pool and public-key governance.',
         quorumLabel: '8% promotion quorum'
     }
+];
+
+const GOVERNANCE_PHASES = [
+    { key: 'proposal', label: 'Proposal', detail: 'Bakers submit and upvote a candidate.' },
+    { key: 'promotion', label: 'Promotion', detail: 'Bakers vote Yea, Nay, or Pass.' },
+    { key: 'adoption', label: 'Cooldown', detail: 'The approved change waits before activation.' },
+    { key: 'trigger', label: 'Trigger', detail: 'Any account can trigger the approved upgrade.' }
 ];
 
 const KNOWN_PROPOSALS = new Map([
@@ -89,7 +98,11 @@ const KNOWN_PROPOSALS = new Map([
 let cachedData = null;
 let cachedAt = 0;
 let dataInFlight = null;
+let historicalProposalCache = null;
+let historicalProposalCacheAt = 0;
+let historicalProposalInFlight = null;
 let activeTrackKey = 'fast';
+let selectActiveTrackOnNextRender = true;
 let entryTimer = null;
 let chamberTimer = null;
 let chamberInFlight = false;
@@ -238,18 +251,23 @@ async function discoverGovernanceTracks() {
     const candidates = await fetchJson(`${TZKT}/contracts?creator=${GOVERNANCE_CONTRACT_CREATOR}&limit=16&sort.desc=firstActivity`);
     const byTrack = new Map();
     const contracts = candidates.filter((contract) => contract?.kind === 'smart_contract' && contract?.address);
-    for (const contract of contracts) {
+    const storageResults = await Promise.allSettled(contracts.map(async (contract) => {
         try {
             const storage = await fetchJsonWithRetry(`${TZKT}/contracts/${contract.address}/storage`, 3);
             const key = classifyTrackKey(storage);
-            if (!key) continue;
-            targetTrackCache.set(contract.address, key);
-            const existing = byTrack.get(key);
-            if (!existing || startedAtLevel(storage) > startedAtLevel(existing.storage)) {
-                byTrack.set(key, { key, contract, storage });
-            }
+            return key ? { key, contract, storage } : null;
         } catch (_) {
             // Discovery is best-effort: fallback tracks make the delay visible without breaking the modal.
+            return null;
+        }
+    }));
+    for (const result of storageResults) {
+        const found = result.status === 'fulfilled' ? result.value : null;
+        if (!found) continue;
+        targetTrackCache.set(found.contract.address, found.key);
+        const existing = byTrack.get(found.key);
+        if (!existing || startedAtLevel(found.storage) > startedAtLevel(existing.storage)) {
+            byTrack.set(found.key, found);
         }
     }
 
@@ -391,6 +409,47 @@ async function fetchHistoricalProposalMap() {
     return byTrack;
 }
 
+function attachHistoricalProposals(data, history = historicalProposalCache) {
+    if (!data || !(history instanceof Map)) return data;
+    return {
+        ...data,
+        historyReady: true,
+        tracks: data.tracks.map((track) => ({
+            ...track,
+            historyReady: true,
+            historicalProposals: history.get(track.key) || []
+        }))
+    };
+}
+
+async function loadHistoricalProposalMap({ force = false } = {}) {
+    if (!force && historicalProposalCache && Date.now() - historicalProposalCacheAt < HISTORY_CACHE_TTL) {
+        return historicalProposalCache;
+    }
+    if (historicalProposalInFlight) return historicalProposalInFlight;
+    historicalProposalInFlight = fetchHistoricalProposalMap()
+        .then((history) => {
+            historicalProposalCache = history;
+            historicalProposalCacheAt = Date.now();
+            return history;
+        })
+        .finally(() => {
+            historicalProposalInFlight = null;
+        });
+    return historicalProposalInFlight;
+}
+
+async function hydrateHistoricalProposals(data, { force = false } = {}) {
+    try {
+        const history = await loadHistoricalProposalMap({ force });
+        const enriched = attachHistoricalProposals(data, history);
+        if (cachedData?.updatedAt === data?.updatedAt) cachedData = enriched;
+        return enriched;
+    } catch (_) {
+        return data;
+    }
+}
+
 async function enrichUpvoters(keys) {
     const rows = keys.map((key) => ({
         address: key.key?.key_hash || key.key || '',
@@ -502,6 +561,7 @@ async function fetchTrack(track, headLevel, historicalProposals = []) {
         promotion,
         activity,
         historicalProposals,
+        historyReady: Boolean(historicalProposalCache),
         proposalProgress,
         proposalRequired,
         promotionRequired,
@@ -518,24 +578,23 @@ function fallbackTrack(track, error) {
         promotion: null,
         activity: [],
         historicalProposals: [],
+        historyReady: Boolean(historicalProposalCache),
         error: error?.message || 'unavailable'
     };
 }
 
 async function fetchEtherlinkGovernanceData({ force = false } = {}) {
-    if (!force && cachedData && Date.now() - cachedAt < CACHE_TTL) return cachedData;
+    if (!force && cachedData && Date.now() - cachedAt < CACHE_TTL) {
+        return historicalProposalCache ? attachHistoricalProposals(cachedData) : cachedData;
+    }
     if (dataInFlight) return dataInFlight;
     dataInFlight = (async () => {
         const headRows = await fetchJson(`${TZKT}/blocks?limit=1&sort.desc=level`);
         const head = Array.isArray(headRows) ? headRows[0] : headRows;
         const headLevel = Number(head?.level) || 0;
         const trackTemplates = await discoverGovernanceTracks();
-        const historicalResult = await Promise.allSettled([fetchHistoricalProposalMap()]);
-        const historicalProposals = historicalResult[0]?.status === 'fulfilled'
-            ? historicalResult[0].value
-            : new Map();
         const trackResults = await Promise.allSettled(trackTemplates.map((track) => (
-            fetchTrack(track, headLevel, historicalProposals.get(track.key) || [])
+            fetchTrack(track, headLevel, historicalProposalCache?.get(track.key) || [])
         )));
         const tracks = trackResults.map((result, index) => (
             result.status === 'fulfilled' ? result.value : fallbackTrack(trackTemplates[index], result.reason)
@@ -545,8 +604,10 @@ async function fetchEtherlinkGovernanceData({ force = false } = {}) {
             head,
             headLevel,
             updatedAt: Date.now(),
+            historyReady: Boolean(historicalProposalCache),
             tracks
         };
+        if (historicalProposalCache) cachedData = attachHistoricalProposals(cachedData);
         cachedAt = Date.now();
         return cachedData;
     })();
@@ -582,15 +643,15 @@ function trackLastActivity(track) {
 }
 
 function topTrack(data) {
-    return data.tracks.find((track) => track.phase === 'proposal' && track.proposal && hasActiveTrackPayload(track))
-        || data.tracks.find((track) => track.phase === 'promotion' && track.promotion && hasActiveTrackPayload(track))
+    return data.tracks.find((track) => track.phase === 'promotion' && track.promotion && hasActiveTrackPayload(track))
+        || data.tracks.find((track) => track.phase === 'proposal' && track.proposal && hasActiveTrackPayload(track))
         || data.tracks[0];
 }
 
 function hasActiveTrackPayload(track) {
     return Boolean(
-        (track.phase === 'proposal' && track.proposal)
-        || (track.phase === 'promotion' && track.promotion)
+        (track?.phase === 'proposal' && track.proposal)
+        || (track?.phase === 'promotion' && track.promotion)
     );
 }
 
@@ -604,19 +665,28 @@ function dispatchEtherlinkGovernanceHotSignal(data) {
     if (!track || !hasActiveTrackPayload(track)) return;
     const payload = track.phase === 'promotion' ? track.promotion?.candidate : track.proposal?.winner;
     const label = proposalLabel(payload);
-    const period = track.phase === 'promotion' ? 'promotion' : 'proposal';
+    const period = track.phase === 'promotion' ? 'promotion ballot' : 'proposal upvote window';
     const progress = track.phase === 'promotion' ? track.promotion?.participation : track.proposalProgress;
     const required = track.phase === 'promotion' ? track.promotionRequired : track.proposalRequired;
+    const thresholdMet = Number.isFinite(progress) && Number.isFinite(required) && progress >= required;
+    const next = track.phase === 'promotion'
+        ? 'Cooldown is next if quorum and supermajority both pass.'
+        : 'Promotion is next when this window closes.';
+    const voteState = track.phase === 'promotion'
+        ? `Participation ${formatPercent(track.promotion?.participation)} / ${formatPercent(track.promotionRequired, 0)}; Yea ${formatPercent(track.promotion?.supermajority)} / ${formatPercent(track.supermajorityRequired, 0)}.`
+        : `${formatPercent(track.proposalProgress)} support vs ${formatPercent(track.proposalRequired, 0)} required.`;
     dispatchHotSignal({
         id: `etherlink-governance-${track.key}`,
         category: 'etherlink',
-        kind: 'event',
+        kind: 'state',
         visual: 'governance',
-        spectacle: 'headliner',
-        score: 110,
-        title: 'L2 governance live',
-        detail: `${track.label} ${period}`,
-        text: `Etherlink ${track.label} track: ${label} in ${period} with ${formatPercent(progress)} of ${formatPercent(required, 0)} quorum.`,
+        tone: 'governance-hot',
+        spectacle: 'historic',
+        breaking: true,
+        score: 260,
+        title: 'L2 VOTE OPEN NOW',
+        detail: `${track.label} ${period}${thresholdMet ? ' · threshold met' : ''}`,
+        text: `${label}: ${voteState} ${trackCountdown(track)}. ${next}`,
         route: '/l2chamber/',
         ttlMs: ENTRY_REFRESH_MS * 2
     });
@@ -624,6 +694,204 @@ function dispatchEtherlinkGovernanceHotSignal(data) {
 
 function allTracksQuiet(data) {
     return data.tracks.every((track) => track.phase !== 'error' && !hasActiveTrackPayload(track));
+}
+
+function governancePhaseIndex(track) {
+    if (track.phase === 'proposal' && track.proposal) return 0;
+    if (track.phase === 'promotion' && track.promotion) return 1;
+    if (track.phase === 'adoption') return 2;
+    return -1;
+}
+
+function trackPhaseLabel(track) {
+    if (track.phase === 'proposal' && track.proposal) return 'Proposal upvotes';
+    if (track.phase === 'promotion' && track.promotion) return 'Promotion ballot';
+    if (track.phase === 'adoption') return 'Cooldown';
+    return 'No active vote';
+}
+
+function trackCountdown(track) {
+    if (!track.period?.blocksRemaining && track.period?.blocksRemaining !== 0) return 'Timing unavailable';
+    return `${formatDurationFromBlocks(track.period.blocksRemaining)} left`;
+}
+
+function proposalQuorumGap(track) {
+    if (!track.proposal) return null;
+    const total = toBigInt(track.proposal.totalVotingPower);
+    const support = toBigInt(track.proposal.maxUpvotes);
+    const thresholdBps = BigInt(Math.max(0, Math.round(Number(track.proposalRequired || 0) * 100)));
+    const required = (total * thresholdBps + 9999n) / 10000n;
+    return required > support ? required - support : 0n;
+}
+
+function currentActionRows(track) {
+    const currentOps = (track.activity || [])
+        .filter((op) => ['new_proposal', 'upvote', 'upvote_proposal', 'vote'].includes(op.entrypoint))
+        .slice(0, 6)
+        .map((op) => {
+            const actor = op.sender?.alias || op.sender?.address || 'Unknown baker';
+            const voteValue = op.value?.vote || op.value?.ballot || op.value?.choice || op.value;
+            const action = op.entrypoint === 'new_proposal'
+                ? 'submitted the proposal'
+                : op.entrypoint === 'vote'
+                    ? `voted ${typeof voteValue === 'string' ? voteValue.toUpperCase() : 'in Promotion'}`
+                    : 'upvoted the proposal';
+            return `${actor} ${action} · ${formatAge(op.time)}`;
+        });
+    if (currentOps.length) return currentOps;
+    return (track.proposal?.upvoters || []).slice(-6).reverse().map((voter) => (
+        `${voter.alias || voter.address} upvoted · level ${voter.firstLevel || '--'}`
+    ));
+}
+
+function trackNowSummary(track) {
+    if (track.phase === 'proposal' && track.proposal) {
+        const met = Number.isFinite(track.proposalProgress) && track.proposalProgress >= track.proposalRequired;
+        const gap = proposalQuorumGap(track);
+        if (met) {
+            return `${proposalLabel(track.proposal.winner)} has cleared the ${formatPercent(track.proposalRequired, 0)} proposal threshold. Upvotes remain open until the period ends, then the leading proposal enters Promotion.`;
+        }
+        return `${proposalLabel(track.proposal.winner)} is gathering baker upvotes. ${gap && gap > 0n ? `${formatXTZ(gap)} more voting power is needed` : 'More voting power is needed'} before it can advance to Promotion.`;
+    }
+    if (track.phase === 'promotion' && track.promotion) {
+        const quorumMet = Number.isFinite(track.promotion.participation) && track.promotion.participation >= track.promotionRequired;
+        const yayMet = Number.isFinite(track.promotion.supermajority) && track.promotion.supermajority >= track.supermajorityRequired;
+        if (quorumMet && yayMet) {
+            return `${proposalLabel(track.promotion.candidate)} is currently passing both Promotion gates. Ballots remain open until the period ends; Cooldown follows if the final receipt still clears both thresholds.`;
+        }
+        return `${proposalLabel(track.promotion.candidate)} is in the binding Yea / Nay / Pass ballot. It must clear both ${formatPercent(track.promotionRequired, 0)} participation and ${formatPercent(track.supermajorityRequired, 0)} Yea supermajority.`;
+    }
+    if (track.phase === 'adoption') {
+        return 'The vote has passed and the track is in its cooldown runway. Ballots are closed; an Etherlink user can trigger the approved change after cooldown.';
+    }
+    return `${track.label} has no active proposal or Promotion ballot in the current storage read. The track is quiet, not broken; its rules and recent proposal memory remain available below.`;
+}
+
+function trackWatchItems(track) {
+    if (track.phase === 'proposal' && track.proposal) {
+        const met = Number.isFinite(track.proposalProgress) && track.proposalProgress >= track.proposalRequired;
+        return [
+            met
+                ? `Proposal quorum is met at ${formatPercent(track.proposalProgress)}; the final leader is decided when this period closes.`
+                : `Proposal support is ${formatPercent(track.proposalProgress)} against ${formatPercent(track.proposalRequired, 0)} required.`,
+            `Promotion is the binding ballot: ${formatPercent(track.promotionRequired, 0)} participation and ${formatPercent(track.supermajorityRequired, 0)} Yea supermajority.`,
+            'Voting power comes from Tezos L1 bakers; a baker may vote through its baking key or an assigned Etherlink voting key.'
+        ];
+    }
+    if (track.phase === 'promotion' && track.promotion) {
+        return [
+            `Participation is ${formatPercent(track.promotion.participation)} against ${formatPercent(track.promotionRequired, 0)} required.`,
+            `Yea supermajority is ${formatPercent(track.promotion.supermajority)} against ${formatPercent(track.supermajorityRequired, 0)} required.`,
+            'If both gates clear, Cooldown lasts about one day before an account triggers the approved change.'
+        ];
+    }
+    return [
+        `${track.label} uses a ${formatPercent(track.proposalRequired, 0)} proposal threshold.`,
+        `A winning proposal still needs ${formatPercent(track.promotionRequired, 0)} Promotion participation and ${formatPercent(track.supermajorityRequired, 0)} Yea supermajority.`,
+        'FAST is for shorter urgent changes; SLOW is for longer kernel review; SEQUENCER governs the operator account.'
+    ];
+}
+
+function renderL2GovernancePhaseHero(track) {
+    const activeIndex = governancePhaseIndex(track);
+    const steps = GOVERNANCE_PHASES.map((phase, index) => {
+        const state = activeIndex < 0 ? 'future' : index < activeIndex ? 'complete' : index === activeIndex ? 'active' : 'future';
+        return `
+            <div class="governance-phase-step ${state}" data-stage="${escapeHtml(phase.key)}" title="${escapeHtml(phase.detail)}">
+                <span class="governance-phase-dot" aria-hidden="true"></span>
+                <span>${escapeHtml(phase.label)}</span>
+            </div>
+        `;
+    }).join('');
+    let nextLine = 'No active payload is present. Choose another track or use the history below to see its last governance action.';
+    if (track.phase === 'proposal' && track.proposal) {
+        nextLine = track.proposalProgress >= track.proposalRequired
+            ? 'Threshold met. Upvotes stay open until period end; the leading proposal enters Promotion next.'
+            : 'Bakers are selecting the leading proposal. It must reach the track threshold before Promotion can open.';
+    } else if (track.phase === 'promotion' && track.promotion) {
+        nextLine = 'This is the binding vote. Both participation and Yea supermajority must pass before Cooldown.';
+    } else if (track.phase === 'adoption') {
+        nextLine = 'Ballots are closed. Cooldown completes before an account can trigger the approved change.';
+    }
+
+    return `
+        <section class="governance-phase-hero etherlink-governance-phase-hero chamber-anim-fade" id="etherlink-governance-phase-hero" aria-label="Etherlink governance phase and countdown">
+            <div class="governance-phase-main">
+                <span class="feature-kicker">L2 governance clock</span>
+                <strong>${escapeHtml(`${track.label} · ${trackPhaseLabel(track)} · ${trackCountdown(track)}`)}</strong>
+                <p>${escapeHtml(nextLine)}</p>
+            </div>
+            <div class="governance-phase-stepper" role="list" aria-label="Etherlink governance phases">
+                ${steps}
+            </div>
+        </section>
+    `;
+}
+
+function renderL2GovernanceNow(track) {
+    const actions = currentActionRows(track);
+    const watchItems = trackWatchItems(track);
+    const endTime = track.period?.endDateTime ? formatDate(track.period.endDateTime) : '--';
+    const latestActivity = trackLastActivity(track);
+    let cards = [
+        { label: 'Current state', value: trackPhaseLabel(track), detail: track.description },
+        { label: 'Period', value: `#${track.period?.index ?? '--'}`, detail: `${trackCountdown(track)} · estimated ${endTime}` },
+        { label: 'Recent action', value: actions.length ? `${actions.length} shown` : 'None indexed', detail: latestActivity ? formatAge(latestActivity.time) : 'No current-period calls' }
+    ];
+    if (track.phase === 'proposal' && track.proposal) {
+        cards = [
+            { label: 'Proposal support', value: formatPercent(track.proposalProgress), detail: `${formatXTZ(track.proposal.maxUpvotes)} · ${formatPercent(track.proposalRequired, 0)} required` },
+            { label: 'Bakers indexed', value: String(track.proposal.upvoters.length), detail: 'Proposal submitter counts as an upvote' },
+            { label: 'Window closes', value: trackCountdown(track), detail: endTime }
+        ];
+    } else if (track.phase === 'promotion' && track.promotion) {
+        cards = [
+            { label: 'Participation', value: formatPercent(track.promotion.participation), detail: `${formatPercent(track.promotionRequired, 0)} required` },
+            { label: 'Yea supermajority', value: formatPercent(track.promotion.supermajority), detail: `${formatPercent(track.supermajorityRequired, 0)} required` },
+            { label: 'Ballot closes', value: trackCountdown(track), detail: endTime }
+        ];
+    }
+
+    return `
+        <section class="chamber-now-panel etherlink-governance-now chamber-anim-fade" id="etherlink-governance-now" aria-label="Current Etherlink governance state">
+            <div class="chamber-now-main">
+                <span class="chamber-now-kicker">What is happening now</span>
+                <h3>${escapeHtml(track.phase === 'proposal' && track.proposal
+                    ? `${proposalLabel(track.proposal.winner)} is in the ${track.label} proposal vote`
+                    : track.phase === 'promotion' && track.promotion
+                        ? `${proposalLabel(track.promotion.candidate)} is in the ${track.label} Promotion vote`
+                        : `${track.label} governance is quiet`)}</h3>
+                <p>${escapeHtml(trackNowSummary(track))}</p>
+            </div>
+            <div class="chamber-now-grid">
+                ${cards.map((card) => `
+                    <div class="chamber-now-card">
+                        <span>${escapeHtml(card.label)}</span>
+                        <strong>${escapeHtml(card.value)}</strong>
+                        <small>${escapeHtml(card.detail)}</small>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="chamber-now-watch">
+                <div>
+                    <span>What to watch next</span>
+                    <ul>${watchItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+                </div>
+                <div class="chamber-now-memory">
+                    <span>Latest baker actions</span>
+                    ${actions.length
+                        ? actions.map((action) => `<p>${escapeHtml(action)}</p>`).join('')
+                        : '<p>No current-period proposal, upvote, or ballot operations are indexed yet.</p>'}
+                    <small>Voting-key actions may be sent by the assigned voting key rather than the baker address.</small>
+                </div>
+            </div>
+            <div class="etherlink-governance-source-links">
+                <a href="${GOVERNANCE_BASE}/${escapeHtml(track.key)}" target="_blank" rel="noopener">Vote on the official portal →</a>
+                <a href="${GOVERNANCE_DOCS}" target="_blank" rel="noopener">How L2 governance works →</a>
+                <a href="/chamber/">Compare L1 governance →</a>
+            </div>
+        </section>
+    `;
 }
 
 function progressWidth(value, required) {
@@ -648,7 +916,7 @@ function renderEntryMetrics(data) {
             ? `${formatPercent(track.proposalProgress)} / ${formatPercent(track.proposalRequired, 0)}`
             : track.phase === 'promotion' && track.promotion
                 ? `${formatPercent(track.promotion.participation)} / ${formatPercent(track.promotionRequired, 0)}`
-                : last ? `${formatAge(last.time)}` : status.label;
+                : last ? `${formatAge(last.time)}` : track.phase === 'empty' ? 'Idle' : status.label;
         return `
             <div class="tezlink-entry-metric etherlink-gov-entry-metric ${status.className}">
                 <span>${escapeHtml(track.label)}</span>
@@ -857,13 +1125,15 @@ function renderHistoricalProposals(track) {
                     <span class="lb-panel-kicker">Historical proposals</span>
                     <h3>Recent ${escapeHtml(track.label)} submissions</h3>
                 </div>
-                <span class="lb-live-pill">${escapeHtml(String((track.historicalProposals || []).length))} indexed</span>
+                <span class="lb-live-pill">${track.historyReady ? `${escapeHtml(String((track.historicalProposals || []).length))} indexed` : 'loading history'}</span>
             </div>
             <div class="lb-table etherlink-gov-table">
                 <div class="lb-table-head etherlink-gov-history-row">
                     <span>Proposal</span><span>Submitted</span><span>Sender</span>
                 </div>
-                <div>${rows || '<div class="lb-empty">No historical proposal submissions found in the indexed TzKT sample.</div>'}</div>
+                <div>${rows || (track.historyReady
+                    ? '<div class="lb-empty">No historical proposal submissions found in the indexed TzKT sample.</div>'
+                    : '<div class="lb-empty">Loading proposal history in the background. Current vote data above is already live.</div>')}</div>
             </div>
         </section>
     `;
@@ -941,8 +1211,8 @@ function renderMergedTimeline(track) {
         <section class="lb-panel etherlink-gov-panel etherlink-gov-timeline-panel chamber-anim-fade" id="etherlink-gov-timeline" style="animation-delay:140ms">
             <div class="lb-panel-header">
                 <div>
-                    <span class="lb-panel-kicker">Timeline</span>
-                    <h3>Submission → vote → trigger</h3>
+                    <span class="lb-panel-kicker">Live action log</span>
+                    <h3>Newest baker and contract actions first</h3>
                 </div>
                 <span class="lb-live-pill">${escapeHtml(String(rows.length))} rows</span>
             </div>
@@ -995,6 +1265,8 @@ function renderTrackPanel(track) {
 
     return `
         <div class="etherlink-gov-track-panel" data-track="${escapeHtml(track.key)}">
+            ${renderL2GovernancePhaseHero(track)}
+            ${renderL2GovernanceNow(track)}
             <section class="lb-explainer etherlink-gov-explainer chamber-anim-fade">
                 <div class="lb-explainer-main">
                     <div class="lb-explainer-kicker">${escapeHtml(track.label)} track</div>
@@ -1002,7 +1274,7 @@ function renderTrackPanel(track) {
                 </div>
                 <div class="lb-explainer-facts" aria-label="${escapeHtml(track.label)} period facts">
                     <span><strong>Period</strong> #${escapeHtml(String(track.period?.index ?? '--'))}</span>
-                    <span><strong>Ends</strong> ${escapeHtml(formatDurationFromBlocks(track.period?.blocksRemaining))}</span>
+                    <span><strong>Ends</strong> ${escapeHtml(trackCountdown(track))}</span>
                     <span><strong>Blocks</strong> ${escapeHtml(String(track.period?.startLevel ?? '--'))} -> ${escapeHtml(String(track.period?.endLevel ?? '--'))}</span>
                 </div>
             </section>
@@ -1054,6 +1326,7 @@ function renderChamber(data, container) {
     container.querySelectorAll('[data-etherlink-track]').forEach((button) => {
         button.addEventListener('click', () => {
             activeTrackKey = button.dataset.etherlinkTrack || 'fast';
+            selectActiveTrackOnNextRender = false;
             renderChamber(data, container);
         });
     });
@@ -1067,6 +1340,7 @@ async function refreshEntryCard({ force = false } = {}) {
         const data = await fetchEtherlinkGovernanceData({ force });
         renderEntryCard(data);
         dispatchEtherlinkGovernanceHotSignal(data);
+        void hydrateHistoricalProposals(data);
     } catch (error) {
         console.warn('Tezos X governance entry refresh failed:', error);
         renderEntryError();
@@ -1113,8 +1387,26 @@ async function refreshChamber({ force = false } = {}) {
     chamberInFlight = true;
     try {
         const data = await fetchEtherlinkGovernanceData({ force });
+        const selectedTrack = data.tracks.find((track) => track.key === activeTrackKey);
+        if (
+            selectActiveTrackOnNextRender
+            || (!hasActiveTrackPayload(selectedTrack) && hasActiveProposalTrack(data))
+        ) {
+            activeTrackKey = topTrack(data)?.key || activeTrackKey;
+            selectActiveTrackOnNextRender = false;
+        }
         if (overlay.classList.contains('active')) renderChamber(data, body);
         dispatchEtherlinkGovernanceHotSignal(data);
+        const currentUpdatedAt = data.updatedAt;
+        void hydrateHistoricalProposals(data).then((enriched) => {
+            if (
+                enriched?.historyReady
+                && enriched.updatedAt === currentUpdatedAt
+                && overlay.classList.contains('active')
+            ) {
+                renderChamber(enriched, body);
+            }
+        });
     } catch (error) {
         console.warn('Tezos X governance chamber refresh failed:', error);
         if (!body.dataset.rendered) {
@@ -1137,7 +1429,12 @@ async function refreshChamber({ force = false } = {}) {
 }
 
 export async function openEtherlinkGovernanceChamber(trackKey = '') {
-    if (trackKey && TRACK_TEMPLATES.some((track) => track.key === trackKey)) activeTrackKey = trackKey;
+    if (trackKey && TRACK_TEMPLATES.some((track) => track.key === trackKey)) {
+        activeTrackKey = trackKey;
+        selectActiveTrackOnNextRender = false;
+    } else {
+        selectActiveTrackOnNextRender = true;
+    }
     let overlay = document.getElementById('etherlink-governance-modal');
     if (!overlay) {
         overlay = document.createElement('div');

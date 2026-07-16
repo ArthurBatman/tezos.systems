@@ -7739,6 +7739,22 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   await page.locator('#lb-entry-card[data-lb-live="true"][data-lb-refresh-interval="60000"]').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.stat-card[data-stat="tz4-adoption"].chamber-entry-card .chamber-expand-cue').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#etherlink-governance-entry-card[data-etherlink-governance-live="true"]').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#hot-today-island [data-hot-signal-id="etherlink-governance-fast"]').waitFor({ state: 'visible', timeout: 10000 });
+  const etherlinkHotState = await page.evaluate(() => {
+    const card = document.querySelector('#hot-today-island [data-hot-signal-id="etherlink-governance-fast"]');
+    const first = document.querySelector('#hot-today-island [data-hot-signal-index="0"]');
+    return {
+      firstId: first?.dataset.hotSignalId || '',
+      href: card?.getAttribute('href') || '',
+      text: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      classes: card?.className || '',
+      spectacle: card?.dataset.hotSpectacle || ''
+    };
+  });
+  assert(etherlinkHotState.firstId === 'etherlink-governance-fast', `governance testing period: active L2 vote must lead What's Hot, saw ${JSON.stringify(etherlinkHotState)}`);
+  assert(etherlinkHotState.href === '/l2chamber/', `governance testing period: L2 hot route mismatch: ${etherlinkHotState.href}`);
+  assert(/L2 VOTE OPEN NOW/.test(etherlinkHotState.text) && /00625d22ab/.test(etherlinkHotState.text) && /Promotion is next/.test(etherlinkHotState.text), `governance testing period: L2 hot copy missing live vote guidance: ${etherlinkHotState.text}`);
+  assert(/\bis-spectacle-historic\b/.test(etherlinkHotState.classes) && /\bis-hot-breaking\b/.test(etherlinkHotState.classes) && etherlinkHotState.spectacle === 'historic', `governance testing period: L2 hot alert should use the boldest treatment: ${JSON.stringify(etherlinkHotState)}`);
   await expectCount(page, '#chamber-entry-card .card-copy-link[data-copy-hash="#chamber"]', 1, 'governance testing period chamber card link');
   await expectCount(page, '#tezlink-entry-card.chamber-entry-wide .card-copy-link[data-copy-hash="#tezosx"]', 1, 'governance testing period Tezos X card link');
   await expectCount(page, '#etherlink-governance-entry-card.chamber-entry-wide .card-copy-link[data-copy-hash="#l2chamber"]', 1, 'governance testing period Tezos X Governance card link');
@@ -8001,7 +8017,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(/FAST .*00625d22ab/.test(dashboardState.etherlinkEntryDescription), `governance testing period: Tezos X Governance description mismatch: ${dashboardState.etherlinkEntryDescription}`);
   assert(/L2 Governance .*FAST: Proposal quorum met/.test(dashboardState.etherlinkEntryMini), `governance testing period: Tezos X Governance status mismatch: ${dashboardState.etherlinkEntryMini}`);
   assert(/FAST14\.2%\/5%/.test(dashboardState.etherlinkEntryMetrics.replace(/\s+/g, '')), `governance testing period: Tezos X Governance FAST metric mismatch: ${dashboardState.etherlinkEntryMetrics}`);
-  assert(/SLOW(5hago|Noactiveproposal)/.test(dashboardState.etherlinkEntryMetrics.replace(/\s+/g, '')), `governance testing period: Tezos X Governance SLOW metric mismatch: ${dashboardState.etherlinkEntryMetrics}`);
+  assert(/SLOW(5hago|Idle)/.test(dashboardState.etherlinkEntryMetrics.replace(/\s+/g, '')), `governance testing period: Tezos X Governance SLOW metric mismatch: ${dashboardState.etherlinkEntryMetrics}`);
   assert(dashboardState.tezlinkEntryGeometry.pairWideCount === '2', `governance testing period: Tezos X and Tezos X Governance should share the active wide pair: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.metricsRightOfMain && dashboardState.tezlinkEntryGeometry.tapeBelowMetrics, `governance testing period: Tezos X live tape should sit below the metric tiles in the active governance pair: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.metricTruncations.length === 0, `governance testing period: Tezos X metric tiles should not ellipsize while governance is active: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
@@ -8030,6 +8046,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   await page.locator('#etherlink-governance-entry-card .chamber-expand-cue').click();
   await page.locator('#etherlink-governance-modal.active .etherlink-gov-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction((proposal) => document.querySelector('#etherlink-governance-modal .etherlink-gov-proposal-hash')?.textContent?.includes(proposal), ETHERLINK_FAST_PROPOSAL, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelectorAll('#etherlink-governance-modal .etherlink-gov-history-row').length >= 3, null, { timeout: 10000 });
   const etherlinkState = await page.evaluate(() => {
     const modal = document.querySelector('#etherlink-governance-modal');
     const compactText = (selector) => document.querySelector(selector)?.textContent?.trim() || '';
@@ -8044,6 +8061,13 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
         active: button.classList.contains('active')
       })),
       activeTab: document.querySelector('#etherlink-governance-modal [data-etherlink-track].active')?.dataset.etherlinkTrack || '',
+      phaseHero: compactText('#etherlink-governance-phase-hero'),
+      phaseSteps: document.querySelectorAll('#etherlink-governance-phase-hero .governance-phase-step').length,
+      activePhase: document.querySelector('#etherlink-governance-phase-hero .governance-phase-step.active')?.dataset.stage || '',
+      nowText: compactText('#etherlink-governance-now'),
+      nowCards: document.querySelectorAll('#etherlink-governance-now .chamber-now-card').length,
+      watchItems: document.querySelectorAll('#etherlink-governance-now .chamber-now-watch li').length,
+      sourceLinks: document.querySelectorAll('#etherlink-governance-now .etherlink-governance-source-links a').length,
       proposalHash: compactText('#etherlink-governance-modal .etherlink-gov-proposal-hash'),
       threshold: compactText('#etherlink-governance-modal .etherlink-gov-threshold-row'),
       proposalRows: document.querySelectorAll('#etherlink-governance-modal .etherlink-gov-proposal-row').length,
@@ -8084,6 +8108,10 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(etherlinkState.tabsA11y.length === 3 && etherlinkState.tabsA11y.every((tab) => tab.role === 'tab'), `governance testing period: Etherlink tabs need role=tab: ${JSON.stringify(etherlinkState.tabsA11y)}`);
   assert(etherlinkState.tabsA11y.every((tab) => tab.selected === String(tab.active)), `governance testing period: Etherlink tabs aria-selected mismatch: ${JSON.stringify(etherlinkState.tabsA11y)}`);
   assert(etherlinkState.activeTab === 'fast', `governance testing period: Etherlink FAST tab should start active, saw ${etherlinkState.activeTab}`);
+  assert(etherlinkState.phaseSteps === 4 && etherlinkState.activePhase === 'proposal', `governance testing period: Etherlink phase clock mismatch: ${JSON.stringify(etherlinkState)}`);
+  assert(/L2 governance clock/.test(etherlinkState.phaseHero) && /Threshold met/.test(etherlinkState.phaseHero) && /enters Promotion next/.test(etherlinkState.phaseHero), `governance testing period: Etherlink phase guidance missing: ${etherlinkState.phaseHero}`);
+  assert(etherlinkState.nowCards === 3 && etherlinkState.watchItems >= 3 && etherlinkState.sourceLinks === 3, `governance testing period: Etherlink current-state layout incomplete: ${JSON.stringify(etherlinkState)}`);
+  assert(/What is happening now/.test(etherlinkState.nowText) && /QA Baker upvoted/.test(etherlinkState.nowText) && /What to watch next/.test(etherlinkState.nowText) && /Compare L1 governance/.test(etherlinkState.nowText), `governance testing period: Etherlink current-state guidance missing: ${etherlinkState.nowText}`);
   assert(etherlinkState.proposalHash === ETHERLINK_FAST_PROPOSAL, `governance testing period: Etherlink proposal hash mismatch: ${etherlinkState.proposalHash}`);
   assert(/93\.2M XTZ upvotes/.test(etherlinkState.threshold) && /14\.2% \/ 5% required/.test(etherlinkState.threshold), `governance testing period: Etherlink threshold mismatch: ${etherlinkState.threshold}`);
   assert(etherlinkState.proposalRows >= 2, `governance testing period: Etherlink proposal rows missing, saw ${etherlinkState.proposalRows}`);
@@ -8091,7 +8119,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(/Etherlink 6\.1/.test(etherlinkState.historyText), `governance testing period: Etherlink FAST history should include older proposal: ${etherlinkState.historyText.slice(0, 320)}`);
   assert(/Proposalquorum5%/.test(etherlinkState.rules.replace(/\s+/g, '')) && /Period length/.test(etherlinkState.rules), `governance testing period: Etherlink rules panel missing thresholds: ${etherlinkState.rules}`);
   assert(/Track memory/.test(etherlinkState.memory) && /Last proposal/.test(etherlinkState.memory), `governance testing period: Etherlink memory panel missing: ${etherlinkState.memory}`);
-  assert(etherlinkState.timelineRows >= 3 && /Submission/.test(etherlinkState.timelineText), `governance testing period: Etherlink merged timeline missing: ${etherlinkState.timelineText}`);
+  assert(etherlinkState.timelineRows >= 3 && /submission/i.test(etherlinkState.timelineText), `governance testing period: Etherlink merged timeline missing: ${etherlinkState.timelineText}`);
   assert(etherlinkState.timelineStyle?.display === 'grid' && etherlinkState.timelineStyle.columnCount >= 4, `governance testing period: Etherlink timeline rows should use the themed grid, saw ${JSON.stringify(etherlinkState.timelineStyle)}`);
   assert(!/underline/i.test(etherlinkState.timelineStyle?.textDecorationLine || ''), `governance testing period: Etherlink timeline rows should not render as default underlined links: ${JSON.stringify(etherlinkState.timelineStyle)}`);
   assert(!/rgb\(0,\s*0,\s*238\)/.test(etherlinkState.timelineStyle?.color || ''), `governance testing period: Etherlink timeline rows should not render default browser link blue: ${JSON.stringify(etherlinkState.timelineStyle)}`);
@@ -8103,6 +8131,28 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(/auto-refresh 60s/.test(etherlinkState.refreshState), `governance testing period: Etherlink refresh label mismatch: ${etherlinkState.refreshState}`);
   assert(!/rolling over now/i.test(etherlinkState.periodFacts), `governance testing period: Etherlink period facts should not stick at rollover: ${etherlinkState.periodFacts}`);
   assert(etherlinkState.intervalDelays.includes(60000), `governance testing period: Etherlink 60s refresh timer missing: ${etherlinkState.intervalDelays.join(', ')}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const etherlinkMobileState = await page.evaluate(() => {
+    const modal = document.querySelector('#etherlink-governance-modal .etherlink-gov-content');
+    const panels = [
+      document.querySelector('#etherlink-governance-phase-hero'),
+      document.querySelector('#etherlink-governance-now'),
+      document.querySelector('#etherlink-governance-now .chamber-now-grid'),
+      document.querySelector('#etherlink-governance-now .chamber-now-watch')
+    ].filter(Boolean);
+    return {
+      viewportWidth: window.innerWidth,
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      modalOverflow: modal ? modal.scrollWidth - modal.clientWidth : 0,
+      panelOverflows: panels.map((panel) => panel.scrollWidth - panel.clientWidth),
+      tabColumns: window.getComputedStyle(document.querySelector('#etherlink-governance-modal .etherlink-gov-tabs')).gridTemplateColumns.split(' ').filter(Boolean).length,
+      phaseColumns: window.getComputedStyle(document.querySelector('#etherlink-governance-phase-hero .governance-phase-stepper')).gridTemplateColumns.split(' ').filter(Boolean).length
+    };
+  });
+  assert(etherlinkMobileState.pageOverflow <= 2 && etherlinkMobileState.modalOverflow <= 2 && etherlinkMobileState.panelOverflows.every((value) => value <= 2), `governance testing period: Etherlink mobile current-state panels overflow: ${JSON.stringify(etherlinkMobileState)}`);
+  assert(etherlinkMobileState.tabColumns === 3 && etherlinkMobileState.phaseColumns === 4, `governance testing period: Etherlink mobile governance clock or tabs collapsed incorrectly: ${JSON.stringify(etherlinkMobileState)}`);
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   await page.locator('#etherlink-governance-modal [data-etherlink-track="slow"]').click();
   const etherlinkSlowState = await page.evaluate(() => ({

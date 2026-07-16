@@ -2328,7 +2328,7 @@ function renderHotSignal(signal, index) {
       <span class="hot-today-species-mark" aria-hidden="true"><span></span><span></span><span></span></span>
   `;
   const cardMarkup = `
-    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${milestoneAttributes} aria-label="${escapeHtml(ariaLabel)}">
+    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${milestoneAttributes} aria-label="${escapeHtml(ariaLabel)}">
       ${speciesMark}
       <span class="hot-today-rank">${escapeHtml(signal.icon)}</span>
       <span class="hot-today-copy">
