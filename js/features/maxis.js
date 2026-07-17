@@ -9,8 +9,9 @@ import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessib
 
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
+const L2_GOVERNANCE_DATA_URL = '/data/maxis-l2-governance.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=446';
+const MAXIS_CSS_URL = '/css/maxis.css?v=447';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -28,6 +29,7 @@ const CATEGORY_ORDER = [
     'staking',
     'delegation',
     'governance',
+    'l2_governance',
     'collector',
     'artist',
     'minter',
@@ -44,7 +46,12 @@ const CATEGORY_ALIASES = {
     mint: 'minter',
     minting: 'minter',
     transactions: 'transaction',
+    l1_governance: 'governance',
+    l2: 'l2_governance',
+    etherlink_governance: 'l2_governance',
+    tezos_x_governance: 'l2_governance',
     governance_maxi: 'governance',
+    l2_governance_maxi: 'l2_governance',
     collector_maxi: 'collector',
     unicorn_maxi: 'unicorn'
 };
@@ -56,6 +63,7 @@ const CATEGORY_ICONS = {
     defi: '⇄',
     gaming: '▲',
     governance: '✓',
+    l2_governance: 'X',
     staking: '⬡',
     delegation: '⌁',
     liquidity: '≈',
@@ -70,7 +78,8 @@ const CATEGORY_LABELS = {
     minter: 'Mint',
     defi: 'DeFi',
     gaming: 'Gaming',
-    governance: 'Governance',
+    governance: 'L1 Governance',
+    l2_governance: 'L2 Governance',
     staking: 'Staking',
     delegation: 'Delegation',
     liquidity: 'Liquidity',
@@ -87,9 +96,13 @@ const VIEW_META = {
 
 let legacyPromise = null;
 let careerPromise = null;
+let l2GovernancePromise = null;
 let manifestPromise = null;
+let lastLegacyBase = null;
 let lastLegacy = null;
 let lastCareer = null;
+let lastL2Governance = null;
+let l2GovernanceLoaded = false;
 let lastManifest = null;
 const summaryCache = new Map();
 const shardCache = new Map();
@@ -101,6 +114,7 @@ let initComplete = false;
 let requestSerial = 0;
 let summaryRequestSerial = 0;
 let archiveRequestSerial = 0;
+let l2GovernanceRequestSerial = 0;
 
 const chamberState = {
     view: 'maxis',
@@ -110,6 +124,8 @@ const chamberState = {
     legacy: null,
     careers: null,
     careerError: '',
+    l2Governance: null,
+    l2GovernanceError: '',
     manifest: null,
     manifestLoading: false,
     manifestError: '',
@@ -210,6 +226,20 @@ function viewUsesLane(view = chamberState.view) {
 function categoryLabel(category) {
     const key = canonicalCategory(category);
     return CATEGORY_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) || 'Maxi';
+}
+
+function ongoingLaneTitle(lane, category) {
+    const key = canonicalCategory(category);
+    if (key === 'governance') return 'L1 Governance Maxi';
+    if (key === 'l2_governance') return 'L2 Governance Maxi';
+    return textValue(lane?.title, `${categoryLabel(key)} Maxi`);
+}
+
+function governanceLayer(category) {
+    const key = canonicalCategory(category);
+    if (key === 'governance') return 'L1';
+    if (key === 'l2_governance') return 'L2';
+    return '';
 }
 
 function shortAddress(address) {
@@ -339,19 +369,204 @@ async function verifyPassportShardText(raw, expectedHash, shard) {
     }
 }
 
+async function assertL2GovernanceArtifact(artifact) {
+    if (Number(artifact?.schema) !== 1 || artifact?.kind !== 'maxis-l2-governance-careers'
+        || artifact?.coverage?.status !== 'complete' || artifact?.coverage?.absenceMeansZero !== true
+        || !Array.isArray(artifact?.rankings) || artifact.rankings.length > 10
+        || !artifact?.records || typeof artifact.records !== 'object' || Array.isArray(artifact.records)
+        || !artifact?.sourceReceipts || typeof artifact.sourceReceipts !== 'object' || Array.isArray(artifact.sourceReceipts)
+        || !artifact?.contracts || typeof artifact.contracts !== 'object') {
+        throw new Error('The L2 Governance Maxi artifact has an unsupported or incomplete schema.');
+    }
+    const ranks = new Set();
+    const addresses = new Set();
+    artifact.rankings.forEach((entry, index) => {
+        const rank = Number(entry?.rank);
+        const address = String(entry?.address || '');
+        if (entry?.status !== 'ready' || canonicalCategory(entry?.category) !== 'l2_governance'
+            || !Number.isInteger(rank) || rank !== index + 1
+            || !/^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
+            || ranks.has(rank) || addresses.has(address.toLowerCase())) {
+            throw new Error('The L2 Governance Maxi top-ten ranking has an invalid identity or rank receipt.');
+        }
+        ranks.add(rank);
+        addresses.add(address.toLowerCase());
+    });
+    const { integrity, ...unsigned } = artifact;
+    if (integrity?.algorithm !== 'sha256-stable-json-v1' || !integrity?.contentHash) {
+        throw new Error('The L2 Governance Maxi artifact has no integrity receipt.');
+    }
+    if (!globalThis.crypto?.subtle || typeof TextEncoder === 'undefined') {
+        throw new Error('This browser cannot verify L2 Governance Maxi integrity because Web Crypto is unavailable.');
+    }
+    const contentHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
+    if (contentHash.toLowerCase() !== String(integrity.contentHash).toLowerCase()) {
+        throw new Error('The L2 Governance Maxi artifact failed its SHA-256 integrity receipt.');
+    }
+    return artifact;
+}
+
+function l2GovernanceMethod(artifact, entry) {
+    return textValue(
+        entry?.method,
+        artifact?.method,
+        'Most distinct canonical Tezos X governance windows participated in among currently active Tezos delegates. Baker receipts own identity even when a delegated voting key submits the call; raw calls and vote weight do not change the score.'
+    );
+}
+
+function l2GovernanceScoreVector(entry) {
+    if (Array.isArray(entry?.scoreVector)) return entry.scoreVector;
+    const vector = entry?.scoreVector;
+    if (!vector || typeof vector !== 'object') return [];
+    return [
+        { label: 'Canonical windows', value: numberValue(vector.windows), unit: 'windows' },
+        { label: 'Track breadth', value: numberValue(vector.tracks), unit: 'tracks' },
+        { label: 'Promotion windows', value: numberValue(vector.promotionWindows), unit: 'windows' },
+        { label: 'Applied receipts', value: numberValue(vector.receipts), unit: 'receipts' }
+    ].filter((metric) => metric.value !== null);
+}
+
+function l2GovernanceContractCount(artifact) {
+    if (Array.isArray(artifact?.contracts)) return artifact.contracts.length;
+    if (Array.isArray(artifact?.contracts?.production)) return artifact.contracts.production.length;
+    return Object.values(artifact?.contracts?.current || {}).filter(Boolean).length;
+}
+
+function l2GovernanceUnavailableLane() {
+    const reason = textValue(
+        chamberState.l2GovernanceError,
+        'The independent integrity-checked L2 Governance Maxi artifact is still loading.'
+    );
+    return {
+        category: 'l2_governance',
+        title: 'L2 Governance Maxi',
+        status: 'unavailable',
+        windowKind: 'all-time-active',
+        coverageState: chamberState.l2GovernanceError ? 'scoped unavailable' : 'loading',
+        reason,
+        method: reason,
+        sourceUrl: '/l2chamber/'
+    };
+}
+
+function mergeL2GovernanceIntoLegacy(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return snapshot;
+    const artifact = chamberState.l2Governance;
+    const rows = artifact
+        ? artifact.rankings.map((entry) => {
+            const windows = numberValue(entry?.windows, entry?.actionableWindows, entry?.score);
+            return {
+                ...entry,
+                category: 'l2_governance',
+                title: 'L2 Governance Maxi',
+                status: 'ready',
+                windowKind: 'all-time-active',
+                scoreVector: l2GovernanceScoreVector(entry),
+                scoreLabel: textValue(entry?.scoreLabel, windows !== null ? `${formatNumber(windows)} L2 governance windows` : ''),
+                method: l2GovernanceMethod(artifact, entry),
+                sourceUrl: textValue(entry?.sourceUrl, entry?.address ? `https://tzkt.io/${entry.address}` : '/l2chamber/')
+            };
+        })
+        : [];
+    const lane = artifact
+        ? {
+            ...(rows[0] || {}),
+            category: 'l2_governance',
+            title: 'L2 Governance Maxi',
+            status: rows.length ? 'ready' : 'empty',
+            windowKind: 'all-time-active',
+            coverageState: 'complete',
+            coverage: artifact.coverage,
+            sourceReceipts: artifact.sourceReceipts,
+            contracts: artifact.contracts,
+            generatedAt: artifact.generatedAt,
+            method: l2GovernanceMethod(artifact, rows[0]),
+            reason: rows.length ? '' : 'Complete coverage found no qualifying active-delegate L2 governance participant.'
+        }
+        : l2GovernanceUnavailableLane();
+    const leaders = [
+        ...asArray(snapshot.leaders).filter((entry) => canonicalCategory(entry?.category || entry?.lane) !== 'l2_governance'),
+        lane
+    ];
+    let rankings;
+    if (Array.isArray(snapshot.rankings)) {
+        rankings = [
+            ...snapshot.rankings.filter((entry) => canonicalCategory(entry?.category || entry?.lane || entry?.id) !== 'l2_governance'),
+            { category: 'l2_governance', entries: rows }
+        ];
+    } else {
+        rankings = { ...(snapshot.rankings || {}), l2_governance: rows };
+    }
+    return {
+        ...snapshot,
+        leaders,
+        rankings,
+        coverage: {
+            ...(snapshot.coverage || {}),
+            l2Governance: artifact?.coverage || {
+                status: 'unavailable',
+                absenceMeansZero: false,
+                reason: lane.reason
+            }
+        },
+        sourceReceipts: {
+            ...(snapshot.sourceReceipts || {}),
+            ...(artifact ? { l2Governance: artifact.sourceReceipts } : {})
+        }
+    };
+}
+
+function applyL2GovernanceToLegacy() {
+    if (!lastLegacyBase) return null;
+    lastLegacy = mergeL2GovernanceIntoLegacy(lastLegacyBase);
+    chamberState.legacy = lastLegacy;
+    updateEntryCard(lastLegacy, chamberState.manifest, chamberState.summary);
+    return lastLegacy;
+}
+
 async function loadLegacy({ force = false } = {}) {
     if (lastLegacy && !force) return lastLegacy;
     if (legacyPromise && !force) return legacyPromise;
     legacyPromise = fetchJson(LEGACY_DATA_URL, { force })
         .then((snapshot) => {
             if (!Array.isArray(snapshot?.leaders)) throw new Error('The ongoing Maxis snapshot has an unsupported schema.');
-            lastLegacy = snapshot;
-            chamberState.legacy = snapshot;
-            updateEntryCard(snapshot, chamberState.manifest, chamberState.summary);
-            return snapshot;
+            lastLegacyBase = snapshot;
+            return applyL2GovernanceToLegacy();
         })
         .finally(() => { legacyPromise = null; });
     return legacyPromise;
+}
+
+async function loadL2GovernanceData({ force = false } = {}) {
+    if (l2GovernanceLoaded && !force) return lastL2Governance;
+    if (l2GovernancePromise && !force) return l2GovernancePromise;
+    const serial = ++l2GovernanceRequestSerial;
+    const request = fetchJson(L2_GOVERNANCE_DATA_URL, { force })
+        .then(assertL2GovernanceArtifact)
+        .then((artifact) => {
+            if (serial !== l2GovernanceRequestSerial) return lastL2Governance;
+            lastL2Governance = artifact;
+            chamberState.l2Governance = artifact;
+            chamberState.l2GovernanceError = '';
+            applyL2GovernanceToLegacy();
+            return artifact;
+        })
+        .catch((error) => {
+            if (serial !== l2GovernanceRequestSerial) return lastL2Governance;
+            lastL2Governance = null;
+            chamberState.l2Governance = null;
+            chamberState.l2GovernanceError = textValue(error?.message, 'L2 Governance Maxi history is temporarily unavailable.');
+            applyL2GovernanceToLegacy();
+            console.debug('Optional L2 Governance Maxi data unavailable', error);
+            return null;
+        })
+        .finally(() => {
+            if (serial !== l2GovernanceRequestSerial) return;
+            l2GovernanceLoaded = true;
+            l2GovernancePromise = null;
+        });
+    l2GovernancePromise = request;
+    return request;
 }
 
 async function loadCareerData({ force = false } = {}) {
@@ -929,7 +1144,7 @@ function renderMaxisHero() {
         <header class="maxis-protocol-hero maxis-context-hero maxis-maxis-hero chamber-anim-fade">
             <div class="maxis-protocol-kicker"><span>Tezos Maxis</span> objective identities · honest clocks</div>
             <h2 id="maxis-title" class="maxis-protocol-title">Who is a Maxi?</h2>
-            <p class="maxis-protocol-lead">The ongoing records for Tezos collectors, artists, builders, voters, stakers, transactors, and cross-lane Unicorns. These boards do not reset at protocol activation; every identity keeps its own declared clock.</p>
+            <p class="maxis-protocol-lead">The ongoing records for Tezos collectors, artists, builders, L1 and L2 governance voters, stakers, transactors, and cross-lane Unicorns. These boards do not reset at protocol activation; every identity keeps its own declared clock.</p>
             <div class="maxis-season-telemetry" aria-label="Ongoing Maxis snapshot status">
                 <span><strong>${escapeHtml(String(categories.length || '—'))}</strong>Maxi identities</span>
                 <span><strong>${escapeHtml(String(data ? uniqueRankedWallets(data) : '—'))}</strong>ranked wallets</span>
@@ -1240,6 +1455,9 @@ function emptyLaneReason(data, lane, category) {
 function renderLaneBoard(data, category) {
     const ranking = normalizedRanking(data, category).slice(0, 10);
     const lane = leaderForCategory(data, category);
+    const laneTitle = chamberState.view === 'maxis'
+        ? ongoingLaneTitle(lane, category)
+        : textValue(lane?.title, `${categoryLabel(category)} Maxi`);
     const phase = chamberState.view === 'season' ? seasonPhase() : 'active';
     const finalized = phase === 'finalized';
     const settling = phase === 'settling';
@@ -1257,7 +1475,7 @@ function renderLaneBoard(data, category) {
         <article class="maxis-lane-board" data-maxis-board="${escapeHtml(category)}">
             <div class="maxis-lane-board-head">
                 <span class="maxis-lane-mark">${CATEGORY_ICONS[category] || '•'}</span>
-                <span class="maxis-lane-title"><small>${escapeHtml(categoryLabel(category))} lane</small><strong>${escapeHtml(textValue(lane?.title, `${categoryLabel(category)} Maxi`))}</strong></span>
+                <span class="maxis-lane-title"><small>${escapeHtml(categoryLabel(category))} lane</small><strong>${escapeHtml(laneTitle)}</strong></span>
                 <span class="maxis-lane-window">${escapeHtml(windowLabel(lane?.windowKind || lane?.window))}</span>
             </div>
             <p class="maxis-lane-method">${escapeHtml(textValue(lane?.method, 'Objective score over the declared season window. Ties follow the published lane rules.'))}</p>
@@ -1436,7 +1654,9 @@ function renderMaxisIdentityCard(data, category, selected) {
     const lane = leaderForCategory(data, category);
     const ranking = normalizedRanking(data, category);
     const leader = ranking[0];
-    const title = textValue(lane?.title, `${categoryLabel(category)} Maxi`);
+    const title = ongoingLaneTitle(lane, category);
+    const layer = governanceLayer(category);
+    const cardTitle = layer ? title.replace(/^L[12]\s+/, '') : title;
     const clock = windowLabel(lane?.windowKind || lane?.window);
     const unavailable = lane?.status === 'unavailable';
     const leaderCopy = unavailable ? 'Winner withheld' : (leader ? leaderName(leader) : 'Open identity');
@@ -1444,7 +1664,7 @@ function renderMaxisIdentityCard(data, category, selected) {
     return `
         <button class="maxis-crown-card maxis-identity-card${category === selected ? ' is-selected' : ''}" type="button" aria-pressed="${category === selected ? 'true' : 'false'}" aria-controls="maxis-maxis-detail" aria-label="Inspect ${escapeHtml(title)}, ${escapeHtml(clock)} board" data-maxis-lane="${escapeHtml(category)}" data-maxis-overview-lane="${escapeHtml(category)}">
             <span class="maxis-identity-card-top"><b class="maxis-identity-mark" aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b><span class="maxis-identity-clock"><b aria-hidden="true">◷</b>${escapeHtml(clock)}</span></span>
-            <strong>${escapeHtml(title)}</strong>
+            <strong>${layer ? `<b class="maxis-identity-layer" aria-hidden="true">${escapeHtml(layer)}</b> ` : ''}${escapeHtml(cardTitle)}</strong>
             <span class="maxis-identity-leader">${escapeHtml(leaderCopy)}</span>
             <small>${escapeHtml(scoreCopy)}</small>
             <span class="maxis-identity-cta">Inspect top 10 <b aria-hidden="true">→</b></span>
@@ -1459,9 +1679,9 @@ function renderGovernanceProtocolContext() {
             ? `The protocol pulse is scoped unavailable: ${chamberState.careerError}`
             : 'The independent protocol pulse is still loading.';
         return `
-            <aside class="maxis-governance-context is-unavailable" aria-label="Current protocol Governance context">
-                <div><span>Protocol pulse</span><strong>Seasonal Governance is episodic</strong></div>
-                <p>${escapeHtml(reason)} The all-time-active Governance Maxi board remains the canonical crown.</p>
+            <aside class="maxis-governance-context is-unavailable" aria-label="Current protocol L1 Governance context">
+                <div><span>L1 protocol pulse</span><strong>Seasonal L1 Governance is episodic</strong></div>
+                <p>${escapeHtml(reason)} The all-time-active L1 Governance Maxi board remains the canonical crown.</p>
             </aside>
         `;
     }
@@ -1485,9 +1705,44 @@ function renderGovernanceProtocolContext() {
         explanation = textValue(context.reason, 'The protocol-season receipt is incomplete.');
     }
     return `
-        <aside class="maxis-governance-context" aria-label="Current protocol Governance context">
-            <div><span>Protocol pulse · separate clock</span><strong>${escapeHtml(headline)}</strong></div>
-            <p>${escapeHtml(explanation)} The all-time-active Governance Maxi board remains the canonical crown; a protocol-season award appears only when that episode has qualifying activity.</p>
+        <aside class="maxis-governance-context" aria-label="Current protocol L1 Governance context">
+            <div><span>L1 protocol pulse · separate clock</span><strong>${escapeHtml(headline)}</strong></div>
+            <p>${escapeHtml(explanation)} The all-time-active L1 Governance Maxi board remains the canonical crown; a protocol-season award appears only when that episode has qualifying activity.</p>
+        </aside>
+    `;
+}
+
+function renderL2GovernanceContext() {
+    const artifact = chamberState.l2Governance;
+    if (!artifact) {
+        const reason = textValue(
+            chamberState.l2GovernanceError,
+            'The independent integrity-checked L2 governance artifact is still loading.'
+        );
+        return `
+            <aside class="maxis-governance-context maxis-l2-governance-context has-action is-unavailable" aria-label="Tezos X L2 Governance context">
+                <div><span>Tezos X · FAST / SLOW / SEQUENCER</span><strong>L2 Governance Maxi is scoped unavailable</strong></div>
+                <p>${escapeHtml(reason)} L1 Governance, protocol Seasons, and archived Champions remain independent.</p>
+                <a class="maxis-governance-context-action" href="/l2chamber/">Open L2 Chamber <b aria-hidden="true">→</b></a>
+            </aside>
+        `;
+    }
+    const coverage = artifact.coverage || {};
+    const tracks = asArray(coverage.tracks).map((track) => String(track).toUpperCase()).filter(Boolean);
+    const windows = numberValue(coverage.actionableWindows, coverage.windows, artifact?.periodLedger?.count);
+    const participants = numberValue(coverage.participantCount, artifact?.totals?.participatingBakers, artifact.recordCount, Object.keys(artifact.records || {}).length) || 0;
+    const contracts = l2GovernanceContractCount(artifact);
+    const generated = formatDate(artifact.generatedAt);
+    const scope = [
+        windows !== null ? `${formatNumber(windows)} canonical windows` : '',
+        `${formatNumber(participants)} participating bakers`,
+        contracts ? `${formatNumber(contracts)} contracts` : ''
+    ].filter(Boolean).join(' · ');
+    return `
+        <aside class="maxis-governance-context maxis-l2-governance-context has-action" aria-label="Tezos X L2 Governance context">
+            <div><span>Tezos X · ${escapeHtml(tracks.join(' / ') || 'FAST / SLOW / SEQUENCER')}</span><strong>Baker participation across L2 governance</strong></div>
+            <p>${escapeHtml(scope)}${generated ? ` · verified ${escapeHtml(generated)}` : ''}. Score counts distinct canonical track, contract, period, and phase windows attributed to represented baker accounts. Delegated voting-key calls belong to their baker; raw calls and vote weight never change the score.</p>
+            <a class="maxis-governance-context-action" href="/l2chamber/">Open L2 Chamber <b aria-hidden="true">→</b></a>
         </aside>
     `;
 }
@@ -1503,8 +1758,9 @@ function renderMaxisPanel() {
             ${categoriesFor(data).map((identity) => renderMaxisIdentityCard(data, identity, category)).join('')}
         </section>
         <div class="maxis-maxis-detail" id="maxis-maxis-detail" tabindex="-1" aria-label="${escapeHtml(categoryLabel(category))} detailed board">
-            <div class="maxis-detail-heading"><span>Detailed board</span><strong>${escapeHtml(textValue(lane?.title, `${categoryLabel(category)} Maxi`))}</strong><small>◷ ${escapeHtml(windowLabel(lane?.windowKind || lane?.window))}</small></div>
+            <div class="maxis-detail-heading"><span>Detailed board</span><strong>${escapeHtml(ongoingLaneTitle(lane, category))}</strong><small>◷ ${escapeHtml(windowLabel(lane?.windowKind || lane?.window))}</small></div>
             ${category === 'governance' ? renderGovernanceProtocolContext() : ''}
+            ${category === 'l2_governance' ? renderL2GovernanceContext() : ''}
             <div class="maxis-season-stage">
                 ${renderLaneBoard(data, category)}
                 ${renderHonorsPanel(data, category, { ongoing: true })}
@@ -2083,7 +2339,7 @@ function renderOngoingCrownRecords(address) {
     }
     return records.map(({ category, lane, entry }) => `
         <div class="maxis-passport-lane maxis-career-crown">
-            <div class="maxis-passport-lane-head"><strong>${CATEGORY_ICONS[category] || '•'} ${escapeHtml(textValue(lane?.title, `${categoryLabel(category)} Maxi`))}</strong><span>${escapeHtml(windowLabel(lane?.windowKind || entry?.windowKind))}</span></div>
+            <div class="maxis-passport-lane-head"><strong>${CATEGORY_ICONS[category] || '•'} ${escapeHtml(ongoingLaneTitle(lane, category))}</strong><span>${escapeHtml(windowLabel(lane?.windowKind || entry?.windowKind))}</span></div>
             <p><strong>#${escapeHtml(String(entry.rank))} · ${escapeHtml(scoreLabel(entry))}</strong> on the current canonical board.</p>
         </div>
     `).join('');
@@ -2134,9 +2390,9 @@ function renderGovernanceCareer(address) {
     const record = governanceCareerRecord(address);
     if (!record) {
         const reason = chamberState.careerError
-            ? `Career governance is scoped unavailable: ${chamberState.careerError}`
-            : 'Career governance is loading independently of this season Passport.';
-        return `<div class="maxis-passport-lane maxis-governance-career is-unavailable"><div class="maxis-passport-lane-head"><strong>✓ Governance career</strong><span>scoped</span></div><p>${escapeHtml(reason)}</p></div>`;
+            ? `L1 governance career is scoped unavailable: ${chamberState.careerError}`
+            : 'L1 governance career is loading independently of this season Passport.';
+        return `<div class="maxis-passport-lane maxis-governance-career maxis-l1-governance-career is-unavailable"><div class="maxis-passport-lane-head"><strong><span class="maxis-civic-layer">L1</span> Governance career</strong><span>scoped</span></div><p>${escapeHtml(reason)}</p></div>`;
     }
     const actions = numberValue(record.lifetimeActions) || 0;
     const ballots = numberValue(record.lifetimeBallots) || 0;
@@ -2147,10 +2403,70 @@ function renderGovernanceCareer(address) {
     const rank = numberValue(record.activeDelegateGovernanceRank);
     const lastActivity = formatDate(record.lastGovernanceActivityAt);
     return `
-        <div class="maxis-passport-lane maxis-governance-career">
-            <div class="maxis-passport-lane-head"><strong>✓ Governance career</strong><span>all history</span></div>
+        <div class="maxis-passport-lane maxis-governance-career maxis-l1-governance-career">
+            <div class="maxis-passport-lane-head"><strong><span class="maxis-civic-layer">L1</span> Governance career</strong><span>all history</span></div>
             <p><strong>${escapeHtml(formatNumber(actions))} applied actions</strong> · ${escapeHtml(formatNumber(ballots))} ballots · ${escapeHtml(formatNumber(proposals))} proposals across ${escapeHtml(formatNumber(periods))} actionable periods.</p>
             <p><strong>Completed ballot-period streak</strong> · ${escapeHtml(formatNumber(currentStreak))} current · ${escapeHtml(formatNumber(longestStreak))} personal best.</p>
+            <p>${rank ? `<strong>#${escapeHtml(formatNumber(rank))} among active delegates</strong>` : 'Not currently ranked among active delegates'}${lastActivity ? ` · last action ${escapeHtml(lastActivity)}` : ''}.</p>
+        </div>
+    `;
+}
+
+function l2GovernanceCareerRecord(address) {
+    const artifact = chamberState.l2Governance;
+    const target = String(address || '');
+    if (!artifact || !target) return null;
+    const direct = artifact.records?.[target];
+    if (direct) return direct;
+    const matchedKey = Object.keys(artifact.records || {}).find((key) => key.toLowerCase() === target.toLowerCase());
+    if (matchedKey) return artifact.records[matchedKey];
+    if (artifact.coverage?.absenceMeansZero === true) {
+        return {
+            address: target,
+            clock: 'career',
+            windows: 0,
+            proposalWindows: 0,
+            promotionWindows: 0,
+            receipts: 0,
+            tracks: 0,
+            activeDelegate: false,
+            canonicalRank: null,
+            lastActivityAt: null
+        };
+    }
+    return null;
+}
+
+function l2GovernanceTrackCount(record) {
+    if (Array.isArray(record?.tracks)) return record.tracks.length;
+    const direct = numberValue(record?.tracks, record?.trackCount, record?.tracksParticipated);
+    if (direct !== null) return direct;
+    return Object.values(record?.trackBreakdown || record?.trackActivity || {}).filter((track) => {
+        if (!track || typeof track !== 'object') return false;
+        return (numberValue(track.windows, track.actionableWindows, track.receipts) || 0) > 0;
+    }).length;
+}
+
+function renderL2GovernanceCareer(address) {
+    const record = l2GovernanceCareerRecord(address);
+    if (!record) {
+        const reason = chamberState.l2GovernanceError
+            ? `L2 governance career is scoped unavailable: ${chamberState.l2GovernanceError}`
+            : 'L2 governance career is loading independently of L1 and this season Passport.';
+        return `<div class="maxis-passport-lane maxis-l2-governance-career is-unavailable"><div class="maxis-passport-lane-head"><strong><span class="maxis-civic-layer">L2</span> Governance career</strong><span>scoped</span></div><p>${escapeHtml(reason)}</p></div>`;
+    }
+    const windows = numberValue(record.windows, record.lifetimeWindows, record.actionableWindows, record.participatedWindows, record.score) || 0;
+    const proposals = numberValue(record.proposalWindows, record.lifetimeProposalWindows, record.proposals) || 0;
+    const promotions = numberValue(record.promotionWindows, record.lifetimePromotionWindows, record.promotionBallots) || 0;
+    const receipts = numberValue(record.receipts, record.lifetimeReceiptCount, record.appliedReceipts, record.actions) || 0;
+    const tracks = l2GovernanceTrackCount(record);
+    const rank = numberValue(record.canonicalRank, record.activeDelegateL2GovernanceRank, record.activeDelegateGovernanceRank, record.activeDelegateRank);
+    const lastActivity = formatDate(textValue(record.lastL2GovernanceActivityAt, record.lastActivityAt, record.lastActivity));
+    return `
+        <div class="maxis-passport-lane maxis-l2-governance-career">
+            <div class="maxis-passport-lane-head"><strong><span class="maxis-civic-layer">L2</span> Governance career</strong><span>all history</span></div>
+            <p><strong>${escapeHtml(formatNumber(windows))} canonical windows</strong> · ${escapeHtml(formatNumber(proposals))} proposal · ${escapeHtml(formatNumber(promotions))} promotion across ${escapeHtml(formatNumber(tracks))}/3 tracks.</p>
+            <p><strong>${escapeHtml(formatNumber(receipts))} applied receipts</strong> attributed to this represented baker; delegated voting-key senders are not separate identities.</p>
             <p>${rank ? `<strong>#${escapeHtml(formatNumber(rank))} among active delegates</strong>` : 'Not currently ranked among active delegates'}${lastActivity ? ` · last action ${escapeHtml(lastActivity)}` : ''}.</p>
         </div>
     `;
@@ -2196,8 +2512,8 @@ function renderPassportCard(profile, note) {
                 <div class="maxis-passport-lanes maxis-career-records">${renderRecordCards(careerBests, 'No comparable personal best has been recorded across verified season receipts yet.', '◆', 'career')}</div>
                 <div class="maxis-side-heading maxis-passport-section-heading"><strong>Ongoing crown appearances</strong><span>lane-native clocks</span></div>
                 <div class="maxis-passport-lanes maxis-career-records">${renderOngoingCrownRecords(profile?.address)}</div>
-                <div class="maxis-side-heading maxis-passport-section-heading"><strong>Civic record</strong><span>exact applied history</span></div>
-                <div class="maxis-passport-lanes maxis-career-records">${renderGovernanceCareer(profile?.address)}</div>
+                <div class="maxis-side-heading maxis-passport-section-heading"><strong>Civic record</strong><span>separate L1 + L2 clocks</span></div>
+                <div class="maxis-passport-lanes maxis-career-records maxis-civic-records">${renderGovernanceCareer(profile?.address)}${renderL2GovernanceCareer(profile?.address)}</div>
                 ${renderLocalPassportRitual(profile?.address)}
             </section>
             <section class="maxis-passport-scope maxis-passport-season" aria-labelledby="maxis-passport-season-title">
@@ -2516,6 +2832,7 @@ function renderMethodology() {
             <summary>Rules, coverage, and identity</summary>
             <div class="maxis-methodology-body">
                 <p>Maxis identities keep their lane-specific live, rolling, all-time, all-time-active, or cross-lane clocks. Protocol Season ranks use activation-bounded score sheets. A Passport follows one explicit address; wallets are never silently merged.</p>
+                <p>Ongoing L1 and L2 Governance are separate all-time-active civic records. L2 scores distinct canonical Tezos X governance windows attributed to represented bakers; raw calls and vote weight do not change rank. L2 is not retrofitted into frozen protocol Seasons or Champions.</p>
                 <p>Pass gaps publish two different receipts: the primary-metric guarantee is actionable and strictly clears the frozen target; a conservative static-vector path compares only the frozen score vectors and is never a live minimum because other wallets can move.</p>
                 <p>${escapeHtml(caveat)}</p>
                 ${receipts.length ? `<div class="maxis-methodology-facts">${receipts.map(([key, receipt]) => {
@@ -2838,7 +3155,8 @@ async function openPassport(rawAddress, { usesSaved = false, inputLabel = '' } =
         [result, career] = await Promise.all([
             loadPassportProfile(status.address),
             loadPassportCareer(status.address),
-            loadCareerData()
+            loadCareerData(),
+            loadL2GovernanceData()
         ]);
     } catch (error) {
         if (serial !== requestSerial) return;
@@ -3089,9 +3407,9 @@ function renderEntryContents(legacy, manifest, summary) {
             <div class="maxis-entry-season-copy maxis-entry-maxis-copy">
                 <span class="maxis-entry-season-label">✺ Ongoing Tezos identities</span>
                 <div class="maxis-entry-season-title" id="maxis-entry-title">Tezos Maxis</div>
-                <p>Live, rolling, and all-time records for the chain’s collectors, creators, builders, voters, stakers, transactors, and cross-lane Unicorns.</p>
+                <p>Live, rolling, and all-time Tezos records for creators, builders, L1/L2 voters, stakers, transactors, and cross-lane Unicorns.</p>
                 <div class="maxis-entry-identity-strip" aria-label="Tezos Maxi identities">
-                    ${identities.map((category) => `<span><b aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b><span class="maxis-entry-identity-name">${escapeHtml(categoryLabel(category))}</span><small>${escapeHtml(windowLabel(leaderForCategory(legacyData, category)?.windowKind))}</small></span>`).join('')}
+                    ${identities.map((category) => `<span data-maxis-entry-identity="${escapeHtml(category)}"><b aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b><span class="maxis-entry-identity-name">${escapeHtml(categoryLabel(category))}</span><small>${escapeHtml(windowLabel(leaderForCategory(legacyData, category)?.windowKind))}</small></span>`).join('')}
                 </div>
                 <div class="maxis-entry-season-meta">
                     <span><strong>${escapeHtml(String(identities.length || '—'))}</strong> identities</span>
@@ -3227,14 +3545,19 @@ async function refreshChamber({ force = false } = {}) {
     `;
     if (force) {
         archiveRequestSerial += 1;
+        lastLegacyBase = null;
         lastLegacy = null;
         lastCareer = null;
+        lastL2Governance = null;
+        l2GovernanceLoaded = false;
         lastManifest = null;
         summaryCache.clear();
         shardCache.clear();
         shardRequestCache.clear();
         chamberState.careers = null;
         chamberState.careerError = '';
+        chamberState.l2Governance = null;
+        chamberState.l2GovernanceError = '';
         chamberState.manifestError = '';
         chamberState.archives = null;
         chamberState.archivesLoading = false;
@@ -3258,6 +3581,7 @@ async function refreshChamber({ force = false } = {}) {
     syncRouteState();
     const manifestTask = loadManifest({ force });
     const careerTask = loadCareerData({ force });
+    const l2GovernanceTask = loadL2GovernanceData({ force });
     let legacyError = null;
     try {
         chamberState.legacy = await loadLegacy({ force });
@@ -3288,7 +3612,7 @@ async function refreshChamber({ force = false } = {}) {
     chamberState.summaryError = summaryError
         ? textValue(summaryError?.message, 'The selected season summary could not be verified.')
         : (!manifest && chamberState.manifestError ? chamberState.manifestError : '');
-    await careerTask;
+    await Promise.all([careerTask, l2GovernanceTask]);
     if (!chamberState.legacy && !chamberState.summary) {
         renderError(body, legacyError || summaryError || new Error('No valid Maxis data source answered.'));
         return;
@@ -3373,12 +3697,14 @@ export function closeMaxisChamber() {
 
 async function progressiveEntryLoad() {
     const manifestTask = loadManifest();
+    const l2GovernanceTask = loadL2GovernanceData();
     try {
         const legacy = await loadLegacy();
         updateEntryCard(legacy, null, null);
     } catch (error) {
         console.debug('Tezos Maxis ongoing snapshot unavailable', error);
     }
+    await l2GovernanceTask;
     const manifest = await manifestTask;
     if (!manifest) {
         chamberState.entrySummaryLoading = false;

@@ -52,6 +52,7 @@ tezos.systems/
 │   │   ├── app.js                     # App orchestration, DOM wiring, refresh loop
 │   │   ├── api.js                     # TzKT, Octez RPC, Supabase, Tezos data fetches
 │   │   ├── config.js                  # Endpoints, refresh intervals, constants
+│   │   ├── etherlink-governance-contracts.mjs # Reviewed L2 governance lineage
 │   │   ├── tzkt-throttle.js           # Browser-local TzKT request pacing
 │   │   ├── protocol-count.js          # Human-facing upgrade count convention
 │   │   ├── wallet.js                  # Lazy Octez.Connect wallet bridge
@@ -69,6 +70,7 @@ tezos.systems/
 │   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
+│   ├── maxis-l2-governance.json         # Exact all-history Etherlink governance careers
 │   ├── maxis-leaders.json              # Generated canonical lane-native-clock Maxis snapshot
 │   ├── maxis/
 │   │   ├── manifest.json               # Protocol-season index and active season
@@ -95,7 +97,9 @@ tezos.systems/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
 │   ├── refresh-maxis-data.mjs         # Canonical Maxis and protocol-season artifacts
 │   ├── refresh-maxis-careers.mjs      # Canonical governance career history
+│   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
+│   ├── lib/maxis-l2-governance.mjs     # Etherlink career scoring and validation
 │   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
 │   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
 │   ├── lib/maxis-source-v2.mjs        # Immutable v2 source/query and build adapter
@@ -355,6 +359,22 @@ inline modal styles in `js/core/app.js`.
   proposal against the complete voting-period ledger, exposing lifetime actions,
   participated periods, longest/current ballot-period streaks, last activity,
   and current active-delegate rank without changing any frozen season evaluator.
+- L2 Governance is a second, independent all-time-active crown. A represented
+  baker earns one participation unit for each distinct completed official
+  Etherlink FAST, SLOW, or Sequencer proposal/Promotion window in which the
+  complete TzKT governance big-map state contains that baker. Extra proposal
+  upvotes, authored proposals, ballot choice, voting power, and repeated
+  receipts never multiply the window score. The official Etherlink
+  `/api/{track}/pastPeriods` ledgers define the canonical production windows;
+  TzKT big-map inventories and every key in the matching participant maps prove
+  applied participation. Identity comes from the represented baker stored in
+  those maps, never the transaction sender, so a delegated voting key remains
+  attributed to its baker. Career records retain inactive bakers, while the
+  crown ranks only the complete current active-delegate set by distinct windows,
+  then track breadth, Promotion windows, receipt count, recency, and address.
+  `data/maxis-l2-governance.json` and its Passport career card remain outside
+  the immutable v2 protocol-season evaluator: they do not alter Season,
+  Season Unicorn, frozen Passport shards, or Champions.
 - Maxi Passport is the address-level progression view. It accepts an explicit
   address, a `.tez` name or subdomain, or the saved My Tezos address without
   changing that saved identity. Domain lookups prefer the configured forward
@@ -370,7 +390,8 @@ inline modal styles in `js/core/app.js`.
   later protocol seasons do not overwrite earlier receipts. My Tezos exposes a
   direct Passport handoff for the active saved address.
 - The canonical Maxis room reads the generated `data/maxis-leaders.json`
-  lane-native-clock snapshot. Champions reads finalized protocol-season
+  lane-native-clock snapshot plus the independently integrity-checked
+  `data/maxis-l2-governance.json` crown. Champions reads finalized protocol-season
   archives and preserves past winners, exposing the champion address and score,
   Ledger Flow trail, source receipt, final standings, and frozen rules for each
   result. At activation the new season opens at
@@ -636,11 +657,17 @@ if a third-party parser is temporarily unavailable. `npm run refresh:nakamoto`
 forces that source refresh directly. `npm run refresh:maxis` forces both the canonical
 lane-native-clock Maxis snapshot and the protocol-season manifest, active-season
 summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
-`npm run refresh:maxis-careers` refreshes the separate exact all-history
+`npm run refresh:maxis-careers` refreshes the separate exact all-history L1
 Governance career artifact; `npm run check:maxis-careers` validates its source
-receipts and content hash without a network scan. Normal pre-commit runs
+receipts and content hash without a network scan.
+`npm run refresh:maxis-l2-governance` rebuilds the independent L2 career and
+all-time-active crown from official canonical period ledgers plus complete TzKT
+big-map receipts; `npm run check:maxis-l2-governance` validates its coverage,
+reconstructed standings, and stable content hash without a network scan.
+Normal pre-commit runs
 validate committed Maxis artifacts without rescanning chain activity, while
-scheduled/full generated runs refresh them. After a protocol change, the ending
+scheduled/full generated runs refresh the L2 career before the remaining Maxis
+family and stage its artifact when requested. After a protocol change, the ending
 season waits concurrently with the new active board through the declared
 24-hour source-settlement guard and is rebuilt to the exact activation boundary
 before becoming an immutable archive; its
@@ -734,6 +761,8 @@ npm run refresh:maxis
 npm run check:maxis
 npm run refresh:maxis-careers
 npm run check:maxis-careers
+npm run refresh:maxis-l2-governance
+npm run check:maxis-l2-governance
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare

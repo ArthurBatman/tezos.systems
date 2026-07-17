@@ -4,6 +4,13 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import {
+    ETHERLINK_GOVERNANCE_CURRENT_CONTRACTS as GOVERNANCE_CURRENT_CONTRACTS,
+    ETHERLINK_GOVERNANCE_HISTORY_CODE_HASH_TRACKS as GOVERNANCE_HISTORY_CODE_HASH_TRACKS,
+    ETHERLINK_GOVERNANCE_PRODUCTION_CONTRACTS as GOVERNANCE_PRODUCTION_CONTRACTS,
+    ETHERLINK_GOVERNANCE_TRACKS as TRACK_TEMPLATES,
+    classifyEtherlinkGovernanceTrack
+} from '../core/etherlink-governance-contracts.mjs';
 import { escapeHtml, formatUtcDateTime, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -21,42 +28,8 @@ const ACCOUNT_LOOKUP_BATCH_SIZE = 50;
 const RECEIPT_LEVEL_BATCH_SIZE = 80;
 const GOVERNANCE_BASE = 'https://governance.etherlink.com/governance';
 const GOVERNANCE_DOCS = 'https://docs.etherlink.com/governance/how-is-etherlink-governed/';
-const GOVERNANCE_CONTRACT_CREATOR = 'tz1VGpuq8GkCwf4x6MupTz6QAcJLivQcaAsb';
 const HISTORICAL_PROPOSAL_SCAN_LIMIT = 32;
 const HISTORICAL_PROPOSALS_PER_TRACK = 4;
-const GOVERNANCE_HISTORY_CODE_HASHES = [
-    1029816579,
-    2062495254,
-    -322739163,
-    368151125
-];
-const GOVERNANCE_HISTORY_CODE_HASH_TRACKS = new Map([
-    ['1029816579', ['fast']],
-    ['2062495254', ['fast', 'slow']],
-    ['-322739163', ['fast', 'slow']],
-    ['368151125', ['sequencer']]
-]);
-
-const TRACK_TEMPLATES = [
-    {
-        key: 'fast',
-        label: 'FAST',
-        description: 'Kernel hotfix and fast-track Tezos X governance.',
-        quorumLabel: '15% promotion quorum'
-    },
-    {
-        key: 'slow',
-        label: 'SLOW',
-        description: 'Longer-window kernel governance for standard upgrades.',
-        quorumLabel: '5% promotion quorum'
-    },
-    {
-        key: 'sequencer',
-        label: 'SEQUENCER',
-        description: 'Sequencer pool and public-key governance.',
-        quorumLabel: '8% promotion quorum'
-    }
-];
 
 const GOVERNANCE_PHASES = [
     { key: 'proposal', label: 'Proposal', detail: 'Bakers submit and upvote a candidate.' },
@@ -270,26 +243,20 @@ function startedAtLevel(storage) {
 }
 
 function classifyTrackKey(storage) {
-    const config = storage?.config || {};
-    const proposalQuorum = toNumber(config.proposal_quorum);
-    const promotionQuorum = toNumber(config.promotion_quorum);
-    const supermajority = toNumber(config.promotion_supermajority);
-    if (!proposalQuorum || !promotionQuorum || !supermajority) return '';
-    if (proposalQuorum === 5 && promotionQuorum === 15) return 'fast';
-    if (promotionQuorum === 5) return 'slow';
-    if (promotionQuorum === 8) return 'sequencer';
-    return '';
+    return classifyEtherlinkGovernanceTrack(storage?.config || {});
 }
 
 async function discoverGovernanceTracks() {
-    const candidates = await fetchJson(`${TZKT}/contracts?creator=${GOVERNANCE_CONTRACT_CREATOR}&limit=16&sort.desc=firstActivity`);
     const byTrack = new Map();
-    const contracts = candidates.filter((contract) => contract?.kind === 'smart_contract' && contract?.address);
-    const storageResults = await Promise.allSettled(contracts.map(async (contract) => {
+    const currentContracts = TRACK_TEMPLATES.map((template) => ({
+        address: GOVERNANCE_CURRENT_CONTRACTS[template.key],
+        expectedTrack: template.key
+    }));
+    const storageResults = await Promise.allSettled(currentContracts.map(async (contract) => {
         try {
             const storage = await fetchJsonWithRetry(`${TZKT}/contracts/${contract.address}/storage`, 3);
             const key = classifyTrackKey(storage);
-            return key ? { key, contract, storage } : null;
+            return key === contract.expectedTrack ? { key, contract, storage } : null;
         } catch (_) {
             // Discovery is best-effort: fallback tracks make the delay visible without breaking the modal.
             return null;
@@ -299,10 +266,7 @@ async function discoverGovernanceTracks() {
         const found = result.status === 'fulfilled' ? result.value : null;
         if (!found) continue;
         targetTrackCache.set(found.contract.address, found.key);
-        const existing = byTrack.get(found.key);
-        if (!existing || startedAtLevel(found.storage) > startedAtLevel(existing.storage)) {
-            byTrack.set(found.key, found);
-        }
+        byTrack.set(found.key, found);
     }
 
     return TRACK_TEMPLATES.map((template) => {
@@ -312,7 +276,7 @@ async function discoverGovernanceTracks() {
             contract: found?.contract?.address || '',
             storage: found?.storage || null,
             discoveredAtLevel: startedAtLevel(found?.storage),
-            source: found ? 'tzkt-discovery' : 'missing'
+            source: found ? 'official-address-verified-by-tzkt' : 'missing'
         };
     });
 }
@@ -444,8 +408,8 @@ async function classifyHistoricalOperation(op) {
 }
 
 async function fetchHistoricalProposalMap() {
-    const url = `${TZKT}/operations/transactions?targetCodeHash.in=${GOVERNANCE_HISTORY_CODE_HASHES.join(',')}&entrypoint=new_proposal&limit=${HISTORICAL_PROPOSAL_SCAN_LIMIT}&sort.desc=level`;
-    const rows = await fetchJson(url);
+    const productionTargets = GOVERNANCE_PRODUCTION_CONTRACTS.map((contract) => contract.address);
+    const rows = await fetchJson(`${TZKT}/operations/transactions?target.in=${productionTargets.join(',')}&entrypoint=new_proposal&limit=${HISTORICAL_PROPOSAL_SCAN_LIMIT}&sort.desc=level`);
     const byTrack = new Map(TRACK_TEMPLATES.map((track) => [track.key, []]));
     const seen = new Set();
 

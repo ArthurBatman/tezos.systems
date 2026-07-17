@@ -2046,7 +2046,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.55rem;
 }
-.maxis-identity-grid { margin-bottom: 0.82rem; }
+.maxis-identity-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin-bottom: 0.82rem;
+}
 .maxis-crown-card,
 .maxis-champion-card {
     position: relative;
@@ -2123,7 +2126,37 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     text-transform: uppercase;
 }
 .maxis-identity-card .maxis-identity-clock b { font-size: 0.64rem; }
-.maxis-identity-card > strong { margin: 0; color: var(--text-primary); font-size: 0.82rem; }
+.maxis-identity-card > strong {
+    display: flex;
+    align-items: center;
+    gap: 0.34rem;
+    min-height: 2.2em;
+    margin: 0;
+    overflow: visible;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    line-height: 1.22;
+    text-overflow: clip;
+    white-space: normal;
+}
+.maxis-identity-layer,
+.maxis-civic-layer {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    min-width: 1.65rem;
+    min-height: 1.25rem;
+    padding: 0.08rem 0.28rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-cyan) 34%, transparent);
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--maxis-cyan) 76%, var(--text-primary));
+    background: color-mix(in srgb, var(--maxis-cyan) 7%, transparent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.52rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    line-height: 1;
+}
 .maxis-identity-card .maxis-identity-leader { margin-top: 0.32rem; color: color-mix(in srgb, var(--maxis-gold) 68%, var(--text-primary)); font-size: 0.68rem; font-weight: 850; }
 .maxis-identity-card > small { margin-top: 0.18rem; color: var(--maxis-readable-muted); font-size: 0.6rem; }
 .maxis-identity-card .maxis-identity-cta {
@@ -2182,6 +2215,33 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-governance-context strong { margin-top: 0.16rem; color: var(--text-primary); font-size: 0.72rem; }
 .maxis-governance-context p { margin: 0; color: var(--maxis-readable-muted); font-size: 0.65rem; line-height: 1.48; }
 .maxis-governance-context.is-unavailable { border-style: dashed; opacity: 0.82; }
+.maxis-governance-context.has-action { grid-template-columns: minmax(12rem, 0.65fr) minmax(0, 1.15fr) auto; }
+.maxis-governance-context-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.32rem;
+    min-height: 40px;
+    padding: 0.48rem 0.68rem;
+    border: 1px solid color-mix(in srgb, var(--maxis-cyan) 34%, transparent);
+    border-radius: 8px;
+    color: color-mix(in srgb, var(--maxis-cyan) 78%, var(--text-primary));
+    background: color-mix(in srgb, var(--maxis-cyan) 7%, transparent);
+    font-size: 0.62rem;
+    font-weight: 900;
+    line-height: 1.15;
+    text-align: center;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.maxis-governance-context-action:is(:hover, :focus-visible) {
+    outline: none;
+    border-color: color-mix(in srgb, var(--maxis-cyan) 62%, transparent);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+.maxis-l2-governance-career { border-color: color-mix(in srgb, var(--maxis-cyan) 18%, rgba(255, 255, 255, 0.055)); }
+.maxis-l2-governance-career.is-unavailable { border-style: dashed; opacity: 0.82; }
 
 .maxis-season-to-maxis {
     min-height: 42px;
@@ -2276,7 +2336,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-entry-season-meta strong { color: var(--maxis-gold); }
 .maxis-entry-identity-strip {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.3rem;
     margin-top: 0.58rem;
 }
@@ -2372,6 +2432,7 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-honors-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.55fr); gap: 0.65rem; }
     .maxis-crown-grid,
     .maxis-champions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .maxis-entry-identity-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .maxis-entry-season-pulse { min-height: 0; }
 }
 
@@ -2441,7 +2502,9 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-identity-card { min-height: 8.5rem; padding: 0.65rem; }
     .maxis-detail-heading { grid-template-columns: minmax(0, 1fr) auto; }
     .maxis-detail-heading > span { grid-column: 1 / -1; }
-    .maxis-governance-context { grid-template-columns: 1fr; gap: 0.38rem; }
+    .maxis-governance-context,
+    .maxis-governance-context.has-action { grid-template-columns: 1fr; gap: 0.38rem; }
+    .maxis-governance-context-action { min-height: 44px; justify-self: stretch; }
     .maxis-footer > span:not(.chamber-footer-sep) {
         display: block;
         max-width: 100%;
@@ -2471,6 +2534,8 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-entry-season-front:not(.maxis-entry-maxis-front) { padding-bottom: 3.7rem !important; }
     .maxis-entry-identity-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .maxis-entry-identity-strip > span:nth-child(n + 5) { display: none; }
+    .maxis-entry-identity-strip > span[data-maxis-entry-identity="l2_governance"] { display: grid; }
+    .maxis-entry-identity-strip > span[data-maxis-entry-identity="delegation"] { display: none; }
     .maxis-entry-season-pulse { padding: 0.56rem; }
     .maxis-entry-race:nth-child(n + 3) { display: none; }
 }

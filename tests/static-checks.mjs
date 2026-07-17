@@ -66,6 +66,14 @@ import {
   buildGovernanceCareerArtifact,
   validateGovernanceCareerArtifact
 } from '../scripts/lib/maxis-governance-career.mjs';
+import {
+  L2_GOVERNANCE_TRACKS,
+  MAXIS_L2_GOVERNANCE_CATEGORY,
+  MAXIS_L2_GOVERNANCE_RANKING_LIMIT,
+  buildL2GovernanceCareerArtifact,
+  extractL2GovernanceReceiptAddresses,
+  validateL2GovernanceCareerArtifact
+} from '../scripts/lib/maxis-l2-governance.mjs';
 import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -222,6 +230,7 @@ async function checkRequiredFiles() {
     'js/core/api.js',
     'js/core/config.js',
     'js/core/site-map.js',
+    'js/core/etherlink-governance-contracts.mjs',
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
     'js/features/governance-alerts.js',
@@ -248,11 +257,13 @@ async function checkRequiredFiles() {
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-maxis-data.mjs',
     'scripts/refresh-maxis-careers.mjs',
+    'scripts/refresh-maxis-l2-governance.mjs',
     'scripts/lib/maxis-artifact-budget.mjs',
     'scripts/lib/maxis-coverage-v2.mjs',
     'scripts/lib/maxis-evaluator-v2-primitives.mjs',
     'scripts/lib/maxis-evaluator-v2.mjs',
     'scripts/lib/maxis-governance-career.mjs',
+    'scripts/lib/maxis-l2-governance.mjs',
     'scripts/lib/maxis-pagination.mjs',
     'scripts/lib/maxis-season.mjs',
     'scripts/lib/maxis-source.mjs',
@@ -264,6 +275,7 @@ async function checkRequiredFiles() {
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-careers.json',
+    'data/maxis-l2-governance.json',
     'data/maxis-leaders.json',
     'data/maxis/manifest.json',
     'maxis/index.html',
@@ -1071,6 +1083,7 @@ async function checkSelectorContracts() {
     const api = await readText('js/core/api.js');
     const tezlink = await readText('js/features/tezlink.js');
   const etherlinkGovernance = await readText('js/features/etherlink-governance.js');
+  const etherlinkGovernanceContracts = await readText('js/core/etherlink-governance-contracts.mjs');
   const tz4 = await readText('js/features/tz4-adoption.js');
   const ctez = await readText('js/features/ctez.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
@@ -1346,7 +1359,10 @@ async function checkSelectorContracts() {
     ['Tezos X Governance direct footer link', 'Direct: /l2chamber/', etherlinkGovernance],
     ['Tezos X Governance chamber wiring', 'openEtherlinkGovernanceChamber', etherlinkGovernance],
     ['Tezos X Governance TzKT discovery', 'discoverGovernanceTracks', etherlinkGovernance],
-    ['Tezos X Governance originator guard', 'GOVERNANCE_CONTRACT_CREATOR', etherlinkGovernance],
+    ['Tezos X Governance shared reviewed registry', 'ETHERLINK_GOVERNANCE_PRODUCTION_CONTRACTS', etherlinkGovernance],
+    ['Tezos X Governance official current Sequencer contract', 'KT1KiVz8ZpHo3HpE1GCP5HLgywPDRwVUkCFh', etherlinkGovernanceContracts],
+    ['Tezos X Governance current registry', 'ETHERLINK_GOVERNANCE_CURRENT_CONTRACTS', etherlinkGovernanceContracts],
+    ['Tezos X Governance shared configuration classifier', 'classifyEtherlinkGovernanceTrack', etherlinkGovernanceContracts],
     ['Tezos X Governance discovery failure copy', 'contract discovery unavailable', etherlinkGovernance],
     ['Tezos X Governance track rules panel', 'id="etherlink-gov-rules"', etherlinkGovernance],
     ['Tezos X Governance track memory panel', 'id="etherlink-gov-memory"', etherlinkGovernance],
@@ -3877,6 +3893,7 @@ async function checkReadmeContracts() {
 async function checkMaxisContracts() {
   const config = JSON.parse(await readText('data/maxis-contracts.json'));
   const careerArtifact = JSON.parse(await readText('data/maxis-careers.json'));
+  const l2GovernanceArtifact = JSON.parse(await readText('data/maxis-l2-governance.json'));
   const snapshot = JSON.parse(await readText('data/maxis-leaders.json'));
   const maxis = await readText('js/features/maxis.js');
   const maxisCss = await readText('css/maxis.css');
@@ -3917,6 +3934,47 @@ async function checkMaxisContracts() {
     fail('maxis canonical Governance board and exact active-delegate career ranks have drifted; refresh both artifacts together');
   }
 
+  const l2GovernanceErrors = validateL2GovernanceCareerArtifact(l2GovernanceArtifact);
+  if (l2GovernanceErrors.length) fail(`maxis L2 Governance career artifact invalid: ${l2GovernanceErrors.join('; ')}`);
+  if (hoursSince(l2GovernanceArtifact.generatedAt) > 72) {
+    fail('maxis L2 Governance career artifact is older than 72 hours; run npm run refresh:maxis-l2-governance');
+  }
+  if (l2GovernanceArtifact?.coverage?.absenceMeansZero !== true
+    || l2GovernanceArtifact?.coverage?.status !== 'complete'
+    || JSON.stringify(l2GovernanceArtifact?.coverage?.tracks) !== JSON.stringify(L2_GOVERNANCE_TRACKS)) {
+    fail('maxis L2 Governance coverage must be complete across the reviewed FAST, SLOW, and Sequencer tracks');
+  }
+  if (l2GovernanceArtifact?.contracts?.current?.sequencer !== 'KT1KiVz8ZpHo3HpE1GCP5HLgywPDRwVUkCFh') {
+    fail('maxis L2 Governance must use the official current Etherlink Sequencer governance contract');
+  }
+  const l2GovernanceRows = l2GovernanceArtifact?.rankings || [];
+  const l2GovernanceRecords = l2GovernanceArtifact?.records || {};
+  if (l2GovernanceRows.length !== MAXIS_L2_GOVERNANCE_RANKING_LIMIT) {
+    fail(`maxis L2 Governance canonical board must contain ${MAXIS_L2_GOVERNANCE_RANKING_LIMIT} accounts`);
+  }
+  const l2GovernanceRankingAddresses = new Set();
+  for (const [index, row] of l2GovernanceRows.entries()) {
+    const record = l2GovernanceRecords[row?.address];
+    if (row?.category !== MAXIS_L2_GOVERNANCE_CATEGORY || Number(row?.rank) !== index + 1
+      || !record?.activeDelegate || Number(record?.activeDelegateL2GovernanceRank) !== index + 1
+      || Number(row?.score) !== Number(record?.lifetimeWindows)) {
+      fail(`maxis L2 Governance canonical rank ${index + 1} does not reconstruct from its active-delegate career record`);
+    }
+    if (l2GovernanceRankingAddresses.has(row?.address)) fail(`maxis L2 Governance canonical board repeats ${row?.address}`);
+    l2GovernanceRankingAddresses.add(row?.address);
+  }
+  const reconstructedL2TopTen = Object.values(l2GovernanceRecords)
+    .filter((record) => Number(record?.activeDelegateL2GovernanceRank) > 0
+      && Number(record.activeDelegateL2GovernanceRank) <= MAXIS_L2_GOVERNANCE_RANKING_LIMIT)
+    .sort((left, right) => Number(left.activeDelegateL2GovernanceRank) - Number(right.activeDelegateL2GovernanceRank));
+  if (reconstructedL2TopTen.length !== l2GovernanceRows.length
+    || reconstructedL2TopTen.some((record, index) => record.address !== l2GovernanceRows[index]?.address)) {
+    fail('maxis L2 Governance canonical top ten has drifted from its exact career ranks');
+  }
+  if (!L2_GOVERNANCE_TRACKS.every((track) => Number(l2GovernanceArtifact?.periodLedger?.trackCounts?.[track]?.periods) > 0)) {
+    fail('maxis L2 Governance committed period ledger must cover every reviewed governance track');
+  }
+
   const configErrors = validateMaxisConfig(config);
   if (configErrors.length) fail(`maxis contract taxonomy invalid: ${configErrors.join('; ')}`);
   if (snapshot.schema !== 2) fail('maxis snapshot schema must be 2');
@@ -3928,6 +3986,9 @@ async function checkMaxisContracts() {
 
   const expectedCategories = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'staking', 'unicorn'];
   const categories = (snapshot.leaders || []).map((leader) => leader.category);
+  if (categories.includes(MAXIS_L2_GOVERNANCE_CATEGORY) || snapshot?.rankings?.[MAXIS_L2_GOVERNANCE_CATEGORY]) {
+    fail('maxis L2 Governance must remain an independently verified career artifact, not mutate the legacy canonical snapshot');
+  }
   if (new Set(categories).size !== categories.length) fail('maxis snapshot categories must be unique');
   for (const category of expectedCategories) {
     if (!categories.includes(category)) fail(`maxis snapshot missing ${category} leader`);
@@ -4126,6 +4187,159 @@ async function checkMaxisContracts() {
     incompleteCareerRejected = true;
   }
   if (!incompleteCareerRejected) fail('maxis Governance career build must refuse incomplete source receipts');
+
+  const addressD = 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9';
+  const l2VotingKey = 'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb';
+  const l2FastContract = 'KT19oUVQPnVLuUBYXrBVd46WJnNAMpqkKSwo';
+  const l2SlowContract = 'KT1AXRU3wLc87WNhLhVGrgqDGubLACUMUgPb';
+  const l2SequencerContract = 'KT1KiVz8ZpHo3HpE1GCP5HLgywPDRwVUkCFh';
+  const completeL2Source = (rows, extra = {}) => ({
+    rows,
+    receipt: { complete: true, truncated: false, rows: rows.length, expectedRows: rows.length, ...extra }
+  });
+  const l2Periods = [
+    { governance: 'fast', contract: l2FastContract, contract_voting_index: 0, startLevel: 100, endLevel: 199, startDateTime: '2026-01-01T00:00:00Z', endDateTime: '2026-01-01T01:00:00Z', proposals: [] },
+    { governance: 'fast', contract: l2FastContract, contract_voting_index: 0, startLevel: 200, endLevel: 299, startDateTime: '2026-01-01T02:00:00Z', endDateTime: '2026-01-01T03:00:00Z', promotion: { yea_voting_power: 1, nay_voting_power: 0, pass_voting_power: 0 } },
+    { governance: 'slow', contract: l2SlowContract, contract_voting_index: 0, startLevel: 300, endLevel: 399, startDateTime: '2026-01-01T04:00:00Z', endDateTime: '2026-01-01T05:00:00Z', proposals: [] },
+    { governance: 'sequencer', contract: l2SequencerContract, contract_voting_index: 0, startLevel: 400, endLevel: 499, startDateTime: '2026-01-01T06:00:00Z', endDateTime: '2026-01-01T07:00:00Z', promotion: { yea_voting_power: 1, nay_voting_power: 0, pass_voting_power: 0 } },
+    { governance: 'slow', contract: l2SlowContract, contract_voting_index: 1, startLevel: 500, endLevel: 599, startDateTime: '2026-01-01T08:00:00Z', endDateTime: '2026-01-01T09:00:00Z', promotion: { yea_voting_power: 0, nay_voting_power: 0, pass_voting_power: 0 } }
+  ];
+  const l2Bigmaps = [
+    { ptr: 101, contract: l2FastContract, path: 'voting_context.period.proposal.upvoters_proposals', firstLevel: 105, lastLevel: 190, totalKeys: 5, active: false },
+    { ptr: 102, contract: l2FastContract, path: 'voting_context.period.proposal.proposals', firstLevel: 106, lastLevel: 190, totalKeys: 2, active: false },
+    { ptr: 103, contract: l2FastContract, path: 'voting_context.period.promotion.voters', firstLevel: 205, lastLevel: 290, totalKeys: 2, active: false },
+    { ptr: 201, contract: l2SlowContract, path: 'voting_context.period.proposal.upvoters_proposals', firstLevel: 305, lastLevel: 390, totalKeys: 3, active: false },
+    { ptr: 202, contract: l2SlowContract, path: 'voting_context.period.proposal.proposals', firstLevel: 306, lastLevel: 390, totalKeys: 1, active: false },
+    { ptr: 301, contract: l2SequencerContract, path: 'voting_context.period.promotion.voters', firstLevel: 405, lastLevel: 490, totalKeys: 3, active: false }
+  ];
+  const l2Keys = [
+    { ptr: 101, id: 1, firstLevel: 110, timestamp: '2026-01-01T00:10:00Z', key: { key_hash: addressA, proposal: '0x01' }, sender: { address: l2VotingKey } },
+    { ptr: 101, id: 2, firstLevel: 120, timestamp: '2026-01-01T00:20:00Z', key: { key_hash: addressA, proposal: '0x02' }, sender: { address: l2VotingKey } },
+    { ptr: 101, id: 3, firstLevel: 130, timestamp: '2026-01-01T00:30:00Z', key: { key_hash: addressB, proposal: '0x01' } },
+    { ptr: 101, id: 4, firstLevel: 130, timestamp: '2026-01-01T00:30:00Z', key: { key_hash: addressD, proposal: '0x01' } },
+    { ptr: 101, id: 5, firstLevel: 140, timestamp: '2026-01-01T00:40:00Z', key: { key_hash: addressC, proposal: '0x01' } },
+    { ptr: 102, id: 6, firstLevel: 115, timestamp: '2026-01-01T00:15:00Z', value: { proposers: [addressA] } },
+    { ptr: 102, id: 7, firstLevel: 145, timestamp: '2026-01-01T00:45:00Z', value: { proposers: [addressC] } },
+    { ptr: 103, id: 8, firstLevel: 220, timestamp: '2026-01-01T02:20:00Z', key: addressA },
+    { ptr: 103, id: 9, firstLevel: 230, timestamp: '2026-01-01T02:30:00Z', key: addressC },
+    { ptr: 201, id: 10, firstLevel: 320, timestamp: '2026-01-01T04:20:00Z', key: { key_hash: addressB, proposal: '0x03' } },
+    { ptr: 201, id: 11, firstLevel: 320, timestamp: '2026-01-01T04:20:00Z', key: { key_hash: addressD, proposal: '0x03' } },
+    { ptr: 201, id: 12, firstLevel: 330, timestamp: '2026-01-01T04:30:00Z', key: { key_hash: addressC, proposal: '0x03' } },
+    { ptr: 202, id: 13, firstLevel: 325, timestamp: '2026-01-01T04:25:00Z', value: { proposers: [addressB] } },
+    { ptr: 301, id: 14, firstLevel: 420, timestamp: '2026-01-01T06:20:00Z', key: addressB },
+    { ptr: 301, id: 15, firstLevel: 420, timestamp: '2026-01-01T06:20:00Z', key: addressD },
+    { ptr: 301, id: 16, firstLevel: 430, timestamp: '2026-01-01T06:30:00Z', key: addressC }
+  ];
+  const l2KeyMapReceipts = l2Bigmaps.map((map) => ({
+    ptr: map.ptr,
+    rows: map.totalKeys,
+    expectedRows: map.totalKeys,
+    complete: true,
+    truncated: false
+  }));
+  const l2CurrentContracts = [
+    { address: l2FastContract, storage: { config: { proposal_quorum: 5, promotion_quorum: 15, promotion_supermajority: 80 } } },
+    { address: l2SlowContract, storage: { config: { proposal_quorum: 1, promotion_quorum: 5, promotion_supermajority: 75 } } },
+    { address: l2SequencerContract, storage: { config: { proposal_quorum: 1, promotion_quorum: 8, promotion_supermajority: 75 } } }
+  ];
+  const l2FixtureInput = {
+    generatedAt: '2026-07-10T00:00:00Z',
+    periods: completeL2Source(l2Periods),
+    bigmaps: completeL2Source(l2Bigmaps),
+    keys: completeL2Source(l2Keys, { perMap: l2KeyMapReceipts }),
+    activeDelegates: completeL2Source([
+      { address: addressA, alias: 'Alpha' },
+      { address: addressB, alias: 'Beta' },
+      { address: addressD, alias: 'Delta' }
+    ]),
+    accounts: completeL2Source([
+      { address: addressA, alias: 'Alpha' },
+      { address: addressB, alias: 'Beta' },
+      { address: addressC, alias: 'Inactive Gamma' },
+      { address: addressD, alias: 'Delta' }
+    ]),
+    currentContracts: completeL2Source(l2CurrentContracts),
+    head: {
+      row: { level: 700, timestamp: '2026-07-10T00:00:00Z' },
+      receipt: { complete: true, level: 700, timestamp: '2026-07-10T00:00:00.000Z' }
+    }
+  };
+  const l2Fixture = buildL2GovernanceCareerArtifact(l2FixtureInput);
+  const l2RepresentedAddresses = extractL2GovernanceReceiptAddresses(l2Periods, l2Bigmaps, l2Keys);
+  if (!l2RepresentedAddresses.includes(addressA) || l2RepresentedAddresses.includes(l2VotingKey)
+    || l2Fixture.records[l2VotingKey]) {
+    fail('maxis L2 Governance must attribute voting-key activity to the represented baker stored in the governance receipt');
+  }
+  if (l2Fixture.records[addressA]?.lifetimeWindows !== 2
+    || l2Fixture.records[addressA]?.lifetimeReceiptCount !== 3
+    || l2Fixture.records[addressA]?.lifetimeProposalWindows !== 1) {
+    fail(`maxis L2 Governance must count multiple proposal upvotes as one window while retaining receipt evidence: ${JSON.stringify(l2Fixture.records[addressA])}`);
+  }
+  const tiedL2Addresses = [addressB, addressD].sort();
+  if (l2Fixture.rankings[0]?.address !== tiedL2Addresses[0]
+    || l2Fixture.rankings[1]?.address !== tiedL2Addresses[1]
+    || l2Fixture.rankings[0]?.scoreVector?.tracks !== 3
+    || l2Fixture.rankings[1]?.scoreVector?.tracks !== 3) {
+    fail(`maxis L2 Governance ties must preserve track breadth and deterministic raw-address ordering: ${JSON.stringify(l2Fixture.rankings)}`);
+  }
+  if (l2Fixture.records[addressC]?.activeDelegate !== false
+    || l2Fixture.records[addressC]?.activeDelegateL2GovernanceRank != null
+    || l2Fixture.rankings.some((row) => row.address === addressC)) {
+    fail('maxis L2 Governance must retain inactive careers without admitting them to the all-time-active crown');
+  }
+  const zeroVoteL2Period = l2Fixture.periodLedger.periods.find((period) => period.id === `slow:${l2SlowContract}:1:promotion`);
+  if (!zeroVoteL2Period?.officialZeroParticipation || zeroVoteL2Period?.bigmapPtrs?.participants !== null
+    || zeroVoteL2Period?.participantBakers !== 0 || zeroVoteL2Period?.participantReceipts !== 0) {
+    fail(`maxis L2 Governance must preserve an official zero-vote window without inventing a missing participant map: ${JSON.stringify(zeroVoteL2Period)}`);
+  }
+  const shuffledL2Fixture = buildL2GovernanceCareerArtifact({
+    ...l2FixtureInput,
+    periods: completeL2Source([...l2Periods].reverse()),
+    bigmaps: completeL2Source([...l2Bigmaps].reverse()),
+    keys: completeL2Source([...l2Keys].reverse(), { perMap: l2KeyMapReceipts }),
+    activeDelegates: completeL2Source([...l2FixtureInput.activeDelegates.rows].reverse()),
+    accounts: completeL2Source([...l2FixtureInput.accounts.rows].reverse()),
+    currentContracts: completeL2Source([...l2CurrentContracts].reverse())
+  });
+  if (l2Fixture.integrity.contentHash !== shuffledL2Fixture.integrity.contentHash) {
+    fail('maxis L2 Governance artifact must be deterministic under source-row reordering');
+  }
+  let unknownL2ContractRejected = false;
+  try {
+    buildL2GovernanceCareerArtifact({
+      ...l2FixtureInput,
+      periods: completeL2Source(l2Periods.map((period, index) => index === 0
+        ? { ...period, contract: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT' }
+        : period))
+    });
+  } catch {
+    unknownL2ContractRejected = true;
+  }
+  if (!unknownL2ContractRejected) fail('maxis L2 Governance must reject an unreviewed contract even when its row claims a known track');
+  let incompleteL2SourceRejected = false;
+  try {
+    buildL2GovernanceCareerArtifact({
+      ...l2FixtureInput,
+      periods: { rows: l2Periods, receipt: { complete: false, truncated: true, rows: l2Periods.length, expectedRows: l2Periods.length + 1 } }
+    });
+  } catch {
+    incompleteL2SourceRejected = true;
+  }
+  if (!incompleteL2SourceRejected) fail('maxis L2 Governance must refuse incomplete canonical period receipts');
+  const tamperedL2Fixture = structuredClone(l2Fixture);
+  tamperedL2Fixture.records[addressA].lifetimeWindows += 1;
+  if (!validateL2GovernanceCareerArtifact(tamperedL2Fixture).some((error) => /lifetime windows|integrity content hash/i.test(error))) {
+    fail('maxis L2 Governance validation must reject content tampering');
+  }
+  const rehashedL2RankingTamper = structuredClone(l2Fixture);
+  rehashedL2RankingTamper.rankings[0].score += 1;
+  {
+    const { integrity, ...unsigned } = rehashedL2RankingTamper;
+    rehashedL2RankingTamper.integrity.contentHash = stableJsonHash(unsigned);
+  }
+  if (!validateL2GovernanceCareerArtifact(rehashedL2RankingTamper).some((error) => /canonical rankings do not reconstruct/i.test(error))) {
+    fail('maxis L2 Governance validation must semantically reject a rehashed false canonical ranking');
+  }
   const coverage = compileContractCoverage([
     { address: 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT', alias: '3Route v4', lastActivityTime: '2026-07-09T00:00:00Z' },
     { address: 'KT1R5dHqnpeKVFow9mErfN763RFfe51vmiB8', alias: 'Tezotopia Resource Collector', lastActivityTime: '2026-07-09T00:00:00Z' }
@@ -4682,6 +4896,14 @@ async function checkMaxisContracts() {
     fail('maxis active summary deep-rank or Passport shard metadata is invalid');
   }
 
+  if (SEASON_CATEGORY_ORDER.includes(MAXIS_L2_GOVERNANCE_CATEGORY)
+    || Object.hasOwn(seasonRules?.definition?.lanes || {}, MAXIS_L2_GOVERNANCE_CATEGORY)
+    || Object.hasOwn(seasonSummary?.laneStatus || {}, MAXIS_L2_GOVERNANCE_CATEGORY)
+    || Object.hasOwn(seasonSummary?.rankings || {}, MAXIS_L2_GOVERNANCE_CATEGORY)
+    || Object.hasOwn(seasonSummary?.cutoffs || {}, MAXIS_L2_GOVERNANCE_CATEGORY)) {
+    fail('maxis frozen v2 Season must remain byte-compatible and exclude the independent L2 Governance career lane');
+  }
+
   const summaryCategories = Object.keys(seasonSummary?.laneStatus || {});
   if (summaryCategories.slice().sort().join(',') !== SEASON_CATEGORY_ORDER.slice().sort().join(',')) {
     fail(`maxis active summary lane catalog mismatch: ${summaryCategories.join(',')}`);
@@ -4884,6 +5106,16 @@ async function checkMaxisContracts() {
     ['maxis independent Governance career artifact', "const CAREER_DATA_URL = '/data/maxis-careers.json'", maxis],
     ['maxis Governance career integrity check', 'The Governance career artifact failed its SHA-256 integrity receipt.', maxis],
     ['maxis Passport exact Governance career record', 'maxis-governance-career', maxis],
+    ['maxis independent L2 Governance career artifact', "const L2_GOVERNANCE_DATA_URL = '/data/maxis-l2-governance.json'", maxis],
+    ['maxis L2 Governance career integrity check', 'The L2 Governance Maxi artifact failed its SHA-256 integrity receipt.', maxis],
+    ['maxis canonical L2 Governance lane', "'l2_governance'", maxis],
+    ['maxis L2 Governance contextual handoff', 'maxis-l2-governance-context', maxis],
+    ['maxis L2 Chamber action', 'href="/l2chamber/"', maxis],
+    ['maxis Passport separate L1 Governance career', 'maxis-l1-governance-career', maxis],
+    ['maxis Passport separate L2 Governance career', 'maxis-l2-governance-career', maxis],
+    ['maxis L2 Governance scoped failure style', '.maxis-l2-governance-career.is-unavailable', maxisCss],
+    ['maxis L2 Governance site-map child', "id: 'maxis-l2-governance'", siteMap],
+    ['maxis L2 Governance direct intent', "href: '/maxis/?lane=l2_governance'", siteMap],
     ['maxis current protocol Governance context', 'maxis-governance-context', maxis],
     ['maxis quiet Governance season truth', 'No actionable Governance window occurred in this protocol season, so no season crown is declared.', maxis],
     ['maxis quiet Governance no-ballot truth', 'no qualifying ballot or proposal activity was recorded, so no season crown is declared.', maxis],
@@ -4923,9 +5155,13 @@ async function checkMaxisContracts() {
   const governanceRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-governance-data.mjs'");
   const maxisRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-maxis-data.mjs'");
   const maxisCareerRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-maxis-careers.mjs'");
+  const maxisL2GovernanceRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-maxis-l2-governance.mjs'");
   if (governanceRefreshIndex < 0 || maxisRefreshIndex < 0 || maxisCareerRefreshIndex < 0
     || governanceRefreshIndex > maxisRefreshIndex || maxisRefreshIndex > maxisCareerRefreshIndex) {
     fail('generated surfaces must refresh governance, frozen-season Maxis data, and mutable career context in dependency order');
+  }
+  if (maxisL2GovernanceRefreshIndex < 0) {
+    fail('generated surfaces must check or refresh the independent L2 Governance Maxi artifact');
   }
   if (!/const activeSeasonGeneratedAt = new Date\(\)\.toISOString\(\);\s*const buildOptions = \{\s*season,\s*rules,\s*generatedAt: activeSeasonGeneratedAt,[\s\S]*?\};\s*const fullSeasonSnapshot = await buildFullSeasonSnapshot\(buildOptions\);/.test(maxisGenerator)) {
     fail('Maxis active-season builds must capture a fresh timestamp immediately before resolving their live Transaction boundary');
@@ -4933,6 +5169,10 @@ async function checkMaxisContracts() {
   if (packageJson?.scripts?.['refresh:maxis-careers'] !== 'node scripts/refresh-maxis-careers.mjs'
     || packageJson?.scripts?.['check:maxis-careers'] !== 'node scripts/refresh-maxis-careers.mjs --check') {
     fail('package scripts must expose Maxis Governance career refresh and offline validation');
+  }
+  if (packageJson?.scripts?.['refresh:maxis-l2-governance'] !== 'node scripts/refresh-maxis-l2-governance.mjs'
+    || packageJson?.scripts?.['check:maxis-l2-governance'] !== 'node scripts/refresh-maxis-l2-governance.mjs --check') {
+    fail('package scripts must expose L2 Governance Maxi refresh and offline validation');
   }
   if (!/\.hot-today-progress\s*\{[^}]*margin:\s*0\.7rem auto 0;/s.test(shellExtrasCss)) {
     fail('What is hot today progress controls must stay centered');

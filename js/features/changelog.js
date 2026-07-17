@@ -5,6 +5,14 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-17',
+        entries: [
+            { type: '✨', text: 'Maxis now crowns an L2 Governance Maxi from each active baker’s distinct completed Etherlink FAST, SLOW, and Sequencer participation windows' },
+            { type: '🔧', text: 'L2 governance careers now reconcile official period bounds with complete TzKT receipts, attribute voting-key activity to its represented baker, and stay independent of frozen protocol seasons' },
+            { type: '🔧', text: 'The L2 Chamber now verifies the documented FAST, SLOW, and corrected Sequencer contracts instead of inferring the current set from one creator account' }
+        ]
+    },
+    {
         date: '2026-07-16',
         entries: [
             { type: '🔧', text: 'The My Tezos cycle clock now ticks without retriggering the theme reveal animation every second' },

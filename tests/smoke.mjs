@@ -111,7 +111,7 @@ const SAMPLE_UNSTAKER_ADDRESS = 'tz1Unstaker11111111111111111111111111';
 const OVERDELEGATED_ADDRESS = 'tz1bA9zZpouVgtMRLijvw5safwDKSxg62r1x';
 const ETHERLINK_FAST_CONTRACT = 'KT19oUVQPnVLuUBYXrBVd46WJnNAMpqkKSwo';
 const ETHERLINK_SLOW_CONTRACT = 'KT1AXRU3wLc87WNhLhVGrgqDGubLACUMUgPb';
-const ETHERLINK_SEQUENCER_CONTRACT = 'KT1VGyd2cRSHoDnxDnSuqGJD3mL8DzcVqX98';
+const ETHERLINK_SEQUENCER_CONTRACT = 'KT1KiVz8ZpHo3HpE1GCP5HLgywPDRwVUkCFh';
 const ETHERLINK_FAST_PROPOSAL = '00625d22abf10a520cae5489b7e19df70219a150d336ee6dc0a8eb4c21eca43c1b';
 const ETHERLINK_FAST_OLDER_PROPOSAL = '0056aea7f98b2bc4d18edb450b2f098f6e95e5356f30a1fac2b50080f3e482bad1';
 const ETHERLINK_SLOW_PROPOSAL = '0079e0f348b608ce486c9e5e1fdf84b650019922bf3383b562522c2c8f60a098da';
@@ -1797,7 +1797,9 @@ async function installFeatureMocks(context, options = {}) {
           value: voter.vote
         })));
       }
-      if (url.includes('/operations/transactions?') && url.includes('targetCodeHash.in=') && url.includes('entrypoint=new_proposal')) {
+      if (url.includes('/operations/transactions?')
+        && (url.includes('targetCodeHash.in=') || url.includes('target.in='))
+        && url.includes('entrypoint=new_proposal')) {
         return fulfillJson(route, [
           {
             id: 5010,
@@ -1922,6 +1924,7 @@ async function installFeatureMocks(context, options = {}) {
         const isLedgerFlowSender = txParams.get('sender') === SAMPLE_ADDRESS;
         const isLedgerFlowTarget = txParams.get('target') === SAMPLE_ADDRESS;
         const isSpecializedTxQuery = txParams.has('targetCodeHash.in')
+          || txParams.has('target.in')
           || txParams.get('target') === ETHERLINK_FAST_CONTRACT
           || txParams.get('target') === ETHERLINK_SLOW_CONTRACT
           || txParams.get('target') === ETHERLINK_SEQUENCER_CONTRACT;
@@ -6607,7 +6610,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
       && Math.abs(desktopLauncher.stage.width - desktopLauncher.contentWidth) <= 2,
     `tezos maxis launcher: desktop composition does not fill the card content box ${JSON.stringify(desktopLauncher)}`
   );
-  assert(desktopLauncher.identityCount === 9 && desktopLauncher.clippedIdentityCells.length === 0, `tezos maxis launcher: desktop identity chips clip or disappear ${JSON.stringify(desktopLauncher)}`);
+  assert(desktopLauncher.identityCount === 10 && desktopLauncher.clippedIdentityCells.length === 0, `tezos maxis launcher: desktop identity chips clip or disappear ${JSON.stringify(desktopLauncher)}`);
   assert(desktopLauncher.card.height <= 360 && desktopLauncher.horizontalOverflow <= 1, `tezos maxis launcher: desktop card is oversized or overflows ${JSON.stringify(desktopLauncher)}`);
 
   await page.setViewportSize({ width: 900, height: 1000 });
@@ -6626,10 +6629,11 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
   const artifact = await page.evaluate(async () => {
-    const [manifest, ongoing, careers] = await Promise.all([
+    const [manifest, ongoing, careers, l2Governance] = await Promise.all([
       fetch('/data/maxis/manifest.json', { cache: 'no-store' }).then((response) => response.json()),
       fetch('/data/maxis-leaders.json', { cache: 'no-store' }).then((response) => response.json()),
-      fetch('/data/maxis-careers.json', { cache: 'no-store' }).then((response) => response.json())
+      fetch('/data/maxis-careers.json', { cache: 'no-store' }).then((response) => response.json()),
+      fetch('/data/maxis-l2-governance.json', { cache: 'no-store' }).then((response) => response.json())
     ]);
     const active = (manifest.seasons || []).find((season) => season.id === manifest.activeSeasonId);
     const summary = await fetch(active.summaryPath, { cache: 'no-store' }).then((response) => response.json());
@@ -6638,16 +6642,22 @@ async function smokeMaxisChamber(browser, baseUrl) {
       .filter(({ category, rows }) => summary.laneStatus?.[category]?.status === 'ready' && rows.length)
       .sort((left, right) => right.rows.length - left.rows.length)[0];
     const unavailable = Object.entries(summary.laneStatus || {}).find(([, status]) => status?.status === 'unavailable');
+    const passportRow = ready?.rows?.find((row) => l2Governance.records?.[row.address]) || ready?.rows?.[0];
+    const ongoingCategories = [...(ongoing.leaders || []).map((leader) => leader.category), 'l2_governance'];
     return {
       activeSeasonId: manifest.activeSeasonId,
       seasonCount: manifest.seasons?.length || 0,
       finalizedCount: (manifest.seasons || []).filter((season) => season.status === 'finalized').length,
-      ongoingCategories: (ongoing.leaders || []).map((leader) => leader.category),
-      ongoingClocks: Object.fromEntries((ongoing.leaders || []).map((leader) => [leader.category, leader.windowKind])),
+      ongoingCategories,
+      ongoingClocks: { ...Object.fromEntries((ongoing.leaders || []).map((leader) => [leader.category, leader.windowKind])), l2_governance: 'all-time-active' },
       ongoingReadyCategory: (ongoing.leaders || []).find((leader) => leader.status === 'ready' && (ongoing.rankings?.[leader.category]?.length || 0) >= 2)?.category || '',
       readyCategory: ready?.category || '',
       readyRows: ready?.rows?.length || 0,
-      passportAddress: ready?.rows?.[0]?.address || '',
+      passportAddress: passportRow?.address || '',
+      l2GovernanceAddress: l2Governance.rankings?.[0]?.address || '',
+      l2GovernanceRows: l2Governance.rankings?.length || 0,
+      l2GovernanceComplete: l2Governance.coverage?.status === 'complete' && l2Governance.coverage?.absenceMeansZero === true,
+      l2GovernanceTracks: l2Governance.coverage?.tracks || [],
       unavailableCategory: unavailable?.[0] || '',
       unavailableReason: unavailable?.[1]?.reason || '',
       governanceSeasonStatus: summary.laneStatus?.governance?.status || '',
@@ -6662,6 +6672,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   });
   assert(artifact.activeSeasonId && artifact.ongoingReadyCategory && artifact.readyCategory && /^tz[1-4]/.test(artifact.passportAddress), `tezos maxis chamber: generated crown/season fixture is incomplete ${JSON.stringify(artifact)}`);
   assert(artifact.governanceCareerComplete && artifact.governanceCareerSeasonId === artifact.activeSeasonId, `tezos maxis chamber: independent Governance career/current-period artifact is incomplete ${JSON.stringify(artifact)}`);
+  assert(artifact.l2GovernanceComplete && artifact.l2GovernanceRows === 10 && artifact.l2GovernanceTracks.join(',') === 'fast,slow,sequencer' && /^tz[1-4]/.test(artifact.l2GovernanceAddress), `tezos maxis chamber: independent L2 Governance crown artifact is incomplete ${JSON.stringify(artifact)}`);
 
   const shellState = await page.evaluate(() => {
     const footer = document.querySelector('.maxis-footer');
@@ -6702,6 +6713,35 @@ async function smokeMaxisChamber(browser, baseUrl) {
   const expectedClockLabels = new Set(['all time', 'all time · active', 'live', '30d', '90d', 'cross-lane']);
   assert(Object.values(artifact.ongoingClocks).every((clock) => ['all-time', 'all-time-active', 'live', 'rolling-30d', 'rolling-90d', 'mixed'].includes(clock)), `tezos maxis chamber: canonical artifact contains an undeclared natural clock ${JSON.stringify(artifact.ongoingClocks)}`);
   assert(shellState.overviewClocks.every((clock) => expectedClockLabels.has(clock.replace(/^◷\s*/, ''))), `tezos maxis chamber: overview clock labels are not explicit ${JSON.stringify(shellState.overviewClocks)}`);
+
+  await page.locator('[data-maxis-overview-lane="l2_governance"]').click();
+  await page.locator('#maxis-maxis-detail [data-maxis-board="l2_governance"]').waitFor({ state: 'visible', timeout: 10000 });
+  const l2GovernanceState = await page.evaluate(() => {
+    const board = document.querySelector('#maxis-maxis-detail [data-maxis-board="l2_governance"]');
+    const detail = document.querySelector('#maxis-maxis-detail');
+    return {
+      selected: document.querySelector('[data-maxis-overview-lane="l2_governance"]')?.getAttribute('aria-pressed') || '',
+      boardCount: document.querySelectorAll('#maxis-panel-maxis .maxis-lane-board').length,
+      podium: board?.querySelectorAll('.maxis-podium-place').length || 0,
+      compact: board?.querySelectorAll('.maxis-compact-row').length || 0,
+      contexts: detail?.querySelectorAll('.maxis-l2-governance-context').length || 0,
+      chamberHref: detail?.querySelector('.maxis-governance-context-action[href="/l2chamber/"]')?.getAttribute('href') || '',
+      text: detail?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      detailOverflow: detail ? detail.scrollWidth - detail.clientWidth : Infinity,
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      seasonOrbs: document.querySelectorAll('.maxis-season-orb').length
+    };
+  });
+  assert(l2GovernanceState.selected === 'true' && l2GovernanceState.boardCount === 1
+    && l2GovernanceState.podium === 3 && l2GovernanceState.compact === 7,
+  `tezos maxis chamber: L2 Governance canonical top ten did not render ${JSON.stringify(l2GovernanceState)}`);
+  assert(l2GovernanceState.contexts === 1 && l2GovernanceState.chamberHref === '/l2chamber/'
+    && /L2 Governance Maxi/i.test(l2GovernanceState.text)
+    && /FAST \/ SLOW \/ SEQUENCER/i.test(l2GovernanceState.text)
+    && /represented baker/i.test(l2GovernanceState.text),
+  `tezos maxis chamber: L2 Governance identity, methodology, or L2 Chamber handoff is missing ${JSON.stringify(l2GovernanceState)}`);
+  assert(l2GovernanceState.detailOverflow <= 1 && l2GovernanceState.pageOverflow <= 1 && l2GovernanceState.seasonOrbs === 0,
+  `tezos maxis chamber: L2 Governance board overflows or leaked the frozen Season selector ${JSON.stringify(l2GovernanceState)}`);
 
   await page.locator(`[data-maxis-overview-lane="${artifact.ongoingReadyCategory}"]`).click();
   await page.locator(`#maxis-maxis-detail [data-maxis-board="${artifact.ongoingReadyCategory}"]`).waitFor({ state: 'visible', timeout: 10000 });
@@ -6929,7 +6969,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
       : new RegExp(`${artifact.governanceActionablePeriods} actionable Governance window${artifact.governanceActionablePeriods === 1 ? '' : 's'} occurred in this protocol season`, 'i').test(quietGovernance.text)
         && /no qualifying ballot or proposal activity was recorded/i.test(quietGovernance.text);
     assert(governanceTruthful && /no season crown is declared/i.test(quietGovernance.text), `tezos maxis chamber: quiet Governance season copy is ambiguous ${JSON.stringify({ quietGovernance, artifact })}`);
-    assert(quietGovernance.handoffs === 1 && /Open the ongoing Governance Maxi record/i.test(quietGovernance.text), `tezos maxis chamber: quiet Governance season does not point to the enduring record ${JSON.stringify(quietGovernance)}`);
+    assert(quietGovernance.handoffs === 1 && /Open the ongoing L1 Governance Maxi record/i.test(quietGovernance.text), `tezos maxis chamber: quiet Governance season does not point to the enduring record ${JSON.stringify(quietGovernance)}`);
     await page.locator('.maxis-season-to-maxis[data-maxis-handoff-lane="governance"]').click();
     await page.waitForFunction(() => document.querySelector('.maxis-experience')?.dataset.maxisCurrentView === 'maxis');
     const governanceHandoff = await page.evaluate(() => ({
@@ -6939,7 +6979,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
       text: document.querySelector('#maxis-maxis-detail')?.textContent?.replace(/\s+/g, ' ').trim() || ''
     }));
     assert(governanceHandoff.selected === 'true' && governanceHandoff.orb === 0 && governanceHandoff.contexts === 1 && /Governance Maxi/i.test(governanceHandoff.text), `tezos maxis chamber: quiet Governance handoff missed the enduring record ${JSON.stringify(governanceHandoff)}`);
-    assert(/Protocol pulse · separate clock/i.test(governanceHandoff.text) && /all-time-active Governance Maxi board remains the canonical crown/i.test(governanceHandoff.text), `tezos maxis chamber: Governance protocol pulse blurred the enduring crown ${JSON.stringify(governanceHandoff)}`);
+    assert(/L1 protocol pulse · separate clock/i.test(governanceHandoff.text) && /all-time-active L1 Governance Maxi board remains the canonical crown/i.test(governanceHandoff.text), `tezos maxis chamber: Governance protocol pulse blurred the enduring crown ${JSON.stringify(governanceHandoff)}`);
   }
 
   await page.locator('[data-maxis-view="champions"]').click();
@@ -6974,6 +7014,9 @@ async function smokeMaxisChamber(browser, baseUrl) {
     careerSections: document.querySelectorAll('.maxis-passport-career').length,
     seasonSections: document.querySelectorAll('.maxis-passport-season').length,
     governanceCareerCards: document.querySelectorAll('.maxis-governance-career').length,
+    l1GovernanceCareerCards: document.querySelectorAll('.maxis-l1-governance-career').length,
+    l2GovernanceCareerCards: document.querySelectorAll('.maxis-l2-governance-career').length,
+    unavailableL2GovernanceCareerCards: document.querySelectorAll('.maxis-l2-governance-career.is-unavailable').length,
     seasonOrb: document.querySelector('.maxis-season-orb')?.getAttribute('aria-label') || '',
     lanes: document.querySelectorAll('.maxis-passport-card .maxis-passport-lane').length,
     badges: document.querySelectorAll('.maxis-passport-badge').length,
@@ -6989,7 +7032,12 @@ async function smokeMaxisChamber(browser, baseUrl) {
   const selectedSeasonShardRequests = openedPassportShardRequests.filter((url) => url.includes(`/data/maxis/seasons/${artifact.activeSeasonId}/passports/`));
   assert(new Set(openedPassportShardRequests).size === openedPassportShardRequests.length, `tezos maxis chamber: cross-season Passport aggregation duplicated a season shard request ${JSON.stringify(openedPassportShardRequests)}`);
   assert(selectedSeasonShardRequests.length === 1, `tezos maxis chamber: selected profile and career aggregation duplicated the active-season Passport shard request ${JSON.stringify(openedPassportShardRequests)}`);
-  assert(passportState.governanceCareerCards === 1 && /Governance career[\s\S]*all history[\s\S]*Completed ballot-period streak/i.test(passportState.text), `tezos maxis chamber: Passport omitted its exact all-history civic record ${JSON.stringify(passportState)}`);
+  assert(passportState.governanceCareerCards === 1 && passportState.l1GovernanceCareerCards === 1
+    && /L1[\s\S]*Governance career[\s\S]*all history[\s\S]*Completed ballot-period streak/i.test(passportState.text),
+  `tezos maxis chamber: Passport omitted its exact all-history L1 civic record ${JSON.stringify(passportState)}`);
+  assert(passportState.l2GovernanceCareerCards === 1 && passportState.unavailableL2GovernanceCareerCards === 0
+    && /L2[\s\S]*Governance career[\s\S]*all history[\s\S]*canonical windows[\s\S]*represented baker/i.test(passportState.text),
+  `tezos maxis chamber: Passport omitted its independent all-history L2 civic record ${JSON.stringify(passportState)}`);
   assert(passportState.lanes > 0 && passportState.badges > 0 && passportState.progress.some((label) => /progress \d+%/.test(label || '')), `tezos maxis chamber: Passport lanes, badges, or frozen progress missing ${JSON.stringify(passportState)}`);
   assert(/Career[\s\S]*Earned identity/i.test(passportState.text)
     && new RegExp(`Cross-season breadth[\\s\\S]*${artifact.seasonCount}/${artifact.seasonCount} season receipts verified`, 'i').test(passportState.text)
@@ -7070,6 +7118,26 @@ async function smokeMaxisChamber(browser, baseUrl) {
   assert(mobileMenuState.insideContentClip && mobileMenuState.insideViewport && !mobileMenuState.overlapsClose && mobileMenuState.horizontalOverflow <= 1, `tezos maxis chamber: mobile season menu is clipped or collides with a corner control ${JSON.stringify(mobileMenuState)}`);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.maxis-season-orb')?.getAttribute('aria-expanded') === 'false');
+
+  await page.locator('[data-maxis-view="maxis"]').click();
+  await page.locator('[data-maxis-overview-lane="l2_governance"]').click();
+  await page.locator('#maxis-maxis-detail [data-maxis-board="l2_governance"]').waitFor({ state: 'visible', timeout: 10000 });
+  const mobileL2GovernanceState = await page.evaluate(() => {
+    const detail = document.querySelector('#maxis-maxis-detail');
+    const context = detail?.querySelector('.maxis-l2-governance-context');
+    return {
+      overviewCards: document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length,
+      detailOverflow: detail ? detail.scrollWidth - detail.clientWidth : Infinity,
+      contextOverflow: context ? context.scrollWidth - context.clientWidth : Infinity,
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      selected: document.querySelector('[data-maxis-overview-lane="l2_governance"]')?.getAttribute('aria-pressed') || '',
+      contextLinks: context?.querySelectorAll('a[href="/l2chamber/"]').length || 0
+    };
+  });
+  assert(mobileL2GovernanceState.overviewCards === 10 && mobileL2GovernanceState.selected === 'true'
+    && mobileL2GovernanceState.contextLinks === 1 && mobileL2GovernanceState.detailOverflow <= 1
+    && mobileL2GovernanceState.contextOverflow <= 1 && mobileL2GovernanceState.pageOverflow <= 1,
+  `tezos maxis chamber: mobile L2 Governance board or handoff overflows ${JSON.stringify(mobileL2GovernanceState)}`);
 
   await page.locator('#maxis-modal .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#maxis-modal')?.classList.contains('active'));
@@ -7403,6 +7471,60 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await seasonFaultPage.waitForFunction((count) => document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length === count, artifact.ongoingCategories.length, { timeout: 10000 });
   assert(await seasonFaultPage.locator('#maxis-panel-maxis [data-maxis-overview-lane]').count() === artifact.ongoingCategories.length, `tezos maxis season fault: scoped failure blanked canonical Maxis ${JSON.stringify(seasonFaultState)}`);
   await seasonFaultContext.close();
+
+  const l2FaultContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(l2FaultContext);
+  await l2FaultContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  await l2FaultContext.route('**/data/maxis-l2-governance.json', async (route) => {
+    const response = await route.fetch();
+    const artifactPayload = await response.json();
+    artifactPayload.integrity = { ...(artifactPayload.integrity || {}), contentHash: '0'.repeat(64) };
+    return fulfillJson(route, artifactPayload);
+  });
+  const l2FaultPage = await l2FaultContext.newPage();
+  attachIssueCollectors(l2FaultPage, 'tezos maxis L2 Governance fault isolation', issues);
+  const l2FaultResponse = await l2FaultPage.goto(`${baseUrl}/maxis/?lane=l2_governance`, { waitUntil: 'domcontentloaded' });
+  assert(l2FaultResponse?.ok(), `tezos maxis L2 Governance fault: pretty route failed with HTTP ${l2FaultResponse?.status()}`);
+  await l2FaultPage.waitForFunction(() => /L2 Governance Maxi is scoped unavailable/i.test(document.querySelector('#maxis-maxis-detail')?.textContent || ''), null, { timeout: 15000 });
+  const l2FaultState = await l2FaultPage.evaluate(() => ({
+    overviewCards: document.querySelectorAll('#maxis-panel-maxis [data-maxis-overview-lane]').length,
+    selected: document.querySelector('[data-maxis-overview-lane="l2_governance"]')?.getAttribute('aria-pressed') || '',
+    unavailableContexts: document.querySelectorAll('#maxis-maxis-detail .maxis-l2-governance-context.is-unavailable').length,
+    podiums: document.querySelectorAll('#maxis-maxis-detail .maxis-podium').length,
+    chamberLinks: document.querySelectorAll('#maxis-maxis-detail a[href="/l2chamber/"]').length,
+    seasonOrbs: document.querySelectorAll('.maxis-season-orb').length,
+    text: document.querySelector('#maxis-maxis-detail')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(l2FaultState.overviewCards === 10 && l2FaultState.selected === 'true'
+    && l2FaultState.unavailableContexts === 1 && l2FaultState.podiums === 0
+    && l2FaultState.chamberLinks === 1 && l2FaultState.seasonOrbs === 0,
+  `tezos maxis L2 Governance fault: independent failure was not scoped to its canonical lane ${JSON.stringify(l2FaultState)}`);
+  await l2FaultPage.locator('[data-maxis-overview-lane="governance"]').click();
+  await l2FaultPage.locator('#maxis-maxis-detail [data-maxis-board="governance"] .maxis-podium').waitFor({ state: 'visible', timeout: 10000 });
+  await l2FaultPage.locator('[data-maxis-view="passport"]').click();
+  await l2FaultPage.locator('.maxis-passport-input').fill(artifact.passportAddress);
+  await l2FaultPage.locator('.maxis-passport-submit').click();
+  await l2FaultPage.waitForFunction((address) => document.querySelector('.maxis-passport-card code')?.textContent?.trim() === address, artifact.passportAddress, { timeout: 15000 });
+  const l2FaultPassport = await l2FaultPage.evaluate(() => ({
+    cards: document.querySelectorAll('.maxis-passport-card').length,
+    l1Ready: document.querySelectorAll('.maxis-l1-governance-career:not(.is-unavailable)').length,
+    l2Unavailable: document.querySelectorAll('.maxis-l2-governance-career.is-unavailable').length,
+    text: document.querySelector('.maxis-passport-card')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(l2FaultPassport.cards === 1 && l2FaultPassport.l1Ready === 1 && l2FaultPassport.l2Unavailable === 1
+    && /L2 governance career is scoped unavailable/i.test(l2FaultPassport.text),
+  `tezos maxis L2 Governance fault: Passport failure leaked into the L1 career or selected-season profile ${JSON.stringify(l2FaultPassport)}`);
+  await l2FaultPage.locator('[data-maxis-view="season"]').click();
+  await l2FaultPage.waitForFunction(() => document.querySelectorAll('#maxis-panel-season .maxis-lane-board').length === 1, null, { timeout: 10000 });
+  await l2FaultContext.close();
 
   const finalizedContext = await browser.newContext({
     viewport: { width: 1280, height: 900 },

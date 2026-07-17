@@ -66,6 +66,11 @@ the highest-risk gotchas.
   hard-coded navigation catalog.
 - `js/core/tezos-domains.js`: shared multi-label `.tez` validation and forward
   resolution with address-first, owner-fallback semantics.
+- `js/core/etherlink-governance-contracts.mjs`: shared reviewed FAST, SLOW, and
+  Sequencer mainnet lineage plus current-address/config classification used by
+  both the live L2 Chamber and generated L2 Governance Maxi careers. Do not
+  revert to creator-only discovery; the corrected current Sequencer deployment
+  has a different origin.
 - `js/core/utils.js`: formatters, debounce/throttle, sanitization helpers.
 - `sw.js`: bounded shell/runtime caching and explicit offline navigation. Cross-
   origin API responses are never cached or replayed as current data.
@@ -155,7 +160,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v438`
+- Service worker cache name: `tezos-systems-v447`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -331,6 +336,16 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   the complete applied ballot/proposal history, voting-period ledger, streaks,
   and current active-delegate ranks. It is deliberately independent of frozen
   protocol-season evaluators and artifacts.
+- `data/maxis-l2-governance.json`: independent exact Etherlink governance
+  career and all-time-active crown. Official FAST, SLOW, and Sequencer
+  `pastPeriods` responses define completed canonical windows; complete TzKT
+  participant big-map keys prove applied participation. Score one distinct
+  window per represented baker, regardless of extra receipts, proposal count,
+  ballot choice, or voting power. Attribute a delegated voting-key transaction
+  to the baker stored in governance state, never to its sender. Retain inactive
+  careers but rank only the current complete active-delegate set. This artifact
+  must not change immutable v2 Season, Season Unicorn, frozen Passport shards,
+  or Champions.
 - `data/maxis/manifest.json`: protocol-season catalog and active/settling/final
   lifecycle entry point. Each `data/maxis/seasons/<season-id>/` directory keeps
   its frozen rules, summary, integrity-checked Passport shards, and resumable
@@ -345,6 +360,10 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   period supplies live actionable/quiet context, and the protocol-season result
   is an episodic race. A quiet season must not erase the enduring Governance
   Maxi or be presented as evidence that governance participation does not exist.
+- Maxis L2 Governance uses its own all-time-active clock and tie-breaks by
+  distinct completed windows, track breadth, Promotion windows, receipt count,
+  recency, then raw address. It is an ongoing career surface and an independent
+  Passport career card, not a new v2 protocol-season lane.
 - `data/tweets.json`: share-copy templates used by the share system.
 - `data/nakamoto-sources.json`: dated external Nakamoto reports with their
   original thresholds, windows, entity bases, and source provenance.
@@ -393,6 +412,13 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   generated set. `sitemap.xml` is rendered from `js/core/site-map.js`, while
   pretty Chamber shells remain generated from `scripts/lib/chamber-routes.mjs`;
   static contracts keep those two route identities aligned.
+- `scripts/refresh-maxis-l2-governance.mjs`: rebuilds the independent L2
+  Governance career artifact from all three official Etherlink canonical-period
+  ledgers and complete TzKT big-map key receipts. The command
+  `npm run check:maxis-l2-governance` validates the committed reconstruction and
+  stable content hash without network access. Pre-commit checks it before other
+  Maxis artifacts; scheduled/manual generated runs refresh and optionally stage
+  it before the remaining Maxis family.
 - `scripts/refresh-maxis-data.mjs`: generates the canonical mixed-clock Maxis
   board and frozen protocol-season artifacts. It must run after governance refresh,
   preserve active rules and finalized archives byte-for-byte, open a new season
