@@ -2138,6 +2138,17 @@
     background: rgba(255, 255, 255, 0.025);
 }
 
+.etherlink-gov-baker-vote-row.is-quorum-crossing {
+    border-color: rgba(89, 243, 166, 0.56);
+    background: linear-gradient(90deg, rgba(89, 243, 166, 0.12), rgba(143, 179, 255, 0.05));
+    box-shadow: inset 3px 0 0 #59f3a6;
+}
+
+.etherlink-gov-baker-vote-row.is-quorum-crossing .etherlink-gov-quorum-share > div span {
+    color: #59f3a6;
+    font-weight: 800;
+}
+
 .etherlink-gov-baker-vote-main {
     display: grid;
     gap: 1px;

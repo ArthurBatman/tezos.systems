@@ -297,11 +297,12 @@ inline modal styles in `js/core/app.js`.
   control clear of those chips, computes period countdowns from the current
   head block, and the open chamber now includes track rules, track memory, and
   a merged submission/vote timeline for each L2 governance track. Active
-  proposal and Promotion views lead with the latest five represented baker
-  receipts, their ballot or upvote, exact matching L1-period voting power, and
-  each baker's share of the quorum required to pass. Shared voting-key calls are
-  expanded into the baker accounts they represent and retain operation links
-  for audit.
+  proposal and Promotion views lead with the complete represented-baker receipt
+  ledger in first-to-latest order. Every row shows its ballot or upvote, exact
+  UTC receipt time and level, matching L1-period voting power, individual and
+  cumulative quorum contribution, and the receipt that crossed quorum. Shared
+  voting-key calls are expanded into the baker accounts they represent and every
+  row retains its operation link for audit.
 - Tezos X Chamber with direct `#tezosx` access, atomic L2 TVL, daily
   transactions, gas, addresses, grouped Blockscout transaction tape rows, and
   DefiLlama protocol TVL sourced from current Etherlink rails. The open chamber

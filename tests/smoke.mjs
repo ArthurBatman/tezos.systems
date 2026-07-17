@@ -125,6 +125,34 @@ const ETHERLINK_UPVOTE_COUNTS_BIGMAP = '990003';
 const ETHERLINK_PROMOTION_VOTERS_BIGMAP = '990004';
 const ETHERLINK_TOTAL_VOTING_POWER = '656635662773932';
 const ETHERLINK_SHARED_VOTING_KEY = SAMPLE_DELEGATOR_ADDRESS;
+const ETHERLINK_PROMOTION_LEDGER = [
+  ...Array.from({ length: 20 }, (_, index) => ({
+    address: `tz1FullLedgerVoter${String(index + 1).padStart(2, '0')}xxxxxxxxxxxxxxxx`,
+    alias: `Ledger Baker ${index + 1}`,
+    votingPower: 6000000000000,
+    vote: 'yea',
+    level: 12345400 + index
+  })),
+  {
+    address: 'tz1FullLedgerVoter21xxxxxxxxxxxxxxxx',
+    alias: 'Ledger Baker 21',
+    votingPower: 6540547994324,
+    vote: 'yea',
+    level: 12345420
+  },
+  {
+    address: 'tz1FullLedgerVoter22xxxxxxxxxxxxxxxx',
+    alias: 'Ledger Baker 22',
+    votingPower: 17603957631481,
+    vote: 'pass',
+    level: 12345421
+  },
+  { address: SAMPLE_HEAVY_STAKER_ADDRESS, alias: 'Heavy Baker', votingPower: 10000000000000, vote: 'pass', level: 12345590 },
+  { address: SAMPLE_STAKER_ADDRESS, alias: 'Staker Baker', votingPower: 15000000000000, vote: 'pass', level: 12345590 },
+  { address: SAMPLE_ADDRESS_3, alias: 'Pending Baker', votingPower: 20000000000000, vote: 'pass', level: 12345590 },
+  { address: SAMPLE_ADDRESS_2, alias: 'Second Baker', votingPower: 25000000000000, vote: 'pass', level: 12345590 },
+  { address: SAMPLE_ADDRESS, alias: 'QA Baker', votingPower: 30000000000000, vote: 'yea', level: 12345600 }
+];
 const EXPECTED_CHAMBER_ORDER = [
   'network-pulse-entry-card',
   'network-health',
@@ -1647,12 +1675,12 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/voting/periods/current/voters?') && url.includes('limit=10000')) {
         if (etherlinkPromotion) {
           return fulfillJson(route, [
-            { delegate: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }, votingPower: 30000000000000, status: 'none' },
-            { delegate: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' }, votingPower: 25000000000000, status: 'none' },
-            { delegate: { address: SAMPLE_ADDRESS_3, alias: 'Pending Baker' }, votingPower: 20000000000000, status: 'none' },
-            { delegate: { address: SAMPLE_STAKER_ADDRESS, alias: 'Staker Baker' }, votingPower: 15000000000000, status: 'none' },
-            { delegate: { address: SAMPLE_HEAVY_STAKER_ADDRESS, alias: 'Heavy Baker' }, votingPower: 10000000000000, status: 'none' },
-            { delegate: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Other voting power' }, votingPower: 556635662773932, status: 'none' }
+            ...ETHERLINK_PROMOTION_LEDGER.map((voter) => ({
+              delegate: { address: voter.address, alias: voter.alias },
+              votingPower: voter.votingPower,
+              status: 'none'
+            })),
+            { delegate: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Other voting power' }, votingPower: 412491157148127, status: 'none' }
           ]);
         }
         return fulfillJson(route, [
@@ -1761,13 +1789,13 @@ async function installFeatureMocks(context, options = {}) {
         ]);
       }
       if (url.includes(`/bigmaps/${ETHERLINK_PROMOTION_VOTERS_BIGMAP}/keys`)) {
-        return fulfillJson(route, [
-          { id: 5, firstLevel: 12345600, lastLevel: 12345600, key: SAMPLE_ADDRESS, value: 'yea' },
-          { id: 4, firstLevel: 12345590, lastLevel: 12345590, key: SAMPLE_ADDRESS_2, value: 'pass' },
-          { id: 3, firstLevel: 12345590, lastLevel: 12345590, key: SAMPLE_ADDRESS_3, value: 'pass' },
-          { id: 2, firstLevel: 12345590, lastLevel: 12345590, key: SAMPLE_STAKER_ADDRESS, value: 'pass' },
-          { id: 1, firstLevel: 12345590, lastLevel: 12345590, key: SAMPLE_HEAVY_STAKER_ADDRESS, value: 'pass' }
-        ]);
+        return fulfillJson(route, ETHERLINK_PROMOTION_LEDGER.map((voter, index) => ({
+          id: index + 1,
+          firstLevel: voter.level,
+          lastLevel: voter.level,
+          key: voter.address,
+          value: voter.vote
+        })));
       }
       if (url.includes('/operations/transactions?') && url.includes('targetCodeHash.in=') && url.includes('entrypoint=new_proposal')) {
         return fulfillJson(route, [
@@ -1829,6 +1857,16 @@ async function installFeatureMocks(context, options = {}) {
       }
       if (url.includes('/operations/transactions?') && url.includes(`target=${ETHERLINK_FAST_CONTRACT}`)) {
         if (etherlinkPromotion) {
+          const directLedgerOps = ETHERLINK_PROMOTION_LEDGER.slice(0, 22).map((voter, index) => ({
+            id: 4000 + index,
+            hash: `opEtherlinkLedgerVote${String(index + 1).padStart(2, '0')}111111111111111111`,
+            level: voter.level,
+            timestamp: new Date(Date.now() - (60 - index) * 60000).toISOString(),
+            status: 'applied',
+            sender: { address: voter.address, alias: voter.alias },
+            target: { address: ETHERLINK_FAST_CONTRACT, alias: 'Etherlink FAST governance' },
+            parameter: { entrypoint: 'vote', value: voter.vote }
+          })).reverse();
           return fulfillJson(route, [
             {
               id: 4020,
@@ -1849,7 +1887,8 @@ async function installFeatureMocks(context, options = {}) {
               sender: { address: ETHERLINK_SHARED_VOTING_KEY, alias: 'Shared Voting Key' },
               target: { address: ETHERLINK_FAST_CONTRACT, alias: 'Etherlink FAST governance' },
               parameter: { entrypoint: 'vote', value: 'pass' }
-            }
+            },
+            ...directLedgerOps
           ]);
         }
         return fulfillJson(route, [
@@ -8305,8 +8344,8 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(/L2 governance clock/.test(etherlinkState.phaseHero) && /Threshold met/.test(etherlinkState.phaseHero) && /enters Promotion next/.test(etherlinkState.phaseHero), `governance testing period: Etherlink phase guidance missing: ${etherlinkState.phaseHero}`);
   assert(etherlinkState.nowCards === 3 && etherlinkState.watchItems >= 3 && etherlinkState.sourceLinks === 3, `governance testing period: Etherlink current-state layout incomplete: ${JSON.stringify(etherlinkState)}`);
   assert(/What is happening now/.test(etherlinkState.nowText) && /Who made up the quorum/.test(etherlinkState.nowText) && /QA Baker/.test(etherlinkState.nowText) && /UPVOTE/.test(etherlinkState.nowText) && /What to watch next/.test(etherlinkState.nowText) && /Compare L1 governance/.test(etherlinkState.nowText), `governance testing period: Etherlink current-state guidance missing: ${etherlinkState.nowText}`);
-  assert(/recent bakers in this proposal window/.test(etherlinkState.recentBakerTitle) && etherlinkState.recentBakerRows === 3, `governance testing period: Etherlink proposal baker contribution list missing ${JSON.stringify(etherlinkState)}`);
-  assert(/Who made up the quorum/.test(etherlinkState.recentBakerText) && /40\.0M XTZ/.test(etherlinkState.recentBakerText) && /of quorum needed/.test(etherlinkState.recentBakerText), `governance testing period: Etherlink proposal baker weights missing ${etherlinkState.recentBakerText}`);
+  assert(etherlinkState.recentBakerTitle === 'Full proposal window ledger · first to latest' && etherlinkState.recentBakerRows === 3, `governance testing period: Etherlink proposal baker contribution list missing ${JSON.stringify(etherlinkState)}`);
+  assert(/Who made up the quorum/.test(etherlinkState.recentBakerText) && /40\.0M XTZ/.test(etherlinkState.recentBakerText) && /Quorum recount/.test(etherlinkState.recentBakerText) && /quorum reached here/.test(etherlinkState.recentBakerText), `governance testing period: Etherlink proposal baker weights missing ${etherlinkState.recentBakerText}`);
   assert(etherlinkState.proposalHash === ETHERLINK_FAST_PROPOSAL, `governance testing period: Etherlink proposal hash mismatch: ${etherlinkState.proposalHash}`);
   assert(/93\.2M XTZ upvotes/.test(etherlinkState.threshold) && /14\.2% \/ 5% required/.test(etherlinkState.threshold), `governance testing period: Etherlink threshold mismatch: ${etherlinkState.threshold}`);
   assert(etherlinkState.proposalRows >= 2, `governance testing period: Etherlink proposal rows missing, saw ${etherlinkState.proposalRows}`);
@@ -8375,7 +8414,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   const promotionResponse = await promotionPage.goto(`${baseUrl}/l2chamber/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(promotionResponse?.ok(), `Tezos X promotion baker quorum list: page failed with HTTP ${promotionResponse?.status()}`);
   await promotionPage.locator('#etherlink-governance-modal.active #etherlink-governance-recent-bakers').waitFor({ state: 'visible', timeout: 15000 });
-  await promotionPage.waitForFunction(() => document.querySelectorAll('#etherlink-governance-recent-bakers .etherlink-gov-baker-vote-row').length === 5, null, { timeout: 15000 });
+  await promotionPage.waitForFunction(() => document.querySelectorAll('#etherlink-governance-recent-bakers .etherlink-gov-baker-vote-row').length === 27, null, { timeout: 15000 });
   const promotionBakerState = await promotionPage.evaluate(() => ({
     entryValue: document.querySelector('#etherlink-governance-entry-value')?.textContent?.trim() || '',
     title: document.querySelector('#etherlink-governance-recent-bakers-title')?.textContent?.trim() || '',
@@ -8386,19 +8425,22 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       power: row.querySelector('.etherlink-gov-baker-power strong')?.textContent?.trim() || '',
       contribution: row.querySelector('.etherlink-gov-quorum-share strong')?.textContent?.trim() || '',
       share: row.dataset.quorumShare || '',
+      cumulativeShare: row.dataset.cumulativeQuorumShare || '',
+      quorumCrossed: row.dataset.quorumCrossed || '',
       meta: row.querySelector('.etherlink-gov-baker-vote-main small')?.textContent?.trim() || '',
       opHref: row.querySelector('.etherlink-gov-vote-op')?.href || ''
     }))
   }));
   assert(promotionBakerState.entryValue === '37.2%', `Tezos X promotion baker quorum list: entry participation mismatch ${promotionBakerState.entryValue}`);
-  assert(promotionBakerState.title === 'Latest 5 bakers in this Promotion vote', `Tezos X promotion baker quorum list: title mismatch ${promotionBakerState.title}`);
-  assert(/Who made up the quorum/.test(promotionBakerState.text) && /5 baker receipts/.test(promotionBakerState.text) && /15% quorum \(98\.5M XTZ\)/.test(promotionBakerState.text), `Tezos X promotion baker quorum list: threshold context missing ${promotionBakerState.text}`);
-  assert(promotionBakerState.rows.map((row) => row.baker).join(',') === 'QA Baker,Second Baker,Pending Baker,Staker Baker,Heavy Baker', `Tezos X promotion baker quorum list: newest baker order is wrong ${JSON.stringify(promotionBakerState.rows)}`);
-  assert(promotionBakerState.rows.map((row) => row.ballot).join(',') === 'YEA,PASS,PASS,PASS,PASS', `Tezos X promotion baker quorum list: expanded ballots are wrong ${JSON.stringify(promotionBakerState.rows)}`);
-  assert(promotionBakerState.rows.map((row) => row.power).join(',') === '30.0M XTZ,25.0M XTZ,20.0M XTZ,15.0M XTZ,10.0M XTZ', `Tezos X promotion baker quorum list: voting powers are wrong ${JSON.stringify(promotionBakerState.rows)}`);
-  assert(promotionBakerState.rows.map((row) => row.share).join(',') === '30.45,25.38,20.3,15.22,10.15', `Tezos X promotion baker quorum list: quorum contribution shares are wrong ${JSON.stringify(promotionBakerState.rows)}`);
-  assert(promotionBakerState.rows.slice(1).every((row) => /via tz1iJP1EtP/.test(row.meta)), `Tezos X promotion baker quorum list: shared voting key was not attributed ${JSON.stringify(promotionBakerState.rows)}`);
-  assert(promotionBakerState.rows.every((row) => /tzkt\.io\/opEtherlinkFastPromotion/.test(row.opHref)), `Tezos X promotion baker quorum list: operation provenance missing ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(promotionBakerState.title === 'Full Promotion vote ledger · first to latest', `Tezos X promotion baker quorum list: title mismatch ${promotionBakerState.title}`);
+  assert(/Who made up the quorum/.test(promotionBakerState.text) && /27 baker receipts · complete/.test(promotionBakerState.text) && /15% quorum \(98\.5M XTZ\)/.test(promotionBakerState.text), `Tezos X promotion baker quorum list: threshold context missing ${promotionBakerState.text}`);
+  assert(promotionBakerState.rows.length === 27 && promotionBakerState.rows[0].baker === 'Ledger Baker 1' && promotionBakerState.rows.at(-1).baker === 'QA Baker', `Tezos X promotion baker quorum list: first-to-latest order is wrong ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(promotionBakerState.rows.filter((row) => row.ballot === 'YEA').length === 22 && promotionBakerState.rows.filter((row) => row.ballot === 'PASS').length === 5, `Tezos X promotion baker quorum list: expanded ballots are wrong ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(promotionBakerState.rows[0].power === '6.0M XTZ' && promotionBakerState.rows[20].power === '6.5M XTZ' && promotionBakerState.rows[21].power === '17.6M XTZ' && promotionBakerState.rows.at(-1).power === '30.0M XTZ', `Tezos X promotion baker quorum list: voting powers are wrong ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(promotionBakerState.rows[16].baker === 'Ledger Baker 17' && promotionBakerState.rows[16].quorumCrossed === 'true' && promotionBakerState.rows.filter((row) => row.quorumCrossed === 'true').length === 1 && promotionBakerState.rows.at(-1).cumulativeShare === '247.87', `Tezos X promotion baker quorum list: cumulative quorum crossing is wrong ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(/1 of 27 · .* UTC · level 12345400/.test(promotionBakerState.rows[0].meta) && /27 of 27 · .* UTC · level 12345600/.test(promotionBakerState.rows.at(-1).meta), `Tezos X promotion baker quorum list: exact chronological timestamps are missing ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(promotionBakerState.rows.slice(22, 26).every((row) => /via tz1iJP1EtP/.test(row.meta)), `Tezos X promotion baker quorum list: shared voting key was not attributed ${JSON.stringify(promotionBakerState.rows)}`);
+  assert(promotionBakerState.rows.every((row) => /tzkt\.io\/opEtherlink/.test(row.opHref)), `Tezos X promotion baker quorum list: operation provenance missing ${JSON.stringify(promotionBakerState.rows)}`);
 
   await promotionPage.setViewportSize({ width: 390, height: 844 });
   const promotionMobileState = await promotionPage.evaluate(() => {
@@ -8413,7 +8455,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     };
   });
   assert(promotionMobileState.pageOverflow <= 2 && promotionMobileState.panelOverflow <= 2 && promotionMobileState.rowOverflows.every((value) => value <= 2), `Tezos X promotion baker quorum list: mobile list overflows ${JSON.stringify(promotionMobileState)}`);
-  assert(promotionMobileState.visibleRows === 5 && promotionMobileState.rowColumns === 2, `Tezos X promotion baker quorum list: mobile must keep all five baker receipts scannable ${JSON.stringify(promotionMobileState)}`);
+  assert(promotionMobileState.visibleRows === 27 && promotionMobileState.rowColumns === 2, `Tezos X promotion baker quorum list: mobile must keep the complete baker receipt ledger scannable ${JSON.stringify(promotionMobileState)}`);
   await promotionContext.close();
   assert(promotionIssues.length === 0, `Tezos X promotion baker quorum list browser issues:\n${promotionIssues.join('\n')}`);
 

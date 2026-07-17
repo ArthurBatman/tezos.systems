@@ -8,7 +8,7 @@ const CHANGELOG = [
         date: '2026-07-16',
         entries: [
             { type: '🔧', text: 'The My Tezos cycle clock now ticks without retriggering the theme reveal animation every second' },
-            { type: '✨', text: 'Tezos X Governance now shows the five latest represented baker votes with ballot, L1 voting power, voting-key attribution, and each baker’s share of the quorum required to pass' },
+            { type: '✨', text: 'Tezos X Governance now recounts every represented baker receipt from first to latest with its ballot, exact UTC time, L1 voting power, voting-key attribution, cumulative quorum progress, and the receipt that crossed quorum' },
             { type: '⚡', text: 'Queued TzKT requests now start their deadline when they actually leave the shared throttle, and Tezos X Governance retries delayed indexers with bounded backoff instead of a fixed noisy loop' },
             { type: '🔧', text: 'Governance and Network Pulse now keep quiet proposal periods, ballot thresholds, monotonic contract totals, freshness, and unavailable history distinct instead of borrowing older or incompatible signals' },
             { type: '✨', text: 'Staking now keeps a persistent incremental archive of qualifying moves, resumes from per-action high-water marks, and adds address search plus filtered CSV export' },
