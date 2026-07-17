@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-17',
         entries: [
+            { type: '🎨', text: 'The NFT Feed header doorway now keeps its full label and frame when the desktop control row gets tight' },
             { type: '✨', text: 'Maxis now crowns an L2 Governance Maxi from each active baker’s distinct completed Etherlink FAST, SLOW, and Sequencer participation windows' },
             { type: '🔧', text: 'L2 governance careers now reconcile official period bounds with complete TzKT receipts, attribute voting-key activity to its represented baker, and stay independent of frozen protocol seasons' },
             { type: '🔧', text: 'The L2 Chamber now verifies the documented FAST, SLOW, and corrected Sequencer contracts instead of inferring the current set from one creator account' }
