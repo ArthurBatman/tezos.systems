@@ -579,7 +579,7 @@ function buildContainer(report, stats, xtzPrice) {
     <div class="rt-grid">
       <div class="rt-card">
         <div class="rt-card-title">⏱ Cycle Clock</div>
-        <div class="rt-value" id="rt-countdown">${cycleClock}</div>
+        <div class="rt-value" id="rt-countdown" data-magic="off">${cycleClock}</div>
         <div class="rt-sub">${cycleDetail}</div>
         <div class="rt-sub" style="margin-top:0.5rem">
           Cycle <span class="rt-accent">${stats?.cycle ?? '—'}</span>

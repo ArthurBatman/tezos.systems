@@ -2649,6 +2649,7 @@ async function checkTruthSurfaceContracts() {
   const changelogCopy = await readText('js/features/changelog.js');
 
   for (const required of [
+    'id="rt-countdown" data-magic="off"',
     "status: 'no-current-record'",
     'Latest historical record: cycle',
     'Not currently baking, staking, or delegating.',
