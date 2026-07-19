@@ -90,14 +90,13 @@ function renderRouteIntro(route) {
             <nav aria-label="Breadcrumb"><a href="/">Tezos Systems</a><span aria-hidden="true"> / </span>${escapeHtml(route.eyebrow)}</nav>
             <h1 id="chamber-route-title">${escapeHtml(route.shortTitle)}</h1>
             <p>${escapeHtml(route.description)}</p>
-            <small>Opening the live room…</small>
         </section>`;
 }
 
 const ROUTE_INTRO_STYLES = `    <style data-chamber-route-shell>
       .chamber-route-shell-intro{box-sizing:border-box;max-width:1160px;margin:0 auto 1rem;padding:clamp(1rem,3vw,1.75rem);border:1px solid color-mix(in srgb,var(--chamber-route-accent) 52%,transparent);border-radius:16px;background:linear-gradient(135deg,rgba(8,15,28,.96),rgba(13,22,38,.9));color:#edf4ff;box-shadow:0 18px 48px rgba(0,0,0,.22)}
       .chamber-route-shell-intro nav{margin:0 0 .7rem;color:#aebdd1;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase}.chamber-route-shell-intro nav a{color:var(--chamber-route-accent)}
-      .chamber-route-shell-intro h1{margin:0;color:#fff;font-size:clamp(1.65rem,4vw,2.7rem);line-height:1.08}.chamber-route-shell-intro p{max-width:68ch;margin:.75rem 0 0;color:#d4deec;line-height:1.6}.chamber-route-shell-intro small{display:block;margin-top:.8rem;color:var(--chamber-route-accent);font-weight:700}
+      .chamber-route-shell-intro h1{margin:0;color:#fff;font-size:clamp(1.65rem,4vw,2.7rem);line-height:1.08}.chamber-route-shell-intro p{max-width:68ch;margin:.75rem 0 0;color:#d4deec;line-height:1.6}
     </style>`;
 
 function absolutizeShellAssetRefs(html) {

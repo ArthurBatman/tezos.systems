@@ -630,6 +630,9 @@ async function checkSiteMapGraphContracts() {
       || !routeShell.includes(route.description)) {
       fail(`${route.slug}/index.html must expose its route-specific heading and summary before hydration`);
     }
+    if (routeShell.includes('Opening the live room')) {
+      fail(`${route.slug}/index.html must not leave a fake opening message behind the live room`);
+    }
     if (!routeShell.includes('"@type": "WebPage"')
       || !routeShell.includes('"@type": "BreadcrumbList"')
       || routeShell.includes('"@type": "FAQPage"')) {
