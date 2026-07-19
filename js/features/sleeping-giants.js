@@ -4,6 +4,7 @@
  */
 
 import { debugLog, escapeHtml } from '../core/utils.js';
+import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
 import { THRESHOLDS, API_URLS } from '../core/config.js';
 
 // Configuration
@@ -370,8 +371,8 @@ function createAwakeningAlert(awakening) {
     
     // Auto-remove after 30 seconds
     setTimeout(() => {
-        alert.classList.add('awakening-fade');
-        setTimeout(() => alert.remove(), 500);
+        const container = alert.parentElement;
+        if (container) quietlyMutate(container, () => alert.remove());
     }, 30000);
     
     return alert;
@@ -387,12 +388,12 @@ function updateUI() {
     if (!container) return;
     
     if (giants.length === 0) {
-        container.innerHTML = `
+        quietlySyncHtml(container, `
             <div class="giants-empty">
                 <span class="giants-empty-icon">😴</span>
                 <span>Scanning for sleeping giants...</span>
             </div>
-        `;
+        `);
         return;
     }
     
@@ -404,7 +405,7 @@ function updateUI() {
     
     // Update stats
     if (statsEl) {
-        statsEl.innerHTML = `
+        quietlySyncHtml(statsEl, `
             <div class="giants-stat">
                 <span class="stat-value">${formatXTZ(totalDormant)}</span>
                 <span class="stat-label">Total Dormant</span>
@@ -417,14 +418,19 @@ function updateUI() {
                 <span class="stat-value">${giants.length}</span>
                 <span class="stat-label">Giants Tracked</span>
             </div>
-        `;
+        `);
     }
     
     // Update grid
-    container.innerHTML = '';
-    giants.forEach((giant, i) => {
-        container.appendChild(createGiantCard(giant, i + 1));
-    });
+    const html = giants.map((giant, index) => createGiantCard(giant, index + 1).outerHTML).join('');
+    quietlySyncHtml(container, html);
+    if (container.dataset.giantGridWired !== 'true') {
+        container.dataset.giantGridWired = 'true';
+        container.addEventListener('click', (event) => {
+            const card = event.target.closest('.giant-card[data-address]');
+            if (card && container.contains(card)) window.open(`https://tzkt.io/${card.dataset.address}`, '_blank');
+        });
+    }
 }
 
 /**
@@ -452,7 +458,7 @@ function showAwakening(awakening) {
     const alertsContainer = document.getElementById('awakening-alerts');
     if (alertsContainer) {
         const alert = createAwakeningAlert(awakening);
-        alertsContainer.appendChild(alert);
+        quietlyMutate(alertsContainer, () => alertsContainer.appendChild(alert));
     }
     
     // Send browser notification

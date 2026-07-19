@@ -16,6 +16,7 @@ import { fetchObjktProfile } from './objkt.js';
 import { refresh as refreshMyBakerStats } from './my-baker.js';
 import { initRewardsTracker } from './rewards-tracker.js';
 import { enqueueToast } from '../ui/toast-queue.js';
+import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
 const OCTEZ = API_URLS.octez;
@@ -907,13 +908,15 @@ function renderBakerActivity(activity) {
     const delegators = activity?.delegators || [];
     const stakers = activity?.stakers || [];
     if (!delegators.length && !stakers.length) {
-        container.hidden = true;
-        container.innerHTML = '';
+        if (!container.hidden) quietlyMutate(container, () => {
+            container.hidden = true;
+            container.innerHTML = '';
+        });
         return;
     }
 
-    container.hidden = false;
-    container.innerHTML = `
+    const wasHidden = container.hidden;
+    const html = `
         <div class="drawer-activity-panel">
             <div class="drawer-activity-header">
                 <div>
@@ -926,6 +929,9 @@ function renderBakerActivity(activity) {
             ${renderBakerActivityGroup('Latest stakers', stakers, 'staker')}
         </div>
     `;
+    if (container.children.length) quietlySyncHtml(container, html);
+    else container.innerHTML = html;
+    if (wasHidden) quietlyMutate(container, () => { container.hidden = false; });
 }
 
 function renderOperatorTile(label, value, detail, state = 'unknown', extraClass = '') {
@@ -943,8 +949,10 @@ function renderBakerOperatorStatus(status, isBaker) {
     const container = document.getElementById('drawer-operator-status');
     if (!container) return;
     if (!status) {
-        container.hidden = true;
-        container.innerHTML = '';
+        if (!container.hidden) quietlyMutate(container, () => {
+            container.hidden = true;
+            container.innerHTML = '';
+        });
         return;
     }
 
@@ -966,8 +974,8 @@ function renderBakerOperatorStatus(status, isBaker) {
         status.octez?.state || (status.octez?.known ? 'ok' : 'unknown')
     );
 
-    container.hidden = false;
-    container.innerHTML = `
+    const wasHidden = container.hidden;
+    const html = `
         <div class="drawer-operator-panel">
             <div class="drawer-operator-header">
                 <h3>${isBaker ? 'Baker signal' : 'Your baker signal'}</h3>
@@ -982,6 +990,9 @@ function renderBakerOperatorStatus(status, isBaker) {
             </div>
         </div>
     `;
+    if (container.children.length) quietlySyncHtml(container, html);
+    else container.innerHTML = html;
+    if (wasHidden) quietlyMutate(container, () => { container.hidden = false; });
 }
 
 function getGreeting() {
@@ -2226,23 +2237,24 @@ function renderBriefTabs(cards, data) {
         </div>`;
     }).join('');
     
-    container.innerHTML = sectionsHtml;
+    if (container.children.length) quietlySyncHtml(container, sectionsHtml);
+    else container.innerHTML = sectionsHtml;
 
     container.querySelectorAll('.story-share-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.onclick = () => {
             if (data && data.story) {
                 shareTezosStory(data);
             } else {
                 const d = window._myTezosData;
                 if (d && d.story) shareTezosStory(d);
             }
-        });
+        };
     });
     container.querySelectorAll('.tezos-era-share-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.onclick = () => {
             const d = data?.story ? data : window._myTezosData;
             if (d?.story) shareEraCard(d, btn);
-        });
+        };
     });
 }
 
@@ -2442,8 +2454,6 @@ async function renderMorningBrief(address, force = false) {
             const gradeInfo = letterGrade(healthScore);
             const gradeContainer = document.getElementById('drawer-baker');
             if (gradeContainer) {
-                // Remove old grade if re-rendering
-                gradeContainer.querySelector('.drawer-baker-grade')?.remove();
                 const gradeEl = document.createElement('div');
                 gradeEl.className = 'drawer-baker-grade';
                 gradeEl.innerHTML = `
@@ -2451,7 +2461,9 @@ async function renderMorningBrief(address, force = false) {
                     <span class="grade-label">Baker Grade</span>
                     <span class="grade-score">${healthScore}/100</span>
                 `;
-                gradeContainer.insertBefore(gradeEl, gradeContainer.firstChild);
+                const existingGrade = gradeContainer.querySelector('.drawer-baker-grade');
+                if (existingGrade) quietlySyncElement(existingGrade, gradeEl.outerHTML);
+                else gradeContainer.insertBefore(gradeEl, gradeContainer.firstChild);
             }
         }
 
@@ -2459,24 +2471,30 @@ async function renderMorningBrief(address, force = false) {
         if (rewards && rewards.length > 1) {
             const rewardsSection = document.getElementById('drawer-rewards');
             if (rewardsSection) {
-                // Remove old sparkline
-                rewardsSection.querySelector('.drawer-rewards-spark')?.remove();
-                const sparkContainer = document.createElement('div');
-                sparkContainer.className = 'drawer-rewards-spark';
-                sparkContainer.style.cssText = 'position:relative;width:100%;height:80px;margin-top:12px;';
-                sparkContainer.innerHTML = `
-                    <div class="spark-label" style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;">Earnings Trend (${rewards.length} cycles)</div>
-                    <div style="position:relative;height:60px;">
-                        <canvas id="drawer-rewards-sparkline"></canvas>
-                    </div>
-                `;
-                rewardsSection.appendChild(sparkContainer);
+                let sparkContainer = rewardsSection.querySelector('.drawer-rewards-spark');
+                if (!sparkContainer) {
+                    sparkContainer = document.createElement('div');
+                    sparkContainer.className = 'drawer-rewards-spark';
+                    sparkContainer.style.cssText = 'position:relative;width:100%;height:80px;margin-top:12px;';
+                    sparkContainer.innerHTML = `
+                        <div class="spark-label" style="font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;"></div>
+                        <div style="position:relative;height:60px;">
+                            <canvas id="drawer-rewards-sparkline"></canvas>
+                        </div>
+                    `;
+                    rewardsSection.appendChild(sparkContainer);
+                }
+                const sparkLabel = sparkContainer.querySelector('.spark-label');
+                if (sparkLabel) sparkLabel.textContent = `Earnings Trend (${rewards.length} cycles)`;
 
                 const values = rewards.map(r => getRecordedRewardAmount(r)).reverse();
                 const ctx = document.getElementById('drawer-rewards-sparkline')?.getContext('2d');
                 if (ctx && window.Chart) {
-                    if (window._drawerRewardsChart) window._drawerRewardsChart.destroy();
-                    window._drawerRewardsChart = new Chart(ctx, {
+                    if (window._drawerRewardsChart) {
+                        window._drawerRewardsChart.data.labels = values.map((_, i) => i);
+                        window._drawerRewardsChart.data.datasets[0].data = values;
+                        window._drawerRewardsChart.update('none');
+                    } else window._drawerRewardsChart = new Chart(ctx, {
                         type: 'line',
                         data: { labels: values.map((_, i) => i), datasets: [{ data: values, borderColor: 'rgba(0,212,255,0.8)', borderWidth: 1.5, fill: true, backgroundColor: 'rgba(0,212,255,0.08)', pointRadius: 0, tension: 0.3 }] },
                         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false, grace: '20%' } } }
@@ -2489,13 +2507,13 @@ async function renderMorningBrief(address, force = false) {
         if (!hasRewardRole) {
             const bakerResults = document.getElementById('my-baker-results');
             if (bakerResults) {
-                bakerResults.innerHTML = `
+                quietlySyncHtml(bakerResults, `
                     <div class="drawer-no-baker">
                         <p>💡 This address isn't delegated or staking.</p>
                         <p>No active reward estimate is shown. Delegation stays liquid, while reward rates, fees, and payout policy vary.</p>
                         <a href="https://gov.tez.capital" target="_blank" class="glass-button" style="margin-top:8px;">🥩 Browse Bakers</a>
                     </div>
-                `;
+                `);
             }
         }
 
@@ -2516,8 +2534,10 @@ async function renderMorningBrief(address, force = false) {
         console.warn('Morning Brief error:', err);
         const container = document.getElementById('drawer-brief');
         if (container) {
-            container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;">⚠️ Could not load data. <button id="brief-retry" style="background:none;border:none;color:var(--accent);cursor:pointer;">Retry</button></div>`;
-            document.getElementById('brief-retry')?.addEventListener('click', () => renderMorningBrief(address, true));
+            if (!container.children.length) {
+                container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;">⚠️ Could not load data. <button id="brief-retry" style="background:none;border:none;color:var(--accent);cursor:pointer;">Retry</button></div>`;
+                document.getElementById('brief-retry')?.addEventListener('click', () => renderMorningBrief(address, true));
+            }
         }
         renderBakerOperatorStatus(null, false);
         renderBakerActivity(null);
@@ -2531,11 +2551,14 @@ function updateFreshness({ signalLive = false } = {}) {
     if (!el) return;
     const now = new Date();
     const source = signalLive ? 'Operator signal' : 'My Tezos';
-    el.innerHTML = `
+    const html = `
         <span class="freshness-time" title="Operator signal checks every 15 seconds; drawer totals refresh every 30 seconds.">${formatFreshnessStamp(now, { source })}</span>
         <button id="drawer-refresh" class="freshness-refresh">↻ Refresh</button>
     `;
-    document.getElementById('drawer-refresh')?.addEventListener('click', (e) => {
+    if (el.children.length) quietlySyncHtml(el, html);
+    else el.innerHTML = html;
+    const refreshButton = document.getElementById('drawer-refresh');
+    if (refreshButton) refreshButton.onclick = (e) => {
         const btn = e.currentTarget;
         btn.disabled = true;
         btn.textContent = '↻ Refreshing…';
@@ -2550,7 +2573,7 @@ function updateFreshness({ signalLive = false } = {}) {
             btn.disabled = false;
             btn.textContent = '↻ Refresh';
         }
-    });
+    };
 }
 
 async function getOperatorSignalContext(address) {
@@ -2616,8 +2639,8 @@ async function refreshDrawerStats({ force = false } = {}) {
     _drawerStatsInFlight = true;
     try {
         const refreshes = [
-            Promise.resolve(refreshMyBakerStats()),
-            initRewardsTracker({}, getCurrentDrawerXtzPrice(), { force })
+            Promise.resolve(refreshMyBakerStats({ quiet: true })),
+            initRewardsTracker({}, getCurrentDrawerXtzPrice(), { force, quiet: true })
         ];
 
         if (_briefRendering) {

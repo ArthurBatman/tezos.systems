@@ -1796,18 +1796,16 @@ const HenMode = (() => {
                 // Reverse so newest ends up at top
                 var sorted = visibleFresh.slice().reverse();
                 var feed = document.querySelector('.hen-feed');
-                var wasNearTop = feed ? feed.scrollTop < 64 : true;
                 var expandedActive = isExpandedActive();
                 var previousScrollHeight = feed ? feed.scrollHeight : 0;
                 var previousScrollTop = feed ? feed.scrollTop : 0;
+                var wasNearTop = previousScrollTop < 64;
                 sorted.forEach(function(t) {
                     tokens.unshift(t);
                     var shell = createCard(t, 0, true);
                     g.prepend(shell);
                 });
-                if (feed && wasNearTop) {
-                    feed.scrollTo({ top: 0, behavior: 'smooth' });
-                } else if (feed) {
+                if (feed) {
                     feed.scrollTop = previousScrollTop + (feed.scrollHeight - previousScrollHeight);
                 }
                 offset += fresh.length;
@@ -2606,7 +2604,9 @@ const HenMode = (() => {
         await loadPage(bootResult && bootResult.tokens);
         await openDeepLink();
 
-        pollTimer = setInterval(pollNew, POLL_INTERVAL);
+        pollTimer = setInterval(function() {
+            if (document.visibilityState === 'visible') pollNew();
+        }, POLL_INTERVAL);
         if (cliInput()) cliInput().focus();
     }
 
@@ -2683,7 +2683,9 @@ const HenMode = (() => {
     function startBlockPolling(initialLevel) {
         if (initialLevel) applyBlockLevel(initialLevel);
         else fetchBlock();
-        blockTimer = setInterval(fetchBlock, 10000);
+        blockTimer = setInterval(function() {
+            if (document.visibilityState === 'visible') fetchBlock();
+        }, 10000);
     }
 
     function stopBlockPolling() {

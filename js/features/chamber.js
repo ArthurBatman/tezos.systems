@@ -146,7 +146,10 @@ function unlockPageScrollForChamber() {
     document.body.style.position = _savedBodyPosition || '';
     document.body.style.top = _savedBodyTop || '';
     document.body.style.width = _savedBodyWidth || '';
+    const previousScrollBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
     window.scrollTo(0, _savedScrollY);
+    document.documentElement.style.scrollBehavior = previousScrollBehavior;
     _savedBodyOverflow = null;
     _savedHtmlOverflow = null;
     _savedBodyPosition = null;

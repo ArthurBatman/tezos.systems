@@ -13,6 +13,7 @@ import {
 } from '../core/etherlink-governance-contracts.mjs';
 import { escapeHtml, formatUtcDateTime, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
@@ -89,6 +90,12 @@ let entryFailureCount = 0;
 let entryVisibilityWired = false;
 let chamberTimer = null;
 let chamberInFlight = false;
+let lastRenderedChamberData = null;
+
+function getChamberRefreshMs() {
+    const override = Number(window.__ETHERLINK_GOVERNANCE_CHAMBER_REFRESH_MS__);
+    return Number.isFinite(override) && override >= 1000 ? override : CHAMBER_REFRESH_MS;
+}
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 const targetTrackCache = new Map();
@@ -1562,10 +1569,10 @@ function renderTrackPanel(track) {
     `;
 }
 
-function renderChamber(data, container) {
+function renderChamber(data, container, { quiet = false } = {}) {
     const track = data.tracks.find((item) => item.key === activeTrackKey) || data.tracks[0];
     const status = trackStatus(track);
-    container.innerHTML = `
+    const html = `
         <div class="chamber-header lb-header etherlink-gov-header chamber-anim-fade">
             <div class="lb-system-strip">
                 <span class="lb-system-brand">Tezos.Systems</span>
@@ -1575,7 +1582,7 @@ function renderChamber(data, container) {
             <div class="chamber-title-row">
                 <h2 class="chamber-title" id="etherlink-governance-title">Tezos X Governance</h2>
                 <span class="chamber-badge ${escapeHtml(status.className)}">${escapeHtml(status.label)}</span>
-                <span class="lb-live-pill lb-refresh-pill" id="etherlink-governance-refresh-state">auto-refresh ${Math.round(CHAMBER_REFRESH_MS / 1000)}s</span>
+                <span class="lb-live-pill lb-refresh-pill" id="etherlink-governance-refresh-state">auto-refresh ${Math.round(getChamberRefreshMs() / 1000)}s</span>
             </div>
             <div class="chamber-proposal-info">
                 <div class="proposal-name">${escapeHtml(track.label)} #${escapeHtml(String(track.period?.index ?? '--'))}</div>
@@ -1594,16 +1601,23 @@ function renderChamber(data, container) {
             <a class="panel-direct-link" href="/l2chamber/" aria-label="Direct link to Tezos X Governance Chamber">Direct: /l2chamber/</a>
         </div>
     `;
-    container.querySelectorAll('[data-etherlink-track]').forEach((button) => {
-        button.addEventListener('click', () => {
-            activeTrackKey = button.dataset.etherlinkTrack || 'fast';
-            selectActiveTrackOnNextRender = false;
-            renderChamber(data, container);
+    lastRenderedChamberData = data;
+    if (quiet) quietlySyncHtml(container, html);
+    else container.innerHTML = html;
+    if (container.dataset.etherlinkChamberWired !== 'true') {
+        container.dataset.etherlinkChamberWired = 'true';
+        container.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-etherlink-track]');
+            if (button && container.contains(button)) {
+                activeTrackKey = button.dataset.etherlinkTrack || 'fast';
+                selectActiveTrackOnNextRender = false;
+                if (lastRenderedChamberData) renderChamber(lastRenderedChamberData, container, { quiet: true });
+                return;
+            }
+            const voterLink = event.target.closest('.etherlink-gov-voter-row[href^="#baker="], .etherlink-gov-voter-link[href^="#baker="]');
+            if (voterLink && container.contains(voterLink)) closeEtherlinkGovernanceChamber();
         });
-    });
-    container.querySelectorAll('.etherlink-gov-voter-row[href^="#baker="], .etherlink-gov-voter-link[href^="#baker="]').forEach((link) => {
-        link.addEventListener('click', closeEtherlinkGovernanceChamber);
-    });
+    }
 }
 
 async function refreshEntryCard({ force = false } = {}) {
@@ -1689,7 +1703,7 @@ async function refreshChamber({ force = false } = {}) {
             activeTrackKey = topTrack(data)?.key || activeTrackKey;
             selectActiveTrackOnNextRender = false;
         }
-        if (overlay.classList.contains('active')) renderChamber(data, body);
+        if (overlay.classList.contains('active')) renderChamber(data, body, { quiet: body.dataset.rendered === 'true' });
         dispatchEtherlinkGovernanceHotSignal(data);
         const currentUpdatedAt = data.updatedAt;
         void hydrateHistoricalProposals(data).then((enriched) => {
@@ -1698,7 +1712,7 @@ async function refreshChamber({ force = false } = {}) {
                 && enriched.updatedAt === currentUpdatedAt
                 && overlay.classList.contains('active')
             ) {
-                renderChamber(enriched, body);
+                renderChamber(enriched, body, { quiet: true });
             }
         });
     } catch (error) {
@@ -1727,7 +1741,7 @@ async function refreshChamber({ force = false } = {}) {
         body.dataset.rendered = 'true';
         chamberInFlight = false;
         const state = document.getElementById('etherlink-governance-refresh-state');
-        if (state) state.textContent = `auto-refresh ${Math.round(CHAMBER_REFRESH_MS / 1000)}s`;
+        if (state) state.textContent = `auto-refresh ${Math.round(getChamberRefreshMs() / 1000)}s`;
     }
 }
 
@@ -1776,7 +1790,7 @@ export async function openEtherlinkGovernanceChamber(trackKey = '') {
     stopChamberRefresh();
     chamberTimer = window.setInterval(() => {
         if (document.visibilityState === 'visible') refreshChamber();
-    }, CHAMBER_REFRESH_MS);
+    }, getChamberRefreshMs());
 }
 
 export function closeEtherlinkGovernanceChamber() {

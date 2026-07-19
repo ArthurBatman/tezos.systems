@@ -6,6 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { quietlyMutate } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
@@ -918,7 +919,11 @@ async function refreshTz4AdoptionChamber({ initial = false } = {}) {
     try {
         const data = await fetchTz4AdoptionData({ force: !initial });
         if (!overlay.classList.contains('active')) return;
-        renderTz4Adoption(data, body, activeFilter);
+        if (initial || body.dataset.tz4Rendered !== 'true') {
+            renderTz4Adoption(data, body, activeFilter);
+        } else {
+            quietlyMutate(body, () => renderTz4Adoption(data, body, activeFilter));
+        }
         if (content) content.scrollTop = scrollTop;
     } catch (error) {
         if (initial) throw error;

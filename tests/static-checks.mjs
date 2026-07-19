@@ -229,6 +229,7 @@ async function checkRequiredFiles() {
     'js/core/app.js',
     'js/core/api.js',
     'js/core/config.js',
+    'js/core/quiet-refresh.js',
     'js/core/site-map.js',
     'js/core/etherlink-governance-contracts.mjs',
     'js/core/tzkt-throttle.js',
@@ -5187,6 +5188,56 @@ async function checkMaxisContracts() {
   pass('Tezos Maxis taxonomy, snapshot, scoring, route, and Ledger Flow contracts checked');
 }
 
+async function checkQuietRefreshContracts() {
+  const [quiet, app, daily, myTezos, myBaker, tezlink, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
+    readText('js/core/quiet-refresh.js'),
+    readText('js/core/app.js'),
+    readText('js/features/daily-briefing.js'),
+    readText('js/features/my-tezos.js'),
+    readText('js/features/my-baker.js'),
+    readText('js/features/tezlink.js'),
+    readText('js/features/etherlink-governance.js'),
+    readText('js/features/tezos-domains.js'),
+    readText('js/features/tz4-adoption.js'),
+    readText('js/features/whales.js'),
+    readText('js/features/sleeping-giants.js'),
+    readText('js/features/hen-mode.js'),
+    readText('js/features/network-health.js'),
+    readText('js/features/liquidity-baking.js'),
+    readText('css/styles.css'),
+    readText('tests/smoke.mjs')
+  ]);
+
+  const requiredQuietHelpers = ['quietlyMutate', 'quietlySyncHtml', 'quietlySyncElement', 'captureSelection', 'captureViewportAnchor'];
+  for (const helper of requiredQuietHelpers) {
+    if (!quiet.includes(helper)) fail(`quiet refresh helper missing ${helper}`);
+  }
+  if (/hotTodayRotateTimer|advanceHotTodayLead|HOT_TODAY_ROTATE_MS/.test(daily)) {
+    fail('What is hot today must not auto-rotate or auto-scroll on a timer');
+  }
+  if (!daily.includes('quietlySyncHtml(island, islandHtml)')) fail('What is hot today background signals must reconcile without replacing the rail');
+  if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
+    fail('headline and heavy dashboard timers must both defer while the tab is hidden');
+  }
+  const quietSurfaces = [myTezos, myBaker, tezlink, etherlink, domains, tz4, whales, giants, health, lb];
+  if (quietSurfaces.some((source) => !source.includes('quiet-refresh.js'))) {
+    fail('every audited live surface must import the shared quiet refresh contract');
+  }
+  const mintInsertStart = hen.indexOf('// Reverse so newest ends up at top');
+  const mintInsertEnd = hen.indexOf('offset += fresh.length', mintInsertStart);
+  const mintInsert = hen.slice(mintInsertStart, mintInsertEnd);
+  if (!/feed\.scrollTop\s*=\s*previousScrollTop\s*\+\s*\(feed\.scrollHeight\s*-\s*previousScrollHeight\)/.test(mintInsert)
+    || /feed\.scrollTo\(/.test(mintInsert)) {
+    fail('HEN new mints must preserve the existing feed viewport at every scroll position');
+  }
+  const quietStyles = `${styles}\n${await readText('css/shell-extras.css')}`;
+  if (!quietStyles.includes('[data-quiet-refreshing="true"]') || !quietStyles.includes('[data-quiet-refresh-settled="true"]')) {
+    fail('quiet refresh CSS must suppress scroll animation and replayed entrances');
+  }
+  if (!smoke.includes("name: 'quiet-refresh'")) fail('smoke catalog must include the quiet-refresh browsing-state suite');
+  pass('quiet background refresh scroll, focus, selection, animation, and hidden-tab contracts checked');
+}
+
 async function main() {
   if (process.argv.includes('--readme-only')) {
     await checkPortableTooling();
@@ -5226,6 +5277,7 @@ async function main() {
   await checkTourAndShareCaptureContracts();
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
+  await checkQuietRefreshContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();
   await checkVisitStreakBehavior();

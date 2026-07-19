@@ -149,7 +149,10 @@ tezos.systems/
    still reveal the inline stat sections for focused QA and deep links.
 6. Background refreshes update hero stats, comparison data, governance state,
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
-   tools, leaderboard, My Tezos, and share-ready UI. Welcome, streak,
+   tools, leaderboard, My Tezos, and share-ready UI through quiet DOM
+   reconciliation: timed updates preserve page and chamber scroll, focused
+   controls, text selection, and existing panel nodes, while hidden tabs defer
+   network polling until they become visible. Welcome, streak,
    anniversary, network-moment, and cycle toasts go through a shared priority
    queue after the hero arrival settles so first-load signals do not stack over
    one another.
@@ -833,6 +836,8 @@ Current smoke suites:
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)
 - `ux-regressions`
+- `quiet-refresh` (covers passive Hot Today, nested-scroll, focus, selection,
+  in-flow status anchoring, and open-chamber refresh stability)
 - `feature-workflows` (covers all sparkline card latest values, history, share, and optional feature flows)
 - `share-actions` (covers share modal copy, editable X post text, optional handle persistence, download, native share, Network Moment image cards, and mobile photo fallback buttons)
 - `info-modals`
@@ -853,7 +858,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v444`, including hero search, theme
+- Current aligned shell cache stamp: `v451`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

@@ -6,6 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const DEFILLAMA = API_URLS.defillama;
@@ -22,6 +23,11 @@ let cachedAt = 0;
 let entryTimer = null;
 let chamberTimer = null;
 let chamberInFlight = false;
+
+function getChamberRefreshMs() {
+    const override = Number(window.__TEZLINK_CHAMBER_REFRESH_MS__);
+    return Number.isFinite(override) && override >= 1000 ? override : CHAMBER_REFRESH_MS;
+}
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 
@@ -613,9 +619,9 @@ function renderTokensPanel(data) {
     `;
 }
 
-function renderTezlinkChamber(data, container) {
+function renderTezlinkChamber(data, container, { quiet = false } = {}) {
     const head = data.rpcHead || data.explorerHead;
-    container.innerHTML = `
+    const html = `
         <div class="chamber-header lb-header tezlink-header chamber-anim-fade">
             <div class="lb-system-strip">
                 <span class="lb-system-brand">Tezos.Systems</span>
@@ -625,7 +631,7 @@ function renderTezlinkChamber(data, container) {
             <div class="chamber-title-row">
                 <h2 class="chamber-title" id="tezlink-title">Tezos X Chamber</h2>
                 <span class="chamber-badge live">Live L2</span>
-                <span class="lb-live-pill lb-refresh-pill" id="tezlink-refresh-state">auto-refresh ${Math.round(CHAMBER_REFRESH_MS / 1000)}s</span>
+                <span class="lb-live-pill lb-refresh-pill" id="tezlink-refresh-state">auto-refresh ${Math.round(getChamberRefreshMs() / 1000)}s</span>
             </div>
             <div class="chamber-proposal-info">
                 <div class="proposal-name">Single atomic L2 rollup surface</div>
@@ -661,6 +667,8 @@ function renderTezlinkChamber(data, container) {
             <a class="panel-direct-link" href="/tezosx/" aria-label="Direct link to Tezos X Chamber">Direct: /tezosx/</a>
         </div>
     `;
+    if (quiet) quietlySyncHtml(container, html);
+    else container.innerHTML = html;
 }
 
 function lockPageScroll() {
@@ -696,7 +704,7 @@ async function refreshTezlinkChamber({ force = false } = {}) {
     try {
         const data = await fetchTezlinkData({ force });
         renderEntryCard(data);
-        renderTezlinkChamber(data, body);
+        renderTezlinkChamber(data, body, { quiet: body.dataset.rendered === 'true' });
         dispatchTezlinkHotSignals(data);
     } catch (error) {
         console.warn('Tezlink chamber refresh failed:', error);
@@ -713,7 +721,7 @@ async function refreshTezlinkChamber({ force = false } = {}) {
         chamberInFlight = false;
         body.dataset.rendered = 'true';
         const refreshed = document.getElementById('tezlink-refresh-state');
-        if (refreshed) refreshed.textContent = `auto-refresh ${Math.round(CHAMBER_REFRESH_MS / 1000)}s`;
+        if (refreshed) refreshed.textContent = `auto-refresh ${Math.round(getChamberRefreshMs() / 1000)}s`;
     }
 }
 
@@ -756,7 +764,7 @@ export async function openTezlinkChamber() {
     stopChamberRefresh();
     chamberTimer = window.setInterval(() => {
         if (document.visibilityState === 'visible') refreshTezlinkChamber();
-    }, CHAMBER_REFRESH_MS);
+    }, getChamberRefreshMs());
 }
 
 export function closeTezlinkChamber() {

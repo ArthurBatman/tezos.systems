@@ -1,6 +1,7 @@
 import { fetchVotingStatus, formatTimeRemaining, getVotingPeriodName } from './governance.js';
 import { fetchBakerVoteStatus, formatGovTimeLeft } from './my-tezos.js';
 import { escapeHtml } from '../core/utils.js';
+import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const ROOT_ID = 'governance-alert-strip';
 const SAVED_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -9,6 +10,7 @@ const ALERT_NOTIFIED_KEY = 'tezos-systems-governance-alert-notified';
 const REFRESH_MS = 10 * 60 * 1000;
 
 let refreshTimer = null;
+let latestAlertContext = null;
 
 function canNotify() {
     return 'Notification' in window;
@@ -46,8 +48,12 @@ export function alertablePeriod(period) {
 }
 
 function hide(root) {
-    root.hidden = true;
-    root.innerHTML = '';
+    if (root.hidden) return;
+    quietlyMutate(root, () => {
+        root.hidden = true;
+        root.innerHTML = '';
+    });
+    latestAlertContext = null;
     window.dispatchEvent(new CustomEvent('governance-alert-state', { detail: { visible: false } }));
 }
 
@@ -157,8 +163,9 @@ function render(root, period, vote, savedBaker) {
             ? 'Enable reminders'
             : 'RSS only';
 
-    root.hidden = false;
-    root.innerHTML = `
+    latestAlertContext = { period, vote, savedBaker };
+    const wasHidden = root.hidden;
+    quietlySyncHtml(root, `
         <div class="governance-alert-card governance-alert-${escapeHtml(copy.tone)}">
             <div class="governance-alert-copy">
                 <span class="governance-alert-kicker">${escapeHtml(copy.kicker)}</span>
@@ -173,7 +180,8 @@ function render(root, period, vote, savedBaker) {
                 <button type="button" data-governance-alert-action="notify" ${canNotify() ? '' : 'disabled'}>${escapeHtml(notifyLabel)}</button>
             </div>
         </div>
-    `;
+    `);
+    if (wasHidden) quietlyMutate(root, () => { root.hidden = false; });
     window.dispatchEvent(new CustomEvent('governance-alert-state', {
         detail: {
             visible: true,
@@ -182,10 +190,14 @@ function render(root, period, vote, savedBaker) {
         }
     }));
 
-    root.querySelectorAll('[data-governance-alert-action]').forEach((control) => {
-        control.addEventListener('click', async (event) => {
+    if (root.dataset.governanceAlertWired !== 'true') {
+        root.dataset.governanceAlertWired = 'true';
+        root.addEventListener('click', async (event) => {
+            const control = event.target.closest('[data-governance-alert-action]');
+            if (!control || !root.contains(control)) return;
+            const context = latestAlertContext || {};
             const action = control.dataset.governanceAlertAction;
-            track(action, { kind: period?.kind || 'unknown', saved_baker: savedBaker ? 'yes' : 'no' });
+            track(action, { kind: context.period?.kind || 'unknown', saved_baker: context.savedBaker ? 'yes' : 'no' });
             if (action !== 'notify') return;
             event.preventDefault();
             if (!canNotify()) return;
@@ -195,10 +207,10 @@ function render(root, period, vote, savedBaker) {
             if (permission === 'granted') {
                 localStorage.setItem(ALERTS_ENABLED_KEY, '1');
                 control.textContent = 'Reminders on';
-                sendNotification(period, vote, savedBaker);
+                sendNotification(context.period, context.vote, context.savedBaker);
             }
         });
-    });
+    }
 
     sendNotification(period, vote, savedBaker);
 }
@@ -230,6 +242,11 @@ export function initGovernanceAlerts() {
     if (!root) return;
     refreshGovernanceAlert();
     if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(refreshGovernanceAlert, REFRESH_MS);
+    refreshTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') refreshGovernanceAlert();
+    }, REFRESH_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') refreshGovernanceAlert();
+    });
     window.addEventListener('my-baker-updated', refreshGovernanceAlert);
 }

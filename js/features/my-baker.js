@@ -8,6 +8,7 @@ import { escapeHtml, formatNumber } from '../core/utils.js';
 import { fetchProtocolConstants, fetchStakingAPY, fetchWithDeadline, getExternalStakerApy } from '../core/api.js';
 import { fetchBakerLiquidityBakingVote } from './liquidity-baking.js';
 import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const SAVED_ADDRESSES_KEY = 'tezos-systems-saved-addresses';
@@ -212,6 +213,7 @@ async function fetchDALParticipation(bakerAddr) {
 function createStatItem(label, value, tooltip, extraClass = '') {
     const div = document.createElement('div');
     div.className = 'my-baker-stat';
+    div.dataset.quietKey = `my-baker-stat:${label}`;
     if (extraClass) div.classList.add(extraClass);
     if (tooltip) div.title = tooltip;
     const labelEl = document.createElement('span');
@@ -253,6 +255,7 @@ function createCapacityBar(label, used, max, note) {
 
     const card = document.createElement('div');
     card.className = 'capacity-bar-card';
+    card.dataset.quietKey = `capacity-bar:${label}`;
     if (isOverCapacity) card.classList.add('capacity-over');
 
     const header = document.createElement('div');
@@ -313,6 +316,11 @@ function createMatrixLoader() {
     // Cycle characters periodically
     const interval = setInterval(() => {
         const spans = wrapper.querySelectorAll('.matrix-char');
+        if (!wrapper.classList.contains('my-baker-loading-matrix') || !spans.length) {
+            clearInterval(interval);
+            observer.disconnect();
+            return;
+        }
         const idx = Math.floor(Math.random() * spans.length);
         spans[idx].textContent = chars[Math.floor(Math.random() * chars.length)];
     }, 150);
@@ -331,14 +339,17 @@ function createMatrixLoader() {
 /**
  * Render the My Baker data into the results container
  */
-async function renderBakerData(address, container) {
+async function renderBakerData(address, container, { quiet = false } = {}) {
     const renderSeq = ++_bakerRenderSeq;
-    container.innerHTML = '';
+    const renderTarget = quiet ? document.createElement('div') : container;
+    if (!quiet) container.innerHTML = '';
     // Remove stale report card button so MutationObserver recreates with fresh address
     const section = container.closest('#drawer-baker') || container.closest('#my-baker-section');
-    if (section) { const oldBtn = section.querySelector('.report-card-btn'); if (oldBtn) oldBtn.remove(); }
-    const loadingEl = createMatrixLoader();
-    container.appendChild(loadingEl);
+    if (!quiet && section) { const oldBtn = section.querySelector('.report-card-btn'); if (oldBtn) oldBtn.remove(); }
+    if (!quiet) {
+        const loadingEl = createMatrixLoader();
+        container.appendChild(loadingEl);
+    }
 
     try {
         // Fetch account data
@@ -387,7 +398,7 @@ async function renderBakerData(address, container) {
         ]);
 
         if (renderSeq !== _bakerRenderSeq) return;
-        container.innerHTML = '';
+        renderTarget.innerHTML = '';
 
         const grid = document.createElement('div');
         grid.className = 'my-baker-grid';
@@ -576,10 +587,15 @@ async function renderBakerData(address, container) {
                 `${activeDelegationLimit}x current protocol limit`
             ));
 
-            container.appendChild(barsContainer);
+            renderTarget.appendChild(barsContainer);
         }
 
-        container.appendChild(grid);
+        renderTarget.appendChild(grid);
+        if (quiet) {
+            quietlySyncHtml(container, renderTarget.innerHTML);
+            missedCycleEl = container.querySelector('[data-quiet-key="my-baker-stat:Missed rights (cycle)"]');
+            missedLifetimeEl = container.querySelector('[data-quiet-key="my-baker-stat:Missed rights (10 cycles)"]');
+        }
 
         // Fetch missed rights (no delay — sequential calls handle rate limits)
         if (participationAddr && currentCycle && missedCycleEl && missedLifetimeEl) {
@@ -627,6 +643,7 @@ async function renderBakerData(address, container) {
         }
     } catch (err) {
         if (renderSeq !== _bakerRenderSeq) return;
+        if (quiet && container.children.length) return;
         container.innerHTML = '';
         const errorEl = document.createElement('div');
         errorEl.className = 'my-baker-error';
@@ -1062,11 +1079,11 @@ export function init() {
 /**
  * Refresh My Baker data (called on dashboard refresh interval)
  */
-export function refresh() {
+export function refresh({ quiet = false } = {}) {
     const saved = localStorage.getItem(STORAGE_KEY);
     const results = document.getElementById('my-baker-results');
     if (saved && isValidAddress(saved) && results) {
-        return renderBakerData(saved, results);
+        return renderBakerData(saved, results, { quiet });
     }
     return Promise.resolve();
 }

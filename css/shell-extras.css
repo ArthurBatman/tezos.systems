@@ -3655,3 +3655,24 @@
         height: 0;
     }
 }
+/* Background data refreshes must never replay entrances or animate scroll. */
+[data-quiet-refreshing="true"],
+[data-quiet-refreshing="true"] * {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+}
+
+[data-quiet-refresh-settled="true"].chamber-anim-fade,
+[data-quiet-refresh-settled="true"] .chamber-anim-fade {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+}
+
+[data-quiet-refresh-settled="true"] .whale-tx-new,
+[data-quiet-refresh-settled="true"] .lb-row-new,
+[data-quiet-refresh-settled="true"] .is-milestone-arriving,
+[data-quiet-refresh-settled="true"] .awakening-alert {
+    animation: none !important;
+}

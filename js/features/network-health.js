@@ -7,6 +7,7 @@ import { API_URLS } from '../core/config.js';
 import { escapeHtml, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
 const TEZTALE = API_URLS.teztale;
@@ -52,7 +53,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=450';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=451';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -220,7 +221,9 @@ function refreshHealthAgeLabels(root = document) {
 
 function startHealthAgeTicker() {
     if (ageTimer) return;
-    ageTimer = window.setInterval(() => refreshHealthAgeLabels(document), AGE_TICK_INTERVAL);
+    ageTimer = window.setInterval(() => {
+        if (document.visibilityState === 'visible') refreshHealthAgeLabels(document);
+    }, AGE_TICK_INTERVAL);
 }
 
 function healthClass(score) {
@@ -2219,7 +2222,7 @@ function setHtmlIfSignatureChanged(target, html, signature, { softClass = 'healt
     const nextSignature = String(signature ?? html);
     if (element.dataset.healthSignature === nextSignature) return false;
     element.dataset.healthSignature = nextSignature;
-    element.innerHTML = html;
+    quietlySyncHtml(element, html);
     if (pulse) {
         element.classList.remove(softClass);
         void element.offsetWidth;
@@ -3322,20 +3325,20 @@ function updateRecentBlockRows(blocks) {
 function updateHealthStoryPanels(data) {
     updateNakamotoCoefficientPanel(data);
     const consensus = document.getElementById('health-teztale-consensus');
-    if (consensus) consensus.outerHTML = renderTeztaleConsensusPanel(data);
+    if (consensus) quietlySyncElement(consensus, renderTeztaleConsensusPanel(data));
     const octez = document.getElementById('health-octez-versions');
     if (octez) {
-        octez.outerHTML = renderOctezVersionsPanel(data);
+        quietlySyncElement(octez, renderOctezVersionsPanel(data));
         initHealthBakerProfileLinks(document.getElementById('health-octez-versions') || document);
     }
     const cycle = document.getElementById('health-cycle-timing');
-    if (cycle) cycle.outerHTML = renderCycleTimingPanel(data);
+    if (cycle) quietlySyncElement(cycle, renderCycleTimingPanel(data));
     const incident = document.getElementById('health-incident-memory');
-    if (incident) incident.outerHTML = renderIncidentMemoryPanel(data);
+    if (incident) quietlySyncElement(incident, renderIncidentMemoryPanel(data));
     const periods = document.getElementById('health-period-telemetry');
-    if (periods) periods.outerHTML = renderPeriodTelemetryPanel(data);
+    if (periods) quietlySyncElement(periods, renderPeriodTelemetryPanel(data));
     const load = document.getElementById('health-network-load');
-    if (load) load.outerHTML = renderNetworkLoadPanel(data);
+    if (load) quietlySyncElement(load, renderNetworkLoadPanel(data));
 }
 
 function updateNetworkHealthInPlace(data, container) {

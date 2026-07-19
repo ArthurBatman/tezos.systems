@@ -7,6 +7,7 @@ import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez } from '../core/utils.js';
 import { isValidAddress } from './my-baker.js';
 import { pulseFresh } from '../effects/data-magic.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
@@ -14,7 +15,7 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=450';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=451';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -452,7 +453,7 @@ function openBakerInDrawer(addr) {
 /**
  * Render the leaderboard table
  */
-function render(container, { focusSort = '' } = {}) {
+function render(container, { focusSort = '', quiet = false } = {}) {
     const ranked = sortBakers(bakersData, currentSort.col, currentSort.dir);
     const sorted = showOpenOvensOnly
         ? ranked.filter((baker) => baker.openDelegationRoom)
@@ -548,39 +549,41 @@ function render(container, { focusSort = '' } = {}) {
                 : 'baker data unavailable';
     html += `<div class="leaderboard-footer">${countLabel} · ${sourceLabel} · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
 
-    container.innerHTML = html;
+    if (quiet) quietlySyncHtml(container, html);
+    else container.innerHTML = html;
     focusSavedBakerRow(container);
     if (focusSort) {
         container.querySelector(`.lb-sort-btn[data-col="${CSS.escape(focusSort)}"]`)?.focus({ preventScroll: true });
     }
 
-    container.querySelector('#leaderboard-open-ovens-filter')?.addEventListener('click', () => {
+    const ovensFilter = container.querySelector('#leaderboard-open-ovens-filter');
+    if (ovensFilter) ovensFilter.onclick = () => {
         showOpenOvensOnly = !showOpenOvensOnly;
         render(container);
-    });
+    };
 
     container.querySelectorAll('.baker-fit-option').forEach((button) => {
-        button.addEventListener('click', () => {
+        button.onclick = () => {
             const key = button.dataset.fitKey;
             const value = button.dataset.fitValue;
             if (!key || !value) return;
             fitPrefs = { ...fitPrefs, [key]: value };
             saveFitPrefs(fitPrefs);
             render(container);
-        });
+        };
     });
 
     container.querySelectorAll('.baker-fit-select').forEach((button) => {
-        button.addEventListener('click', (event) => {
+        button.onclick = (event) => {
             event.stopPropagation();
             openBakerInDrawer(button.dataset.address);
-        });
+        };
     });
 
     // Native buttons make sorting reachable by click, Enter, and Space. The
     // owning columnheader carries aria-sort, and focus survives the rerender.
     container.querySelectorAll('.lb-sort-btn[data-col]').forEach(button => {
-        button.addEventListener('click', () => {
+        button.onclick = () => {
             const col = button.dataset.col;
             if (currentSort.col === col) {
                 currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
@@ -590,15 +593,15 @@ function render(container, { focusSort = '' } = {}) {
             }
             try { localStorage.setItem(SORT_KEY, JSON.stringify(currentSort)); } catch {}
             render(container, { focusSort: col });
-        });
+        };
     });
 
     // Baker names are the single explicit row action. Full details retain the
     // existing report-card/share workflow without another button in every row.
     container.querySelectorAll('.lb-baker-open').forEach(button => {
-        button.addEventListener('click', () => {
+        button.onclick = () => {
             openBakerInDrawer(button.dataset.address);
-        });
+        };
     });
 }
 
@@ -657,8 +660,8 @@ function renderLeaderboardSkeleton() {
 /**
  * Load and render the leaderboard
  */
-async function loadLeaderboard(container) {
-    container.innerHTML = renderLeaderboardSkeleton();
+async function loadLeaderboard(container, { quiet = false } = {}) {
+    if (!quiet) container.innerHTML = renderLeaderboardSkeleton();
     
     try {
         const [raw, limit] = await Promise.all([
@@ -667,8 +670,12 @@ async function loadLeaderboard(container) {
         ]);
         bakersData = raw.map(b => enrichBaker(b, limit));
         rememberStakeSnapshot(raw);
-        render(container);
+        render(container, { quiet });
     } catch (err) {
+        if (quiet && container.children.length) {
+            console.error('Leaderboard background refresh error:', err);
+            return;
+        }
         container.innerHTML = '<div class="leaderboard-error">The baker board didn\'t load — the oven door may be stuck. Retry?</div>';
         console.error('Leaderboard fetch error:', err);
     }
@@ -749,13 +756,13 @@ export function initLeaderboard() {
 /**
  * Refresh leaderboard data (called on main refresh)
  */
-export function refreshLeaderboard() {
+export function refreshLeaderboard({ quiet = false } = {}) {
     const container = document.getElementById('leaderboard-results');
     if (!container || !bakersData.length) return;
     // Only refresh if section is visible
     const section = document.getElementById('leaderboard-section');
     if (section?.classList.contains('visible')) {
-        loadLeaderboard(container);
+        loadLeaderboard(container, { quiet });
     }
 }
 

@@ -7,6 +7,7 @@ import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { escapeHtml, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
 const LB_THRESHOLD = 1000000000;
@@ -1058,14 +1059,14 @@ function updateEmaStatus(data) {
         banner.classList.toggle('active', !data.disabled);
     }
     const sparkline = document.getElementById('lb-ema-sparkline');
-    if (sparkline) sparkline.innerHTML = renderEmaSparkline(data.blocks);
+    if (sparkline) quietlySyncHtml(sparkline, renderEmaSparkline(data.blocks));
 }
 
 function updateSavedBakerPanel(data) {
     const panel = document.querySelector('.lb-saved-baker');
     const signature = savedBakerSignature(data);
     if (!panel || panel.dataset.lbSavedSignature === signature) return;
-    panel.outerHTML = renderSavedBaker(data);
+    quietlySyncElement(panel, renderSavedBaker(data));
     initBakerProfileLinks(document.querySelector('.lb-saved-baker') || document);
 }
 
@@ -1074,29 +1075,31 @@ function updateRecentBlocks(blocks) {
     if (!list) return;
     const nextBlocks = blocks.slice(0, 12);
     if (!list.children.length) {
-        list.innerHTML = nextBlocks.map((block) => renderRecentBlockRow(block)).join('');
+        quietlySyncHtml(list, nextBlocks.map((block) => renderRecentBlockRow(block)).join(''));
         initBakerProfileLinks(list);
         return;
     }
 
     const existingLevels = new Set([...list.querySelectorAll('.lb-table-row')].map((row) => row.dataset.lbLevel));
     const freshBlocks = nextBlocks.filter((block) => !existingLevels.has(String(Number(block.level) || 0)));
-    for (const block of [...freshBlocks].reverse()) {
-        list.insertAdjacentHTML('afterbegin', renderRecentBlockRow(block, { isNew: true }));
-    }
-    while (list.querySelectorAll('.lb-table-row').length > 12) {
-        list.querySelector('.lb-table-row:last-child')?.remove();
-    }
+    quietlyMutate(list, () => {
+        for (const block of [...freshBlocks].reverse()) {
+            list.insertAdjacentHTML('afterbegin', renderRecentBlockRow(block, { isNew: true }));
+        }
+        while (list.querySelectorAll('.lb-table-row').length > 12) {
+            list.querySelector('.lb-table-row:last-child')?.remove();
+        }
+    });
     initBakerProfileLinks(list);
 }
 
 function updateStoryPanels(data) {
     const forecast = document.getElementById('lb-ema-forecast');
-    if (forecast) forecast.outerHTML = renderEmaForecastPanel(data);
+    if (forecast) quietlySyncElement(forecast, renderEmaForecastPanel(data));
     const history = document.getElementById('lb-ema-history');
-    if (history) history.outerHTML = renderEmaHistoryPanel(data);
+    if (history) quietlySyncElement(history, renderEmaHistoryPanel(data));
     const changes = document.getElementById('lb-vote-change-feed');
-    if (changes) changes.outerHTML = renderVoteChangeFeed(data);
+    if (changes) quietlySyncElement(changes, renderVoteChangeFeed(data));
 }
 
 function updateBakerVoteList(data, activeFilter = _lbActiveFilter) {

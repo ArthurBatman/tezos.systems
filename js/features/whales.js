@@ -4,6 +4,7 @@
  */
 
 import { debugLog, escapeHtml } from '../core/utils.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { THRESHOLDS, API_URLS } from '../core/config.js';
 
 // Known address labels
@@ -409,6 +410,8 @@ function collectUnresolvedAddresses(txs) {
 function updateFeed(newTxs) {
     const container = document.getElementById('whale-feed');
     if (!container) return;
+    const previousScrollLeft = container.scrollLeft;
+    const previousScrollWidth = container.scrollWidth;
     
     // Background resolve domains for addresses without aliases
     const unresolvedAddresses = collectUnresolvedAddresses(newTxs);
@@ -426,7 +429,6 @@ function updateFeed(newTxs) {
         
         transactions.unshift(tx);
         const el = createTransactionElement(tx);
-        el.classList.add('whale-tx-new');
         
         // Dispatch whale alert event for vibes system
         window.dispatchEvent(new CustomEvent('whale-alert', { detail: tx }));
@@ -438,8 +440,6 @@ function updateFeed(newTxs) {
             container.appendChild(el);
         }
         
-        // Remove animation class after animation
-        setTimeout(() => el.classList.remove('whale-tx-new'), 500);
     });
     
     // Trim old transactions
@@ -454,6 +454,9 @@ function updateFeed(newTxs) {
     // Update last timestamp
     if (newTxs.length > 0) {
         lastTimestamp = newTxs[0].timestamp;
+        if (previousScrollLeft > 4) {
+            container.scrollLeft = previousScrollLeft + Math.max(0, container.scrollWidth - previousScrollWidth);
+        }
     }
     
     // Update empty state
@@ -470,11 +473,8 @@ function refreshDisplayedNames() {
     const container = document.getElementById('whale-feed');
     if (!container) return;
     
-    // Re-render all transaction cards
-    container.innerHTML = '';
-    transactions.forEach(tx => {
-        container.appendChild(createTransactionElement(tx));
-    });
+    const html = transactions.map((tx) => createTransactionElement(tx).outerHTML).join('');
+    quietlySyncHtml(container, html);
 }
 
 /**

@@ -8,6 +8,7 @@
 import { API_URLS } from '../core/config.js';
 import { fetchProtocolConstants, fetchWithDeadline } from '../core/api.js';
 import { fetchXTZPrice } from './price.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
 
 
 const CONTAINER_ID = 'rewards-tracker-container';
@@ -673,7 +674,12 @@ export async function initRewardsTracker(stats, xtzPrice, options = {}) {
   const address = getAddress();
   if (!address) return;
 
-  destroyRewardsTracker();
+  const quiet = options.quiet === true && document.getElementById(CONTAINER_ID);
+  if (quiet) {
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  } else {
+    destroyRewardsTracker();
+  }
   buildCSS();
 
   if (!parsePrice(xtzPrice)) {
@@ -731,18 +737,21 @@ export async function initRewardsTracker(stats, xtzPrice, options = {}) {
 
   const container = buildContainer(rewardReport, stats, xtzPrice);
   if (drawerTarget) {
-    drawerTarget.innerHTML = '';
-    drawerTarget.appendChild(container);
+    if (quiet) {
+      const sparkMarkup = drawerTarget.querySelector('.drawer-rewards-spark')?.outerHTML || '';
+      quietlySyncHtml(drawerTarget, `${container.outerHTML}${sparkMarkup}`);
+    }
+    else drawerTarget.replaceChildren(container);
   } else {
     fallbackTarget.parentNode.insertBefore(container, fallbackTarget);
   }
 
-  document.getElementById('rt-notif-btn')
-    ?.addEventListener('click', e => toggleNotifications(e.currentTarget));
+  const notificationButton = document.getElementById('rt-notif-btn');
+  if (notificationButton) notificationButton.onclick = (event) => toggleNotifications(event.currentTarget);
 
   const lifetimeCard = document.getElementById('rt-lifetime-card');
-  document.getElementById('rt-share-btn')
-    ?.addEventListener('click', () => shareLifetimeCard(lifetimeCard));
+  const shareButton = document.getElementById('rt-share-btn');
+  if (shareButton) shareButton.onclick = () => shareLifetimeCard(lifetimeCard);
 
   startCountdown(stats);
 
@@ -755,7 +764,7 @@ export function updateRewardsTracker(stats, xtzPrice) {
   const incomingCycle = Number(stats?.cycle);
   const renderedCycle = Number(container.dataset.currentCycle);
   if (Number.isFinite(incomingCycle) && incomingCycle > 0 && incomingCycle !== renderedCycle) {
-    void initRewardsTracker(stats, xtzPrice, { force: true });
+    void initRewardsTracker(stats, xtzPrice, { force: true, quiet: true });
     return;
   }
   if (stats?.cycle != null) maybeSendCycleNotif(stats.cycle);

@@ -147,6 +147,58 @@ Licensing boundaries:
   - `#price`
   - `#staking` (Staking Chamber; pretty route `/stake/`)
 
+## Quiet Live Refresh Contract
+
+This is the default contract for every new Chamber, dashboard card, feed,
+drawer, carousel, and live-data feature. The reference experience is the
+Network Health Chamber: **live data changes; the reader does not move**.
+
+- After first render, timed/background updates must reconcile into the existing
+  DOM through `js/core/quiet-refresh.js` (`quietlySyncHtml`,
+  `quietlySyncElement`, or `quietlyMutate`) or an equivalently tested in-place
+  updater. Do not use a timer to replace a whole live surface with `innerHTML`.
+- Preserve the exact browsing state across every background update: window
+  scroll, Chamber/drawer scroll, horizontal rail position, focused control,
+  text selection, compatible DOM nodes, open tab/filter state, and retained
+  canvas/chart instances. Chart data should update without animation where the
+  library supports it.
+- A background update must never reload or navigate the page, change the URL or
+  hash, call `scrollTo`/`scrollIntoView`, move focus, auto-rotate a carousel,
+  reset a scroller, or replay an entrance/pulse animation. Those behaviors are
+  allowed only after a direct user action when they are part of that action.
+- Live feeds must compensate for prepends/appends so the visible content stays
+  under the reader's eyes. Preserve vertical position by the scroll-height
+  delta and preserve horizontal position by the scroll-width delta when items
+  are inserted before the current view. Never pull the reader to the live edge.
+- Gate network polling and DOM mutation so they run only while
+  `document.visibilityState === 'visible'`, then perform one quiet catch-up
+  when the tab becomes visible.
+- On a refresh failure, keep the last-good rendered data and expose freshness or
+  retry state without replacing the reading surface or causing an in-flow
+  layout shift.
+- Background reconciliation must suppress transitions and entrance animations
+  while leaving settled content fully visible with `opacity: 1` and
+  `transform: none`. Retaining `animation: none` must not strand an element in
+  its hidden pre-animation state.
+- Initial render and explicit user-triggered view changes may build a surface
+  normally. The moment a feature begins polling, its subsequent renders must
+  use the quiet-refresh contract.
+
+Required regression coverage for every new live surface:
+
+- Add or extend a static contract proving the timer is visibility-gated and the
+  background path uses quiet reconciliation.
+- Add a focused browser smoke that shortens/forces the refresh interval and
+  asserts unchanged page and nested scroll, DOM identity, focus, selection, tab
+  state, and settled animation state. Also assert that a reader scroll made
+  immediately after reconciliation is not overwritten by a delayed restore.
+- Run rendered desktop and mobile QA in a real browser. Test while scrolled
+  inside the surface, not only at its top, and verify that a second/cached
+  Chamber render remains visible and does not re-fade.
+- Reuse the `quiet-refresh` smoke suite and Network Health implementation as the
+  baseline. If a feature cannot use the shared helper, document the reason and
+  provide equivalent preservation tests before considering it complete.
+
 ## Refresh and Cache Settings
 
 Current verified intervals in `js/core/config.js`:
@@ -160,7 +212,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v447`
+- Service worker cache name: `tezos-systems-v451`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 

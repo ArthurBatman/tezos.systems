@@ -27,6 +27,7 @@ import {
     startLiveTimeTicker,
     debounce
 } from './utils.js';
+import { quietlyMutate } from './quiet-refresh.js';
 import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades, getProtocolUpgradeOrdinal } from './protocol-count.js';
 import {
     connectOctezWallet,
@@ -109,7 +110,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=450';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=451';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -626,8 +627,8 @@ async function refreshInBackground({ includeHeavy = true } = {}) {
 
         
         if (includeHeavy) {
-            refreshMyBaker();
-            refreshLeaderboard();
+            refreshMyBaker({ quiet: true });
+            refreshLeaderboard({ quiet: true });
             refreshMyTezos();
             refreshNetworkHealth({ force: true });
             state.lastHeavyRefreshAt = Date.now();
@@ -1066,11 +1067,21 @@ function looksEmptyStats(stats) {
 function setDataStatus(kind, message) {
     const bar = document.getElementById('data-status');
     if (!bar) return;
-    if (!kind) { bar.hidden = true; return; }
-    bar.classList.toggle('error', kind === 'error');
     const txt = bar.querySelector('.data-status-text');
-    if (txt) txt.textContent = message || '';
-    bar.hidden = false;
+    const nextMessage = message || '';
+    if (!kind && bar.hidden) return;
+    if (kind && !bar.hidden && bar.dataset.statusKind === kind && txt?.textContent === nextMessage) return;
+    quietlyMutate(bar, () => {
+        if (!kind) {
+            bar.hidden = true;
+            delete bar.dataset.statusKind;
+            return;
+        }
+        bar.dataset.statusKind = kind;
+        bar.classList.toggle('error', kind === 'error');
+        if (txt) txt.textContent = nextMessage;
+        bar.hidden = false;
+    });
 }
 
 /** A refresh attempt failed or returned empty — surface it without nuking cached UI. */
@@ -2285,11 +2296,10 @@ function initProtocolHistoryHeaderLauncher() {
     chip.dataset.protocolHistoryLauncher = 'ready';
     chip.addEventListener('click', (event) => {
         event.preventDefault();
-        if (window.location.hash === '#protocol-history') {
-            openProtocolHistoryChamber();
-            return;
+        if (window.location.hash !== '#protocol-history') {
+            window.history.pushState(null, '', '#protocol-history');
         }
-        window.location.hash = 'protocol-history';
+        openProtocolHistoryChamber();
     });
 }
 
@@ -3515,8 +3525,12 @@ function setupModal(triggerBtnId, modalId, closeBtnId) {
 function startRefreshTimer() {
     state.refreshTimers.forEach(clearInterval);
     state.refreshTimers = [
-        setInterval(() => refreshInBackground({ includeHeavy: false }), REFRESH_INTERVALS.scalar),
-        setInterval(() => refreshInBackground({ includeHeavy: true }), REFRESH_INTERVALS.heavy)
+        setInterval(() => {
+            if (document.visibilityState === 'visible') refreshInBackground({ includeHeavy: false });
+        }, REFRESH_INTERVALS.scalar),
+        setInterval(() => {
+            if (document.visibilityState === 'visible') refreshInBackground({ includeHeavy: true });
+        }, REFRESH_INTERVALS.heavy)
     ];
     // startCountdown();
 }

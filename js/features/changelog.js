@@ -5,6 +5,13 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-19',
+        entries: [
+            { type: '🔧', text: 'Live data now refreshes quietly without auto-scrolling the Live Pulse, shifting the page, resetting Chamber or feed position, replaying entrances, or dropping focus and text selection' },
+            { type: '⚡', text: 'Dashboard, My Tezos, Tezos X, governance, Domains, tz4, Liquidity Baking, whales, sleeping giants, and HEN now defer hidden-tab polling and reconcile fresh values into the existing browsing state' }
+        ]
+    },
+    {
         date: '2026-07-18',
         entries: [
             { type: '🎨', text: 'Direct room pages no longer leave a redundant route-introduction panel behind after their live Chamber or My Tezos appears' },

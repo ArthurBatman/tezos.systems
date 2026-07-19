@@ -192,6 +192,6 @@ export function deactivateChamberDialog(overlay) {
     overlay.setAttribute('aria-hidden', 'true');
 
     if (state?.opener?.isConnected && state.opener !== document.body) {
-        window.requestAnimationFrame(() => state.opener.focus({ preventScroll: true }));
+        state.opener.focus({ preventScroll: true });
     }
 }

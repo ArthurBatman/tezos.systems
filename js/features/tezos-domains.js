@@ -4,6 +4,7 @@
  */
 
 import { debounce, escapeHtml, formatFreshnessStamp, formatLiveDuration, startLiveTimeTicker } from '../core/utils.js';
+import { quietlyMutate } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TEZOS_DOMAINS_ENDPOINT = 'https://api.tezos.domains/graphql';
@@ -1294,8 +1295,10 @@ async function refreshChamber({ initial = false, force = false } = {}) {
             body.innerHTML = renderChamber(data, { newEventKeys });
             wireChamberControls(body);
         } else {
-            body.innerHTML = renderChamber(data, { newEventKeys });
-            wireChamberControls(body);
+            quietlyMutate(body, () => {
+                body.innerHTML = renderChamber(data, { newEventKeys });
+                wireChamberControls(body);
+            });
         }
         startLiveTimeTicker(body);
         if (!initial && content) {
@@ -1307,6 +1310,11 @@ async function refreshChamber({ initial = false, force = false } = {}) {
         updateEntryCard(data);
     } catch (error) {
         console.warn('Tezos Domains chamber refresh failed', error);
+        if (!initial && body.querySelector('.tezos-domains-header')) {
+            const state = body.querySelector('.lb-refresh-pill');
+            if (state) state.textContent = 'refresh delayed';
+            return;
+        }
         body.innerHTML = `
             <div class="chamber-error">
                 <div class="chamber-error-icon">.tez</div>

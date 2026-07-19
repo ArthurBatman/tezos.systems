@@ -3534,7 +3534,16 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(firstProtocolInHistory === 'Ushuaia', `hero command bar: Protocol History Chamber should start at current protocol, saw ${firstProtocolInHistory}`);
   await page.locator('#protocol-history-chamber-modal .chamber-close').click();
   await page.locator('#protocol-history-chamber-modal').waitFor({ state: 'detached', timeout: 5000 });
-  await page.waitForFunction(() => document.activeElement?.id === 'header-protocol-chip', null, { timeout: 5000 });
+  try {
+    await page.waitForFunction(() => document.activeElement?.id === 'header-protocol-chip', null, { timeout: 5000 });
+  } catch (error) {
+    const active = await page.evaluate(() => ({
+      id: document.activeElement?.id || '',
+      tag: document.activeElement?.tagName || '',
+      className: document.activeElement?.className || ''
+    }));
+    throw new Error(`${error.message}\nhero command bar focus snapshot: ${JSON.stringify(active)}`);
+  }
 
   await page.keyboard.press('/');
   await page.waitForFunction(() => document.activeElement?.id === 'hero-search-input', null, { timeout: 5000 });
@@ -4676,6 +4685,7 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
     localStorage.setItem('tezos-systems-my-baker-address', address);
+    window.__MY_TEZOS_DRAWER_REFRESH_MS__ = 1000;
   }, SAMPLE_ADDRESS);
 
   const page = await context.newPage();
@@ -4749,6 +4759,42 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
     state.freshness.toLowerCase().includes('my tezos') && state.freshness.toLowerCase().includes('just now'),
     `my tezos drawer live refresh: standardized freshness stamp missing ${JSON.stringify(state)}`
   );
+
+  const quietBefore = await page.evaluate(() => {
+    const drawer = document.querySelector('#drawer-body');
+    const results = document.querySelector('#my-baker-results');
+    const grid = results.querySelector('.my-baker-grid');
+    const button = document.querySelector('#drawer-refresh');
+    const value = results.querySelector('.my-baker-stat-value')?.firstChild;
+    drawer.scrollTop = Math.min(260, Math.max(0, drawer.scrollHeight - drawer.clientHeight));
+    button?.focus({ preventScroll: true });
+    if (value) {
+      const range = document.createRange();
+      range.setStart(value, 0);
+      range.setEnd(value, Math.min(6, value.length));
+      const selection = document.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    delete results.dataset.quietRefreshSettled;
+    window.__quietMyTezosGrid = grid;
+    window.__quietMyTezosButton = button;
+    return { top: drawer.scrollTop, selection: document.getSelection()?.toString() || '' };
+  });
+  await page.waitForFunction(() => document.querySelector('#my-baker-results')?.dataset.quietRefreshSettled === 'true', null, { timeout: 5000 });
+  const quietAfter = await page.evaluate(() => {
+    const drawer = document.querySelector('#drawer-body');
+    const results = document.querySelector('#my-baker-results');
+    return {
+      top: drawer.scrollTop,
+      sameGrid: results.querySelector('.my-baker-grid') === window.__quietMyTezosGrid,
+      focused: document.activeElement === window.__quietMyTezosButton,
+      selection: document.getSelection()?.toString() || ''
+    };
+  });
+  assert(quietAfter.sameGrid && quietAfter.focused, `my tezos drawer live refresh: background update replaced focused nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.selection === quietBefore.selection, `my tezos drawer live refresh: background update lost text selection ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(Math.abs(quietAfter.top - quietBefore.top) < 1, `my tezos drawer live refresh: background update moved drawer scroll ${JSON.stringify({ quietBefore, quietAfter })}`);
 
   await context.close();
   assert(issues.length === 0, `my tezos drawer live refresh browser issues:\n${issues.join('\n')}`);
@@ -10929,6 +10975,203 @@ async function smokeRouteFormatting(browser, baseUrl) {
   assert(issues.length === 0, `route formatting browser issues:\n${issues.join('\n')}`);
 }
 
+async function smokeQuietRefresh(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    window.__TEZLINK_CHAMBER_REFRESH_MS__ = 1000;
+    window.__ETHERLINK_GOVERNANCE_CHAMBER_REFRESH_MS__ = 1000;
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'quiet refresh', issues);
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `quiet refresh: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#hot-today-island .hot-today-strip').waitFor({ state: 'visible', timeout: 15000 });
+
+  const helperState = await page.evaluate(async () => {
+    const { quietlyMutate, quietlySyncHtml } = await import('/js/core/quiet-refresh.js');
+    const root = document.createElement('div');
+    root.id = 'quiet-refresh-smoke-fixture';
+    root.style.cssText = 'position:fixed;left:-9999px;top:0;width:180px;';
+    root.innerHTML = `
+      <button id="quiet-focus">Keep focus</button>
+      <div id="quiet-scroll" style="width:160px;overflow:auto;white-space:nowrap;">
+        <span data-quiet-key="alpha" style="display:inline-block;width:260px;">selectable alpha</span>
+        <span data-quiet-key="beta" style="display:inline-block;width:260px;">beta</span>
+      </div>`;
+    document.body.appendChild(root);
+    const button = root.querySelector('#quiet-focus');
+    const scroller = root.querySelector('#quiet-scroll');
+    const text = root.querySelector('[data-quiet-key="alpha"]').firstChild;
+    scroller.scrollLeft = 120;
+    button.focus({ preventScroll: true });
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 10);
+    const selection = document.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const windowY = window.scrollY;
+    quietlySyncHtml(root, `
+      <button id="quiet-focus">Keep focus</button>
+      <div id="quiet-scroll" style="width:160px;overflow:auto;white-space:nowrap;">
+        <span data-quiet-key="alpha" style="display:inline-block;width:260px;">selectable alpha updated</span>
+        <span data-quiet-key="beta" style="display:inline-block;width:260px;">beta updated</span>
+        <span data-quiet-key="gamma" style="display:inline-block;width:260px;">gamma</span>
+      </div>`);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const state = {
+      sameButton: button === root.querySelector('#quiet-focus'),
+      focused: document.activeElement === button,
+      selection: document.getSelection()?.toString() || '',
+      scrollLeft: scroller.scrollLeft,
+      windowY: window.scrollY,
+      expectedWindowY: windowY
+    };
+    quietlySyncHtml(root, root.innerHTML);
+    scroller.scrollLeft = 80;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    state.userScrollLeft = scroller.scrollLeft;
+
+    const layoutStyle = document.createElement('style');
+    layoutStyle.dataset.quietLayoutSmoke = 'true';
+    layoutStyle.textContent = 'body.quiet-layout-smoke > :not(#quiet-layout-smoke-fixture):not([data-quiet-layout-smoke]) { display: none !important; }';
+    const layoutFixture = document.createElement('div');
+    layoutFixture.id = 'quiet-layout-smoke-fixture';
+    layoutFixture.innerHTML = `
+      <div id="quiet-layout-shift" hidden style="height:96px;"></div>
+      <div style="height:1200px;"></div>
+      <div id="quiet-layout-anchor" style="height:240px;">Viewport anchor</div>
+      <div style="height:1400px;"></div>`;
+    document.head.appendChild(layoutStyle);
+    document.body.appendChild(layoutFixture);
+    document.body.classList.add('quiet-layout-smoke');
+    const shift = layoutFixture.querySelector('#quiet-layout-shift');
+    const html = document.documentElement;
+    const previousScrollBehavior = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 850);
+    html.style.scrollBehavior = previousScrollBehavior;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const anchor = layoutFixture.querySelector('#quiet-layout-anchor');
+    const anchorTop = anchor.getBoundingClientRect().top;
+    state.shiftWindowYBefore = window.scrollY;
+    quietlyMutate(shift, () => { shift.hidden = false; });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    state.shiftWindowYAfter = window.scrollY;
+    state.anchorDelta = anchor.getBoundingClientRect().top - anchorTop;
+    quietlyMutate(shift, () => { shift.hidden = true; });
+    document.body.classList.remove('quiet-layout-smoke');
+    layoutFixture.remove();
+    layoutStyle.remove();
+    root.remove();
+    return state;
+  });
+  assert(helperState.sameButton && helperState.focused, `quiet refresh: focus node was replaced ${JSON.stringify(helperState)}`);
+  assert(helperState.selection === 'selectable', `quiet refresh: text selection was lost ${JSON.stringify(helperState)}`);
+  assert(Math.abs(helperState.scrollLeft - 120) < 1, `quiet refresh: nested scroll reset ${JSON.stringify(helperState)}`);
+  assert(Math.abs(helperState.userScrollLeft - 80) < 1, `quiet refresh: a reader scroll made after reconciliation was overridden ${JSON.stringify(helperState)}`);
+  assert(helperState.windowY === helperState.expectedWindowY, `quiet refresh: window moved during DOM reconciliation ${JSON.stringify(helperState)}`);
+  assert(Math.abs(helperState.anchorDelta) < 1, `quiet refresh: in-flow status mutation shifted the viewport ${JSON.stringify(helperState)}`);
+
+  await page.locator('#hot-today-island').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(350);
+  const hotBefore = await page.evaluate(() => {
+    const strip = document.querySelector('#hot-today-island .hot-today-strip');
+    const progress = document.querySelector('#hot-today-island [data-hot-progress-index="1"]')
+      || document.querySelector('#hot-today-island [data-hot-progress-index="0"]');
+    strip.scrollLeft = Math.min(240, Math.max(0, strip.scrollWidth - strip.clientWidth));
+    progress?.focus({ preventScroll: true });
+    window.__quietHotStrip = strip;
+    window.__quietHotProgress = progress;
+    window.__quietHotCard = strip.querySelector('[data-hot-signal-id]');
+    return { left: strip.scrollLeft, y: window.scrollY };
+  });
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+      detail: {
+        id: 'quiet-refresh-smoke',
+        category: 'network',
+        icon: '◌',
+        title: 'Quiet live update',
+        text: 'Fresh data landed without moving the reader.',
+        detail: 'background smoke',
+        score: 999,
+        kind: 'state',
+        live: true,
+        ttlMs: 60000
+      }
+    }));
+  });
+  await page.locator('#hot-today-island [data-hot-signal-id="quiet-refresh-smoke"]').waitFor({ state: 'attached', timeout: 5000 });
+  const hotAfter = await page.evaluate(() => {
+    const strip = document.querySelector('#hot-today-island .hot-today-strip');
+    return {
+      sameStrip: strip === window.__quietHotStrip,
+      sameCard: Boolean(window.__quietHotCard?.isConnected),
+      focused: document.activeElement === window.__quietHotProgress,
+      left: strip.scrollLeft,
+      y: window.scrollY,
+      pulsing: document.querySelector('#hot-today-island')?.classList.contains('is-live-pulsing') || false
+    };
+  });
+  assert(hotAfter.sameStrip && hotAfter.sameCard, `quiet refresh: Hot Today replaced its browsing nodes ${JSON.stringify({ hotBefore, hotAfter })}`);
+  assert(hotAfter.focused, `quiet refresh: Hot Today dropped keyboard focus ${JSON.stringify({ hotBefore, hotAfter })}`);
+  assert(Math.abs(hotAfter.left - hotBefore.left) < 1 && hotAfter.y === hotBefore.y, `quiet refresh: Hot Today moved a viewport ${JSON.stringify({ hotBefore, hotAfter })}`);
+  assert(!hotAfter.pulsing, `quiet refresh: block pulse replayed a distracting animation ${JSON.stringify(hotAfter)}`);
+
+  await page.locator('#tezlink-entry-card .chamber-expand-cue').click();
+  await page.locator('#tezlink-modal.active .tezlink-content').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#tezlink-chamber-body .panel-direct-link').waitFor({ state: 'attached', timeout: 10000 });
+  const tezlinkBefore = await page.evaluate(() => {
+    const content = document.querySelector('#tezlink-modal.active .tezlink-content');
+    const body = document.querySelector('#tezlink-chamber-body');
+    const focus = body.querySelector('.panel-direct-link');
+    content.scrollTop = Math.min(220, Math.max(0, content.scrollHeight - content.clientHeight));
+    focus.focus({ preventScroll: true });
+    window.__quietTezlinkHeader = body.querySelector('.tezlink-header');
+    window.__quietTezlinkFocus = focus;
+    return { top: content.scrollTop };
+  });
+  await page.waitForTimeout(1400);
+  const tezlinkAfter = await page.evaluate(() => {
+    const content = document.querySelector('#tezlink-modal.active .tezlink-content');
+    const body = document.querySelector('#tezlink-chamber-body');
+    return {
+      sameHeader: body.querySelector('.tezlink-header') === window.__quietTezlinkHeader,
+      focused: document.activeElement === window.__quietTezlinkFocus,
+      top: content.scrollTop,
+      settled: body.dataset.quietRefreshSettled === 'true',
+      animation: getComputedStyle(body.querySelector('.tezlink-header')).animationName,
+      opacity: getComputedStyle(body.querySelector('.tezlink-header')).opacity,
+      transform: getComputedStyle(body.querySelector('.tezlink-header')).transform
+    };
+  });
+  assert(tezlinkAfter.sameHeader && tezlinkAfter.focused, `quiet refresh: Tezos X replaced focused chamber nodes ${JSON.stringify({ tezlinkBefore, tezlinkAfter })}`);
+  assert(Math.abs(tezlinkAfter.top - tezlinkBefore.top) < 1, `quiet refresh: Tezos X reset chamber scroll ${JSON.stringify({ tezlinkBefore, tezlinkAfter })}`);
+  assert(
+    tezlinkAfter.settled
+      && tezlinkAfter.animation === 'none'
+      && tezlinkAfter.opacity === '1'
+      && tezlinkAfter.transform === 'none',
+    `quiet refresh: Tezos X replayed or remained trapped in its entrance animation ${JSON.stringify(tezlinkAfter)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `quiet refresh browser issues:\n${issues.join('\n')}`);
+  log('ok - quiet background refresh smoke');
+}
+
 function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
@@ -10963,6 +11206,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },
     { name: 'hash-modal-cleanup', description: 'Hash-routed modal navigation closes stale history and chamber overlays before opening the next room', run: () => smokeHashModalCleanup(browser, baseUrl) },
     { name: 'ux-regressions', description: 'Clean theme contrast, deep-linked utility sections, share picker contrast, widget utility', run: () => smokeUxChanges(browser, baseUrl) },
+    { name: 'quiet-refresh', description: 'Background data reconciliation preserves page, rail, chamber, focus, selection, and animation state', run: () => smokeQuietRefresh(browser, baseUrl) },
     { name: 'feature-workflows', description: 'Leaderboard, calculator modes, price intelligence, comparison, whales, giants, history, share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
     { name: 'share-actions', description: 'Share modal copy, post, download, native share, and mobile photo fallback buttons', run: () => smokeShareActions(browser, baseUrl) },
     { name: 'info-modals', description: 'All section info modals and About Tezos launch-date copy', run: () => smokeInfoModals(browser, baseUrl) },
