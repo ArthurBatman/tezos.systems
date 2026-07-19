@@ -1,0 +1,1049 @@
+/**
+ * Capital Chamber
+ *
+ * A public-source, generated intelligence surface for the Tezos system. The
+ * browser deliberately reads one bounded first-party snapshot; source crawling
+ * and heavy aggregation stay in scripts/refresh-capital-data.mjs.
+ */
+
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { escapeHtml } from '../core/utils.js';
+import {
+    activateChamberDialog,
+    deactivateChamberDialog,
+    wireChamberLauncher
+} from '../ui/chamber-accessibility.js';
+
+const CAPITAL_CSS_URL = '/css/capital.css?v=452';
+const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
+const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
+
+const VIEWS = Object.freeze([
+    { id: 'system', label: 'One System', title: 'One System', detail: 'Tezos L1 and Etherlink L2 kept semantically separate, then read together.' },
+    { id: 'markets', label: 'Markets', title: 'Markets', detail: 'XTZ price, returns, liquidity context, and venue-quality receipts.' },
+    { id: 'assets', label: 'Assets', title: 'Assets + RWA', detail: 'Protocol capital, mapped tokens, and proofbooks for real-world assets.' },
+    { id: 'art', label: 'Art', title: 'Art Economy', detail: 'Gross marketplace activity, collections, collectors, and artists on Tezos L1.' }
+]);
+const VIEW_IDS = new Set(VIEWS.map(({ id }) => id));
+
+const RANGES = Object.freeze([
+    { id: '30D', label: '30D', days: 30 },
+    { id: '3M', label: '3M', days: 90 },
+    { id: '6M', label: '6M', days: 183 },
+    { id: '1Y', label: '1Y', days: 365 },
+    { id: '2Y', label: '2Y', days: 730 }
+]);
+const RANGE_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
+const AVAILABLE_RANGES = Object.freeze({
+    system: new Set(RANGES.map(({ id }) => id)),
+    markets: new Set(['30D', '3M', '6M', '1Y']),
+    assets: new Set(),
+    art: new Set(['30D'])
+});
+
+let currentView = 'system';
+let currentRange = '30D';
+let lastSnapshot = null;
+let lastRefreshError = '';
+let activeFetch = null;
+let chamberTimer = null;
+let visibilityReady = false;
+let refreshDeferred = false;
+let savedBodyOverflow = null;
+let savedHtmlOverflow = null;
+
+function numeric(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const number = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function finiteValues(values) {
+    return values.map(numeric).filter((value) => value !== null);
+}
+
+function sum(values, { requireAll = false } = {}) {
+    const normalized = values.map(numeric);
+    const available = normalized.filter((value) => value !== null);
+    if (!available.length || (requireAll && available.length !== normalized.length)) return null;
+    return available.reduce((total, value) => total + value, 0);
+}
+
+function formatNumber(value, maximumFractionDigits = 0) {
+    const number = numeric(value);
+    if (number === null) return 'Unavailable';
+    return number.toLocaleString('en-US', { maximumFractionDigits });
+}
+
+function formatCompact(value, maximumFractionDigits = 1) {
+    const number = numeric(value);
+    if (number === null) return 'Unavailable';
+    return new Intl.NumberFormat('en-US', {
+        notation: 'compact',
+        maximumFractionDigits
+    }).format(number);
+}
+
+function formatUsd(value, compact = true) {
+    const number = numeric(value);
+    if (number === null) return 'Unavailable';
+    if (compact && Math.abs(number) >= 1000) return `$${formatCompact(number, 2)}`;
+    const digits = Math.abs(number) < 1 ? 4 : 2;
+    return number.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: digits
+    });
+}
+
+function formatXtz(value) {
+    const number = numeric(value);
+    return number === null ? 'Unavailable' : `${formatCompact(number, 2)} ꜩ`;
+}
+
+function formatPct(value, { signed = false } = {}) {
+    const number = numeric(value);
+    if (number === null) return 'Unavailable';
+    const prefix = signed && number > 0 ? '+' : '';
+    return `${prefix}${number.toFixed(2)}%`;
+}
+
+function formatRate(value) {
+    const number = numeric(value);
+    if (number === null) return 'Unavailable';
+    return `${number.toFixed(number < 1 ? 3 : 2)}/s`;
+}
+
+function formatDate(value) {
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) return 'Unavailable';
+    return new Date(timestamp).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC'
+    });
+}
+
+function formatTimestamp(value) {
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) return 'Unavailable';
+    return new Date(timestamp).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'UTC',
+        timeZoneName: 'short'
+    });
+}
+
+function ageLabel(value) {
+    const timestamp = Date.parse(value);
+    if (!Number.isFinite(timestamp)) return 'freshness unavailable';
+    const elapsed = Math.max(0, Date.now() - timestamp);
+    if (elapsed < 60 * 1000) return 'under 1m ago';
+    if (elapsed < 60 * 60 * 1000) return `${Math.floor(elapsed / (60 * 1000))}m ago`;
+    if (elapsed < DAY_MS) return `${Math.floor(elapsed / (60 * 60 * 1000))}h ago`;
+    return `${Math.floor(elapsed / DAY_MS)}d ago`;
+}
+
+function truncate(value, length = 20) {
+    const text = String(value ?? '');
+    if (text.length <= length) return text;
+    return `${text.slice(0, Math.max(6, length - 7))}…${text.slice(-6)}`;
+}
+
+function safeExternalUrl(value) {
+    try {
+        const url = new URL(String(value));
+        return url.protocol === 'https:' ? url.href : '';
+    } catch {
+        return '';
+    }
+}
+
+function ensureCapitalCss() {
+    if (document.getElementById('capital-css')) return;
+    const link = document.createElement('link');
+    link.id = 'capital-css';
+    link.rel = 'stylesheet';
+    link.href = CAPITAL_CSS_URL;
+    document.head.appendChild(link);
+}
+
+function validateSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object' || snapshot.schemaVersion !== 1) {
+        throw new Error('Capital snapshot schemaVersion 1 is required.');
+    }
+    if (!snapshot.generatedAt || !Array.isArray(snapshot.defi?.chains) || !snapshot.markets?.xtz) {
+        throw new Error('Capital snapshot is missing required generated sections.');
+    }
+    return snapshot;
+}
+
+function fetchCapitalSnapshot() {
+    if (activeFetch) return activeFetch;
+    activeFetch = fetch(CAPITAL_SNAPSHOT_URL, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+    })
+        .then((response) => {
+            if (!response.ok) throw new Error(`Capital snapshot HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(validateSnapshot)
+        .finally(() => {
+            activeFetch = null;
+        });
+    return activeFetch;
+}
+
+function chain(snapshot, id) {
+    return snapshot.defi?.chains?.find((row) => row.id === id) || {};
+}
+
+function normalizePoints(rows, valueKey = 'value') {
+    return (Array.isArray(rows) ? rows : [])
+        .map((row) => ({
+            date: row?.date || row?.timestamp,
+            timestamp: Date.parse(row?.date || row?.timestamp),
+            value: numeric(row?.[valueKey])
+        }))
+        .filter((point) => Number.isFinite(point.timestamp) && point.value !== null)
+        .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+function pointsForRange(rows, valueKey, rangeId = currentRange) {
+    const points = normalizePoints(rows, valueKey);
+    const days = RANGE_BY_ID.get(rangeId)?.days;
+    if (!points.length || !days) return points;
+    const cutoff = points.at(-1).timestamp - (days * DAY_MS);
+    return points.filter((point) => point.timestamp >= cutoff);
+}
+
+function downsample(points, maxPoints = 180) {
+    if (points.length <= maxPoints) return points;
+    const step = (points.length - 1) / (maxPoints - 1);
+    return Array.from({ length: maxPoints }, (_, index) => points[Math.round(index * step)]);
+}
+
+function renderChart(series, label) {
+    const usable = series
+        .map((item) => ({ ...item, points: downsample(item.points || []) }))
+        .filter((item) => item.points.length);
+    if (!usable.length) {
+        return `<div class="capital-chart-empty">No comparable points are available in this snapshot.</div>`;
+    }
+
+    const values = usable.flatMap((item) => item.points.map((point) => point.value));
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (min === max) {
+        min -= Math.abs(min || 1) * .05;
+        max += Math.abs(max || 1) * .05;
+    }
+    const allTimes = usable.flatMap((item) => item.points.map((point) => point.timestamp));
+    const firstTime = Math.min(...allTimes);
+    const lastTime = Math.max(...allTimes);
+    const timeSpan = Math.max(1, lastTime - firstTime);
+    const x = (timestamp) => 34 + (((timestamp - firstTime) / timeSpan) * 704);
+    const y = (value) => 156 - (((value - min) / (max - min)) * 136);
+    const pathFor = (points) => points.map((point, index) => `${index ? 'L' : 'M'}${x(point.timestamp).toFixed(2)},${y(point.value).toFixed(2)}`).join(' ');
+    const firstPath = pathFor(usable[0].points);
+    const firstStartX = x(usable[0].points[0].timestamp).toFixed(2);
+    const firstEndX = x(usable[0].points.at(-1).timestamp).toFixed(2);
+    const grid = [20, 65, 110, 156].map((gridY) => `<line class="capital-chart-grid" x1="34" y1="${gridY}" x2="738" y2="${gridY}"></line>`).join('');
+    const paths = usable.map((item) => `<path class="capital-chart-line" stroke="${escapeHtml(item.color)}" d="${pathFor(item.points)}"></path>`).join('');
+    const legend = usable.map((item) => `<span style="--legend-color:${escapeHtml(item.color)}">${escapeHtml(item.label)}</span>`).join('');
+
+    return `
+        <div class="capital-chart" role="img" aria-label="${escapeHtml(label)}">
+            <svg viewBox="0 0 760 184" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                ${grid}
+                <path class="capital-chart-area" fill="${escapeHtml(usable[0].color)}" d="${firstPath} L${firstEndX},166 L${firstStartX},166 Z"></path>
+                ${paths}
+                <text x="34" y="179" fill="#7189a0" font-size="9">${escapeHtml(formatDate(new Date(firstTime).toISOString()))}</text>
+                <text x="738" y="179" fill="#7189a0" font-size="9" text-anchor="end">${escapeHtml(formatDate(new Date(lastTime).toISOString()))}</text>
+            </svg>
+            <div class="capital-legend">${legend}</div>
+        </div>
+    `;
+}
+
+function renderBarChart(rows, label) {
+    const usable = (Array.isArray(rows) ? rows : [])
+        .map((row) => ({ label: row.label, value: numeric(row.value), color: row.color || '#69e7c3' }))
+        .filter((row) => row.value !== null && row.value > 0)
+        .slice(0, 8);
+    if (!usable.length) return '<div class="capital-chart-empty">No positive values are available.</div>';
+    const max = Math.max(...usable.map((row) => row.value));
+    const height = Math.max(184, usable.length * 26 + 26);
+    const bars = usable.map((row, index) => {
+        const y = 12 + (index * 26);
+        const width = Math.max(2, (row.value / max) * 500);
+        return `
+            <text x="4" y="${y + 12}" fill="#9fb2c5" font-size="9">${escapeHtml(truncate(row.label, 18))}</text>
+            <rect x="135" y="${y}" width="${width.toFixed(2)}" height="14" rx="3" fill="${escapeHtml(row.color)}" opacity=".72"></rect>
+            <text x="${Math.min(725, 142 + width)}" y="${y + 11}" fill="#cbd8e5" font-size="9">${escapeHtml(formatXtz(row.value))}</text>
+        `;
+    }).join('');
+    return `<div class="capital-chart" role="img" aria-label="${escapeHtml(label)}"><svg viewBox="0 0 760 ${height}" style="height:${height}px" aria-hidden="true">${bars}</svg></div>`;
+}
+
+function kpi(label, value, note, tone = '') {
+    return `
+        <article class="capital-kpi"${tone ? ` data-tone="${escapeHtml(tone)}"` : ''}>
+            <div class="capital-kpi-label">${escapeHtml(label)}</div>
+            <div class="capital-kpi-value">${escapeHtml(value)}</div>
+            <div class="capital-kpi-note">${escapeHtml(note)}</div>
+        </article>
+    `;
+}
+
+function panel(title, kicker, content, coverage = '', wide = false) {
+    return `
+        <section class="capital-panel${wide ? ' capital-panel-wide' : ''}">
+            <div class="capital-panel-head">
+                <div><div class="capital-panel-kicker">${escapeHtml(kicker)}</div><h4>${escapeHtml(title)}</h4></div>
+                ${coverage ? `<div class="capital-coverage">${escapeHtml(coverage)}</div>` : ''}
+            </div>
+            ${content}
+        </section>
+    `;
+}
+
+function compactCoverage(value) {
+    if (value === null || value === undefined) return 'unavailable';
+    if (Array.isArray(value)) return value.slice(0, 5).map((item) => typeof item === 'object' ? (item.id || item.name || 'row') : item).join(', ');
+    if (typeof value === 'object') {
+        return Object.entries(value).slice(0, 5).map(([key, item]) => `${key} ${typeof item === 'object' ? compactCoverage(item) : item}`).join(' · ');
+    }
+    return String(value);
+}
+
+function sourceBar(snapshot, sourceIds, receipt = '') {
+    const sources = [...new Set(sourceIds)]
+        .map((id) => snapshot.sources?.[id])
+        .filter(Boolean);
+    const links = sources.map((source) => {
+            const url = safeExternalUrl(source.url);
+            if (!url) return '';
+            const status = source.status && source.status !== 'ok' ? ` · ${source.status}` : '';
+            return `<a class="capital-source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label || source.credit || 'Source')}${escapeHtml(status)}</a>`;
+        })
+        .join('');
+    const ledger = sources.map((source) => {
+        const retrieved = source.retrievedAt ? formatTimestamp(source.retrievedAt) : 'Unavailable';
+        const checked = source.checkedAt && source.checkedAt !== source.retrievedAt ? ` · checked ${formatTimestamp(source.checkedAt)}` : '';
+        return `<article><strong>${escapeHtml(source.label || 'Source')}</strong><span class="is-${escapeHtml(source.status || 'unavailable')}">${escapeHtml(source.status || 'unavailable')}</span><p>Retrieved ${escapeHtml(retrieved)}${escapeHtml(checked)} · ${escapeHtml(compactCoverage(source.coverage))}</p></article>`;
+    }).join('');
+    return `
+        <div class="capital-source-bar">
+            <span class="capital-source-receipt">Snapshot ${escapeHtml(ageLabel(snapshot.generatedAt))}${receipt ? ` · ${escapeHtml(receipt)}` : ''}</span>
+            ${links}
+            <details class="capital-source-ledger">
+                <summary>Inspect ${sources.length} source receipt${sources.length === 1 ? '' : 's'}</summary>
+                <div>${ledger}</div>
+            </details>
+        </div>
+    `;
+}
+
+function unavailableReceipt(snapshot, id) {
+    const item = snapshot.unavailable?.find((row) => row.id === id);
+    if (!item) return '';
+    const requirements = Array.isArray(item.requirements) && item.requirements.length
+        ? ` Needed: ${item.requirements.join('; ')}.`
+        : '';
+    return `
+        <article class="capital-gap-card capital-unavailable">
+            <span class="capital-gap-label">Unavailable · not calculated</span>
+            <h4>${escapeHtml(item.label)}</h4>
+            <p>${escapeHtml(item.reason)}${escapeHtml(requirements)}</p>
+        </article>
+    `;
+}
+
+function renderRangeControl(view) {
+    const available = AVAILABLE_RANGES[view];
+    if (!available?.size) return '';
+    const selected = available.has(currentRange) ? currentRange : [...available].at(-1) || '30D';
+    return `
+        <div class="capital-range" role="group" aria-label="Chart range">
+            ${RANGES.map((range) => {
+                const enabled = available.has(range.id);
+                return `<button class="capital-range-btn" type="button" data-capital-range="${range.id}" aria-pressed="${selected === range.id}"${enabled ? '' : ' disabled aria-disabled="true"'}>${range.label}</button>`;
+            }).join('')}
+        </div>
+    `;
+}
+
+function effectiveRange(view) {
+    const available = AVAILABLE_RANGES[view];
+    if (available?.has(currentRange)) return currentRange;
+    return view === 'markets' ? '1Y' : '30D';
+}
+
+function returnFromHistory(rows, period) {
+    const points = normalizePoints(rows, 'value');
+    if (points.length < 2 || period === '1h' || period === '4h') return null;
+    const end = points.at(-1);
+    let targetTimestamp;
+    const dayOffsets = { '24h': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365 };
+    if (dayOffsets[period]) targetTimestamp = end.timestamp - (dayOffsets[period] * DAY_MS);
+    if (period === 'MTD') {
+        const date = new Date(end.timestamp);
+        targetTimestamp = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+    }
+    if (period === 'QTD') {
+        const date = new Date(end.timestamp);
+        targetTimestamp = Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / 3) * 3, 1);
+    }
+    if (!Number.isFinite(targetTimestamp)) return null;
+    const start = points.reduce((candidate, point) => (
+        Math.abs(point.timestamp - targetTimestamp) < Math.abs(candidate.timestamp - targetTimestamp) ? point : candidate
+    ), points[0]);
+    if (!start?.value || start.timestamp === end.timestamp) return null;
+    if (period === '365d' && end.timestamp - start.timestamp < 350 * DAY_MS) return null;
+    return ((end.value / start.value) - 1) * 100;
+}
+
+function renderReturnMatrix(snapshot) {
+    const history = snapshot.markets.xtz?.priceHistory || {};
+    const periods = ['1h', '4h', '24h', '7d', '30d', '90d', '180d', '365d', 'MTD', 'QTD'];
+    const rows = periods.map((period) => `
+        <tr>
+            <td>${period}</td>
+            ${['usd', 'btc', 'eth'].map((quote) => {
+                const value = returnFromHistory(history[quote], period);
+                return `<td class="is-number">${value === null ? '<span title="Intraday or full-period source data unavailable">—</span>' : escapeHtml(formatPct(value, { signed: true }))}</td>`;
+            }).join('')}
+        </tr>
+    `).join('');
+    return `
+        <div class="capital-table-wrap"><table class="capital-table capital-return-table">
+            <caption class="sr-only">XTZ return matrix from generated daily closes</caption>
+            <thead><tr><th>Window</th><th class="is-number">USD</th><th class="is-number">BTC</th><th class="is-number">ETH</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>
+    `;
+}
+
+function tickerQuality(ticker) {
+    const spread = numeric(ticker.bidAskSpreadPct);
+    const up = numeric(ticker.costToMoveUpUsd);
+    const down = numeric(ticker.costToMoveDownUsd);
+    if (ticker.isStale || ticker.isAnomaly || (spread !== null && spread > 5) || up === 0 || down === 0) {
+        return { id: 'bad', label: 'Quarantined' };
+    }
+    if (ticker.trustScore === 'red' || ticker.trustScore == null || (spread !== null && spread > 1.5) || (up !== null && up < 1000) || (down !== null && down < 1000)) {
+        return { id: 'warn', label: 'Review' };
+    }
+    return { id: 'good', label: 'Usable' };
+}
+
+function renderTickerTable(tickers, caption, limit = 28) {
+    const rows = tickers.slice(0, limit).map((ticker) => {
+        const quality = tickerQuality(ticker);
+        return `
+            <tr class="capital-market-row">
+                <td>${escapeHtml(ticker.market || 'Unknown')}</td>
+                <td>${escapeHtml(`${ticker.base || 'XTZ'}/${ticker.target || '—'}`)}</td>
+                <td class="is-number">${escapeHtml(formatUsd(ticker.convertedVolumeUsd))}</td>
+                <td class="is-number">${escapeHtml(formatPct(ticker.bidAskSpreadPct))}</td>
+                <td class="is-number">${escapeHtml(formatUsd(ticker.costToMoveUpUsd))}</td>
+                <td class="is-number">${escapeHtml(formatUsd(ticker.costToMoveDownUsd))}</td>
+                <td><span class="capital-quality is-${quality.id}">${quality.label}</span></td>
+            </tr>
+        `;
+    }).join('');
+    return `
+        <div class="capital-table-wrap"><table class="capital-table">
+            <caption class="sr-only">${escapeHtml(caption)}</caption>
+            <thead><tr><th>Venue</th><th>Pair</th><th class="is-number">24h volume</th><th class="is-number">Spread</th><th class="is-number">+2% depth</th><th class="is-number">−2% depth</th><th>Quality</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="7">No rows.</td></tr>'}</tbody>
+        </table></div>
+    `;
+}
+
+function renderSystem(snapshot) {
+    const range = effectiveRange('system');
+    const tezos = chain(snapshot, 'tezos');
+    const etherlink = chain(snapshot, 'etherlink');
+    const tzStats = snapshot.network.tezos?.statistics || {};
+    const tzAccounts = snapshot.network.tezos?.accounts || {};
+    const tzTransactions = snapshot.network.tezos?.transactions || {};
+    const l2Counters = snapshot.network.etherlink?.counters || {};
+    const l2Series = snapshot.network.etherlink?.series || {};
+    const coin = snapshot.markets.xtz?.coin || {};
+    const octez = snapshot.development?.octez || {};
+    const totalStable = sum([tezos.stablecoins?.currentUsd, etherlink.stablecoins?.currentUsd], { requireAll: true });
+    const totalTvl = sum([tezos.tvl?.currentUsd, etherlink.tvl?.currentUsd], { requireAll: true });
+    const latestL1Day = tzTransactions.daily?.at(-1) || {};
+    const latestCompleteL2Day = [...(l2Series.newTransactions || [])].reverse().find((row) => !row.approximate) || {};
+    const weeklyL1 = sum((tzTransactions.daily || []).slice(-7).map((row) => row.count), { requireAll: true });
+    const weeklyL2 = sum((l2Series.newTransactions || []).filter((row) => !row.approximate).slice(-7).map((row) => row.value), { requireAll: true });
+
+    const tvlChart = renderChart([
+        { label: 'Tezos L1 TVL', color: '#69e7c3', points: pointsForRange(tezos.tvl?.history, 'valueUsd', range) },
+        { label: 'Etherlink L2 TVL', color: '#62b6ff', points: pointsForRange(etherlink.tvl?.history, 'valueUsd', range) }
+    ], 'Tezos L1 and Etherlink L2 TVL history');
+    const stableChart = renderChart([
+        { label: 'Tezos L1 stablecoins', color: '#f3c969', points: pointsForRange(tezos.stablecoins?.history, 'valueUsd', range) },
+        { label: 'Etherlink L2 stablecoins', color: '#f28ca8', points: pointsForRange(etherlink.stablecoins?.history, 'valueUsd', range) }
+    ], 'Stablecoin value by layer');
+    const activityChart = renderChart([
+        { label: 'L1 applied transaction operations', color: '#69e7c3', points: pointsForRange(tzTransactions.daily, 'count', range) },
+        { label: 'L2 EVM transactions', color: '#62b6ff', points: pointsForRange(l2Series.newTransactions, 'value', range) }
+    ], 'Layer-specific transaction activity');
+    const accountsChart = renderChart([
+        { label: 'L2 active accounts', color: '#f3c969', points: pointsForRange(l2Series.activeAccounts, 'value', range) },
+        { label: 'L2 new accounts · daily delta', color: '#f28ca8', points: pointsForRange(l2Series.newAccounts, 'value', range) }
+    ], 'Etherlink active and new account history');
+    const priceChart = renderChart([
+        { label: 'XTZ / USD daily close', color: '#69e7c3', points: pointsForRange(snapshot.markets.xtz?.priceHistory?.usd, 'value', range) }
+    ], 'XTZ USD daily price');
+    const devChart = renderChart([
+        { label: 'Octez commits', color: '#62b6ff', points: pointsForRange(octez.daily, 'commits', range) },
+        { label: 'Distinct author-name strings', color: '#f3c969', points: pointsForRange(octez.daily, 'authors', range) }
+    ], 'Canonical Octez development activity');
+
+    return `
+        <div class="capital-kpi-grid">
+            ${kpi('Tezos L1 TVL', formatUsd(tezos.tvl?.currentUsd), 'DefiLlama exact-chain row')}
+            ${kpi('Etherlink L2 TVL', formatUsd(etherlink.tvl?.currentUsd), 'DefiLlama exact-chain row', 'blue')}
+            ${kpi('Stablecoins · both layers', formatUsd(totalStable), 'Layer values summed; bridge overlap remains possible', 'gold')}
+            ${kpi('XTZ / USD', formatUsd(coin.currentPriceUsd, false), `${formatPct(coin.change24hPct, { signed: true })} over 24h`, 'rose')}
+            ${kpi('L1 daily avg operations', formatRate(numeric(latestL1Day.count) === null ? null : latestL1Day.count / 86400), `${latestL1Day.date || 'Unavailable'} · applied operations, not EVM TPS`, 'blue')}
+            ${kpi('L2 daily avg transactions', formatRate(numeric(latestCompleteL2Day.value) === null ? null : latestCompleteL2Day.value / 86400), `${latestCompleteL2Day.date || 'Unavailable'} · completed-day EVM average`, 'gold')}
+        </div>
+        <div class="capital-proof-grid">
+            <article class="capital-proof-card"><h4>One system, ${escapeHtml(formatUsd(totalTvl))} in DeFi TVL</h4><p>The headline can be read together, while every chart keeps L1 and L2 definitions separate. L1 applied operations are not relabelled as EVM transactions.</p></article>
+            <article class="capital-proof-card"><h4>Tezos L1 accounts</h4><dl><dt>Total indexed</dt><dd>${escapeHtml(formatNumber(tzAccounts.total))}</dd><dt>Funded</dt><dd>${escapeHtml(formatNumber(tzAccounts.funded))}</dd><dt>Bakers</dt><dd>${escapeHtml(formatNumber(tzStats.totalBakers))}</dd><dt>Staking ratio</dt><dd>${escapeHtml(formatPct(tzStats.stakingRatioPct))}</dd></dl></article>
+            <article class="capital-proof-card"><h4>Etherlink L2 counters</h4><dl><dt>Total addresses</dt><dd>${escapeHtml(formatNumber(l2Counters.totalAddresses))}</dd><dt>Total transactions</dt><dd>${escapeHtml(formatNumber(l2Counters.totalTransactions))}</dd><dt>Today · partial</dt><dd>${escapeHtml(formatNumber(l2Counters.transactionsToday))}</dd><dt>Block time</dt><dd>${escapeHtml(numeric(l2Counters.averageBlockTimeMs) === null ? 'Unavailable' : `${(l2Counters.averageBlockTimeMs / 1000).toFixed(2)}s`)}</dd></dl></article>
+            <article class="capital-proof-card"><h4>Seven completed days</h4><dl><dt>L1 applied operations</dt><dd>${escapeHtml(formatNumber(weeklyL1))}</dd><dt>L2 EVM transactions</dt><dd>${escapeHtml(formatNumber(weeklyL2))}</dd></dl><p>These are parallel weekly rollups, never a combined transaction total.</p></article>
+        </div>
+        <div class="capital-panel-grid" style="margin-top:12px">
+            ${panel('DeFi TVL by layer', 'Capital locked', tvlChart, `${range} · full DefiLlama daily history`)}
+            ${panel('Stablecoins by layer', 'Dollar rails', stableChart, `${range} · all peg categories`)}
+            ${panel('Activity stays layer-native', 'Transactions', activityChart, 'L1 is bounded to 30 completed UTC days; L2 history extends to 2Y')}
+            ${panel('Account formation', 'Participation', accountsChart, `${range} · L2 time series; L1 current snapshot above`)}
+            ${panel('XTZ market context', 'Native asset', priceChart, 'Up to 1Y of CoinGecko daily closes; longer room ranges clip to source coverage')}
+            ${panel('Canonical Octez development', 'Builders', devChart, '28D canonical tezos/tezos master · merges and bots included')}
+        </div>
+        <div class="capital-proof-grid" style="margin-top:12px">
+            ${unavailableReceipt(snapshot, 'proprietary-community-composite')}
+            <article class="capital-proof-card"><h4>Existing Tezos Systems context</h4><p>Hot Today and the Daily Briefing remain the home for curated ecosystem news; this room does not duplicate them into a noisy capital feed.</p></article>
+            <article class="capital-proof-card"><h4>Account counts are not people</h4><p>L1 indexed accounts and L2 addresses are layer-native counters. Cross-layer identities are not deduplicated into a fictional combined-wallet total.</p></article>
+        </div>
+        <nav class="capital-pathways" aria-label="Continue through system intelligence">
+            <a class="capital-pathway" href="/pulse/">Network Pulse<small>Broader live network context</small></a>
+            <a class="capital-pathway" href="/stake/">Staking Chamber<small>Staked supply, movement, and receipts</small></a>
+            <a class="capital-pathway" href="/tezosx/">Tezos X<small>Deeper Etherlink activity and tokens</small></a>
+            <a class="capital-pathway" href="/#hot-today">What's Hot Today<small>Curated news and unusual activity</small></a>
+        </nav>
+        ${sourceBar(snapshot, ['defillama', 'tzkt', 'etherlinkBlockscout', 'etherlinkStats', 'coingecko', 'gitlab'], 'Layer semantics, freshness, and bounded histories are disclosed per source')}
+    `;
+}
+
+function renderMarkets(snapshot) {
+    const range = effectiveRange('markets');
+    const xtz = snapshot.markets.xtz || {};
+    const coin = xtz.coin || {};
+    const tickers = Array.isArray(xtz.tickers) ? [...xtz.tickers] : [];
+    tickers.sort((a, b) => (numeric(b.convertedVolumeUsd) || 0) - (numeric(a.convertedVolumeUsd) || 0));
+    const usable = tickers.filter((ticker) => tickerQuality(ticker).id !== 'bad');
+    const quarantined = tickers.filter((ticker) => tickerQuality(ticker).id === 'bad');
+    const priceChart = renderChart([
+        { label: 'XTZ / USD', color: '#69e7c3', points: pointsForRange(xtz.priceHistory?.usd, 'value', range) }
+    ], 'XTZ USD daily close history');
+    return `
+        <div class="capital-kpi-grid">
+            ${kpi('XTZ price', formatUsd(coin.currentPriceUsd, false), `Updated ${ageLabel(coin.lastUpdated)}`)}
+            ${kpi('Market cap', formatUsd(coin.marketCapUsd), 'CoinGecko current snapshot', 'blue')}
+            ${kpi('24h spot volume', formatUsd(coin.volume24hUsd), 'Provider-aggregated venue volume', 'gold')}
+            ${kpi('24h return', formatPct(coin.change24hPct, { signed: true }), 'Current-price provider receipt', 'rose')}
+        </div>
+        <div class="capital-panel-grid">
+            ${panel('XTZ daily close', 'Price history', priceChart, `${range} · daily data; not intraday`)}
+            ${panel('Return matrix', 'Relative performance', renderReturnMatrix(snapshot), '1h and 4h intentionally unavailable; daily-close basis')}
+            ${panel('Venue tape', 'Quality-screened tickers', renderTickerTable(usable, 'CoinGecko XTZ market tickers requiring no quarantine'), `${usable.length} reviewable rows · showing up to 28`, true)}
+            ${panel('Quarantine', 'Stale, anomalous, or structurally thin', renderTickerTable(quarantined, 'Quarantined CoinGecko XTZ ticker rows', 18), `${quarantined.length} of ${tickers.length} rows · no trading call to action`, true)}
+        </div>
+        <div class="capital-proof-grid" style="margin-top:12px">
+            ${unavailableReceipt(snapshot, 'comprehensive-cex-net-flows')}
+            <article class="capital-proof-card"><h4>Ticker quality is a receipt, not an endorsement</h4><p>Rows preserve provider stale/anomaly fields, spread, and reported ±2% depth. Missing trust scores remain Review; suspect rows are quarantined. The Chamber offers no Trade action.</p></article>
+            <article class="capital-proof-card"><h4>Coverage boundary</h4><p>${escapeHtml(xtz.coverage?.tickerRows ?? tickers.length)} ticker rows from page ${escapeHtml(xtz.coverage?.tickerPage ?? 1)}; hard cap ${escapeHtml(xtz.coverage?.tickerHardCap ?? 'unknown')}. ${xtz.coverage?.tickerTruncated ? 'The venue set is truncated.' : 'The provider set was not truncated.'}</p></article>
+        </div>
+        <nav class="capital-pathways" aria-label="Continue through markets and flows">
+            <a class="capital-pathway" href="/#price">Price Intelligence<small>Alerts and focused XTZ context</small></a>
+            <a class="capital-pathway" href="/ledger-flow/">Ledger Flow<small>Inspectable on-chain movement</small></a>
+            <a class="capital-pathway" href="/#whales">Large Tez Transfers<small>Live high-value movement</small></a>
+            <a class="capital-pathway" href="/compare/">Chain Compare<small>Sourced cross-chain context</small></a>
+        </nav>
+        ${sourceBar(snapshot, ['coingecko'], `${xtz.coverage?.historyDays || 365} daily price points; ticker filters are client-side and inspectable`)}
+    `;
+}
+
+function protocolRows(snapshot) {
+    return snapshot.defi.chains.flatMap((network) => (network.protocols || []).map((protocol) => ({ ...protocol, network: network.label || network.id })));
+}
+
+function renderAssets(snapshot) {
+    const protocols = protocolRows(snapshot).sort((a, b) => (numeric(b.tvlUsd) || 0) - (numeric(a.tvlUsd) || 0));
+    const rwaProtocols = Array.isArray(snapshot.rwa?.protocols) ? snapshot.rwa.protocols : [];
+    const tokens = Array.isArray(snapshot.rwa?.tokens) ? snapshot.rwa.tokens : [];
+    const asset = snapshot.rwa?.assets?.find((row) => row.id === 'xu3o8') || snapshot.rwa?.assets?.[0] || {};
+    const protocolTable = `
+        <div class="capital-table-wrap"><table class="capital-table"><caption class="sr-only">Protocol TVL and exact-chain share</caption>
+            <thead><tr><th>Protocol</th><th>Layer</th><th>Category</th><th class="is-number">TVL</th><th class="is-number">Index-row share</th></tr></thead>
+            <tbody>${protocols.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.network)}</td><td>${escapeHtml(row.category || 'Other')}</td><td class="is-number">${escapeHtml(formatUsd(row.tvlUsd))}</td><td class="is-number">${escapeHtml(formatPct(row.sharePct))}</td></tr>`).join('')}</tbody>
+        </table></div>`;
+    const rwaProtocolTable = `
+        <div class="capital-table-wrap"><table class="capital-table"><caption class="sr-only">Etherlink RWA protocol TVL</caption>
+            <thead><tr><th>Protocol</th><th>Category</th><th>Chains</th><th class="is-number">TVL</th><th class="is-number">Etherlink TVL</th></tr></thead>
+            <tbody>${rwaProtocols.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.category)}</td><td>${escapeHtml((row.chains || []).join(', '))}</td><td class="is-number">${escapeHtml(formatUsd(row.tvlUsd))}</td><td class="is-number">${escapeHtml(formatUsd(row.chainTvlUsd?.etherlink))}</td></tr>`).join('')}</tbody>
+        </table></div>`;
+    const tokenTable = `
+        <div class="capital-table-wrap"><table class="capital-table"><caption class="sr-only">Mapped real-world asset tokens</caption>
+            <thead><tr><th>Token</th><th>Provider</th><th>Network / contract</th><th>Verification</th></tr></thead>
+            <tbody>${tokens.map((token) => {
+                const platform = token.platforms?.[0] || {};
+                return `<tr><td>${escapeHtml(token.symbol || token.name)}<br><small>${escapeHtml(token.name || '')}</small></td><td>${escapeHtml(token.provider || 'Unavailable')}</td><td>${escapeHtml(platform.network || 'Unavailable')}<br><small title="${escapeHtml(platform.contract || '')}">${escapeHtml(truncate(platform.contract, 22))}</small></td><td><span class="capital-quality is-warn">Registry mapping</span></td></tr>`;
+            }).join('')}</tbody>
+        </table></div>`;
+    return `
+        <div class="capital-kpi-grid">
+            ${kpi('DeFi protocol rows', formatNumber(protocols.length), 'Exact-chain DefiLlama rows')}
+            ${kpi('RWA protocols', formatNumber(rwaProtocols.length), 'Registry-discovered; not issuer verification', 'blue')}
+            ${kpi('Mapped RWA tokens', formatNumber(tokens.length), 'CoinGecko platform-contract mappings', 'gold')}
+            ${kpi('xU3O8 holders', formatNumber(asset.counters?.holders ?? asset.token?.holders), 'Current Etherlink Blockscout counter', 'rose')}
+        </div>
+        <div class="capital-panel-grid">
+            ${panel('Protocol TVL index', 'Capital map', protocolTable, `${protocols.length} exact-chain rows · share uses the positive-row sum, not chain TVL`, true)}
+            ${panel('RWA protocol capital', 'Etherlink registry', rwaProtocolTable, 'DefiLlama RWA registry rows; issuer verification is not implied', true)}
+            ${panel('Mapped RWA token registry', 'Assets', tokenTable, 'Contract mappings only; provider prices and market caps were not collected', true)}
+        </div>
+        <div class="capital-proof-grid" style="margin-top:12px">
+            <article class="capital-proof-card"><h4>xU3O8 issuer-confirmed contract</h4><p>${escapeHtml(asset.name || 'Uranium')} on Etherlink has a bounded issuer and Blockscout proofbook.</p><dl><dt>Contract</dt><dd>${escapeHtml(asset.contract || 'Unavailable')}</dd><dt>Total supply</dt><dd>${escapeHtml(formatNumber(asset.token?.totalSupply, 4))}</dd><dt>Exchange rate</dt><dd>${escapeHtml(formatUsd(asset.token?.exchangeRateUsd, false))}</dd><dt>Transfers</dt><dd>${escapeHtml(formatNumber(asset.counters?.transfers))}</dd><dt>Latest receipt</dt><dd>${escapeHtml(formatDate(asset.latestTransfer?.timestamp))}</dd></dl></article>
+            <article class="capital-proof-card"><h4>Proof boundary</h4><p>Issuer confirmation identifies the contract. Current token counters and only the latest transfer come from Blockscout; this snapshot does not reconstruct a historical transfer ledger.</p></article>
+            ${unavailableReceipt(snapshot, 'xu3o8-sruuf-return-spread')}
+        </div>
+        <div class="capital-proof-grid" style="margin-top:12px">
+            <article class="capital-gap-card"><span class="capital-gap-label">Bounded v1 coverage</span><h4>General ecosystem token parity</h4><p>The current snapshot does not claim a comparable price, FDV, active-address, and transaction table across every L1 and L2 token. Etherlink token detail continues in Tezos X; registry-only rows stay visibly separate here.</p></article>
+            <article class="capital-gap-card"><span class="capital-gap-label">Bounded v1 coverage</span><h4>Protocol and xU3O8 histories</h4><p>Protocol rows are current snapshots. xU3O8 exposes current holders, counters, and one latest receipt—not holder growth, top contracts by transfer volume, or a reconstructed usage ledger.</p></article>
+            <article class="capital-proof-card"><h4>Why the boundary matters</h4><p>Transfer events alone do not prove a holder snapshot, economic usage, or comparable active addresses. A future backfill needs versioned pagination and complete-address methodology before those charts can be labelled honestly.</p></article>
+        </div>
+        <nav class="capital-pathways" aria-label="Continue through assets and flows">
+            <a class="capital-pathway" href="/tezosx/">Tezos X<small>Etherlink token and activity detail</small></a>
+            <a class="capital-pathway" href="/ledger-flow/">Ledger Flow<small>On-chain movement and provenance</small></a>
+            <a class="capital-pathway" href="/#price">Price Intelligence<small>Focused XTZ market context</small></a>
+            <a class="capital-pathway" href="/#hot-today">What's Hot Today<small>Curated ecosystem developments</small></a>
+        </nav>
+        ${sourceBar(snapshot, ['defillama', 'defillamaRwa', 'coingeckoRwa', 'uraniumIssuer', 'etherlinkBlockscoutRwa'], 'Third-party registry discovery is labelled separately from issuer-confirmed proof')}
+    `;
+}
+
+function renderLeaderTable(rows, caption, roleLabel) {
+    return `
+        <div class="capital-table-wrap"><table class="capital-table"><caption class="sr-only">${escapeHtml(caption)}</caption>
+            <thead><tr><th>Rank</th><th>${escapeHtml(roleLabel)}</th><th>Address</th><th class="is-number">Gross volume</th></tr></thead>
+            <tbody>${rows.slice(0, 12).map((row, index) => `<tr><td>${escapeHtml(row.rank || index + 1)}</td><td>${escapeHtml(row.name || 'Unnamed')}</td><td title="${escapeHtml(row.address)}">${escapeHtml(truncate(row.address, 20))}</td><td class="is-number">${escapeHtml(formatXtz(row.volumeXtz))}</td></tr>`).join('')}</tbody>
+        </table></div>`;
+}
+
+function renderArt(snapshot) {
+    const art = snapshot.art || {};
+    const marketplaces = Array.isArray(art.marketplaces) ? [...art.marketplaces] : [];
+    marketplaces.sort((a, b) => (numeric(b.volumeXtz) || 0) - (numeric(a.volumeXtz) || 0));
+    const grossVolume = sum(marketplaces.map((row) => row.volumeXtz));
+    const grossSales = sum(marketplaces.map((row) => row.salesCount));
+    const mintEditions = sum((art.dailyMints || []).map((row) => row.mints));
+    const participantRoles = sum(marketplaces.flatMap((row) => [row.buyers, row.sellers]));
+    const coveredDailySales = (art.dailySales || []).filter((row) => row.coverage !== 'uncovered');
+    const coveredDailyMints = (art.dailyMints || []).filter((row) => row.coverage !== 'uncovered');
+    const marketChart = renderBarChart(marketplaces.map((row) => ({ label: row.name, value: row.volumeXtz })), 'Gross marketplace volume over the bounded OBJKT window');
+    const marketplaceRows = marketplaces.map((row) => {
+        const volume = numeric(row.volumeXtz);
+        const share = volume !== null && numeric(grossVolume) !== null && grossVolume > 0 ? (volume / grossVolume) * 100 : null;
+        return `<tr><td>${escapeHtml(row.name || row.id || 'Unknown')}</td><td class="is-number">${escapeHtml(formatXtz(row.volumeXtz))}</td><td class="is-number">${escapeHtml(formatPct(share))}</td><td class="is-number">${escapeHtml(formatNumber(row.salesCount))}</td><td class="is-number">${escapeHtml(formatNumber(row.buyers))}</td><td class="is-number">${escapeHtml(formatNumber(row.sellers))}</td></tr>`;
+    }).join('');
+    const marketplaceTable = `<div class="capital-table-wrap"><table class="capital-table"><caption class="sr-only">Marketplace gross-volume share and participant roles</caption><thead><tr><th>Marketplace</th><th class="is-number">Gross volume</th><th class="is-number">Volume share</th><th class="is-number">Sales</th><th class="is-number">Buyer roles</th><th class="is-number">Seller roles</th></tr></thead><tbody>${marketplaceRows}</tbody></table></div>`;
+    const salesChart = renderChart([
+        { label: 'Gross sale volume · XTZ', color: '#69e7c3', points: pointsForRange(coveredDailySales, 'volumeXtz', '30D') }
+    ], 'Daily gross art sale volume');
+    const mintChart = renderChart([
+        { label: 'Minted editions', color: '#f3c969', points: pointsForRange(coveredDailyMints, 'mints', '30D') },
+        { label: 'Mint operations', color: '#62b6ff', points: pointsForRange(coveredDailyMints, 'mintOperations', '30D') }
+    ], 'Daily Tezos art mint activity');
+    const collectionRows = (art.topCollections30d || []).slice(0, 16).map((row) => `<tr><td>${escapeHtml(row.name || 'Unnamed')}</td><td title="${escapeHtml(row.contract)}">${escapeHtml(truncate(row.contract, 21))}</td><td class="is-number">${escapeHtml(formatNumber(row.salesCount))}</td><td class="is-number">${escapeHtml(formatXtz(row.volumeXtz))}</td><td class="is-number">${escapeHtml(formatNumber(row.buyers))}</td><td class="is-number">${escapeHtml(formatNumber(row.sellers))}</td></tr>`).join('');
+    const collectionTable = `<div class="capital-table-wrap"><table class="capital-table"><caption class="sr-only">Top collections in the bounded 30-day sales prefix</caption><thead><tr><th>Collection</th><th>Contract</th><th class="is-number">Sales</th><th class="is-number">Gross volume</th><th class="is-number">Buyers</th><th class="is-number">Sellers</th></tr></thead><tbody>${collectionRows}</tbody></table></div>`;
+    return `
+        <div class="capital-kpi-grid">
+            ${kpi('Gross marketplace volume', formatXtz(grossVolume), 'Summed marketplace groups; not creator profit')}
+            ${kpi('Indexed sales', formatNumber(grossSales), 'Most-recent bounded sales prefix', 'blue')}
+            ${kpi('Minted editions', formatNumber(mintEditions), 'Editions, distinct from mint operations', 'gold')}
+            ${kpi('Buyer + seller roles', formatNumber(participantRoles), 'Marketplace-summed roles; not unique people', 'rose')}
+        </div>
+        <div class="capital-panel-grid">
+            ${panel('Marketplace gross volume', '30-day economy', marketChart, `${marketplaces.length} indexed marketplace groups · raw XTZ, not percentage share`)}
+            ${panel('Marketplace share + roles', 'Market structure', marketplaceTable, 'Shares use the bounded gross-volume total; roles are not deduplicated people', true)}
+            ${panel('Gross daily sale volume', 'Sales', salesChart, 'Uncovered days render as gaps, not zero; partial days remain labelled in the source receipt')}
+            ${panel('Mints', 'Creation', mintChart, 'Mint editions and operations remain separate')}
+            ${panel('Top collections · 30D', 'Collections', collectionTable, 'Up to 16 shown from a 50-row bounded set', true)}
+            ${panel('Top buyers · 30D', 'Collectors', renderLeaderTable(art.topBuyers30d || [], 'Top art buyers', 'Buyer'), 'Gross purchase volume; not profit')}
+            ${panel('Top artists · 30D', 'Creators', renderLeaderTable(art.topArtists30d || [], 'Top artists by sales volume', 'Artist'), 'Gross sale volume; not creator net earnings')}
+        </div>
+        <div class="capital-proof-grid" style="margin-top:12px">
+            <article class="capital-proof-card"><h4>Gross, never net</h4><p>${escapeHtml(art.coverage?.saleVolumeDefinition || 'Listing-sale volume is gross and is not creator earnings or trader profit.')}</p></article>
+            <article class="capital-proof-card"><h4>Coverage is bounded</h4><p>${escapeHtml((art.coverage?.notes || []).join(' '))}</p></article>
+            <article class="capital-proof-card"><h4>Lifetime collections</h4><p>${escapeHtml(formatNumber(art.topCollectionsLifetime?.length || 0))} live FA2 collection rows are retained separately from the bounded 30-day sales reconstruction.</p></article>
+        </div>
+        <div class="capital-proof-grid" style="margin-top:12px">
+            <article class="capital-gap-card"><span class="capital-gap-label">Methodology boundary</span><h4>Unique users and transactions per user</h4><p>Buyer and seller roles are unique only inside each marketplace group and may overlap with one another or across markets. The Chamber does not divide transactions by that non-deduplicated role sum and call it users.</p></article>
+            <article class="capital-proof-card"><h4>Marketplace share denominator</h4><p>Each percentage uses the sum of the bounded OBJKT-indexed marketplace groups shown here. It is not a claim about every historical or independent Tezos marketplace.</p></article>
+            <article class="capital-proof-card"><h4>Creation is separate</h4><p>Minted editions, mint operations, sales, and collection volume remain distinct measures; uncovered source days render as gaps instead of invented zero activity.</p></article>
+        </div>
+        <nav class="capital-pathways" aria-label="Continue through Tezos art and identity">
+            <a class="capital-pathway" href="/hen/">Enter HEN mode<small>Collecting history and Tezos art identity</small></a>
+            <a class="capital-pathway" href="/maxis/">Open Tezos Maxis<small>Inspect ongoing ecosystem identities</small></a>
+            <a class="capital-pathway" href="#whales">Whale Watch<small>Follow large on-chain movements</small></a>
+            <a class="capital-pathway" href="#history">Protocol Anthology<small>Place the economy in protocol time</small></a>
+        </nav>
+        ${sourceBar(snapshot, ['objkt'], `Tezos L1 only · ${art.windowDays || 30}D bounded window · gross sale and mint definitions disclosed`)}
+    `;
+}
+
+function renderView(snapshot) {
+    if (currentView === 'markets') return renderMarkets(snapshot);
+    if (currentView === 'assets') return renderAssets(snapshot);
+    if (currentView === 'art') return renderArt(snapshot);
+    return renderSystem(snapshot);
+}
+
+function freshnessPresentation(snapshot) {
+    const generated = Date.parse(snapshot.generatedAt);
+    const stale = !Number.isFinite(generated) || Date.now() - generated > STALE_AFTER_MS;
+    const label = lastRefreshError
+        ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed`
+        : `Generated ${ageLabel(snapshot.generatedAt)}`;
+    return { label, stale: stale || Boolean(lastRefreshError) };
+}
+
+function renderChamber(snapshot) {
+    const view = VIEWS.find((item) => item.id === currentView) || VIEWS[0];
+    const freshness = freshnessPresentation(snapshot);
+    return `
+        <header class="capital-header" data-quiet-key="capital-header">
+            <div class="capital-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>public-source capital intelligence</span></div>
+            <div class="capital-title-row">
+                <h2 id="capital-title">Capital Chamber</h2>
+                <span class="capital-badge">Generated proofbook</span>
+                <span class="capital-freshness${freshness.stale ? ' is-stale' : ''}" id="capital-freshness">${escapeHtml(freshness.label)}</span>
+            </div>
+            <p class="capital-intro">A Tezos-native reconstruction of the useful public intelligence surface: reproducible data, explicit coverage limits, no proprietary impersonation, and no invented totals.</p>
+            <div class="capital-tabs" role="tablist" aria-label="Capital Chamber views">
+                ${VIEWS.map((item) => `<button class="capital-tab" id="capital-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="capital-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-capital-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}
+            </div>
+        </header>
+        <section class="capital-view-shell" id="capital-view-panel" role="tabpanel" aria-labelledby="capital-tab-${view.id}" data-quiet-key="capital-view-panel">
+            <div class="capital-view-head">
+                <div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div>
+                ${renderRangeControl(view.id)}
+            </div>
+            <div id="capital-view-content" data-quiet-key="capital-view-content">${renderView(snapshot)}</div>
+        </section>
+    `;
+}
+
+function renderLoading(body) {
+    body.innerHTML = '<div class="capital-loading"><div><strong>Building the Capital Chamber…</strong><span>Loading the generated first-party snapshot.</span></div></div>';
+}
+
+function renderError(body, error) {
+    body.innerHTML = `<div class="capital-error"><div><strong>Capital snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><br><button class="chamber-action" type="button" data-capital-retry>Retry</button></div></div>`;
+}
+
+function renderBody(snapshot, { quiet = false } = {}) {
+    const body = document.getElementById('capital-chamber-body');
+    if (!body || !snapshot) return;
+    const markup = renderChamber(snapshot);
+    if (quiet && body.dataset.capitalRendered === '1') quietlySyncHtml(body, markup);
+    else body.innerHTML = markup;
+    body.dataset.capitalRendered = '1';
+}
+
+function entryMarkup(snapshot) {
+    const tezos = chain(snapshot, 'tezos');
+    const etherlink = chain(snapshot, 'etherlink');
+    const totalTvl = sum([tezos.tvl?.currentUsd, etherlink.tvl?.currentUsd], { requireAll: true });
+    const totalStable = sum([tezos.stablecoins?.currentUsd, etherlink.stablecoins?.currentUsd], { requireAll: true });
+    const coin = snapshot.markets.xtz?.coin || {};
+    const artVolume = sum((snapshot.art?.marketplaces || []).map((row) => row.volumeXtz));
+    return `
+        <div>
+            <div class="capital-entry-title-line"><h2 class="stat-label" id="capital-entry-title">Capital Chamber</h2><span class="capital-entry-chip">Public-source</span></div>
+            <div class="stat-value capital-entry-value">${escapeHtml(formatUsd(totalTvl))}</div>
+            <div class="capital-source-line"><span class="stat-description">One-system DeFi TVL</span><span class="capital-entry-source-label">snapshot ${escapeHtml(ageLabel(snapshot.generatedAt))}</span></div>
+        </div>
+        <div class="capital-entry-kpis">
+            <div class="capital-entry-kpi"><span>Tezos L1 TVL</span><strong>${escapeHtml(formatUsd(tezos.tvl?.currentUsd))}</strong><small>Exact-chain</small></div>
+            <div class="capital-entry-kpi"><span>Etherlink L2 TVL</span><strong>${escapeHtml(formatUsd(etherlink.tvl?.currentUsd))}</strong><small>Exact-chain</small></div>
+            <div class="capital-entry-kpi"><span>Stablecoins</span><strong>${escapeHtml(formatUsd(totalStable))}</strong><small>Both layers</small></div>
+            <div class="capital-entry-kpi"><span>XTZ</span><strong>${escapeHtml(formatUsd(coin.currentPriceUsd, false))}</strong><small>${escapeHtml(formatPct(coin.change24hPct, { signed: true }))} · 24h</small></div>
+        </div>
+        <div class="capital-entry-rails"><span>Markets</span><span>RWA proofbooks</span><span>Art ${escapeHtml(formatXtz(artVolume))}</span><span>Coverage receipts</span></div>
+    `;
+}
+
+function updateEntry(snapshot, { quiet = false } = {}) {
+    const front = document.getElementById('capital-entry-front');
+    if (!front || !snapshot) return;
+    const markup = entryMarkup(snapshot);
+    if (quiet && front.dataset.capitalRendered === '1') quietlySyncHtml(front, markup);
+    else front.innerHTML = markup;
+    front.dataset.capitalRendered = '1';
+    delete document.getElementById('capital-entry-card')?.dataset.updatedLabel;
+    window.syncChamberEntryFooters?.(document.getElementById('capital-entry-card'));
+}
+
+function markRefreshFailure() {
+    const freshness = document.getElementById('capital-freshness');
+    if (freshness && lastSnapshot) {
+        freshness.textContent = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed`;
+        freshness.classList.add('is-stale');
+    }
+    const card = document.getElementById('capital-entry-card');
+    if (card && lastSnapshot) {
+        card.dataset.updatedLabel = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed`;
+        window.syncChamberEntryFooters?.(card);
+    }
+}
+
+function isCapitalRoute() {
+    return window.location.pathname.replace(/\/+$/, '') === '/capital';
+}
+
+function routeView() {
+    if (!isCapitalRoute()) return '';
+    const value = new URL(window.location.href).searchParams.get('view') || '';
+    return VIEW_IDS.has(value) ? value : '';
+}
+
+function updateRouteView() {
+    if (!isCapitalRoute()) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', currentView);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function bindBodyEvents(body) {
+    if (!body || body.dataset.capitalEventsWired === '1') return;
+    body.dataset.capitalEventsWired = '1';
+    body.addEventListener('click', (event) => {
+        const viewButton = event.target.closest('[data-capital-view]');
+        if (viewButton && VIEW_IDS.has(viewButton.dataset.capitalView)) {
+            currentView = viewButton.dataset.capitalView;
+            updateRouteView();
+            renderBody(lastSnapshot);
+            return;
+        }
+        const rangeButton = event.target.closest('[data-capital-range]');
+        if (rangeButton && !rangeButton.disabled && RANGE_BY_ID.has(rangeButton.dataset.capitalRange)) {
+            currentRange = rangeButton.dataset.capitalRange;
+            renderBody(lastSnapshot);
+            return;
+        }
+        if (event.target.closest('[data-capital-retry]')) refreshCapitalChamber({ quiet: false });
+    });
+    body.addEventListener('keydown', (event) => {
+        const activeTab = event.target.closest('[role="tab"][data-capital-view]');
+        if (!activeTab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const index = VIEWS.findIndex(({ id }) => id === activeTab.dataset.capitalView);
+        let next = index;
+        if (event.key === 'ArrowLeft') next = (index - 1 + VIEWS.length) % VIEWS.length;
+        if (event.key === 'ArrowRight') next = (index + 1) % VIEWS.length;
+        if (event.key === 'Home') next = 0;
+        if (event.key === 'End') next = VIEWS.length - 1;
+        currentView = VIEWS[next].id;
+        updateRouteView();
+        renderBody(lastSnapshot);
+        document.getElementById(`capital-tab-${currentView}`)?.focus({ preventScroll: true });
+    });
+}
+
+function ensureOverlay() {
+    let overlay = document.getElementById('capital-modal');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'capital-modal';
+    overlay.className = 'modal-overlay chamber-overlay capital-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.innerHTML = `
+        <div class="modal-content modal-large chamber-content capital-content" role="dialog" aria-modal="true" aria-labelledby="capital-title">
+            <button class="modal-close chamber-close" type="button" aria-label="Close Capital Chamber">&times;</button>
+            <div class="capital-body" id="capital-chamber-body"></div>
+        </div>
+    `;
+    overlay.querySelector('.chamber-close').addEventListener('click', closeCapitalChamber);
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) closeCapitalChamber();
+    });
+    bindBodyEvents(overlay.querySelector('.capital-body'));
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+function lockPageScroll() {
+    if (savedBodyOverflow !== null) return;
+    savedBodyOverflow = document.body.style.overflow;
+    savedHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+}
+
+function unlockPageScroll() {
+    if (savedBodyOverflow === null) return;
+    document.body.style.overflow = savedBodyOverflow;
+    document.documentElement.style.overflow = savedHtmlOverflow || '';
+    savedBodyOverflow = null;
+    savedHtmlOverflow = null;
+}
+
+function refreshInterval() {
+    const override = numeric(window.__CAPITAL_CHAMBER_REFRESH_MS__);
+    return override !== null && override >= 1000 ? override : DEFAULT_REFRESH_MS;
+}
+
+function stopRefreshTimer() {
+    if (chamberTimer) window.clearInterval(chamberTimer);
+    chamberTimer = null;
+}
+
+function startRefreshTimer() {
+    stopRefreshTimer();
+    chamberTimer = window.setInterval(() => {
+        if (document.visibilityState !== 'visible') {
+            refreshDeferred = true;
+            return;
+        }
+        refreshCapitalChamber({ quiet: true });
+    }, refreshInterval());
+}
+
+function bindVisibilityRefresh() {
+    if (visibilityReady) return;
+    visibilityReady = true;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        const overlayOpen = document.getElementById('capital-modal')?.classList.contains('active');
+        if (!refreshDeferred && !overlayOpen) return;
+        refreshDeferred = false;
+        refreshCapitalChamber({ quiet: true });
+    });
+}
+
+async function refreshCapitalChamber({ quiet = true } = {}) {
+    if (document.visibilityState !== 'visible') {
+        refreshDeferred = true;
+        return lastSnapshot;
+    }
+    try {
+        const snapshot = await fetchCapitalSnapshot();
+        lastSnapshot = snapshot;
+        lastRefreshError = '';
+        refreshDeferred = false;
+        updateEntry(snapshot, { quiet });
+        if (document.getElementById('capital-modal')?.classList.contains('active')) {
+            renderBody(snapshot, { quiet });
+        }
+        return snapshot;
+    } catch (error) {
+        console.warn('Capital Chamber snapshot refresh failed:', error);
+        lastRefreshError = error?.message || String(error);
+        markRefreshFailure();
+        const body = document.getElementById('capital-chamber-body');
+        if (!lastSnapshot && body && document.getElementById('capital-modal')?.classList.contains('active')) {
+            renderError(body, error);
+        }
+        return lastSnapshot;
+    }
+}
+
+function ensureEntryCard() {
+    const existing = document.getElementById('capital-entry-card');
+    if (existing) return existing;
+    const grid = document.getElementById('chambers-grid');
+    if (!grid) return null;
+    const card = document.createElement('article');
+    card.id = 'capital-entry-card';
+    card.className = 'stat-card chamber-entry-card chamber-entry-wide chamber-entry-live capital-entry-card';
+    card.dataset.chamberEntrySize = 'wide';
+    card.innerHTML = `
+        <button class="card-copy-link" type="button" data-copy-hash="#capital" aria-label="Copy Capital Chamber direct link" title="Copy Capital Chamber link">&#128279;</button>
+        <div class="card-inner">
+            <div class="card-front chamber-entry-front capital-entry-front" id="capital-entry-front">
+                <div><div class="capital-entry-title-line"><h2 class="stat-label" id="capital-entry-title">Capital Chamber</h2><span class="capital-entry-chip">Public-source</span></div><div class="stat-value capital-entry-value">Loading proofbook</div><div class="stat-description">Tezos and Etherlink capital intelligence</div></div>
+                <div class="capital-entry-kpis"><div class="capital-entry-kpi"><span>Generated snapshot</span><strong>Loading</strong><small>First-party JSON only</small></div></div>
+                <div class="capital-entry-rails"><span>Markets</span><span>Assets</span><span>Art</span><span>Coverage receipts</span></div>
+            </div>
+        </div>
+    `;
+    grid.appendChild(card);
+    return card;
+}
+
+function wireEntry(card) {
+    if (!card) return;
+    wireChamberLauncher(card, {
+        open: openCapitalChamber,
+        label: 'Open Capital Chamber',
+        titleSelector: '#capital-entry-title, .stat-label'
+    });
+}
+
+export async function openCapitalChamber() {
+    ensureCapitalCss();
+    const route = routeView();
+    if (route) currentView = route;
+    const overlay = ensureOverlay();
+    const body = overlay.querySelector('.capital-body');
+    overlay.classList.add('active');
+    lockPageScroll();
+    if (lastSnapshot) renderBody(lastSnapshot);
+    else renderLoading(body);
+    body.scrollTop = 0;
+    activateChamberDialog(overlay, {
+        close: closeCapitalChamber,
+        dialogSelector: '.capital-content',
+        titleId: 'capital-title',
+        label: 'Capital Chamber',
+        initialFocusSelector: '.chamber-close'
+    });
+    await refreshCapitalChamber({ quiet: false });
+    if (overlay.classList.contains('active')) startRefreshTimer();
+}
+
+export function closeCapitalChamber() {
+    stopRefreshTimer();
+    const overlay = document.getElementById('capital-modal');
+    overlay?.classList.remove('active');
+    deactivateChamberDialog(overlay);
+    unlockPageScroll();
+}
+
+export function initCapitalChamber() {
+    ensureCapitalCss();
+    bindVisibilityRefresh();
+    const card = ensureEntryCard();
+    wireEntry(card);
+    if (lastSnapshot) updateEntry(lastSnapshot);
+    else if (document.visibilityState === 'visible') refreshCapitalChamber({ quiet: false });
+    else refreshDeferred = true;
+}

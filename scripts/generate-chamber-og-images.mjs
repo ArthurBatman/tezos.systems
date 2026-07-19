@@ -67,6 +67,12 @@ function routeDetails(route, report) {
       chips: ['consensus', 'economy', 'activity'],
       body: 'Scan Tezos bakers, staking, governance, transactions, contracts, supply, and adjacent chambers in one live operations room.'
     },
+    capital: {
+      kicker: 'Public-Source Capital',
+      value: 'One system. Four lenses.',
+      chips: ['Tezos + Etherlink', 'markets + RWA', 'art economy'],
+      body: 'Read cross-layer capital, XTZ market structure, ecosystem assets, real-world proofbooks, and Tezos art activity with visible source and coverage boundaries.'
+    },
     stake: {
       kicker: 'Staking Flow',
       value: 'Stake + unstake tape',

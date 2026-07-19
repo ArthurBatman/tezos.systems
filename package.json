@@ -21,6 +21,8 @@
     "refresh:generated": "node scripts/refresh-generated-surfaces.mjs --all",
     "refresh:generated:commit": "node scripts/refresh-generated-surfaces.mjs --mode precommit",
     "refresh:generated:scheduled": "node scripts/refresh-generated-surfaces.mjs --mode scheduled",
+    "refresh:capital": "node scripts/refresh-capital-data.mjs",
+    "check:capital": "node scripts/refresh-capital-data.mjs --check",
     "refresh:milestones": "node scripts/generate-milestone-catalog.mjs --force",
     "refresh:nakamoto": "node scripts/refresh-nakamoto-sources.mjs",
     "refresh:maxis": "node scripts/refresh-maxis-data.mjs",

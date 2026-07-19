@@ -52,6 +52,7 @@ import { initCtezChamber } from '../features/ctez.js';
 import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
 import { initNetworkPulseChamber } from '../features/network-pulse.js';
+import { initCapitalChamber } from '../features/capital-chamber.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
 
@@ -110,7 +111,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=451';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=452';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -297,6 +298,7 @@ async function init() {
     safe('etherlinkGovernanceChamber', initEtherlinkGovernanceChamber);
     safe('tz4AdoptionChamber', initTz4AdoptionChamber);
     safe('networkPulseChamber', initNetworkPulseChamber);
+    safe('capitalChamber', initCapitalChamber);
     safe('stakingChamber', initStakingChamber);
     safe('ctezChamber', initCtezChamber);
     safe('ledgerFlowChamber', initLedgerFlowChamber);
@@ -1506,7 +1508,7 @@ const CHAMBERS_VISIBLE_KEY = 'tezos-systems-chambers-visible';
 const CHAMBER_CARD_PAIRS = [
     {
         key: 'network-pulse',
-        selectors: ['#network-pulse-entry-card']
+        selectors: ['#network-pulse-entry-card', '#capital-entry-card']
     },
     {
         key: 'health-governance',
@@ -1542,6 +1544,12 @@ const CHAMBER_INFO_COPY = {
         body: 'A categorized chamber for the live consensus, economy, governance, activity, and ecosystem stats that power the dashboard.',
         href: '/pulse/',
         link: 'Open Network Pulse ->'
+    },
+    'capital-entry-card': {
+        title: 'Capital Chamber',
+        body: 'Cross-layer Tezos and Etherlink intelligence for network activity, markets, ecosystem assets, real-world assets, and the art economy.',
+        href: '/capital/',
+        link: 'Open Capital Chamber ->'
     },
     'staking-entry-card': {
         title: 'Staking Chamber',
@@ -5023,6 +5031,7 @@ function initOfflineIndicator() {
 //   #history           → open history modal
 //   #chamber           → open Tezos L1 Governance modal
 //   #pulse             -> open Network Pulse Chamber
+//   #capital           -> open Capital Chamber
 //   #staking           -> open Staking Chamber
 //   #tezosx           -> open Tezos X Chamber
 //   #tezlink          -> legacy alias for Tezos X Chamber
@@ -5041,6 +5050,7 @@ function initOfflineIndicator() {
 //   /my/               → open My Tezos without requiring an address
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
+//   /capital/          -> open Capital Chamber
 //   /stake/            -> open Staking Chamber
 //   /anthology/        → open Protocol History Chamber
 //   /health/           → open Network Health Chamber
@@ -5320,6 +5330,7 @@ function applyDeepLink() {
             import('../features/etherlink-governance.js').then((module) => module.closeEtherlinkGovernanceChamber?.()),
             import('../features/network-health.js').then((module) => module.closeNetworkHealthChamber?.()),
             import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
+            import('../features/capital-chamber.js').then((module) => module.closeCapitalChamber?.()),
             import('../features/staking-chamber.js').then((module) => module.closeStakingChamber?.()),
             import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
             import('../features/tz4-adoption.js').then((module) => module.closeTz4AdoptionChamber?.()),
@@ -5358,6 +5369,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
                     'Failed to open Network Pulse Chamber'
+                );
+                break;
+            case 'capital':
+                openHashModal(
+                    () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
+                    'Failed to open Capital Chamber'
                 );
                 break;
             case 'staking':
@@ -5517,6 +5534,14 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
             'Failed to open Network Pulse Chamber'
+        );
+    }
+
+    // #capital
+    if (params.has('capital') || hash === 'capital') {
+        openHashModal(
+            () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
+            'Failed to open Capital Chamber'
         );
     }
 
@@ -5740,6 +5765,7 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'chamber-modal': { entryIds: ['chamber'], hashes: ['chamber', 'the-chamber'] },
     'protocol-history-chamber-modal': { entryIds: ['anthology'], hashes: ['protocol-history', 'protocol'] },
     'network-pulse-modal': { entryIds: ['pulse'], hashes: ['pulse', 'network-pulse'] },
+    'capital-modal': { entryIds: ['capital'], hashes: ['capital'] },
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },
     'maxis-modal': { entryIds: ['maxis'], hashes: ['maxis', 'tezos-maxis'] },
     'network-health-modal': { entryIds: ['health'], hashes: ['health', 'network-health'] },

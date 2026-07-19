@@ -44,6 +44,7 @@ tezos.systems/
 │   ├── styles.min.css                 # Served base dashboard stylesheet
 │   ├── loading.css                    # Critical first-paint skeleton states
 │   ├── network-health.css             # Lazy Network Health detail-panel styles
+│   ├── capital.css                    # Lazy Capital Chamber styles
 │   ├── themes/                        # Generated lazy-loaded theme bundles
 │   ├── hen-mode.css                   # HEN overlay styles
 │   └── landing.css                    # Landing and SEO page styles
@@ -68,6 +69,7 @@ tezos.systems/
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
 │   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
+│   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
 │   ├── maxis-l2-governance.json         # Exact all-history Etherlink governance careers
@@ -84,7 +86,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ stake/ maxis/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ stake/ maxis/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -99,6 +101,7 @@ tezos.systems/
 │   ├── refresh-maxis-careers.mjs      # Canonical governance career history
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
+│   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
 │   ├── lib/maxis-l2-governance.mjs     # Etherlink career scoring and validation
 │   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
 │   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
@@ -259,7 +262,7 @@ inline modal styles in `js/core/app.js`.
   dedicated in-flow slot beside the top price rail and scrolls away with that
   rail instead of painting over telemetry or the centered wordmark.
 - Chambers section is visible by default and orders the chamber rows as Network
-  Pulse, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
+  Pulse <> Capital Chamber, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
   tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis, then
   a full-width Tezos Domains strip at the bottom. ctez Oven Exit and KT1
   Multisig Recovery stay off the
@@ -320,6 +323,37 @@ inline modal styles in `js/core/app.js`.
   consensus, economy, governance, network activity, ecosystem, and adjacent
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
+- Capital Chamber with direct `#capital` and `/capital/` access. Four sourced
+  views organize the cross-layer capital picture without pretending their
+  unlike metrics share one definition: **One System** (`?view=system`) connects
+  Tezos and Etherlink activity, TVL, stablecoins, protocols, and Octez
+  development; **Markets** (`?view=markets`) compares XTZ in USD, BTC, and ETH
+  and exposes exchange-market snapshots; **Assets** (`?view=assets`)
+  separates public registry discoveries from issuer-confirmed xU3O8 evidence;
+  and **Art** (`?view=art`) presents OBJKT-indexed sales, mints, collections,
+  buyers, and artists. Shared 30D, 3M, 6M, 1Y, and 2Y controls disable ranges
+  that the source snapshot cannot honestly supply. The browser reads one
+  same-origin generated snapshot, refreshes it only while the room and tab are
+  visible, and keeps its per-source status, timestamp, coverage, and methodology
+  visible instead of making a third-party request fan-out when the room opens.
+
+  Capital's limits are part of the product contract. Tezos transaction history
+  is a truncated 30-day count of applied TzKT operations, including indexed
+  internal calls, and is not labeled as equivalent to an Etherlink EVM
+  transaction. Stablecoin USD totals keep canonical and bridged components
+  separate because bridge double counting remains possible. CoinGecko exchange
+  rows are capped at 100; comprehensive CEX net flows are not calculated without
+  audited exchange-wallet clusters. Public RWA registry rows do not imply issuer
+  verification; only xU3O8 carries its issuer proof receipt, its Blockscout
+  transfer detail is a recent/current truncated view, and the exact xU3O8 versus
+  SRUUF return spread remains unavailable without licensed SRUUF closes. OBJKT
+  coverage can be a capped most-recent prefix and does not prove every historical
+  or independent marketplace. The development view covers 28 days of the
+  canonical Octez `master` branch only, counts distinct author-name strings rather
+  than verified identities, and is not a measure of all Tezos development.
+  Comprehensive community/X/podcast composites remain explicitly unavailable
+  until licensed coverage and a versioned deduplication/sentiment methodology
+  exist.
 - Staking Chamber with direct `#staking` and `/stake/` access, while the existing
   `/staking/` guide remains the explanatory staking page. Its narrow launcher
   keeps one latest applied stake and one latest applied unstake strictly over
@@ -591,6 +625,7 @@ Useful deep links include:
 - `#price`
 - `#chambers`
 - `#pulse`
+- `#capital`
 - `#staking`
 - `#maxis`
 - `#l2chamber`
@@ -604,7 +639,7 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`, `/stake/`, `/maxis/`, `/health/`,
+Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`, `/capital/`, `/stake/`, `/maxis/`, `/health/`,
 `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
 `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -617,17 +652,20 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 
 | Source | Purpose |
 |--------|---------|
-| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, and ctez oven discovery |
+| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, ctez oven discovery, and Capital's Tezos counters and 30-day transaction-operation series |
 | Octez RPC `https://eu.rpc.tez.capital` | Issuance, supply, constants, cycle/head metadata |
 | Official Octez mainnet RPC `https://tezos-mainnet.octez.io` | Current-cycle baking-power distribution used for Network Health's live one-third and two-thirds address coefficients |
 | Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including earliest-observer, endorsing-power-weighted reception distributions, exact two-thirds and 90% arrival thresholds, validation-to-quorum phases, and observer count; Teztale is by Nomadic Labs |
 | `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
-| CoinGecko | XTZ price, market cap, 24h change, volume |
+| CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, and public RWA token mappings |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
-| OBJKT GraphQL | HEN mode's live Teia + OBJKT feed, collector and creator profile stats, and Maxis 30-day buyer/artist ranks plus mint events |
+| OBJKT APIs | HEN mode's live Teia + OBJKT feed, collector and creator profile stats, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
-| DefiLlama `https://api.llama.fi` | Tezos X chain TVL and protocol TVL; DefiLlama currently indexes the chain as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` | Tezos X chamber transaction, address, gas, and block stats |
+| DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories; DefiLlama currently indexes Tezos X as Etherlink |
+| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | Tezos X chamber transaction, address, gas, and block stats plus Capital's current counters, daily activity, and xU3O8 token receipts |
+| Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
+| GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
+| `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
 | Etherlink JSON-RPC `https://node.mainnet.etherlink.com` | Tezos X chamber RPC head and gas fallback |
 | Etherlink governance `https://governance.etherlink.com/governance` | Official FAST, SLOW, and Sequencer action pages linked from the read-only chamber |
 | Octez.Connect `@tezos-x/octez.connect-sdk` via `https://esm.sh` | Lazy browser wallet pairing and ctez/My Tezos account actions |
@@ -653,7 +691,8 @@ Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
-the Maxis artifact family. It also refreshes the reproducible Chainspect and
+the Maxis artifact family plus `data/capital-snapshot.json`. It also refreshes
+the reproducible Chainspect and
 Edinburgh EDI rows in `data/nakamoto-sources.json`; normal pre-commit runs only
 validate that ledger, while scheduled/full runs preserve last-known-good data
 if a third-party parser is temporarily unavailable. `npm run refresh:nakamoto`
@@ -688,6 +727,17 @@ MiB, and rules + summary + state + shards may not exceed 64 MiB. If the
 complete Transaction Passport tree would cross those limits, that lane is
 withheld and the other exhaustive lanes publish from the already collected
 source data rather than silently truncating wallets.
+
+`npm run refresh:capital` manually rebuilds the Capital snapshot from its
+documented public sources. `npm run check:capital` performs a network-free check
+of the committed schema, byte envelope, source receipts, required explicit
+unavailable methodologies, and stable content hash. Each source refresh is
+independent: a failed source preserves that section's last-known-good values as
+`stale`, or publishes an explicit `unavailable` section when no prior values
+exist. Scheduled/full generated runs refresh and optionally stage the snapshot;
+normal pre-commit runs validate the committed artifact without contacting every
+provider. The browser consumes that artifact and never silently upgrades stale
+or partial coverage into a current, comprehensive claim.
 The evaluator used by a settling season must remain executable and unchanged
 until close; a future scoring upgrade must live in a separately versioned
 evaluator rather than reinterpreting an old season through new code. Finalized
@@ -759,6 +809,8 @@ Common commands:
 ```bash
 npm run build:css
 npm run refresh:generated
+npm run refresh:capital
+npm run check:capital
 npm run refresh:milestones
 npm run refresh:maxis
 npm run check:maxis

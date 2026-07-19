@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-19',
         entries: [
+            { type: '✨', text: 'Capital Chamber now connects Tezos and Etherlink activity, markets, real-world assets, and the art economy through four sourced views at /capital/' },
             { type: '🔧', text: 'Live data now refreshes quietly without auto-scrolling the Live Pulse, shifting the page, resetting Chamber or feed position, replaying entrances, or dropping focus and text selection' },
             { type: '⚡', text: 'Dashboard, My Tezos, Tezos X, governance, Domains, tz4, Liquidity Baking, whales, sleeping giants, and HEN now defer hidden-tab polling and reconcile fresh values into the existing browsing state' }
         ]

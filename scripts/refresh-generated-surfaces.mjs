@@ -33,6 +33,7 @@ const NAKAMOTO_TARGETS = ['data/nakamoto-sources.json'];
 const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
+const CAPITAL_TARGETS = ['data/capital-snapshot.json'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -46,7 +47,8 @@ const GENERATED_TARGETS = unique([
   ...NAKAMOTO_TARGETS,
   ...MAXIS_TARGETS,
   ...MAXIS_CAREER_TARGETS,
-  ...MAXIS_L2_GOVERNANCE_TARGETS
+  ...MAXIS_L2_GOVERNANCE_TARGETS,
+  ...CAPITAL_TARGETS
 ]);
 
 function unique(values) {
@@ -195,6 +197,8 @@ async function main() {
     ran.push('maxis-careers-check');
     nodeScript('scripts/refresh-nakamoto-sources.mjs', ['--check']);
     ran.push('nakamoto-check');
+    nodeScript('scripts/refresh-capital-data.mjs', ['--check']);
+    ran.push('capital-check');
   } else if (modeName === 'all' || modeName === 'scheduled') {
     nodeScript('scripts/refresh-maxis-l2-governance.mjs');
     ran.push('maxis-l2-governance');
@@ -208,6 +212,9 @@ async function main() {
     nodeScript('scripts/refresh-nakamoto-sources.mjs');
     ran.push('nakamoto');
     if (shouldStage) stageTargets(NAKAMOTO_TARGETS);
+    nodeScript('scripts/refresh-capital-data.mjs');
+    ran.push('capital');
+    if (shouldStage) stageTargets(CAPITAL_TARGETS);
   }
 
   const milestoneArgs = [];

@@ -223,6 +223,7 @@ async function checkRequiredFiles() {
     'css/site-map.css',
     'css/leaderboard.css',
     'css/network-pulse.css',
+    'css/capital.css',
     'css/staking-chamber.css',
     'css/network-health.css',
     'css/maxis.css',
@@ -236,6 +237,7 @@ async function checkRequiredFiles() {
     'js/core/wallet.js',
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
+    'js/features/capital-chamber.js',
     'js/features/milestone-catalog.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
@@ -244,6 +246,8 @@ async function checkRequiredFiles() {
     'og-image.png',
     'stake/index.html',
     'og/stake.png',
+    'capital/index.html',
+    'og/capital.png',
     'version.json',
     'LICENSE',
     'NOTICE',
@@ -256,6 +260,7 @@ async function checkRequiredFiles() {
     'scripts/refresh-generated-surfaces.mjs',
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-nakamoto-sources.mjs',
+    'scripts/refresh-capital-data.mjs',
     'scripts/refresh-maxis-data.mjs',
     'scripts/refresh-maxis-careers.mjs',
     'scripts/refresh-maxis-l2-governance.mjs',
@@ -273,6 +278,7 @@ async function checkRequiredFiles() {
     'data/governance-votes.json',
     'data/nakamoto-sources.json',
     'data/governance-refresh-report.json',
+    'data/capital-snapshot.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-careers.json',
@@ -5189,13 +5195,14 @@ async function checkMaxisContracts() {
 }
 
 async function checkQuietRefreshContracts() {
-  const [quiet, app, daily, myTezos, myBaker, tezlink, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
+  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
     readText('js/core/quiet-refresh.js'),
     readText('js/core/app.js'),
     readText('js/features/daily-briefing.js'),
     readText('js/features/my-tezos.js'),
     readText('js/features/my-baker.js'),
     readText('js/features/tezlink.js'),
+    readText('js/features/capital-chamber.js'),
     readText('js/features/etherlink-governance.js'),
     readText('js/features/tezos-domains.js'),
     readText('js/features/tz4-adoption.js'),
@@ -5219,7 +5226,7 @@ async function checkQuietRefreshContracts() {
   if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
     fail('headline and heavy dashboard timers must both defer while the tab is hidden');
   }
-  const quietSurfaces = [myTezos, myBaker, tezlink, etherlink, domains, tz4, whales, giants, health, lb];
+  const quietSurfaces = [myTezos, myBaker, tezlink, capital, etherlink, domains, tz4, whales, giants, health, lb];
   if (quietSurfaces.some((source) => !source.includes('quiet-refresh.js'))) {
     fail('every audited live surface must import the shared quiet refresh contract');
   }
@@ -5236,6 +5243,152 @@ async function checkQuietRefreshContracts() {
   }
   if (!smoke.includes("name: 'quiet-refresh'")) fail('smoke catalog must include the quiet-refresh browsing-state suite');
   pass('quiet background refresh scroll, focus, selection, animation, and hidden-tab contracts checked');
+}
+
+async function checkCapitalContracts() {
+  const [snapshotText, feature, css, packageText, generatedSurfaces, chamberRoutes, siteMap, app, smoke] = await Promise.all([
+    readText('data/capital-snapshot.json'),
+    readText('js/features/capital-chamber.js'),
+    readText('css/capital.css'),
+    readText('package.json'),
+    readText('scripts/refresh-generated-surfaces.mjs'),
+    readText('scripts/lib/chamber-routes.mjs'),
+    readText('js/core/site-map.js'),
+    readText('js/core/app.js'),
+    readText('tests/smoke.mjs')
+  ]);
+  const snapshot = JSON.parse(snapshotText);
+  const packageJson = JSON.parse(packageText);
+  const { contentHash, ...unsignedSnapshot } = snapshot;
+
+  if (snapshot.schemaVersion !== 1 || !Number.isFinite(Date.parse(snapshot.generatedAt || ''))) {
+    fail('Capital snapshot must use schemaVersion 1 with an ISO generatedAt receipt');
+  }
+  if (!/^[0-9a-f]{64}$/.test(contentHash || '') || stableJsonHash(unsignedSnapshot) !== contentHash) {
+    fail('Capital snapshot contentHash must match the stable unsigned snapshot payload');
+  }
+  if (Buffer.byteLength(snapshotText) > 2 * 1024 * 1024) {
+    fail(`Capital snapshot exceeds the 2 MiB browser payload budget: ${Buffer.byteLength(snapshotText)} bytes`);
+  }
+
+  const defiChains = new Map((snapshot.defi?.chains || []).map((chain) => [chain.id, chain]));
+  for (const chainId of ['tezos', 'etherlink']) {
+    const chain = defiChains.get(chainId);
+    if (!chain || !Array.isArray(chain.tvl?.history) || !chain.tvl.history.length
+      || !Array.isArray(chain.stablecoins?.history) || !chain.stablecoins.history.length) {
+      fail(`Capital snapshot must retain public TVL and stablecoin history for ${chainId}`);
+    }
+  }
+  if (!Array.isArray(snapshot.network?.tezos?.transactions?.daily) || !snapshot.network.tezos.transactions.daily.length
+    || !Array.isArray(snapshot.network?.etherlink?.series?.newTransactions) || !snapshot.network.etherlink.series.newTransactions.length
+    || !Array.isArray(snapshot.network?.etherlink?.series?.newAccounts) || !snapshot.network.etherlink.series.newAccounts.length) {
+    fail('Capital snapshot must retain explicitly labeled Tezos and Etherlink transaction histories');
+  }
+  const capitalStats = snapshot.network?.tezos?.statistics || {};
+  const expectedStakingRatio = ((capitalStats.ownStakedMutez + capitalStats.externalStakedMutez) / capitalStats.totalSupplyMutez) * 100;
+  if (![capitalStats.ownStakedMutez, capitalStats.externalStakedMutez, capitalStats.totalSupplyMutez, capitalStats.stakingRatioPct].every(Number.isFinite)
+    || Math.abs(capitalStats.stakingRatioPct - expectedStakingRatio) > 0.0001) {
+    fail('Capital snapshot staking ratio must be own plus external staked XTZ divided by total supply');
+  }
+  for (const currency of ['usd', 'btc', 'eth']) {
+    if (!Array.isArray(snapshot.markets?.xtz?.priceHistory?.[currency]) || snapshot.markets.xtz.priceHistory[currency].length < 365) {
+      fail(`Capital snapshot must retain a 365-day XTZ/${currency.toUpperCase()} return input series`);
+    }
+  }
+  if (snapshot.markets?.xtz?.tickers?.length !== 100 || snapshot.markets?.xtz?.coverage?.tickerHardCap !== 100) {
+    fail('Capital snapshot must retain the complete disclosed first page of 100 CoinGecko ticker rows');
+  }
+  const xu3o8 = (snapshot.rwa?.assets || []).find((asset) => asset.id === 'xu3o8');
+  if (xu3o8?.contract?.toLowerCase() !== '0x79052ab3c166d4899a1e0dd033ac3b379af0b1fd'
+    || xu3o8?.issuer !== 'Uranium.io' || xu3o8?.decimals !== 18) {
+    fail('Capital snapshot must preserve the issuer-confirmed Etherlink xU3O8 contract receipt');
+  }
+  if (!Array.isArray(snapshot.art?.marketplaces) || snapshot.art.marketplaces.length < 3
+    || !Array.isArray(snapshot.art?.topCollections30d) || !snapshot.art.topCollections30d.length
+    || !Array.isArray(snapshot.art?.topBuyers30d) || !snapshot.art.topBuyers30d.length
+    || !Array.isArray(snapshot.art?.topArtists30d) || !snapshot.art.topArtists30d.length
+    || !/gross sales, not creator earnings or trader profit/i.test(snapshot.art?.coverage?.saleVolumeDefinition || '')) {
+    fail('Capital snapshot must retain marketplace, collection, buyer, and artist coverage without a net-earnings claim');
+  }
+  if (!Array.isArray(snapshot.development?.octez?.daily) || !snapshot.development.octez.daily.length
+    || snapshot.development?.octez?.windowDays !== 28
+    || !/not all Tezos ecosystem development/i.test(snapshot.development?.octez?.scope || '')) {
+    fail('Capital snapshot must retain a scoped 28-day Octez development receipt');
+  }
+  const unavailableById = new Map((snapshot.unavailable || []).map((item) => [item.id, item]));
+  for (const id of ['comprehensive-cex-net-flows', 'proprietary-community-composite', 'xu3o8-sruuf-return-spread']) {
+    const receipt = unavailableById.get(id);
+    if (receipt?.status !== 'unavailable' || receipt?.methodology !== 'not-calculated' || !receipt?.reason) {
+      fail(`Capital snapshot must carry an explicit unavailable methodology receipt for ${id}`);
+    }
+  }
+
+  if (packageJson.scripts?.['refresh:capital'] !== 'node scripts/refresh-capital-data.mjs'
+    || packageJson.scripts?.['check:capital'] !== 'node scripts/refresh-capital-data.mjs --check') {
+    fail('package scripts must expose Capital snapshot refresh and offline validation');
+  }
+  const capitalCheckIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-capital-data.mjs', ['--check'])");
+  const capitalRefreshIndex = generatedSurfaces.indexOf("nodeScript('scripts/refresh-capital-data.mjs')");
+  const milestoneIndex = generatedSurfaces.indexOf("nodeScript('scripts/generate-milestone-catalog.mjs'");
+  if (capitalCheckIndex < 0 || capitalRefreshIndex < 0 || milestoneIndex < 0
+    || capitalCheckIndex > milestoneIndex || capitalRefreshIndex > milestoneIndex
+    || !generatedSurfaces.includes("const CAPITAL_TARGETS = ['data/capital-snapshot.json']")
+    || !generatedSurfaces.includes('stageTargets(CAPITAL_TARGETS)')) {
+    fail('generated surfaces must check/refresh and optionally stage Capital data before downstream generated outputs');
+  }
+
+  const routeContracts = [
+    ['Capital Chamber route metadata', "slug: 'capital'", chamberRoutes],
+    ['Capital Chamber site-map destination', "href: '/capital/'", siteMap],
+    ['Capital Chamber site-map direct Markets view', "href: '/capital/?view=markets'", siteMap],
+    ['Capital Chamber app import', 'initCapitalChamber', app],
+    ['Capital Chamber pretty route opener', "case 'capital':", app],
+    ['Capital Chamber hash route', "hash === 'capital'", app],
+    ['Capital Chamber close cleanup', 'closeCapitalChamber', app],
+    ['Capital Chamber routed overlay', "'capital-modal': { entryIds: ['capital']", app],
+    ['Capital Chamber card directly follows Network Pulse', "selectors: ['#network-pulse-entry-card', '#capital-entry-card']", app]
+  ];
+  for (const [label, needle, source] of routeContracts) {
+    if (!source.includes(needle)) fail(`${label} contract is missing`);
+  }
+
+  if (!feature.includes('data/capital-snapshot.json')) {
+    fail('Capital Chamber must render from the first-party committed Capital snapshot');
+  }
+  for (const view of ['system', 'markets', 'assets', 'art']) {
+    if (!new RegExp(`["']${view}["']`).test(feature)) fail(`Capital Chamber must expose the ${view} view`);
+  }
+  if (!/isStale|isAnomaly|trustScore/.test(feature) || !/quarantin|quality/i.test(feature)) {
+    fail('Capital Markets must visibly quarantine low-quality, stale, or anomalous venue rows');
+  }
+  if (/\.tradeUrl\b|data-capital-trade|>\s*Trade\s*</i.test(feature)) {
+    fail('Capital Markets must not ship direct exchange trading CTAs');
+  }
+  if (!feature.includes('quiet-refresh.js') || !feature.includes('quietlySyncHtml')
+    || !feature.includes("document.visibilityState === 'visible'")
+    || !feature.includes('visibilitychange')
+    || !feature.includes('__CAPITAL_CHAMBER_REFRESH_MS__')
+    || !/lastGood|last-good|last good/i.test(feature)) {
+    fail('Capital Chamber must use quiet reconciliation, a visibility gate/catch-up, test interval override, and last-good data');
+  }
+  for (const selector of ['.capital-entry-card', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-quality', '.capital-source-receipt']) {
+    if (!css.includes(selector)) fail(`Capital Chamber CSS is missing ${selector}`);
+  }
+  if (!smoke.includes("name: 'capital-chamber'") || !smoke.includes('window.__CAPITAL_CHAMBER_REFRESH_MS__ = 1000')) {
+    fail('smoke catalog must include the focused Capital Chamber quiet-refresh suite');
+  }
+
+  if (!(await pathExists('capital/index.html')) || !(await pathExists('og/capital.png'))) {
+    fail('Capital Chamber generated pretty route and OG image must exist');
+  } else {
+    const capitalRoute = await readText('capital/index.html');
+    if (!capitalRoute.includes('<link rel="canonical" href="https://tezos.systems/capital/">')
+      || !capitalRoute.includes('/og/capital.png')) {
+      fail('Capital Chamber generated route must retain its canonical URL and dedicated OG image');
+    }
+  }
+
+  pass(`Capital Chamber snapshot, source, route, quality, and quiet-refresh contracts checked (${snapshot.markets.xtz.tickers.length} venue rows)`);
 }
 
 async function main() {
@@ -5277,6 +5430,7 @@ async function main() {
   await checkTourAndShareCaptureContracts();
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
+  await checkCapitalContracts();
   await checkQuietRefreshContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();

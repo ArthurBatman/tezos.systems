@@ -37,6 +37,15 @@ export const CHAMBER_ROUTES = [
     accent: '#38bdf8'
   },
   {
+    slug: 'capital',
+    hash: '#capital',
+    title: 'Capital Chamber - Tezos and Etherlink Economy',
+    shortTitle: 'Capital Chamber',
+    description: 'Inspect cross-layer Tezos and Etherlink activity, markets, ecosystem assets, real-world assets, and art-economy intelligence with sourced receipts.',
+    eyebrow: 'Cross-Layer Economy',
+    accent: '#f49ad1'
+  },
+  {
     slug: 'stake',
     hash: '#staking',
     title: 'Staking Chamber - Large Tezos Stake and Unstake Moves',

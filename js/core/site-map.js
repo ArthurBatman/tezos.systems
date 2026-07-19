@@ -69,6 +69,23 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.9' }
     },
     {
+        id: 'capital',
+        title: 'Capital Chamber',
+        href: '/capital/',
+        hash: '#capital',
+        group: 'Live Rooms',
+        detail: 'Cross-layer Tezos and Etherlink activity, markets, ecosystem assets, real-world assets, and art-economy intelligence',
+        keywords: ['capital chamber', 'tezos economy', 'capital markets', 'market structure', 'tezos and etherlink', 'l1 l2', 'stablecoins', 'tvl', 'ecosystem tokens', 'protocol tvl', 'real world assets', 'rwa', 'nft market', 'art economy', 'exchange flows', 'cex liquidity'],
+        searchIntents: [
+            { id: 'capital-system', title: 'Tezos + Etherlink: One System', href: '/capital/?view=system', detail: 'Compare layer-native activity, daily average rates, L2 active accounts, current L1 accounts, TVL, and stablecoin signals', keywords: ['one system', 'tezos etherlink activity', 'cross layer activity', 'stablecoin supply', 'daily average tps', 'active accounts'], directory: true },
+            { id: 'capital-markets', title: 'Capital Markets', href: '/capital/?view=markets', detail: 'Inspect XTZ returns, venue quality, liquidity, and the explicit exchange-flow coverage gate', keywords: ['capital markets', 'xtz returns', 'exchange markets', 'cex', 'liquidity', 'market depth', 'exchange net flows'], directory: true },
+            { id: 'capital-assets', title: 'Ecosystem Assets + RWA', href: '/capital/?view=assets', detail: 'Inspect protocol TVL, ecosystem assets, and sourced real-world-asset proofbooks', keywords: ['ecosystem assets', 'tokens', 'protocol tvl', 'rwa', 'real world assets', 'xu3o8', 'spiko'], directory: true },
+            { id: 'capital-art', title: 'Art Economy', href: '/capital/?view=art', detail: 'Inspect Tezos NFT market activity, participants, mints, collections, and creator economics', keywords: ['art economy', 'nft market', 'marketplace volume', 'mints', 'minters', 'collections', 'creator earnings', 'traders'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'hourly', priority: '0.9' }
+    },
+    {
         id: 'staking-chamber',
         title: 'Staking Chamber',
         href: '/stake/',
@@ -387,12 +404,13 @@ export const SITE_MAP_NAV_GROUPS = [
 ];
 
 export const SITE_MAP_RELATIONS = {
-    home: ['chambers', 'pulse', 'my-tezos', 'maxis'],
+    home: ['chambers', 'pulse', 'capital', 'my-tezos'],
     chambers: ['pulse', 'staking-chamber', 'health', 'maxis'],
     'my-tezos': ['domains', 'ledger-flow', 'maxis', 'calculator'],
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
-    pulse: ['health', 'hot-today', 'staking-chamber', 'maxis'],
+    pulse: ['capital', 'health', 'hot-today', 'staking-chamber'],
+    capital: ['tezosx', 'price', 'ledger-flow', 'hen'],
     'staking-chamber': ['ledger-flow', 'leaderboard', 'staking', 'calculator'],
     maxis: ['ledger-flow', 'domains', 'hen', 'my-tezos'],
     health: ['pulse', 'tz4', 'bakers-guide', 'staking-chamber'],
