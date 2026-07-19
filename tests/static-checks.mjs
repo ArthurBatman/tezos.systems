@@ -625,13 +625,15 @@ async function checkSiteMapGraphContracts() {
       fail(`site map is missing canonical chamber route /${canonicalSlug}/`);
     }
     const routeShell = await readText(`${route.slug}/index.html`);
-    if (!routeShell.includes('class="chamber-route-shell-intro"')
-      || !routeShell.includes(`<h1 id="chamber-route-title">${route.shortTitle}</h1>`)
-      || !routeShell.includes(route.description)) {
-      fail(`${route.slug}/index.html must expose its route-specific heading and summary before hydration`);
+    if (routeShell.includes('chamber-route-shell-intro')
+      || routeShell.includes('data-chamber-route-shell')
+      || routeShell.includes('chamber-route-title')
+      || routeShell.includes('Opening the live room')) {
+      fail(`${route.slug}/index.html must not leave a redundant route introduction behind the live room`);
     }
-    if (routeShell.includes('Opening the live room')) {
-      fail(`${route.slug}/index.html must not leave a fake opening message behind the live room`);
+    if (!routeShell.includes(`<meta name="description" content="${route.description}">`)
+      || !routeShell.includes(`<title>${route.title} | tezos.systems</title>`)) {
+      fail(`${route.slug}/index.html must keep its route-specific title and summary in document metadata`);
     }
     if (!routeShell.includes('"@type": "WebPage"')
       || !routeShell.includes('"@type": "BreadcrumbList"')

@@ -7,7 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-18',
         entries: [
-            { type: '🎨', text: 'Direct room pages no longer leave a redundant opening message behind after their live Chamber or My Tezos appears' },
+            { type: '🎨', text: 'Direct room pages no longer leave a redundant route-introduction panel behind after their live Chamber or My Tezos appears' },
             { type: '🔧', text: 'My Tezos now has a direct /my route that opens the personal dashboard without requiring an address' }
         ]
     },
