@@ -17,7 +17,9 @@
             var isOperation = /^o[a-zA-Z0-9]{50}$/.test(path);
             var isBlockHash = /^B[a-zA-Z0-9]{50}$/.test(path);
             var isBlockLevel = /^\d{4,}$/.test(path);
-            if (isAccount || isDomain) {
+            if (path.toLowerCase() === 'my') {
+                window.location.replace('/' + window.location.search + '#my-tezos');
+            } else if (isAccount || isDomain) {
                 window.location.replace('/' + window.location.search + '#my-baker=' + encodeURIComponent(path));
             } else if (isContract) {
                 window.location.replace('/' + window.location.search + '#contract=' + encodeURIComponent(path));

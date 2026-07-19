@@ -51,6 +51,7 @@ const allowedWarningPatterns = [
 const browserRoutes = [
   '/',
   '/landing.html',
+  '/my/',
   '/anthology/',
   '/staking/',
   '/stake/',
@@ -5579,6 +5580,53 @@ async function smokeMyTezosDeepLinkOverridesStale(browser, baseUrl) {
   log('ok - my tezos deep link override smoke');
 }
 
+async function smokeMyTezosPrettyRoute(browser, baseUrl) {
+  for (const { label, viewport } of [
+    { label: 'desktop', viewport: { width: 1280, height: 900 } },
+    { label: 'mobile', viewport: { width: 390, height: 844 } }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'matrix');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+      localStorage.removeItem('tezos-systems-my-baker-address');
+    });
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `my tezos pretty route ${label}`, issues);
+    const response = await page.goto(`${baseUrl}/my`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `my tezos pretty route ${label} failed with HTTP ${response?.status()}`);
+    await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 15000 });
+
+    const state = await page.evaluate(() => {
+      const drawer = document.querySelector('#my-tezos-drawer');
+      return {
+        pathname: window.location.pathname,
+        hash: window.location.hash,
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '',
+        title: document.title,
+        emptyStateVisible: getComputedStyle(document.querySelector('#drawer-empty-state')).display !== 'none',
+        drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+      };
+    });
+
+    assert(state.pathname === '/my/' && state.hash === '', `my tezos pretty route ${label} should remain canonical: ${JSON.stringify(state)}`);
+    assert(state.canonical === 'https://tezos.systems/my/', `my tezos pretty route ${label} canonical mismatch: ${state.canonical}`);
+    assert(state.title.startsWith('My Tezos'), `my tezos pretty route ${label} title mismatch: ${state.title}`);
+    assert(state.emptyStateVisible, `my tezos pretty route ${label} should open the address-free My Tezos state`);
+    assert(!state.drawerOverflow && !state.pageOverflow, `my tezos pretty route ${label} overflowed: ${JSON.stringify(state)}`);
+
+    await context.close();
+    assert(issues.length === 0, `my tezos pretty route ${label} browser issues:\n${issues.join('\n')}`);
+  }
+  log('ok - my tezos pretty route (desktop + mobile)');
+}
+
 async function smokeNetworkHealthChamber(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -10903,6 +10951,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-address-switch', description: 'My Tezos connected drawer saves a newly typed address over a stale saved baker', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
     { name: 'my-tezos-subdomain-input', description: 'My Tezos connected drawer accepts Tezos Domains subdomains and saves their resolved address', run: () => smokeMyTezosSubdomainInput(browser, baseUrl) },
     { name: 'my-tezos-proposal-attribution', description: 'My Tezos Story distinguishes a delegator from their baker when accepted proposals are shown', run: () => smokeMyTezosProposalAttribution(browser, baseUrl) },
+    { name: 'my-tezos-pretty-route', description: 'The bare /my URL resolves to the canonical My Tezos drawer route', run: () => smokeMyTezosPrettyRoute(browser, baseUrl) },
     { name: 'my-tezos-deep-link-override', description: 'My Tezos direct address links override a stale saved baker on first load', run: () => smokeMyTezosDeepLinkOverridesStale(browser, baseUrl) },
     { name: 'tezlink', description: 'Tezos X Chamber opens #tezosx with atomic L2 TVL, protocol mix, and live transaction tape', run: () => smokeTezlinkChamber(browser, baseUrl) },
     { name: 'network-health', description: 'Network Health opens #health with block cadence, missed rights, live 33/66 Nakamoto coefficients, external reports, and saved My Tezos baker summary', run: () => smokeNetworkHealthChamber(browser, baseUrl) },

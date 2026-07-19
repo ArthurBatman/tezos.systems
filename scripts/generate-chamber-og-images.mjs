@@ -55,6 +55,12 @@ function routeDetails(route, report) {
     : 'live supermajority';
 
   const bySlug = {
+    my: {
+      kicker: 'Personal Tezos',
+      value: 'Your wallet at the center',
+      chips: ['rewards + roles', 'baker health', 'account journeys'],
+      body: 'Open one personal Tezos room for wallet identity, current rewards, baker and operator signals, activity, and related account paths.'
+    },
     pulse: {
       kicker: 'Network Pulse',
       value: 'Live stats field',

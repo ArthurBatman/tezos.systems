@@ -601,14 +601,14 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/chamber/`, `/pulse/`, `/stake/`, `/maxis/`, `/health/`,
+Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`, `/stake/`, `/maxis/`, `/health/`,
 `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
 `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
 live dashboard room at the clean URL.
 `/feed.xml` exposes the generated governance RSS feed for relay bots.
 The governance SEO page also funnels high-intent searches into `/chamber/`,
-`/#my-tezos`, and `/feed.xml` for live vote checks and syndication.
+`/my/`, and `/feed.xml` for live vote checks and syndication.
 
 ## Data Sources
 

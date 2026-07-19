@@ -109,7 +109,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=447';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=448';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -5024,6 +5024,7 @@ function initOfflineIndicator() {
 //   #theme=dark        → switch to theme
 //   #section=consensus → scroll to section
 // Pretty chamber routes:
+//   /my/               → open My Tezos without requiring an address
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
 //   /stake/            -> open Staking Chamber
@@ -5330,6 +5331,9 @@ function applyDeepLink() {
 
     const openPrettyChamberRoute = (route) => {
         switch (route) {
+            case 'my-tezos':
+                openMyTezosTarget('');
+                break;
             case 'chamber':
                 openHashModal(
                     () => import('../features/chamber.js').then(({ openChamber }) => openChamber()),

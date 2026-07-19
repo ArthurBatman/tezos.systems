@@ -1,5 +1,14 @@
 export const CHAMBER_ROUTES = [
   {
+    slug: 'my',
+    hash: '#my-tezos',
+    title: 'My Tezos - Personal Wallet and Baker Dashboard',
+    shortTitle: 'My Tezos',
+    description: 'Make a wallet or .tez name the center of a personal Tezos dashboard for rewards, roles, baker health, activity, and account journeys.',
+    eyebrow: 'Personal Tezos',
+    accent: '#45e0c8'
+  },
+  {
     slug: 'anthology',
     imageSlug: 'chamber',
     hash: '#protocol-history',

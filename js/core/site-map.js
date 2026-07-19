@@ -23,12 +23,13 @@ export const SITE_MAP = [
     {
         id: 'my-tezos',
         title: 'My Tezos',
-        href: '/#my-tezos',
+        href: '/my/',
         hash: '#my-tezos',
         hashAliases: ['#my-baker'],
         group: 'Tools',
         detail: 'Make a wallet or .tez name the center of a personal Tezos dashboard',
         keywords: ['wallet', 'account', 'portfolio', 'rewards', 'rewards tracker', 'baker', 'baker report card', 'operator health', 'personal brief', 'wallet connect', 'identity', 'my baker'],
+        sitemap: { changefreq: 'hourly', priority: '0.9' },
         starter: 1,
         searchChip: { label: 'Wallet or .tez', order: 1 }
     },

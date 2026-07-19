@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-18',
+        entries: [
+            { type: '🔧', text: 'My Tezos now has a direct /my route that opens the personal dashboard without requiring an address' }
+        ]
+    },
+    {
         date: '2026-07-17',
         entries: [
             { type: '🎨', text: 'The site colophon now rests directly on the page without an enclosing panel' },
