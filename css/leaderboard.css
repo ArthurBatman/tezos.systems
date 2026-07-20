@@ -114,16 +114,16 @@
 }
 
 .lb-name {
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 240px;
+    max-width: 300px;
     font-weight: 500;
 }
 
 .lb-baker-open {
     appearance: none;
-    display: inline-flex;
-    align-items: center;
+    display: inline-grid;
+    gap: 4px;
+    justify-items: start;
     max-width: 100%;
     padding: 4px 3px;
     border: 0;
@@ -133,10 +133,8 @@
     cursor: pointer;
     font: inherit;
     font-weight: 650;
-    overflow: hidden;
     text-align: left;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .lb-baker-open:hover {
@@ -343,8 +341,80 @@
 
 .leaderboard-affordance-row {
     display: flex;
-    justify-content: flex-end;
+    position: relative;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
     margin-bottom: 8px;
+}
+
+.leaderboard-signal-legend {
+    position: relative;
+    z-index: 4;
+}
+
+.leaderboard-signal-legend summary {
+    min-height: 34px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+    border-radius: 6px;
+    background: rgba(255,255,255,0.035);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+
+.leaderboard-signal-legend summary::-webkit-details-marker {
+    display: none;
+}
+
+.leaderboard-signal-legend summary::before {
+    content: '✦';
+    margin-right: 7px;
+    color: #f5b84b;
+}
+
+.leaderboard-signal-legend summary:hover,
+.leaderboard-signal-legend summary:focus-visible,
+.leaderboard-signal-legend[open] summary {
+    border-color: color-mix(in srgb, var(--accent-cyan, #00d4ff) 45%, transparent);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.leaderboard-signal-legend-panel {
+    display: grid;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 14px;
+    width: min(620px, calc(100vw - 40px));
+    padding: 13px;
+    border: 1px solid var(--border-color, rgba(255,255,255,0.12));
+    border-radius: 8px;
+    background: var(--card-bg, #101827);
+    box-shadow: 0 16px 38px rgba(0,0,0,0.34);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    line-height: 1.42;
+}
+
+.leaderboard-signal-legend-panel span {
+    min-width: 0;
+}
+
+.leaderboard-signal-legend-panel strong {
+    color: var(--text-primary);
+}
+
+.leaderboard-signal-legend-panel small {
+    grid-column: 1 / -1;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color, rgba(255,255,255,0.08));
+    color: var(--text-tertiary, var(--text-secondary));
 }
 
 .leaderboard-filter-chip {
@@ -369,6 +439,17 @@
     align-items: center;
     gap: 5px;
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lb-badge-rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 100%;
 }
 
 .lb-badge,
@@ -397,9 +478,63 @@
     color: #f5b84b;
 }
 
+.lb-badge-rail .lb-badge {
+    margin-left: 0;
+}
+
+.lb-badge-og {
+    border-color: rgba(255,209,102,0.5);
+    background: linear-gradient(135deg, rgba(255,209,102,0.16), rgba(245,184,75,0.05));
+    box-shadow: inset 0 0 10px rgba(255,209,102,0.06);
+    color: #ffd166;
+    font-weight: 850;
+}
+
+.lb-badge-accepted {
+    border-color: rgba(200,146,255,0.38);
+    background: rgba(174,104,255,0.08);
+    color: #d9a7ff;
+}
+
+.lb-badge-voting {
+    border-color: rgba(88,216,255,0.35);
+    background: rgba(0,212,255,0.07);
+    color: #58d8ff;
+}
+
 .lb-badge-rising {
     border-color: rgba(53,232,148,0.25);
     color: var(--accent-green, #35e894);
+}
+
+[data-theme="clean"] .leaderboard-signal-legend-panel {
+    background: #fff;
+    box-shadow: 0 16px 38px rgba(15,23,42,0.16);
+}
+
+[data-theme="clean"] .lb-badge-og,
+[data-theme="clean"] .lb-badge-veteran {
+    border-color: #d69e2e;
+    background: #fff7d6;
+    color: #7c4800;
+}
+
+[data-theme="clean"] .lb-badge-accepted {
+    border-color: #c4b5fd;
+    background: #f3e8ff;
+    color: #6d28d9;
+}
+
+[data-theme="clean"] .lb-badge-voting {
+    border-color: #7dd3fc;
+    background: #e0f2fe;
+    color: #075985;
+}
+
+[data-theme="clean"] .lb-badge-rising {
+    border-color: #6ee7b7;
+    background: #d1fae5;
+    color: #047857;
 }
 
 .lb-my-baker {
@@ -415,6 +550,29 @@
 
     .baker-fit-head a {
         white-space: normal;
+    }
+
+    .leaderboard-signal-legend-panel {
+        grid-template-columns: 1fr;
+        max-height: min(420px, 60vh);
+        overflow-y: auto;
+    }
+
+    .leaderboard-signal-legend-panel small {
+        grid-column: 1;
+    }
+
+    .leaderboard-signal-legend,
+    .leaderboard-filter-chip {
+        width: 100%;
+    }
+
+    .leaderboard-signal-legend summary {
+        width: 100%;
+    }
+
+    .lb-name {
+        min-width: 210px;
     }
 
     .baker-fit-questions,
@@ -434,7 +592,7 @@
     }
 
     .lb-name {
-        max-width: 120px;
+        max-width: 240px;
     }
 
     .leaderboard-table th,

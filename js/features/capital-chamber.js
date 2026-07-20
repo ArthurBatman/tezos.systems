@@ -14,7 +14,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const CAPITAL_CSS_URL = '/css/capital.css?v=452';
+const CAPITAL_CSS_URL = '/css/capital.css?v=453';
 const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -600,8 +600,11 @@ inline modal styles in `js/core/app.js`.
 - Baker leaderboard, staking calculator, chain comparison, whale feed, sleeping
   giants, HEN NFT/profile mode, TzSafe Recovery, changelog, share captures, and
   embeddable widgets. The leaderboard marks the saved baker, separates open
-  delegation-room affordances from scarcer earned descriptors, and shares
-  guild-style cards with live proof seals. The
+  delegation-room affordances from scarcer earned descriptors, distinguishes
+  launch-era OG bakers from the Veteran cohort whose first TzKT activity was
+  recorded by the end of 2021, and surfaces accepted-proposal initiator counts
+  plus consecutive completed-ballot streaks from the generated governance
+  receipts. It shares guild-style cards with live proof seals. The
   calculator opens with a 1,000 XTZ starting amount, live APY context, protocol
   timing for first-payout copy, animated results, and private-by-default
   projection sharing. Cycle whispers only announce a real cycle advance near
@@ -890,6 +893,9 @@ Current smoke suites:
 - `ux-regressions`
 - `quiet-refresh` (covers passive Hot Today, nested-scroll, focus, selection,
   in-flow status anchoring, and open-chamber refresh stability)
+- `leaderboard-signals` (covers the 2018 OG and through-2021 Veteran tiers,
+  accepted-proposal initiator attribution, completed-ballot streaks, factual
+  legend copy, quiet refresh, and desktop/mobile containment)
 - `feature-workflows` (covers all sparkline card latest values, history, share, and optional feature flows)
 - `share-actions` (covers share modal copy, editable X post text, optional handle persistence, download, native share, Network Moment image cards, and mobile photo fallback buttons)
 - `info-modals`
@@ -910,7 +916,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v451`, including hero search, theme
+- Current aligned shell cache stamp: `v453`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

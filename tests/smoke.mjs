@@ -1112,6 +1112,17 @@ async function installFeatureMocks(context, options = {}) {
   const governanceNoProposal = Boolean(options.governanceNoProposal);
   const governanceLiveVote = Boolean(options.governanceLiveVote);
   const governanceAdoptionPeriod = Boolean(options.governanceAdoptionPeriod);
+  const leaderboardSignals = Boolean(options.leaderboardSignals);
+  const leaderboardBakers = leaderboardSignals
+    ? sampleBakers.map((baker, index) => ({
+        ...baker,
+        firstActivityTime: [
+          '2018-12-31T23:59:59Z',
+          '2021-12-31T23:59:59Z',
+          '2022-01-01T00:00:00Z'
+        ][index] || '2024-01-01T00:00:00Z'
+      }))
+    : sampleBakers;
   const nullCycleTiming = Boolean(options.nullCycleTiming);
   const forwardDomainAddress = Object.prototype.hasOwnProperty.call(options, 'forwardDomainAddress')
     ? options.forwardDomainAddress
@@ -1170,6 +1181,48 @@ async function installFeatureMocks(context, options = {}) {
       dashboardPathnames.has(parsedUrl.pathname)
     ) {
       return fulfillText(route, dashboardHtml, 'text/html');
+    }
+
+    if (leaderboardSignals
+      && parsedUrl.pathname.endsWith('/data/maxis-careers.json')
+      && parsedUrl.searchParams.get('surface') === 'leaderboard') {
+      return fulfillJson(route, {
+        schema: 1,
+        kind: 'maxis-governance-careers',
+        generatedAt: new Date().toISOString(),
+        coverage: { status: 'complete', absenceMeansZero: true },
+        records: {
+          [SAMPLE_ADDRESS]: {
+            address: SAMPLE_ADDRESS,
+            lifetimeBallots: 34,
+            currentBallotPeriodStreak: 12,
+            longestBallotPeriodStreak: 18
+          },
+          [SAMPLE_ADDRESS_2]: {
+            address: SAMPLE_ADDRESS_2,
+            lifetimeBallots: 4,
+            currentBallotPeriodStreak: 0,
+            longestBallotPeriodStreak: 2
+          }
+        }
+      });
+    }
+
+    if (leaderboardSignals
+      && parsedUrl.pathname.endsWith('/data/governance-votes.json')
+      && parsedUrl.searchParams.get('surface') === 'leaderboard') {
+      return fulfillJson(route, {
+        generatedAt: new Date().toISOString(),
+        epochCount: 1,
+        epochs: [{
+          index: 90,
+          proposals: [
+            { hash: 'PsSmokeAcceptedOne111111111111111111111111111', status: 'accepted', epoch: 89, initiator: { address: SAMPLE_ADDRESS }, extras: { alias: 'Smoke One' } },
+            { hash: 'PsSmokeAcceptedTwo222222222222222222222222222', status: 'accepted', epoch: 90, initiator: { address: SAMPLE_ADDRESS }, extras: { alias: 'Smoke Two' } },
+            { hash: 'PsSmokeSkipped333333333333333333333333333333', status: 'skipped', epoch: 90, initiator: { address: SAMPLE_ADDRESS_2 }, extras: { alias: 'Skipped Smoke' } }
+          ]
+        }]
+      });
     }
 
     if (url.includes('html2canvas@1.4.1')) {
@@ -1600,8 +1653,8 @@ async function installFeatureMocks(context, options = {}) {
           { code: 25, hash: 'PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY', firstLevel: 13857889 }
         ]);
       }
-      if (url.includes('/delegates/count?active=true')) return fulfillJson(route, sampleBakers.length);
-      if (url.includes('/delegates?active=true') && url.includes('select=') && url.includes('bakingPower')) return fulfillJson(route, sampleBakers);
+      if (url.includes('/delegates/count?active=true')) return fulfillJson(route, leaderboardBakers.length);
+      if (url.includes('/delegates?active=true') && url.includes('select=') && url.includes('bakingPower')) return fulfillJson(route, leaderboardBakers);
       if (url.includes('/delegates?active=true&limit=')) return fulfillJson(route, sampleBakers.map((b) => b.address));
       if (url.includes('/rights?')) {
         const rights = new URL(url).searchParams;
@@ -9816,6 +9869,147 @@ async function smokeUxChanges(browser, baseUrl) {
   log('ok - UX changes smoke');
 }
 
+async function smokeLeaderboardSignals(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context, { leaderboardSignals: true });
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-leaderboard-visible', 'true');
+    localStorage.removeItem('tezos-systems-leaderboard-cache-v5');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'leaderboard signals', issues);
+  const response = await page.goto(`${baseUrl}/?theme=matrix#leaderboard`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `leaderboard signals: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#leaderboard-results .leaderboard-table').waitFor({ state: 'visible', timeout: 12000 });
+  await page.locator(`#leaderboard-results .lb-row[data-address="${SAMPLE_ADDRESS}"]`).waitFor({ state: 'visible', timeout: 8000 });
+
+  const signalState = await page.evaluate(({ og, veteran, postCutoff }) => {
+    const readRow = (address) => {
+      const row = document.querySelector(`#leaderboard-results .lb-row[data-address="${address}"]`);
+      return {
+        exists: Boolean(row),
+        badges: Array.from(row?.querySelectorAll('.lb-badge') || []).map((badge) => ({
+          kind: badge.dataset.badge || '',
+          text: badge.textContent?.trim() || '',
+          title: badge.getAttribute('title') || ''
+        }))
+      };
+    };
+    return {
+      og: readRow(og),
+      veteran: readRow(veteran),
+      postCutoff: readRow(postCutoff),
+      footer: document.querySelector('#leaderboard-results .leaderboard-footer')?.textContent || ''
+    };
+  }, { og: SAMPLE_ADDRESS, veteran: SAMPLE_ADDRESS_2, postCutoff: SAMPLE_ADDRESS_3 });
+
+  assert(signalState.og.badges.some((badge) => badge.kind === 'og' && /OG · 2018/.test(badge.text)), `leaderboard signals: launch-era OG tier missing ${JSON.stringify(signalState)}`);
+  assert(!signalState.og.badges.some((badge) => badge.kind === 'veteran'), `leaderboard signals: OG baker should not carry a redundant Veteran tier ${JSON.stringify(signalState.og)}`);
+  assert(signalState.og.badges.some((badge) => badge.kind === 'accepted' && /Accepted · 2/.test(badge.text) && /Smoke One, Smoke Two/.test(badge.title)), `leaderboard signals: accepted-proposal initiator count missing ${JSON.stringify(signalState.og)}`);
+  assert(signalState.og.badges.some((badge) => badge.kind === 'voting' && /Streak · 12/.test(badge.text) && /Career high: 18/.test(badge.title)), `leaderboard signals: completed ballot streak missing ${JSON.stringify(signalState.og)}`);
+  assert(signalState.veteran.badges.some((badge) => badge.kind === 'veteran' && /Veteran · 2021/.test(badge.text)), `leaderboard signals: end-of-2021 Veteran cutoff missing ${JSON.stringify(signalState.veteran)}`);
+  assert(!signalState.postCutoff.badges.some((badge) => ['og', 'veteran'].includes(badge.kind)), `leaderboard signals: 2022 baker crossed the Veteran cutoff ${JSON.stringify(signalState.postCutoff)}`);
+  assert(/governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer), `leaderboard signals: governance receipt freshness missing ${signalState.footer}`);
+
+  await page.locator('.leaderboard-signal-legend summary').click();
+  await page.locator('.leaderboard-signal-legend[open] .leaderboard-signal-legend-panel').waitFor({ state: 'visible', timeout: 5000 });
+  const legendState = await page.evaluate(() => {
+    const panel = document.querySelector('.leaderboard-signal-legend-panel');
+    const rect = panel?.getBoundingClientRect();
+    const badges = Array.from(document.querySelectorAll('#leaderboard-results .lb-badge'));
+    return {
+      text: panel?.textContent || '',
+      panelVisible: Boolean(rect && rect.width > 0 && rect.height > 0),
+      panelInsideViewport: Boolean(rect && rect.left >= 0 && rect.right <= window.innerWidth + 1),
+      badgeCount: badges.length,
+      hiddenBadges: badges.filter((badge) => {
+        const badgeRect = badge.getBoundingClientRect();
+        return badgeRect.width <= 0 || badgeRect.height <= 0;
+      }).length,
+      bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(/shown instead of Veteran/.test(legendState.text)
+    && /final TzKT status accepted/.test(legendState.text)
+    && /Consecutive completed Exploration\/Promotion periods/.test(legendState.text)
+    && /not uptime, payout, or performance grades/.test(legendState.text), `leaderboard signals: factual legend drifted ${legendState.text}`);
+  assert(legendState.panelVisible && legendState.panelInsideViewport && legendState.badgeCount >= 4 && legendState.hiddenBadges === 0 && legendState.bodyOverflow <= 1, `leaderboard signals: desktop geometry failed ${JSON.stringify(legendState)}`);
+
+  const quietBefore = await page.evaluate((address) => {
+    const root = document.querySelector('#leaderboard-results');
+    const wrap = root.querySelector('.leaderboard-table-wrap');
+    const summary = root.querySelector('.leaderboard-signal-legend summary');
+    const row = root.querySelector(`.lb-row[data-address="${address}"]`);
+    wrap.scrollLeft = Math.min(120, Math.max(0, wrap.scrollWidth - wrap.clientWidth));
+    summary.focus({ preventScroll: true });
+    window.__leaderboardSignalRow = row;
+    window.__leaderboardSignalSummary = summary;
+    window.__leaderboardSignalWrap = wrap;
+    return { left: wrap.scrollLeft };
+  }, SAMPLE_ADDRESS);
+  await page.evaluate(async () => {
+    const leaderboard = await import('/js/features/leaderboard.js');
+    await leaderboard.refreshLeaderboard({ quiet: true });
+  });
+  await page.waitForFunction(() => document.querySelector('#leaderboard-results')?.dataset.quietRefreshSettled === 'true', null, { timeout: 8000 });
+  const quietAfter = await page.evaluate((address) => {
+    const root = document.querySelector('#leaderboard-results');
+    const wrap = root.querySelector('.leaderboard-table-wrap');
+    const badge = root.querySelector(`.lb-row[data-address="${address}"] .lb-badge-og`);
+    const style = badge ? getComputedStyle(badge) : null;
+    return {
+      sameRow: root.querySelector(`.lb-row[data-address="${address}"]`) === window.__leaderboardSignalRow,
+      sameSummary: root.querySelector('.leaderboard-signal-legend summary') === window.__leaderboardSignalSummary,
+      sameWrap: wrap === window.__leaderboardSignalWrap,
+      focused: document.activeElement === window.__leaderboardSignalSummary,
+      legendOpen: root.querySelector('.leaderboard-signal-legend')?.open || false,
+      left: wrap.scrollLeft,
+      animation: style?.animationName || '',
+      opacity: style?.opacity || ''
+    };
+  }, SAMPLE_ADDRESS);
+  assert(quietAfter.sameRow && quietAfter.sameSummary && quietAfter.sameWrap && quietAfter.focused && quietAfter.legendOpen, `leaderboard signals: quiet refresh replaced browsing state ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(Math.abs(quietAfter.left - quietBefore.left) < 1 && quietAfter.animation === 'none' && quietAfter.opacity === '1', `leaderboard signals: quiet refresh moved or reanimated signals ${JSON.stringify({ quietBefore, quietAfter })}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'clean';
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const mobileState = await page.evaluate(() => {
+    const panel = document.querySelector('.leaderboard-signal-legend-panel');
+    const panelRect = panel?.getBoundingClientRect();
+    const wrap = document.querySelector('.leaderboard-table-wrap');
+    const badge = document.querySelector('.lb-badge-accepted');
+    const badgeStyle = badge ? getComputedStyle(badge) : null;
+    return {
+      bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      panelInsideViewport: Boolean(panelRect && panelRect.left >= 0 && panelRect.right <= window.innerWidth + 1),
+      panelScrollable: Boolean(panel && panel.scrollHeight >= panel.clientHeight),
+      tableContained: Boolean(wrap && wrap.scrollWidth > wrap.clientWidth && wrap.getBoundingClientRect().right <= window.innerWidth + 1),
+      badgeVisible: Boolean(badge && badge.getBoundingClientRect().width > 0 && badgeStyle?.display !== 'none'),
+      badgeColor: badgeStyle?.color || '',
+      badgeBackground: badgeStyle?.backgroundColor || ''
+    };
+  });
+  assert(mobileState.bodyOverflow <= 1 && mobileState.panelInsideViewport && mobileState.tableContained && mobileState.badgeVisible, `leaderboard signals: mobile containment failed ${JSON.stringify(mobileState)}`);
+  assert(mobileState.badgeColor !== mobileState.badgeBackground, `leaderboard signals: Clean theme flattened accepted badge contrast ${JSON.stringify(mobileState)}`);
+
+  await context.close();
+  assert(issues.length === 0, `leaderboard signals browser issues:\n${issues.join('\n')}`);
+  log('ok - leaderboard tenure and governance signals smoke');
+}
+
 async function smokeFeatureWorkflows(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -11495,6 +11689,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'hash-modal-cleanup', description: 'Hash-routed modal navigation closes stale history and chamber overlays before opening the next room', run: () => smokeHashModalCleanup(browser, baseUrl) },
     { name: 'ux-regressions', description: 'Clean theme contrast, deep-linked utility sections, share picker contrast, widget utility', run: () => smokeUxChanges(browser, baseUrl) },
     { name: 'quiet-refresh', description: 'Background data reconciliation preserves page, rail, chamber, focus, selection, and animation state', run: () => smokeQuietRefresh(browser, baseUrl) },
+    { name: 'leaderboard-signals', description: 'Baker OG/Veteran cutoffs, accepted-proposal attribution, completed-ballot streaks, legend, quiet refresh, and mobile geometry', run: () => smokeLeaderboardSignals(browser, baseUrl) },
     { name: 'feature-workflows', description: 'Leaderboard, calculator modes, price intelligence, comparison, whales, giants, history, share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
     { name: 'share-actions', description: 'Share modal copy, post, download, native share, and mobile photo fallback buttons', run: () => smokeShareActions(browser, baseUrl) },
     { name: 'info-modals', description: 'All section info modals and About Tezos launch-date copy', run: () => smokeInfoModals(browser, baseUrl) },

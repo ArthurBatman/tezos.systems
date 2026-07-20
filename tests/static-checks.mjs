@@ -352,6 +352,15 @@ async function checkGovernanceVotes() {
   if (!Array.isArray(data.epochs) || data.epochs.length !== data.epochCount) {
     fail('governance-votes epochCount must match epochs length');
   }
+  const proposalRows = (data.epochs || []).flatMap((epoch) => epoch?.proposals || []);
+  const acceptedProposals = proposalRows.filter((proposal) => proposal?.status === 'accepted');
+  const acceptedHashes = new Set(acceptedProposals.map((proposal) => proposal?.hash));
+  if (acceptedProposals.length < 20
+    || acceptedHashes.size !== acceptedProposals.length
+    || acceptedProposals.some((proposal) => !/^P[1-9A-HJ-NP-Za-km-z]+$/.test(proposal?.hash || '')
+      || !/^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/.test(proposal?.initiator?.address || ''))) {
+    fail('governance-votes accepted proposals must retain unique hashes and valid initiator attribution');
+  }
   if (votes.length !== data.periodVoteCount) {
     fail('governance-votes periodVoteCount must match periodVotes length');
   }
@@ -1825,6 +1834,12 @@ async function checkSelectorContracts() {
     ['Leaderboard native sort controls', 'class="lb-sort-btn"', leaderboard],
     ['Leaderboard column sort state', 'aria-sort="${direction}"', leaderboard],
     ['Leaderboard explicit baker action', 'class="lb-baker-open"', leaderboard],
+    ['Leaderboard exact governance career source', "GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard'", leaderboard],
+    ['Leaderboard accepted proposal source', "GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard'", leaderboard],
+    ['Leaderboard accepted proposal initiator attribution', 'proposal?.initiator?.address', leaderboard],
+    ['Leaderboard completed ballot streak signal', 'currentBallotPeriodStreak', leaderboard],
+    ['Leaderboard multi-signal badge rail', 'class="lb-badge-rail"', leaderboard],
+    ['Leaderboard progressive signal legend', '.leaderboard-signal-legend', leaderboardCss],
     ['Leaderboard sort focus styles', '.lb-sort-btn:focus-visible', leaderboardCss],
     ['Theme picker native radio controls', 'class="theme-radio" type="radio"', themeUi],
     ['Theme picker radio group label', 'role="radiogroup" aria-label="Choose a site theme"', themeUi],
@@ -1836,6 +1851,11 @@ async function checkSelectorContracts() {
   }
   if (leaderboard.includes('lb-share-btn') || leaderboard.includes('lb-share-col')) {
     fail('Baker Leaderboard must not restore one share control per row');
+  }
+  if (!leaderboard.includes('const OG_LAST_YEAR = 2018;')
+      || !leaderboard.includes('const VETERAN_LAST_YEAR = 2021;')
+      || !leaderboard.includes("proposal?.status !== 'accepted'")) {
+    fail('Baker Leaderboard badge cutoffs or accepted-proposal final-status gate have drifted');
   }
   if (leaderboard.includes('computeBakerScores') || leaderboard.includes("value: 'reliability'") || leaderboard.includes('grade ${')) {
     fail('Delegator fit must not present synthetic participation defaults as reliability or performance grades');

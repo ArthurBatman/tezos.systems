@@ -15,10 +15,14 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=452';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=453';
+const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
+const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
+const OG_LAST_YEAR = 2018;
+const VETERAN_LAST_YEAR = 2021;
 
 let bakersData = [];
 let currentSort = { col: 'stake', dir: 'desc' };
@@ -27,6 +31,7 @@ let delegationLimitSource = 'fallback';
 let delegationLimitPromise = null;
 let showOpenOvensOnly = false;
 let leaderboardDataQuality = { status: 'unavailable', observedAt: null };
+let governanceSignals = emptyGovernanceSignals();
 const previousStakeSnapshot = new Map();
 
 function ensureLeaderboardStyles() {
@@ -62,7 +67,7 @@ const FIT_QUESTIONS = [
         options: [
             { value: 'balanced', label: 'Balanced', detail: 'steady all-rounder' },
             { value: 'modern', label: 'tz4 ready', detail: 'BLS consensus keys' },
-            { value: 'veteran', label: 'Veteran', detail: 'older operator lane' }
+            { value: 'veteran', label: 'Veteran', detail: 'first activity by end of 2021' }
         ]
     }
 ];
@@ -166,6 +171,91 @@ async function fetchBakers() {
     }
 }
 
+function emptyGovernanceSignals() {
+    return {
+        careerByAddress: new Map(),
+        acceptedByAddress: new Map(),
+        careerReady: false,
+        proposalsReady: false,
+        careerGeneratedAt: null,
+        proposalsGeneratedAt: null
+    };
+}
+
+async function fetchJsonArtifact(url) {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Artifact HTTP ${response.status}`);
+    return response.json();
+}
+
+function governanceCareerIndex(artifact) {
+    if (artifact?.kind !== 'maxis-governance-careers'
+        || artifact?.coverage?.status !== 'complete'
+        || artifact?.coverage?.absenceMeansZero !== true
+        || !artifact?.records
+        || typeof artifact.records !== 'object') {
+        throw new Error('Governance career artifact is incomplete');
+    }
+
+    const byAddress = new Map();
+    for (const [address, record] of Object.entries(artifact.records)) {
+        if (record?.address === address) byAddress.set(address, record);
+    }
+    return byAddress;
+}
+
+function acceptedProposalIndex(artifact) {
+    if (!Array.isArray(artifact?.epochs)
+        || Number(artifact.epochCount) !== artifact.epochs.length) {
+        throw new Error('Governance proposal artifact is incomplete');
+    }
+
+    const byAddress = new Map();
+    const seenHashes = new Set();
+    for (const epoch of artifact.epochs) {
+        for (const proposal of epoch?.proposals || []) {
+            const hash = String(proposal?.hash || '').trim();
+            const address = String(proposal?.initiator?.address || '').trim();
+            if (proposal?.status !== 'accepted' || !hash || !address || seenHashes.has(hash)) continue;
+            seenHashes.add(hash);
+            const rows = byAddress.get(address) || [];
+            rows.push({
+                hash,
+                name: String(proposal?.extras?.alias || '').trim() || `${hash.slice(0, 8)}…`,
+                epoch: Number.isFinite(Number(proposal?.epoch)) ? Number(proposal.epoch) : null
+            });
+            byAddress.set(address, rows);
+        }
+    }
+    return byAddress;
+}
+
+async function fetchGovernanceSignals() {
+    const [careerResult, proposalsResult] = await Promise.allSettled([
+        fetchJsonArtifact(GOVERNANCE_CAREERS_URL),
+        fetchJsonArtifact(GOVERNANCE_VOTES_URL)
+    ]);
+    const next = emptyGovernanceSignals();
+
+    if (careerResult.status === 'fulfilled') {
+        try {
+            next.careerByAddress = governanceCareerIndex(careerResult.value);
+            next.careerReady = true;
+            next.careerGeneratedAt = careerResult.value.generatedAt || null;
+        } catch { /* keep governance streak badges unavailable */ }
+    }
+    if (proposalsResult.status === 'fulfilled') {
+        try {
+            next.acceptedByAddress = acceptedProposalIndex(proposalsResult.value);
+            next.proposalsReady = true;
+            next.proposalsGeneratedAt = proposalsResult.value.generatedAt || null;
+        } catch { /* keep accepted-proposal badges unavailable */ }
+    }
+
+    governanceSignals = next;
+    return next;
+}
+
 /**
  * Determine if baker has tz4 consensus key
  */
@@ -195,18 +285,57 @@ function isOpenDelegationRoom(baker, freeCapacity) {
         && Number(baker.delegationUsage || 0) < 80;
 }
 
-function earnedBadgeFor(baker) {
+function earnedBadgesFor(baker) {
+    const badges = [];
     const firstYear = sinceYear(baker);
-    if (Number.isFinite(firstYear) && firstYear < 2019) {
-        return { label: 'Veteran', tone: 'veteran' };
+    if (Number.isFinite(firstYear) && firstYear <= OG_LAST_YEAR) {
+        badges.push({
+            label: `✦ OG · ${firstYear}`,
+            tone: 'og',
+            title: `OG baker: first on-chain activity recorded by TzKT in ${firstYear}, during the launch era.`
+        });
+    } else if (Number.isFinite(firstYear) && firstYear <= VETERAN_LAST_YEAR) {
+        badges.push({
+            label: `Veteran · ${firstYear}`,
+            tone: 'veteran',
+            title: `Veteran baker: first on-chain activity recorded by TzKT in ${firstYear}; the cutoff is December 31, ${VETERAN_LAST_YEAR}.`
+        });
+    }
+
+    const accepted = governanceSignals.acceptedByAddress.get(baker.address) || [];
+    if (accepted.length) {
+        const names = accepted.map((proposal) => proposal.name);
+        const visibleNames = names.slice(0, 4).join(', ');
+        const remaining = names.length > 4 ? `, plus ${names.length - 4} more` : '';
+        badges.push({
+            label: `🏛 Accepted · ${accepted.length}`,
+            tone: 'accepted',
+            title: `${accepted.length} distinct protocol proposal${accepted.length === 1 ? '' : 's'} initiated by this baker reached TzKT status accepted: ${visibleNames}${remaining}.`
+        });
+    }
+
+    const career = governanceSignals.careerByAddress.get(baker.address);
+    const currentStreak = Number(career?.currentBallotPeriodStreak || 0);
+    if (currentStreak > 0) {
+        const longest = Number(career?.longestBallotPeriodStreak || currentStreak);
+        const ballots = Number(career?.lifetimeBallots || 0);
+        badges.push({
+            label: `🗳 Streak · ${currentStreak}`,
+            tone: 'voting',
+            title: `${currentStreak} consecutive completed Exploration/Promotion period${currentStreak === 1 ? '' : 's'} with an applied ballot through the latest completed ballot period. Career high: ${longest}; applied ballots: ${ballots}.`
+        });
     }
 
     const previousStake = previousStakeSnapshot.get(baker.address);
     if (Number.isFinite(previousStake) && Number(baker.stakingBalance || 0) > previousStake) {
-        return { label: 'Rising', tone: 'rising' };
+        badges.push({
+            label: '↗ Rising',
+            tone: 'rising',
+            title: 'Staking balance increased since the previous leaderboard refresh.'
+        });
     }
 
-    return null;
+    return badges;
 }
 
 /**
@@ -238,13 +367,13 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
         delegationLimit: limit,
         delegationUsage: Math.min(delegationUsage, 100),
         name: b.alias || (b.address.slice(0, 8) + '…'),
+        sinceYear: sinceYear(b)
     };
 
     return {
         ...base,
-        earnedBadge: earnedBadgeFor(base),
+        earnedBadges: earnedBadgesFor(base),
         openDelegationRoom: isOpenDelegationRoom(base, freeDelegationCapacity),
-        sinceYear: sinceYear(base)
     };
 }
 
@@ -368,7 +497,7 @@ function scoreBakerFit(baker, prefs = fitPrefs) {
     if (prefs.style === 'modern' && baker.tz4) {
         score += 18;
         reasons.push('tz4/BLS');
-    } else if (prefs.style === 'veteran' && Number.isFinite(baker.sinceYear) && baker.sinceYear <= 2020) {
+    } else if (prefs.style === 'veteran' && Number.isFinite(baker.sinceYear) && baker.sinceYear <= VETERAN_LAST_YEAR) {
         score += 18;
         reasons.push(`since ${baker.sinceYear}`);
     } else if (prefs.style === 'balanced') {
@@ -450,6 +579,37 @@ function openBakerInDrawer(addr) {
     }
 }
 
+function signalBadgeHtml(badge) {
+    return `<span class="lb-badge lb-badge-${escapeHtml(badge.tone)}" data-badge="${escapeHtml(badge.tone)}" title="${escapeHtml(badge.title)}" aria-label="${escapeHtml(badge.title)}">${escapeHtml(badge.label)}</span>`;
+}
+
+function signalLegendHtml(isOpen) {
+    return `
+        <details class="leaderboard-signal-legend" ${isOpen ? 'open' : ''}>
+            <summary>Signal legend</summary>
+            <div class="leaderboard-signal-legend-panel">
+                <span><strong>✦ OG</strong> First TzKT activity in the 2018 launch era; shown instead of Veteran.</span>
+                <span><strong>Veteran</strong> First TzKT activity on or before December 31, ${VETERAN_LAST_YEAR}.</span>
+                <span><strong>🏛 Accepted</strong> Distinct protocol proposals initiated by the baker with final TzKT status <em>accepted</em>.</span>
+                <span><strong>🗳 Streak</strong> Consecutive completed Exploration/Promotion periods with an applied ballot, through the latest completed ballot period.</span>
+                <span><strong>↗ Rising</strong> Staking balance increased since the previous leaderboard refresh.</span>
+                <small>Signals are factual on-chain history markers, not uptime, payout, or performance grades.</small>
+            </div>
+        </details>
+    `;
+}
+
+function governanceSignalsSourceLabel() {
+    const readyCount = Number(governanceSignals.careerReady) + Number(governanceSignals.proposalsReady);
+    if (!readyCount) return 'governance signals unavailable';
+    const dates = [governanceSignals.careerGeneratedAt, governanceSignals.proposalsGeneratedAt]
+        .map((value) => Date.parse(value || ''))
+        .filter(Number.isFinite);
+    const asOf = dates.length ? new Date(Math.min(...dates)).toISOString().slice(0, 10) : null;
+    const scope = readyCount === 2 ? 'governance receipts' : 'partial governance receipts';
+    return `${scope}${asOf ? ` ${asOf} UTC` : ''}`;
+}
+
 /**
  * Render the leaderboard table
  */
@@ -459,6 +619,7 @@ function render(container, { focusSort = '', quiet = false } = {}) {
         ? ranked.filter((baker) => baker.openDelegationRoom)
         : ranked;
     const savedAddress = savedBakerAddress();
+    const legendOpen = Boolean(container.querySelector('.leaderboard-signal-legend')?.open);
     
     const arrow = (col) => {
         if (currentSort.col !== col) return '';
@@ -487,6 +648,7 @@ function render(container, { focusSort = '', quiet = false } = {}) {
     let html = `
         ${fitFinderHtml(ranked)}
         <div class="leaderboard-affordance-row">
+            ${signalLegendHtml(legendOpen)}
             <button type="button" id="leaderboard-open-ovens-filter" class="leaderboard-filter-chip ${showOpenOvensOnly ? 'active' : ''}" aria-pressed="${showOpenOvensOnly ? 'true' : 'false'}">
                 <span class="lb-open-capacity-dot" aria-hidden="true"></span>
                 Show open ovens
@@ -494,7 +656,7 @@ function render(container, { focusSort = '', quiet = false } = {}) {
         </div>
         <div class="leaderboard-table-wrap">
             <table class="leaderboard-table">
-                <caption class="leaderboard-table-caption">Active Tezos bakers. Choose a baker name to open full details and sharing.</caption>
+                <caption class="leaderboard-table-caption">Active Tezos bakers with tenure, governance, and growth signals. Choose a baker name to open full details and sharing.</caption>
                 <thead>
                     <tr>
                         <th scope="col" class="lb-th lb-rank">#</th>
@@ -512,8 +674,11 @@ function render(container, { focusSort = '', quiet = false } = {}) {
     sorted.forEach((b, i) => {
         const capacityClass = b.delegationUsage >= 90 ? 'cap-critical' : b.delegationUsage >= 70 ? 'cap-warning' : '';
         const isMine = savedAddress && normalizedAddress(b.address) === savedAddress;
-        const badge = b.earnedBadge
-            ? `<span class="lb-badge lb-badge-${escapeHtml(b.earnedBadge.tone)}">${escapeHtml(b.earnedBadge.label)}</span>`
+        const badgeRail = b.earnedBadges?.length
+            ? `<span class="lb-badge-rail" aria-label="Baker signals">${b.earnedBadges.map(signalBadgeHtml).join('')}</span>`
+            : '';
+        const signalAria = b.earnedBadges?.length
+            ? `. Signals: ${b.earnedBadges.map((badge) => badge.label).join(', ')}`
             : '';
         const openRoom = b.openDelegationRoom
             ? '<span class="lb-open-capacity-dot" title="Open delegation room" aria-label="Open delegation room"></span>'
@@ -523,8 +688,8 @@ function render(container, { focusSort = '', quiet = false } = {}) {
             <tr class="lb-row ${isMine ? 'lb-my-baker' : ''}" data-address="${escapeHtml(b.address)}">
                 <td class="lb-rank">${i + 1}</td>
                 <td class="lb-name">
-                    <button type="button" class="lb-baker-open" data-address="${escapeHtml(b.address)}" title="${escapeHtml(b.address)}" aria-label="Open ${escapeHtml(b.name)} baker details">
-                        <span class="lb-name-main">${mineMarker}${escapeHtml(b.name)}</span>${badge}
+                    <button type="button" class="lb-baker-open" data-address="${escapeHtml(b.address)}" title="${escapeHtml(b.address)}" aria-label="Open ${escapeHtml(b.name)} baker details${escapeHtml(signalAria)}">
+                        <span class="lb-name-main">${mineMarker}${escapeHtml(b.name)}</span>${badgeRail}
                     </button>
                 </td>
                 <td class="lb-num">${formatMutez(b.stakingBalance)}</td>
@@ -547,7 +712,7 @@ function render(container, { focusSort = '', quiet = false } = {}) {
             : leaderboardDataQuality.status === 'stale'
                 ? 'last-known cached baker data'
                 : 'baker data unavailable';
-    html += `<div class="leaderboard-footer">${countLabel} · ${sourceLabel} · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
+    html += `<div class="leaderboard-footer">${countLabel} · ${sourceLabel} · ${governanceSignalsSourceLabel()} · capacity uses ${delegationLimitSource === 'live' ? 'live' : 'fallback'} protocol limit (${delegationLimit}x)</div>`;
 
     if (quiet) quietlySyncHtml(container, html);
     else container.innerHTML = html;
@@ -666,7 +831,8 @@ async function loadLeaderboard(container, { quiet = false } = {}) {
     try {
         const [raw, limit] = await Promise.all([
             fetchBakers(),
-            fetchDelegationLimit()
+            fetchDelegationLimit(),
+            fetchGovernanceSignals()
         ]);
         bakersData = raw.map(b => enrichBaker(b, limit));
         rememberStakeSnapshot(raw);
@@ -762,7 +928,7 @@ export function refreshLeaderboard({ quiet = false } = {}) {
     // Only refresh if section is visible
     const section = document.getElementById('leaderboard-section');
     if (section?.classList.contains('visible')) {
-        loadLeaderboard(container, { quiet });
+        return loadLeaderboard(container, { quiet });
     }
 }
 
