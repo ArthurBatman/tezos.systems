@@ -75,9 +75,10 @@ export const SITE_MAP = [
         hash: '#capital',
         group: 'Live Rooms',
         detail: 'Cross-layer Tezos and Etherlink activity, markets, ecosystem assets, real-world assets, and art-economy intelligence',
-        keywords: ['capital chamber', 'tezos economy', 'capital markets', 'market structure', 'tezos and etherlink', 'l1 l2', 'stablecoins', 'tvl', 'ecosystem tokens', 'protocol tvl', 'real world assets', 'rwa', 'nft market', 'art economy', 'exchange flows', 'cex liquidity'],
+        keywords: ['capital chamber', 'tezos economy', 'capital markets', 'market structure', 'tezos and etherlink', 'l1 l2', 'stablecoins', 'tvl', 'ecosystem tokens', 'protocol tvl', 'real world assets', 'rwa', 'nft market', 'art economy', 'exchange flows', 'cex liquidity', 'network fees', 'transaction fees', 'transaction costs', 'gas fees'],
         searchIntents: [
             { id: 'capital-system', title: 'Tezos + Etherlink: One System', href: '/capital/?view=system', detail: 'Compare layer-native activity, daily average rates, L2 active accounts, current L1 accounts, TVL, and stablecoin signals', keywords: ['one system', 'tezos etherlink activity', 'cross layer activity', 'stablecoin supply', 'daily average tps', 'active accounts'], directory: true },
+            { id: 'capital-fees', title: 'Network Fees by Layer', href: '/capital/?view=system&focus=fees', detail: 'Compare Tezos L1 block fee pools with Etherlink L2 transaction fees, average user costs, and gas price history', keywords: ['network fees', 'transaction fees', 'transaction costs', 'cost to transact', 'gas fees', 'gas price', 'l1 fees', 'l2 fees'], directory: true },
             { id: 'capital-markets', title: 'Capital Markets', href: '/capital/?view=markets', detail: 'Inspect XTZ returns, venue quality, liquidity, and the explicit exchange-flow coverage gate', keywords: ['capital markets', 'xtz returns', 'exchange markets', 'cex', 'liquidity', 'market depth', 'exchange net flows'], directory: true },
             { id: 'capital-assets', title: 'Ecosystem Assets + RWA', href: '/capital/?view=assets', detail: 'Inspect protocol TVL, ecosystem assets, and sourced real-world-asset proofbooks', keywords: ['ecosystem assets', 'tokens', 'protocol tvl', 'rwa', 'real world assets', 'xu3o8', 'spiko'], directory: true },
             { id: 'capital-art', title: 'Art Economy', href: '/capital/?view=art', detail: 'Inspect Tezos NFT market activity, participants, mints, collections, and creator economics', keywords: ['art economy', 'nft market', 'marketplace volume', 'mints', 'minters', 'collections', 'creator earnings', 'traders'], directory: true }
@@ -140,7 +141,7 @@ export const SITE_MAP = [
         hashAliases: ['#network-health'],
         group: 'Live Rooms',
         detail: 'Blocks, Nakamoto coefficients, consensus timing, Octez versions, missed rights, and the Teztale lens',
-        keywords: ['health', 'blocks', 'finality', 'attestation power', 'missed attestations', 'missed blocks', 'round zero', 'round 0', 'consensus', 'consensus lens', 'pre quorum', 'quorum timing', 'validation delay', 'application delay', 'reception histogram', 'octez', 'octez versions', 'version adoption', 'teztale', 'native explorer', 'operation receipt', 'block receipt', 'missed rights', 'nakamoto', 'nakamoto coefficient', 'quorum control coefficient', 'decentralization', 'one third', 'two thirds'],
+        keywords: ['health', 'blocks', 'finality', 'attestation power', 'missed attestations', 'missed blocks', 'round zero', 'round 0', 'consensus', 'consensus lens', 'pre quorum', 'quorum timing', 'validation delay', 'application delay', 'reception histogram', 'octez', 'octez versions', 'version adoption', 'teztale', 'native explorer', 'operation receipt', 'block receipt', 'block fees', 'operation fees', 'missed rights', 'nakamoto', 'nakamoto coefficient', 'quorum control coefficient', 'decentralization', 'one third', 'two thirds'],
         starter: 5,
         searchChip: { label: '/health', order: 5 },
         sitemap: { changefreq: 'hourly', priority: '0.8' }
@@ -166,7 +167,7 @@ export const SITE_MAP = [
         hashAliases: ['#tezlink'],
         group: 'Live Rooms',
         detail: 'Etherlink TVL, transaction tape, gas oracle, and L2 activity',
-        keywords: ['tezos x', 'etherlink', 'l2', 'tezlink'],
+        keywords: ['tezos x', 'etherlink', 'l2', 'tezlink', 'gas', 'gas price', 'gas fees', 'l2 fees'],
         sitemap: { changefreq: 'hourly', priority: '0.8' }
     },
     {

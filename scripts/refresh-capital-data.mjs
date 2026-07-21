@@ -52,7 +52,8 @@ const SOURCE_DEFINITIONS = Object.freeze({
     endpoints: [
       `${TZKT}/statistics/current`,
       `${TZKT}/accounts/count`,
-      `${TZKT}/operations/transactions/count`
+      `${TZKT}/operations/transactions/count`,
+      `${TZKT}/blocks`
     ]
   },
   etherlinkBlockscout: {
@@ -64,7 +65,7 @@ const SOURCE_DEFINITIONS = Object.freeze({
   etherlinkStats: {
     label: 'Etherlink Blockscout stats service',
     url: 'https://docs.blockscout.com/setup/configuration-options/charts-and-stats',
-    credit: 'Daily Etherlink transactions and account activity',
+    credit: 'Daily Etherlink transactions, account activity, transaction fees, and gas price',
     endpoints: [`${ETHERLINK_STATS}/lines/{metric}`]
   },
   coingecko: {
@@ -462,6 +463,40 @@ function tzktUrl(pathname, params = {}) {
   return url.toString();
 }
 
+async function buildTezosDailyFeeReceipt(day) {
+  const limit = 10_000;
+  let offset = 0;
+  let totalFeesMutez = 0;
+  let blockCount = 0;
+  while (true) {
+    const fees = await requestJson(tzktUrl('/blocks', {
+      'timestamp.ge': day.from,
+      'timestamp.lt': day.to,
+      'sort.asc': 'level',
+      select: 'fees',
+      offset,
+      limit
+    }));
+    if (!Array.isArray(fees)) throw new Error(`TzKT returned invalid block fees for ${day.date}`);
+    for (const value of fees) {
+      const fee = integer(value);
+      if (fee === null || fee < 0) throw new Error(`TzKT returned an invalid block fee for ${day.date}`);
+      totalFeesMutez += fee;
+    }
+    blockCount += fees.length;
+    if (fees.length < limit) break;
+    offset += fees.length;
+    if (offset > 20_000) throw new Error(`TzKT block fee pagination exceeded the daily bound for ${day.date}`);
+  }
+  return {
+    date: day.date,
+    totalMutez: totalFeesMutez,
+    blockCount,
+    averagePerBlockMutez: blockCount ? round(totalFeesMutez / blockCount, 2) : null,
+    complete: true
+  };
+}
+
 async function buildTezosNetwork(generatedAt) {
   const currentDay = utcDay(new Date(generatedAt));
   const completedDays = Array.from({ length: TEZOS_ACTIVITY_DAYS }, (_, index) => {
@@ -469,22 +504,30 @@ async function buildTezosNetwork(generatedAt) {
     const to = addDays(from, 1);
     return { date: isoDate(from), from: from.toISOString(), to: to.toISOString() };
   });
-  const [statistics, totalAccounts, fundedAccounts, daily] = await Promise.all([
+  const [statistics, totalAccounts, fundedAccounts, latestBlockRows, daily] = await Promise.all([
     requestJson(`${TZKT}/statistics/current`),
     requestJson(`${TZKT}/accounts/count`),
     requestJson(tzktUrl('/accounts/count', { 'balance.gt': 0 })),
+    requestJson(tzktUrl('/blocks', { 'sort.desc': 'level', select: 'level,timestamp,fees', limit: 1 })),
     mapConcurrent(completedDays, 3, async (day) => {
-      const count = await requestJson(tzktUrl('/operations/transactions/count', {
-        status: 'applied',
-        'timestamp.ge': day.from,
-        'timestamp.lt': day.to
-      }));
+      const [count, feeReceipt] = await Promise.all([
+        requestJson(tzktUrl('/operations/transactions/count', {
+          status: 'applied',
+          'timestamp.ge': day.from,
+          'timestamp.lt': day.to
+        })),
+        buildTezosDailyFeeReceipt(day)
+      ]);
       const value = integer(count);
       if (value === null || value < 0) throw new Error(`TzKT returned an invalid transaction count for ${day.date}`);
-      return { date: day.date, count: value, complete: true };
+      return { date: day.date, count: value, feeReceipt, complete: true };
     })
   ]);
   if (!statistics || typeof statistics !== 'object') throw new Error('TzKT current statistics are invalid');
+  const latestBlock = Array.isArray(latestBlockRows) ? latestBlockRows[0] : null;
+  if (!latestBlock || integer(latestBlock.level) === null || integer(latestBlock.fees) === null) {
+    throw new Error('TzKT latest block fee receipt is invalid');
+  }
   const totalSupply = integer(statistics.totalSupply);
   const totalVotingPower = integer(statistics.totalVotingPower);
   const circulatingSupply = integer(statistics.circulatingSupply);
@@ -516,8 +559,8 @@ async function buildTezosNetwork(generatedAt) {
         definition: 'All indexed accounts; funded accounts currently have balance greater than zero.'
       },
       transactions: {
-        latestCompletedDay: daily.at(-1) || null,
-        daily,
+        latestCompletedDay: daily.at(-1) ? { date: daily.at(-1).date, count: daily.at(-1).count, complete: true } : null,
+        daily: daily.map(({ feeReceipt: ignored, ...row }) => row),
         coverage: {
           days: daily.length,
           completeDaysOnly: true,
@@ -525,16 +568,33 @@ async function buildTezosNetwork(generatedAt) {
           definition: 'Applied TzKT transaction operations, including indexed internal calls; not semantically identical to an Etherlink EVM transaction.'
         }
       },
+      fees: {
+        latestBlock: {
+          level: integer(latestBlock.level),
+          timestamp: latestBlock.timestamp || null,
+          totalMutez: integer(latestBlock.fees)
+        },
+        latestCompletedDay: daily.at(-1)?.feeReceipt || null,
+        daily: daily.map((row) => row.feeReceipt),
+        coverage: {
+          days: daily.length,
+          completeDaysOnly: true,
+          truncated: true,
+          definition: 'Total operation fees gathered by every indexed L1 block in each completed UTC day. This is a block-fee pool, not a per-transaction average.'
+        }
+      },
       coverage: {
         status: 'complete',
         statistics: 'Current TzKT network statistics.',
-        activity: `${TEZOS_ACTIVITY_DAYS} completed UTC days from bounded daily count queries.`
+        activity: `${TEZOS_ACTIVITY_DAYS} completed UTC days from bounded daily transaction-count and block-fee queries.`
       }
     },
     coverage: {
       statisticsLevel: integer(statistics.level),
       transactionDays: daily.length,
+      feeDays: daily.length,
       transactionDefinition: 'status=applied; TzKT transaction operations; includes indexed internal calls',
+      feeDefinition: 'sum of block.fees across every indexed block in each completed UTC day',
       truncated: true
     }
   };
@@ -545,6 +605,7 @@ function emptyTezosNetwork(error) {
     statistics: {},
     accounts: { total: null, funded: null },
     transactions: { latestCompletedDay: null, daily: [], coverage: { days: 0, truncated: true } },
+    fees: { latestBlock: null, latestCompletedDay: null, daily: [], coverage: { days: 0, truncated: true } },
     coverage: { status: 'unavailable', error: cleanError(error) }
   };
 }
@@ -560,6 +621,11 @@ async function buildEtherlinkCounters() {
     averageBlockTimeMs: round(stats.average_block_time, 3),
     networkUtilizationPct: round(stats.network_utilization_percentage, 8),
     gasUsedToday: String(stats.gas_used_today ?? ''),
+    gasPricesGwei: {
+      slow: round(stats.gas_prices?.slow, 8),
+      average: round(stats.gas_prices?.average, 8),
+      fast: round(stats.gas_prices?.fast, 8)
+    },
     observedAt: stats.gas_price_updated_at || null
   };
   return {
@@ -572,11 +638,14 @@ async function buildEtherlinkSeries(generatedAt) {
   const to = utcDay(new Date(generatedAt));
   const from = addDays(to, -TWO_YEARS_DAYS);
   const metrics = [
-    ['newTransactions', 'newTxns'],
-    ['activeAccounts', 'activeAccounts'],
-    ['accountsGrowth', 'accountsGrowth']
+    ['newTransactions', 'newTxns', (value) => integer(value)],
+    ['activeAccounts', 'activeAccounts', (value) => integer(value)],
+    ['accountsGrowth', 'accountsGrowth', (value) => integer(value)],
+    ['averageTransactionFee', 'averageTxnFee', (value) => round(value, 12)],
+    ['transactionFees', 'txnsFee', (value) => round(value, 9)],
+    ['averageGasPrice', 'averageGasPrice', (value) => round(value, 8)]
   ];
-  const rows = await Promise.all(metrics.map(async ([key, metric]) => {
+  const rows = await Promise.all(metrics.map(async ([key, metric, normalize]) => {
     const url = new URL(`${ETHERLINK_STATS}/lines/${metric}`);
     url.searchParams.set('resolution', 'DAY');
     url.searchParams.set('from', isoDate(from));
@@ -585,7 +654,7 @@ async function buildEtherlinkSeries(generatedAt) {
     if (!Array.isArray(payload?.chart)) throw new Error(`Etherlink ${metric} chart is invalid`);
     return [key, normalizeSeries(
       payload.chart,
-      (row) => integer(row?.value),
+      (row) => normalize(row?.value),
       (row) => ({ approximate: Boolean(row?.is_approximate) })
     )];
   }));
@@ -619,12 +688,23 @@ function emptyEtherlinkCounters() {
     totalAddresses: null,
     totalBlocks: null,
     totalTransactions: null,
-    transactionsToday: null
+    transactionsToday: null,
+    gasUsedToday: '',
+    gasPricesGwei: { slow: null, average: null, fast: null },
+    observedAt: null
   };
 }
 
 function emptyEtherlinkSeries() {
-  return { newTransactions: [], activeAccounts: [], accountsGrowth: [], newAccounts: [] };
+  return {
+    newTransactions: [],
+    activeAccounts: [],
+    accountsGrowth: [],
+    newAccounts: [],
+    averageTransactionFee: [],
+    transactionFees: [],
+    averageGasPrice: []
+  };
 }
 
 function normalizePriceHistory(rows, digits) {
@@ -1324,6 +1404,16 @@ function validateSnapshot(snapshot, byteLength = null) {
   const chainIds = new Set((snapshot?.defi?.chains || []).map((chain) => chain.id));
   for (const chain of ['tezos', 'etherlink']) if (!chainIds.has(chain)) errors.push(`defi.chains is missing ${chain}`);
   if (!snapshot?.network?.tezos || !snapshot?.network?.etherlink) errors.push('network must include tezos and etherlink');
+  const tezosFees = snapshot?.network?.tezos?.fees;
+  if (!Array.isArray(tezosFees?.daily) || !isAscendingByDate(tezosFees.daily)) {
+    errors.push('network.tezos.fees.daily must be a date-sorted array');
+  } else if (tezosFees.daily.some((row) => !Number.isFinite(row.totalMutez) || !Number.isFinite(row.blockCount))) {
+    errors.push('network.tezos.fees.daily must retain numeric block-fee totals and block counts');
+  }
+  for (const key of ['averageTransactionFee', 'transactionFees', 'averageGasPrice']) {
+    const rows = snapshot?.network?.etherlink?.series?.[key];
+    if (!Array.isArray(rows) || !isAscendingByDate(rows)) errors.push(`network.etherlink.series.${key} must be a date-sorted array`);
+  }
   for (const currency of ['usd', 'btc', 'eth']) {
     if (!Array.isArray(snapshot?.markets?.xtz?.priceHistory?.[currency])) errors.push(`markets.xtz.priceHistory.${currency} must be an array`);
     else if (!isAscendingByDate(snapshot.markets.xtz.priceHistory[currency])) errors.push(`markets.xtz.priceHistory.${currency} is not date sorted`);
@@ -1409,10 +1499,16 @@ async function main() {
     sources,
     defi: defi.data,
     network: {
-      tezos: tezos.data,
+      tezos: {
+        ...tezos.data,
+        fees: tezos.data?.fees || emptyTezosNetwork().fees
+      },
       etherlink: {
         counters: etherlinkCounters.data,
-        series: etherlinkSeries.data,
+        series: {
+          ...emptyEtherlinkSeries(),
+          ...etherlinkSeries.data
+        },
         coverage: {
           counters: etherlinkCounters.receipt.status,
           series: etherlinkSeries.receipt.status,

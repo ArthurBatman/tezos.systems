@@ -7874,6 +7874,15 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(/snapshot/i.test(cardState.text), `capital chamber: root card must expose a generated-snapshot freshness receipt ${cardState.text}`);
   assert(cardState.role === 'article', `capital chamber: root card semantics missing ${JSON.stringify(cardState)}`);
 
+  await page.locator('#hero-search-input').fill('network fees');
+  await page.waitForFunction(() => /Network Fees by Layer/i.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+  const feeSearchState = await page.evaluate(() => ({
+    result: Array.from(document.querySelectorAll('#hero-search-panel .hero-search-result')).find((item) => /Network Fees by Layer/i.test(item.textContent || ''))?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    genericFallback: /Start from anything/i.test(document.querySelector('#hero-search-panel')?.textContent || '')
+  }));
+  assert(/Tezos L1 block fee pools/i.test(feeSearchState.result) && !feeSearchState.genericFallback, `capital chamber: network-fees search did not resolve the direct fee intent ${JSON.stringify(feeSearchState)}`);
+  await page.keyboard.press('Escape');
+
   await page.locator('#capital-entry-front').click();
   await page.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForFunction(() => document.querySelectorAll('#capital-modal .capital-tab').length === 4, null, { timeout: 10000 });
@@ -7896,7 +7905,10 @@ async function smokeCapitalChamber(browser, baseUrl) {
       panelRole: activePanel?.getAttribute('role') || '',
       panelLabelledBy: activePanel?.getAttribute('aria-labelledby') || '',
       rangeCount: modal?.querySelectorAll('.capital-range-btn').length || 0,
+      rangeLabel: modal?.querySelector('.capital-range-label')?.textContent?.trim() || '',
+      disabledRanges: modal?.querySelectorAll('.capital-range-btn:disabled').length || 0,
       pressedRanges: Array.from(modal?.querySelectorAll('.capital-range-btn[aria-pressed="true"]') || []).map((button) => button.textContent?.trim() || ''),
+      networkCosts: modal?.querySelector('#capital-network-costs')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       kpis: modal?.querySelectorAll('.capital-kpi').length || 0,
       charts: modal?.querySelectorAll('.capital-chart').length || 0,
       sourceReceipts: modal?.querySelectorAll('.capital-source-receipt').length || 0,
@@ -7909,7 +7921,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(shellState.tabListRole === 'tablist' && shellState.tabRoles.every((role) => role === 'tab') && shellState.selected.filter((value) => value === 'true').length === 1, `capital chamber: tab semantics missing ${JSON.stringify(shellState)}`);
   assert(shellState.panelRole === 'tabpanel' && shellState.panelLabelledBy, `capital chamber: active panel semantics missing ${JSON.stringify(shellState)}`);
   assert(shellState.tabLabels.some((label) => /One System/i.test(label)) && shellState.tabLabels.some((label) => /Markets/i.test(label)) && shellState.tabLabels.some((label) => /Assets/i.test(label)) && shellState.tabLabels.some((label) => /Art/i.test(label)), `capital chamber: four views missing ${shellState.tabLabels.join(' | ')}`);
-  assert(shellState.rangeCount === 5 && shellState.pressedRanges.length === 1, `capital chamber: shared range controls missing ${JSON.stringify(shellState)}`);
+  assert(shellState.rangeCount === 5 && shellState.disabledRanges === 0 && shellState.rangeLabel === 'Range' && shellState.pressedRanges.length === 1, `capital chamber: One System selectable range controls missing ${JSON.stringify(shellState)}`);
+  assert(/Fees by layer/i.test(shellState.networkCosts) && /L1 fees/i.test(shellState.networkCosts) && /L2 fees/i.test(shellState.networkCosts) && /No fictional combined total/i.test(shellState.networkCosts), `capital chamber: layer-separated network fee surface missing ${shellState.networkCosts}`);
   assert(shellState.kpis >= 4 && shellState.charts >= 2, `capital chamber: One System KPIs/charts are too sparse ${JSON.stringify(shellState)}`);
   assert(/Tezos/.test(shellState.text) && /Etherlink/.test(shellState.text) && /TVL/.test(shellState.text) && /stablecoin/i.test(shellState.text) && /transaction|TPS/i.test(shellState.text), `capital chamber: One System cross-layer copy missing ${shellState.text}`);
   assert(shellState.sourceReceipts > 0, 'capital chamber: One System source receipts missing');
@@ -7948,6 +7961,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
         : [],
       tableRows: panel?.querySelectorAll('.capital-table tbody tr').length || 0,
       qualityWarnings: panel?.querySelectorAll('.capital-quality.is-warn, .capital-quality.is-bad').length || 0,
+      rangeLabels: Array.from(panel?.querySelectorAll('.capital-range-btn') || []).map((button) => button.textContent?.trim() || ''),
+      disabledRanges: panel?.querySelectorAll('.capital-range-btn:disabled').length || 0,
       directTradeLinks: links.filter((link) => /^trade$/i.test(link.textContent?.trim() || '') || /binance|coinbase|kraken|okx|bybit|gate\.io|htx/i.test(link.href)).length,
       sourceReceipts: panel?.querySelectorAll('.capital-source-receipt').length || 0
     };
@@ -7958,6 +7973,7 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(marketState.tableRows >= 20, `capital chamber: Markets should render at least 20 committed ticker rows, saw ${marketState.tableRows}`);
   assert(marketState.qualityWarnings > 0 && /quality|quarantin|stale|anomal/i.test(marketState.text), `capital chamber: venue quality warnings missing ${JSON.stringify(marketState)}`);
   assert(marketState.directTradeLinks === 0, `capital chamber: direct trading links must not be present, saw ${marketState.directTradeLinks}`);
+  assert(JSON.stringify(marketState.rangeLabels) === JSON.stringify(['30D', '3M', '6M', '1Y']) && marketState.disabledRanges === 0, `capital chamber: Markets must expose only its four selectable ranges ${JSON.stringify(marketState)}`);
   assert(/centralized-exchange net flows|CEX net flows/i.test(marketState.text) && /unavailable|not calculated|not-calculated/i.test(marketState.text), `capital chamber: explicit CEX-flow unavailable receipt missing ${marketState.text}`);
   assert(marketState.sourceReceipts > 0, 'capital chamber: Markets source receipts missing');
 
@@ -7967,6 +7983,7 @@ async function smokeCapitalChamber(browser, baseUrl) {
     const panel = document.querySelector('#capital-modal [role="tabpanel"]:not([hidden]), #capital-modal .capital-view-shell');
     return {
       text: panel?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      rangeControls: panel?.querySelectorAll('.capital-range, .capital-range-static').length || 0,
       fullContract: Array.from(panel?.querySelectorAll('[title]') || []).map((node) => node.getAttribute('title') || '').find((value) => /^0x79052/i.test(value)) || '',
       tableRows: panel?.querySelectorAll('.capital-table tbody tr').length || 0,
       sourceReceipts: panel?.querySelectorAll('.capital-source-receipt').length || 0
@@ -7976,6 +7993,7 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(/xU3O8/i.test(assetState.text) && assetState.fullContract.toLowerCase() === '0x79052ab3c166d4899a1e0dd033ac3b379af0b1fd' && /Uranium\.io/i.test(assetState.text), `capital chamber: xU3O8 proofbook receipt missing ${JSON.stringify(assetState)}`);
   assert(/SRUUF/i.test(assetState.text) && /unavailable|not calculated|not-calculated/i.test(assetState.text), `capital chamber: licensed SRUUF unavailable receipt missing ${assetState.text}`);
   assert(assetState.sourceReceipts > 0, 'capital chamber: Assets source receipts missing');
+  assert(assetState.rangeControls === 0, `capital chamber: Assets should not expose a chart range ${JSON.stringify(assetState)}`);
 
   const artTab = page.locator('#capital-modal .capital-tab').filter({ hasText: /Art/i });
   await artTab.click();
@@ -7983,12 +8001,15 @@ async function smokeCapitalChamber(browser, baseUrl) {
     const panel = document.querySelector('#capital-modal [role="tabpanel"]:not([hidden]), #capital-modal .capital-view-shell');
     return {
       text: panel?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      rangeButtons: panel?.querySelectorAll('.capital-range-btn').length || 0,
+      rangeWindow: panel?.querySelector('.capital-range-static')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       tableRows: panel?.querySelectorAll('.capital-table tbody tr').length || 0,
       sourceReceipts: panel?.querySelectorAll('.capital-source-receipt').length || 0
     };
   });
   assert(artState.tableRows >= 8 && /marketplace/i.test(artState.text) && /collection/i.test(artState.text) && /buyer/i.test(artState.text) && /artist/i.test(artState.text), `capital chamber: Art marketplace/collection/buyer/artist data missing ${JSON.stringify(artState)}`);
   assert(/gross sales/i.test(artState.text) && /not creator earnings|not.*trader profit/i.test(artState.text), `capital chamber: Art gross-not-net methodology copy missing ${artState.text}`);
+  assert(artState.rangeButtons === 0 && artState.rangeWindow === '30D source window', `capital chamber: Art must show a fixed source window instead of dead range buttons ${JSON.stringify(artState)}`);
   assert(artState.sourceReceipts > 0, 'capital chamber: Art source receipts missing');
 
   await marketsTab.click();
@@ -8084,6 +8105,30 @@ async function smokeCapitalChamber(browser, baseUrl) {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
 
+  const feeRouteResponse = await page.goto(`${baseUrl}/capital/?view=system&focus=fees`, { waitUntil: 'domcontentloaded' });
+  assert(feeRouteResponse?.ok(), `capital chamber: direct network-fees route failed with HTTP ${feeRouteResponse?.status()}`);
+  await page.locator('#capital-modal.active #capital-network-costs').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => (document.querySelector('#capital-chamber-body')?.scrollTop || 0) > 0, null, { timeout: 5000 });
+  const feeRouteState = await page.evaluate(() => {
+    const body = document.querySelector('#capital-chamber-body');
+    const target = document.querySelector('#capital-network-costs');
+    const bodyRect = body?.getBoundingClientRect();
+    const targetRect = target?.getBoundingClientRect();
+    return {
+      pathname: location.pathname,
+      search: location.search,
+      selected: document.querySelector('#capital-modal .capital-tab[aria-selected="true"]')?.textContent?.trim() || '',
+      bodyScrollTop: body?.scrollTop || 0,
+      targetTop: targetRect && bodyRect ? targetRect.top - bodyRect.top : null,
+      text: target?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(feeRouteState.pathname === '/capital/' && feeRouteState.search === '?view=system&focus=fees' && /One System/i.test(feeRouteState.selected)
+    && feeRouteState.bodyScrollTop > 0 && Number.isFinite(feeRouteState.targetTop) && feeRouteState.targetTop >= -1 && feeRouteState.targetTop < 260
+    && /Fees by layer/i.test(feeRouteState.text), `capital chamber: direct network-fees route did not focus the sourced fee surface ${JSON.stringify(feeRouteState)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
   const mobileContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     serviceWorkers: 'block'
@@ -8110,6 +8155,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
         return tabRect.left >= -1 && tabRect.right <= innerWidth + 1;
       }),
       nestedScroll: Boolean(body && body.scrollHeight > body.clientHeight),
+      rangeButtons: document.querySelectorAll('#capital-modal .capital-range-btn').length,
+      rangeWindow: document.querySelector('#capital-modal .capital-range-static')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       selected: document.querySelector('#capital-modal .capital-tab[aria-selected="true"]')?.textContent?.trim() || ''
     };
@@ -8117,7 +8164,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(mobileState.modal && mobileState.modal.left <= 1 && mobileState.modal.right >= 389
     && mobileState.modal.top <= 1 && mobileState.modal.bottom >= 843,
   `capital chamber mobile: room must fill the 390x844 viewport ${JSON.stringify(mobileState)}`);
-  assert(mobileState.tabsContained && mobileState.nestedScroll && mobileState.pageOverflow <= 1 && /Art/i.test(mobileState.selected),
+  assert(mobileState.tabsContained && mobileState.nestedScroll && mobileState.pageOverflow <= 1 && /Art/i.test(mobileState.selected)
+    && mobileState.rangeButtons === 0 && mobileState.rangeWindow === '30D source window',
     `capital chamber mobile: tabs, nested scroll, or overflow failed ${JSON.stringify(mobileState)}`);
   await mobileContext.close();
 

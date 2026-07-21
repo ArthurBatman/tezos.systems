@@ -326,13 +326,15 @@ inline modal styles in `js/core/app.js`.
 - Capital Chamber with direct `#capital` and `/capital/` access. Four sourced
   views organize the cross-layer capital picture without pretending their
   unlike metrics share one definition: **One System** (`?view=system`) connects
-  Tezos and Etherlink activity, TVL, stablecoins, protocols, and Octez
-  development; **Markets** (`?view=markets`) compares XTZ in USD, BTC, and ETH
+  Tezos and Etherlink activity, TVL, stablecoins, layer-separated transaction
+  fees, gas prices, protocols, and Octez development; **Markets**
+  (`?view=markets`) compares XTZ in USD, BTC, and ETH
   and exposes exchange-market snapshots; **Assets** (`?view=assets`)
   separates public registry discoveries from issuer-confirmed xU3O8 evidence;
   and **Art** (`?view=art`) presents OBJKT-indexed sales, mints, collections,
-  buyers, and artists. Shared 30D, 3M, 6M, 1Y, and 2Y controls disable ranges
-  that the source snapshot cannot honestly supply. The browser reads one
+  buyers, and artists. One System offers 30D, 3M, 6M, 1Y, and 2Y; Markets shows
+  only its supported 30D through 1Y choices; and Art labels its fixed 30D source
+  window instead of presenting unavailable controls. The browser reads one
   same-origin generated snapshot, refreshes it only while the room and tab are
   visible, and keeps its per-source status, timestamp, coverage, and methodology
   visible instead of making a third-party request fan-out when the room opens.
@@ -340,7 +342,12 @@ inline modal styles in `js/core/app.js`.
   Capital's limits are part of the product contract. Tezos transaction history
   is a truncated 30-day count of applied TzKT operations, including indexed
   internal calls, and is not labeled as equivalent to an Etherlink EVM
-  transaction. Stablecoin USD totals keep canonical and bridged components
+  transaction. Its fee history separately sums each completed day's indexed
+  block fee pools and never divides those fees by the transaction-only count.
+  Etherlink's public stats service supplies daily transaction-fee, average-fee,
+  and gas-price series. L1 and L2 fee receipts share an XTZ denomination but are
+  not added into a fictional combined network total. Stablecoin USD totals keep
+  canonical and bridged components
   separate because bridge double counting remains possible. CoinGecko exchange
   rows are capped at 100; comprehensive CEX net flows are not calculated without
   audited exchange-wallet clusters. Public RWA registry rows do not imply issuer
@@ -655,7 +662,7 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 
 | Source | Purpose |
 |--------|---------|
-| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, ctez oven discovery, and Capital's Tezos counters and 30-day transaction-operation series |
+| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, ctez oven discovery, and Capital's Tezos counters, 30-day transaction-operation series, and completed-day L1 block-fee pools |
 | Octez RPC `https://eu.rpc.tez.capital` | Issuance, supply, constants, cycle/head metadata |
 | Official Octez mainnet RPC `https://tezos-mainnet.octez.io` | Current-cycle baking-power distribution used for Network Health's live one-third and two-thirds address coefficients |
 | Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including earliest-observer, endorsing-power-weighted reception distributions, exact two-thirds and 90% arrival thresholds, validation-to-quorum phases, and observer count; Teztale is by Nomadic Labs |
@@ -665,7 +672,7 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | OBJKT APIs | HEN mode's live Teia + OBJKT feed, collector and creator profile stats, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
 | DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories; DefiLlama currently indexes Tezos X as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | Tezos X chamber transaction, address, gas, and block stats plus Capital's current counters, daily activity, and xU3O8 token receipts |
+| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | Tezos X chamber transaction, address, gas, and block stats plus Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
 | Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |

@@ -316,6 +316,20 @@
     background: rgba(2, 8, 18, .42);
 }
 
+.capital-range-wrap {
+    display: grid;
+    flex: 0 0 auto;
+    gap: 5px;
+    justify-items: end;
+}
+
+.capital-range-label {
+    color: #6f879e;
+    font: 600 9px/1.2 "JetBrains Mono", monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
 .capital-range-btn {
     min-width: 42px;
     padding: 6px 7px;
@@ -330,6 +344,63 @@
 .capital-range-btn[aria-pressed="true"] {
     color: #071511;
     background: var(--capital-accent);
+}
+
+.capital-range-btn:disabled,
+.capital-range-btn[aria-disabled="true"] {
+    color: #4b6074;
+    cursor: not-allowed;
+    opacity: .42;
+}
+
+.capital-range-static {
+    min-height: 36px;
+    align-items: center;
+    padding-inline: 10px;
+    color: #9fb5c9;
+    border-style: dashed;
+    font: 600 10px/1.2 "JetBrains Mono", monospace;
+}
+
+.capital-cost-section {
+    margin-top: 14px;
+    padding: 16px;
+    scroll-margin-top: 170px;
+    border: 1px solid rgba(105, 231, 195, .2);
+    border-radius: 15px;
+    background:
+        radial-gradient(circle at 92% 0%, rgba(98, 182, 255, .09), transparent 34%),
+        rgba(8, 18, 31, .72);
+}
+
+.capital-section-head {
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+    align-items: end;
+    margin-bottom: 14px;
+}
+
+.capital-section-head span {
+    color: var(--capital-accent);
+    font: 600 9px/1.2 "JetBrains Mono", monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.capital-section-head h4 {
+    margin: 4px 0 0;
+    color: #eff8ff;
+    font: 700 1rem/1.25 "Orbitron", sans-serif;
+}
+
+.capital-section-head p {
+    max-width: 680px;
+    margin: 0;
+    color: #8299af;
+    font-size: .72rem;
+    line-height: 1.5;
+    text-align: right;
 }
 
 .capital-kpi-grid,
@@ -745,7 +816,11 @@
     .capital-header { padding: 15px 48px 0 14px; }
     .capital-view-shell { padding: 15px 12px 22px; }
     .capital-view-head { display: block; }
-    .capital-range { width: max-content; max-width: 100%; margin-top: 12px; overflow-x: auto; }
+    .capital-range-wrap { justify-items: start; margin-top: 12px; }
+    .capital-range { width: max-content; max-width: 100%; overflow-x: auto; }
+    .capital-cost-section { padding: 12px; }
+    .capital-section-head { display: block; }
+    .capital-section-head p { margin-top: 7px; text-align: left; }
     .capital-panel-grid,
     .capital-proof-grid { grid-template-columns: 1fr; }
     .capital-panel-wide { grid-column: auto; }

@@ -5266,10 +5266,11 @@ async function checkQuietRefreshContracts() {
 }
 
 async function checkCapitalContracts() {
-  const [snapshotText, feature, css, packageText, generatedSurfaces, chamberRoutes, siteMap, app, smoke] = await Promise.all([
+  const [snapshotText, feature, css, capitalGenerator, packageText, generatedSurfaces, chamberRoutes, siteMap, app, smoke] = await Promise.all([
     readText('data/capital-snapshot.json'),
     readText('js/features/capital-chamber.js'),
     readText('css/capital.css'),
+    readText('scripts/refresh-capital-data.mjs'),
     readText('package.json'),
     readText('scripts/refresh-generated-surfaces.mjs'),
     readText('scripts/lib/chamber-routes.mjs'),
@@ -5303,6 +5304,16 @@ async function checkCapitalContracts() {
     || !Array.isArray(snapshot.network?.etherlink?.series?.newTransactions) || !snapshot.network.etherlink.series.newTransactions.length
     || !Array.isArray(snapshot.network?.etherlink?.series?.newAccounts) || !snapshot.network.etherlink.series.newAccounts.length) {
     fail('Capital snapshot must retain explicitly labeled Tezos and Etherlink transaction histories');
+  }
+  if (!Array.isArray(snapshot.network?.tezos?.fees?.daily)
+      || snapshot.network.tezos.fees.daily.length < 28
+      || snapshot.network.tezos.fees.daily.some((row) => !Number.isFinite(row.totalMutez) || !Number.isFinite(row.blockCount))) {
+    fail('Capital snapshot must retain at least 28 completed days of numeric Tezos L1 block-fee pools');
+  }
+  for (const key of ['transactionFees', 'averageTransactionFee', 'averageGasPrice']) {
+    if (!Array.isArray(snapshot.network?.etherlink?.series?.[key]) || snapshot.network.etherlink.series[key].length < 300) {
+      fail(`Capital snapshot must retain a long Etherlink ${key} daily series`);
+    }
   }
   const capitalStats = snapshot.network?.tezos?.statistics || {};
   const expectedStakingRatio = ((capitalStats.ownStakedMutez + capitalStats.externalStakedMutez) / capitalStats.totalSupplyMutez) * 100;
@@ -5361,6 +5372,7 @@ async function checkCapitalContracts() {
     ['Capital Chamber route metadata', "slug: 'capital'", chamberRoutes],
     ['Capital Chamber site-map destination', "href: '/capital/'", siteMap],
     ['Capital Chamber site-map direct Markets view', "href: '/capital/?view=markets'", siteMap],
+    ['Capital Chamber site-map direct network-fees view', "href: '/capital/?view=system&focus=fees'", siteMap],
     ['Capital Chamber app import', 'initCapitalChamber', app],
     ['Capital Chamber pretty route opener', "case 'capital':", app],
     ['Capital Chamber hash route', "hash === 'capital'", app],
@@ -5375,6 +5387,12 @@ async function checkCapitalContracts() {
   if (!feature.includes('data/capital-snapshot.json')) {
     fail('Capital Chamber must render from the first-party committed Capital snapshot');
   }
+  if (!capitalGenerator.includes("select: 'fees'")
+      || !capitalGenerator.includes("['transactionFees', 'txnsFee'")
+      || !capitalGenerator.includes("['averageTransactionFee', 'averageTxnFee'")
+      || !capitalGenerator.includes("['averageGasPrice', 'averageGasPrice'")) {
+    fail('Capital generator must retain source-native L1 block fees plus Etherlink transaction-fee and gas histories');
+  }
   for (const view of ['system', 'markets', 'assets', 'art']) {
     if (!new RegExp(`["']${view}["']`).test(feature)) fail(`Capital Chamber must expose the ${view} view`);
   }
@@ -5384,6 +5402,12 @@ async function checkCapitalContracts() {
   if (/\.tradeUrl\b|data-capital-trade|>\s*Trade\s*</i.test(feature)) {
     fail('Capital Markets must not ship direct exchange trading CTAs');
   }
+  if (!feature.includes('RANGES.filter((range) => available.has(range.id))')
+      || !feature.includes('source window')
+      || !feature.includes('capital-network-costs')
+      || !feature.includes('No fictional combined total')) {
+    fail('Capital Chamber must expose only valid view ranges and keep network fees layer-separated');
+  }
   if (!feature.includes('quiet-refresh.js') || !feature.includes('quietlySyncHtml')
     || !feature.includes("document.visibilityState === 'visible'")
     || !feature.includes('visibilitychange')
@@ -5391,7 +5415,7 @@ async function checkCapitalContracts() {
     || !/lastGood|last-good|last good/i.test(feature)) {
     fail('Capital Chamber must use quiet reconciliation, a visibility gate/catch-up, test interval override, and last-good data');
   }
-  for (const selector of ['.capital-entry-card', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-quality', '.capital-source-receipt']) {
+  for (const selector of ['.capital-entry-card', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-range-wrap', '.capital-range-static', '.capital-cost-section', '.capital-quality', '.capital-source-receipt']) {
     if (!css.includes(selector)) fail(`Capital Chamber CSS is missing ${selector}`);
   }
   if (!smoke.includes("name: 'capital-chamber'") || !smoke.includes('window.__CAPITAL_CHAMBER_REFRESH_MS__ = 1000')) {

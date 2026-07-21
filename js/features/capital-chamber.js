@@ -14,7 +14,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const CAPITAL_CSS_URL = '/css/capital.css?v=453';
+const CAPITAL_CSS_URL = '/css/capital.css?v=454';
 const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -48,6 +48,7 @@ let currentRange = '30D';
 let lastSnapshot = null;
 let lastRefreshError = '';
 let activeFetch = null;
+let capitalCssReady = null;
 let chamberTimer = null;
 let visibilityReady = false;
 let refreshDeferred = false;
@@ -101,6 +102,25 @@ function formatUsd(value, compact = true) {
 function formatXtz(value) {
     const number = numeric(value);
     return number === null ? 'Unavailable' : `${formatCompact(number, 2)} ꜩ`;
+}
+
+function formatXtzExact(value, maximumFractionDigits = 6) {
+    const number = numeric(value);
+    if (number === null) return 'Unavailable';
+    return `${number.toLocaleString('en-US', {
+        minimumFractionDigits: number !== 0 && Math.abs(number) < .01 ? Math.min(3, maximumFractionDigits) : 0,
+        maximumFractionDigits
+    })} ꜩ`;
+}
+
+function formatMutezAsXtz(value, maximumFractionDigits = 6) {
+    const number = numeric(value);
+    return number === null ? 'Unavailable' : formatXtzExact(number / 1_000_000, maximumFractionDigits);
+}
+
+function formatGwei(value) {
+    const number = numeric(value);
+    return number === null ? 'Unavailable' : `${number.toLocaleString('en-US', { maximumFractionDigits: 3 })} gwei`;
 }
 
 function formatPct(value, { signed = false } = {}) {
@@ -168,12 +188,21 @@ function safeExternalUrl(value) {
 }
 
 function ensureCapitalCss() {
-    if (document.getElementById('capital-css')) return;
-    const link = document.createElement('link');
-    link.id = 'capital-css';
-    link.rel = 'stylesheet';
-    link.href = CAPITAL_CSS_URL;
-    document.head.appendChild(link);
+    const existing = document.getElementById('capital-css');
+    if (existing?.sheet) return Promise.resolve(true);
+    if (capitalCssReady) return capitalCssReady;
+    const link = existing || document.createElement('link');
+    if (!existing) {
+        link.id = 'capital-css';
+        link.rel = 'stylesheet';
+        link.href = CAPITAL_CSS_URL;
+    }
+    capitalCssReady = new Promise((resolve) => {
+        link.addEventListener('load', () => resolve(true), { once: true });
+        link.addEventListener('error', () => resolve(false), { once: true });
+    });
+    if (!existing) document.head.appendChild(link);
+    return capitalCssReady;
 }
 
 function validateSnapshot(snapshot) {
@@ -372,13 +401,24 @@ function unavailableReceipt(snapshot, id) {
 function renderRangeControl(view) {
     const available = AVAILABLE_RANGES[view];
     if (!available?.size) return '';
+    const ranges = RANGES.filter((range) => available.has(range.id));
     const selected = available.has(currentRange) ? currentRange : [...available].at(-1) || '30D';
+    if (ranges.length === 1) {
+        return `
+            <div class="capital-range-wrap">
+                <span class="capital-range-label">Range</span>
+                <div class="capital-range capital-range-static" aria-label="Room chart range">
+                    <span>${escapeHtml(ranges[0].label)} source window</span>
+                </div>
+            </div>
+        `;
+    }
     return `
-        <div class="capital-range" role="group" aria-label="Chart range">
-            ${RANGES.map((range) => {
-                const enabled = available.has(range.id);
-                return `<button class="capital-range-btn" type="button" data-capital-range="${range.id}" aria-pressed="${selected === range.id}"${enabled ? '' : ' disabled aria-disabled="true"'}>${range.label}</button>`;
-            }).join('')}
+        <div class="capital-range-wrap">
+            <span class="capital-range-label">Range</span>
+            <div class="capital-range" role="group" aria-label="Room chart range">
+                ${ranges.map((range) => `<button class="capital-range-btn" type="button" data-capital-range="${range.id}" aria-pressed="${selected === range.id}">${range.label}</button>`).join('')}
+            </div>
         </div>
     `;
 }
@@ -478,6 +518,7 @@ function renderSystem(snapshot) {
     const tzStats = snapshot.network.tezos?.statistics || {};
     const tzAccounts = snapshot.network.tezos?.accounts || {};
     const tzTransactions = snapshot.network.tezos?.transactions || {};
+    const tzFees = snapshot.network.tezos?.fees || {};
     const l2Counters = snapshot.network.etherlink?.counters || {};
     const l2Series = snapshot.network.etherlink?.series || {};
     const coin = snapshot.markets.xtz?.coin || {};
@@ -486,8 +527,18 @@ function renderSystem(snapshot) {
     const totalTvl = sum([tezos.tvl?.currentUsd, etherlink.tvl?.currentUsd], { requireAll: true });
     const latestL1Day = tzTransactions.daily?.at(-1) || {};
     const latestCompleteL2Day = [...(l2Series.newTransactions || [])].reverse().find((row) => !row.approximate) || {};
+    const latestL1FeeDay = tzFees.latestCompletedDay || {};
+    const latestCompleteL2FeeDay = [...(l2Series.transactionFees || [])].reverse().find((row) => !row.approximate) || {};
+    const latestCompleteL2AverageFee = [...(l2Series.averageTransactionFee || [])].reverse().find((row) => !row.approximate) || {};
+    const completedL2TransactionFees = (l2Series.transactionFees || []).filter((row) => !row.approximate);
+    const completedL2AverageFees = (l2Series.averageTransactionFee || []).filter((row) => !row.approximate);
+    const completedL2GasPrices = (l2Series.averageGasPrice || []).filter((row) => !row.approximate);
     const weeklyL1 = sum((tzTransactions.daily || []).slice(-7).map((row) => row.count), { requireAll: true });
     const weeklyL2 = sum((l2Series.newTransactions || []).filter((row) => !row.approximate).slice(-7).map((row) => row.value), { requireAll: true });
+    const l1FeeHistory = (tzFees.daily || []).map((row) => ({
+        date: row.date,
+        totalXtz: numeric(row.totalMutez) === null ? null : row.totalMutez / 1_000_000
+    }));
 
     const tvlChart = renderChart([
         { label: 'Tezos L1 TVL', color: '#69e7c3', points: pointsForRange(tezos.tvl?.history, 'valueUsd', range) },
@@ -512,6 +563,20 @@ function renderSystem(snapshot) {
         { label: 'Octez commits', color: '#62b6ff', points: pointsForRange(octez.daily, 'commits', range) },
         { label: 'Distinct author-name strings', color: '#f3c969', points: pointsForRange(octez.daily, 'authors', range) }
     ], 'Canonical Octez development activity');
+    const feeTotalChart = renderChart([
+        { label: 'Tezos L1 block fee pools', color: '#69e7c3', points: pointsForRange(l1FeeHistory, 'totalXtz', range) },
+        { label: 'Etherlink L2 transaction fees', color: '#62b6ff', points: pointsForRange(completedL2TransactionFees, 'value', range) }
+    ], 'Daily transaction fees by layer in XTZ');
+    const l2AverageFeeChart = renderChart([
+        { label: 'Etherlink average transaction fee', color: '#f3c969', points: pointsForRange(completedL2AverageFees, 'value', range) }
+    ], 'Etherlink average transaction fee in XTZ');
+    const l2GasChart = renderChart([
+        { label: 'Etherlink average gas price', color: '#f28ca8', points: pointsForRange(completedL2GasPrices, 'value', range) }
+    ], 'Etherlink average gas price in gwei');
+    const feeCoverage = range === '30D'
+        ? '30D · completed UTC days by layer'
+        : `${range} requested · L1 shows its available 30D; L2 follows the room range`;
+    const gasPrices = l2Counters.gasPricesGwei || {};
 
     return `
         <div class="capital-kpi-grid">
@@ -528,6 +593,28 @@ function renderSystem(snapshot) {
             <article class="capital-proof-card"><h4>Etherlink L2 counters</h4><dl><dt>Total addresses</dt><dd>${escapeHtml(formatNumber(l2Counters.totalAddresses))}</dd><dt>Total transactions</dt><dd>${escapeHtml(formatNumber(l2Counters.totalTransactions))}</dd><dt>Today · partial</dt><dd>${escapeHtml(formatNumber(l2Counters.transactionsToday))}</dd><dt>Block time</dt><dd>${escapeHtml(numeric(l2Counters.averageBlockTimeMs) === null ? 'Unavailable' : `${(l2Counters.averageBlockTimeMs / 1000).toFixed(2)}s`)}</dd></dl></article>
             <article class="capital-proof-card"><h4>Seven completed days</h4><dl><dt>L1 applied operations</dt><dd>${escapeHtml(formatNumber(weeklyL1))}</dd><dt>L2 EVM transactions</dt><dd>${escapeHtml(formatNumber(weeklyL2))}</dd></dl><p>These are parallel weekly rollups, never a combined transaction total.</p></article>
         </div>
+        <section class="capital-cost-section" id="capital-network-costs" aria-labelledby="capital-network-costs-title">
+            <div class="capital-section-head">
+                <div><span>Network costs</span><h4 id="capital-network-costs-title">Fees by layer</h4></div>
+                <p>Tezos L1 block fee pools and Etherlink L2 gas fees share an XTZ denomination, but remain separate receipts with different execution semantics.</p>
+            </div>
+            <div class="capital-kpi-grid">
+                ${kpi('L1 fees · completed day', formatMutezAsXtz(latestL1FeeDay.totalMutez, 3), `${latestL1FeeDay.date || 'Unavailable'} · sum of indexed block fee pools`)}
+                ${kpi('L1 average fee pool / block', formatMutezAsXtz(latestL1FeeDay.averagePerBlockMutez, 6), `${formatNumber(latestL1FeeDay.blockCount)} indexed blocks`, 'blue')}
+                ${kpi('L2 fees · completed day', formatXtzExact(latestCompleteL2FeeDay.value, 3), `${latestCompleteL2FeeDay.date || 'Unavailable'} · Blockscout transaction fees`, 'gold')}
+                ${kpi('L2 average fee / transaction', formatXtzExact(latestCompleteL2AverageFee.value, 6), `${latestCompleteL2AverageFee.date || 'Unavailable'} · completed-day average`, 'rose')}
+            </div>
+            <div class="capital-panel-grid">
+                ${panel('Daily transaction fees', 'Layer receipts', feeTotalChart, feeCoverage, true)}
+                ${panel('Etherlink average transaction fee', 'User cost', l2AverageFeeChart, `${range} · XTZ spent on gas per transaction`)}
+                ${panel('Etherlink average gas price', 'Gas market', l2GasChart, `${range} · gwei per unit of gas`)}
+            </div>
+            <div class="capital-proof-grid" style="margin-top:12px">
+                <article class="capital-proof-card"><h4>Live Etherlink gas oracle</h4><dl><dt>Slow</dt><dd>${escapeHtml(formatGwei(gasPrices.slow))}</dd><dt>Average</dt><dd>${escapeHtml(formatGwei(gasPrices.average))}</dd><dt>Fast</dt><dd>${escapeHtml(formatGwei(gasPrices.fast))}</dd></dl><p>Current Blockscout tiers; the historical chart uses completed daily averages.</p></article>
+                <article class="capital-proof-card"><h4>No fictional combined total</h4><p>L1 totals are fees gathered into indexed blocks. L2 totals are XTZ spent on EVM gas. The Chamber aligns their clocks and units without adding them into a synthetic one-system number.</p></article>
+                <article class="capital-proof-card"><h4>Coverage follows the receipts</h4><p>L1 history is intentionally bounded to ${escapeHtml(String(tzFees.coverage?.days || 0))} completed UTC days. Etherlink’s public stats service supplies the longer daily fee and gas series selected by the room range.</p></article>
+            </div>
+        </section>
         <div class="capital-panel-grid" style="margin-top:12px">
             ${panel('DeFi TVL by layer', 'Capital locked', tvlChart, `${range} · full DefiLlama daily history`)}
             ${panel('Stablecoins by layer', 'Dollar rails', stableChart, `${range} · all peg categories`)}
@@ -835,10 +922,16 @@ function routeView() {
     return VIEW_IDS.has(value) ? value : '';
 }
 
+function routeFocus() {
+    if (!isCapitalRoute()) return '';
+    return new URL(window.location.href).searchParams.get('focus') === 'fees' ? 'fees' : '';
+}
+
 function updateRouteView() {
     if (!isCapitalRoute()) return;
     const url = new URL(window.location.href);
     url.searchParams.set('view', currentView);
+    url.searchParams.delete('focus');
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -1009,8 +1102,9 @@ function wireEntry(card) {
 }
 
 export async function openCapitalChamber() {
-    ensureCapitalCss();
+    await ensureCapitalCss();
     const route = routeView();
+    const focus = routeFocus();
     if (route) currentView = route;
     const overlay = ensureOverlay();
     const body = overlay.querySelector('.capital-body');
@@ -1027,6 +1121,11 @@ export async function openCapitalChamber() {
         initialFocusSelector: '.chamber-close'
     });
     await refreshCapitalChamber({ quiet: false });
+    if (focus === 'fees' && overlay.classList.contains('active')) {
+        const target = document.getElementById('capital-network-costs');
+        const header = body.querySelector('.capital-header');
+        if (target) body.scrollTop = Math.max(0, target.offsetTop - (header?.offsetHeight || 0) - 12);
+    }
     if (overlay.classList.contains('active')) startRefreshTimer();
 }
 
