@@ -2460,11 +2460,13 @@ async function loadEntryCardStatus({ force = false } = {}) {
                 clearEntryMetrics(card, metricsEl);
             }
         } else {
-            setEntryHero(heroEl, currentPeriod.kind === 'proposal' ? 'Proposal period' : '');
+            setEntryHero(heroEl, currentPeriod.kind === 'proposal' ? 'No Proposal' : '');
             if (description) description.textContent = currentPeriod.kind === 'proposal'
-                ? 'Governance proposals window'
+                ? 'L1 · Proposal period'
                 : 'Governance watch';
-            mini.innerHTML = currentPeriod.kind === 'proposal' ? 'Proposal period · no ballots open' : 'Governance idle';
+            mini.innerHTML = currentPeriod.kind === 'proposal'
+                ? 'No active L1 proposal · refresh 60s'
+                : 'Governance idle';
             mini.classList.remove('live');
             card?.classList.remove('chamber-entry-live');
             clearEntryMetrics(card, metricsEl);

@@ -9481,6 +9481,9 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       chamberWide: chamber?.classList.contains('chamber-entry-wide') || false,
       chamberSize: chamber?.dataset.chamberEntrySize || '',
       chamberText: chamber?.textContent || '',
+      chamberHero: chamber?.querySelector('#chamber-entry-hero span')?.textContent?.trim() || '',
+      chamberDescription: chamber?.querySelector('.stat-description')?.textContent?.trim() || '',
+      chamberMini: chamber?.querySelector('#chamber-entry-mini')?.textContent?.trim() || '',
       governanceAlertHidden: document.querySelector('#governance-alert-strip')?.hidden ?? false,
       governanceAlertText: document.querySelector('#governance-alert-strip')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       etherlinkWide: etherlink?.classList.contains('chamber-entry-wide') || false,
@@ -9509,7 +9512,9 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     };
   });
   assert(!quietSizing.chamberWide && quietSizing.chamberSize === 'compact', `quiet governance sizing: Tezos L1 Governance should be 1x1, saw ${JSON.stringify(quietSizing)}`);
-  assert(/Proposal period/.test(quietSizing.chamberText) && /no ballots open/i.test(quietSizing.chamberText), `quiet governance sizing: Tezos L1 Governance quiet text mismatch: ${quietSizing.chamberText}`);
+  assert(quietSizing.chamberHero === 'No Proposal', `quiet governance sizing: Tezos L1 Governance should lead with No Proposal, saw ${quietSizing.chamberHero}`);
+  assert(quietSizing.chamberDescription === 'L1 · Proposal period', `quiet governance sizing: Tezos L1 Governance phase context mismatch: ${quietSizing.chamberDescription}`);
+  assert(quietSizing.chamberMini === 'No active L1 proposal · refresh 60s', `quiet governance sizing: Tezos L1 Governance quiet status mismatch: ${quietSizing.chamberMini}`);
   assert(quietSizing.governanceAlertHidden && !/needs attention|current proposal/i.test(quietSizing.governanceAlertText), `quiet governance sizing: empty Proposal period should not render governance alert, saw ${quietSizing.governanceAlertText}`);
   assert(!quietSizing.etherlinkWide && quietSizing.etherlinkSize === 'compact', `quiet governance sizing: Tezos X Governance should be 1x1, saw ${JSON.stringify(quietSizing)}`);
   assert(/No Proposal/.test(quietSizing.etherlinkText) && /No active L2 governance proposal/.test(quietSizing.etherlinkText) && /FAST/.test(quietSizing.etherlinkText), `quiet governance sizing: Etherlink idle text mismatch: ${quietSizing.etherlinkText}`);

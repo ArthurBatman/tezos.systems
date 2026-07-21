@@ -1361,6 +1361,8 @@ async function checkSelectorContracts() {
     ['Staking Chamber mobile operation rows', '.staking-operation-row {', stakingChamberCss],
     ['Chamber card copy link', 'data-copy-hash="#chamber"', chamber],
     ['Tezos L1 Governance card label', 'Tezos L1 Governance', chamber],
+    ['Tezos L1 Governance quiet headline', "setEntryHero(heroEl, currentPeriod.kind === 'proposal' ? 'No Proposal' : '')", chamber],
+    ['Tezos L1 Governance quiet status', 'No active L1 proposal · refresh 60s', chamber],
     ['Chamber current state panel', 'id="chamber-now-panel"', chamber],
     ['Chamber current state watch list', 'chamber-now-watch', chamber],
     ['Chamber current state styles', '.chamber-now-panel', styles],

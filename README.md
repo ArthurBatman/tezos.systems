@@ -564,7 +564,9 @@ inline modal styles in `js/core/app.js`.
   in the Tezos L1 Governance card and modal. The Tezos L1 Governance card refreshes every 60 seconds
   and expands during active ballot periods to show proposal name, time left,
   quorum, supermajority, and ballot context; during Adoption it expands with a
-  no-ballot runway explanation and activation timing. The opened L1 governance panel renders
+  no-ballot runway explanation and activation timing. During an empty Proposal
+  period, the compact card leads with `No Proposal` while retaining the current
+  phase as secondary context. The opened L1 governance panel renders
   live vote instrumentation before the process explainer and includes a
   phase-aware current-state panel for quiet proposal/cooldown/adoption moments,
   proposal intel, quorum/non-voter gap analysis, and a vote share capture
@@ -923,7 +925,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v453`, including hero search, theme
+- Current aligned shell cache stamp: `v454`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.
