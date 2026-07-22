@@ -243,6 +243,8 @@ function renderFooter() {
         footer.setAttribute('data-site-footer', 'true');
         footer.setAttribute('role', 'contentinfo');
         footer.innerHTML = `<div class="site-footer-inner" data-site-footer-attribution>${withLegalAttribution(attributionHtml)}</div>`;
+        const sourceLine = footer.querySelector('.site-footer-inner > .footer-source-line');
+        if (sourceLine) sourceLine.parentElement.appendChild(sourceLine);
         initFooterDelegation(footer);
     });
 }

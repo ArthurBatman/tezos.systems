@@ -482,10 +482,7 @@
 
 .footer.site-footer-separate,
 .landing-footer.site-footer-separate {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+    display: block;
 }
 
 .site-footer-separate::before {
@@ -493,12 +490,10 @@
 }
 
 .site-footer-inner {
-    display: flex;
-    flex: 1 1 auto;
-    flex-wrap: wrap;
+    display: grid;
     align-items: center;
-    justify-content: center;
-    gap: 0 10px;
+    justify-items: center;
+    gap: 8px;
     min-width: 0;
     color: var(--site-footer-text);
     font-size: clamp(0.65rem, 0.72vw, 0.68rem);
@@ -517,16 +512,16 @@
 }
 
 .site-footer-separate .site-footer-inner > span + span::before {
-    content: "";
-    display: inline-block;
-    width: 3px;
-    height: 3px;
-    margin-right: 10px;
-    border-radius: 50%;
-    background: var(--site-footer-accent);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--site-footer-accent) 48%, transparent);
-    opacity: 0.5;
-    vertical-align: middle;
+    content: none;
+}
+
+.footer-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 12px;
+    min-width: 0;
 }
 
 .site-footer-separate .site-footer-inner a {
@@ -597,21 +592,16 @@
     line-height: 1.35;
     text-align: center;
     white-space: nowrap;
-    flex: 0 0 auto;
 }
 
 @media (max-width: 1050px) {
     .footer.site-footer-separate,
     .landing-footer.site-footer-separate {
-        display: grid;
-        justify-items: center;
-        gap: 6px;
         padding-block: 10px;
     }
 
     .site-footer-inner {
-        flex-wrap: wrap;
-        row-gap: 3px;
+        gap: 7px;
     }
 }
 
@@ -1044,18 +1034,12 @@
     }
 
     .site-footer-inner {
-        flex-direction: column;
-        flex-wrap: nowrap;
-        gap: 4px;
+        gap: 7px;
         font-size: 0.65rem;
     }
 
     .site-footer-separate .site-footer-inner :is(.powered-by, .footer-baker-support, .footer-source-line, .footer-contribute) {
         white-space: normal;
-    }
-
-    .site-footer-separate .site-footer-inner > span + span::before {
-        display: none;
     }
 
     .site-map-footer .site-map-disclosure > summary {

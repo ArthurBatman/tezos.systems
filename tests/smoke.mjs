@@ -3376,12 +3376,21 @@ async function smokeAppShell(browser, baseUrl) {
     const footer = document.querySelector('#site-footer');
     const footerAttribution = footer?.querySelector('.site-footer-inner');
     const footerBuild = footer?.querySelector('.build-version');
+    const footerSource = footer?.querySelector('.footer-source-line');
+    const footerRows = footer ? [
+      footer.querySelector('.powered-by'),
+      footer.querySelector('.footer-baker-support'),
+      footer.querySelector('.footer-contribute'),
+      footer.querySelector('.footer-meta-row')
+    ] : [];
     const handoff = footer?.previousElementSibling?.matches('[data-site-handoff]')
       ? footer.previousElementSibling
       : null;
     const footerRect = footer?.getBoundingClientRect();
-    const attributionRect = footerAttribution?.getBoundingClientRect();
     const buildRect = footerBuild?.getBoundingClientRect();
+    const sourceRect = footerSource?.getBoundingClientRect();
+    const footerRowRects = footerRows.map((row) => row?.getBoundingClientRect()).filter(Boolean);
+    const footerRowGaps = footerRowRects.slice(1).map((rect, index) => rect.top - footerRowRects[index].bottom);
     const handoffRect = handoff?.getBoundingClientRect();
 
     return {
@@ -3413,11 +3422,20 @@ async function smokeAppShell(browser, baseUrl) {
       footerLinksHtml,
       footerLayout: {
         display: footer ? getComputedStyle(footer).display : '',
+        innerDisplay: footerAttribution ? getComputedStyle(footerAttribution).display : '',
         gapFromHandoff: footerRect && handoffRect ? footerRect.top - handoffRect.bottom : Number.NaN,
         height: footerRect?.height || 0,
-        sameRow: attributionRect && buildRect
-          ? Math.abs((attributionRect.top + attributionRect.height / 2) - (buildRect.top + buildRect.height / 2)) <= 3
+        fourRows: footerRowRects.length === 4 && footerRowRects.slice(1).every((rect, index) => rect.top > footerRowRects[index].bottom),
+        maxCenterDelta: footerRect && footerRowRects.length === 4
+          ? Math.max(...footerRowRects.map((rect) => Math.abs((rect.left + rect.width / 2) - (footerRect.left + footerRect.width / 2))))
+          : Number.NaN,
+        minRowGap: footerRowGaps.length ? Math.min(...footerRowGaps) : Number.NaN,
+        metaSameRow: sourceRect && buildRect
+          ? Math.abs((sourceRect.top + sourceRect.height / 2) - (buildRect.top + buildRect.height / 2)) <= 3
           : false,
+        leadingMarker: footer?.querySelector('.footer-baker-support')
+          ? getComputedStyle(footer.querySelector('.footer-baker-support'), '::before').content
+          : '',
         overflow: footer ? footer.scrollWidth - footer.clientWidth : Number.NaN
       },
       iconResults,
@@ -3475,13 +3493,18 @@ async function smokeAppShell(browser, baseUrl) {
     && /<\/a>\s+·\s+<a/.test(shell.footerLinksHtml),
   `app shell: footer credit links should preserve visible word and separator spacing: ${JSON.stringify({ builder: shell.footerBuilderHtml, links: shell.footerLinksHtml })}`);
   assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
-  assert(shell.footerLayout.display === 'flex'
-    && shell.footerLayout.sameRow
-    && shell.footerLayout.height <= 80
+  assert(shell.footerLayout.display === 'block'
+    && shell.footerLayout.innerDisplay === 'grid'
+    && shell.footerLayout.fourRows
+    && shell.footerLayout.maxCenterDelta <= 1
+    && shell.footerLayout.minRowGap >= 6
+    && shell.footerLayout.metaSameRow
+    && shell.footerLayout.leadingMarker === 'none'
+    && shell.footerLayout.height <= 150
     && shell.footerLayout.gapFromHandoff >= 80
     && shell.footerLayout.gapFromHandoff <= 100
     && shell.footerLayout.overflow <= 1,
-  `app shell: desktop footer should be a compact credit rail directly beneath the Handoff: ${JSON.stringify(shell.footerLayout)}`);
+  `app shell: desktop footer should be four centered, evenly spaced lines without leading bullets: ${JSON.stringify(shell.footerLayout)}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');
   assert(shell.stylesheet && shell.appScript && shell.appPreload, `app shell: missing stamped stylesheet/app script (${shell.stylesheet}, ${shell.appPreload}, ${shell.appScript})`);
   assert(shell.cacheVersion && shell.cacheVersion === shell.cssVersion && shell.cacheVersion === shell.appPreloadVersion && shell.cacheVersion === shell.appScriptVersion, `app shell: cache stamps mismatch cache=${shell.cacheVersion} css=${shell.cssVersion} preload=${shell.appPreloadVersion} script=${shell.appScriptVersion}`);
