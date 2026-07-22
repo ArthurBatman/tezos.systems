@@ -8,7 +8,7 @@
     --capital-gold: #f3c969;
     position: relative;
     overflow: hidden;
-    min-height: 255px;
+    min-height: 320px;
     border-color: color-mix(in srgb, var(--capital-accent) 34%, var(--border-color, #334155));
     background:
         radial-gradient(circle at 88% 16%, rgba(243, 201, 105, .14), transparent 36%),
@@ -32,7 +32,8 @@
     z-index: 1;
     display: grid;
     grid-template-columns: minmax(0, 1.1fr) minmax(230px, .9fr);
-    gap: 20px;
+    grid-template-rows: minmax(0, 1fr) 50px;
+    gap: 8px 20px;
     height: 100%;
 }
 
@@ -79,14 +80,14 @@
 }
 
 .capital-entry-kpis {
-    gap: 8px;
+    gap: 6px;
     align-content: start;
 }
 
 .capital-entry-kpi {
-    flex: 1 1 calc(50% - 8px);
+    flex: 1 1 calc(50% - 6px);
     min-width: 105px;
-    padding: 12px;
+    padding: 9px 10px;
     border: 1px solid rgba(148, 163, 184, .16);
     border-radius: 12px;
     background: rgba(7, 14, 25, .48);
@@ -101,9 +102,87 @@
 
 .capital-entry-kpi strong {
     display: block;
-    margin: 5px 0 2px;
+    margin: 3px 0 1px;
     color: var(--text-primary, #f8fafc);
     font: 700 1.05rem/1.2 "JetBrains Mono", monospace;
+}
+
+.capital-entry-price-chart,
+.capital-entry-price-empty {
+    grid-column: 1 / -1;
+    min-width: 0;
+    min-height: 50px;
+    border: 1px solid rgba(105, 231, 195, .15);
+    border-radius: 10px;
+    background: linear-gradient(90deg, rgba(105, 231, 195, .075), rgba(7, 14, 25, .28));
+}
+
+.capital-entry-price-chart {
+    display: grid;
+    grid-template-columns: minmax(92px, 126px) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 5px 9px;
+    pointer-events: none;
+}
+
+.capital-entry-price-copy {
+    display: grid;
+    gap: 3px;
+    color: var(--text-muted, #94a3b8);
+    font: 600 9px/1.2 "JetBrains Mono", monospace;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.capital-entry-price-copy strong {
+    color: var(--text-primary, #f8fafc);
+    font-size: 10px;
+    letter-spacing: .02em;
+}
+
+.capital-entry-price-copy .is-positive,
+.capital-price-summary .is-positive strong { color: #7cf0c9; }
+
+.capital-entry-price-copy .is-negative,
+.capital-price-summary .is-negative strong { color: #ff9db5; }
+
+.capital-entry-price-copy .is-flat,
+.capital-price-summary .is-flat strong { color: #cbd8e5; }
+
+.capital-entry-price-chart svg {
+    display: block;
+    width: 100%;
+    height: 40px;
+    overflow: visible;
+}
+
+.capital-entry-price-area {
+    fill: rgba(105, 231, 195, .12);
+}
+
+.capital-entry-price-line {
+    fill: none;
+    stroke: var(--capital-accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+.capital-entry-price-end {
+    fill: #08111d;
+    stroke: var(--capital-accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+.capital-entry-price-empty {
+    display: grid;
+    place-items: center;
+    padding: 8px;
+    color: var(--text-muted, #94a3b8);
+    font: 600 9px/1.3 "JetBrains Mono", monospace;
+    letter-spacing: .05em;
+    text-transform: uppercase;
 }
 
 .capital-entry-rails {
@@ -474,6 +553,15 @@
     grid-column: 1 / -1;
 }
 
+.capital-market-price-panel {
+    overflow: hidden;
+    padding: 18px;
+    border-color: rgba(105, 231, 195, .24);
+    background:
+        radial-gradient(circle at 82% 2%, rgba(105, 231, 195, .105), transparent 38%),
+        linear-gradient(135deg, rgba(10, 25, 37, .98), rgba(8, 17, 29, .92));
+}
+
 .capital-panel-head {
     display: flex;
     gap: 12px;
@@ -529,6 +617,92 @@
 
 .capital-chart-area {
     opacity: .1;
+}
+
+.capital-price-history {
+    min-width: 0;
+}
+
+.capital-price-summary {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.capital-price-summary > span {
+    min-width: 0;
+    padding: 9px 11px;
+    border: 1px solid rgba(148, 163, 184, .12);
+    border-radius: 9px;
+    background: rgba(3, 10, 19, .35);
+}
+
+.capital-price-summary small,
+.capital-price-summary strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.capital-price-summary small {
+    color: #7189a0;
+    font: 600 8px/1.2 "JetBrains Mono", monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.capital-price-summary strong {
+    margin-top: 4px;
+    color: #eef7ff;
+    font: 700 clamp(.9rem, 1.4vw, 1.08rem)/1.15 "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.capital-featured-price-chart {
+    min-height: 300px;
+}
+
+.capital-featured-price-chart svg {
+    height: 300px;
+}
+
+.capital-price-grid {
+    stroke: rgba(148, 163, 184, .12);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.capital-price-axis,
+.capital-price-date {
+    fill: #7189a0;
+    font: 500 9px "JetBrains Mono", monospace;
+}
+
+.capital-price-area {
+    fill: url(#capital-price-area-gradient);
+}
+
+.capital-price-line {
+    fill: none;
+    stroke: var(--capital-accent);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2.5;
+    vector-effect: non-scaling-stroke;
+    filter: drop-shadow(0 0 5px rgba(105, 231, 195, .22));
+}
+
+.capital-price-end-halo {
+    fill: rgba(105, 231, 195, .16);
+}
+
+.capital-price-end {
+    fill: #08111d;
+    stroke: var(--capital-accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
 }
 
 .capital-chart-empty {
@@ -794,10 +968,18 @@
 
 @media (max-width: 940px) {
     .capital-entry-front { grid-template-columns: 1fr; }
+    .capital-entry-front { grid-template-rows: auto; }
     .capital-entry-rails { grid-column: 1; }
     .capital-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .capital-proof-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .capital-pathways { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 760px) and (max-width: 1179px) {
+    #chambers-grid .capital-entry-card.chamber-entry-wide {
+        min-height: 390px;
+        height: auto;
+    }
 }
 
 @media (max-width: 700px) {
@@ -828,12 +1010,17 @@
     .capital-panel-head { display: block; }
     .capital-coverage { max-width: none; margin-top: 5px; text-align: left; }
     .capital-chart svg { height: 160px; }
+    .capital-market-price-panel { padding: 13px; }
+    .capital-price-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .capital-featured-price-chart { min-height: 232px; }
+    .capital-featured-price-chart svg { height: 232px; }
 }
 
 @media (max-width: 470px) {
     .capital-entry-front { gap: 12px; }
     .capital-entry-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .capital-entry-kpi { min-width: 0; }
+    .capital-entry-price-chart { grid-template-columns: 82px minmax(0, 1fr); gap: 7px; padding-inline: 7px; }
     .capital-kpi-grid { grid-template-columns: 1fr; }
     .capital-kpi { min-height: 94px; }
     .capital-tabs { margin-right: -34px; }

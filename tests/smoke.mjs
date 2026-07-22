@@ -2578,6 +2578,7 @@ async function assertChamberControlGeometry(page, label) {
       '.card-front .tezoscrp-entry-pulse',
       '.card-front .tezoscrp-entry-pulse-line',
       '.card-front .tezoscrp-entry-icons',
+      '.card-front .capital-entry-price-chart',
       '.card-front .network-health-blocks',
       '.card-front .network-health-block',
       '.card-front .health-live-tape',
@@ -8079,12 +8080,15 @@ async function smokeCapitalChamber(browser, baseUrl) {
     text: card.textContent?.replace(/\s+/g, ' ').trim() || '',
     role: card.getAttribute('role') || '',
     openTag: card.querySelector('.chamber-expand-cue')?.tagName || '',
-    openLabel: card.querySelector('.chamber-expand-cue')?.getAttribute('aria-label') || ''
+    openLabel: card.querySelector('.chamber-expand-cue')?.getAttribute('aria-label') || '',
+    priceHistoryLabel: card.querySelector('.capital-entry-price-chart')?.getAttribute('aria-label') || '',
+    priceHistoryPath: card.querySelector('.capital-entry-price-line')?.getAttribute('d') || ''
   }));
   assert(cardState.copyHash === '#capital', `capital chamber: card copy route mismatch ${cardState.copyHash}`);
   assert(/Capital Chamber/.test(cardState.text) && /Tezos|Etherlink/.test(cardState.text), `capital chamber: root card copy missing ${cardState.text}`);
   assert(/snapshot/i.test(cardState.text), `capital chamber: root card must expose a generated-snapshot freshness receipt ${cardState.text}`);
   assert(cardState.role === 'article', `capital chamber: root card semantics missing ${JSON.stringify(cardState)}`);
+  assert(/XTZ USD 90D daily close history/i.test(cardState.priceHistoryLabel) && cardState.priceHistoryPath.length > 80, `capital chamber: root card historical XTZ line is missing ${JSON.stringify(cardState)}`);
 
   await page.locator('#hero-search-input').fill('network fees');
   await page.waitForFunction(() => /Network Fees by Layer/i.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
@@ -8176,7 +8180,12 @@ async function smokeCapitalChamber(browser, baseUrl) {
       rangeLabels: Array.from(panel?.querySelectorAll('.capital-range-btn') || []).map((button) => button.textContent?.trim() || ''),
       disabledRanges: panel?.querySelectorAll('.capital-range-btn:disabled').length || 0,
       directTradeLinks: links.filter((link) => /^trade$/i.test(link.textContent?.trim() || '') || /binance|coinbase|kraken|okx|bybit|gate\.io|htx/i.test(link.href)).length,
-      sourceReceipts: panel?.querySelectorAll('.capital-source-receipt').length || 0
+      sourceReceipts: panel?.querySelectorAll('.capital-source-receipt').length || 0,
+      featuredPriceCharts: panel?.querySelectorAll('.capital-featured-price-chart').length || 0,
+      pricePanelWide: panel?.querySelector('.capital-market-price-panel')?.classList.contains('capital-panel-wide') || false,
+      priceSummaryItems: panel?.querySelectorAll('.capital-price-summary > span').length || 0,
+      priceChartLabel: panel?.querySelector('.capital-featured-price-chart')?.getAttribute('aria-label') || '',
+      priceChartPath: panel?.querySelector('.capital-price-line')?.getAttribute('d') || ''
     };
   });
   for (const period of ['1h', '4h', '24h', '7d', '30d', '90d', '180d', '365d', 'MTD', 'QTD']) {
@@ -8186,6 +8195,7 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(marketState.qualityWarnings > 0 && /quality|quarantin|stale|anomal/i.test(marketState.text), `capital chamber: venue quality warnings missing ${JSON.stringify(marketState)}`);
   assert(marketState.directTradeLinks === 0, `capital chamber: direct trading links must not be present, saw ${marketState.directTradeLinks}`);
   assert(JSON.stringify(marketState.rangeLabels) === JSON.stringify(['30D', '3M', '6M', '1Y']) && marketState.disabledRanges === 0, `capital chamber: Markets must expose only its four selectable ranges ${JSON.stringify(marketState)}`);
+  assert(marketState.featuredPriceCharts === 1 && marketState.pricePanelWide && marketState.priceSummaryItems === 8 && /XTZ USD 30D daily close history/i.test(marketState.priceChartLabel) && marketState.priceChartPath.length > 80, `capital chamber: Markets full-width historical price chart is incomplete ${JSON.stringify(marketState)}`);
   assert(/centralized-exchange net flows|CEX net flows/i.test(marketState.text) && /unavailable|not calculated|not-calculated/i.test(marketState.text), `capital chamber: explicit CEX-flow unavailable receipt missing ${marketState.text}`);
   assert(marketState.sourceReceipts > 0, 'capital chamber: Markets source receipts missing');
 
@@ -8355,6 +8365,9 @@ async function smokeCapitalChamber(browser, baseUrl) {
   const mobileResponse = await mobilePage.goto(`${baseUrl}/capital/?view=art`, { waitUntil: 'domcontentloaded' });
   assert(mobileResponse?.ok(), `capital chamber mobile: direct Art route failed with HTTP ${mobileResponse?.status()}`);
   await mobilePage.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 15000 });
+  await mobilePage.waitForFunction(() => /Art/i.test(document.querySelector('#capital-modal .capital-tab[aria-selected="true"]')?.textContent || '')
+    && /30D source window/i.test(document.querySelector('#capital-modal .capital-range-static')?.textContent || '')
+    && document.querySelector('#capital-chamber-body')?.dataset.capitalRendered === '1', null, { timeout: 10000 });
   await mobilePage.waitForTimeout(450);
   const mobileState = await mobilePage.evaluate(() => {
     const modal = document.querySelector('#capital-modal .capital-content');

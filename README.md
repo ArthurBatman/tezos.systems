@@ -334,8 +334,10 @@ inline modal styles in `js/core/app.js`.
   unlike metrics share one definition: **One System** (`?view=system`) connects
   Tezos and Etherlink activity, TVL, stablecoins, layer-separated transaction
   fees, gas prices, protocols, and Octez development; **Markets**
-  (`?view=markets`) compares XTZ in USD, BTC, and ETH
-  and exposes exchange-market snapshots; **Assets** (`?view=assets`)
+  (`?view=markets`) leads with a full-width XTZ/USD daily-close chart and
+  open/high/low/latest context, compares XTZ in USD, BTC, and ETH, and exposes
+  exchange-market snapshots. The dashboard launcher carries a compact 90-day
+  XTZ/USD line from the same snapshot; **Assets** (`?view=assets`)
   separates public registry discoveries from issuer-confirmed xU3O8 evidence;
   and **Art** (`?view=art`) presents OBJKT-indexed sales, mints, collections,
   buyers, and artists. One System offers 30D, 3M, 6M, 1Y, and 2Y; Markets shows

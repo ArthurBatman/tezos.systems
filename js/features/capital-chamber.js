@@ -14,7 +14,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const CAPITAL_CSS_URL = '/css/capital.css?v=454';
+const CAPITAL_CSS_URL = '/css/capital.css?v=455';
 const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -304,6 +304,124 @@ function renderChart(series, label) {
     `;
 }
 
+function priceHistoryModel(rows, rangeId) {
+    const points = downsample(pointsForRange(rows, 'value', rangeId), 240);
+    if (points.length < 2) return null;
+    const values = points.map((point) => point.value);
+    const first = points[0];
+    const latest = points.at(-1);
+    const low = Math.min(...values);
+    const high = Math.max(...values);
+    const spread = Math.max(high - low, Math.abs(high || 1) * .02);
+    const floor = Math.max(0, low - (spread * .08));
+    const ceiling = high + (spread * .08);
+    const changePct = first.value === 0 ? null : ((latest.value / first.value) - 1) * 100;
+    return { points, first, latest, low, high, floor, ceiling, changePct };
+}
+
+function priceDirection(value) {
+    const number = numeric(value);
+    if (number === null || Math.abs(number) < .005) return 'is-flat';
+    return number > 0 ? 'is-positive' : 'is-negative';
+}
+
+function priceHistoryLabel(model, rangeId) {
+    return `XTZ USD ${rangeId} daily close history from ${formatDate(model.first.date)} to ${formatDate(model.latest.date)}. Open ${formatUsd(model.first.value, false)}, latest ${formatUsd(model.latest.value, false)}, high ${formatUsd(model.high, false)}, low ${formatUsd(model.low, false)}, range return ${formatPct(model.changePct, { signed: true })}.`;
+}
+
+function renderPriceHistory(rows, rangeId, market = {}) {
+    const model = priceHistoryModel(rows, rangeId);
+    if (!model) return '<div class="capital-chart-empty">No comparable XTZ price history is available in this snapshot.</div>';
+
+    const width = 1040;
+    const height = 300;
+    const left = 70;
+    const right = 1012;
+    const top = 24;
+    const bottom = 238;
+    const timeSpan = Math.max(1, model.latest.timestamp - model.first.timestamp);
+    const valueSpan = Math.max(Number.EPSILON, model.ceiling - model.floor);
+    const x = (timestamp) => left + (((timestamp - model.first.timestamp) / timeSpan) * (right - left));
+    const y = (value) => bottom - (((value - model.floor) / valueSpan) * (bottom - top));
+    const path = model.points.map((point, index) => `${index ? 'L' : 'M'}${x(point.timestamp).toFixed(2)},${y(point.value).toFixed(2)}`).join(' ');
+    const firstX = x(model.first.timestamp).toFixed(2);
+    const lastX = x(model.latest.timestamp).toFixed(2);
+    const lastY = y(model.latest.value).toFixed(2);
+    const midPoint = model.points[Math.floor((model.points.length - 1) / 2)];
+    const gridRatios = [0, .333, .667, 1];
+    const grid = gridRatios.map((ratio) => {
+        const gridValue = model.ceiling - ((model.ceiling - model.floor) * ratio);
+        const gridY = top + ((bottom - top) * ratio);
+        return `
+            <line class="capital-price-grid" x1="${left}" y1="${gridY.toFixed(2)}" x2="${right}" y2="${gridY.toFixed(2)}"></line>
+            <text class="capital-price-axis" x="${left - 12}" y="${(gridY + 3).toFixed(2)}" text-anchor="end">${escapeHtml(formatUsd(gridValue, false))}</text>
+        `;
+    }).join('');
+
+    return `
+        <div class="capital-price-history">
+            <div class="capital-price-summary" aria-hidden="true">
+                <span><small>Open</small><strong>${escapeHtml(formatUsd(model.first.value, false))}</strong></span>
+                <span><small>High</small><strong>${escapeHtml(formatUsd(model.high, false))}</strong></span>
+                <span><small>Low</small><strong>${escapeHtml(formatUsd(model.low, false))}</strong></span>
+                <span><small>Latest</small><strong>${escapeHtml(formatUsd(model.latest.value, false))}</strong></span>
+                <span class="${priceDirection(model.changePct)}"><small>${escapeHtml(rangeId)} return</small><strong>${escapeHtml(formatPct(model.changePct, { signed: true }))}</strong></span>
+                <span><small>Market cap</small><strong>${escapeHtml(formatUsd(market.marketCapUsd))}</strong></span>
+                <span><small>24h volume</small><strong>${escapeHtml(formatUsd(market.volume24hUsd))}</strong></span>
+                <span class="${priceDirection(market.change24hPct)}"><small>24h return</small><strong>${escapeHtml(formatPct(market.change24hPct, { signed: true }))}</strong></span>
+            </div>
+            <div class="capital-chart capital-featured-price-chart" role="img" aria-label="${escapeHtml(priceHistoryLabel(model, rangeId))}">
+                <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <defs>
+                        <linearGradient id="capital-price-area-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#69e7c3" stop-opacity=".28"></stop>
+                            <stop offset="100%" stop-color="#69e7c3" stop-opacity="0"></stop>
+                        </linearGradient>
+                    </defs>
+                    ${grid}
+                    <path class="capital-price-area" d="${path} L${lastX},${bottom} L${firstX},${bottom} Z"></path>
+                    <path class="capital-price-line" d="${path}"></path>
+                    <circle class="capital-price-end-halo" cx="${lastX}" cy="${lastY}" r="8"></circle>
+                    <circle class="capital-price-end" cx="${lastX}" cy="${lastY}" r="3.5"></circle>
+                    <text class="capital-price-date" x="${left}" y="282">${escapeHtml(formatDate(model.first.date))}</text>
+                    <text class="capital-price-date" x="${x(midPoint.timestamp).toFixed(2)}" y="282" text-anchor="middle">${escapeHtml(formatDate(midPoint.date))}</text>
+                    <text class="capital-price-date" x="${right}" y="282" text-anchor="end">${escapeHtml(formatDate(model.latest.date))}</text>
+                </svg>
+            </div>
+        </div>
+    `;
+}
+
+function renderEntryPriceHistory(rows) {
+    const rangeId = '3M';
+    const model = priceHistoryModel(rows, rangeId);
+    if (!model) return '<div class="capital-entry-price-empty">90D XTZ history unavailable</div>';
+    const width = 760;
+    const height = 48;
+    const top = 4;
+    const bottom = 44;
+    const timeSpan = Math.max(1, model.latest.timestamp - model.first.timestamp);
+    const valueSpan = Math.max(Number.EPSILON, model.ceiling - model.floor);
+    const x = (timestamp) => ((timestamp - model.first.timestamp) / timeSpan) * width;
+    const y = (value) => bottom - (((value - model.floor) / valueSpan) * (bottom - top));
+    const path = model.points.map((point, index) => `${index ? 'L' : 'M'}${x(point.timestamp).toFixed(2)},${y(point.value).toFixed(2)}`).join(' ');
+    const lastX = x(model.latest.timestamp).toFixed(2);
+    const lastY = y(model.latest.value).toFixed(2);
+    return `
+        <div class="capital-entry-price-chart" role="img" aria-label="${escapeHtml(priceHistoryLabel(model, '90D'))}">
+            <div class="capital-entry-price-copy" aria-hidden="true">
+                <span>XTZ / USD</span>
+                <strong class="${priceDirection(model.changePct)}">90D ${escapeHtml(formatPct(model.changePct, { signed: true }))}</strong>
+            </div>
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                <path class="capital-entry-price-area" d="${path} L${lastX},${height} L0,${height} Z"></path>
+                <path class="capital-entry-price-line" d="${path}"></path>
+                <circle class="capital-entry-price-end" cx="${lastX}" cy="${lastY}" r="3"></circle>
+            </svg>
+        </div>
+    `;
+}
+
 function renderBarChart(rows, label) {
     const usable = (Array.isArray(rows) ? rows : [])
         .map((row) => ({ label: row.label, value: numeric(row.value), color: row.color || '#69e7c3' }))
@@ -334,9 +452,9 @@ function kpi(label, value, note, tone = '') {
     `;
 }
 
-function panel(title, kicker, content, coverage = '', wide = false) {
+function panel(title, kicker, content, coverage = '', wide = false, className = '') {
     return `
-        <section class="capital-panel${wide ? ' capital-panel-wide' : ''}">
+        <section class="capital-panel${wide ? ' capital-panel-wide' : ''}${className ? ` ${escapeHtml(className)}` : ''}">
             <div class="capital-panel-head">
                 <div><div class="capital-panel-kicker">${escapeHtml(kicker)}</div><h4>${escapeHtml(title)}</h4></div>
                 ${coverage ? `<div class="capital-coverage">${escapeHtml(coverage)}</div>` : ''}
@@ -646,19 +764,11 @@ function renderMarkets(snapshot) {
     tickers.sort((a, b) => (numeric(b.convertedVolumeUsd) || 0) - (numeric(a.convertedVolumeUsd) || 0));
     const usable = tickers.filter((ticker) => tickerQuality(ticker).id !== 'bad');
     const quarantined = tickers.filter((ticker) => tickerQuality(ticker).id === 'bad');
-    const priceChart = renderChart([
-        { label: 'XTZ / USD', color: '#69e7c3', points: pointsForRange(xtz.priceHistory?.usd, 'value', range) }
-    ], 'XTZ USD daily close history');
+    const priceChart = renderPriceHistory(xtz.priceHistory?.usd, range, coin);
     return `
-        <div class="capital-kpi-grid">
-            ${kpi('XTZ price', formatUsd(coin.currentPriceUsd, false), `Updated ${ageLabel(coin.lastUpdated)}`)}
-            ${kpi('Market cap', formatUsd(coin.marketCapUsd), 'CoinGecko current snapshot', 'blue')}
-            ${kpi('24h spot volume', formatUsd(coin.volume24hUsd), 'Provider-aggregated venue volume', 'gold')}
-            ${kpi('24h return', formatPct(coin.change24hPct, { signed: true }), 'Current-price provider receipt', 'rose')}
-        </div>
         <div class="capital-panel-grid">
-            ${panel('XTZ daily close', 'Price history', priceChart, `${range} · daily data; not intraday`)}
-            ${panel('Return matrix', 'Relative performance', renderReturnMatrix(snapshot), '1h and 4h intentionally unavailable; daily-close basis')}
+            ${panel('XTZ / USD daily close', 'Price history', priceChart, `${range} · daily close · CoinGecko`, true, 'capital-market-price-panel')}
+            ${panel('Return matrix', 'Relative performance', renderReturnMatrix(snapshot), '1h and 4h intentionally unavailable; daily-close basis', true)}
             ${panel('Venue tape', 'Quality-screened tickers', renderTickerTable(usable, 'CoinGecko XTZ market tickers requiring no quarantine'), `${usable.length} reviewable rows · showing up to 28`, true)}
             ${panel('Quarantine', 'Stale, anomalous, or structurally thin', renderTickerTable(quarantined, 'Quarantined CoinGecko XTZ ticker rows', 18), `${quarantined.length} of ${tickers.length} rows · no trading call to action`, true)}
         </div>
@@ -871,7 +981,6 @@ function entryMarkup(snapshot) {
     const totalTvl = sum([tezos.tvl?.currentUsd, etherlink.tvl?.currentUsd], { requireAll: true });
     const totalStable = sum([tezos.stablecoins?.currentUsd, etherlink.stablecoins?.currentUsd], { requireAll: true });
     const coin = snapshot.markets.xtz?.coin || {};
-    const artVolume = sum((snapshot.art?.marketplaces || []).map((row) => row.volumeXtz));
     return `
         <div>
             <div class="capital-entry-title-line"><h2 class="stat-label" id="capital-entry-title">Capital Chamber</h2><span class="capital-entry-chip">Public-source</span></div>
@@ -884,7 +993,7 @@ function entryMarkup(snapshot) {
             <div class="capital-entry-kpi"><span>Stablecoins</span><strong>${escapeHtml(formatUsd(totalStable))}</strong><small>Both layers</small></div>
             <div class="capital-entry-kpi"><span>XTZ</span><strong>${escapeHtml(formatUsd(coin.currentPriceUsd, false))}</strong><small>${escapeHtml(formatPct(coin.change24hPct, { signed: true }))} · 24h</small></div>
         </div>
-        <div class="capital-entry-rails"><span>Markets</span><span>RWA proofbooks</span><span>Art ${escapeHtml(formatXtz(artVolume))}</span><span>Coverage receipts</span></div>
+        ${renderEntryPriceHistory(snapshot.markets.xtz?.priceHistory?.usd)}
     `;
 }
 
@@ -1086,7 +1195,7 @@ function ensureEntryCard() {
             <div class="card-front chamber-entry-front capital-entry-front" id="capital-entry-front">
                 <div><div class="capital-entry-title-line"><h2 class="stat-label" id="capital-entry-title">Capital Chamber</h2><span class="capital-entry-chip">Public-source</span></div><div class="stat-value capital-entry-value">Loading proofbook</div><div class="stat-description">Tezos and Etherlink capital intelligence</div></div>
                 <div class="capital-entry-kpis"><div class="capital-entry-kpi"><span>Generated snapshot</span><strong>Loading</strong><small>First-party JSON only</small></div></div>
-                <div class="capital-entry-rails"><span>Markets</span><span>Assets</span><span>Art</span><span>Coverage receipts</span></div>
+                <div class="capital-entry-price-empty">Loading 90D XTZ history</div>
             </div>
         </div>
     `;

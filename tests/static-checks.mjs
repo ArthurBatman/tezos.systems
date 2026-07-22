@@ -5551,7 +5551,7 @@ async function checkCapitalContracts() {
     || !/lastGood|last-good|last good/i.test(feature)) {
     fail('Capital Chamber must use quiet reconciliation, a visibility gate/catch-up, test interval override, and last-good data');
   }
-  for (const selector of ['.capital-entry-card', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-range-wrap', '.capital-range-static', '.capital-cost-section', '.capital-quality', '.capital-source-receipt']) {
+  for (const selector of ['.capital-entry-card', '.capital-entry-price-chart', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-range-wrap', '.capital-range-static', '.capital-cost-section', '.capital-market-price-panel', '.capital-featured-price-chart', '.capital-quality', '.capital-source-receipt']) {
     if (!css.includes(selector)) fail(`Capital Chamber CSS is missing ${selector}`);
   }
   if (!smoke.includes("name: 'capital-chamber'") || !smoke.includes('window.__CAPITAL_CHAMBER_REFRESH_MS__ = 1000')) {
