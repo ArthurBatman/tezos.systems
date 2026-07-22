@@ -3482,7 +3482,7 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.footerSourceHref === 'https://github.com/Primate411/tezos.systems', `app shell: public source link mismatch: ${shell.footerSourceHref}`);
   assert(shell.footerBuilderHref === 'https://x.com/BakingBenjamins'
     && shell.footerAffiliationHref === 'https://tez.capital'
-    && shell.footerBuilderText === 'Built by Primate, also the baker known as Baking Benjamins and a co-founding member of Tez Capital',
+    && shell.footerBuilderText === 'Built by Primate — baker behind Baking Benjamins and co-founding member of Tez Capital',
   `app shell: Primate builder, Baking Benjamins baker identity, X link, and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
   assert(shell.footerBakerSupportText.startsWith('Support this work: delegate or stake to BakingBenjamins.tez or baking.tez')
     && shell.footerBakingBenjaminsHref === '/#my-baker=bakingbenjamins.tez'

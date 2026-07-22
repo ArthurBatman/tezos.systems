@@ -3284,7 +3284,7 @@ async function checkRepositoryLicense() {
     '<meta name="author" content="Primate">',
     'href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a>',
     'href="/LICENSE" rel="license">MPL-2.0</a>',
-    'Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, also the baker known as <strong>Baking Benjamins</strong> and a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
+    'Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a> — baker behind <strong>Baking Benjamins</strong> and co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
     'Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>',
     'RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
     '"license": "https://creativecommons.org/licenses/by/4.0/"'
@@ -3329,7 +3329,7 @@ async function checkRepositoryLicense() {
     if (!/"publisher":\s*\{\s*"@type": "Person",\s*"name": "Primate",\s*"url": "https:\/\/x\.com\/BakingBenjamins",\s*"sameAs": "https:\/\/github\.com\/Primate411",\s*"affiliation":\s*\{\s*"@type": "Organization",\s*"name": "Tez Capital",\s*"url": "https:\/\/tez\.capital"\s*\}\s*\}/s.test(page)) {
       fail(`${file} must identify Primate as its publisher, link BakingBenjamins on X, and retain Tez Capital affiliation`);
     }
-    if (!page.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a>, also the baker known as <strong>Baking Benjamins</strong> and a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+    if (!page.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a> — baker behind <strong>Baking Benjamins</strong> and co-founding member of <a href="https://tez.capital">Tez Capital</a>')
       || !page.includes('Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>')
       || !page.includes('<a href="https://tez.capital">RPC by Tez Capital</a>')
       || page.includes('Powered by Tez Capital')) {
@@ -3337,17 +3337,17 @@ async function checkRepositoryLicense() {
     }
   }
   if (!landing.includes('Built by <a href="https://x.com/BakingBenjamins"')
-    || !landing.includes('also the baker known as <strong>Baking Benjamins</strong>')
+    || !landing.includes('— baker behind <strong>Baking Benjamins</strong>')
     || !landing.includes('Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>')
-    || !landing.includes('a co-founding member of <a href="https://tez.capital"')
+    || !landing.includes('co-founding member of <a href="https://tez.capital"')
     || !landing.includes('RPC by <a href="https://tez.capital"')
     || landing.includes('Powered by <a href="https://tez.capital"')) {
     fail('landing.html must show Primate authorship, Baking Benjamins baker identity and support paths, Tez Capital affiliation, and Tez Capital RPC credit');
   }
   if (!landingNav.includes('Built by <a href="https://x.com/BakingBenjamins"')
-    || !landingNav.includes('also the baker known as <strong>Baking Benjamins</strong>')
+    || !landingNav.includes('— baker behind <strong>Baking Benjamins</strong>')
     || !landingNav.includes('Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>')
-    || !landingNav.includes('a co-founding member of <a href="https://tez.capital"')
+    || !landingNav.includes('co-founding member of <a href="https://tez.capital"')
     || !landingNav.includes('RPC by <a href="https://tez.capital"')) {
     fail('landing footer runtime must show Primate authorship, Baking Benjamins baker identity and support paths, Tez Capital affiliation, and Tez Capital RPC credit');
   }

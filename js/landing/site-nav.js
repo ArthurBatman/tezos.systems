@@ -211,7 +211,7 @@ function originalAttributionHtml(footer) {
 
 function defaultAttributionHtml() {
     return `
-        <span class="powered-by">Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, also the baker known as <strong>Baking Benjamins</strong> and a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
+        <span class="powered-by">Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a> — baker behind <strong>Baking Benjamins</strong> and co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
         <span class="footer-baker-support">Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a></span>
         <span class="footer-source-line">Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
         <span class="footer-contribute"><a href="/landing.html">Start here</a></span>
