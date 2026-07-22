@@ -5,7 +5,6 @@
 
 const STORAGE_KEY_COUNT = 'tezos_streak_count';
 const STORAGE_KEY_LAST = 'tezos_streak_last_visit';
-const FIRST_VISIT_TOAST_DURATION = 7200;
 const STREAK_TOAST_DURATION = 6400;
 const MILESTONE_TOAST_DURATION = 11000;
 const MILESTONES = new Set([7, 14, 30, 60, 100, 365]);
@@ -187,19 +186,7 @@ export function initStreak(now = new Date()) {
     const { count, isFirstVisit, didAdvance } = updateStreak(now);
     renderCurrentStreak(count);
 
-    if (isFirstVisit) {
-        enqueueToast({
-            priority: 1,
-            duration: FIRST_VISIT_TOAST_DURATION,
-            show: (done, duration) => showStreakToast({
-                text: 'Welcome 👋 — this dashboard is watching Tezos live. Press / to search anything.',
-                count,
-                isMilestone: false
-            }, done, duration)
-        });
-    }
-
-    // The welcome is enough on a first visit, and a full reload on the same
+    // A first visit starts the counter silently, and a full reload on the same
     // calendar day should not replay a streak the visitor already saw.
     if (isFirstVisit || !didAdvance) return;
 

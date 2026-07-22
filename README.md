@@ -965,7 +965,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v462`, including hero search, theme
+- Current aligned shell cache stamp: `v463`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v320`.
 - `version.json` is stamped by `.githooks/pre-commit`.

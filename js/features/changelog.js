@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '🔧', text: 'The header no longer repeats a personalized greeting or join-era story beside My Tezos, and first visits stay quiet while the search field itself explains the / shortcut' },
             { type: '🔧', text: 'Ledger Flow now paginates the complete selected transfer window, so active accounts no longer show partial counterparty totals from only their newest 60 transactions' },
             { type: '✨', text: 'TezosCRP now has a Records desk for all-time category record holders, selectable calendar-year standings, annual leaders, and explicit shared records when award counts tie' },
             { type: '🎨', text: 'TezosCRP now carries Maxis-inspired archive theater across its launcher and Recognition Hall, with an official-round pulse, category-badge hero, and distinct gold, silver, and bronze recognition rows' },

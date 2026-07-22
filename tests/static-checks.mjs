@@ -1022,7 +1022,7 @@ async function checkSelectorContracts() {
     ['Tezos Handoff lifeline', 'class="site-handoff-lifeline"', siteHandoffSource],
     ['Tezos Handoff complete map disclosure', 'Open the complete map · ${totalDestinations} destinations', siteHandoffSource],
     ['Tezos Handoff choose-for-me route', 'Choose for me', siteHandoffSource],
-    ['hero command bar placeholder copy', 'Search every feature or paste any Tezos ID…'],
+    ['hero command bar slash-tip placeholder', 'Press / to search every feature or paste any Tezos ID…'],
     ['timeline share fallback host', 'document.querySelector(\'.upgrade-badges\')'],
     ['timeline share protocol history chamber fallback', 'document.querySelector(\'#protocol-history-chamber-modal .protocol-history-chamber-header\')'],
     ['header protocol chip', 'id="header-protocol-chip" href="#protocol-history"'],
@@ -1044,6 +1044,10 @@ async function checkSelectorContracts() {
     }
   }
   pass(`new UX selector contracts checked: ${requiredSnippets.length}`);
+
+  if (index.includes('return-greeting')) {
+    fail('the header must not restore the personalized return greeting beside My Tezos');
+  }
 
   if (index.includes('Start from anything.') || index.includes('data-loop-aura')) {
     fail('dashboard footer must not restore the retired search-recipe console');
@@ -1150,6 +1154,9 @@ async function checkSelectorContracts() {
   const ledgerFlowCss = await readText('css/ledger-flow.css');
   const maxisCss = await readText('css/maxis.css');
   const tezosDomainsCss = await readText('css/tezos-domains.css');
+  if (app.includes('updateReturnGreeting') || styles.includes('.return-greeting')) {
+    fail('the retired personalized return greeting must not leave renderer or style code behind');
+  }
   if (/TEZOS_LOOP_STORAGE_KEY|initTezosLoopConsole|initSiteFooterMap/.test(app)) {
     fail('app.js must not retain the retired loop-console or duplicate dashboard footer renderers');
   }
@@ -1784,7 +1791,6 @@ async function checkSelectorContracts() {
     ['top continuity hero settled promise', 'window.tezosSystemsHeroSettled = heroSettled', app],
     ['top continuity toast gate waits for hero', 'setToastGate(heroSettled)', app],
     ['toast queue waits for hero gate', 'await waitForGate();', toastQueue],
-    ['first visit welcome watches live copy', 'Welcome 👋 — this dashboard is watching Tezos live. Press / to search anything.', streak],
     ['top continuity counter tween', 'tweenNumber(el, 0, totalMinutes', app],
     ['top continuity pill stagger', '}, index * 80);', app],
     ['top continuity arrival pending class', 'hero-arrival-pending', app],
@@ -1838,8 +1844,6 @@ async function checkSelectorContracts() {
     ['shared chamber freshness text style', '.chamber-entry-freshness', styles],
     ['Network moments monotonic change guard', 'MONOTONIC_CHANGE_METRICS', moments],
     ['Network moments shared rule gate', 'function ruleFires', moments],
-    ['Return greeting renderer', 'function updateReturnGreeting', app],
-    ['Return greeting styles', '.return-greeting', styles],
     ['My Tezos era card button', 'tezos-era-share-btn', myTezos],
     ['My Tezos era card share helper', 'function shareEraCard', myTezos],
     ['Tezos Story action styles', '.tezos-story-actions', styles],
@@ -3825,7 +3829,7 @@ async function checkVisitStreakBehavior() {
     };
 
     const firstVisit = runVisit();
-    assert.deepEqual(firstVisit.queued.map((item) => item.priority), [1]);
+    assert.equal(firstVisit.queued.length, 0, 'first visit must start silently without a welcome toast');
     assert.equal(firstVisit.current.textContent, 'Current streak: 1 day');
     assert.equal(firstVisit.storage.getItem('tezos_streak_count'), '1');
     assert.equal(firstVisit.storage.getItem('tezos_streak_last_visit'), today);

@@ -112,7 +112,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=462';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=463';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -1194,32 +1194,6 @@ function initMyTezosButton() {
         return null;
     }
 
-    function greetingPeriod() {
-        const hour = new Date().getHours();
-        if (hour >= 5 && hour < 12) return 'morning';
-        if (hour >= 12 && hour < 18) return 'afternoon';
-        return 'evening';
-    }
-
-    function updateReturnGreeting(address, displayName, data) {
-        const el = document.getElementById('return-greeting');
-        if (!el) return;
-        if (!address) {
-            el.hidden = true;
-            el.textContent = '';
-            return;
-        }
-        const story = data?.story || null;
-        const streak = Number(data?.rewardStreak || 0);
-        const detail = story?.joinedEra
-            ? `joined in ${story.joinedEra}`
-            : streak > 1
-                ? `${streak} reward cycles`
-                : 'welcome back';
-        el.textContent = `Good ${greetingPeriod()}, ${displayName} · ${detail}`;
-        el.hidden = false;
-    }
-
     async function updateButtonState() {
         const address = localStorage.getItem(STORAGE_KEY);
         if (address) {
@@ -1238,7 +1212,6 @@ function initMyTezosButton() {
                 ? data.totalXTZ.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' XTZ'
                 : null;
             if (labelEl) labelEl.textContent = balance ? `${displayName} · ${balance}` : displayName;
-            updateReturnGreeting(address, displayName, data);
         } else {
             const iconEl = btn.querySelector('.my-tezos-icon');
             const labelEl = btn.querySelector('.nav-label');
@@ -1246,7 +1219,6 @@ function initMyTezosButton() {
             if (labelEl) labelEl.textContent = 'My Tezos';
             btn.classList.remove('connected');
             btn.title = 'My Tezos — personalize your dashboard';
-            updateReturnGreeting('', '', null);
         }
     }
 
