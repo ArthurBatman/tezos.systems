@@ -533,7 +533,8 @@ inline modal styles in `js/core/app.js`.
   transaction history with complete cursor pagination for the selected window, and
   renders an SVG transfer diagram with separate sent, received, and first-in
   colors, amount-weighted connection strength, My Tezos account links, and
-  compact TzKT pills.
+  compact TzKT pills. Address-scoped My Tezos links close the profile drawer
+  before handing focus and scroll ownership to the Ledger Flow Chamber.
 - Tezos Domains Chamber with direct `#domains` and `/domains/` access, backed by
   the Tezos Domains GraphQL API. Its default Chambers card is a full-width
   bottom strip, not paired with any other chamber, and its chamber lookup checks
@@ -965,6 +966,7 @@ Current smoke suites:
 - `my-tezos-staker-rewards`
 - `my-tezos-delegator-rewards`
 - `my-tezos-address-switch`
+- `my-tezos-ledger-flow-handoff`
 - `my-tezos-subdomain-input`
 - `my-tezos-proposal-attribution`
 - `my-tezos-deep-link-override`

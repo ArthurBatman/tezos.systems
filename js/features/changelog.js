@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '🔧', text: 'Opening Ledger Flow from My Tezos now closes the mobile profile drawer first, preserving the selected address and transferring focus into the Chamber' },
             { type: '✨', text: 'Baker Directory is now a full Chamber with Discover, complete Directory, and factual Signals views at /leaderboard/' },
             { type: '✨', text: 'Whale Watch now unifies its live operation tape, complete 24-hour transfer ledger, grouped flow stories, Deep Sleep accounts, and verified Awakenings at /whales/' },
             { type: '🔧', text: 'Whale Watch now distinguishes operation IDs from related operation-group hops, uses real last-activity timestamps for dormancy, and labels gross observed transfers without claiming economic volume' },

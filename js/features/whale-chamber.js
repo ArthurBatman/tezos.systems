@@ -38,7 +38,7 @@ import {
     requestAwakeningNotifications
 } from './sleeping-giants.js';
 
-const CSS_URL = '/css/whale-chamber.css?v=470';
+const CSS_URL = '/css/whale-chamber.css?v=471';
 const ARTIFACT_URL = '/data/whale-watch.json';
 const LIVE_REFRESH_MS = 20_000;
 const ARTIFACT_REFRESH_MS = 5 * 60_000;

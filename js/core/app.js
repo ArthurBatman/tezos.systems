@@ -114,9 +114,10 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=470';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=471';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
+let setMyTezosDrawerOpenState = null;
 
 function isContentiousProtocol(protocol, lore = null) {
     return Boolean(protocol?.contention || lore?.contention || lore?.history);
@@ -1357,6 +1358,7 @@ function initMyTezosButton() {
         }
         drawerFocusedBeforeOpen = null;
     }
+    setMyTezosDrawerOpenState = setDrawerOpen;
 
     function syncDrawerStateFromClass() {
         if (!drawer || !scrim) return;
@@ -5332,6 +5334,7 @@ function applyDeepLink() {
     };
 
     const closeHashModalSurfaces = async () => {
+        setMyTezosDrawerOpenState?.(false, { restoreFocus: false });
         document.getElementById('protocol-history-modal')?.remove();
         const protocolHistoryChamber = document.getElementById('protocol-history-chamber-modal');
         if (protocolHistoryChamber) {

@@ -1692,6 +1692,8 @@ async function checkSelectorContracts() {
     ['My Tezos Ledger Flow explain copy', "Map this account's transfer paths", index],
     ['My Tezos Ledger Flow address route', '#ledger-flow=${encodeURIComponent(addr)}', myBaker],
     ['My Tezos Ledger Flow card display mode', "ledgerFlowLink.style.display = 'grid'", myBaker],
+    ['My Tezos shared drawer state controller', 'setMyTezosDrawerOpenState = setDrawerOpen', app],
+    ['My Tezos Chamber handoff closes drawer without stale focus restore', 'setMyTezosDrawerOpenState?.(false, { restoreFocus: false })', app],
     ['My Tezos Octez operator fetch', '/delegates/${encodeURIComponent(bakerAddr)}', myTezos],
     ['My Tezos Octez version classifier', 'classifyOctezVersion', myTezos],
     ['My Tezos Octez operator tile', "renderOperatorTile(\n        'Octez'", myTezos],
@@ -5853,7 +5855,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=470'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=471'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

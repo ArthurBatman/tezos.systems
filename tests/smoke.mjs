@@ -5847,6 +5847,83 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   log('ok - my tezos address switch smoke');
 }
 
+async function smokeMyTezosLedgerFlowHandoff(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript((address) => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', address);
+  }, SAMPLE_ADDRESS);
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'my tezos Ledger Flow handoff', issues);
+
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `my tezos Ledger Flow handoff: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#my-tezos-btn').click();
+  await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 5000 });
+
+  const ledgerLink = page.locator('#my-tezos-ledger-flow-link');
+  await ledgerLink.waitFor({ state: 'visible', timeout: 5000 });
+  const expectedHash = `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS)}`;
+  assert(
+    await ledgerLink.getAttribute('href') === expectedHash,
+    `my tezos Ledger Flow handoff: link lost its address scope ${await ledgerLink.getAttribute('href')}`
+  );
+
+  await ledgerLink.click();
+  await page.locator('#ledger-flow-modal.active .ledger-flow-content').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const drawer = document.querySelector('#my-tezos-drawer');
+    const dialog = document.querySelector('#ledger-flow-modal.active .ledger-flow-content');
+    return drawer?.getAttribute('aria-hidden') === 'true'
+      && drawer?.inert === true
+      && !drawer?.classList.contains('open')
+      && dialog?.contains(document.activeElement);
+  }, null, { timeout: 5000 });
+
+  const state = await page.evaluate(() => {
+    const drawer = document.querySelector('#my-tezos-drawer');
+    const scrim = document.querySelector('#my-tezos-drawer-scrim');
+    const modal = document.querySelector('#ledger-flow-modal');
+    const dialog = modal?.querySelector('.ledger-flow-content');
+    const modalRect = modal?.getBoundingClientRect();
+    return {
+      hash: window.location.hash,
+      drawerOpen: drawer?.classList.contains('open') || false,
+      drawerAriaHidden: drawer?.getAttribute('aria-hidden') || '',
+      drawerInert: drawer?.inert === true,
+      scrimOpen: scrim?.classList.contains('open') || false,
+      triggerExpanded: document.querySelector('#my-tezos-btn')?.getAttribute('aria-expanded') || '',
+      modalActive: modal?.classList.contains('active') || false,
+      modalAriaHidden: modal?.getAttribute('aria-hidden') || '',
+      modalVisible: Boolean(modalRect && modalRect.width > 0 && modalRect.height > 0),
+      focusInsideModal: Boolean(dialog?.contains(document.activeElement)),
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow
+    };
+  });
+
+  assert(state.hash === expectedHash, `my tezos Ledger Flow handoff: address route mismatch ${JSON.stringify(state)}`);
+  assert(!state.drawerOpen && state.drawerAriaHidden === 'true' && state.drawerInert, `my tezos Ledger Flow handoff: drawer remained interactive over the Chamber ${JSON.stringify(state)}`);
+  assert(!state.scrimOpen && state.triggerExpanded === 'false', `my tezos Ledger Flow handoff: drawer chrome remained active ${JSON.stringify(state)}`);
+  assert(state.modalActive && state.modalAriaHidden === 'false' && state.modalVisible, `my tezos Ledger Flow handoff: Chamber did not become visible ${JSON.stringify(state)}`);
+  assert(state.focusInsideModal, `my tezos Ledger Flow handoff: focus did not transfer into the Chamber ${JSON.stringify(state)}`);
+  assert(state.bodyOverflow === 'hidden' && state.htmlOverflow === 'hidden', `my tezos Ledger Flow handoff: Chamber did not take ownership of scroll locking ${JSON.stringify(state)}`);
+
+  await context.close();
+  assert(issues.length === 0, `my tezos Ledger Flow handoff browser issues:\n${issues.join('\n')}`);
+  log('ok - My Tezos mobile Ledger Flow handoff smoke');
+}
+
 async function smokeMyTezosSubdomainInput(browser, baseUrl) {
   const issues = [];
   const domain = 'skllz.hack.tez';
@@ -13093,6 +13170,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-delegator-rewards', description: 'My Tezos connected drawer uses delegator estimate rows for zero-stake delegated accounts', run: () => smokeMyTezosDelegatorRewards(browser, baseUrl) },
     { name: 'my-tezos-historical-rewards', description: 'My Tezos keeps historical rewards out of the Current Cycle value and shows an inactive reward role honestly', run: () => smokeMyTezosHistoricalRewards(browser, baseUrl) },
     { name: 'my-tezos-address-switch', description: 'My Tezos connected drawer saves a newly typed address over a stale saved baker', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
+    { name: 'my-tezos-ledger-flow-handoff', description: 'My Tezos closes its mobile drawer before opening the address-scoped Ledger Flow Chamber', run: () => smokeMyTezosLedgerFlowHandoff(browser, baseUrl) },
     { name: 'my-tezos-subdomain-input', description: 'My Tezos connected drawer accepts Tezos Domains subdomains and saves their resolved address', run: () => smokeMyTezosSubdomainInput(browser, baseUrl) },
     { name: 'my-tezos-proposal-attribution', description: 'My Tezos Story distinguishes a delegator from their baker when accepted proposals are shown', run: () => smokeMyTezosProposalAttribution(browser, baseUrl) },
     { name: 'my-tezos-pretty-route', description: 'The bare /my URL resolves to the canonical My Tezos drawer route', run: () => smokeMyTezosPrettyRoute(browser, baseUrl) },
