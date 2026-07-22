@@ -3381,7 +3381,8 @@ async function smokeAppShell(browser, baseUrl) {
       footer.querySelector('.powered-by'),
       footer.querySelector('.footer-baker-support'),
       footer.querySelector('.footer-contribute'),
-      footer.querySelector('.footer-meta-row')
+      footer.querySelector('.footer-source-line'),
+      footer.querySelector('.build-version')
     ] : [];
     const handoff = footer?.previousElementSibling?.matches('[data-site-handoff]')
       ? footer.previousElementSibling
@@ -3425,13 +3426,13 @@ async function smokeAppShell(browser, baseUrl) {
         innerDisplay: footerAttribution ? getComputedStyle(footerAttribution).display : '',
         gapFromHandoff: footerRect && handoffRect ? footerRect.top - handoffRect.bottom : Number.NaN,
         height: footerRect?.height || 0,
-        fourRows: footerRowRects.length === 4 && footerRowRects.slice(1).every((rect, index) => rect.top > footerRowRects[index].bottom),
-        maxCenterDelta: footerRect && footerRowRects.length === 4
+        fiveRows: footerRowRects.length === 5 && footerRowRects.slice(1).every((rect, index) => rect.top > footerRowRects[index].bottom),
+        maxCenterDelta: footerRect && footerRowRects.length === 5
           ? Math.max(...footerRowRects.map((rect) => Math.abs((rect.left + rect.width / 2) - (footerRect.left + footerRect.width / 2))))
           : Number.NaN,
         minRowGap: footerRowGaps.length ? Math.min(...footerRowGaps) : Number.NaN,
-        metaSameRow: sourceRect && buildRect
-          ? Math.abs((sourceRect.top + sourceRect.height / 2) - (buildRect.top + buildRect.height / 2)) <= 3
+        pillOnBottom: sourceRect && buildRect
+          ? buildRect.top > sourceRect.bottom
           : false,
         leadingMarker: footer?.querySelector('.footer-baker-support')
           ? getComputedStyle(footer.querySelector('.footer-baker-support'), '::before').content
@@ -3495,16 +3496,16 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
   assert(shell.footerLayout.display === 'block'
     && shell.footerLayout.innerDisplay === 'grid'
-    && shell.footerLayout.fourRows
+    && shell.footerLayout.fiveRows
     && shell.footerLayout.maxCenterDelta <= 1
     && shell.footerLayout.minRowGap >= 6
-    && shell.footerLayout.metaSameRow
+    && shell.footerLayout.pillOnBottom
     && shell.footerLayout.leadingMarker === 'none'
-    && shell.footerLayout.height <= 150
+    && shell.footerLayout.height <= 180
     && shell.footerLayout.gapFromHandoff >= 80
     && shell.footerLayout.gapFromHandoff <= 100
     && shell.footerLayout.overflow <= 1,
-  `app shell: desktop footer should be four centered, evenly spaced lines without leading bullets: ${JSON.stringify(shell.footerLayout)}`);
+  `app shell: desktop footer should be five centered, evenly spaced lines with the build pill alone at the bottom: ${JSON.stringify(shell.footerLayout)}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');
   assert(shell.stylesheet && shell.appScript && shell.appPreload, `app shell: missing stamped stylesheet/app script (${shell.stylesheet}, ${shell.appPreload}, ${shell.appScript})`);
   assert(shell.cacheVersion && shell.cacheVersion === shell.cssVersion && shell.cacheVersion === shell.appPreloadVersion && shell.cacheVersion === shell.appScriptVersion, `app shell: cache stamps mismatch cache=${shell.cacheVersion} css=${shell.cssVersion} preload=${shell.appPreloadVersion} script=${shell.appScriptVersion}`);
