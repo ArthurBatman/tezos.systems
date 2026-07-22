@@ -1446,6 +1446,8 @@ async function checkSelectorContracts() {
     ['Ledger Flow first inbound fetch', 'async function fetchFirstInbound', ledgerFlow],
     ['Ledger Flow TzKT sender query', 'params.sender = address', ledgerFlow],
     ['Ledger Flow TzKT target query', 'params.target = address', ledgerFlow],
+    ['Ledger Flow complete-history cursor pagination', "params['id.lt'] = cursor", ledgerFlow],
+    ['Ledger Flow projected transfer fields', 'select: TRANSFER_FIELDS', ledgerFlow],
     ['Ledger Flow My Tezos counterparty links', '#my-baker=${encodeURIComponent(address)}', ledgerFlow],
     ['Ledger Flow compact TzKT pills', 'ledger-flow-tzkt-pill', ledgerFlow],
     ['Ledger Flow SVG TzKT node pills', 'ledger-flow-node-tzkt-link', ledgerFlow],

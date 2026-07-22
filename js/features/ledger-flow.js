@@ -12,9 +12,10 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=461';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=462';
 const DEFAULT_WINDOW = '30d';
-const TRANSFER_LIMIT = 60;
+const TRANSFER_PAGE_LIMIT = 2000;
+const TRANSFER_FIELDS = 'id,hash,level,timestamp,amount,sender,target';
 const MAX_VISIBLE_COUNTERPARTIES = 12;
 const TEZOS_ACCOUNT_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
@@ -204,17 +205,35 @@ function windowTimestamp(windowKey) {
 
 async function fetchTransfers(address, direction, windowKey) {
     const since = windowTimestamp(windowKey);
-    const params = {
-        status: 'applied',
-        'amount.gt': 0,
-        'sort.desc': 'level',
-        limit: TRANSFER_LIMIT
-    };
-    if (direction === 'sent') params.sender = address;
-    else params.target = address;
-    if (since) params['timestamp.gt'] = since;
-    const rows = await fetchJson(transactionUrl(params));
-    return Array.isArray(rows) ? rows : [];
+    const rows = [];
+    let cursor = '';
+
+    while (true) {
+        const params = {
+            status: 'applied',
+            'amount.gt': 0,
+            'sort.desc': 'id',
+            select: TRANSFER_FIELDS,
+            limit: TRANSFER_PAGE_LIMIT
+        };
+        if (direction === 'sent') params.sender = address;
+        else params.target = address;
+        if (since) params['timestamp.gt'] = since;
+        if (cursor) params['id.lt'] = cursor;
+
+        const page = await fetchJson(transactionUrl(params));
+        if (!Array.isArray(page)) throw new Error('TzKT transfer history returned a non-array response');
+        rows.push(...page);
+        if (page.length < TRANSFER_PAGE_LIMIT) break;
+
+        const nextCursor = String(page.at(-1)?.id || '');
+        if (!/^\d+$/.test(nextCursor) || nextCursor === cursor) {
+            throw new Error('TzKT transfer history pagination did not advance');
+        }
+        cursor = nextCursor;
+    }
+
+    return rows;
 }
 
 async function fetchFirstInbound(address) {

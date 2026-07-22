@@ -6,9 +6,9 @@
 import { escapeHtml } from '../core/utils.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
-const SUMMARY_URL = '/data/tezoscrp-summary.json?v=461';
-const DATA_URL = '/data/tezoscrp-awards.json?v=461';
-const CSS_URL = '/css/tezoscrp.css?v=461';
+const SUMMARY_URL = '/data/tezoscrp-summary.json?v=462';
+const DATA_URL = '/data/tezoscrp-awards.json?v=462';
+const CSS_URL = '/css/tezoscrp.css?v=462';
 const VIEW_KEYS = ['hall', 'records', 'latest', 'categories', 'archive'];
 const VIEW_LABELS = {
     hall: 'Recognition Hall',

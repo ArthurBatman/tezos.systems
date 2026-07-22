@@ -495,7 +495,7 @@ inline modal styles in `js/core/app.js`.
 - Ledger Flow Chamber with direct `#ledger-flow` and `/ledger-flow/` access,
   plus address-scoped hashes such as `#ledger-flow=tz1...`. It resolves tz/KT
   accounts and `.tez` names including subdomains, queries TzKT account
-  transaction history, and
+  transaction history with complete cursor pagination for the selected window, and
   renders an SVG transfer diagram with separate sent, received, and first-in
   colors, amount-weighted connection strength, My Tezos account links, and
   compact TzKT pills.
@@ -965,7 +965,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v461`, including hero search, theme
+- Current aligned shell cache stamp: `v462`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v320`.
 - `version.json` is stamped by `.githooks/pre-commit`.

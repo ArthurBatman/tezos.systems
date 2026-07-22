@@ -102,6 +102,7 @@ const SAMPLE_ADDRESS_3 = 'tz1PendingBaker1111111111111111111111';
 const SAMPLE_LEDGER_ORIGIN = 'tz1LedgerOrigin1111111111111111111111';
 const SAMPLE_LEDGER_MARKET = 'tz1LedgerMarket1111111111111111111111';
 const SAMPLE_LEDGER_SMALL = 'tz1LedgerSmall11111111111111111111111';
+const SAMPLE_LEDGER_PAGED = 'tz1LedgerPaged11111111111111111111111';
 const SAMPLE_DELEGATOR_ADDRESS = 'tz1iJP1EtP9iSkmaEKCZznDMst91oJGB9SZ5';
 const SAMPLE_REGULAR_DELEGATOR_ADDRESS = 'tz1iKT2pvdbEHuVC3zugnJfVoQZbbyUzgToW';
 const SAMPLE_SMALL_DELEGATOR_ADDRESS = 'tz1hh3pqYnm3umz3U7zJ6xkaCmpXbnKA7aAm';
@@ -1012,6 +1013,31 @@ function sampleLedgerFlowFirstRow() {
     sender: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Genesis Fund' },
     target: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
   }];
+}
+
+function sampleLedgerFlowPagedSentRows(cursor = '') {
+  if (cursor) {
+    return [{
+      id: 7000,
+      hash: 'opLedgerPagedHistory11111111111111111111111111',
+      level: 12000000,
+      timestamp: '2024-01-15T00:00:00Z',
+      amount: 125000000,
+      status: 'applied',
+      sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+      target: { address: SAMPLE_LEDGER_PAGED, alias: 'Paged History' }
+    }];
+  }
+  return Array.from({ length: 2000 }, (_, index) => ({
+    id: 9000 - index,
+    hash: `opLedgerPage${String(index).padStart(4, '0')}111111111111111111111111111`,
+    level: 12340000 - index,
+    timestamp: new Date(Date.now() - (index + 1) * 60000).toISOString(),
+    amount: 1000000,
+    status: 'applied',
+    sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+    target: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' }
+  }));
 }
 
 function createStakingChamberFixture() {
@@ -1987,6 +2013,9 @@ async function installFeatureMocks(context, options = {}) {
           || txParams.get('target') === ETHERLINK_SLOW_CONTRACT
           || txParams.get('target') === ETHERLINK_SEQUENCER_CONTRACT;
         if (!isSpecializedTxQuery && isLedgerFlowSender) {
+          if (!txParams.has('timestamp.gt')) {
+            return fulfillJson(route, sampleLedgerFlowPagedSentRows(txParams.get('id.lt') || ''));
+          }
           return fulfillJson(route, sampleLedgerFlowSentRows());
         }
         if (!isSpecializedTxQuery && isLedgerFlowTarget) {
@@ -6577,7 +6606,18 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
     assert(!state.legacyOpenOnTzkt, `ledger flow chamber: legacy selected-path TzKT link still visible ${state.detail}`);
     assert(state.directHref === '/ledger-flow/', `ledger flow chamber: direct route link missing ${state.directHref}`);
     assert(state.svgWidth > 500 && state.svgHeight > 250, `ledger flow chamber: diagram dimensions too small ${state.svgWidth}x${state.svgHeight}`);
-    assert(state.horizontalOverflow <= 1, `ledger flow chamber: horizontal overflow ${state.horizontalOverflow}`);
+  assert(state.horizontalOverflow <= 1, `ledger flow chamber: horizontal overflow ${state.horizontalOverflow}`);
+
+  await page.locator('[data-ledger-window="all"]').click();
+  await page.waitForFunction(() => /Paged History/.test(document.querySelector('.ledger-flow-counterparty-list')?.textContent || ''), null, { timeout: 10000 });
+  const pagedState = await page.evaluate(() => ({
+    context: document.querySelector('#ledger-flow-modal .chamber-proposal-info')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    counterparties: document.querySelector('.ledger-flow-counterparty-list')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    requestReady: document.querySelector('#ledger-flow-modal .ledger-flow-body')?.dataset.ledgerFlowModel || ''
+  }));
+  assert(/ALL/.test(pagedState.context), `ledger flow chamber: all-time context missing ${JSON.stringify(pagedState)}`);
+  assert(/Paged History/.test(pagedState.counterparties) && /125\.0/.test(pagedState.counterparties), `ledger flow chamber: paginated all-time row missing ${JSON.stringify(pagedState)}`);
+  assert(pagedState.requestReady === 'ready', `ledger flow chamber: paginated all-time model did not settle ${JSON.stringify(pagedState)}`);
 
   await page.locator('.ledger-flow-counterparty-row[data-ledger-edge$=":sent"]').first().click();
   const sentDetail = await page.locator('#ledger-flow-detail-panel').innerText();
