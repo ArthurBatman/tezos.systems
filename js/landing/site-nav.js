@@ -7,6 +7,7 @@ import {
     searchSiteMap
 } from '../core/site-map.js';
 import { renderSiteHandoff } from '../core/site-handoff.js';
+import { initFooterDelegation } from '../core/wallet.js';
 
 const FALLBACK_RELATED_IDS = ['pulse', 'staking-chamber', 'maxis', 'health'];
 const renderedFooters = new WeakSet();
@@ -210,7 +211,8 @@ function originalAttributionHtml(footer) {
 
 function defaultAttributionHtml() {
     return `
-        <span class="powered-by">Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
+        <span class="powered-by">Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, also the baker known as <strong>Baking Benjamins</strong> and a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
+        <span class="footer-baker-support">Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a></span>
         <span class="footer-source-line">Data from TzKT, Teztale, OBJKT, and Supabase · RPC by <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
         <span class="footer-contribute"><a href="/landing.html">Start here</a></span>
     `;
@@ -241,6 +243,7 @@ function renderFooter() {
         footer.setAttribute('data-site-footer', 'true');
         footer.setAttribute('role', 'contentinfo');
         footer.innerHTML = `<div class="site-footer-inner" data-site-footer-attribution>${withLegalAttribution(attributionHtml)}</div>`;
+        initFooterDelegation(footer);
     });
 }
 

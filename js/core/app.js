@@ -33,6 +33,7 @@ import {
     connectOctezWallet,
     disconnectOctezWallet,
     getStoredWalletAddress,
+    initFooterDelegation,
     preloadOctezConnect,
     shortAddress
 } from './wallet.js';
@@ -112,7 +113,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=464';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=465';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -288,6 +289,7 @@ async function init() {
     safe('share', initShare);
     safe('protocolShare', initProtocolShare);
     safe('liveTimeTicker', () => startLiveTimeTicker(document));
+    safe('footerDelegation', () => initFooterDelegation(document));
 
     // Lift chamber entry cards out of the hidden network-stat sections.
     safe('chambersSurface', initChambersSurface);

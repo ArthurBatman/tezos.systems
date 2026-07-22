@@ -1643,6 +1643,13 @@ async function checkSelectorContracts() {
     ['ctez mint_or_burn operation builder', 'buildCtezMintOrBurnOperation', ctez],
     ['ctez withdraw operation builder', 'buildCtezWithdrawOperation', ctez],
     ['ctez wallet request path', 'requestWalletOperation(operations)', ctez],
+    ['Baking Benjamins canonical delegate address', "BAKING_BENJAMINS_DELEGATE_ADDRESS = 'tz1S5WxdZR5f9NzsPXhr7L9L1vrEb5spZFur'", wallet],
+    ['Baking Benjamins connected-wallet delegation request', 'requestConnectedWalletDelegation', wallet],
+    ['Baking Benjamins Beacon delegation operation kind', "TezosOperationType?.DELEGATION || 'delegation'", wallet],
+    ['Baking Benjamins footer wallet action', "button.dataset.footerDelegate = 'true'", wallet],
+    ['dashboard initializes footer delegation', "safe('footerDelegation', () => initFooterDelegation(document))", app],
+    ['standalone footer initializes delegation', 'initFooterDelegation(footer)', siteNav],
+    ['footer delegation button styling', '.footer-delegate-button', siteMapCss],
     ['Octez.Connect SDK pin', '@tezos-x/octez.connect-sdk@${OCTEZ_CONNECT_VERSION}', wallet],
     ['Octez.Connect ESM loader', 'https://esm.sh/@tezos-x/octez.connect-sdk@${OCTEZ_CONNECT_VERSION}?bundle', wallet],
     ['Octez.Connect lazy loader', 'loadOctezConnect', wallet],
@@ -3263,7 +3270,8 @@ async function checkRepositoryLicense() {
     '<meta name="author" content="Primate">',
     'href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a>',
     'href="/LICENSE" rel="license">MPL-2.0</a>',
-    'Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
+    'Built by <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener">Primate</a>, also the baker known as <strong>Baking Benjamins</strong> and a co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
+    'Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>',
     'RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a>',
     '"license": "https://creativecommons.org/licenses/by/4.0/"'
   ];
@@ -3307,22 +3315,27 @@ async function checkRepositoryLicense() {
     if (!/"publisher":\s*\{\s*"@type": "Person",\s*"name": "Primate",\s*"url": "https:\/\/x\.com\/BakingBenjamins",\s*"sameAs": "https:\/\/github\.com\/Primate411",\s*"affiliation":\s*\{\s*"@type": "Organization",\s*"name": "Tez Capital",\s*"url": "https:\/\/tez\.capital"\s*\}\s*\}/s.test(page)) {
       fail(`${file} must identify Primate as its publisher, link BakingBenjamins on X, and retain Tez Capital affiliation`);
     }
-    if (!page.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a>, a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+    if (!page.includes('Built by <a href="https://x.com/BakingBenjamins">Primate</a>, also the baker known as <strong>Baking Benjamins</strong> and a co-founding member of <a href="https://tez.capital">Tez Capital</a>')
+      || !page.includes('Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>')
       || !page.includes('<a href="https://tez.capital">RPC by Tez Capital</a>')
       || page.includes('Powered by Tez Capital')) {
-      fail(`${file} must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit`);
+      fail(`${file} must show Primate authorship, Baking Benjamins baker identity and support paths, Tez Capital affiliation, and Tez Capital RPC credit`);
     }
   }
   if (!landing.includes('Built by <a href="https://x.com/BakingBenjamins"')
+    || !landing.includes('also the baker known as <strong>Baking Benjamins</strong>')
+    || !landing.includes('Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>')
     || !landing.includes('a co-founding member of <a href="https://tez.capital"')
     || !landing.includes('RPC by <a href="https://tez.capital"')
     || landing.includes('Powered by <a href="https://tez.capital"')) {
-    fail('landing.html must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit');
+    fail('landing.html must show Primate authorship, Baking Benjamins baker identity and support paths, Tez Capital affiliation, and Tez Capital RPC credit');
   }
   if (!landingNav.includes('Built by <a href="https://x.com/BakingBenjamins"')
+    || !landingNav.includes('also the baker known as <strong>Baking Benjamins</strong>')
+    || !landingNav.includes('Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a>')
     || !landingNav.includes('a co-founding member of <a href="https://tez.capital"')
     || !landingNav.includes('RPC by <a href="https://tez.capital"')) {
-    fail('landing footer runtime must show Primate authorship linked to BakingBenjamins on X, Tez Capital affiliation, and Tez Capital RPC credit');
+    fail('landing footer runtime must show Primate authorship, Baking Benjamins baker identity and support paths, Tez Capital affiliation, and Tez Capital RPC credit');
   }
   if (!share.includes('Built by <span style="color:${brandColor};font-weight:600;">Primate</span> · RPC by')) {
     fail('share cards must credit Primate and retain the Tez Capital RPC brand credit');

@@ -3024,12 +3024,14 @@ async function installOctezConnectMock(context, address = SAMPLE_ADDRESS, option
     const listeners = {};
     let currentAccount = null;
     window.__octezConnectRequests = [];
+    window.__octezConnectPermissionRequests = 0;
     window.__octezConnectDisconnected = false;
     window.__octezConnectDisconnectAttempts = 0;
     window.__octezConnectClearActiveCount = 0;
     window.__octezConnectHangDisconnect = false;
     const client = {
       async requestPermissions() {
+        window.__octezConnectPermissionRequests += 1;
         if (hangPermissions) {
           return new Promise(() => {});
         }
@@ -3068,7 +3070,7 @@ async function installOctezConnectMock(context, address = SAMPLE_ADDRESS, option
       getDAppClientInstance: () => client,
       NetworkType: { MAINNET: 'mainnet' },
       PermissionScope: { OPERATION_REQUEST: 'operation_request', SIGN: 'sign' },
-      TezosOperationType: { TRANSACTION: 'transaction' },
+      TezosOperationType: { TRANSACTION: 'transaction', DELEGATION: 'delegation' },
       BeaconEvent: { ACTIVE_ACCOUNT_SET: 'ACTIVE_ACCOUNT_SET', PAIR_ABORTED: 'PAIR_ABORTED' },
       Regions: { EUROPE_WEST: 'EUROPE_WEST', NORTH_AMERICA_EAST: 'NORTH_AMERICA_EAST' }
     };
@@ -3400,6 +3402,10 @@ async function smokeAppShell(browser, baseUrl) {
       footerBuilderHref: document.querySelector('.powered-by a[href="https://x.com/BakingBenjamins"]')?.getAttribute('href') || '',
       footerBuilderHtml,
       footerBuilderText: document.querySelector('.powered-by')?.textContent?.trim() || '',
+      footerBakerSupportText: document.querySelector('.footer-baker-support')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      footerBakingBenjaminsHref: document.querySelector('.footer-baker-support a[href="/#my-baker=bakingbenjamins.tez"]')?.getAttribute('href') || '',
+      footerBakingHref: document.querySelector('.footer-baker-support a[href="/#my-baker=baking.tez"]')?.getAttribute('href') || '',
+      footerDelegateButtonText: document.querySelector('[data-footer-delegate]')?.textContent?.trim() || '',
       footerLicenseHref: document.querySelector('.footer-contribute a[href="/LICENSE"][rel~="license"]')?.getAttribute('href') || '',
       footerRpcHref: document.querySelector('.footer-source-line a[href="https://eu.rpc.tez.capital"]')?.getAttribute('href') || '',
       footerRpcText: document.querySelector('.footer-source-line')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -3457,8 +3463,13 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.footerSourceHref === 'https://github.com/Primate411/tezos.systems', `app shell: public source link mismatch: ${shell.footerSourceHref}`);
   assert(shell.footerBuilderHref === 'https://x.com/BakingBenjamins'
     && shell.footerAffiliationHref === 'https://tez.capital'
-    && shell.footerBuilderText === 'Built by Primate, a co-founding member of Tez Capital',
-  `app shell: Primate builder, BakingBenjamins X link, and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
+    && shell.footerBuilderText === 'Built by Primate, also the baker known as Baking Benjamins and a co-founding member of Tez Capital',
+  `app shell: Primate builder, Baking Benjamins baker identity, X link, and Tez Capital affiliation credit mismatch: ${JSON.stringify({ builderHref: shell.footerBuilderHref, affiliationHref: shell.footerAffiliationHref, text: shell.footerBuilderText })}`);
+  assert(shell.footerBakerSupportText.startsWith('Support this work: delegate or stake to BakingBenjamins.tez or baking.tez')
+    && shell.footerBakingBenjaminsHref === '/#my-baker=bakingbenjamins.tez'
+    && shell.footerBakingHref === '/#my-baker=baking.tez',
+  `app shell: Baking Benjamins delegate/stake support credit mismatch: ${JSON.stringify({ text: shell.footerBakerSupportText, bakingBenjamins: shell.footerBakingBenjaminsHref, baking: shell.footerBakingHref })}`);
+  assert(shell.footerDelegateButtonText === 'Delegate with wallet', `app shell: direct wallet delegation action missing: ${shell.footerDelegateButtonText}`);
   assert(/Built by\s+<a/.test(shell.footerBuilderHtml)
     && /of\s+<a/.test(shell.footerBuilderHtml)
     && /<\/a>\s+·\s+<a/.test(shell.footerLinksHtml),
@@ -3466,11 +3477,11 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.footerRpcHref === 'https://eu.rpc.tez.capital' && /RPC by Tez Capital/.test(shell.footerRpcText), `app shell: Tez Capital RPC credit mismatch: ${JSON.stringify({ href: shell.footerRpcHref, text: shell.footerRpcText })}`);
   assert(shell.footerLayout.display === 'flex'
     && shell.footerLayout.sameRow
-    && shell.footerLayout.height <= 64
+    && shell.footerLayout.height <= 80
     && shell.footerLayout.gapFromHandoff >= 80
     && shell.footerLayout.gapFromHandoff <= 100
     && shell.footerLayout.overflow <= 1,
-  `app shell: desktop footer should be a compact one-line rail directly beneath the Handoff: ${JSON.stringify(shell.footerLayout)}`);
+  `app shell: desktop footer should be a compact credit rail directly beneath the Handoff: ${JSON.stringify(shell.footerLayout)}`);
   assert(shell.csp.includes('api.github.com') && shell.csp.includes('*.tzkt.io'), 'app shell: CSP missing core live-data domains');
   assert(shell.stylesheet && shell.appScript && shell.appPreload, `app shell: missing stamped stylesheet/app script (${shell.stylesheet}, ${shell.appPreload}, ${shell.appScript})`);
   assert(shell.cacheVersion && shell.cacheVersion === shell.cssVersion && shell.cacheVersion === shell.appPreloadVersion && shell.cacheVersion === shell.appScriptVersion, `app shell: cache stamps mismatch cache=${shell.cacheVersion} css=${shell.cssVersion} preload=${shell.appPreloadVersion} script=${shell.appScriptVersion}`);
@@ -4955,6 +4966,25 @@ async function smokeMyTezosWalletConnect(browser, baseUrl) {
   assert(connectedState.emptyDisplay === 'none' && connectedState.connectedDisplay !== 'none', `my tezos wallet connect: drawer state mismatch ${JSON.stringify(connectedState)}`);
   assert(connectedState.status.includes('Wallet tz1aWX…T1Z9'), `my tezos wallet connect: status mismatch ${JSON.stringify(connectedState)}`);
 
+  await page.locator('#drawer-close').click();
+  await page.locator('[data-footer-delegate]').click();
+  await page.waitForFunction(() => window.__octezConnectRequests?.length === 1, null, { timeout: 10000 });
+  const delegationState = await page.evaluate(() => ({
+    requests: window.__octezConnectRequests || [],
+    permissionRequests: window.__octezConnectPermissionRequests || 0,
+    button: document.querySelector('[data-footer-delegate]')?.textContent?.trim() || '',
+    status: document.querySelector('[data-footer-delegate-status]')?.textContent?.trim() || ''
+  }));
+  assert(delegationState.permissionRequests === 1, `footer delegation: existing wallet session should not request permissions again ${JSON.stringify(delegationState)}`);
+  assert(delegationState.requests[0]?.operationDetails?.length === 1
+    && delegationState.requests[0].operationDetails[0]?.kind === 'delegation'
+    && delegationState.requests[0].operationDetails[0]?.delegate === 'tz1S5WxdZR5f9NzsPXhr7L9L1vrEb5spZFur',
+  `footer delegation: wallet request must contain only the canonical Baking Benjamins delegation ${JSON.stringify(delegationState)}`);
+  assert(delegationState.button === 'Submitted' && /Submitted/.test(delegationState.status), `footer delegation: successful wallet state missing ${JSON.stringify(delegationState)}`);
+
+  await page.locator('#my-tezos-btn').click();
+  await expectClassContains(page.locator('#my-tezos-drawer'), 'open', 'my tezos wallet reconnect drawer');
+
   await page.evaluate(() => {
     window.__octezConnectHangDisconnect = true;
   });
@@ -5010,6 +5040,7 @@ async function smokeOctezConnectSdkLoader(browser, baseUrl) {
       hasDAppClientClass: typeof sdk.DAppClient === 'function',
       network: sdk.NetworkType?.MAINNET,
       transaction: sdk.TezosOperationType?.TRANSACTION,
+      delegation: sdk.TezosOperationType?.DELEGATION,
       hasActiveEvent: Boolean(sdk.BeaconEvent?.ACTIVE_ACCOUNT_SET),
       hasPermissionsRequest: typeof clientPrototype.requestPermissions === 'function',
       hasOperationRequest: typeof clientPrototype.requestOperation === 'function',
@@ -5022,6 +5053,7 @@ async function smokeOctezConnectSdkLoader(browser, baseUrl) {
   assert(sdkState.hasDAppClientClass, `octez connect sdk loader: missing DAppClient class ${JSON.stringify(sdkState)}`);
   assert(sdkState.network === 'mainnet', `octez connect sdk loader: missing mainnet enum ${JSON.stringify(sdkState)}`);
   assert(sdkState.transaction === 'transaction', `octez connect sdk loader: missing transaction operation kind ${JSON.stringify(sdkState)}`);
+  assert(sdkState.delegation === 'delegation', `octez connect sdk loader: missing delegation operation kind ${JSON.stringify(sdkState)}`);
   assert(sdkState.hasActiveEvent, `octez connect sdk loader: missing Beacon active account event ${JSON.stringify(sdkState)}`);
   assert(sdkState.hasPermissionsRequest && sdkState.hasOperationRequest && sdkState.hasActiveAccountRead, `octez connect sdk loader: client shape mismatch ${JSON.stringify(sdkState)}`);
 

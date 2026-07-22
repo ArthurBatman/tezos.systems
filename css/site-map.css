@@ -495,7 +495,7 @@
 .site-footer-inner {
     display: flex;
     flex: 1 1 auto;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: 0 10px;
@@ -505,7 +505,7 @@
     line-height: 1.5;
 }
 
-.site-footer-separate .site-footer-inner :is(.powered-by, .footer-source-line, .footer-contribute) {
+.site-footer-separate .site-footer-inner :is(.powered-by, .footer-baker-support, .footer-source-line, .footer-contribute) {
     margin: 0;
     display: inline-block;
     color: inherit;
@@ -540,6 +540,50 @@
     text-decoration: underline;
     text-shadow: none;
     outline: none;
+}
+
+.footer-delegate-button {
+    min-height: 24px;
+    margin-left: 4px;
+    padding: 2px 8px;
+    border: 1px solid color-mix(in srgb, var(--site-footer-accent) 45%, var(--site-footer-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--site-footer-accent) 9%, transparent);
+    color: var(--site-footer-accent);
+    font: inherit;
+    font-weight: 750;
+    line-height: 1.25;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.footer-delegate-button:hover,
+.footer-delegate-button:focus-visible {
+    background: color-mix(in srgb, var(--site-footer-accent) 17%, transparent);
+    outline: 2px solid color-mix(in srgb, var(--site-footer-accent) 52%, transparent);
+    outline-offset: 2px;
+}
+
+.footer-delegate-button:disabled {
+    cursor: wait;
+    opacity: 0.68;
+}
+
+.footer-delegate-status {
+    margin-left: 5px;
+    color: inherit;
+}
+
+.footer-delegate-status:empty {
+    display: none;
+}
+
+.footer-delegate-status[data-tone="success"] {
+    color: var(--site-footer-accent);
+}
+
+.footer-delegate-status[data-tone="error"] {
+    color: var(--color-error, #ef6b73);
 }
 
 .site-footer-separate .build-version {
@@ -1006,7 +1050,7 @@
         font-size: 0.65rem;
     }
 
-    .site-footer-separate .site-footer-inner :is(.powered-by, .footer-source-line, .footer-contribute) {
+    .site-footer-separate .site-footer-inner :is(.powered-by, .footer-baker-support, .footer-source-line, .footer-contribute) {
         white-space: normal;
     }
 

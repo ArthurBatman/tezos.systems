@@ -11,6 +11,7 @@ export const OCTEZ_CONNECT_SRC = `https://esm.sh/@tezos-x/octez.connect-sdk@${OC
 export const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 export const WALLET_ADDRESS_KEY = 'tezos-systems-octez-wallet-address';
 export const SAVED_ADDRESSES_KEY = 'tezos-systems-saved-addresses';
+export const BAKING_BENJAMINS_DELEGATE_ADDRESS = 'tz1S5WxdZR5f9NzsPXhr7L9L1vrEb5spZFur';
 
 let _sdkPromise = null;
 let _clientPromise = null;
@@ -321,4 +322,89 @@ export async function requestWalletOperation(operationDetails) {
         kind: detail.kind || transactionKind
     }));
     return client.requestOperation({ operationDetails: normalized });
+}
+
+export async function requestConnectedWalletDelegation(delegateAddress = BAKING_BENJAMINS_DELEGATE_ADDRESS) {
+    const delegate = String(delegateAddress || '').trim();
+    if (!isTezosAccountAddress(delegate)) {
+        throw new Error('Delegation target must be a valid Tezos account address');
+    }
+
+    const beacon = await loadOctezConnect();
+    const client = await getDAppClient();
+    const account = await client.getActiveAccount();
+    if (!account?.address) {
+        throw new Error('Connect your wallet in My Tezos first');
+    }
+    if (account.network?.type && account.network.type !== (beacon.NetworkType?.MAINNET || 'mainnet')) {
+        throw new Error('Switch the connected wallet to Tezos Mainnet first');
+    }
+    rememberAccount(account, 'ready');
+
+    const delegationKind = beacon.TezosOperationType?.DELEGATION || 'delegation';
+    const result = await client.requestOperation({
+        operationDetails: [{
+            kind: delegationKind,
+            delegate
+        }]
+    });
+    return { account, result };
+}
+
+function footerDelegationErrorMessage(error) {
+    const message = String(error?.message || error || '');
+    if (/Connect your wallet/i.test(message)) return 'Connect a wallet in My Tezos first.';
+    if (/Mainnet/i.test(message)) return 'Switch your wallet to Tezos Mainnet first.';
+    if (/abort|cancel|declin|reject|denied/i.test(message)) return 'Delegation was not submitted.';
+    return 'Delegation could not be submitted. Please try again.';
+}
+
+export function initFooterDelegation(root = document) {
+    const supports = [];
+    if (root?.matches?.('.footer-baker-support')) supports.push(root);
+    supports.push(...(root?.querySelectorAll?.('.footer-baker-support') || []));
+
+    supports.forEach((support) => {
+        if (support.querySelector('[data-footer-delegate]')) return;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'footer-delegate-button';
+        button.dataset.footerDelegate = 'true';
+        button.textContent = 'Delegate with wallet';
+        button.title = 'Uses your existing Octez.Connect or Beacon session. Your wallet will ask you to approve the delegation.';
+
+        const status = document.createElement('span');
+        status.className = 'footer-delegate-status';
+        status.dataset.footerDelegateStatus = 'true';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+
+        button.addEventListener('pointerenter', preloadOctezConnect, { once: true });
+        button.addEventListener('focus', preloadOctezConnect, { once: true });
+        button.addEventListener('click', async () => {
+            if (button.disabled) return;
+            button.disabled = true;
+            button.textContent = 'Open wallet…';
+            status.textContent = '';
+            status.dataset.tone = '';
+            try {
+                const { result } = await requestConnectedWalletDelegation();
+                const operationHash = result?.operationHash || result?.transactionHash || '';
+                button.textContent = 'Submitted';
+                status.textContent = operationHash
+                    ? `Submitted · ${shortAddress(operationHash)}`
+                    : 'Delegation submitted.';
+                status.dataset.tone = 'success';
+            } catch (error) {
+                button.textContent = 'Delegate with wallet';
+                status.textContent = footerDelegationErrorMessage(error);
+                status.dataset.tone = 'error';
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        support.append(' ', button, status);
+    });
 }

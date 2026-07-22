@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '✨', text: 'Site credits now identify Primate as the baker Baking Benjamins, invite support through BakingBenjamins.tez or baking.tez, and offer a wallet-reviewed direct delegation action for connected visitors' },
             { type: '✨', text: 'Capital Markets now leads with a full-width XTZ/USD daily-close chart, range open/high/low/latest context, and an accessible 90-day price line on the Capital launcher card' },
             { type: '🔧', text: 'The header no longer repeats a personalized greeting or join-era story beside My Tezos, and first visits stay quiet while the search field itself explains the / shortcut' },
             { type: '🔧', text: 'Ledger Flow now paginates the complete selected transfer window, so active accounts no longer show partial counterparty totals from only their newest 60 transactions' },
