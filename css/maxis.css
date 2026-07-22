@@ -2436,6 +2436,14 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
     .maxis-entry-season-pulse { min-height: 0; }
 }
 
+@media (min-width: 760px) and (max-width: 1179px) {
+    #chambers-grid .maxis-entry-front:has(> .maxis-entry-maxis-front) { grid-template-rows: minmax(0, 1fr); }
+    .maxis-entry-maxis-front { gap: 0.55rem; }
+    .maxis-entry-maxis-copy > p,
+    .maxis-entry-maxis-copy .maxis-entry-season-meta { display: none; }
+    .maxis-entry-maxis-copy .maxis-entry-identity-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
 @media (max-width: 759px) {
     .maxis-experience { min-height: 28rem; }
     .maxis-season-orb { width: 44px; height: 44px; }

@@ -387,7 +387,9 @@ inline modal styles in `js/core/app.js`.
   prominently and are never blended or relabeled as one time window. The
   full-width homepage launcher keeps the current lane holders readable and
   treats the active protocol season as a smaller race pulse rather than
-  replacing the enduring Maxis view.
+  replacing the enduring Maxis view. At compact tablet widths, secondary copy
+  collapses before the identity strip or season pulse so the shorter launcher
+  remains contained above its footer rail.
 - TezosCRP Recognition Hall with direct `#tezoscrp` and `/tezoscrp/` access is
   deliberately separate from Tezos Maxis. Maxis assigns objective on-chain
   crowns to wallet addresses and verified receipts; TezosCRP publishes human
@@ -963,9 +965,9 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v460`, including hero search, theme
+- Current aligned shell cache stamp: `v461`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
-- Current Tezos Domains lazy CSS stamp: `v318`.
+- Current Tezos Domains lazy CSS stamp: `v320`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated
   surfaces, runs focused README contract checks, then stamps version metadata.
