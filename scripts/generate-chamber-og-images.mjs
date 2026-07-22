@@ -85,6 +85,12 @@ function routeDetails(route, report) {
       chips: ['Lane-native clocks', 'Protocol seasons', 'Career Passports'],
       body: 'Spot the enduring Tezos Maxis on honest all-time, live, and rolling clocks, then race across activation-bounded seasons without letting the game erase the record.'
     },
+    tezoscrp: {
+      kicker: 'Tezos Commons · Community Rewards',
+      value: 'Recognition Hall',
+      chips: ['Monthly awards', 'Human identities', 'Official receipts'],
+      body: 'Browse every officially published TezosCRP category recognition since October 2020, with human identities, category history, and source receipts kept separate from wallet-based Maxis.'
+    },
     chamber: {
       kicker: `${proposal} ${kind}`,
       value: end,

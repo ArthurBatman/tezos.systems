@@ -75,6 +75,7 @@ import {
   validateL2GovernanceCareerArtifact
 } from '../scripts/lib/maxis-l2-governance.mjs';
 import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
+import { validateTezosCrpDataset } from '../scripts/lib/tezoscrp-awards.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -227,6 +228,7 @@ async function checkRequiredFiles() {
     'css/staking-chamber.css',
     'css/network-health.css',
     'css/maxis.css',
+    'css/tezoscrp.css',
     'js/core/app.js',
     'js/core/api.js',
     'js/core/config.js',
@@ -238,6 +240,7 @@ async function checkRequiredFiles() {
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
+    'js/features/tezoscrp.js',
     'js/features/milestone-catalog.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
@@ -261,6 +264,7 @@ async function checkRequiredFiles() {
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-capital-data.mjs',
+    'scripts/refresh-tezoscrp-awards.mjs',
     'scripts/refresh-maxis-data.mjs',
     'scripts/refresh-maxis-careers.mjs',
     'scripts/refresh-maxis-l2-governance.mjs',
@@ -275,6 +279,7 @@ async function checkRequiredFiles() {
     'scripts/lib/maxis-source.mjs',
     'scripts/lib/maxis-source-v2.mjs',
     'scripts/lib/maxis-transactions-v2.mjs',
+    'scripts/lib/tezoscrp-awards.mjs',
     'data/governance-votes.json',
     'data/nakamoto-sources.json',
     'data/governance-refresh-report.json',
@@ -285,8 +290,14 @@ async function checkRequiredFiles() {
     'data/maxis-l2-governance.json',
     'data/maxis-leaders.json',
     'data/maxis/manifest.json',
+    'data/tezoscrp-awards.json',
+    'data/tezoscrp-summary.json',
     'maxis/index.html',
     'og/maxis.png',
+    'tezoscrp/index.html',
+    'og/tezoscrp.png',
+    '.github/workflows/refresh-tezoscrp.yml',
+    'tests/tezoscrp-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -5216,6 +5227,81 @@ async function checkMaxisContracts() {
   pass('Tezos Maxis taxonomy, snapshot, scoring, route, and Ledger Flow contracts checked');
 }
 
+async function checkTezosCrpContracts() {
+  const dataset = JSON.parse(await readText('data/tezoscrp-awards.json'));
+  const summary = JSON.parse(await readText('data/tezoscrp-summary.json'));
+  const feature = await readText('js/features/tezoscrp.js');
+  const css = await readText('css/tezoscrp.css');
+  const app = await readText('js/core/app.js');
+  const siteMap = await readText('js/core/site-map.js');
+  const routes = await readText('scripts/lib/chamber-routes.mjs');
+  const generatedSurfaces = await readText('scripts/refresh-generated-surfaces.mjs');
+  const workflow = await readText('.github/workflows/refresh-tezoscrp.yml');
+  const packageJson = JSON.parse(await readText('package.json'));
+
+  const errors = validateTezosCrpDataset(dataset);
+  if (errors.length) fail(`TezosCRP dataset is invalid: ${errors.join('; ')}`);
+  if (dataset.awards.length < 2218 || dataset.people_summary.length < 870 || dataset.coverage.covered_periods < 69) {
+    fail('TezosCRP archive must preserve the complete October 2020 through June 2026 baseline');
+  }
+  if (dataset.coverage.missing_periods.length || dataset.coverage.expected_periods !== dataset.coverage.covered_periods) {
+    fail('TezosCRP monthly coverage must remain consecutive from the first through latest award period');
+  }
+  if (summary.totals.awards !== dataset.awards.length
+      || summary.totals.people !== dataset.people_summary.length
+      || summary.totals.periods !== dataset.coverage.covered_periods
+      || summary.totals.categories !== dataset.category_summary.length) {
+    fail('TezosCRP summary totals must reconcile exactly to the full archive');
+  }
+  if (summary.current_categories.length !== 9 || summary.current_categories.some((category, index) => category.icon !== `/assets/tezoscrp/cat-icon${String(index + 1).padStart(2, '0')}.png`)) {
+    fail('TezosCRP summary must retain all nine current categories and their official icon mapping');
+  }
+  for (let index = 1; index <= 9; index += 1) {
+    const icon = `assets/tezoscrp/cat-icon${String(index).padStart(2, '0')}.png`;
+    if (!(await pathExists(icon))) fail(`TezosCRP official category icon is missing: ${icon}`);
+  }
+
+  for (const [label, needle, source] of [
+    ['feature initializer', 'initTezosCrpChamber', app],
+    ['pretty route opener', "case 'tezoscrp':", app],
+    ['hash route', "hash === 'tezoscrp'", app],
+    ['close cleanup', 'closeTezosCrpChamber', app],
+    ['standalone card pair', "selectors: ['#tezoscrp-entry-card']", app],
+    ['site-map destination', "href: '/tezoscrp/'", siteMap],
+    ['site-map archive intent', "view=archive", siteMap],
+    ['pretty route metadata', "slug: 'tezoscrp'", routes],
+    ['generated data target', "'data/tezoscrp-summary.json'", generatedSurfaces],
+    ['twice-monthly schedule', '10,25 * *', workflow],
+    ['refresh command', 'refresh:tezoscrp', JSON.stringify(packageJson.scripts)],
+    ['check command', 'check:tezoscrp', JSON.stringify(packageJson.scripts)]
+  ]) {
+    if (!source.includes(needle)) fail(`TezosCRP ${label} contract is missing`);
+  }
+
+  for (const copy of [
+    'one official category listing equals one award',
+    'most posts do not state a per-person XTZ payout',
+    'Ranked by category awards, with recognized months shown separately',
+    'Official source'
+  ]) {
+    if (!feature.includes(copy)) fail(`TezosCRP truth/source copy is missing: ${copy}`);
+  }
+  if (!feature.includes('function hasPublishedAmount(award)') || !feature.includes('award?.amount_tez !== null')) {
+    fail('TezosCRP must distinguish an unpublished payout amount from an explicit numeric amount');
+  }
+  if (feature.includes('setInterval(')) fail('TezosCRP client must not poll; the committed archive is refreshed by the repository workflow');
+  for (const selector of ['.tezoscrp-entry-card', '.tezoscrp-overlay', '.tezoscrp-tabs', '.tezoscrp-ranking', '.tezoscrp-category-grid', '.tezoscrp-archive-list']) {
+    if (!css.includes(selector)) fail(`TezosCRP CSS is missing ${selector}`);
+  }
+
+  const route = await readText('tezoscrp/index.html');
+  if (!route.includes('<link rel="canonical" href="https://tezos.systems/tezoscrp/">') || !route.includes('/og/tezoscrp.png')) {
+    fail('TezosCRP generated route must retain its canonical URL and dedicated OG image');
+  }
+
+  pass(`TezosCRP source, identity, category, route, and cadence contracts checked (${dataset.awards.length} awards across ${dataset.coverage.covered_periods} months)`);
+}
+
 async function checkQuietRefreshContracts() {
   const [quiet, app, daily, myTezos, myBaker, tezlink, capital, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
     readText('js/core/quiet-refresh.js'),
@@ -5482,6 +5568,7 @@ async function main() {
   await checkMilestoneCatalogContracts();
   await checkVisitStreakBehavior();
   await checkMaxisContracts();
+  await checkTezosCrpContracts();
   await checkReadmeContracts();
 
   for (const message of passes) console.log(`ok - ${message}`);

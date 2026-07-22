@@ -895,8 +895,10 @@ function updateEntry(snapshot, { quiet = false } = {}) {
     if (quiet && front.dataset.capitalRendered === '1') quietlySyncHtml(front, markup);
     else front.innerHTML = markup;
     front.dataset.capitalRendered = '1';
-    delete document.getElementById('capital-entry-card')?.dataset.updatedLabel;
-    window.syncChamberEntryFooters?.(document.getElementById('capital-entry-card'));
+    const card = document.getElementById('capital-entry-card');
+    delete card?.dataset.updatedLabel;
+    window.syncChamberEntryFooters?.(card);
+    wireEntry(card);
 }
 
 function markRefreshFailure() {

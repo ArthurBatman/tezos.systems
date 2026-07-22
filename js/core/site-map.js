@@ -134,6 +134,23 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.8' }
     },
     {
+        id: 'tezoscrp',
+        title: 'TezosCRP Recognition Hall',
+        href: '/tezoscrp/',
+        hash: '#tezoscrp',
+        hashAliases: ['#community-rewards', '#crp'],
+        group: 'Culture & Feeds',
+        detail: 'Official Tezos Commons monthly community awards, identity totals, categories, and source-receipted history since October 2020',
+        keywords: ['tezoscrp', 'tezos crp', 'community rewards', 'tezos commons rewards', 'crp winners', 'community recognition', 'awards', 'winners'],
+        searchIntents: [
+            { id: 'tezoscrp-latest', title: 'Latest TezosCRP Winners', href: '/tezoscrp/?view=latest', detail: 'Open the latest official Tezos Commons recognition round', keywords: ['latest tezoscrp winners', 'current community rewards', 'new crp winners'] },
+            { id: 'tezoscrp-categories', title: 'TezosCRP Categories', href: '/tezoscrp/?view=categories', detail: 'Browse current official award categories and preserved historical names', keywords: ['tezoscrp categories', 'community reward badges', 'official category icons'] },
+            { id: 'tezoscrp-archive', title: 'TezosCRP Monthly Archive', href: '/tezoscrp/?view=archive', detail: 'Search every official award receipt by month, category, or identity', keywords: ['tezoscrp archive', 'community rewards history', 'past crp winners'] }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'weekly', priority: '0.8' }
+    },
+    {
         id: 'health',
         title: 'Network Health',
         href: '/health/',
@@ -413,7 +430,8 @@ export const SITE_MAP_RELATIONS = {
     pulse: ['capital', 'health', 'hot-today', 'staking-chamber'],
     capital: ['tezosx', 'price', 'ledger-flow', 'hen'],
     'staking-chamber': ['ledger-flow', 'leaderboard', 'staking', 'calculator'],
-    maxis: ['ledger-flow', 'domains', 'hen', 'my-tezos'],
+    maxis: ['tezoscrp', 'ledger-flow', 'domains', 'hen'],
+    tezoscrp: ['maxis', 'anthology', 'hen', 'feed'],
     health: ['pulse', 'tz4', 'bakers-guide', 'staking-chamber'],
     'liquidity-baking': ['chamber', 'pulse', 'staking', 'health'],
     tezosx: ['l2-governance', 'pulse', 'compare', 'health'],

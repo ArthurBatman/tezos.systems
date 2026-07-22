@@ -7,6 +7,10 @@ const CHANGELOG = [
     {
         date: '2026-07-21',
         entries: [
+            { type: '✨', text: 'The new TezosCRP Recognition Hall preserves every official Tezos Commons monthly community award by identity, category, month, and source receipt' },
+            { type: '🔧', text: 'TezosCRP counts category recognitions separately from recognized months and does not invent per-person XTZ totals when official posts omit payout amounts' },
+            { type: '🎨', text: 'TezosCRP displays all nine official category badges and keeps its four archive views visible and contained on mobile' },
+            { type: '🔧', text: 'Shared Chamber launchers now retain their normalized title and Open controls after data hydration, with enough Network Pulse clearance at tablet widths' },
             { type: '🔧', text: 'Tezos L1 Governance now leads quiet proposal periods with No Proposal while keeping Proposal period as supporting context, matching the L2 Chamber hierarchy' },
             { type: '✨', text: 'Capital Chamber now compares Tezos L1 block fee pools with Etherlink L2 transaction fees, average user costs, and gas-price history without inventing a combined total' },
             { type: '🔧', text: 'Capital range controls now show only selectable periods, label the room range explicitly, and present Art as a fixed 30-day source window instead of four dead choices' },

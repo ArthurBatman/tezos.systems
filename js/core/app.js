@@ -55,6 +55,7 @@ import { initNetworkPulseChamber } from '../features/network-pulse.js';
 import { initCapitalChamber } from '../features/capital-chamber.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
+import { initTezosCrpChamber } from '../features/tezoscrp.js';
 
 const SPARKLINE_LIVE_METRICS = [
     ['tz4_percentage', 'tz4Percentage'],
@@ -111,7 +112,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=454';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=457';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -304,6 +305,7 @@ async function init() {
     safe('ledgerFlowChamber', initLedgerFlowChamber);
     safe('tezosDomainsChamber', initTezosDomainsChamber);
     safe('maxisChamber', initMaxisChamber);
+    safe('tezosCrpChamber', initTezosCrpChamber);
     safe('governanceAlerts', initGovernanceAlerts);
     safe('protocolHistoryChamber', initProtocolHistoryChamber);
     safe('protocolHistoryHeaderLauncher', initProtocolHistoryHeaderLauncher);
@@ -1531,6 +1533,10 @@ const CHAMBER_CARD_PAIRS = [
         selectors: ['#maxis-entry-card']
     },
     {
+        key: 'tezoscrp',
+        selectors: ['#tezoscrp-entry-card']
+    },
+    {
         key: 'tezos-domains',
         selectors: ['#tezos-domains-entry-card']
     }
@@ -1616,6 +1622,12 @@ const CHAMBER_INFO_COPY = {
         body: 'Spot the enduring Tezos Maxis across honestly labeled all-time, live, and rolling crowns, then enter the current protocol season for movement, Honors, and wallet progression.',
         href: '/maxis/',
         link: 'Open Tezos Maxis ->'
+    },
+    'tezoscrp-entry-card': {
+        title: 'TezosCRP Recognition Hall',
+        body: 'Official Tezos Commons Community Rewards category recognitions, monthly rounds, identity history, and source receipts since October 2020.',
+        href: '/tezoscrp/',
+        link: 'Open TezosCRP ->'
     }
 };
 
@@ -5042,6 +5054,7 @@ function initOfflineIndicator() {
 //   #tz4               → open tz4 Adoption Chamber
 //   #ctez              → open ctez Oven Guide
 //   #maxis             → open Tezos Maxis Chamber
+//   #tezoscrp          → open TezosCRP Recognition Hall
 //   #protocol-history  → open Protocol History Chamber
 //   #protocol=Ushuaia  → open protocol lore/history
 //   #theme=dark        → switch to theme
@@ -5056,7 +5069,7 @@ function initOfflineIndicator() {
 //   /health/           → open Network Health Chamber
 //   /tezosx/           → open Tezos X Chamber
 //   /l2chamber/        → open Tezos X Governance Chamber
-//   /tz4/ /lb/ /domains/ /ledger-flow/ /ctez/ /maxis/ → open their chamber rooms
+//   /tz4/ /lb/ /domains/ /ledger-flow/ /ctez/ /maxis/ /tezoscrp/ → open their chamber rooms
 // Account path shortcuts:
 //   /tz1...            → open My Tezos with address
 //   /name.tez          → resolve Tezos Domain and open My Tezos
@@ -5338,6 +5351,7 @@ function applyDeepLink() {
             import('../features/ledger-flow.js').then((module) => module.closeLedgerFlowChamber?.()),
             import('../features/tezos-domains.js').then((module) => module.closeTezosDomainsChamber?.()),
             import('../features/maxis.js').then((module) => module.closeMaxisChamber?.()),
+            import('../features/tezoscrp.js').then((module) => module.closeTezosCrpChamber?.()),
             import('../features/native-explorer.js').then((module) => module.closeNativeExplorer?.())
         ]);
 
@@ -5435,6 +5449,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/maxis.js').then(({ openMaxisChamber }) => openMaxisChamber()),
                     'Failed to open Tezos Maxis Chamber'
+                );
+                break;
+            case 'tezoscrp':
+                openHashModal(
+                    () => import('../features/tezoscrp.js').then(({ openTezosCrpChamber }) => openTezosCrpChamber()),
+                    'Failed to open TezosCRP Recognition Hall'
                 );
                 break;
             case 'protocol-history':
@@ -5558,6 +5578,14 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/maxis.js').then(({ openMaxisChamber }) => openMaxisChamber()),
             'Failed to open Tezos Maxis Chamber'
+        );
+    }
+
+    // #tezoscrp / #community-rewards
+    if (params.has('tezoscrp') || hash === 'tezoscrp' || params.has('community-rewards') || hash === 'community-rewards') {
+        openHashModal(
+            () => import('../features/tezoscrp.js').then(({ openTezosCrpChamber }) => openTezosCrpChamber()),
+            'Failed to open TezosCRP Recognition Hall'
         );
     }
 

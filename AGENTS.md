@@ -48,6 +48,7 @@ the highest-risk gotchas.
 - `css/styles.css`: source styles and theme rules.
 - `css/styles.min.css`: served stylesheet.
 - `css/network-health.css`: lazy Network Health Consensus Lens and Nakamoto panel styles.
+- `css/tezoscrp.css`: lazy TezosCRP Recognition Hall styles.
 - `css/hen-mode.css`: HEN overlay styles.
 - `css/landing.css`: landing and SEO page styles.
 - `css/site-map.css`: shared complete-map, standalone circulation, and chamber
@@ -98,6 +99,9 @@ the highest-risk gotchas.
 - OBJKT GraphQL: NFT/profile mode
 - Supabase REST: historical snapshots using a public anon key from
   `js/core/config.js`
+- Tezos Commons: `https://tezoscommons.org/rewards/` for current TezosCRP
+  category definitions/icons and `https://medium.com/feed/tezoscommons` for
+  official monthly winner announcements.
 
 Treat the Supabase anon key as public client configuration, not as a secret.
 If adding new network domains, update the CSP in `index.html` or fetches,
@@ -317,6 +321,10 @@ Stamping gotchas:
   progress, and Champions is the finalized archive. Passport career reads one
   verified address shard from every manifest season; it must preserve repeated
   season-scoped badge receipts and keep historical shard failures local.
+- TezosCRP: `js/features/tezoscrp.js`; this is a separate human-identity
+  recognition archive, not a Maxis lane. Count official category listings and
+  distinct recognized months separately, never infer missing per-person XTZ
+  payouts, and retain an official Tezos Commons source on every award row.
 - Protocol history: `js/features/history.js`
 - Baker tools: `leaderboard.js`, `my-baker.js`, `my-tezos.js`,
   `rewards-tracker.js`, `baker-report-card.js`
@@ -398,6 +406,12 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   careers but rank only the current complete active-delegate set. This artifact
   must not change immutable v2 Season, Season Unicorn, frozen Passport shards,
   or Champions.
+- `data/tezoscrp-awards.json`: full official TezosCRP archive from October 2020
+  onward. Recipients are conservatively merged human/social identities because
+  the program does not publish a verified wallet for each winner. Preserve raw
+  names, handles, aliases, categories, periods, and source receipts.
+- `data/tezoscrp-summary.json`: compact launcher/latest-winners projection of
+  the full TezosCRP archive. Its totals must reconcile exactly to the full file.
 - `data/maxis/manifest.json`: protocol-season catalog and active/settling/final
   lifecycle entry point. Each `data/maxis/seasons/<season-id>/` directory keeps
   its frozen rules, summary, integrity-checked Passport shards, and resumable
@@ -451,6 +465,10 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
 
 - `.github/workflows/collect-data.yml`: scheduled historical data collector,
   currently every 2 hours.
+- `.github/workflows/refresh-tezoscrp.yml`: checks the official Tezos Commons
+  Medium feed on the 10th and 25th monthly and commits only a new official award
+  period. The broader six-hour generated workflow validates but does not poll
+  this feed again.
 - `.github/scripts/collect-data.js`: collects TzKT/Octez stats and writes to
   Supabase, with guardrails against critical zero values.
 - `scripts/refresh-governance-data.mjs`: canonical governance refresh entry
@@ -464,6 +482,11 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   generated set. `sitemap.xml` is rendered from `js/core/site-map.js`, while
   pretty Chamber shells remain generated from `scripts/lib/chamber-routes.mjs`;
   static contracts keep those two route identities aligned.
+- `scripts/refresh-tezoscrp-awards.mjs`: parses the official Tezos Commons
+  Medium RSS, adds only unseen winner periods, preserves historical category
+  names, rebuilds the full/compact derived summaries, and validates offline with
+  `npm run check:tezoscrp`. Parser/alias coverage lives in
+  `tests/tezoscrp-check.mjs`.
 - `scripts/refresh-maxis-l2-governance.mjs`: rebuilds the independent L2
   Governance career artifact from all three official Etherlink canonical-period
   ledgers and complete TzKT big-map key receipts. The command

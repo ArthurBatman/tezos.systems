@@ -34,6 +34,7 @@ const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
 const CAPITAL_TARGETS = ['data/capital-snapshot.json'];
+const TEZOSCRP_TARGETS = ['data/tezoscrp-awards.json', 'data/tezoscrp-summary.json'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -48,7 +49,8 @@ const GENERATED_TARGETS = unique([
   ...MAXIS_TARGETS,
   ...MAXIS_CAREER_TARGETS,
   ...MAXIS_L2_GOVERNANCE_TARGETS,
-  ...CAPITAL_TARGETS
+  ...CAPITAL_TARGETS,
+  ...TEZOSCRP_TARGETS
 ]);
 
 function unique(values) {
@@ -182,6 +184,15 @@ async function main() {
   const shouldStage = hasFlag('--stage');
   const initialStaged = modeName === 'precommit' ? stagedFiles() : [];
   const ran = [];
+
+  if (modeName !== 'all') {
+    nodeScript('scripts/refresh-tezoscrp-awards.mjs', ['--check']);
+    ran.push('tezoscrp-check');
+  } else {
+    nodeScript('scripts/refresh-tezoscrp-awards.mjs');
+    ran.push('tezoscrp');
+    if (shouldStage) stageTargets(TEZOSCRP_TARGETS);
+  }
 
   // Protocol identity is an input to Maxis seasons. Refresh it first so a
   // protocol activation cannot leave Maxis one scheduled run behind.

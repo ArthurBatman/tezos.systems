@@ -45,6 +45,7 @@ tezos.systems/
 │   ├── loading.css                    # Critical first-paint skeleton states
 │   ├── network-health.css             # Lazy Network Health detail-panel styles
 │   ├── capital.css                    # Lazy Capital Chamber styles
+│   ├── tezoscrp.css                   # Lazy TezosCRP Recognition Hall styles
 │   ├── themes/                        # Generated lazy-loaded theme bundles
 │   ├── hen-mode.css                   # HEN overlay styles
 │   └── landing.css                    # Landing and SEO page styles
@@ -74,6 +75,8 @@ tezos.systems/
 │   ├── maxis-careers.json              # Exact all-history governance career records
 │   ├── maxis-l2-governance.json         # Exact all-history Etherlink governance careers
 │   ├── maxis-leaders.json              # Generated canonical lane-native-clock Maxis snapshot
+│   ├── tezoscrp-awards.json             # Full official human-identity recognition archive
+│   ├── tezoscrp-summary.json            # Compact launcher/latest-winners projection
 │   ├── maxis/
 │   │   ├── manifest.json               # Protocol-season index and active season
 │   │   └── seasons/<season-id>/
@@ -86,7 +89,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ capital/ stake/ maxis/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ stake/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -102,6 +105,7 @@ tezos.systems/
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
+│   ├── refresh-tezoscrp-awards.mjs    # Official Medium RSS award refresh/checker
 │   ├── lib/maxis-l2-governance.mjs     # Etherlink career scoring and validation
 │   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
 │   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
@@ -263,7 +267,8 @@ inline modal styles in `js/core/app.js`.
   rail instead of painting over telemetry or the centered wordmark.
 - Chambers section is visible by default and orders the chamber rows as Network
   Pulse <> Capital Chamber, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
-  tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis, then
+  tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis,
+  TezosCRP Recognition Hall, then
   a full-width Tezos Domains strip at the bottom. ctez Oven Exit and KT1
   Multisig Recovery stay off the
   default Chambers grid and open from Explore's collapsed Recovery tools drawer
@@ -382,6 +387,17 @@ inline modal styles in `js/core/app.js`.
   full-width homepage launcher keeps the current lane holders readable and
   treats the active protocol season as a smaller race pulse rather than
   replacing the enduring Maxis view.
+- TezosCRP Recognition Hall with direct `#tezoscrp` and `/tezoscrp/` access is
+  deliberately separate from Tezos Maxis. Maxis assigns objective on-chain
+  crowns to wallet addresses and verified receipts; TezosCRP publishes human
+  and social identities, usually without a verified wallet. The Hall therefore
+  ranks official category recognitions, shows distinct recognized months as a
+  separate measure, preserves aliases conservatively, and links every row to an
+  official Tezos Commons article or X post. Its four views cover the all-time
+  Recognition Hall, latest winners, the nine current categories with official
+  category icons, and the complete monthly archive. Published per-person XTZ
+  amounts are shown only where a source states them; missing payout amounts are
+  never inferred from award counts.
 - Season is the protocol-bounded game layer, beginning with Ushuaia. Its end is the next known
   activation, or honestly remains open-ended while that activation is
   unscheduled. A circular selector appears only in room contexts where choosing
@@ -640,6 +656,7 @@ Useful deep links include:
 - `#capital`
 - `#staking`
 - `#maxis`
+- `#tezoscrp` or `#community-rewards`
 - `#l2chamber`
 - `#tezosx`
 - `#health`
@@ -651,7 +668,7 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`, `/capital/`, `/stake/`, `/maxis/`, `/health/`,
+Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`, `/capital/`, `/stake/`, `/maxis/`, `/tezoscrp/`, `/health/`,
 `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
 `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -678,6 +695,8 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
+| Tezos Commons rewards page and official Medium publication | TezosCRP category definitions, official icons, monthly winner announcements, and source receipts |
+| `data/tezoscrp-awards.json` | Same-origin full TezosCRP recognition archive, with human-identity aliases, monthly/category coverage, and known published amounts kept separate from award counts |
 | Etherlink JSON-RPC `https://node.mainnet.etherlink.com` | Tezos X chamber RPC head and gas fallback |
 | Etherlink governance `https://governance.etherlink.com/governance` | Official FAST, SLOW, and Sequencer action pages linked from the read-only chamber |
 | Octez.Connect `@tezos-x/octez.connect-sdk` via `https://esm.sh` | Lazy browser wallet pairing and ctez/My Tezos account actions |
@@ -703,7 +722,8 @@ Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
-the Maxis artifact family plus `data/capital-snapshot.json`. It also refreshes
+the Maxis artifact family plus `data/capital-snapshot.json`; manual full runs
+also check the official Tezos Commons feed for a new TezosCRP period. It also refreshes
 the reproducible Chainspect and
 Edinburgh EDI rows in `data/nakamoto-sources.json`; normal pre-commit runs only
 validate that ledger, while scheduled/full runs preserve last-known-good data
@@ -764,6 +784,12 @@ the same orchestrator in
 commit mode so fast-moving generated outputs update with each normal commit.
 `.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
 and commits only when generated outputs change.
+`.github/workflows/refresh-tezoscrp.yml` checks the official Tezos Commons
+Medium feed on the 10th and 25th of each month. It adds only a newly published
+winner period, rebuilds the full and compact artifacts, validates identity and
+category coverage, and commits only when the official archive changes. The
+six-hour generated-surfaces workflow validates this dataset but does not create
+extra TezosCRP polling.
 
 The Supabase anon key in `js/core/config.js` is public client configuration, not
 a secret. Browser fetch domains must be allowed by the CSP in `index.html`.
@@ -830,6 +856,8 @@ npm run refresh:maxis-careers
 npm run check:maxis-careers
 npm run refresh:maxis-l2-governance
 npm run check:maxis-l2-governance
+npm run refresh:tezoscrp
+npm run check:tezoscrp
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare
@@ -863,6 +891,9 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   sanity, historical chart pagination and
   render-performance settings, LB-aware issuance contracts, CSS freshness,
   lockfile/tooling, and shared hook checks.
+- `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
+  monthly coverage, official icon presence, RSS parsing, and conservative alias
+  continuity.
 - `npm run test:smoke`: a Playwright browser run against a throwaway local
   server by default. It uses mocked live-data endpoints for deterministic
   feature flows.
@@ -896,6 +927,9 @@ Current smoke suites:
   fallback, canonical resolved routes, unresolved names, KT1 rejection, and
   unchanged My Tezos state)
 - `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
+- `tezoscrp` (covers the human-identity Recognition Hall, award/month count
+  separation, source-complete person history, official category icons, latest
+  winners, archive filters, `/tezoscrp/`, and desktop/mobile containment)
 - `tezos-domains`
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)
@@ -925,7 +959,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v454`, including hero search, theme
+- Current aligned shell cache stamp: `v457`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

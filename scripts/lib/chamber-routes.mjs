@@ -64,6 +64,15 @@ export const CHAMBER_ROUTES = [
     accent: '#f5c451'
   },
   {
+    slug: 'tezoscrp',
+    hash: '#tezoscrp',
+    title: 'TezosCRP Recognition Hall - Tezos Community Rewards Archive',
+    shortTitle: 'TezosCRP Recognition Hall',
+    description: 'Explore every official Tezos Commons Community Rewards recognition since October 2020 by identity, month, category, and source receipt.',
+    eyebrow: 'Community Recognition',
+    accent: '#8f78ff'
+  },
+  {
     slug: 'health',
     hash: '#health',
     title: 'Network Health Chamber - Tezos Consensus Status',

@@ -60,6 +60,7 @@ const browserRoutes = [
   '/pulse/',
   '/capital/',
   '/maxis/',
+  '/tezoscrp/',
   '/health/',
   '/tezosx/',
   '/tezlink/',
@@ -168,6 +169,7 @@ const EXPECTED_CHAMBER_ORDER = [
   'ledger-flow-entry-card',
   'protocol-history-entry-card',
   'maxis-entry-card',
+  'tezoscrp-entry-card',
   'tezos-domains-entry-card'
 ];
 
@@ -2471,6 +2473,7 @@ async function assertChamberOrder(page, label) {
     ['tz4-adoption', 'staking-entry-card', 'lb-entry-card'],
     ['ledger-flow-entry-card', 'protocol-history-entry-card'],
     ['maxis-entry-card'],
+    ['tezoscrp-entry-card'],
     ['tezos-domains-entry-card']
   ];
   assert(
@@ -2642,7 +2645,7 @@ async function assertChamberControlGeometry(page, label) {
         for (const item of content) {
           const overlap = overlapArea(footerBox, item.box);
           if (overlap > 0) {
-            found.push({ card: selector, issue: 'footer-content-overlap', footer: '.chamber-entry-footer', content: item.name, overlap: Number(overlap.toFixed(2)) });
+            found.push({ card: selector, issue: 'footer-content-overlap', footer: '.chamber-entry-footer', content: item.name, overlap: Number(overlap.toFixed(2)), cardBox, footerBox, contentBox: item.box });
           }
         }
       }
@@ -2676,7 +2679,7 @@ async function assertChamberControlGeometry(page, label) {
           if (control.node === item.node || control.node.contains(item.node) || item.node.contains(control.node)) continue;
           const overlap = overlapArea(control.box, item.box);
           if (overlap > 0) {
-            found.push({ card: selector, issue: 'control-content-overlap', control: control.name, content: item.name, overlap: Number(overlap.toFixed(2)) });
+            found.push({ card: selector, issue: 'control-content-overlap', control: control.name, content: item.name, overlap: Number(overlap.toFixed(2)), cardBox, controlBox: control.box, contentBox: item.box });
           }
         }
       }
@@ -2807,6 +2810,22 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
   await page.waitForFunction(() => document.querySelectorAll('#chambers-section .chamber-entry-card[data-updated-label]').length >= 6, null, { timeout: 15000 });
+  try {
+    await page.waitForFunction((expectedCount) => {
+      const cards = Array.from(document.querySelectorAll('#chambers-section .chamber-entry-card'));
+      return cards.length === expectedCount && cards.every((card) => (
+        Boolean(card.querySelector(':scope .card-front .chamber-entry-title'))
+        && card.querySelector(':scope .chamber-entry-footer > .chamber-expand-cue')?.tagName === 'BUTTON'
+      ));
+    }, EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
+  } catch {
+    const readiness = await page.evaluate(() => Array.from(document.querySelectorAll('#chambers-section .chamber-entry-card')).map((card) => ({
+      id: card.id || card.dataset.stat || '',
+      title: card.querySelector(':scope .card-front .chamber-entry-title')?.textContent?.trim() || '',
+      cueTag: card.querySelector(':scope .chamber-entry-footer > .chamber-expand-cue')?.tagName || ''
+    })));
+    throw new Error(`${label}: Chamber launchers did not settle: ${JSON.stringify(readiness)}`);
+  }
   if (mockOptions.governanceLiveVote) {
     await page.locator('#chamber-entry-card.chamber-entry-wide[data-chamber-entry-size="wide"] .chamber-entry-metric strong').first().waitFor({ state: 'visible', timeout: 10000 });
   }
@@ -6721,6 +6740,102 @@ async function smokeMaxisDomainPassport(browser, baseUrl) {
   await context.close();
   assert(issues.length === 0, `maxis domain Passport browser issues:\n${issues.join('\n')}`);
   log('ok - maxis domain Passport smoke');
+}
+
+async function smokeTezosCrpChamber(browser, baseUrl) {
+  for (const { label, viewport } of [
+    { label: 'desktop', viewport: { width: 1440, height: 1000 } },
+    { label: 'mobile', viewport: { width: 390, height: 844 } }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'matrix');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    });
+    const page = await context.newPage();
+    attachIssueCollectors(page, `TezosCRP ${label}`, issues);
+
+    const response = await page.goto(`${baseUrl}/tezoscrp/`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `TezosCRP ${label}: pretty route failed with HTTP ${response?.status()}`);
+    await page.locator('#tezoscrp-modal.active .tezoscrp-content').waitFor({ state: 'visible', timeout: 15000 });
+    await page.locator('#tezoscrp-hall-results .tezoscrp-ranking').waitFor({ state: 'visible', timeout: 15000 });
+
+    const initial = await page.evaluate(() => {
+      const modal = document.querySelector('#tezoscrp-modal.active .tezoscrp-content');
+      const body = document.querySelector('#tezoscrp-modal .tezoscrp-body');
+      const metrics = Array.from(document.querySelectorAll('#tezoscrp-modal .tezoscrp-metrics strong')).map((node) => node.textContent.trim());
+      return {
+        path: window.location.pathname,
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '',
+        metrics,
+        tabs: document.querySelectorAll('#tezoscrp-modal [data-tezoscrp-view]').length,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        modalOverflow: modal.scrollWidth > modal.clientWidth + 1,
+        bodyOverflow: body.scrollWidth > body.clientWidth + 1,
+        truth: document.querySelector('#tezoscrp-modal .tezoscrp-truth-note')?.textContent.replace(/\s+/g, ' ').trim() || ''
+      };
+    });
+    assert(initial.path === '/tezoscrp/' && initial.canonical === 'https://tezos.systems/tezoscrp/', `TezosCRP ${label}: canonical route mismatch ${JSON.stringify(initial)}`);
+    assert(initial.metrics.join('|').includes('2,218') && initial.metrics.join('|').includes('870') && initial.metrics.join('|').includes('69'), `TezosCRP ${label}: baseline totals missing ${JSON.stringify(initial.metrics)}`);
+    assert(initial.tabs === 4, `TezosCRP ${label}: expected four archive views`);
+    assert(/one official category listing equals one award/i.test(initial.truth) && /most posts do not state a per-person XTZ payout/i.test(initial.truth), `TezosCRP ${label}: count truth is missing ${initial.truth}`);
+    assert(!initial.pageOverflow && !initial.modalOverflow && !initial.bodyOverflow, `TezosCRP ${label}: initial view overflows ${JSON.stringify(initial)}`);
+
+    await page.locator('#tezoscrp-hall-search').fill('Baking Benjamins');
+    await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-hall-results [data-tezoscrp-person]').length === 1);
+    const leaderText = (await page.locator('#tezoscrp-hall-results [data-tezoscrp-person]').innerText()).replace(/\s+/g, ' ');
+    assert(/Baking Benjamins/i.test(leaderText) && /63/.test(leaderText) && /50/.test(leaderText), `TezosCRP ${label}: identity search did not preserve awards/months ${leaderText}`);
+    await page.locator('#tezoscrp-hall-results [data-tezoscrp-person]').click();
+    await page.locator('#tezoscrp-person-detail:not([hidden]) .tezoscrp-receipts article').first().waitFor({ state: 'visible' });
+    assert(await page.locator('#tezoscrp-person-detail .tezoscrp-receipts article').count() === 63, `TezosCRP ${label}: person receipt trail is incomplete`);
+    assert(await page.locator('#tezoscrp-person-detail .tezoscrp-receipts a').count() >= 63, `TezosCRP ${label}: official source receipts are missing`);
+
+    await page.locator('[data-tezoscrp-view="latest"]').click();
+    await page.locator('.tezoscrp-latest-hero h2').waitFor({ state: 'visible' });
+    const latestText = (await page.locator('.tezoscrp-latest-hero').innerText()).replace(/\s+/g, ' ');
+    assert(/June 2026/.test(latestText) && /40 category recognitions/.test(latestText), `TezosCRP ${label}: latest official round mismatch ${latestText}`);
+
+    await page.locator('[data-tezoscrp-view="categories"]').click();
+    await page.locator('.tezoscrp-category-grid .tezoscrp-category-card').first().waitFor({ state: 'visible' });
+    const categoryState = await page.evaluate(() => ({
+      currentCards: document.querySelectorAll('#tezoscrp-view > .tezoscrp-category-grid .tezoscrp-category-card.is-current').length,
+      currentIcons: document.querySelectorAll('#tezoscrp-view > .tezoscrp-category-grid img.tezoscrp-category-icon').length,
+      historicalCount: Number(document.querySelector('.tezoscrp-historical-categories summary')?.textContent.match(/\d+/)?.[0] || 0),
+      overflow: document.querySelector('#tezoscrp-modal .tezoscrp-body').scrollWidth > document.querySelector('#tezoscrp-modal .tezoscrp-body').clientWidth + 1
+    }));
+    assert(categoryState.currentCards === 9 && categoryState.currentIcons === 9 && categoryState.historicalCount >= 24, `TezosCRP ${label}: category map is incomplete ${JSON.stringify(categoryState)}`);
+    assert(!categoryState.overflow, `TezosCRP ${label}: category view overflows`);
+
+    await page.locator('[data-tezoscrp-view="archive"]').click();
+    await page.locator('#tezoscrp-archive-period').selectOption('2026-06');
+    await page.waitForFunction(() => /of 40 matching recognitions/.test(document.querySelector('#tezoscrp-archive-results')?.textContent || ''));
+    await page.locator('#tezoscrp-archive-search').fill('Baking Benjamins');
+    await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-archive-results .tezoscrp-archive-list article').length === 1);
+    const archiveRow = (await page.locator('#tezoscrp-archive-results .tezoscrp-archive-list article').innerText()).replace(/\s+/g, ' ');
+    assert(/Jun 2026/.test(archiveRow) && /Baking Benjamins/i.test(archiveRow) && /Official source|Tezos Commons X post/i.test(archiveRow), `TezosCRP ${label}: archive filtering/source mismatch ${archiveRow}`);
+    assert(!/0\s*ꜩ published/.test(archiveRow), `TezosCRP ${label}: missing payout amount was misrepresented as zero ${archiveRow}`);
+
+    const settled = await page.evaluate(() => {
+      const modal = document.querySelector('#tezoscrp-modal .tezoscrp-content');
+      const body = document.querySelector('#tezoscrp-modal .tezoscrp-body');
+      return {
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        modalOverflow: modal.scrollWidth > modal.clientWidth + 1,
+        bodyOverflow: body.scrollWidth > body.clientWidth + 1
+      };
+    });
+    assert(!settled.pageOverflow && !settled.modalOverflow && !settled.bodyOverflow, `TezosCRP ${label}: filtered archive overflows ${JSON.stringify(settled)}`);
+
+    await page.locator('#tezoscrp-modal .chamber-close').click();
+    await page.waitForFunction(() => !document.querySelector('#tezoscrp-modal')?.classList.contains('active'));
+    assert(issues.length === 0, `TezosCRP ${label} browser issues:\n${issues.join('\n')}`);
+    await context.close();
+  }
+  log('ok - TezosCRP Chamber (desktop + mobile)');
 }
 
 async function smokeMaxisChamber(browser, baseUrl) {
@@ -11736,6 +11851,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'ledger-flow', description: 'Ledger Flow opens #ledger-flow with sent, received, first-funding, and amount-weighted transfer paths', run: () => smokeLedgerFlowChamber(browser, baseUrl) },
     { name: 'maxis-domain-passport', description: 'Maxi Passport resolves .tez names and subdomains without mutating My Tezos or assigning KT1 activity to an owner', run: () => smokeMaxisDomainPassport(browser, baseUrl) },
     { name: 'maxis', description: 'Default all-lane Maxis crowns, room-aware protocol seasons, career-plus-season Passport, immutable Champions, mobile geometry, and address trails', run: () => smokeMaxisChamber(browser, baseUrl) },
+    { name: 'tezoscrp', description: 'Human-identity Recognition Hall, official category icons, latest winners, sourced monthly archive, and mobile geometry', run: () => smokeTezosCrpChamber(browser, baseUrl) },
     { name: 'tezos-domains', description: 'Tezos Domains opens #domains with fresh .tez names, auctions, offers, and expiring-name pressure', run: () => smokeTezosDomainsChamber(browser, baseUrl) },
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },

@@ -1,0 +1,64 @@
+name: Refresh TezosCRP Awards
+
+on:
+  schedule:
+    # Tezos Commons usually announces the prior month around the 19th–21st.
+    # The 10th catches delayed posts; the 25th catches the normal publication window.
+    - cron: '23 13 10,25 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tezos-systems-repository-writer
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the official Tezos Commons feed
+        run: npm run refresh:tezoscrp
+
+      - name: Validate the archive and parser contract
+        run: |
+          npm run check:tezoscrp
+          npm run test:tezoscrp
+
+      - name: Validate site contracts when awards changed
+        run: |
+          if git diff --quiet -- data/tezoscrp-awards.json data/tezoscrp-summary.json; then
+            echo "No new TezosCRP award period"
+            exit 0
+          fi
+          npm run test:static
+
+      - name: Commit a new official award period
+        run: |
+          if git diff --quiet -- data/tezoscrp-awards.json data/tezoscrp-summary.json; then
+            echo "No TezosCRP changes to commit"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin main
+          ./scripts/stamp-version.sh
+          git add -- data/tezoscrp-awards.json data/tezoscrp-summary.json version.json
+          git commit -m "Refresh TezosCRP awards"
+          git push
