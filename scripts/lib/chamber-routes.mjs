@@ -19,6 +19,15 @@ export const CHAMBER_ROUTES = [
     accent: '#45e0c8'
   },
   {
+    slug: 'history',
+    hash: '#history',
+    title: 'Cycle History - Tezos Signal Archive',
+    shortTitle: 'Cycle History',
+    description: 'Rewind captured Tezos consensus, staking, issuance, market, Network Health, Tezos X, and governance signals across selectable time ranges.',
+    eyebrow: 'Measured History',
+    accent: '#60a5fa'
+  },
+  {
     slug: 'chamber',
     hash: '#chamber',
     title: 'Tezos L1 Governance - Tezos Governance Vote Room',
@@ -46,6 +55,15 @@ export const CHAMBER_ROUTES = [
     accent: '#f49ad1'
   },
   {
+    slug: 'whales',
+    hash: '#whales',
+    title: 'Whale Watch - Large Tez Movement and Dormancy',
+    shortTitle: 'Whale Watch',
+    description: 'Inspect large tez operations, grouped flow stories, dormant large accounts, and verified post-dormancy awakenings with TzKT receipts.',
+    eyebrow: 'Large Value Movement',
+    accent: '#38bdf8'
+  },
+  {
     slug: 'stake',
     hash: '#staking',
     title: 'Staking Chamber - Large Tezos Stake and Unstake Moves',
@@ -53,6 +71,15 @@ export const CHAMBER_ROUTES = [
     description: 'Track large Tezos stake and unstake operations, the current staking share, and the complete history above 10,000 tez.',
     eyebrow: 'Stake / Unstake',
     accent: '#a78bfa'
+  },
+  {
+    slug: 'leaderboard',
+    hash: '#leaderboard',
+    title: 'Baker Directory - Active Tezos Bakers',
+    shortTitle: 'Baker Directory',
+    description: 'Discover and inspect active Tezos bakers through transparent on-chain capacity, tenure, governance, and tz4 signals without synthetic performance grades.',
+    eyebrow: 'Baker Discovery',
+    accent: '#f5c451'
   },
   {
     slug: 'maxis',

@@ -8,6 +8,12 @@ import { escapeHtml, formatMutez } from '../core/utils.js';
 import { isValidAddress } from './my-baker.js';
 import { pulseFresh } from '../effects/data-magic.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import {
+    activateChamberDialog,
+    deactivateChamberDialog,
+    findChamberLauncher,
+    wireChamberLauncher
+} from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
@@ -15,7 +21,7 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=469';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=470';
 const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
 const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -23,6 +29,14 @@ const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
 const OG_LAST_YEAR = 2018;
 const VETERAN_LAST_YEAR = 2021;
+const BAKER_DIRECTORY_REFRESH_MS = 10 * 60 * 1000;
+const BAKER_DIRECTORY_VIEWS = Object.freeze([
+    { id: 'discover', label: 'Discover' },
+    { id: 'directory', label: 'Directory' },
+    { id: 'signals', label: 'Signals' }
+]);
+const BAKER_DIRECTORY_VIEW_IDS = new Set(BAKER_DIRECTORY_VIEWS.map(({ id }) => id));
+const BAKER_DIRECTORY_SIGNAL_IDS = new Set(['all', 'og', 'veteran', 'accepted', 'voting', 'rising', 'tz4']);
 
 let bakersData = [];
 let currentSort = { col: 'stake', dir: 'desc' };
@@ -33,6 +47,24 @@ let showOpenOvensOnly = false;
 let leaderboardDataQuality = { status: 'unavailable', observedAt: null };
 let governanceSignals = emptyGovernanceSignals();
 const previousStakeSnapshot = new Map();
+let bakerDirectoryState = {
+    view: 'discover',
+    search: '',
+    requestedBaker: '',
+    selectedAddress: '',
+    sort: 'stake',
+    dir: 'desc',
+    openOnly: false,
+    signal: 'all'
+};
+let bakerDirectoryTimer = null;
+let bakerDirectoryRefreshInFlight = null;
+let bakerDirectoryRefreshDeferred = false;
+let bakerDirectoryVisibilityWired = false;
+let bakerDirectoryLastError = '';
+let bakerDirectorySavedBodyOverflow = null;
+let bakerDirectorySavedHtmlOverflow = null;
+let bakerDirectoryFocusedBeforeOpen = null;
 
 function ensureLeaderboardStyles() {
     if (document.getElementById('leaderboard-css')) return;
@@ -46,11 +78,11 @@ function ensureLeaderboardStyles() {
 const FIT_QUESTIONS = [
     {
         key: 'amount',
-        label: 'Delegation size',
+        label: 'Minimum room',
         options: [
-            { value: 'small', label: '<1K', detail: 'starter amount' },
-            { value: 'medium', label: '1K-50K', detail: 'typical delegator' },
-            { value: 'large', label: '50K+', detail: 'capacity matters' }
+            { value: 'small', label: '1K', detail: 'at least 1,000 XTZ current room' },
+            { value: 'medium', label: '50K', detail: 'at least 50,000 XTZ current room' },
+            { value: 'large', label: '250K', detail: 'at least 250,000 XTZ current room' }
         ]
     },
     {
@@ -63,9 +95,9 @@ const FIT_QUESTIONS = [
     },
     {
         key: 'style',
-        label: 'Baker style',
+        label: 'Evidence filter',
         options: [
-            { value: 'balanced', label: 'Balanced', detail: 'steady all-rounder' },
+            { value: 'balanced', label: 'Any', detail: 'no key-type or tenure filter' },
             { value: 'modern', label: 'tz4 ready', detail: 'BLS consensus keys' },
             { value: 'veteran', label: 'Veteran', detail: 'first activity by end of 2021' }
         ]
@@ -178,7 +210,9 @@ function emptyGovernanceSignals() {
         careerReady: false,
         proposalsReady: false,
         careerGeneratedAt: null,
-        proposalsGeneratedAt: null
+        proposalsGeneratedAt: null,
+        careerError: '',
+        proposalsError: ''
     };
 }
 
@@ -235,22 +269,32 @@ async function fetchGovernanceSignals() {
         fetchJsonArtifact(GOVERNANCE_CAREERS_URL),
         fetchJsonArtifact(GOVERNANCE_VOTES_URL)
     ]);
-    const next = emptyGovernanceSignals();
+    const next = {
+        ...governanceSignals,
+        careerByAddress: governanceSignals.careerByAddress,
+        acceptedByAddress: governanceSignals.acceptedByAddress,
+        careerError: '',
+        proposalsError: ''
+    };
 
     if (careerResult.status === 'fulfilled') {
         try {
             next.careerByAddress = governanceCareerIndex(careerResult.value);
             next.careerReady = true;
             next.careerGeneratedAt = careerResult.value.generatedAt || null;
-        } catch { /* keep governance streak badges unavailable */ }
-    }
+        } catch (error) {
+            next.careerError = error?.message || 'Governance career receipt invalid';
+        }
+    } else next.careerError = careerResult.reason?.message || 'Governance career receipt unavailable';
     if (proposalsResult.status === 'fulfilled') {
         try {
             next.acceptedByAddress = acceptedProposalIndex(proposalsResult.value);
             next.proposalsReady = true;
             next.proposalsGeneratedAt = proposalsResult.value.generatedAt || null;
-        } catch { /* keep accepted-proposal badges unavailable */ }
-    }
+        } catch (error) {
+            next.proposalsError = error?.message || 'Governance proposal receipt invalid';
+        }
+    } else next.proposalsError = proposalsResult.reason?.message || 'Governance proposal receipt unavailable';
 
     governanceSignals = next;
     return next;
@@ -365,7 +409,7 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
         stakers,
         tz4: isTz4(b.address, b.consensusAddress),
         delegationLimit: limit,
-        delegationUsage: Math.min(delegationUsage, 100),
+        delegationUsage,
         name: b.alias || (b.address.slice(0, 8) + '…'),
         sinceYear: sinceYear(b)
     };
@@ -462,63 +506,50 @@ function fitCapacityNeed(prefs) {
     return 1000;
 }
 
-function clampScore(value) {
-    return Math.max(0, Math.min(100, Number(value) || 0));
-}
-
-function scoreBakerFit(baker, prefs = fitPrefs) {
+function bakerMatchesFit(baker, prefs = fitPrefs) {
     const free = Number(baker.freeDelegationCapacity || 0);
     const need = fitCapacityNeed(prefs);
-    const hasRoom = free >= need && Number(baker.delegationUsage || 0) < 90;
-    const capacityRoomScore = clampScore((free / Math.max(1, need)) * 100);
-    const capacityUseScore = clampScore(100 - Number(baker.delegationUsage || 0));
-    const capacityScore = capacityRoomScore * 0.65 + capacityUseScore * 0.35;
-    const community = Number(baker.delegators || 0) + Number(baker.stakers || 0);
-    const communityScore = clampScore(Math.log10(community + 1) * 42);
-    let score = capacityScore * 0.48 + communityScore * 0.37 + (baker.tz4 ? 15 : 0);
-    const reasons = [];
+    if (free < need) return false;
+    if (prefs.style === 'modern' && !baker.tz4) return false;
+    if (prefs.style === 'veteran' && !(Number.isFinite(baker.sinceYear) && baker.sinceYear <= VETERAN_LAST_YEAR)) return false;
+    return true;
+}
 
-    if (hasRoom) {
-        score += prefs.amount === 'large' ? 18 : 10;
-        reasons.push(`${Math.floor(free).toLocaleString('en-US')} XTZ room`);
-    } else {
-        score -= prefs.amount === 'large' ? 60 : 30;
-        reasons.push(`${Math.max(0, Math.floor(free)).toLocaleString('en-US')} XTZ room`);
-    }
-
+function compareBakerFit(left, right, prefs = fitPrefs) {
+    const leftCommunity = Number(left.delegators || 0) + Number(left.stakers || 0);
+    const rightCommunity = Number(right.delegators || 0) + Number(right.stakers || 0);
+    const leftRoom = Number(left.freeDelegationCapacity || 0);
+    const rightRoom = Number(right.freeDelegationCapacity || 0);
     if (prefs.priority === 'capacity') {
-        score += capacityScore * 0.28;
-        if (baker.openDelegationRoom) reasons.push('open oven');
-    } else {
-        score += communityScore * 0.28;
-        reasons.push(`${community.toLocaleString('en-US')} delegators + stakers`);
+        return rightRoom - leftRoom
+            || rightCommunity - leftCommunity
+            || left.name.localeCompare(right.name);
     }
+    return rightCommunity - leftCommunity
+        || rightRoom - leftRoom
+        || left.name.localeCompare(right.name);
+}
 
-    if (prefs.style === 'modern' && baker.tz4) {
-        score += 18;
-        reasons.push('tz4/BLS');
-    } else if (prefs.style === 'veteran' && Number.isFinite(baker.sinceYear) && baker.sinceYear <= VETERAN_LAST_YEAR) {
-        score += 18;
-        reasons.push(`since ${baker.sinceYear}`);
-    } else if (prefs.style === 'balanced') {
-        score += (capacityScore + communityScore) * 0.05;
-        reasons.push(`${(baker.delegationUsage || 0).toFixed(0)}% used`);
-    }
-
-    return {
-        baker,
-        score,
-        reasons: reasons.slice(0, 3),
-        hasRoom
-    };
+function factualBakerFits(bakers, prefs = fitPrefs, limit = 6) {
+    return bakers
+        .filter((baker) => bakerMatchesFit(baker, prefs))
+        .sort((left, right) => compareBakerFit(left, right, prefs))
+        .slice(0, limit)
+        .map((baker) => {
+            const community = Number(baker.delegators || 0) + Number(baker.stakers || 0);
+            const reasons = [
+                `${Math.floor(Number(baker.freeDelegationCapacity || 0)).toLocaleString('en-US')} XTZ room`,
+                `${community.toLocaleString('en-US')} delegators + stakers`
+            ];
+            if (prefs.style === 'modern') reasons.push('tz4/BLS key');
+            else if (prefs.style === 'veteran') reasons.push(`first activity ${baker.sinceYear}`);
+            else reasons.push(`${Number(baker.delegationUsage || 0).toFixed(0)}% delegation use`);
+            return { baker, reasons, hasRoom: true };
+        });
 }
 
 function fitFinderHtml(ranked) {
-    const candidates = ranked
-        .map((baker) => scoreBakerFit(baker, fitPrefs))
-        .filter((item) => item.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3);
+    const candidates = factualBakerFits(ranked, fitPrefs, 3);
 
     return `
         <section class="baker-fit-finder" aria-label="Delegator baker fit finder">
@@ -526,7 +557,7 @@ function fitFinderHtml(ranked) {
                 <div>
                     <span class="feature-kicker">Delegator match</span>
                     <h3>Find bakers that fit your delegation lane</h3>
-                    <p class="baker-fit-method">Fit uses live delegation capacity, community, tenure, and tz4—not an uptime or performance grade. Delegation fees and payout policy are off-chain, so they are not ranked here; the on-chain external-staker edge is not a delegation fee.</p>
+                    <p class="baker-fit-method">Filters are strict: enough current room plus the selected key or tenure evidence. Community orders by delegators + stakers; Capacity orders by free room; ties use the other fact, then name. No blended score is calculated. Delegation fees and payout policy are off-chain; the protocol's external-staker edge is not a delegation fee.</p>
                 </div>
                 <a href="/staking/">Staking guide</a>
             </div>
@@ -547,7 +578,7 @@ function fitFinderHtml(ranked) {
             <div class="baker-fit-results">
                 ${candidates.map((item, index) => `
                     <article class="baker-fit-card ${item.hasRoom ? '' : 'tight'}">
-                        <span class="baker-fit-rank">#${index + 1}</span>
+                        <span class="baker-fit-rank">Order ${index + 1}</span>
                         <strong>${escapeHtml(item.baker.name)}</strong>
                         <small>${escapeHtml(item.reasons.join(' · '))}</small>
                         <button type="button" class="baker-fit-select" data-address="${escapeHtml(item.baker.address)}">Review baker</button>
@@ -606,7 +637,10 @@ function governanceSignalsSourceLabel() {
         .map((value) => Date.parse(value || ''))
         .filter(Number.isFinite);
     const asOf = dates.length ? new Date(Math.min(...dates)).toISOString().slice(0, 10) : null;
-    const scope = readyCount === 2 ? 'governance receipts' : 'partial governance receipts';
+    const hasRefreshError = Boolean(governanceSignals.careerError || governanceSignals.proposalsError);
+    const scope = readyCount === 2
+        ? (hasRefreshError ? 'last-good governance receipts' : 'governance receipts')
+        : (hasRefreshError ? 'partial last-good governance receipts' : 'partial governance receipts');
     return `${scope}${asOf ? ` ${asOf} UTC` : ''}`;
 }
 
@@ -880,33 +914,18 @@ export function initLeaderboard() {
         if (saved?.col) currentSort = saved;
     } catch {}
 
-    let loaded = false;
-
-    function updateVis(isVisible) {
-        section.classList.toggle('visible', isVisible);
-        setLauncherToggleState(toggleBtn, isVisible);
-        toggleBtn.title = `Baker Directory: ${isVisible ? 'Showing' : 'Hidden'}`;
-        
-        // Lazy-load on first open
-        if (isVisible && !loaded) {
-            ensureLeaderboardStyles();
-            loaded = true;
-            loadLeaderboard(container);
-        }
-    }
-
+    // Keep the established launcher id for deep links, onboarding, and tests,
+    // but its primary action now enters the full Chamber. The legacy inline
+    // section remains readable for visitors who previously opted into it.
     toggleBtn.addEventListener('click', () => {
-        const isVisible = localStorage.getItem(TOGGLE_KEY) === 'true';
-        const newState = !isVisible;
-        localStorage.setItem(TOGGLE_KEY, String(newState));
-        updateVis(newState);
-        if (newState) {
-            const optContainer = document.getElementById('optional-sections');
-            if (optContainer && section.parentElement === optContainer) {
-                optContainer.prepend(section);
-            }
-        }
+        openBakerDirectoryChamber().catch((error) => {
+            console.warn('Failed to open Baker Directory Chamber:', error);
+        });
     });
+    toggleBtn.setAttribute('aria-label', 'Open Baker Directory Chamber');
+    toggleBtn.setAttribute('aria-haspopup', 'dialog');
+    toggleBtn.setAttribute('aria-controls', 'baker-directory-modal');
+    toggleBtn.title = 'Open Baker Directory Chamber';
 
     window.addEventListener('my-baker-updated', () => {
         if (!bakersData.length || !section.classList.contains('visible')) return;
@@ -914,9 +933,11 @@ export function initLeaderboard() {
         render(container);
     });
 
-    // Restore visibility
-    const isVisible = localStorage.getItem(TOGGLE_KEY) === 'true';
-    updateVis(isVisible);
+    // The former inline board remains a compatibility target for baker-profile
+    // deep links, but the Explore control now always opens the Chamber.
+    section.classList.remove('visible');
+    toggleBtn.classList.remove('active');
+    toggleBtn.removeAttribute('aria-pressed');
 }
 
 /**
@@ -1028,4 +1049,864 @@ export async function openBakerProfile(address) {
         if (saveBtn) saveBtn.click();
         openDrawer();
     }
+}
+
+// ─── Baker Directory Chamber ────────────────────────────────────────────────
+
+function isBakerDirectoryRoute() {
+    return /^\/leaderboard\/?$/.test(window.location.pathname);
+}
+
+function cleanDirectoryQuery(value, maxLength = 96) {
+    return String(value || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, maxLength);
+}
+
+function readBakerDirectoryRouteState() {
+    if (!isBakerDirectoryRoute()) return null;
+    const params = new URL(window.location.href).searchParams;
+    const view = cleanDirectoryQuery(params.get('view'), 16);
+    return {
+        view: BAKER_DIRECTORY_VIEW_IDS.has(view) ? view : 'discover',
+        search: cleanDirectoryQuery(params.get('search')),
+        requestedBaker: cleanDirectoryQuery(params.get('baker'), 128)
+    };
+}
+
+function applyBakerDirectoryRouteState() {
+    const route = readBakerDirectoryRouteState();
+    if (!route) return;
+    bakerDirectoryState = {
+        ...bakerDirectoryState,
+        ...route,
+        selectedAddress: ''
+    };
+}
+
+function updateBakerDirectoryRouteState() {
+    if (!isBakerDirectoryRoute()) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', bakerDirectoryState.view);
+    if (bakerDirectoryState.search) url.searchParams.set('search', bakerDirectoryState.search);
+    else url.searchParams.delete('search');
+    const baker = bakerDirectoryState.selectedAddress || bakerDirectoryState.requestedBaker;
+    if (baker) url.searchParams.set('baker', baker);
+    else url.searchParams.delete('baker');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function leaveBakerDirectoryRoute() {
+    if (!isBakerDirectoryRoute()) return;
+    window.history.replaceState(
+        { ...(window.history.state || {}), tezosSystemsRoute: 'home' },
+        '',
+        '/'
+    );
+    window.dispatchEvent(new CustomEvent('tezos:routechange', {
+        detail: { entryId: 'home', route: '/', replace: true, current: false }
+    }));
+}
+
+function directorySignalTone(baker) {
+    const tones = new Set((baker.earnedBadges || []).map(({ tone }) => tone));
+    if (baker.tz4) tones.add('tz4');
+    return tones;
+}
+
+function bakerMatchesDirectorySearch(baker, query) {
+    const cleaned = String(query || '').trim().toLowerCase();
+    if (!cleaned) return true;
+    const terms = cleaned.split(/\s+/).filter(Boolean);
+    const searchable = searchableBakerText(baker);
+    return terms.every((term) => searchable.includes(term) || compactSearchText(searchable).includes(compactSearchText(term)));
+}
+
+function directoryBakers({ ignoreSignal = false, ignoreSearch = false } = {}) {
+    let rows = bakersData.filter((baker) => (
+        (ignoreSearch || bakerMatchesDirectorySearch(baker, bakerDirectoryState.search))
+        && (!bakerDirectoryState.openOnly || baker.openDelegationRoom)
+        && (ignoreSignal
+            || bakerDirectoryState.signal === 'all'
+            || directorySignalTone(baker).has(bakerDirectoryState.signal))
+    ));
+    rows = sortBakers(rows, bakerDirectoryState.sort, bakerDirectoryState.dir);
+    return rows;
+}
+
+function resolveRequestedDirectoryBaker() {
+    const requested = cleanDirectoryQuery(bakerDirectoryState.requestedBaker, 128);
+    if (!requested || !bakersData.length) return null;
+    const normalized = normalizedAddress(requested);
+    const exact = bakersData.find((baker) => normalizedAddress(baker.address) === normalized)
+        || bakersData.find((baker) => String(baker.alias || '').trim().toLowerCase() === requested.toLowerCase())
+        || bakersData.find((baker) => String(baker.name || '').trim().toLowerCase() === requested.toLowerCase());
+    const match = exact || bakersData
+        .map((baker) => ({ baker, score: scoreBakerMatch(baker, requested) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score)[0]?.baker;
+    if (!match) return null;
+    bakerDirectoryState.selectedAddress = match.address;
+    bakerDirectoryState.requestedBaker = '';
+    return match;
+}
+
+function selectedDirectoryBaker() {
+    const selected = normalizedAddress(bakerDirectoryState.selectedAddress);
+    return selected ? bakersData.find((baker) => normalizedAddress(baker.address) === selected) || null : null;
+}
+
+function compactXtz(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 'Unavailable';
+    return new Intl.NumberFormat('en-US', {
+        notation: Math.abs(number) >= 10000 ? 'compact' : 'standard',
+        maximumFractionDigits: Math.abs(number) >= 10000 ? 1 : 0
+    }).format(number);
+}
+
+function formattedObservedAt() {
+    const parsed = Date.parse(leaderboardDataQuality.observedAt || '');
+    if (!Number.isFinite(parsed)) return 'Awaiting a source receipt';
+    return `Observed ${new Date(parsed).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })}`;
+}
+
+function bakerDirectorySummary() {
+    const active = bakersData.length;
+    const open = bakersData.filter(({ openDelegationRoom }) => openDelegationRoom).length;
+    const tz4 = bakersData.filter(({ tz4 }) => tz4).length;
+    const tenure = bakersData.filter((baker) => directorySignalTone(baker).has('og') || directorySignalTone(baker).has('veteran')).length;
+    const accepted = bakersData.filter((baker) => directorySignalTone(baker).has('accepted')).length;
+    const voting = bakersData.filter((baker) => directorySignalTone(baker).has('voting')).length;
+    const totalStake = bakersData.reduce((sum, baker) => sum + Number(baker.stake || 0), 0);
+    return { active, open, tz4, tenure, accepted, voting, totalStake };
+}
+
+function bakerDirectorySourceText() {
+    const data = leaderboardDataQuality.status === 'live'
+        ? 'Live TzKT active-delegate receipt'
+        : leaderboardDataQuality.status === 'cached'
+            ? 'Recent cached TzKT receipt'
+            : leaderboardDataQuality.status === 'stale'
+                ? 'Last-good cached TzKT receipt'
+                : 'TzKT receipt unavailable';
+    return `${data} · ${governanceSignalsSourceLabel()} · ${delegationLimitSource === 'live' ? 'live' : 'fallback'} ${delegationLimit}x delegation limit`;
+}
+
+function directoryBadgeRailHtml(baker) {
+    const badges = baker.earnedBadges || [];
+    const tz4Badge = baker.tz4
+        ? '<span class="lb-badge lb-badge-tz4" title="The current consensus key uses a tz4/BLS address." aria-label="tz4 BLS consensus key">tz4 / BLS</span>'
+        : '';
+    if (!badges.length && !tz4Badge) return '<span class="baker-directory-no-signal">No listed signal</span>';
+    return `<span class="lb-badge-rail">${badges.map(signalBadgeHtml).join('')}${tz4Badge}</span>`;
+}
+
+function directoryBakerDetailHtml(baker) {
+    if (!baker) return '';
+    const firstActivity = Number.isFinite(Date.parse(baker.firstActivityTime || ''))
+        ? new Date(baker.firstActivityTime).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+        : 'Unavailable';
+    const capacity = Number(baker.freeDelegationCapacity || 0);
+    return `
+        <aside class="baker-directory-detail" data-address="${escapeHtml(baker.address)}" aria-labelledby="baker-directory-detail-title">
+            <div class="baker-directory-detail-head">
+                <div>
+                    <span class="feature-kicker">Selected baker</span>
+                    <h3 id="baker-directory-detail-title">${escapeHtml(baker.name)}</h3>
+                    <code>${escapeHtml(baker.address)}</code>
+                </div>
+                <button type="button" class="baker-directory-detail-close" data-bdc-clear-baker aria-label="Close selected baker details">&times;</button>
+            </div>
+            <div class="baker-directory-detail-signals">${directoryBadgeRailHtml(baker)}</div>
+            <dl class="baker-directory-detail-facts">
+                <div><dt>Staking balance</dt><dd>${formatMutez(baker.stakingBalance)}</dd></div>
+                <div><dt>Delegators</dt><dd>${Number(baker.delegators || 0).toLocaleString('en-US')}</dd></div>
+                <div><dt>External stakers</dt><dd>${Number(baker.stakers || 0).toLocaleString('en-US')}</dd></div>
+                <div><dt>Delegation use</dt><dd>${Number(baker.delegationUsage || 0).toFixed(0)}%</dd></div>
+                <div><dt>Delegation room</dt><dd>${compactXtz(capacity)} XTZ</dd></div>
+                <div><dt>First activity</dt><dd>${escapeHtml(firstActivity)}</dd></div>
+            </dl>
+            <p class="baker-directory-detail-note">These are current on-chain facts and historical receipts. They do not establish payout policy, fee terms, uptime, or future performance.</p>
+            <div class="baker-directory-detail-actions">
+                <button type="button" class="baker-directory-primary-action" data-bdc-open-profile="${escapeHtml(baker.address)}">Open full baker profile</button>
+                <a href="https://tzkt.io/${encodeURIComponent(baker.address)}" target="_blank" rel="noopener noreferrer">Inspect on TzKT</a>
+            </div>
+        </aside>
+    `;
+}
+
+function directoryKpiHtml(label, value, detail) {
+    return `
+        <div class="baker-directory-kpi">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+            <small>${escapeHtml(detail)}</small>
+        </div>
+    `;
+}
+
+function bakerDirectoryDiscoverHtml() {
+    const summary = bakerDirectorySummary();
+    const pool = directoryBakers({ ignoreSignal: true });
+    const matches = factualBakerFits(pool, fitPrefs, 6);
+    const selected = selectedDirectoryBaker();
+    const requestedNotFound = bakerDirectoryState.requestedBaker && !selected;
+
+    return `
+        <section class="baker-directory-view baker-directory-discover" aria-labelledby="baker-directory-discover-title">
+            <div class="baker-directory-kpis" aria-label="Baker directory overview">
+                ${directoryKpiHtml('Funded active bakers', summary.active.toLocaleString('en-US'), 'Positive current baking power')}
+                ${directoryKpiHtml('Current staking balance', `${compactXtz(summary.totalStake)} XTZ`, 'Sum across this funded set')}
+                ${directoryKpiHtml('Open delegation room', summary.open.toLocaleString('en-US'), 'At least 50K XTZ room and under 80% used')}
+                ${directoryKpiHtml('tz4 consensus keys', summary.tz4.toLocaleString('en-US'), 'Current BLS consensus addresses')}
+            </div>
+            ${requestedNotFound ? `<div class="baker-directory-inline-state" role="status">No funded active baker matched “${escapeHtml(bakerDirectoryState.requestedBaker)}”. Search remains available below.</div>` : ''}
+            ${directoryBakerDetailHtml(selected)}
+            <div class="baker-directory-discover-layout">
+                <section class="baker-directory-fit" aria-labelledby="baker-directory-discover-title">
+                    <div class="baker-directory-section-heading">
+                        <div>
+                            <span class="feature-kicker">Delegator fit</span>
+                            <h2 id="baker-directory-discover-title">Narrow the on-chain facts</h2>
+                        </div>
+                        <a href="/staking/">Read the staking guide</a>
+                    </div>
+                    <p class="baker-directory-method">The room and evidence choices are strict filters. Community orders by current delegators + stakers; Capacity orders by current free delegation room; ties use the other fact, then baker name. No blended score or inferred quality grade is calculated.</p>
+                    <div class="baker-directory-fit-questions">
+                        ${FIT_QUESTIONS.map((question) => `
+                            <fieldset class="baker-directory-fit-question">
+                                <legend>${escapeHtml(question.label)}</legend>
+                                <div>
+                                    ${question.options.map((option) => `
+                                        <button type="button" class="baker-fit-option ${fitPrefs[question.key] === option.value ? 'active' : ''}" data-fit-key="${escapeHtml(question.key)}" data-fit-value="${escapeHtml(option.value)}" aria-pressed="${fitPrefs[question.key] === option.value ? 'true' : 'false'}" title="${escapeHtml(option.detail)}">${escapeHtml(option.label)}</button>
+                                    `).join('')}
+                                </div>
+                            </fieldset>
+                        `).join('')}
+                    </div>
+                    <div class="baker-directory-match-grid" aria-live="polite">
+                        ${matches.length ? matches.map((item, index) => `
+                            <article class="baker-directory-match ${item.hasRoom ? '' : 'tight'}" data-address="${escapeHtml(item.baker.address)}">
+                                <span class="baker-directory-match-order">Order ${index + 1}</span>
+                                <h3>${escapeHtml(item.baker.name)}</h3>
+                                <p>${escapeHtml(item.reasons.join(' · '))}</p>
+                                ${directoryBadgeRailHtml(item.baker)}
+                                <button type="button" data-bdc-select="${escapeHtml(item.baker.address)}">Review on-chain facts</button>
+                            </article>
+                        `).join('') : '<div class="baker-directory-empty">No active baker matches the current search and capacity choices.</div>'}
+                    </div>
+                </section>
+                <aside class="baker-directory-reading-guide">
+                    <span class="feature-kicker">Before choosing</span>
+                    <h2>What the chain cannot tell you</h2>
+                    <ul>
+                        <li><strong>Fees and payout timing</strong><span>Verify them with the baker; they are off-chain policies.</span></li>
+                        <li><strong>Service quality</strong><span>No composite score or inferred reliability is presented here.</span></li>
+                        <li><strong>Future capacity</strong><span>Room is a current protocol calculation and can change.</span></li>
+                    </ul>
+                    <button type="button" data-bdc-view="directory">Inspect every active baker</button>
+                </aside>
+            </div>
+        </section>
+    `;
+}
+
+function bakerDirectorySortHeader(col, label) {
+    const active = bakerDirectoryState.sort === col;
+    const direction = active ? (bakerDirectoryState.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+    const arrow = active ? (bakerDirectoryState.dir === 'asc' ? '▴' : '▾') : '';
+    return `
+        <th scope="col" aria-sort="${direction}">
+            <button type="button" data-bdc-sort="${col}" aria-label="Sort by ${escapeHtml(label)}${active ? `, currently ${direction}` : ''}">
+                ${escapeHtml(label)} <span aria-hidden="true">${arrow}</span>
+            </button>
+        </th>
+    `;
+}
+
+function bakerDirectoryDirectoryHtml() {
+    const rows = directoryBakers();
+    const selected = selectedDirectoryBaker();
+    return `
+        <section class="baker-directory-view baker-directory-list-view" aria-labelledby="baker-directory-list-title">
+            <div class="baker-directory-section-heading">
+                <div>
+                    <span class="feature-kicker">Complete funded set</span>
+                    <h2 id="baker-directory-list-title">Active baker directory</h2>
+                    <p>${rows.length.toLocaleString('en-US')} of ${bakersData.length.toLocaleString('en-US')} funded active bakers shown</p>
+                </div>
+                <div class="baker-directory-filter-rail" aria-label="Directory filters">
+                    <button type="button" class="${bakerDirectoryState.openOnly ? 'active' : ''}" data-bdc-open-only aria-pressed="${bakerDirectoryState.openOnly ? 'true' : 'false'}"><span class="lb-open-capacity-dot" aria-hidden="true"></span> Open ovens</button>
+                    <button type="button" data-bdc-view="signals">Explain signals</button>
+                </div>
+            </div>
+            ${directoryBakerDetailHtml(selected)}
+            <div class="baker-directory-table-wrap">
+                <table class="baker-directory-table">
+                    <caption>Funded active Tezos bakers. Sorting reflects the chosen factual column and is not a performance ranking.</caption>
+                    <thead><tr>
+                        ${bakerDirectorySortHeader('name', 'Baker')}
+                        ${bakerDirectorySortHeader('stake', 'Staking balance')}
+                        ${bakerDirectorySortHeader('delegators', 'Delegators')}
+                        ${bakerDirectorySortHeader('stakers', 'Stakers')}
+                        ${bakerDirectorySortHeader('capacity', 'Capacity used')}
+                        ${bakerDirectorySortHeader('tz4', 'tz4')}
+                        <th scope="col">Signals</th>
+                    </tr></thead>
+                    <tbody>
+                        ${rows.map((baker) => `
+                            <tr data-address="${escapeHtml(baker.address)}" class="${normalizedAddress(baker.address) === normalizedAddress(bakerDirectoryState.selectedAddress) ? 'selected' : ''}">
+                                <td><button type="button" class="baker-directory-name-button" data-bdc-select="${escapeHtml(baker.address)}"><strong>${escapeHtml(baker.name)}</strong><code>${escapeHtml(baker.address.slice(0, 10))}…</code></button></td>
+                                <td class="numeric">${formatMutez(baker.stakingBalance)}</td>
+                                <td class="numeric">${Number(baker.delegators || 0).toLocaleString('en-US')}</td>
+                                <td class="numeric">${Number(baker.stakers || 0).toLocaleString('en-US')}</td>
+                                <td class="numeric ${Number(baker.delegationUsage || 0) >= 90 ? 'cap-critical' : Number(baker.delegationUsage || 0) >= 70 ? 'cap-warning' : ''}">${baker.openDelegationRoom ? '<span class="lb-open-capacity-dot" aria-label="Open delegation room"></span>' : ''}${Number(baker.delegationUsage || 0).toFixed(0)}%</td>
+                                <td class="center">${baker.tz4 ? 'Yes' : '—'}</td>
+                                <td>${directoryBadgeRailHtml(baker)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${rows.length ? '' : '<div class="baker-directory-empty">No funded active bakers match the current search and filters.</div>'}
+            </div>
+        </section>
+    `;
+}
+
+function bakerDirectorySignalDefinitions() {
+    const counts = {
+        og: bakersData.filter((baker) => directorySignalTone(baker).has('og')).length,
+        veteran: bakersData.filter((baker) => directorySignalTone(baker).has('veteran')).length,
+        accepted: bakersData.filter((baker) => directorySignalTone(baker).has('accepted')).length,
+        voting: bakersData.filter((baker) => directorySignalTone(baker).has('voting')).length,
+        rising: bakersData.filter((baker) => directorySignalTone(baker).has('rising')).length,
+        tz4: bakersData.filter((baker) => baker.tz4).length
+    };
+    return [
+        { id: 'og', label: '✦ OG', count: counts.og, detail: 'First TzKT activity recorded in the 2018 launch era.' },
+        { id: 'veteran', label: 'Veteran', count: counts.veteran, detail: `First TzKT activity recorded by December 31, ${VETERAN_LAST_YEAR}; OG bakers are kept separate.` },
+        { id: 'accepted', label: '🏛 Accepted', count: counts.accepted, detail: 'Initiated at least one distinct protocol proposal whose final TzKT status is accepted.' },
+        { id: 'voting', label: '🗳 Active streak', count: counts.voting, detail: 'Has an applied ballot in each consecutive completed Exploration or Promotion period through the latest completed ballot period.' },
+        { id: 'rising', label: '↗ Rising', count: counts.rising, detail: 'Staking balance increased between the two observations made in this browsing session.' },
+        { id: 'tz4', label: 'tz4 / BLS', count: counts.tz4, detail: 'The baker’s current consensus key is a tz4 BLS address.' }
+    ];
+}
+
+function bakerDirectorySignalsHtml() {
+    const definitions = bakerDirectorySignalDefinitions();
+    let rows = bakersData.filter((baker) => bakerMatchesDirectorySearch(baker, bakerDirectoryState.search));
+    if (bakerDirectoryState.signal === 'all') {
+        rows = rows.filter((baker) => (baker.earnedBadges || []).length || baker.tz4);
+    } else {
+        rows = rows.filter((baker) => directorySignalTone(baker).has(bakerDirectoryState.signal));
+    }
+    rows = sortBakers(rows, 'name', 'asc');
+    const selected = selectedDirectoryBaker();
+
+    return `
+        <section class="baker-directory-view baker-directory-signals-view" aria-labelledby="baker-directory-signals-title">
+            <div class="baker-directory-section-heading">
+                <div>
+                    <span class="feature-kicker">Provenance before praise</span>
+                    <h2 id="baker-directory-signals-title">Factual baker signals</h2>
+                    <p>Each marker has one inspectable rule. None is an uptime, payout, reliability, or overall performance score.</p>
+                </div>
+            </div>
+            <div class="baker-directory-signal-grid" aria-label="Choose a factual signal">
+                <button type="button" class="baker-directory-signal-card ${bakerDirectoryState.signal === 'all' ? 'active' : ''}" data-bdc-signal="all" aria-pressed="${bakerDirectoryState.signal === 'all' ? 'true' : 'false'}">
+                    <span>All listed signals</span><strong>${bakersData.filter((baker) => (baker.earnedBadges || []).length || baker.tz4).length.toLocaleString('en-US')}</strong><small>Browse every baker with at least one marker below.</small>
+                </button>
+                ${definitions.map((signal) => `
+                    <button type="button" class="baker-directory-signal-card ${bakerDirectoryState.signal === signal.id ? 'active' : ''}" data-bdc-signal="${signal.id}" aria-pressed="${bakerDirectoryState.signal === signal.id ? 'true' : 'false'}">
+                        <span>${escapeHtml(signal.label)}</span><strong>${signal.count.toLocaleString('en-US')}</strong><small>${escapeHtml(signal.detail)}</small>
+                    </button>
+                `).join('')}
+            </div>
+            ${directoryBakerDetailHtml(selected)}
+            <section class="baker-directory-signal-roster" aria-labelledby="baker-directory-signal-roster-title">
+                <div class="baker-directory-section-heading compact">
+                    <div><h3 id="baker-directory-signal-roster-title">${bakerDirectoryState.signal === 'all' ? 'Bakers with listed signals' : `${definitions.find(({ id }) => id === bakerDirectoryState.signal)?.label || 'Signal'} bakers`}</h3><p>${rows.length.toLocaleString('en-US')} matching funded active baker${rows.length === 1 ? '' : 's'}, alphabetically</p></div>
+                </div>
+                <div class="baker-directory-signal-roster-grid">
+                    ${rows.map((baker) => `
+                        <article data-address="${escapeHtml(baker.address)}">
+                            <button type="button" data-bdc-select="${escapeHtml(baker.address)}"><strong>${escapeHtml(baker.name)}</strong><code>${escapeHtml(baker.address.slice(0, 12))}…</code></button>
+                            ${directoryBadgeRailHtml(baker)}
+                        </article>
+                    `).join('') || '<div class="baker-directory-empty">No funded active baker matches this signal and search.</div>'}
+                </div>
+            </section>
+            <div class="baker-directory-provenance">
+                <div><strong>Baker set</strong><span>TzKT active delegates with positive current baking power; fetched through complete pagination.</span></div>
+                <div><strong>Tenure and tz4</strong><span>TzKT first-activity timestamps and current consensus addresses.</span></div>
+                <div><strong>Governance</strong><span>Generated complete governance career receipts and accepted-proposal history maintained by Tezos Systems.</span></div>
+                <div><strong>Capacity</strong><span>Current on-chain balances calculated with the live protocol delegation-over-baking limit when available.</span></div>
+            </div>
+        </section>
+    `;
+}
+
+function bakerDirectoryViewHtml() {
+    if (bakerDirectoryState.view === 'directory') return bakerDirectoryDirectoryHtml();
+    if (bakerDirectoryState.view === 'signals') return bakerDirectorySignalsHtml();
+    return bakerDirectoryDiscoverHtml();
+}
+
+function bakerDirectoryShellHtml() {
+    const summary = bakerDirectorySummary();
+    const lastGoodWarning = bakerDirectoryLastError && bakersData.length
+        ? `<div class="baker-directory-refresh-warning" role="status"><strong>Live refresh delayed.</strong> The last-good baker set remains in place. ${escapeHtml(bakerDirectoryLastError)}</div>`
+        : '';
+    return `
+        <div class="baker-directory-shell" data-quiet-key="baker-directory-shell">
+            <header class="baker-directory-header">
+                <div class="baker-directory-title-block">
+                    <span class="feature-kicker">Tezos Systems / Bakers</span>
+                    <h1 id="baker-directory-title">Baker Directory</h1>
+                    <p>Explore the complete funded active-baker set through current capacity and source-backed history—not a hidden quality score.</p>
+                </div>
+                <div class="baker-directory-receipt" aria-live="polite">
+                    <span class="baker-directory-live-dot ${leaderboardDataQuality.status === 'live' ? 'live' : ''}" aria-hidden="true"></span>
+                    <strong>${summary.active.toLocaleString('en-US')} active</strong>
+                    <small>${escapeHtml(formattedObservedAt())}</small>
+                </div>
+                <div class="baker-directory-tabs" role="tablist" aria-label="Baker Directory views">
+                    ${BAKER_DIRECTORY_VIEWS.map((view) => `
+                        <button type="button" role="tab" id="baker-directory-tab-${view.id}" data-bdc-view="${view.id}" aria-controls="baker-directory-panel" aria-selected="${bakerDirectoryState.view === view.id ? 'true' : 'false'}" tabindex="${bakerDirectoryState.view === view.id ? '0' : '-1'}">${escapeHtml(view.label)}</button>
+                    `).join('')}
+                </div>
+                <label class="baker-directory-search" for="baker-directory-search-input">
+                    <span>Search baker name or address</span>
+                    <span class="baker-directory-search-control">
+                        <input type="search" id="baker-directory-search-input" value="${escapeHtml(bakerDirectoryState.search)}" placeholder="Name, tz1, tz2, tz3, or tz4" autocomplete="off" spellcheck="false">
+                        ${bakerDirectoryState.search ? '<button type="button" data-bdc-clear-search aria-label="Clear baker search">Clear</button>' : ''}
+                    </span>
+                </label>
+            </header>
+            ${lastGoodWarning}
+            <div id="baker-directory-panel" class="baker-directory-panel" role="tabpanel" aria-labelledby="baker-directory-tab-${bakerDirectoryState.view}" tabindex="0">
+                ${bakerDirectoryViewHtml()}
+            </div>
+            <footer class="baker-directory-footer">
+                <span>${escapeHtml(bakerDirectorySourceText())}</span>
+                <span><a href="https://api.tzkt.io/" target="_blank" rel="noopener noreferrer">TzKT source</a> · <a href="/data/maxis-careers.json">Governance careers</a> · <a href="/data/governance-votes.json">Proposal receipts</a></span>
+            </footer>
+        </div>
+    `;
+}
+
+function renderBakerDirectoryLoading(body) {
+    body.innerHTML = `
+        <div class="baker-directory-loading" role="status" aria-live="polite">
+            <span class="feature-kicker">Baker Directory</span>
+            <strong>Reading the funded active-baker set</strong>
+            <small>Paging TzKT delegates and joining governance receipts</small>
+            <div aria-hidden="true"><i></i></div>
+        </div>
+    `;
+    body.dataset.bakerDirectoryRendered = '0';
+}
+
+function renderBakerDirectoryError(body, error) {
+    body.innerHTML = `
+        <div class="baker-directory-load-error" role="alert">
+            <span aria-hidden="true">!</span>
+            <h2>Couldn’t reach the baker directory</h2>
+            <p>${escapeHtml(error?.message || 'TzKT baker data is temporarily unavailable.')}</p>
+            <button type="button" data-bdc-retry>Retry</button>
+        </div>
+    `;
+    body.dataset.bakerDirectoryRendered = '0';
+}
+
+function renderBakerDirectoryChamber({ quiet = false } = {}) {
+    const body = document.getElementById('baker-directory-body');
+    if (!body) return;
+    resolveRequestedDirectoryBaker();
+    const html = bakerDirectoryShellHtml();
+    if (quiet && body.dataset.bakerDirectoryRendered === '1') {
+        const activeInput = body.contains(document.activeElement) && document.activeElement instanceof HTMLInputElement
+            ? document.activeElement
+            : null;
+        const inputSelection = activeInput && Number.isFinite(activeInput.selectionStart)
+            ? { start: activeInput.selectionStart, end: activeInput.selectionEnd, direction: activeInput.selectionDirection }
+            : null;
+        quietlySyncHtml(body, html);
+        if (activeInput?.isConnected && inputSelection) {
+            try {
+                activeInput.setSelectionRange(inputSelection.start, inputSelection.end, inputSelection.direction || 'none');
+            } catch { /* non-text input type */ }
+        }
+    } else body.innerHTML = html;
+    body.dataset.bakerDirectoryRendered = '1';
+}
+
+function setBakerDirectoryView(view, { focusTab = false } = {}) {
+    if (!BAKER_DIRECTORY_VIEW_IDS.has(view)) return;
+    bakerDirectoryState.view = view;
+    updateBakerDirectoryRouteState();
+    renderBakerDirectoryChamber({ quiet: true });
+    if (focusTab) {
+        document.getElementById(`baker-directory-tab-${view}`)?.focus({ preventScroll: true });
+    }
+}
+
+function bindBakerDirectoryBody(body) {
+    if (!body || body.dataset.bakerDirectoryEventsWired === '1') return;
+    body.dataset.bakerDirectoryEventsWired = '1';
+
+    body.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+
+        const viewButton = target.closest('[data-bdc-view]');
+        if (viewButton) {
+            setBakerDirectoryView(viewButton.dataset.bdcView);
+            return;
+        }
+
+        const fitButton = target.closest('[data-fit-key][data-fit-value]');
+        if (fitButton) {
+            const key = fitButton.dataset.fitKey;
+            const value = fitButton.dataset.fitValue;
+            const question = FIT_QUESTIONS.find((item) => item.key === key);
+            if (!question?.options.some((option) => option.value === value)) return;
+            fitPrefs = { ...fitPrefs, [key]: value };
+            saveFitPrefs(fitPrefs);
+            renderBakerDirectoryChamber({ quiet: true });
+            return;
+        }
+
+        const selected = target.closest('[data-bdc-select]');
+        if (selected) {
+            bakerDirectoryState.selectedAddress = cleanDirectoryQuery(selected.dataset.bdcSelect, 128);
+            bakerDirectoryState.requestedBaker = '';
+            updateBakerDirectoryRouteState();
+            renderBakerDirectoryChamber({ quiet: true });
+            return;
+        }
+
+        const profile = target.closest('[data-bdc-open-profile]');
+        if (profile) {
+            const address = profile.dataset.bdcOpenProfile;
+            closeBakerDirectoryChamber();
+            requestAnimationFrame(() => openBakerInDrawer(address));
+            return;
+        }
+
+        const sortButton = target.closest('[data-bdc-sort]');
+        if (sortButton) {
+            const col = sortButton.dataset.bdcSort;
+            if (!['name', 'stake', 'delegators', 'stakers', 'capacity', 'tz4'].includes(col)) return;
+            if (bakerDirectoryState.sort === col) {
+                bakerDirectoryState.dir = bakerDirectoryState.dir === 'desc' ? 'asc' : 'desc';
+            } else {
+                bakerDirectoryState.sort = col;
+                bakerDirectoryState.dir = col === 'name' ? 'asc' : 'desc';
+            }
+            renderBakerDirectoryChamber({ quiet: true });
+            return;
+        }
+
+        const signalButton = target.closest('[data-bdc-signal]');
+        if (signalButton) {
+            const signal = signalButton.dataset.bdcSignal;
+            if (!BAKER_DIRECTORY_SIGNAL_IDS.has(signal)) return;
+            bakerDirectoryState.signal = signal;
+            renderBakerDirectoryChamber({ quiet: true });
+            return;
+        }
+
+        if (target.closest('[data-bdc-open-only]')) {
+            bakerDirectoryState.openOnly = !bakerDirectoryState.openOnly;
+            renderBakerDirectoryChamber({ quiet: true });
+            return;
+        }
+
+        if (target.closest('[data-bdc-clear-search]')) {
+            bakerDirectoryState.search = '';
+            const searchInput = document.getElementById('baker-directory-search-input');
+            if (searchInput) searchInput.value = '';
+            updateBakerDirectoryRouteState();
+            renderBakerDirectoryChamber({ quiet: true });
+            document.getElementById('baker-directory-search-input')?.focus({ preventScroll: true });
+            return;
+        }
+
+        if (target.closest('[data-bdc-clear-baker]')) {
+            bakerDirectoryState.selectedAddress = '';
+            bakerDirectoryState.requestedBaker = '';
+            updateBakerDirectoryRouteState();
+            renderBakerDirectoryChamber({ quiet: true });
+            return;
+        }
+
+        if (target.closest('[data-bdc-retry]')) refreshBakerDirectoryChamber({ quiet: false });
+    });
+
+    body.addEventListener('input', (event) => {
+        if (event.isComposing || event.target?.id !== 'baker-directory-search-input') return;
+        bakerDirectoryState.search = cleanDirectoryQuery(event.target.value);
+        updateBakerDirectoryRouteState();
+        renderBakerDirectoryChamber({ quiet: true });
+    });
+
+    body.addEventListener('keydown', (event) => {
+        const tab = event.target.closest?.('[role="tab"][data-bdc-view]');
+        if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const index = BAKER_DIRECTORY_VIEWS.findIndex(({ id }) => id === tab.dataset.bdcView);
+        let next = index;
+        if (event.key === 'ArrowLeft') next = (index - 1 + BAKER_DIRECTORY_VIEWS.length) % BAKER_DIRECTORY_VIEWS.length;
+        if (event.key === 'ArrowRight') next = (index + 1) % BAKER_DIRECTORY_VIEWS.length;
+        if (event.key === 'Home') next = 0;
+        if (event.key === 'End') next = BAKER_DIRECTORY_VIEWS.length - 1;
+        setBakerDirectoryView(BAKER_DIRECTORY_VIEWS[next].id, { focusTab: true });
+    });
+}
+
+function ensureBakerDirectoryOverlay() {
+    let overlay = document.getElementById('baker-directory-modal');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'baker-directory-modal';
+    overlay.className = 'modal-overlay chamber-overlay lb-overlay baker-directory-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.innerHTML = `
+        <div class="modal-content modal-large chamber-content lb-content baker-directory-content" role="dialog" aria-modal="true" aria-labelledby="baker-directory-title" tabindex="-1">
+            <button class="modal-close chamber-close" type="button" aria-label="Close Baker Directory Chamber">&times;</button>
+            <div class="chamber-body lb-body baker-directory-body" id="baker-directory-body"></div>
+        </div>
+    `;
+    overlay.querySelector('.chamber-close')?.addEventListener('click', closeBakerDirectoryChamber);
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) closeBakerDirectoryChamber();
+    });
+    bindBakerDirectoryBody(overlay.querySelector('.baker-directory-body'));
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+function lockBakerDirectoryPage() {
+    if (bakerDirectorySavedBodyOverflow !== null) return;
+    bakerDirectorySavedBodyOverflow = document.body.style.overflow;
+    bakerDirectorySavedHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+}
+
+function unlockBakerDirectoryPage() {
+    if (bakerDirectorySavedBodyOverflow === null) return;
+    document.body.style.overflow = bakerDirectorySavedBodyOverflow;
+    document.documentElement.style.overflow = bakerDirectorySavedHtmlOverflow || '';
+    bakerDirectorySavedBodyOverflow = null;
+    bakerDirectorySavedHtmlOverflow = null;
+}
+
+function bakerDirectoryRefreshInterval() {
+    const override = Number(window.__BAKER_DIRECTORY_REFRESH_MS__);
+    return Number.isFinite(override) && override >= 1000 ? override : BAKER_DIRECTORY_REFRESH_MS;
+}
+
+function stopBakerDirectoryRefreshTimer() {
+    if (bakerDirectoryTimer) window.clearInterval(bakerDirectoryTimer);
+    bakerDirectoryTimer = null;
+}
+
+function startBakerDirectoryRefreshTimer() {
+    stopBakerDirectoryRefreshTimer();
+    bakerDirectoryTimer = window.setInterval(() => {
+        if (document.visibilityState !== 'visible') {
+            bakerDirectoryRefreshDeferred = true;
+            return;
+        }
+        refreshBakerDirectoryChamber({ quiet: true });
+    }, bakerDirectoryRefreshInterval());
+}
+
+function bindBakerDirectoryVisibility() {
+    if (bakerDirectoryVisibilityWired) return;
+    bakerDirectoryVisibilityWired = true;
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || !bakerDirectoryRefreshDeferred) return;
+        bakerDirectoryRefreshDeferred = false;
+        refreshBakerDirectoryChamber({ quiet: true });
+    });
+}
+
+function updateBakerDirectoryEntryCard({ quiet = false } = {}) {
+    const front = document.getElementById('baker-directory-entry-front');
+    if (!front || !bakersData.length) return;
+    const summary = bakerDirectorySummary();
+    const footerMarkup = front.querySelector(':scope > .chamber-entry-footer')?.outerHTML || '';
+    const html = `
+        <div class="baker-directory-entry-heading">
+            <div><span class="feature-kicker">Baker discovery</span><h2 class="stat-label" id="baker-directory-entry-title">Baker Directory</h2></div>
+            <span class="baker-directory-entry-status"><i aria-hidden="true"></i>${escapeHtml(leaderboardDataQuality.status === 'live' ? 'Live' : 'Last good')}</span>
+        </div>
+        <div class="stat-value baker-directory-entry-value">${summary.active.toLocaleString('en-US')} active bakers</div>
+        <div class="stat-description">Complete funded set · factual signals · capacity explorer</div>
+        <div class="baker-directory-entry-metrics">
+            <span><strong>${summary.open.toLocaleString('en-US')}</strong> open ovens</span>
+            <span><strong>${summary.tz4.toLocaleString('en-US')}</strong> tz4</span>
+            <span><strong>${summary.voting.toLocaleString('en-US')}</strong> voting streaks</span>
+        </div>
+        <div class="baker-directory-entry-rails" aria-hidden="true"><span>Discover</span><span>Directory</span><span>Signals</span></div>
+        ${footerMarkup}
+    `;
+    if (quiet || front.childNodes.length) quietlySyncHtml(front, html);
+    else front.innerHTML = html;
+    front.dataset.bakerDirectoryEntryRendered = '1';
+    const card = front.closest('.baker-directory-entry-card');
+    window.syncChamberEntryFooters?.(card);
+    wireBakerDirectoryEntryCard(card);
+}
+
+export function ensureBakerDirectoryEntryCard() {
+    const existing = document.getElementById('baker-directory-entry-card');
+    if (existing) return existing;
+    const grid = document.getElementById('chambers-grid');
+    if (!grid) return null;
+    const card = document.createElement('article');
+    card.id = 'baker-directory-entry-card';
+    card.className = 'stat-card chamber-entry-card chamber-entry-wide chamber-entry-live baker-directory-entry-card';
+    card.dataset.chamberEntrySize = 'wide';
+    card.innerHTML = `
+        <button class="card-copy-link" type="button" data-copy-hash="#leaderboard" aria-label="Copy Baker Directory direct link" title="Copy Baker Directory link">&#128279;</button>
+        <div class="card-inner"><div class="card-front chamber-entry-front baker-directory-entry-front" id="baker-directory-entry-front">
+            <div class="baker-directory-entry-heading"><div><span class="feature-kicker">Baker discovery</span><h2 class="stat-label" id="baker-directory-entry-title">Baker Directory</h2></div></div>
+            <div class="stat-value baker-directory-entry-value">Reading active bakers</div>
+            <div class="stat-description">Complete funded set · factual signals · capacity explorer</div>
+        </div></div>
+    `;
+    grid.appendChild(card);
+    return card;
+}
+
+export function wireBakerDirectoryEntryCard(card = document.getElementById('baker-directory-entry-card')) {
+    if (!card) return null;
+    return wireChamberLauncher(card, {
+        open: openBakerDirectoryChamber,
+        label: 'Open Baker Directory Chamber',
+        titleSelector: '#baker-directory-entry-title, .stat-label'
+    });
+}
+
+export async function refreshBakerDirectoryChamber({ quiet = true } = {}) {
+    if (document.visibilityState !== 'visible') {
+        bakerDirectoryRefreshDeferred = true;
+        return bakersData;
+    }
+    if (bakerDirectoryRefreshInFlight) return bakerDirectoryRefreshInFlight;
+
+    bakerDirectoryRefreshInFlight = Promise.all([
+        fetchBakers(),
+        fetchDelegationLimit(),
+        fetchGovernanceSignals()
+    ]).then(([raw, limit]) => {
+        const enriched = raw.map((baker) => enrichBaker(baker, limit));
+        bakersData = enriched;
+        rememberStakeSnapshot(raw);
+        bakerDirectoryLastError = '';
+        bakerDirectoryRefreshDeferred = false;
+        resolveRequestedDirectoryBaker();
+        updateBakerDirectoryEntryCard({ quiet });
+        if (document.getElementById('baker-directory-modal')?.classList.contains('active')) {
+            renderBakerDirectoryChamber({ quiet });
+        }
+        return bakersData;
+    }).catch((error) => {
+        console.warn('Baker Directory Chamber refresh failed:', error);
+        bakerDirectoryLastError = error?.message || String(error);
+        const overlayOpen = document.getElementById('baker-directory-modal')?.classList.contains('active');
+        const body = document.getElementById('baker-directory-body');
+        if (bakersData.length) {
+            updateBakerDirectoryEntryCard({ quiet: true });
+            if (overlayOpen) renderBakerDirectoryChamber({ quiet: true });
+            return bakersData;
+        }
+        if (overlayOpen && body) renderBakerDirectoryError(body, error);
+        return [];
+    }).finally(() => {
+        bakerDirectoryRefreshInFlight = null;
+    });
+
+    return bakerDirectoryRefreshInFlight;
+}
+
+export async function openBakerDirectoryChamber(options = {}) {
+    ensureLeaderboardStyles();
+    bindBakerDirectoryVisibility();
+    applyBakerDirectoryRouteState();
+    if (BAKER_DIRECTORY_VIEW_IDS.has(options?.view)) bakerDirectoryState.view = options.view;
+    if (options?.search !== undefined) bakerDirectoryState.search = cleanDirectoryQuery(options.search);
+    if (options?.baker) {
+        bakerDirectoryState.requestedBaker = cleanDirectoryQuery(options.baker, 128);
+        bakerDirectoryState.selectedAddress = '';
+    }
+
+    const overlay = ensureBakerDirectoryOverlay();
+    const body = overlay.querySelector('.baker-directory-body');
+    if (!overlay.classList.contains('active')) {
+        bakerDirectoryFocusedBeforeOpen = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+    }
+    overlay.classList.add('active');
+    lockBakerDirectoryPage();
+    if (bakersData.length) renderBakerDirectoryChamber({ quiet: false });
+    else renderBakerDirectoryLoading(body);
+    activateChamberDialog(overlay, {
+        close: closeBakerDirectoryChamber,
+        dialogSelector: '.baker-directory-content',
+        titleId: 'baker-directory-title',
+        label: 'Baker Directory Chamber',
+        initialFocusSelector: '.chamber-close'
+    });
+
+    const hadRenderedData = bakersData.length > 0;
+    await refreshBakerDirectoryChamber({ quiet: hadRenderedData });
+    if (overlay.classList.contains('active')) startBakerDirectoryRefreshTimer();
+}
+
+export function closeBakerDirectoryChamber({ preserveRoute = false } = {}) {
+    stopBakerDirectoryRefreshTimer();
+    const overlay = document.getElementById('baker-directory-modal');
+    overlay?.classList.remove('active');
+    deactivateChamberDialog(overlay, { restoreFocus: !preserveRoute });
+    unlockBakerDirectoryPage();
+    const remembered = bakerDirectoryFocusedBeforeOpen;
+    const isVisibleFocusTarget = (element) => Boolean(
+        element?.isConnected
+        && element !== document.body
+        && element.getClientRects().length
+        && getComputedStyle(element).visibility !== 'hidden'
+    );
+    const focusTarget = [
+        remembered,
+        findChamberLauncher('#baker-directory-entry-card'),
+        document.getElementById('features-gear'),
+        document.getElementById('leaderboard-toggle')
+    ].find(isVisibleFocusTarget) || null;
+    bakerDirectoryFocusedBeforeOpen = null;
+    if (!preserveRoute) leaveBakerDirectoryRoute();
+    if (!preserveRoute && focusTarget) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (isVisibleFocusTarget(focusTarget)) focusTarget.focus({ preventScroll: true });
+        }));
+    }
+}
+
+export function initBakerDirectoryChamber() {
+    ensureLeaderboardStyles();
+    bindBakerDirectoryVisibility();
+    const card = ensureBakerDirectoryEntryCard();
+    wireBakerDirectoryEntryCard(card);
+    if (bakersData.length) updateBakerDirectoryEntryCard({ quiet: false });
+    else if (document.visibilityState === 'visible') refreshBakerDirectoryChamber({ quiet: false });
+    else bakerDirectoryRefreshDeferred = true;
 }

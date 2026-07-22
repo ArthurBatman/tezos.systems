@@ -7,6 +7,14 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '✨', text: 'Baker Directory is now a full Chamber with Discover, complete Directory, and factual Signals views at /leaderboard/' },
+            { type: '✨', text: 'Whale Watch now unifies its live operation tape, complete 24-hour transfer ledger, grouped flow stories, Deep Sleep accounts, and verified Awakenings at /whales/' },
+            { type: '🔧', text: 'Whale Watch now distinguishes operation IDs from related operation-group hops, uses real last-activity timestamps for dormancy, and labels gross observed transfers without claiming economic volume' },
+            { type: '🔧', text: 'Whale Watch calls tez moved only from applied transfers and actual processed stake or unstake amounts, while delegation balances remain explicitly labeled context' },
+            { type: '🔧', text: 'Whale Watch now requires every live operation lane to succeed, computes awakening dormancy between source receipts, and presents TzKT aliases without guessing exchange ownership' },
+            { type: '🔧', text: 'Baker Discover now uses disclosed minimum-room filters and factual lexicographic ordering instead of a hidden blended fit score' },
+            { type: '🎨', text: 'Whale Watch and Baker Directory launchers now keep every metric, route rail, and Open control visible from narrow phones through desktop layouts' },
+            { type: '✨', text: 'Cycle History is now a first-class Chamber at /history/, with shareable range and metric focus across the fifteen captured Tezos signal charts' },
             { type: '🎨', text: 'The footer authorship now introduces Primate, Baking Benjamins, and Tez Capital in one shorter, more direct sentence' },
             { type: '🎨', text: 'The site footer now reads as five centered, evenly spaced lines, with the build pill alone at the bottom and no decorative bullets leading a row' },
             { type: '🎨', text: 'The lower header row now places trailing-hour TX, XTZ moved, and NFT activity immediately right of mainnet age, while preserving the metric pills in their original lane and removing the clipped copy from the live block ticker' },

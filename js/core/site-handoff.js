@@ -18,7 +18,7 @@ export const SITE_HANDOFF_STEPS = Object.freeze([
 ]);
 
 const HANDOFF_PHASES = Object.freeze({
-    now: ['home', 'chambers', 'pulse', 'health', 'liquidity-baking', 'tezosx', 'tz4', 'price', 'whales', 'giants', 'hot-today', 'snapshot', 'live-compare'],
+    now: ['home', 'chambers', 'pulse', 'health', 'liquidity-baking', 'tezosx', 'tz4', 'price', 'whales', 'hot-today', 'snapshot', 'live-compare'],
     you: ['my-tezos', 'domains', 'ctez'],
     flow: ['ledger-flow'],
     power: ['staking-chamber', 'chamber', 'l2-governance', 'staking', 'governance-guide', 'bakers-guide', 'calculator', 'leaderboard'],

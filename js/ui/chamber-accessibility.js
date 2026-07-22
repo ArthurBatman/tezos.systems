@@ -182,7 +182,7 @@ export function activateChamberDialog(overlay, {
 /**
  * Deactivate a Chamber dialog and return focus to the control that opened it.
  */
-export function deactivateChamberDialog(overlay) {
+export function deactivateChamberDialog(overlay, { restoreFocus = true } = {}) {
     if (!overlay) return;
     const state = dialogStates.get(overlay);
     if (state) {
@@ -191,7 +191,7 @@ export function deactivateChamberDialog(overlay) {
     }
     overlay.setAttribute('aria-hidden', 'true');
 
-    if (state?.opener?.isConnected && state.opener !== document.body) {
+    if (restoreFocus && state?.opener?.isConnected && state.opener !== document.body) {
         state.opener.focus({ preventScroll: true });
     }
 }

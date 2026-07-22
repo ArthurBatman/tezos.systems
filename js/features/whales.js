@@ -1,110 +1,190 @@
 /**
- * Whale Tracker - Live Large Transaction Feed
- * Shows notable XTZ movements with context
+ * Whale Tracker - shared large-operation data and legacy dashboard rail.
+ *
+ * Operation identity is the TzKT operation id. The operation-group hash is
+ * retained separately so Whale Watch can deliberately join multi-hop legs
+ * into one trace without accidentally dropping them from the live tape.
  */
 
 import { debugLog, escapeHtml } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { THRESHOLDS, API_URLS } from '../core/config.js';
 
-// Known address labels
-const ADDRESS_LABELS = {
-    // Exchanges
-    'tz1hThMBD8jQjFt78heuCnKxJnJtQo9Ao25X': { name: 'Kraken', type: 'exchange', icon: '🏦' },
-    'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9': { name: 'Binance', type: 'exchange', icon: '🏦' },
-    'tz1KzpjBnunNJVABHBnzfG4iuLmphitExwWK': { name: 'Gate.io', type: 'exchange', icon: '🏦' },
-    'tz1YgNQBeLTgbwNH8sFv4gP5hKwkRqMvP9ma': { name: 'Coinbase', type: 'exchange', icon: '🏦' },
-    'tz1VQnqCCqX4K5sP3FNkVSNKTdCAMJDd3E1n': { name: 'Huobi', type: 'exchange', icon: '🏦' },
-    
-    // Foundations & DAOs
-    'tz1Wh75gwhhvZz3Fb1M65PXZ6T3VDvP3xV3v': { name: 'Tezos Foundation', type: 'foundation', icon: '🏛️' },
-    'tz1VQd5L4M9zKbUmtZdW3qBvvxvYLbGnN5Nk': { name: 'TF Cold Wallet', type: 'foundation', icon: '🏛️' },
-    
-    // Notable bakers (top 10)
-    'tz1WCd2jm4uSt4vntk4vSuUWoZQGhLcDuR9q': { name: 'Chorus One', type: 'baker', icon: '🍞' },
-    'tz1Kf25fX1VdmYGSEzwFy1wNmkbSEZ2V83sY': { name: 'Everstake', type: 'baker', icon: '🍞' },
-    'tz1irJKkXS2DBWkU1NnmFQx1c1L7pbGg4yhk': { name: 'Coinbase Baker', type: 'baker', icon: '🍞' },
-    'tz1NortRftucvAkD1J58L32EhSVrQEWJCEnB': { name: 'P2P Validator', type: 'baker', icon: '🍞' },
-    
-    // Burn address
-    'tz1burnburnburnburnburnburnburjAYjjX': { name: 'Burn Address', type: 'burn', icon: '🔥' },
+const ADDRESS_LABEL_OBSERVED_AT = '2026-07-22';
+const CURATED_ADDRESS_LABELS = {
+    'tz1burnburnburnburnburnburnburjAYjjX': { name: 'Burn Address', type: 'burn', icon: '🔥' }
 };
 
-// Configuration
-const CONFIG = {
+export const ADDRESS_LABELS = Object.freeze(Object.fromEntries(
+    Object.entries(CURATED_ADDRESS_LABELS).map(([address, label]) => [address, Object.freeze({
+        ...label,
+        sourceLabel: 'TzKT account page',
+        sourceUrl: `https://tzkt.io/${address}`,
+        observedAt: ADDRESS_LABEL_OBSERVED_AT
+    })])
+));
+
+const CONFIG = Object.freeze({
     minAmount: THRESHOLDS.whaleMinAmount,
-    maxItems: 25,
-    pollInterval: 20000, // 20 seconds (more activity at lower threshold)
+    legacyMaxItems: 25,
+    chamberLimitPerKind: 60,
+    pollInterval: 20_000,
     apiBase: API_URLS.tzkt
-};
+});
 const HOT_SIGNAL_WHALE_THRESHOLD_XTZ = 100000;
-
-// State
-let transactions = [];
-let lastTimestamp = null;
-let pollTimer = null;
-let isVisible = true;
-let isEnabled = false; // Off by default
-
 const STORAGE_KEY = 'tezos-systems-whale-enabled';
 
-/**
- * Format XTZ amount
- */
-function formatAmount(mutez) {
-    const xtz = mutez / 1e6;
-    if (xtz >= 1000000) {
-        return `${(xtz / 1000000).toFixed(2)}M`;
-    } else if (xtz >= 1000) {
-        return `${(xtz / 1000).toFixed(1)}K`;
+export const transactions = [];
+let lastTimestamp = null;
+let lastGoodAt = null;
+let lastError = '';
+let pollTimer = null;
+let isVisible = true;
+let isEnabled = false;
+let initialLoadPromise = null;
+const domainCache = new Map();
+
+function number(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function nonNegativeAmount(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function whaleOperationType(operation) {
+    const type = String(operation?.type || operation?.kind || '').toLowerCase();
+    if (type === 'staking') return String(operation?.action || 'staking').toLowerCase();
+    return type;
+}
+
+function isAppliedOperation(operation) {
+    return String(operation?.status || '').toLowerCase() === 'applied';
+}
+
+/** Actual tez moved/processed by an applied transaction, stake, or unstake. */
+export function whaleOperationAmount(operation) {
+    if (!isAppliedOperation(operation)) return null;
+    if (!['transaction', 'stake', 'unstake'].includes(whaleOperationType(operation))) return null;
+    return nonNegativeAmount(operation?.movedAmountMutez ?? operation?.amount);
+}
+
+/** TzKT delegation `amount` is sender balance context, not transferred tez. */
+export function whaleDelegationBalance(operation) {
+    if (!isAppliedOperation(operation) || whaleOperationType(operation) !== 'delegation') return null;
+    return nonNegativeAmount(operation?.delegatedBalanceMutez ?? operation?.amount);
+}
+
+/** Threshold basis: true moved amount, or explicitly labeled delegation balance. */
+export function whaleOperationThresholdAmount(operation) {
+    return whaleOperationAmount(operation) ?? whaleDelegationBalance(operation);
+}
+
+export function whaleOperationAmountPresentation(operation) {
+    const type = whaleOperationType(operation);
+    const moved = whaleOperationAmount(operation);
+    if (moved !== null) {
+        if (type === 'stake') return { value: moved, label: 'Actually staked', semantics: 'moved' };
+        if (type === 'unstake') return { value: moved, label: 'Actually unstaked', semantics: 'moved' };
+        return { value: moved, label: 'Transferred amount', semantics: 'moved' };
     }
-    return xtz.toLocaleString();
+    const delegatedBalance = whaleDelegationBalance(operation);
+    if (delegatedBalance !== null) {
+        return { value: delegatedBalance, label: 'Sender balance at delegation', semantics: 'delegated-balance' };
+    }
+    return { value: null, label: 'No truthful moved amount', semantics: 'unavailable' };
+}
+
+export function whaleOperationId(operation) {
+    const id = operation?.id;
+    if (id !== null && id !== undefined && id !== '') return String(id);
+    const hash = operation?.hash || operation?.operationGroupHash || 'unhashed';
+    const counter = operation?.counter ?? operation?.nonce ?? operation?.type ?? 'operation';
+    return `${hash}:${counter}`;
+}
+
+export function whaleOperationGroupHash(operation) {
+    return String(operation?.hash || operation?.operationGroupHash || '');
+}
+
+function normalizeOperation(operation, explicitType = '') {
+    const type = explicitType || operation?.type || 'transaction';
+    const typedOperation = { ...operation, type };
+    const amount = whaleOperationAmount(typedOperation);
+    const delegatedBalanceMutez = whaleDelegationBalance(typedOperation);
+    const target = type === 'delegation'
+        ? (operation?.target || operation?.newDelegate || null)
+        : (operation?.target || null);
+    return {
+        ...operation,
+        type,
+        amount,
+        movedAmountMutez: amount,
+        delegatedBalanceMutez,
+        target,
+        operationId: whaleOperationId(operation),
+        groupHash: whaleOperationGroupHash(operation)
+    };
+}
+
+export function formatWhaleAmount(mutez, maximumFractionDigits = 1) {
+    const xtz = number(mutez) / 1e6;
+    if (xtz >= 1_000_000) return `${(xtz / 1_000_000).toFixed(2)}M`;
+    if (xtz >= 1_000) return `${(xtz / 1_000).toFixed(maximumFractionDigits)}K`;
+    return xtz.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 function dispatchHotWhaleSignal(tx) {
     if (typeof window === 'undefined') return;
-    const amountXtz = Number(tx?.amount || 0) / 1e6;
+    const presentation = whaleOperationAmountPresentation(tx);
+    const amountXtz = Number(presentation.value || 0) / 1e6;
     if (!Number.isFinite(amountXtz) || amountXtz < HOT_SIGNAL_WHALE_THRESHOLD_XTZ) return;
+    const type = whaleOperationType(tx);
+    const title = type === 'delegation'
+        ? 'Large-balance delegation change'
+        : type === 'stake'
+            ? 'Large stake'
+            : type === 'unstake'
+                ? 'Large unstake'
+                : 'Large transfer';
+    const text = type === 'delegation'
+        ? `An account with ${Math.round(amountXtz).toLocaleString('en-US')} ꜩ sender balance changed delegation; no tez transfer occurred.`
+        : `${Math.round(amountXtz).toLocaleString('en-US')} ꜩ ${type === 'stake' ? 'actually staked' : type === 'unstake' ? 'actually unstaked' : 'transferred'} in one applied operation.`;
     window.dispatchEvent(new CustomEvent('hot-signal', {
         detail: {
             category: 'whales',
-            id: `whale-${String(tx?.hash || tx?.id || Date.now()).replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
+            id: `whale-${String(tx?.id || tx?.hash || Date.now()).replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
             kind: 'event',
             visual: 'whale',
             spectacle: amountXtz >= 1_000_000 ? 'peacock' : 'headliner',
             score: amountXtz >= 1_000_000 ? 132 : 120,
-            title: 'Large transfer',
+            title,
             icon: '🐋',
-            text: `${Math.round(amountXtz).toLocaleString('en-US')} ꜩ moved in one transaction.`,
-            detail: 'Live whale feed',
+            text,
+            detail: presentation.label,
             tone: 'capital-hot',
             createdAt: tx?.timestamp ? new Date(tx.timestamp).getTime() : Date.now(),
-            ttlMs: 90000,
+            ttlMs: 90_000,
             route: '#whales'
         }
     }));
 }
 
-// Cache for resolved Tezos Domains names
-const domainCache = new Map();
-
-/**
- * Resolve address to Tezos Domains name via GraphQL
- */
 async function resolveDomain(address) {
     if (!address) return null;
     if (domainCache.has(address)) return domainCache.get(address);
-    
     try {
         const response = await fetch('https://api.tezos.domains/graphql', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                query: `query GetReverseDomain($address: String!) { reverseRecord(address: $address) { domain { name } } }`,
-                variables: { address: address }
+                query: 'query GetReverseDomain($address: String!) { reverseRecord(address: $address) { domain { name } } }',
+                variables: { address }
             })
         });
-        
         if (!response.ok) return null;
         const data = await response.json();
         const name = data?.data?.reverseRecord?.domain?.name || null;
@@ -115,542 +195,386 @@ async function resolveDomain(address) {
     }
 }
 
-/**
- * Batch resolve multiple addresses
- */
 async function batchResolveDomains(addresses) {
-    const unresolved = addresses.filter(a => a && !domainCache.has(a));
-    if (unresolved.length === 0) return;
-    
-    // Resolve in parallel (limit to 10 at a time)
-    const batch = unresolved.slice(0, 10);
-    await Promise.all(batch.map(resolveDomain));
+    const unresolved = [...new Set(addresses)].filter((address) => address && !domainCache.has(address));
+    for (let index = 0; index < unresolved.length; index += 10) {
+        await Promise.all(unresolved.slice(index, index + 10).map(resolveDomain));
+    }
 }
 
-/**
- * Get label for an address (with alias from API or domain resolution)
- */
-function getAddressLabel(address, alias = null) {
-    // Use TzKT alias if provided (includes Tezos Domains)
-    if (alias) {
-        // Check if it's a .tez domain
-        if (alias.endsWith('.tez')) {
-            return { name: alias, type: 'domain', icon: '🌐' };
-        }
-        return { name: alias, type: 'labeled', icon: '📛' };
-    }
-    
-    // Check our static labels
-    if (ADDRESS_LABELS[address]) {
-        return ADDRESS_LABELS[address];
-    }
-    
-    // Check domain cache
-    const cachedDomain = domainCache.get(address);
-    if (cachedDomain) {
-        return { name: cachedDomain, type: 'domain', icon: '🌐' };
-    }
-    
-    // Default: show shortened address
+export function getWhaleAddressLabel(address, alias = null) {
+    if (alias) return { name: alias, type: alias.endsWith('.tez') ? 'domain' : 'labeled', icon: alias.endsWith('.tez') ? '🌐' : '📛' };
+    if (ADDRESS_LABELS[address]) return ADDRESS_LABELS[address];
+    if (domainCache.get(address)) return { name: domainCache.get(address), type: 'domain', icon: '🌐' };
+    const value = String(address || 'Unknown');
     return {
-        name: `${address.slice(0, 8)}...${address.slice(-4)}`,
+        name: value.length > 14 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value,
         type: 'unknown',
         icon: '👤'
     };
 }
 
-/**
- * Calculate time ago string
- */
 function timeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-    
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000));
     if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-/**
- * Determine transaction type/context
- */
-function getTransactionContext(tx) {
-    const sender = ADDRESS_LABELS[tx.sender?.address];
-    const target = ADDRESS_LABELS[tx.target?.address];
-    
-    // Staking operations
-    if (tx.type === 'stake') {
-        return { label: 'Staking', class: 'stake', emoji: '🔒' };
+export function getWhaleOperationContext(tx) {
+    const target = ADDRESS_LABELS[tx?.target?.address];
+    if (tx?.type === 'stake') return { label: 'Staking', class: 'stake', emoji: '🔒' };
+    if (tx?.type === 'unstake') return { label: 'Unstaking', class: 'unstake', emoji: '🔓' };
+    if (tx?.type === 'delegation') {
+        return tx.target
+            ? { label: 'Delegation', class: 'delegate', emoji: '🤝' }
+            : { label: 'Undelegation', class: 'undelegate', emoji: '🚪' };
     }
-    
-    if (tx.type === 'unstake') {
-        return { label: 'Unstaking', class: 'unstake', emoji: '🔓' };
-    }
-    
-    // Delegation
-    if (tx.type === 'delegation') {
-        if (!tx.target) {
-            return { label: 'Undelegation', class: 'undelegate', emoji: '🚪' };
-        }
-        return { label: 'Delegation', class: 'delegate', emoji: '🤝' };
-    }
-    
-    // Exchange deposit
-    if (target?.type === 'exchange') {
-        return { label: 'Exchange Deposit', class: 'deposit', emoji: '📥' };
-    }
-    
-    // Exchange withdrawal
-    if (sender?.type === 'exchange') {
-        return { label: 'Exchange Withdrawal', class: 'withdrawal', emoji: '📤' };
-    }
-    
-    // Foundation movement
-    if (sender?.type === 'foundation' || target?.type === 'foundation') {
-        return { label: 'Foundation Move', class: 'foundation', emoji: '🏛️' };
-    }
-    
-    // Baker related
-    if (sender?.type === 'baker' || target?.type === 'baker') {
-        return { label: 'Baker Transfer', class: 'baker', emoji: '🍞' };
-    }
-    
-    // Burn
-    if (target?.type === 'burn') {
-        return { label: 'Token Burn', class: 'burn', emoji: '🔥' };
-    }
-    
-    // Transfer between unknowns
+    if (target?.type === 'burn') return { label: 'Token burn', class: 'burn', emoji: '🔥' };
     return { label: 'Transfer', class: 'whale', emoji: '🐬' };
 }
 
-/**
- * Fetch large transactions from TzKT
- */
-async function fetchTransactions(since) {
+async function fetchTransactions({ since = '', limit = CONFIG.chamberLimitPerKind } = {}) {
     const params = new URLSearchParams({
-        'amount.ge': CONFIG.minAmount,
+        'amount.ge': String(CONFIG.minAmount),
         'sort.desc': 'id',
-        'limit': 15,
-        'status': 'applied'
+        limit: String(limit),
+        status: 'applied'
     });
-    if (since) params.set('timestamp.gt', since);
-    
+    // Include the last observed block timestamp so operations indexed later in
+    // that same block cannot fall through a strict greater-than cursor.
+    if (since) params.set('timestamp.ge', since);
     const response = await fetch(`${CONFIG.apiBase}/operations/transactions?${params}`);
-    if (!response.ok) throw new Error('API error');
-    return response.json();
+    if (!response.ok) throw new Error(`TzKT transfers unavailable (${response.status})`);
+    return (await response.json()).map((operation) => normalizeOperation(operation, 'transaction'));
 }
 
-/**
- * Fetch large delegations from TzKT
- */
-async function fetchDelegations(since) {
-    const params = new URLSearchParams({
-        'sort.desc': 'id',
-        'limit': 30,
-        'status': 'applied'
+async function fetchDelegations({ since = '', limit = CONFIG.chamberLimitPerKind } = {}) {
+    const params = new URLSearchParams({ 'sort.desc': 'id', limit: String(limit), status: 'applied' });
+    if (since) params.set('timestamp.ge', since);
+    const response = await fetch(`${CONFIG.apiBase}/operations/delegations?${params}`);
+    if (!response.ok) throw new Error(`TzKT delegations unavailable (${response.status})`);
+    return (await response.json())
+        .filter((operation) => (whaleDelegationBalance(operation) ?? -1) >= CONFIG.minAmount)
+        .map((operation) => normalizeOperation(operation, 'delegation'));
+}
+
+async function fetchStaking({ since = '', limit = CONFIG.chamberLimitPerKind } = {}) {
+    const params = new URLSearchParams({ 'sort.desc': 'id', limit: String(limit), status: 'applied' });
+    if (since) params.set('timestamp.ge', since);
+    const [stakeResponse, unstakeResponse] = await Promise.all([
+        fetch(`${CONFIG.apiBase}/operations/staking?${params}&action=stake`),
+        fetch(`${CONFIG.apiBase}/operations/staking?${params}&action=unstake`)
+    ]);
+    if (!stakeResponse.ok) throw new Error(`TzKT stake operations unavailable (${stakeResponse.status})`);
+    if (!unstakeResponse.ok) throw new Error(`TzKT unstake operations unavailable (${unstakeResponse.status})`);
+    const [stakes, unstakes] = await Promise.all([stakeResponse.json(), unstakeResponse.json()]);
+    return [
+        ...stakes.map((operation) => normalizeOperation(operation, 'stake')),
+        ...unstakes.map((operation) => normalizeOperation(operation, 'unstake'))
+    ].filter((operation) => (whaleOperationAmount(operation) ?? -1) >= CONFIG.minAmount);
+}
+
+/** Fetch a bounded, receipt-level observation window. It is not a volume total. */
+export async function fetchWhaleTransactions(options = {}) {
+    const query = typeof options === 'string' ? { since: options } : options;
+    const [transfers, delegations, staking] = await Promise.all([
+        fetchTransactions(query),
+        fetchDelegations(query),
+        fetchStaking(query)
+    ]);
+    const byId = new Map();
+    [...transfers, ...delegations, ...staking].forEach((operation) => {
+        byId.set(whaleOperationId(operation), operation);
     });
-    if (since) params.set('timestamp.gt', since);
-    
-    try {
-        const response = await fetch(`${CONFIG.apiBase}/operations/delegations?${params}`);
-        if (!response.ok) return [];
-        const data = await response.json();
-        
-        // Filter client-side — TzKT's amount.ge doesn't reliably filter delegations
-        return data
-            .filter(d => (d.amount || 0) >= CONFIG.minAmount)
-            .map(d => ({
-                ...d,
-                type: 'delegation',
-                amount: d.amount || 0,
-                target: d.newDelegate ? { address: d.newDelegate.address, alias: d.newDelegate.alias } : null
-            }));
-    } catch {
-        return [];
-    }
+    return [...byId.values()]
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp) || number(b.id) - number(a.id));
 }
 
-/**
- * Fetch staking operations from TzKT
- */
-async function fetchStaking(since) {
-    try {
-        const params = new URLSearchParams({
-            'sort.desc': 'id',
-            'limit': 30,
-            'status': 'applied'
+export function groupWhaleOperations(operations) {
+    const groups = new Map();
+    operations.forEach((operation) => {
+        const hash = whaleOperationGroupHash(operation);
+        const key = hash ? `group:${hash}` : `operation:${whaleOperationId(operation)}`;
+        if (!groups.has(key)) groups.set(key, { key, hash, operations: [] });
+        groups.get(key).operations.push(operation);
+    });
+    return [...groups.values()].map((story) => {
+        story.operations.sort((a, b) => number(a.id) - number(b.id));
+        story.observedLegsAmount = story.operations.reduce((total, operation) => total + (whaleOperationAmount(operation) ?? 0), 0);
+        story.timestamp = story.operations.reduce((latest, operation) => (
+            new Date(operation.timestamp) > new Date(latest || 0) ? operation.timestamp : latest
+        ), '');
+        story.participants = [...new Set(story.operations.flatMap((operation) => [
+            operation.sender?.address,
+            operation.target?.address,
+            operation.baker?.address
+        ]).filter(Boolean))];
+        return story;
+    }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+export function getWhaleSnapshot() {
+    return {
+        operations: [...transactions],
+        stories: groupWhaleOperations(transactions),
+        updatedAt: lastGoodAt,
+        error: lastError,
+        minimumAmount: CONFIG.minAmount,
+        bounded: true,
+        coverage: {
+            mode: 'all-or-nothing',
+            complete: Boolean(lastGoodAt) && !lastError,
+            lanes: ['transactions', 'delegations', 'stake', 'unstake']
+        }
+    };
+}
+
+function mergeTransactions(fresh, { announce = true } = {}) {
+    const existing = new Set(transactions.map(whaleOperationId));
+    const added = fresh.filter((operation) => !existing.has(whaleOperationId(operation)));
+    transactions.splice(0, transactions.length, ...[...added, ...transactions]
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp) || number(b.id) - number(a.id))
+        .slice(0, CONFIG.chamberLimitPerKind * 3));
+    if (fresh[0]?.timestamp) lastTimestamp = fresh[0].timestamp;
+    lastGoodAt = new Date().toISOString();
+    lastError = '';
+    if (announce && typeof window !== 'undefined') {
+        added.forEach((operation) => {
+            window.dispatchEvent(new CustomEvent('whale-alert', { detail: operation }));
+            dispatchHotWhaleSignal(operation);
         });
-        if (since) params.set('timestamp.gt', since);
-        
-        // Fetch both stake and unstake
-        const [stakeRes, unstakeRes] = await Promise.all([
-            fetch(`${CONFIG.apiBase}/operations/staking?${params}&action=stake`).catch(() => ({ ok: false })),
-            fetch(`${CONFIG.apiBase}/operations/staking?${params}&action=unstake`).catch(() => ({ ok: false }))
-        ]);
-        
-        const stakes = stakeRes.ok ? await stakeRes.json() : [];
-        const unstakes = unstakeRes.ok ? await unstakeRes.json() : [];
-        
-        // Normalize, tag, and filter client-side (TzKT amount.ge unreliable for staking)
-        const all = [
-            ...stakes.map(s => ({ ...s, type: 'stake' })),
-            ...unstakes.map(s => ({ ...s, type: 'unstake' }))
-        ];
-        return all.filter(s => (s.amount || s.requestedAmount || 0) >= CONFIG.minAmount);
-    } catch {
-        return [];
     }
+    window.dispatchEvent?.(new CustomEvent('whale-data-updated', { detail: getWhaleSnapshot() }));
+    return added;
 }
 
-/**
- * Fetch all whale operations
- */
-async function fetchWhaleTransactions() {
+export async function refreshWhaleData({ initial = false, limit = CONFIG.chamberLimitPerKind } = {}) {
+    if (document.visibilityState !== 'visible') return getWhaleSnapshot();
     try {
-        const [txs, delegations, staking] = await Promise.all([
-            fetchTransactions(lastTimestamp),
-            fetchDelegations(lastTimestamp),
-            fetchStaking(lastTimestamp)
-        ]);
-        
-        // Combine and sort by timestamp
-        const all = [...txs, ...delegations, ...staking];
-        all.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        
-        return all.slice(0, 25);
+        const fresh = await fetchWhaleTransactions({ since: initial ? '' : lastTimestamp || '', limit });
+        mergeTransactions(fresh, { announce: !initial });
+        return getWhaleSnapshot();
     } catch (error) {
-        console.error('Whale tracker fetch error:', error);
-        return [];
+        lastError = error?.message || String(error);
+        window.dispatchEvent?.(new CustomEvent('whale-data-error', { detail: { error: lastError, snapshot: getWhaleSnapshot() } }));
+        throw error;
     }
 }
 
-/**
- * Create transaction element
- */
-function createTransactionElement(tx) {
-    // Use alias from TzKT response if available
-    const sender = getAddressLabel(tx.sender?.address, tx.sender?.alias);
-    const context = getTransactionContext(tx);
-    const amount = formatAmount(tx.amount);
-    
-    const el = document.createElement('div');
-    el.className = `whale-tx whale-tx-${context.class}`;
-    el.dataset.hash = tx.hash;
-    
-    // Build flow text based on operation type
-    let flowHtml;
+function flowMarkup(tx) {
+    const sender = getWhaleAddressLabel(tx.sender?.address, tx.sender?.alias);
     if (tx.type === 'delegation') {
-        if (tx.target || tx.newDelegate) {
-            const delegateAddr = tx.target?.address || tx.newDelegate?.address;
-            const delegateAlias = tx.target?.alias || tx.newDelegate?.alias;
-            const baker = getAddressLabel(delegateAddr, delegateAlias);
-            flowHtml = `
-                <span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address)}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span>
-                <span class="whale-tx-arrow">→</span>
-                <span class="whale-tx-addr" title="${escapeHtml(delegateAddr)}">${escapeHtml(baker.icon)} ${escapeHtml(baker.name)}</span>
-            `;
-        } else {
-            flowHtml = `
-                <span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address)}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span>
-                <span class="whale-tx-arrow">→</span>
-                <span class="whale-tx-addr">None</span>
-            `;
-        }
-    } else if (tx.type === 'stake' || tx.type === 'unstake') {
-        const baker = tx.baker ? getAddressLabel(tx.baker.address, tx.baker.alias) : null;
-        flowHtml = `
-            <span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address)}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span>
-            ${baker ? `<span class="whale-tx-arrow">↔</span><span class="whale-tx-addr" title="${escapeHtml(tx.baker.address)}">${escapeHtml(baker.icon)} ${escapeHtml(baker.name)}</span>` : ''}
-        `;
-    } else {
-        const target = getAddressLabel(tx.target?.address, tx.target?.alias);
-        flowHtml = `
-            <span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address)}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span>
-            <span class="whale-tx-arrow">→</span>
-            <span class="whale-tx-addr" title="${escapeHtml(tx.target?.address)}">${escapeHtml(target.icon)} ${escapeHtml(target.name)}</span>
-        `;
+        const target = tx.target ? getWhaleAddressLabel(tx.target.address, tx.target.alias) : { name: 'None', icon: '' };
+        return `<span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address || '')}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span><span class="whale-tx-arrow">→</span><span class="whale-tx-addr" title="${escapeHtml(tx.target?.address || '')}">${escapeHtml(target.icon)} ${escapeHtml(target.name)}</span>`;
     }
-    
-    el.innerHTML = `
-        <div class="whale-tx-header">
-            <span class="whale-tx-context">${escapeHtml(context.emoji)} ${escapeHtml(context.label)}</span>
-            <span class="whale-tx-time">${escapeHtml(timeAgo(tx.timestamp))}</span>
-        </div>
-        <div class="whale-tx-amount">${escapeHtml(amount)} <span class="xtz">ꜩ</span></div>
-        <div class="whale-tx-flow">${flowHtml}</div>
-    `;
-    
-    // Click to open in TzKT
-    el.addEventListener('click', () => {
-        window.open(`https://tzkt.io/${tx.hash}`, '_blank');
-    });
-    
-    return el;
+    if (tx.type === 'stake' || tx.type === 'unstake') {
+        const baker = tx.baker ? getWhaleAddressLabel(tx.baker.address, tx.baker.alias) : null;
+        return `<span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address || '')}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span>${baker ? `<span class="whale-tx-arrow">↔</span><span class="whale-tx-addr" title="${escapeHtml(tx.baker.address)}">${escapeHtml(baker.icon)} ${escapeHtml(baker.name)}</span>` : ''}`;
+    }
+    const target = getWhaleAddressLabel(tx.target?.address, tx.target?.alias);
+    return `<span class="whale-tx-addr" title="${escapeHtml(tx.sender?.address || '')}">${escapeHtml(sender.icon)} ${escapeHtml(sender.name)}</span><span class="whale-tx-arrow">→</span><span class="whale-tx-addr" title="${escapeHtml(tx.target?.address || '')}">${escapeHtml(target.icon)} ${escapeHtml(target.name)}</span>`;
 }
 
-/**
- * Collect addresses needing domain resolution
- */
-function collectUnresolvedAddresses(txs) {
-    const addresses = new Set();
-    txs.forEach(tx => {
-        // Only resolve if no alias from TzKT
-        if (tx.sender?.address && !tx.sender?.alias) addresses.add(tx.sender.address);
-        if (tx.target?.address && !tx.target?.alias) addresses.add(tx.target.address);
-        if (tx.baker?.address && !tx.baker?.alias) addresses.add(tx.baker.address);
-        if (tx.newDelegate?.address && !tx.newDelegate?.alias) addresses.add(tx.newDelegate.address);
-    });
-    return Array.from(addresses);
+function transactionMarkup(tx) {
+    const context = getWhaleOperationContext(tx);
+    const id = whaleOperationId(tx);
+    const amount = whaleOperationAmountPresentation(tx);
+    const value = amount.value === null ? '—' : `${escapeHtml(formatWhaleAmount(amount.value))} <span class="xtz">ꜩ</span>`;
+    return `
+        <div class="whale-tx whale-tx-${escapeHtml(context.class)}" data-quiet-key="whale-operation-${escapeHtml(id)}" data-operation-id="${escapeHtml(id)}" data-hash="${escapeHtml(whaleOperationGroupHash(tx))}" role="link" tabindex="0" aria-label="View ${escapeHtml(context.label)} receipt on TzKT">
+            <div class="whale-tx-header"><span class="whale-tx-context">${escapeHtml(context.emoji)} ${escapeHtml(context.label)}</span><span class="whale-tx-time">${escapeHtml(timeAgo(tx.timestamp))}</span></div>
+            <div class="whale-tx-amount">${value}<small>${escapeHtml(amount.label)}</small></div>
+            <div class="whale-tx-flow">${flowMarkup(tx)}</div>
+        </div>`;
 }
 
-/**
- * Update the whale feed UI
- */
-function updateFeed(newTxs) {
+function wireLegacyFeed(container) {
+    if (!container || container.dataset.whaleFeedWired === '1') return;
+    container.dataset.whaleFeedWired = '1';
+    const openReceipt = (target) => {
+        const item = target.closest?.('.whale-tx[data-operation-id]');
+        if (!item || !container.contains(item)) return;
+        const operation = transactions.find((candidate) => whaleOperationId(candidate) === item.dataset.operationId);
+        const receipt = operation?.hash || operation?.operationGroupHash;
+        if (receipt) window.open(`https://tzkt.io/${encodeURIComponent(receipt)}`, '_blank', 'noopener');
+    };
+    container.addEventListener('click', (event) => openReceipt(event.target));
+    container.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (!event.target.closest?.('.whale-tx')) return;
+        event.preventDefault();
+        openReceipt(event.target);
+    });
+}
+
+function renderLegacyFeed({ loading = false } = {}) {
     const container = document.getElementById('whale-feed');
     if (!container) return;
-    const previousScrollLeft = container.scrollLeft;
-    const previousScrollWidth = container.scrollWidth;
-    
-    // Background resolve domains for addresses without aliases
-    const unresolvedAddresses = collectUnresolvedAddresses(newTxs);
-    if (unresolvedAddresses.length > 0) {
-        batchResolveDomains(unresolvedAddresses).then(() => {
-            // Re-render cards that might have new domain names
-            refreshDisplayedNames();
-        });
-    }
-    
-    // Add new transactions to the top
-    newTxs.forEach(tx => {
-        // Skip if already in list
-        if (transactions.find(t => t.hash === tx.hash)) return;
-        
-        transactions.unshift(tx);
-        const el = createTransactionElement(tx);
-        
-        // Dispatch whale alert event for vibes system
-        window.dispatchEvent(new CustomEvent('whale-alert', { detail: tx }));
-        dispatchHotWhaleSignal(tx);
-        
-        if (container.firstChild) {
-            container.insertBefore(el, container.firstChild);
-        } else {
-            container.appendChild(el);
-        }
-        
-    });
-    
-    // Trim old transactions
-    while (transactions.length > CONFIG.maxItems) {
-        transactions.pop();
-        if (container.lastChild) {
-            container.lastChild.classList.add('whale-tx-exit');
-            setTimeout(() => container.lastChild?.remove(), 300);
-        }
-    }
-    
-    // Update last timestamp
-    if (newTxs.length > 0) {
-        lastTimestamp = newTxs[0].timestamp;
-        if (previousScrollLeft > 4) {
-            container.scrollLeft = previousScrollLeft + Math.max(0, container.scrollWidth - previousScrollWidth);
-        }
-    }
-    
-    // Update empty state
-    const emptyState = document.getElementById('whale-empty');
-    if (emptyState) {
-        emptyState.style.display = transactions.length === 0 ? 'block' : 'none';
-    }
-}
-
-/**
- * Refresh displayed names after domain resolution
- */
-function refreshDisplayedNames() {
-    const container = document.getElementById('whale-feed');
-    if (!container) return;
-    
-    const html = transactions.map((tx) => createTransactionElement(tx).outerHTML).join('');
-    quietlySyncHtml(container, html);
-}
-
-/**
- * Initial load of transactions
- */
-async function loadInitialTransactions() {
-    const container = document.getElementById('whale-feed');
-    if (!container) return;
-    
-    // Show loading state
-    container.innerHTML = '<div class="whale-loading">Scanning for whales...</div>';
-    
-    const txs = await fetchWhaleTransactions();
-    container.innerHTML = '';
-    
-    if (txs.length === 0) {
-        container.innerHTML = `
-            <div id="whale-empty" class="whale-empty">
-                <span class="whale-empty-icon">🐬</span>
-                <span>No whales surfacing right now. The deep is quiet.</span>
-                <span class="whale-empty-sub">Watching transfers, stakes & delegations > 1,000 ꜩ</span>
-            </div>
-        `;
+    wireLegacyFeed(container);
+    if (loading && !transactions.length) {
+        quietlySyncHtml(container, '<div class="whale-loading">Scanning for large operations...</div>');
         return;
     }
-    
-    // Add transactions
-    txs.reverse().forEach(tx => {
-        transactions.unshift(tx);
-        container.insertBefore(createTransactionElement(tx), container.firstChild);
-    });
-    
-    if (txs.length > 0) {
-        lastTimestamp = txs[txs.length - 1].timestamp;
+    if (!transactions.length) {
+        const note = lastError ? `Last refresh failed: ${lastError}` : 'No qualifying operations in the bounded live window.';
+        quietlySyncHtml(container, `<div id="whale-empty" class="whale-empty"><span class="whale-empty-icon">🐬</span><span>The deep is quiet.</span><span class="whale-empty-sub">${escapeHtml(note)}</span></div>`);
+        return;
     }
+    quietlySyncHtml(container, transactions.slice(0, CONFIG.legacyMaxItems).map(transactionMarkup).join(''));
 }
 
-/**
- * Poll for new transactions
- */
+async function resolveVisibleNames() {
+    const addresses = transactions.flatMap((tx) => [
+        !tx.sender?.alias && tx.sender?.address,
+        !tx.target?.alias && tx.target?.address,
+        !tx.baker?.alias && tx.baker?.address
+    ]).filter(Boolean);
+    if (!addresses.length) return;
+    await batchResolveDomains(addresses);
+    renderLegacyFeed();
+}
+
+async function loadInitialTransactions() {
+    if (initialLoadPromise) return initialLoadPromise;
+    renderLegacyFeed({ loading: true });
+    initialLoadPromise = refreshWhaleData({ initial: true })
+        .then(() => {
+            renderLegacyFeed();
+            resolveVisibleNames();
+            return getWhaleSnapshot();
+        })
+        .catch((error) => {
+            console.warn('Whale tracker fetch error:', error);
+            renderLegacyFeed();
+            return getWhaleSnapshot();
+        })
+        .finally(() => { initialLoadPromise = null; });
+    return initialLoadPromise;
+}
+
 async function pollForUpdates() {
-    if (!isVisible) return;
-    
-    const newTxs = await fetchWhaleTransactions();
-    if (newTxs.length > 0) {
-        updateFeed(newTxs.reverse());
+    if (!isVisible || document.visibilityState !== 'visible') return getWhaleSnapshot();
+    try {
+        const snapshot = await refreshWhaleData();
+        renderLegacyFeed();
+        return snapshot;
+    } catch (error) {
+        console.warn('Whale tracker refresh failed; keeping last-good operations:', error);
+        renderLegacyFeed();
+        return getWhaleSnapshot();
     }
 }
 
-/**
- * Start polling
- */
 function startPolling() {
     if (pollTimer) return;
-    pollTimer = setInterval(() => {
+    pollTimer = window.setInterval(() => {
         if (document.visibilityState === 'visible') pollForUpdates();
     }, CONFIG.pollInterval);
 }
 
-/**
- * Stop polling
- */
 function stopPolling() {
-    if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-    }
+    if (pollTimer) window.clearInterval(pollTimer);
+    pollTimer = null;
 }
 
-/**
- * Handle visibility change
- */
 function handleVisibilityChange() {
-    if (document.hidden) {
+    if (document.visibilityState !== 'visible') {
         isVisible = false;
         stopPolling();
-    } else {
-        isVisible = true;
-        if (isEnabled) {
-            pollForUpdates();
-            startPolling();
-        }
-    }
-}
-
-/**
- * Toggle whale tracker visibility
- */
-export function toggleWhaleTracker() {
-    isEnabled = !isEnabled;
-    localStorage.setItem(STORAGE_KEY, isEnabled ? 'true' : 'false');
-    updateWhaleVisibility();
-    
-    if (isEnabled) {
-        const container = document.getElementById('optional-sections');
-        const section = document.getElementById('whale-section');
-        if (container && section && section.parentElement === container) container.prepend(section);
-        if (transactions.length === 0) loadInitialTransactions();
-    }
-    
-    return isEnabled;
-}
-
-/**
- * Update UI based on enabled state
- */
-function setLauncherToggleState(btn, isOn) {
-    const helper = window.tezosSystemsLauncher?.setToggleState;
-    if (helper) {
-        helper(btn, isOn);
         return;
     }
-    btn?.classList.toggle('active', isOn);
-    btn?.setAttribute('aria-pressed', String(isOn));
-    const pill = btn?.querySelector('.feature-status');
-    if (pill) pill.textContent = btn?.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+    isVisible = true;
+    if (isEnabled) {
+        pollForUpdates();
+        startPolling();
+    }
+}
+
+function setLauncherToggleState(button, on) {
+    const helper = window.tezosSystemsLauncher?.setToggleState;
+    if (helper) return helper(button, on);
+    button?.classList.toggle('active', on);
+    button?.setAttribute('aria-pressed', String(on));
+    const pill = button?.querySelector('.feature-status');
+    if (pill) pill.textContent = button?.dataset[on ? 'statusOn' : 'statusOff'] || (on ? 'Showing' : 'Hidden');
 }
 
 function updateWhaleVisibility() {
     const section = document.getElementById('whale-section');
-    const toggleBtn = document.getElementById('whale-toggle');
-    
-    if (section) {
-        section.classList.toggle('visible', isEnabled);
+    const toggleButton = document.getElementById('whale-toggle');
+    section?.classList.toggle('visible', isEnabled);
+    if (toggleButton) {
+        setLauncherToggleState(toggleButton, isEnabled);
+        toggleButton.title = `Large Tez Transfers: ${isEnabled ? 'Showing' : 'Hidden'}`;
     }
-    
-    if (toggleBtn) {
-        setLauncherToggleState(toggleBtn, isEnabled);
-        toggleBtn.title = `Large Tez Transfers: ${isEnabled ? 'Showing' : 'Hidden'}`;
-    }
-    
-    // Start/stop polling based on state
-    if (isEnabled) {
-        startPolling();
-    } else {
-        stopPolling();
-    }
+    if (isEnabled) startPolling();
+    else stopPolling();
 }
 
-/**
- * Initialize whale tracker
- */
-export async function initWhaleTracker() {
+export function toggleWhaleTracker() {
+    isEnabled = !isEnabled;
+    localStorage.setItem(STORAGE_KEY, String(isEnabled));
+    updateWhaleVisibility();
+    if (isEnabled) {
+        const container = document.getElementById('optional-sections');
+        const section = document.getElementById('whale-section');
+        if (container && section?.parentElement === container) container.prepend(section);
+        if (!transactions.length) loadInitialTransactions();
+        else renderLegacyFeed();
+    }
+    return isEnabled;
+}
+
+/** Compatibility exports keep existing lazy imports on whales.js working. */
+export async function openWhaleChamber(view = '') {
+    const chamber = await import('./whale-chamber.js');
+    return chamber.openWhaleChamber(view);
+}
+
+export async function closeWhaleChamber() {
+    const chamber = await import('./whale-chamber.js');
+    return chamber.closeWhaleChamber();
+}
+
+export async function initWhaleChamber() {
+    const chamber = await import('./whale-chamber.js');
+    return chamber.initWhaleChamber();
+}
+
+export async function initWhaleTracker({ legacyUi = true } = {}) {
+    if (!legacyUi) {
+        debugLog('Initializing Whale Watch without the legacy inline rail...');
+        await initWhaleChamber();
+        window.whaleTracker = {
+            get transactions() { return transactions; },
+            refresh: pollForUpdates,
+            toggle: toggleWhaleTracker,
+            get snapshot() { return getWhaleSnapshot(); }
+        };
+        return;
+    }
     const section = document.getElementById('whale-section');
     if (!section) {
         debugLog('Whale section not found, skipping initialization');
         return;
     }
-    
     debugLog('Initializing Whale Tracker...');
-    
-    // Load saved preference (default: off)
     isEnabled = localStorage.getItem(STORAGE_KEY) === 'true';
-    
-    // Setup toggle button
-    const toggleBtn = document.getElementById('whale-toggle');
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', toggleWhaleTracker);
+    const toggleButton = document.getElementById('whale-toggle');
+    if (toggleButton && toggleButton.dataset.whaleToggleWired !== '1') {
+        toggleButton.dataset.whaleToggleWired = '1';
+        toggleButton.addEventListener('click', toggleWhaleTracker);
     }
-    
-    // Set initial visibility
     updateWhaleVisibility();
-    
-    // Only load data if enabled (delay to avoid TzKT rate limits on page load)
-    if (isEnabled) {
-        setTimeout(async () => {
-            await loadInitialTransactions();
-            startPolling();
-        }, 3000);
-    }
-    
-    // Handle tab visibility
+    if (isEnabled) window.setTimeout(loadInitialTransactions, 3000);
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Expose for debugging
-    window.whaleTracker = { transactions, refresh: pollForUpdates, toggle: toggleWhaleTracker };
+    window.whaleTracker = {
+        get transactions() { return transactions; },
+        refresh: pollForUpdates,
+        toggle: toggleWhaleTracker,
+        get snapshot() { return getWhaleSnapshot(); }
+    };
+    initWhaleChamber().catch((error) => console.warn('Whale Watch Chamber initialization failed:', error));
 }
-
-export { fetchWhaleTransactions, ADDRESS_LABELS };

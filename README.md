@@ -45,6 +45,9 @@ tezos.systems/
 │   ├── loading.css                    # Critical first-paint skeleton states
 │   ├── network-health.css             # Lazy Network Health detail-panel styles
 │   ├── capital.css                    # Lazy Capital Chamber styles
+│   ├── leaderboard.css                # Lazy Baker Directory Chamber styles
+│   ├── whale-chamber.css              # Lazy Whale Watch Chamber styles
+│   ├── history-chamber.css            # Lazy Cycle History Chamber styles
 │   ├── tezoscrp.css                   # Lazy TezosCRP Recognition Hall styles
 │   ├── themes/                        # Generated lazy-loaded theme bundles
 │   ├── hen-mode.css                   # HEN overlay styles
@@ -71,6 +74,7 @@ tezos.systems/
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
 │   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
 │   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
+│   ├── whale-watch.json               # Complete 24h whale/dormancy snapshot and receipts
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
 │   ├── maxis-l2-governance.json         # Exact all-history Etherlink governance careers
@@ -90,7 +94,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ capital/ stake/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -106,6 +110,7 @@ tezos.systems/
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
+│   ├── refresh-whale-watch-data.mjs   # Complete large-transfer/dormancy snapshot generator
 │   ├── refresh-tezoscrp-awards.mjs    # Official Medium RSS award refresh/checker
 │   ├── lib/maxis-l2-governance.mjs     # Etherlink career scoring and validation
 │   ├── lib/maxis-artifact-budget.mjs  # Exact pretty-JSON byte-budget receipts
@@ -267,9 +272,10 @@ inline modal styles in `js/core/app.js`.
   dedicated in-flow slot beside the top price rail and scrolls away with that
   rail instead of painting over telemetry or the centered wordmark.
 - Chambers section is visible by default and orders the chamber rows as Network
-  Pulse <> Capital Chamber, the narrow Staking Chamber, Network Health <> Tezos L1 Governance, Tezos X <> Tezos X Governance,
-  tz4 Adoption <> LB Monitor, Ledger Flow <> Protocol History, Tezos Maxis,
-  TezosCRP Recognition Hall, then
+  Pulse <> Capital Chamber, Whale Watch <> Baker Directory, Network Health <>
+  Tezos L1 Governance, Tezos X <> Tezos X Governance, tz4 Adoption <> Staking
+  Chamber <> LB Monitor, Ledger Flow <> Protocol Anthology <> Cycle History,
+  Tezos Maxis, TezosCRP Recognition Hall, then
   a full-width Tezos Domains strip at the bottom. ctez Oven Exit and KT1
   Multisig Recovery stay off the
   default Chambers grid and open from Explore's collapsed Recovery tools drawer
@@ -482,6 +488,30 @@ inline modal styles in `js/core/app.js`.
   manifest, summary, or Passport shards; only a complete reconciled scan is
   atomically promoted to `transaction-state.json`. Neither file is a browser
   payload.
+- Baker Directory Chamber with direct `#leaderboard` and `/leaderboard/`
+  access. Discover first applies an explicit minimum free-room threshold and
+  optional tz4 or Veteran evidence filter, then orders lexicographically by
+  either free room or the disclosed delegator-plus-staker count. It uses no
+  blended fit score. These are transparent on-chain facts; Discover is not
+  a quality, payout, uptime, reliability, or performance grade. Directory keeps
+  the complete funded active-baker set searchable and sortable, while Signals
+  explains launch-era OG, through-2021 Veteran, accepted-proposal initiator,
+  completed-ballot streak, capacity, and tz4 receipts. Selecting a baker keeps
+  the full profile, My Tezos, Ledger Flow, and delegation handoffs explicit.
+- Whale Watch Chamber with direct `#whales` and `/whales/` access unifies the
+  large-operation Live Tape, complete applied-transfer Overview for the latest
+  24 hours, related operation-group Flow Stories, large accounts inactive for
+  at least one year in Deep Sleep, and verified post-dormancy Awakenings. TzKT
+  operation IDs identify individual receipts; hashes group related hops without
+  deduplicating them. Totals are labeled gross observed tez transferred rather
+  than economic volume, accounts are not presumed to be individual wallets,
+  and an awakening's moved amount appears only for the earliest applied
+  transaction or actual processed stake/unstake receipt after dormancy. Sender
+  balances, requested amounts, deposits, and activation allocations are never
+  substituted. The live tape publishes only when its transaction, delegation,
+  stake, and unstake lanes all succeed, and TzKT aliases are source context—not
+  inferred exchange ownership or beneficial control. Legacy `#giants` opens
+  Deep Sleep inside this room.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, TzKT-reported Octez baker version distribution by baking
@@ -554,9 +584,15 @@ inline modal styles in `js/core/app.js`.
   addresses or `.tez` names also expose a scoped Maxi Passport path. Baker-name
   searches hydrate from active leaderboard data, while TzKT remains available
   from native receipts as an audit trail. Blank search stays intentionally
-  compact with eight useful starting points; the `All 47` chip explicitly opens
+  compact with eight useful starting points; the dynamic `All` chip explicitly opens
   the complete manifest directory without making every search session begin in
   an atlas.
+- Cycle History Chamber with direct `#history` and `/history/` access keeps the
+  fifteen captured global, market, Network Health, Tezos X, and governance
+  signals in one measured archive. Its 24-hour, 7-day, 30-day, and all-captured
+  ranges never synthesize missing intervals; `?range=...&metric=...` links can
+  reopen one exact chart without replacing the surrounding source and freshness
+  context.
 - Protocol History Chamber with direct `#protocol-history` access, backed by
   `data/protocol-data.json` and `data/protocol-debates.json`. It preserves the
   protocol timeline, individual protocol lore modals, share capture, and impact
@@ -578,7 +614,7 @@ inline modal styles in `js/core/app.js`.
   of a handpicked subset. Crawlable comparison/widget pages and the core Maxis
   rooms appear as nested views under their parent destination. The Dashboard
   keeps that atlas expanded; standalone pages preserve it behind a local
-  `Browse all 47 destinations` disclosure. Expanded Chambers add four semantic
+  `Browse all destinations` disclosure. Expanded Chambers add four semantic
   next steps, and native Network Pulse and Staking now use the same four-link
   model plus quiet Chambers/search exits. Full internal routes prevent modal
   stacks during room-to-room navigation.
@@ -631,15 +667,9 @@ inline modal styles in `js/core/app.js`.
   live baker signal refresh, baker Octez version status coloring, baker
   performance, latest LB vote state, Octez.Connect wallet sync, and recent baker
   delegator/staker activity.
-- Baker leaderboard, staking calculator, chain comparison, whale feed, sleeping
-  giants, HEN NFT/profile mode, TzSafe Recovery, changelog, share captures, and
-  embeddable widgets. The leaderboard marks the saved baker, separates open
-  delegation-room affordances from scarcer earned descriptors, distinguishes
-  launch-era OG bakers from the Veteran cohort whose first TzKT activity was
-  recorded by the end of 2021, and surfaces accepted-proposal initiator counts
-  plus consecutive completed-ballot streaks from the generated governance
-  receipts. It shares guild-style cards with live proof seals. The
-  calculator opens with a 1,000 XTZ starting amount, live APY context, protocol
+- Staking calculator, chain comparison, HEN NFT/profile mode, TzSafe Recovery,
+  changelog, share captures, and embeddable widgets. The calculator opens with
+  a 1,000 XTZ starting amount, live APY context, protocol
   timing for first-payout copy, animated results, and private-by-default
   projection sharing. Cycle whispers only announce a real cycle advance near
   the beginning of the cycle.
@@ -677,9 +707,10 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`, `/capital/`, `/stake/`, `/maxis/`, `/tezoscrp/`, `/health/`,
-`/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`, `/ledger-flow/`, `/domains/`, and
-`/ctez/`.
+Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`,
+`/capital/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
+`/tezoscrp/`, `/health/`, `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`,
+`/ledger-flow/`, `/domains/`, and `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
 live dashboard room at the clean URL.
 `/feed.xml` exposes the generated governance RSS feed for relay bots.
@@ -732,7 +763,8 @@ Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
-the Maxis artifact family plus `data/capital-snapshot.json`; manual full runs
+the Maxis artifact family plus `data/capital-snapshot.json` and
+`data/whale-watch.json`; manual full runs
 also check the official Tezos Commons feed for a new TezosCRP period. It also refreshes
 the reproducible Chainspect and
 Edinburgh EDI rows in `data/nakamoto-sources.json`; normal pre-commit runs only
@@ -780,6 +812,13 @@ exist. Scheduled/full generated runs refresh and optionally stage the snapshot;
 normal pre-commit runs validate the committed artifact without contacting every
 provider. The browser consumes that artifact and never silently upgrades stale
 or partial coverage into a current, comprehensive claim.
+`npm run refresh:whales` rebuilds the Whale Watch snapshot from complete,
+paginated TzKT large-account and applied-transfer ledgers. The artifact retains
+last-activity time and level separately, operation IDs separately from group
+hashes, source/coverage receipts, and previously verified awakenings.
+`npm run check:whales` validates the committed snapshot without network access;
+pre-commit uses that check while scheduled/full generated runs refresh and can
+stage the artifact.
 The evaluator used by a settling season must remain executable and unchanged
 until close; a future scoring upgrade must live in a separately versioned
 evaluator rather than reinterpreting an old season through new code. Finalized
@@ -810,7 +849,7 @@ collector should use a service-role or equivalent server-side secret for
 `.github/workflows/collect-data.yml` writes the 2-hour global `tezos_history`
 row, while `.github/workflows/collect-chamber-history.yml` writes 30-minute
 market, Network Health, Tezos X, and governance-period snapshots.
-The History modal reads those domain tables directly for Chamber trend charts
+The Cycle History Chamber reads those domain tables directly for trend charts
 plus expanded `tezos_history` fields such as total staked, APY, tz4 power,
 protocol issuance, and Liquidity Baking EMA. It starts with a captured-signal
 digest so the extra rows become plain-language status for tz4 power, staking,
@@ -859,6 +898,8 @@ npm run build:css
 npm run refresh:generated
 npm run refresh:capital
 npm run check:capital
+npm run refresh:whales
+npm run check:whales
 npm run refresh:milestones
 npm run refresh:maxis
 npm run check:maxis
@@ -970,8 +1011,9 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v463`, including hero search, theme
-  bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
+- Current aligned shell cache stamp: `v470`, including hero search, theme
+  bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
+  Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v320`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated

@@ -19,7 +19,7 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=469';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=470';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -142,7 +142,7 @@ const GROUPS = [
             { label: 'Contract Calls', key: 'contractCalls24h', format: formatSafeLarge, detail: 'Entrypoint calls across DeFi, NFTs, and apps.', route: '#section=network', history: 'contract_calls_24h', historyCard: 'contract-calls', deltaDecimals: 0 },
             { label: 'Funded Accounts', key: 'fundedAccounts', format: formatSafeLarge, detail: 'Accounts with non-zero XTZ balance.', route: '#section=network', history: 'funded_accounts', historyCard: 'funded-accounts', deltaDecimals: 0 },
             { label: 'New Accounts', key: 'newAccounts24h', format: formatSafeLarge, detail: 'Accounts whose first activity appeared in the last 24 hours.', route: '#section=network', history: 'new_accounts_24h', historyCard: 'new-accounts', deltaDecimals: 0 },
-            { label: 'Giant Awakenings', key: 'giantAwakenings', source: 'client', format: formatGiantAwakeningValue, detail: formatGiantAwakeningDetail, route: '#giants', value: () => recentGiantAwakenings().length }
+            { label: 'Giant Awakenings', key: 'giantAwakenings', source: 'client', format: formatGiantAwakeningValue, detail: formatGiantAwakeningDetail, route: '/whales/?view=awakenings', value: () => recentGiantAwakenings().length }
         ]
     },
     {

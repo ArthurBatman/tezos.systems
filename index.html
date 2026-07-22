@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=469">
-    <link rel="stylesheet" href="css/loading.css?v=469">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=469">
-    <link rel="stylesheet" href="css/site-map.css?v=469">
+    <link rel="stylesheet" href="css/styles.min.css?v=470">
+    <link rel="stylesheet" href="css/loading.css?v=470">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=470">
+    <link rel="stylesheet" href="css/site-map.css?v=470">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=469">
+    <link rel="modulepreload" href="js/core/app.js?v=470">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
@@ -74,6 +74,7 @@
     <link rel="modulepreload" href="js/features/comparison.js">
     <link rel="modulepreload" href="js/features/my-baker.js">
     <link rel="modulepreload" href="js/features/leaderboard.js">
+    <link rel="modulepreload" href="js/features/whale-chamber.js">
     <link rel="modulepreload" href="js/features/liquidity-baking.js">
     <link rel="modulepreload" href="js/features/etherlink-governance.js">
     <link rel="modulepreload" href="js/features/capital-chamber.js">
@@ -113,15 +114,14 @@
         "Tezos Domains",
         "ctez Oven Exit",
         "XTZ Market Watch",
-        "Large Tez Transfers",
-        "Dormant Wallet Movement",
+        "Whale Watch",
         "What's Hot Today",
         "Staking Guide",
         "Governance Guide",
         "Bakers Directory Guide",
         "Chain Compare Guide",
         "Rewards Calculator",
-        "Baker Leaderboard",
+        "Baker Directory",
         "Cycle History",
         "Network Snapshot",
         "Live Chain Comparison",
@@ -267,7 +267,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=469"></script>
+    <script src="js/core/theme-preload.js?v=470"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -399,7 +399,7 @@
                         <details id="explore-live-signals" class="feature-launcher-group feature-launcher-disclosure">
                             <summary class="feature-launcher-disclosure-summary">
                                 <span class="dropdown-section-label">Live signals</span>
-                                <span class="feature-launcher-summary-meta"><span>3 tools</span><span class="feature-launcher-chevron" aria-hidden="true">›</span></span>
+                                <span class="feature-launcher-summary-meta"><span>2 rooms</span><span class="feature-launcher-chevron" aria-hidden="true">›</span></span>
                             </summary>
                             <div class="feature-launcher-disclosure-body">
                             <div class="feature-launcher-row">
@@ -410,20 +410,12 @@
                                 </a>
                             </div>
                             <div class="feature-launcher-row">
-                                <button id="whale-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide large tez transfer feed" aria-pressed="false" title="Large Tez Transfers: Hidden" data-status-on="Showing" data-status-off="Live">
-                                    <span class="whale-toggle-icon">🐬</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Large Tez Transfers</span><span class="dropdown-hint">Catch transfers, stakes, and delegations over 1,000 ꜩ.</span></span>
+                                <button id="whale-toggle" class="glass-button feature-launcher-item" aria-label="Open Whale Watch Chamber" aria-haspopup="dialog" aria-controls="whale-watch-modal" title="Open Whale Watch Chamber">
+                                    <span class="whale-toggle-icon">🐋</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Whale Watch</span><span class="dropdown-hint">Large operations, 24h flow stories, Deep Sleep, and verified awakenings.</span></span>
                                     <span class="feature-status feature-status-live">Live</span>
                                 </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#whales" aria-label="Copy Large Tez Transfers link" title="Copy direct link">🔗</button>
-                            </div>
-                            <div class="feature-launcher-row">
-                                <button id="giants-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide dormant wallet movement feed" aria-pressed="false" title="Dormant Wallet Movement: Hidden" data-status-on="Showing" data-status-off="Live">
-                                    <span class="giants-toggle-icon">😴</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Dormant Wallet Movement</span><span class="dropdown-hint">Large inactive wallets moving again, when TzKT sees them.</span></span>
-                                    <span class="feature-status feature-status-live">Live</span>
-                                </button>
-                                <button class="feature-copy-link" type="button" data-copy-hash="#giants" aria-label="Copy Dormant Wallet Movement link" title="Copy direct link">🔗</button>
+                                <button class="feature-copy-link" type="button" data-copy-hash="#whales" aria-label="Copy Whale Watch link" title="Copy direct link">🔗</button>
                             </div>
                             </div>
                         </details>
@@ -435,10 +427,10 @@
                             </summary>
                             <div class="feature-launcher-disclosure-body">
                             <div class="feature-launcher-row">
-                                <button id="leaderboard-toggle" class="glass-button feature-launcher-item feature-toggle" aria-label="Open or hide Baker Directory" aria-pressed="false" title="Baker Directory: Hidden" data-status-on="Showing" data-status-off="Tool">
+                                <button id="leaderboard-toggle" class="glass-button feature-launcher-item" aria-label="Open Baker Directory Chamber" aria-haspopup="dialog" aria-controls="baker-directory-modal" title="Open Baker Directory Chamber">
                                     <span class="leaderboard-toggle-icon">🏆</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Baker Directory</span><span class="dropdown-hint">Find capacity, fees, stake, and open room.</span></span>
-                                    <span class="feature-status feature-status-tool">Tool</span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Baker Directory</span><span class="dropdown-hint">Discover every active baker through transparent capacity and history signals.</span></span>
+                                    <span class="feature-status feature-status-live">Live</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#leaderboard" aria-label="Copy Baker Directory link" title="Copy direct link">🔗</button>
                             </div>
@@ -510,9 +502,9 @@
                             </summary>
                             <div class="feature-launcher-disclosure-body">
                             <div class="feature-launcher-row">
-                                <button id="history-btn" class="glass-button feature-launcher-item" aria-label="Open historical data" title="Historical data">
+                                <button id="history-btn" class="glass-button feature-launcher-item" aria-label="Open Cycle History Chamber" title="Open Cycle History Chamber">
                                     <span>📈</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Cycle History</span><span class="dropdown-hint">Rewind core Tezos metrics across cycles.</span></span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Cycle History</span><span class="dropdown-hint">Rewind fifteen captured signals by range and metric.</span></span>
                                     <span class="feature-status feature-status-share">Share</span>
                                 </button>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#history" aria-label="Copy History link" title="Copy direct link">🔗</button>
@@ -2324,7 +2316,7 @@
 
     <!-- Load app as module -->
     <script src="js/features/hen-mode.js?v=94"></script>
-    <script type="module" src="js/core/app.js?v=469"></script>
+    <script type="module" src="js/core/app.js?v=470"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

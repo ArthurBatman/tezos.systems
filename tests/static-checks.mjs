@@ -223,6 +223,8 @@ async function checkRequiredFiles() {
     'css/hero-search.css',
     'css/site-map.css',
     'css/leaderboard.css',
+    'css/history-chamber.css',
+    'css/whale-chamber.css',
     'css/network-pulse.css',
     'css/capital.css',
     'css/staking-chamber.css',
@@ -240,6 +242,7 @@ async function checkRequiredFiles() {
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
+    'js/features/whale-chamber.js',
     'js/features/tezoscrp.js',
     'js/features/milestone-catalog.mjs',
     'js/features/search.js',
@@ -251,6 +254,12 @@ async function checkRequiredFiles() {
     'og/stake.png',
     'capital/index.html',
     'og/capital.png',
+    'history/index.html',
+    'og/history.png',
+    'leaderboard/index.html',
+    'og/leaderboard.png',
+    'whales/index.html',
+    'og/whales.png',
     'version.json',
     'LICENSE',
     'NOTICE',
@@ -264,6 +273,7 @@ async function checkRequiredFiles() {
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-capital-data.mjs',
+    'scripts/refresh-whale-watch-data.mjs',
     'scripts/refresh-tezoscrp-awards.mjs',
     'scripts/refresh-maxis-data.mjs',
     'scripts/refresh-maxis-careers.mjs',
@@ -284,6 +294,7 @@ async function checkRequiredFiles() {
     'data/nakamoto-sources.json',
     'data/governance-refresh-report.json',
     'data/capital-snapshot.json',
+    'data/whale-watch.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-careers.json',
@@ -1869,9 +1880,11 @@ async function checkSelectorContracts() {
     ['My Tezos era card share helper', 'function shareEraCard', myTezos],
     ['Tezos Story action styles', '.tezos-story-actions', styles],
     ['Delegator fit finder questions', 'FIT_QUESTIONS', leaderboard],
-    ['Delegator fit finder scorer', 'function scoreBakerFit', leaderboard],
+    ['Delegator fit strict factual matcher', 'function bakerMatchesFit', leaderboard],
+    ['Delegator fit lexicographic comparator', 'function compareBakerFit', leaderboard],
+    ['Delegator fit factual ordering', 'function factualBakerFits', leaderboard],
     ['Delegator fit finder styles', '.baker-fit-finder', leaderboardCss],
-    ['Delegator fit finder truth disclosure', 'not an uptime or performance grade', leaderboard],
+    ['Delegator fit finder truth disclosure', 'No blended score is calculated', leaderboard],
     ['Leaderboard native sort controls', 'class="lb-sort-btn"', leaderboard],
     ['Leaderboard column sort state', 'aria-sort="${direction}"', leaderboard],
     ['Leaderboard explicit baker action', 'class="lb-baker-open"', leaderboard],
@@ -1889,6 +1902,9 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+  if (/function\s+scoreBakerFit|\bfitScore\b|\bcompositeFitScore\b/.test(leaderboard)) {
+    fail('Delegator fit must use strict factual filters and lexicographic facts, never a hidden composite score');
   }
   if (leaderboard.includes('lb-share-btn') || leaderboard.includes('lb-share-col')) {
     fail('Baker Leaderboard must not restore one share control per row');
@@ -3430,7 +3446,7 @@ async function checkTourAndShareCaptureContracts() {
   for (const snippet of [
     'Focus command bar',
     'Open selected command result',
-    'Open Historical Data'
+    'Open Cycle History Chamber'
   ]) {
     if (!app.includes(snippet)) fail(`keyboard help overlay must include current command shortcut copy: ${snippet}`);
   }
@@ -5598,6 +5614,307 @@ async function checkCapitalContracts() {
   pass(`Capital Chamber snapshot, source, route, quality, and quiet-refresh contracts checked (${snapshot.markets.xtz.tickers.length} venue rows)`);
 }
 
+async function checkPromotedChamberContracts() {
+  const [
+    artifactText,
+    whale,
+    whaleCss,
+    whaleGenerator,
+    legacyWhales,
+    giants,
+    leaderboard,
+    leaderboardCss,
+    history,
+    historyCss,
+    app,
+    siteMap,
+    chamberRoutes,
+    generatedSurfaces,
+    packageText,
+    smoke
+  ] = await Promise.all([
+    readText('data/whale-watch.json'),
+    readText('js/features/whale-chamber.js'),
+    readText('css/whale-chamber.css'),
+    readText('scripts/refresh-whale-watch-data.mjs'),
+    readText('js/features/whales.js'),
+    readText('js/features/sleeping-giants.js'),
+    readText('js/features/leaderboard.js'),
+    readText('css/leaderboard.css'),
+    readText('js/features/history.js'),
+    readText('css/history-chamber.css'),
+    readText('js/core/app.js'),
+    readText('js/core/site-map.js'),
+    readText('scripts/lib/chamber-routes.mjs'),
+    readText('scripts/refresh-generated-surfaces.mjs'),
+    readText('package.json'),
+    readText('tests/smoke.mjs')
+  ]);
+  const artifact = JSON.parse(artifactText);
+  const packageJson = JSON.parse(packageText);
+
+  if (artifact.kind !== 'tezos-whale-watch' || artifact.version !== 1 || !Number.isFinite(Date.parse(artifact.generatedAt))) {
+    fail('Whale Watch must publish a timestamped tezos-whale-watch v1 artifact');
+  }
+  if (artifact.coverage?.largeAccounts?.complete !== true || artifact.coverage?.transfers24h?.complete !== true) {
+    fail('Whale Watch large-account and 24-hour transfer ledgers must both declare complete pagination');
+  }
+  if (artifact.coverage?.largeAccounts?.eligibleCount < (artifact.dormant?.records?.length || 0)
+    || artifact.coverage?.transfers24h?.eligibleCount !== artifact.transfers24h?.operationCount) {
+    fail('Whale Watch coverage counts must reconcile with its displayed cohorts and complete transfer count');
+  }
+  const expectedThresholds = [1000, 10000, 100000, 1000000];
+  const thresholdRows = artifact.transfers24h?.thresholds || [];
+  if (JSON.stringify(thresholdRows.map((row) => row.thresholdXtz)) !== JSON.stringify(expectedThresholds)
+    || thresholdRows.some((row, index) => index > 0 && (
+      row.operationCount > thresholdRows[index - 1].operationCount
+      || row.operationGroupCount > thresholdRows[index - 1].operationGroupCount
+      || row.grossObservedMutez > thresholdRows[index - 1].grossObservedMutez
+    ))) {
+    fail('Whale Watch threshold ladder must cover 1K through 1M XTZ and remain monotonically narrowing');
+  }
+  if (!/not economic volume/i.test(artifact.transfers24h?.semantics || '')
+    || JSON.stringify(artifact).includes('economicVolume')) {
+    fail('Whale Watch must describe summed legs as gross observed transfers, never economic volume');
+  }
+  for (const record of artifact.dormant?.records || []) {
+    if (!record.address
+      || !Number.isFinite(Date.parse(record.lastActivityTime))
+      || !Number.isFinite(Number(record.lastActivityLevel))
+      || Number(record.dormantDays) < Number(artifact.methodology?.minimumDormantDays || 365)) {
+      fail(`Whale Watch dormant receipt is incomplete or below threshold: ${record.address || 'unknown'}`);
+    }
+  }
+  const flowOperationIds = new Set();
+  for (const story of artifact.transfers24h?.topFlowStories || []) {
+    const operations = story.operations || [];
+    const gross = operations.reduce((sum, operation) => sum + Number(operation.amountMutez || 0), 0);
+    if (!story.hash || story.operationCount !== operations.length || gross !== story.grossObservedMutez
+      || operations.some((operation) => operation.hash !== story.hash || operation.id == null)) {
+      fail(`Whale Watch flow story does not reconcile operation ids, shared hash, and gross legs: ${story.hash || 'unknown'}`);
+    }
+    for (const operation of operations) {
+      const key = String(operation.id);
+      if (flowOperationIds.has(key)) fail(`Whale Watch flow operation id is duplicated across published stories: ${key}`);
+      flowOperationIds.add(key);
+    }
+  }
+  for (const event of artifact.awakenings || []) {
+    const previousActivity = Date.parse(event.previousActivityTime || '');
+    const awakenedAt = Date.parse(event.awakenedAt || '');
+    const receiptDormantDays = Math.floor((awakenedAt - previousActivity) / (24 * 60 * 60 * 1000));
+    if (!event.receipt?.hash
+      || !Number.isFinite(Date.parse(event.receipt.timestamp))
+      || event.awakenedAt !== event.receipt.timestamp
+      || !Number.isFinite(previousActivity)
+      || previousActivity >= awakenedAt
+      || Number(event.dormantDays) !== receiptDormantDays
+      || (event.movedAmountMutez ?? null) !== (event.receipt.amountMutez ?? null)) {
+      fail(`Whale Watch awakening must use matching prior/current receipt timestamps, derived dormancy, and moved amount: ${event.id || 'unknown'}`);
+    }
+  }
+  if (!Array.isArray(artifact.sources) || artifact.sources.length < 2
+    || artifact.sources.some((source) => !/^https:\/\/api\.tzkt\.io\/v1\//.test(source.url || ''))) {
+    fail('Whale Watch artifact must retain explicit TzKT source receipts for both complete ledgers');
+  }
+
+  const whaleGeneratorContracts = [
+    "const THRESHOLDS_XTZ = [1_000, 10_000, 100_000, 1_000_000]",
+    "select: 'address,alias,type,balance,lastActivity,lastActivityTime'",
+    "'sort.asc': 'id'",
+    'offset += pageSize',
+    'TzKT pagination exceeded',
+    'if (id > 0) return `op:${id}`',
+    'groups.get(hash)',
+    'movedAmountMutez: receipt.amountMutez ?? null',
+    'previousActivityTime: iso(prior.lastActivityTime)',
+    'Number(event.dormantDays) !== dormantDays',
+    "JSON.stringify(snapshot).includes('economicVolume')"
+  ];
+  for (const snippet of whaleGeneratorContracts) {
+    if (!whaleGenerator.includes(snippet)) fail(`Whale Watch generator contract missing: ${snippet}`);
+  }
+  if (packageJson.scripts?.['refresh:whales'] !== 'node scripts/refresh-whale-watch-data.mjs'
+    || packageJson.scripts?.['check:whales'] !== 'node scripts/refresh-whale-watch-data.mjs --check') {
+    fail('package scripts must expose Whale Watch refresh and offline validation');
+  }
+  if (!generatedSurfaces.includes("const WHALE_WATCH_TARGETS = ['data/whale-watch.json']")
+    || !generatedSurfaces.includes("nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check'])")
+    || !generatedSurfaces.includes("nodeScript('scripts/refresh-whale-watch-data.mjs')")
+    || !generatedSurfaces.includes('stageTargets(WHALE_WATCH_TARGETS)')) {
+    fail('generated surfaces must check, refresh, and optionally stage the Whale Watch artifact');
+  }
+
+  const integrationContracts = [
+    ['Whale route metadata', "slug: 'whales'", chamberRoutes],
+    ['Baker route metadata', "slug: 'leaderboard'", chamberRoutes],
+    ['Cycle History route metadata', "slug: 'history'", chamberRoutes],
+    ['Whale site-map route', "href: '/whales/'", siteMap],
+    ['Baker site-map route', "href: '/leaderboard/'", siteMap],
+    ['Cycle History site-map route', "href: '/history/'", siteMap],
+    ['legacy giants canonical hash alias', "hashAliases: ['#giants']", siteMap],
+    ['legacy giants direct dormant view', "href: '/whales/?view=dormant'", siteMap],
+    ['Whale/Baker paired entry cards', "selectors: ['#whale-watch-entry-card', '#baker-directory-entry-card']", app],
+    ['Ledger/Anthology/Cycle paired entry cards', "selectors: ['#ledger-flow-entry-card', '#protocol-history-entry-card', '#cycle-history-entry-card']", app],
+    ['Whale routed overlay ownership', "'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants']", app],
+    ['Baker routed overlay ownership', "'baker-directory-modal': { entryIds: ['leaderboard']", app],
+    ['Cycle History routed overlay ownership', "'history-modal': { entryIds: ['history']", app],
+    ['legacy giants Chamber handoff', "openWhaleChamber('dormant')", app],
+    ['Baker router-owned close preserves canonical route', 'closeBakerDirectoryChamber?.({ preserveRoute: true })', app],
+    ['Whale router-owned close preserves canonical route', 'closeWhaleChamber?.({ preserveRoute: true })', app]
+  ];
+  for (const [label, snippet, source] of integrationContracts) {
+    if (!source.includes(snippet)) fail(`${label} contract is missing`);
+  }
+
+  for (const view of ['overview', 'live', 'flows', 'dormant', 'awakenings']) {
+    if (!whale.includes(`{ id: '${view}'`)) fail(`Whale Watch must expose the ${view} view`);
+  }
+  for (const snippet of [
+    "ARTIFACT_URL = '/data/whale-watch.json'",
+    "const FILTER_TYPES = new Set(['all', 'transaction', 'stake', 'unstake', 'delegation'])",
+    'quietlySyncHtml(body, markup)',
+    'document.visibilityState !== \'visible\'',
+    "document.addEventListener('visibilitychange'",
+    '__WHALE_WATCH_REFRESH_MS__',
+    'captureLiveTapeAnchor',
+    'restoreLiveTapeAnchor',
+    'last-good retained',
+    'operation ids remain distinct receipts',
+    'namedEndpointSample',
+    'current TzKT alias receipts',
+    'does not infer exchange ownership or beneficial control',
+    'Observed holdings',
+    'Holding before'
+  ]) {
+    if (!whale.includes(snippet)) fail(`Whale Watch quiet/truth contract missing: ${snippet}`);
+  }
+  if (/type\s*:\s*['"]exchange['"]|FILTER_TYPES[^\n]*exchange/i.test(whale)) {
+    fail('Whale Watch route and filter state must not accept an inferred exchange type');
+  }
+  if (/\b(?:Binance|Coinbase|Kraken|Gate\.io)\b/i.test(legacyWhales)) {
+    fail('Whale Watch must not ship hardcoded exchange ownership labels');
+  }
+  if (!legacyWhales.includes('byId.set(whaleOperationId(operation), operation)')
+    || !legacyWhales.includes('groupWhaleOperations')
+    || !legacyWhales.includes("if (document.visibilityState !== 'visible')")
+    || !legacyWhales.includes("mode: 'all-or-nothing'")
+    || !legacyWhales.includes("lanes: ['transactions', 'delegations', 'stake', 'unstake']")
+    || !legacyWhales.includes('const [transfers, delegations, staking] = await Promise.all([')
+    || (legacyWhales.match(/params\.set\('timestamp\.ge', since\)/g) || []).length !== 3
+    || legacyWhales.includes("params.set('timestamp.gt', since)")
+    || !giants.includes('lastActivityTime')) {
+    fail('legacy Whale and Sleeping Giants data helpers must preserve operation-id identity, hash grouping, four-lane atomic refresh, overlapping cursors, visibility gating, and timestamp dormancy');
+  }
+  for (const selector of ['.whale-watch-entry-card', '.whale-watch-overlay', '.whale-watch-tabs', '.whale-watch-tape-row', '.whale-watch-story', '.whale-watch-dormant-row', '.whale-watch-awakening']) {
+    if (!whaleCss.includes(selector)) fail(`Whale Watch CSS is missing ${selector}`);
+  }
+
+  for (const view of ['discover', 'directory', 'signals']) {
+    if (!leaderboard.includes(`{ id: '${view}'`)) fail(`Baker Directory must expose the ${view} view`);
+  }
+  for (const snippet of [
+    'while (true)',
+    'offset += limit',
+    'positive current baking power',
+    'Complete funded set',
+    'not a hidden quality score',
+    'function bakerMatchesFit',
+    'function compareBakerFit',
+    'function factualBakerFits',
+    'No blended score or inferred quality grade is calculated',
+    'not uptime, payout, or performance grades',
+    'quietlySyncHtml(body, html)',
+    "document.visibilityState !== 'visible'",
+    "document.addEventListener('visibilitychange'",
+    '__BAKER_DIRECTORY_REFRESH_MS__',
+    'last-good baker set remains in place',
+    'last-good governance receipts',
+    "if (searchInput) searchInput.value = ''",
+    'leaveBakerDirectoryRoute',
+    "findChamberLauncher('#baker-directory-entry-card')",
+    'bakerDirectoryFocusedBeforeOpen'
+  ]) {
+    if (!leaderboard.includes(snippet)) fail(`Baker Directory complete-set/quiet/truth contract missing: ${snippet}`);
+  }
+  if (/computeBakerScores|scoreBakerFit|overallScore|reliabilityScore|fitScore|compositeFitScore/.test(leaderboard)) {
+    fail('Baker Directory must not restore a synthetic baker fit, performance, or reliability score');
+  }
+  if (!leaderboard.includes('delegationUsage,') || leaderboard.includes('Math.min(delegationUsage')) {
+    fail('Baker Directory must expose raw delegation usage above 100%, never clamp it for presentation');
+  }
+  if (!leaderboard.includes('careerByAddress: governanceSignals.careerByAddress')
+    || !leaderboard.includes('acceptedByAddress: governanceSignals.acceptedByAddress')
+    || !leaderboard.includes('const next = {\n        ...governanceSignals,')) {
+    fail('Baker Directory governance refresh must begin from the last validated career/proposal maps');
+  }
+  for (const selector of ['.baker-directory-entry-front', '.baker-directory-overlay', '.baker-directory-tabs', '.baker-directory-search', '.baker-directory-table', '.baker-directory-signal-grid']) {
+    if (!leaderboardCss.includes(selector)) fail(`Baker Directory CSS is missing ${selector}`);
+  }
+
+  for (const snippet of [
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=470'",
+    "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
+    'CYCLE_HISTORY_METRICS',
+    'data-history-metric',
+    'syncCycleHistoryRouteState',
+    'cycleHistoryRenderedRange',
+    'restoreCycleHistoryRangeAfterFailure',
+    'Showing last-good',
+    'focusCycleHistoryMetric',
+    'openCycleHistoryChamber',
+    'closeCycleHistoryChamber',
+    'uncaptured intervals are never invented'
+  ]) {
+    if (!history.includes(snippet)) fail(`Cycle History route/focus contract missing: ${snippet}`);
+  }
+  for (const selector of ['.cycle-history-entry-card', '.cycle-history-chamber', '.cycle-history-route-controls', '.chart-section.is-route-focus']) {
+    if (!historyCss.includes(selector)) fail(`Cycle History CSS is missing ${selector}`);
+  }
+
+  for (const route of [
+    ['history', 'Cycle History', 'og/history.png'],
+    ['leaderboard', 'Baker Directory', 'og/leaderboard.png'],
+    ['whales', 'Whale Watch', 'og/whales.png']
+  ]) {
+    const [slug, title, og] = route;
+    const html = await readText(`${slug}/index.html`);
+    if (!html.includes(`data-chamber-route="${slug}"`)
+      || !html.includes(`<link rel="canonical" href="https://tezos.systems/${slug}/">`)
+      || !html.includes(`/${og}`)
+      || !html.includes(title)) {
+      fail(`${title} generated route must retain its route identity, canonical URL, title, and dedicated OG image`);
+    }
+  }
+
+  for (const suite of ["name: 'baker-directory'", "name: 'whale-watch-chamber'", "name: 'cycle-history-chamber'"]) {
+    if (!smoke.includes(suite)) fail(`smoke catalog must include focused promoted-Chamber suite ${suite}`);
+  }
+  for (const snippet of [
+    'window.__BAKER_DIRECTORY_REFRESH_MS__ = 1000',
+    'window.__WHALE_WATCH_REFRESH_MS__ = 1000',
+    'sampleWhaleWatchArtifact',
+    'sameHashDistinctOperationIds',
+    'lastActivityTime',
+    'movedAmountMutez',
+    "#giants",
+    'assertPromotedLauncherGeometry',
+    'frontScrollHeight <= card.frontClientHeight + 1',
+    'Whale Watch and Baker Directory desktop pair heights differ',
+    'raw delegation use above 100% must remain visible instead of being clamped',
+    'career/proposal refresh failures must retain validated badge maps and label them last-good',
+    'sameFooter',
+    'timestamp.ge',
+    '__cycleHistoryKeyboardLauncher',
+    'smoke forced Cycle History range refresh failure',
+    'failed range refresh drifted the last-good range'
+  ]) {
+    if (!smoke.includes(snippet)) fail(`promoted-Chamber browser regression contract missing: ${snippet}`);
+  }
+
+  pass(`Whale Watch, Baker Directory, and Cycle History full-Chamber contracts checked (${artifact.transfers24h.operationCount} complete-window transfers)`);
+}
+
 async function main() {
   if (process.argv.includes('--readme-only')) {
     await checkPortableTooling();
@@ -5637,6 +5954,7 @@ async function main() {
   await checkTourAndShareCaptureContracts();
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
+  await checkPromotedChamberContracts();
   await checkCapitalContracts();
   await checkQuietRefreshContracts();
   checkMilestoneLifecycleBehavior();

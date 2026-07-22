@@ -3,11 +3,24 @@
 
 import {
     fetchChamberHistoricalData,
+    fetchChamberHistoricalDataReceipts,
     fetchHistoricalData,
+    fetchHistoricalDataReceipt,
     fetchSupabaseHistoryFreshness
 } from '../core/api.js';
+import { navigateSiteMapEntry } from '../core/site-map.js';
 import { debugLog } from '../core/utils.js';
 import { getCurrentTheme } from '../ui/theme.js';
+import {
+    activateChamberDialog,
+    deactivateChamberDialog,
+    findChamberLauncher,
+    wireChamberLauncher
+} from '../ui/chamber-accessibility.js';
+
+const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=470';
+const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all']);
+const DEFAULT_CYCLE_HISTORY_RANGE = 'all';
 
 // Store chart instances for cleanup
 const chartInstances = {};
@@ -28,6 +41,71 @@ const FRESHNESS_LABELS = {
     tezosx_history: 'Tezos X',
     governance_period_history: 'Governance'
 };
+const HISTORY_SOURCE_TABLES = {
+    tezos_history: 'global',
+    market_history: 'market',
+    network_health_history: 'networkHealth',
+    tezosx_history: 'tezosx',
+    governance_period_history: 'governance'
+};
+const HISTORY_SOURCE_LABELS = {
+    history: 'History',
+    global: 'Global',
+    market: 'Market',
+    networkHealth: 'Network Health',
+    tezosx: 'Tezos X',
+    governance: 'Governance'
+};
+const HISTORY_SOURCE_DISCLOSURES = [
+    {
+        key: 'global',
+        label: 'Global',
+        cadence: 'Every 2h',
+        coverage: 'Network, protocol, staking, baker, issuance, and Liquidity Baking snapshots.',
+        sources: [
+            { label: 'TzKT', href: 'https://api.tzkt.io/v1/head' },
+            { label: 'Tez Capital RPC', href: 'https://eu.rpc.tez.capital/chains/main/blocks/head/header' }
+        ]
+    },
+    {
+        key: 'market',
+        label: 'Market',
+        cadence: 'Every 30m',
+        coverage: 'XTZ spot, market cap, volume, fiat, and BTC-denominated snapshots.',
+        sources: [
+            { label: 'CoinGecko', href: 'https://www.coingecko.com/en/coins/tezos' }
+        ]
+    },
+    {
+        key: 'networkHealth',
+        label: 'Network Health',
+        cadence: 'Every 30m',
+        coverage: 'Recent block timing, rounds, attestation power, and missed rights samples.',
+        sources: [
+            { label: 'TzKT blocks & rights', href: 'https://api.tzkt.io/v1/blocks?sort.desc=level&limit=16' }
+        ]
+    },
+    {
+        key: 'tezosx',
+        label: 'Tezos X',
+        cadence: 'Every 30m',
+        coverage: 'Etherlink TVL, transactions, accounts, gas, block time, and head agreement.',
+        sources: [
+            { label: 'DefiLlama', href: 'https://defillama.com/chain/Etherlink' },
+            { label: 'Etherlink Explorer', href: 'https://explorer.etherlink.com' },
+            { label: 'Etherlink RPC', href: 'https://node.mainnet.etherlink.com' }
+        ]
+    },
+    {
+        key: 'governance',
+        label: 'Governance',
+        cadence: 'Every 30m',
+        coverage: 'Current period, proposal, voter, voting-power, quorum, and ballot snapshots.',
+        sources: [
+            { label: 'TzKT governance', href: 'https://api.tzkt.io/v1/voting/periods/current' }
+        ]
+    }
+];
 const DOMAIN_HISTORY_CHARTS = [
     {
         source: 'market',
@@ -130,6 +208,39 @@ const CORE_HISTORY_CHARTS = [
         unit: ' XTZ'
     }
 ];
+
+const CYCLE_HISTORY_METRICS = Object.freeze([
+    { key: 'tz4-adoption', canvasId: 'chart-tz4', label: 'tz4 Adoption', aliases: ['tz4', 'tz4-percentage', 'tz4_percentage'] },
+    { key: 'staking-ratio', canvasId: 'chart-staking', label: 'Staking Ratio', aliases: ['staking', 'staking_ratio'] },
+    { key: 'total-staked', canvasId: 'chart-total-staked', label: 'Total Staked', aliases: ['staked', 'total_staked'] },
+    { key: 'staking-apy', canvasId: 'chart-staking-apy', label: 'Stake APY', aliases: ['apy', 'staking_apy_stake'] },
+    { key: 'tz4-power', canvasId: 'chart-tz4-power', label: 'tz4 Power Adoption', aliases: ['tz4_power', 'tz4_power_pct'] },
+    { key: 'bakers', canvasId: 'chart-bakers', label: 'Active Bakers', aliases: ['total-bakers', 'total_bakers'] },
+    { key: 'issuance', canvasId: 'chart-issuance', label: 'Issuance Rate', aliases: ['issuance-rate', 'current_issuance_rate'] },
+    { key: 'protocol-issuance', canvasId: 'chart-protocol-issuance', label: 'Protocol Issuance', aliases: ['protocol_issuance_rate'] },
+    { key: 'liquidity-baking', canvasId: 'chart-lb-ema', label: 'Liquidity Baking EMA', aliases: ['lb', 'lb-ema', 'lb_ema_pct'] },
+    { key: 'supply', canvasId: 'chart-supply', label: 'Total Supply', aliases: ['total-supply', 'total_supply'] },
+    { key: 'price', canvasId: 'chart-price', label: 'XTZ Price', aliases: ['xtz-price', 'price-usd', 'price_usd'] },
+    { key: 'network-health', canvasId: 'chart-network-health', label: 'Network Health', aliases: ['health', 'health-score', 'health_score'] },
+    { key: 'tezosx-tvl', canvasId: 'chart-tezosx-tvl', label: 'Tezos X TVL', aliases: ['tvl', 'tvl-usd', 'tvl_usd'] },
+    { key: 'tezosx-transactions', canvasId: 'chart-tezosx-transactions', label: 'Tezos X Transactions', aliases: ['l2-transactions', 'transactions-24h', 'transactions_24h'] },
+    { key: 'governance', canvasId: 'chart-governance-participation', label: 'Governance Participation', aliases: ['governance-participation', 'participation', 'participation_pct'] }
+]);
+const CYCLE_HISTORY_METRIC_ALIASES = new Map(CYCLE_HISTORY_METRICS.flatMap((metric) => (
+    [metric.key, metric.canvasId, metric.canvasId.replace(/^chart-/, ''), ...(metric.aliases || [])]
+        .map((alias) => [normalizeHistoryRouteToken(alias), metric.key])
+)));
+
+let cycleHistoryStylesReady = null;
+let cycleHistoryCurrentRange = DEFAULT_CYCLE_HISTORY_RANGE;
+let cycleHistoryRenderedRange = '';
+let cycleHistoryLastFailureSources = [];
+let cycleHistoryCurrentMetric = '';
+let cycleHistoryRequestId = 0;
+let cycleHistorySavedBodyOverflow = null;
+let cycleHistorySavedHtmlOverflow = null;
+let cycleHistoryFocusedBeforeOpen = null;
+let cycleHistoryOpenedFromEntryCard = false;
 
 function destroyChartInstance(canvasId) {
     if (chartInstances[canvasId]) {
@@ -266,6 +377,74 @@ function rangeLabel(range) {
     })[range] || range || 'selected range';
 }
 
+function historyReceiptRows(receipt) {
+    return Array.isArray(receipt?.rows) ? receipt.rows : [];
+}
+
+function historyReceiptUnavailable(receipt) {
+    return receipt?.status === 'unavailable';
+}
+
+function unavailableHistorySources(receipts) {
+    return Object.entries(receipts || {})
+        .filter(([, receipt]) => historyReceiptUnavailable(receipt))
+        .map(([source]) => source);
+}
+
+function historySourceList(sources) {
+    const labels = [...new Set(sources || [])].map(source => HISTORY_SOURCE_LABELS[source] || source);
+    if (!labels.length) return 'History';
+    if (labels.length === 1) return labels[0];
+    if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+    return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+}
+
+function formatCoverageDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
+}
+
+function historyCoverageLabel(receipt, range) {
+    if (historyReceiptUnavailable(receipt)) return `Unavailable for ${rangeLabel(range)}`;
+    const rows = historyReceiptRows(receipt);
+    if (!rows.length) return `0 snapshots returned · ${rangeLabel(range)}`;
+
+    const timestamps = rows
+        .map(row => new Date(row?.timestamp))
+        .filter(date => !Number.isNaN(date.getTime()))
+        .sort((a, b) => a - b);
+    if (!timestamps.length) {
+        return `${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? 'snapshot' : 'snapshots'} returned`;
+    }
+
+    const first = formatCoverageDate(timestamps[0]);
+    const last = formatCoverageDate(timestamps[timestamps.length - 1]);
+    const window = first === last ? `${first} UTC` : `${first}–${last} UTC`;
+    return `${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? 'snapshot' : 'snapshots'} · ${window}`;
+}
+
+function renderHistorySourceCoverage(receipts, range) {
+    HISTORY_SOURCE_DISCLOSURES.forEach(({ key }) => {
+        const el = document.querySelector(`[data-history-source-coverage="${key}"]`);
+        if (!el) return;
+        const receipt = receipts?.[key];
+        const unavailable = historyReceiptUnavailable(receipt);
+        const empty = !unavailable && historyReceiptRows(receipt).length === 0;
+        el.textContent = historyCoverageLabel(receipt, range);
+        el.classList.toggle('is-unavailable', unavailable);
+        el.classList.toggle('is-empty', empty);
+        el.title = unavailable
+            ? receipt?.error || `${HISTORY_SOURCE_LABELS[key] || key} history query unavailable`
+            : 'Returned stored snapshots for the selected range';
+    });
+}
+
 function formatUtcDate(value) {
     if (!value) return '--';
     const date = new Date(value);
@@ -334,6 +513,18 @@ function renderDigestCard(card) {
             </div>
         </article>
     `;
+}
+
+function unavailableDigest(kicker, title, tone) {
+    return {
+        tone,
+        kicker,
+        title,
+        value: 'Unavailable',
+        trend: { text: 'not empty', tone: 'negative' },
+        body: 'The selected-range query failed. No empty, zero, or warming state is inferred from that failure.',
+        metrics: []
+    };
 }
 
 function buildConsensusDigest(data) {
@@ -507,19 +698,28 @@ function buildGovernanceDigest(rows) {
     };
 }
 
-function renderHistoryDigest(data, domainData, range) {
+function renderHistoryDigest(data, domainData, range, receipts = {}) {
     const el = document.getElementById('history-digest');
     if (!el) return;
 
     const coreRows = Array.isArray(data) ? data : [];
+    const globalAvailable = !historyReceiptUnavailable(receipts.global);
     const cards = [
-        buildConsensusDigest(coreRows),
-        buildEconomyDigest(coreRows),
-        buildLiquidityDigest(coreRows),
-        buildMarketDigest(domainData?.market || []),
-        buildHealthDigest(domainData?.networkHealth || []),
-        buildTezosXDigest(domainData?.tezosx || []),
-        buildGovernanceDigest(domainData?.governance || [])
+        globalAvailable ? buildConsensusDigest(coreRows) : unavailableDigest('Consensus', 'tz4 power', 'consensus'),
+        globalAvailable ? buildEconomyDigest(coreRows) : unavailableDigest('Economy', 'Staking base', 'economy'),
+        globalAvailable ? buildLiquidityDigest(coreRows) : unavailableDigest('Liquidity Baking', 'Subsidy signal', 'liquidity'),
+        historyReceiptUnavailable(receipts.market)
+            ? unavailableDigest('Market', 'XTZ spot', 'market')
+            : buildMarketDigest(domainData?.market || []),
+        historyReceiptUnavailable(receipts.networkHealth)
+            ? unavailableDigest('Network Health', 'Attestation power', 'health')
+            : buildHealthDigest(domainData?.networkHealth || []),
+        historyReceiptUnavailable(receipts.tezosx)
+            ? unavailableDigest('Tezos X', 'Atomic L2 pulse', 'tezosx')
+            : buildTezosXDigest(domainData?.tezosx || []),
+        historyReceiptUnavailable(receipts.governance)
+            ? unavailableDigest('Governance', 'Voting period', 'governance')
+            : buildGovernanceDigest(domainData?.governance || [])
     ];
 
     el.innerHTML = `
@@ -535,24 +735,27 @@ function renderHistoryDigest(data, domainData, range) {
     `;
 }
 
-function renderHistoryFreshness(rows) {
+function renderHistoryFreshness(rows, receipts = {}) {
     const el = document.getElementById('history-freshness-strip');
     if (!el) return;
 
-    const items = Array.isArray(rows) ? rows : [];
-    if (!items.length) {
-        el.innerHTML = '<span class="history-freshness-pill stale"><strong>Capture</strong><span>unknown</span></span>';
-        return;
-    }
-
-    el.innerHTML = items.map(item => {
-        const label = FRESHNESS_LABELS[item.table] || item.table;
-        const state = item.ok ? 'ok' : 'stale';
-        const title = item.timestamp ? new Date(item.timestamp).toLocaleString() : (item.error || 'No snapshot');
+    const items = new Map((Array.isArray(rows) ? rows : []).map(item => [item.table, item]));
+    el.innerHTML = Object.entries(FRESHNESS_LABELS).map(([table, label]) => {
+        const item = items.get(table);
+        const source = HISTORY_SOURCE_TABLES[table];
+        const receipt = receipts?.[source];
+        const unavailable = historyReceiptUnavailable(receipt);
+        const state = !unavailable && item?.ok ? 'ok' : 'stale';
+        const value = unavailable ? 'query unavailable' : item ? formatAgeLabel(item.ageMs) : 'unknown';
+        const title = unavailable
+            ? receipt?.error || `${label} selected-range query unavailable`
+            : item?.timestamp
+                ? new Date(item.timestamp).toLocaleString()
+                : item?.error || 'No snapshot';
         return `
             <span class="history-freshness-pill ${state}" title="${escapeAttr(title)}">
                 <strong>${label}</strong>
-                <span>${formatAgeLabel(item.ageMs)}</span>
+                <span>${escapeHtml(value)}</span>
             </span>
         `;
     }).join('');
@@ -579,6 +782,7 @@ function renderChartEmptyState(canvas, options = {}) {
     if (!container) return;
 
     const rangeText = options.range ? ` for ${rangeLabel(options.range)}` : '';
+    const kicker = options.emptyKicker || 'Waiting for signal';
     const title = options.emptyTitle || `Collecting ${options.label || 'history'}`;
     const body = options.emptyBody || `This chart needs at least two captured samples${rangeText}. It will draw automatically once enough history exists.`;
 
@@ -594,7 +798,7 @@ function renderChartEmptyState(canvas, options = {}) {
     }
 
     emptyState.innerHTML = `
-        <div class="history-chart-empty-kicker">Waiting for signal</div>
+        <div class="history-chart-empty-kicker">${escapeHtml(kicker)}</div>
         <strong class="history-chart-empty-title">${escapeHtml(title)}</strong>
         <p>${escapeHtml(body)}</p>
     `;
@@ -1204,111 +1408,605 @@ window.addEventListener('themechange', () => {
     updateSparklines();
 });
 
-// Initialize history modal functionality
-export function initHistoryModal() {
+function normalizeHistoryRouteToken(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^chart-/, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-');
+}
+
+function canonicalCycleHistoryMetric(value) {
+    return CYCLE_HISTORY_METRIC_ALIASES.get(normalizeHistoryRouteToken(value)) || '';
+}
+
+function cycleHistoryMetricConfig(metricKey) {
+    return CYCLE_HISTORY_METRICS.find(({ key }) => key === metricKey) || null;
+}
+
+function isCycleHistoryPrettyRoute() {
+    const path = window.location.pathname
+        .replace(/\/index\.html$/i, '')
+        .replace(/^\/+|\/+$/g, '');
+    return path === 'history';
+}
+
+function normalizeCycleHistoryRange(value, fallback = DEFAULT_CYCLE_HISTORY_RANGE) {
+    const range = String(value || '').trim().toLowerCase();
+    return CYCLE_HISTORY_RANGES.has(range) ? range : fallback;
+}
+
+function readCycleHistoryState(options = {}) {
+    const requested = typeof options === 'string' ? { range: options } : (options || {});
+    const prettyRoute = isCycleHistoryPrettyRoute();
+    const routeParams = prettyRoute
+        ? new URL(window.location.href).searchParams
+        : new URLSearchParams();
+    const hasRequestedRange = Object.prototype.hasOwnProperty.call(requested, 'range');
+    const hasRequestedMetric = Object.prototype.hasOwnProperty.call(requested, 'metric');
+    const routeRange = prettyRoute ? routeParams.get('range') : null;
+    const routeMetric = prettyRoute ? routeParams.get('metric') : null;
+    const rangeFallback = prettyRoute
+        ? DEFAULT_CYCLE_HISTORY_RANGE
+        : (cycleHistoryCurrentRange || DEFAULT_CYCLE_HISTORY_RANGE);
+    const range = normalizeCycleHistoryRange(
+        hasRequestedRange
+            ? requested.range
+            : prettyRoute
+                ? routeRange
+                : cycleHistoryCurrentRange,
+        rangeFallback
+    );
+    const metric = canonicalCycleHistoryMetric(
+        hasRequestedMetric
+            ? requested.metric
+            : prettyRoute
+                ? routeMetric
+                : cycleHistoryCurrentMetric
+    );
+    return { range, metric };
+}
+
+function ensureCycleHistoryStyles() {
+    const existing = document.getElementById('cycle-history-chamber-css');
+    if (existing?.sheet) return Promise.resolve(true);
+    if (cycleHistoryStylesReady) return cycleHistoryStylesReady;
+
+    const link = existing || document.createElement('link');
+    if (!existing) {
+        link.id = 'cycle-history-chamber-css';
+        link.rel = 'stylesheet';
+        link.href = CYCLE_HISTORY_CSS_URL;
+    }
+    cycleHistoryStylesReady = new Promise((resolve) => {
+        link.addEventListener('load', () => resolve(true), { once: true });
+        link.addEventListener('error', () => resolve(false), { once: true });
+    });
+    if (!existing) document.head.appendChild(link);
+    return cycleHistoryStylesReady;
+}
+
+function renderCycleHistoryIntro(modal) {
+    if (modal.querySelector('.cycle-history-intro')) return;
+    const title = modal.querySelector('#history-modal-title');
+    if (!title) return;
+
+    const intro = document.createElement('section');
+    intro.className = 'cycle-history-intro';
+    intro.setAttribute('aria-label', 'Cycle History Chamber guide');
+    intro.innerHTML = `
+        <div class="cycle-history-system-strip" aria-label="History source ledgers">
+            <span>Global</span><span>Market</span><span>Health</span><span>Tezos X</span><span>Governance</span>
+        </div>
+        <p class="cycle-history-lede">Measured Tezos history across fifteen captured signals. Ranges describe the retained snapshots available from each source ledger; uncaptured intervals are never invented.</p>
+        <section class="cycle-history-provenance" aria-labelledby="cycle-history-provenance-title">
+            <div class="cycle-history-provenance-head">
+                <strong id="cycle-history-provenance-title">Sources, cadence &amp; coverage</strong>
+                <span>Scheduled capture · returned snapshots only</span>
+            </div>
+            <div class="cycle-history-provenance-grid">
+                ${HISTORY_SOURCE_DISCLOSURES.map(source => `
+                    <article class="cycle-history-source" data-history-source="${escapeAttr(source.key)}">
+                        <div class="cycle-history-source-head">
+                            <strong>${escapeHtml(source.label)}</strong>
+                            <span>${escapeHtml(source.cadence)}</span>
+                        </div>
+                        <p>${escapeHtml(source.coverage)}</p>
+                        <div class="cycle-history-source-links">
+                            ${source.sources.map(item => `
+                                <a href="${escapeAttr(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}<span aria-hidden="true">&#8599;</span></a>
+                            `).join('')}
+                        </div>
+                        <span class="cycle-history-source-coverage" data-history-source-coverage="${escapeAttr(source.key)}">Coverage loads with the selected range.</span>
+                    </article>
+                `).join('')}
+            </div>
+            <p class="cycle-history-provenance-note">Coverage is the stored snapshot window returned for the selected range, not a claim of continuous or backfilled history.</p>
+        </section>
+        <div class="cycle-history-route-controls">
+            <label for="cycle-history-metric">Focus a chart</label>
+            <select id="cycle-history-metric" aria-describedby="cycle-history-route-status">
+                <option value="">All charts</option>
+                ${CYCLE_HISTORY_METRICS.map(({ key, label }) => `<option value="${escapeAttr(key)}">${escapeHtml(label)}</option>`).join('')}
+            </select>
+            <span id="cycle-history-route-status" role="status" aria-live="polite">Choose a range or jump directly to one metric.</span>
+        </div>
+    `;
+    title.insertAdjacentElement('afterend', intro);
+}
+
+function decorateCycleHistoryChamber(modal) {
+    const content = modal.querySelector('.modal-content');
+    const title = modal.querySelector('#history-modal-title');
+    modal.classList.add('cycle-history-chamber');
+    content?.classList.add('chamber-content', 'cycle-history-content');
+    if (title) {
+        title.textContent = 'Cycle History Chamber';
+        title.classList.add('chamber-title', 'cycle-history-title');
+    }
+    const closeBtn = modal.querySelector('#history-modal-close');
+    if (closeBtn) {
+        closeBtn.type = 'button';
+        closeBtn.classList.add('chamber-close');
+        closeBtn.setAttribute('aria-label', 'Close Cycle History Chamber');
+    }
+    const controls = modal.querySelector('.history-controls');
+    controls?.setAttribute('role', 'group');
+    controls?.setAttribute('aria-label', 'History range');
+    modal.querySelectorAll('.history-controls .time-range-btn').forEach((button) => {
+        button.type = 'button';
+    });
+    modal.querySelector('.charts-container')?.setAttribute('aria-label', 'Historical signal charts');
+    renderCycleHistoryIntro(modal);
+
+    CYCLE_HISTORY_METRICS.forEach(({ key, canvasId, label }) => {
+        const canvas = modal.querySelector(`#${canvasId}`);
+        const section = canvas?.closest('.chart-section');
+        const heading = section?.querySelector('h4');
+        if (!section) return;
+        section.dataset.historyMetric = key;
+        section.id ||= `cycle-history-${key}`;
+        if (heading) {
+            heading.id ||= `cycle-history-${key}-title`;
+            section.setAttribute('aria-labelledby', heading.id);
+        } else {
+            section.setAttribute('aria-label', label);
+        }
+    });
+}
+
+function setCycleHistoryRangeState(modal, range) {
+    modal.querySelectorAll('.history-controls .time-range-btn').forEach((button) => {
+        const active = button.dataset.range === range;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+    });
+    modal.dataset.historyRange = range;
+}
+
+function setCycleHistoryMetricState(modal, metric) {
+    const canonical = canonicalCycleHistoryMetric(metric);
+    cycleHistoryCurrentMetric = canonical;
+    modal.dataset.historyMetric = canonical;
+    const select = modal.querySelector('#cycle-history-metric');
+    if (select) select.value = canonical;
+    modal.querySelectorAll('.chart-section.is-route-focus').forEach((section) => {
+        section.classList.remove('is-route-focus');
+        section.removeAttribute('aria-current');
+    });
+    if (!canonical) return null;
+    const target = modal.querySelector(`[data-history-metric="${canonical}"]`);
+    target?.classList.add('is-route-focus');
+    target?.setAttribute('aria-current', 'true');
+    return target || null;
+}
+
+function syncCycleHistoryRouteState() {
+    if (!isCycleHistoryPrettyRoute()) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('range', cycleHistoryCurrentRange);
+    if (cycleHistoryCurrentMetric) url.searchParams.set('metric', cycleHistoryCurrentMetric);
+    else url.searchParams.delete('metric');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+function setCycleHistoryStatus(message) {
+    const status = document.getElementById('cycle-history-route-status');
+    if (status) status.textContent = message;
+}
+
+function restoreCycleHistoryRangeAfterFailure(modal, attemptedRange, fallbackRange) {
+    if (!modal?.classList.contains('active') || cycleHistoryCurrentRange !== attemptedRange) return;
+    const failedSources = historySourceList(cycleHistoryLastFailureSources);
+    if (!cycleHistoryRenderedRange) {
+        setCycleHistoryStatus(`Refresh unavailable: ${failedSources} history could not refresh for ${rangeLabel(attemptedRange)}. No empty range was inferred; try again.`);
+        return;
+    }
+    const retainedRange = normalizeCycleHistoryRange(
+        cycleHistoryRenderedRange || fallbackRange,
+        DEFAULT_CYCLE_HISTORY_RANGE
+    );
+    cycleHistoryCurrentRange = retainedRange;
+    setCycleHistoryRangeState(modal, retainedRange);
+    syncCycleHistoryRouteState();
+    setCycleHistoryStatus(`Refresh unavailable: ${failedSources} history could not refresh. Showing last-good ${rangeLabel(retainedRange)} charts; the route was restored.`);
+}
+
+function focusCycleHistoryMetric(metric, { behavior = 'auto' } = {}) {
+    const modal = document.getElementById('history-modal');
+    if (!modal?.classList.contains('active')) return;
+    const target = setCycleHistoryMetricState(modal, metric);
+    if (!target) return;
+    const content = modal.querySelector('.cycle-history-content');
+    if (!content) return;
+
+    const contentRect = content.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const top = Math.max(0, content.scrollTop + targetRect.top - contentRect.top - 20);
+    if (behavior === 'smooth' && typeof content.scrollTo === 'function') {
+        content.scrollTo({ top, behavior: 'smooth' });
+    } else {
+        content.scrollTop = top;
+    }
+}
+
+function restoreCycleHistoryScrollLock() {
+    const anotherModalIsActive = Boolean(document.querySelector(
+        '.chamber-overlay.active:not(#history-modal), .card-history-modal.active, [role="dialog"].active:not(#history-modal)'
+    ));
+    if (!anotherModalIsActive) {
+        document.body.style.overflow = cycleHistorySavedBodyOverflow ?? '';
+        document.documentElement.style.overflow = cycleHistorySavedHtmlOverflow ?? '';
+    }
+    cycleHistorySavedBodyOverflow = null;
+    cycleHistorySavedHtmlOverflow = null;
+}
+
+function leaveCycleHistoryRoute() {
+    if (!isCycleHistoryPrettyRoute()) return;
+    const standaloneShell = document.documentElement.dataset.chamberRoute === 'history';
+    if (standaloneShell) {
+        window.location.assign('/');
+        return;
+    }
+    window.history.replaceState(
+        { ...(window.history.state || {}), tezosSystemsRoute: 'home' },
+        '',
+        '/'
+    );
+    window.dispatchEvent(new CustomEvent('tezos:routechange', {
+        detail: { entryId: 'home', route: '/', replace: true, current: false }
+    }));
+}
+
+function openCycleHistoryRoute() {
+    cycleHistoryOpenedFromEntryCard = true;
+    cycleHistoryFocusedBeforeOpen = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    if (!navigateSiteMapEntry('history')) openCycleHistoryChamber();
+}
+
+function positionCycleHistoryEntryCard(card) {
+    if (!card) return;
+    const anthologyCard = document.getElementById('protocol-history-entry-card');
+    const anthologyPair = anthologyCard?.closest('#chambers-grid > .chamber-card-pair');
+    if (anthologyCard && anthologyPair) {
+        anthologyCard.insertAdjacentElement('afterend', card);
+        return;
+    }
+    document.getElementById('chambers-grid')?.appendChild(card);
+}
+
+function ensureCycleHistoryEntryCard() {
+    const grid = document.getElementById('chambers-grid');
+    if (!grid) return null;
+    let card = document.getElementById('cycle-history-entry-card');
+    if (!card) {
+        card = document.createElement('article');
+        card.id = 'cycle-history-entry-card';
+        card.className = 'stat-card chamber-entry-card cycle-history-entry-card chamber-entry-adoption';
+        card.dataset.chamberEntrySize = 'compact';
+        card.innerHTML = `
+            <button class="card-copy-link" type="button" data-copy-hash="#history" aria-label="Copy Cycle History Chamber direct link" title="Copy Cycle History Chamber link">&#128279;</button>
+            <div class="card-tooltip">
+                <div class="tooltip-content">
+                    <h4>Cycle History</h4>
+                    <p>Fifteen captured signals from global, market, Network Health, Tezos X, and governance ledgers, with honest source-specific coverage.</p>
+                    <a href="/history/" data-site-map-entry="history">Open Cycle History -&gt;</a>
+                </div>
+            </div>
+            <div class="card-inner">
+                <div class="card-front chamber-entry-front cycle-history-entry-front">
+                    <div class="cycle-history-entry-heading">
+                        <span class="feature-kicker">Measured history</span>
+                        <h2 class="stat-label" id="cycle-history-entry-title">Cycle History</h2>
+                    </div>
+                    <div class="stat-value cycle-history-entry-value">15 captured signals</div>
+                    <p class="stat-description">Compare retained network, economy, market, L2, and governance snapshots without inventing missing intervals.</p>
+                    <div class="cycle-history-entry-range" aria-label="Available history ranges">
+                        <span>24h</span><span>7d</span><span>30d</span><span>All</span>
+                    </div>
+                    <div class="cycle-history-entry-metrics" aria-label="Cycle History coverage">
+                        <span><strong>5</strong> source ledgers</span>
+                        <span><strong>4</strong> captured ranges</span>
+                    </div>
+                    <a class="cycle-history-entry-route" href="/history/" data-site-map-entry="history" aria-label="Open Cycle History at /history/">/history/ <span aria-hidden="true">&#8594;</span></a>
+                </div>
+            </div>
+        `;
+    }
+    positionCycleHistoryEntryCard(card);
+    window.syncChamberEntryFooters?.(card);
+    wireChamberLauncher(card, {
+        open: openCycleHistoryRoute,
+        label: 'Open Cycle History Chamber',
+        titleSelector: '#cycle-history-entry-title, .stat-label'
+    });
+    return card;
+}
+
+/**
+ * Open the measured Cycle History Chamber. The same function serves dashboard
+ * launches, the legacy #history route, and the first-party /history/ shell.
+ */
+export async function openCycleHistoryChamber(options = {}) {
+    ensureCycleHistoryStyles();
+    if (!initCycleHistoryChamber()) return false;
+    const modal = document.getElementById('history-modal');
+    const content = modal?.querySelector('.cycle-history-content');
+    if (!modal || !content) return false;
+
+    const { range, metric } = readCycleHistoryState(options);
+    const retainedRange = cycleHistoryRenderedRange || cycleHistoryCurrentRange;
+    const wasActive = modal.classList.contains('active');
+    if (!wasActive) {
+        if (!cycleHistoryFocusedBeforeOpen?.isConnected) {
+            cycleHistoryFocusedBeforeOpen = document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+        }
+        cycleHistorySavedBodyOverflow = document.body.style.overflow;
+        cycleHistorySavedHtmlOverflow = document.documentElement.style.overflow;
+        content.scrollTop = 0;
+    }
+    cycleHistoryCurrentRange = range;
+    cycleHistoryCurrentMetric = metric;
+    setCycleHistoryRangeState(modal, range);
+    setCycleHistoryMetricState(modal, metric);
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    activateChamberDialog(modal, {
+        close: closeCycleHistoryChamber,
+        dialogSelector: '.cycle-history-content',
+        titleId: 'history-modal-title',
+        label: 'Cycle History Chamber',
+        initialFocusSelector: '#history-modal-close'
+    });
+
+    const updated = await updateHistoryCharts(range);
+    if (!updated) restoreCycleHistoryRangeAfterFailure(modal, range, retainedRange);
+    if (metric && modal.classList.contains('active')) {
+        focusCycleHistoryMetric(metric);
+    }
+    return updated;
+}
+
+/** Close the Chamber, restoring focus and the route that owns the dashboard. */
+export function closeCycleHistoryChamber(options = {}) {
+    const modal = document.getElementById('history-modal');
+    if (!modal?.classList.contains('active')) return false;
+    const preserveRoute = Boolean(options?.preserveRoute);
+    cycleHistoryRequestId += 1;
+    modal.classList.remove('active');
+    modal.removeAttribute('aria-busy');
+    deactivateChamberDialog(modal, { restoreFocus: !preserveRoute });
+    restoreCycleHistoryScrollLock();
+    const rememberedFocus = cycleHistoryFocusedBeforeOpen;
+    const entryFocus = cycleHistoryOpenedFromEntryCard
+        ? findChamberLauncher('#cycle-history-entry-card')
+        : null;
+    const isVisibleFocusTarget = (element) => Boolean(
+        element?.isConnected
+        && element !== document.body
+        && !element.hasAttribute('disabled')
+        && (element.matches('button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])') || element.tabIndex >= 0)
+        && element.getClientRects().length
+        && getComputedStyle(element).visibility !== 'hidden'
+    );
+    const focusTarget = [
+        rememberedFocus,
+        entryFocus,
+        findChamberLauncher('#cycle-history-entry-card'),
+        document.getElementById('features-gear'),
+        document.getElementById('history-btn')
+    ].find(isVisibleFocusTarget) || null;
+    cycleHistoryFocusedBeforeOpen = null;
+    cycleHistoryOpenedFromEntryCard = false;
+    if (!preserveRoute) leaveCycleHistoryRoute();
+    if (!preserveRoute) {
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                if (focusTarget?.isConnected && focusTarget !== document.body) {
+                    focusTarget.focus({ preventScroll: true });
+                }
+            });
+        });
+    }
+    return true;
+}
+
+// Initialize the first-class Chamber while retaining the original static DOM.
+export function initCycleHistoryChamber() {
     const modal = document.getElementById('history-modal');
     const openBtn = document.getElementById('history-btn');
     const closeBtn = document.getElementById('history-modal-close');
 
     if (!modal || !openBtn || !closeBtn) {
         console.warn('History modal elements not found');
-        return;
+        return false;
     }
+    ensureCycleHistoryStyles();
+    decorateCycleHistoryChamber(modal);
+    ensureCycleHistoryEntryCard();
+    window.openCycleHistoryChamber = openCycleHistoryChamber;
+    window.closeCycleHistoryChamber = closeCycleHistoryChamber;
+    if (modal.dataset.cycleHistoryWired === '1') return true;
 
-    let currentRange = 'all';
-
-    // Open modal
-    openBtn.addEventListener('click', async () => {
-        modal.classList.add('active');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-
-        // Load initial charts
-        await updateHistoryCharts(currentRange);
+    modal.dataset.cycleHistoryWired = '1';
+    openBtn.setAttribute('aria-haspopup', 'dialog');
+    openBtn.setAttribute('aria-controls', 'history-modal');
+    openBtn.addEventListener('click', (event) => {
+        cycleHistoryOpenedFromEntryCard = false;
+        cycleHistoryFocusedBeforeOpen = event.currentTarget;
+        openCycleHistoryChamber();
+    });
+    closeBtn.addEventListener('click', () => closeCycleHistoryChamber());
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeCycleHistoryChamber();
     });
 
-    // Close modal
-    const closeModal = () => {
-        modal.classList.remove('active');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
-    };
-
-    closeBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
-    });
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape' || !modal.classList.contains('active')) return;
-        e.preventDefault();
-        closeModal();
-        const focusTarget = openBtn.getClientRects().length
-            ? openBtn
-            : document.getElementById('features-gear');
-        focusTarget?.focus();
-    });
-
-    // Time range buttons
-    const timeRangeBtns = document.querySelectorAll('.time-range-btn');
-    timeRangeBtns.forEach(btn => {
-        btn.addEventListener('click', async () => {
-            // Update active state
-            timeRangeBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Update range and reload charts
-            currentRange = btn.dataset.range;
-            await updateHistoryCharts(currentRange);
+    modal.querySelectorAll('.history-controls .time-range-btn').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const range = normalizeCycleHistoryRange(button.dataset.range, cycleHistoryCurrentRange);
+            if (range === cycleHistoryCurrentRange) return;
+            const retainedRange = cycleHistoryRenderedRange || cycleHistoryCurrentRange;
+            cycleHistoryCurrentRange = range;
+            setCycleHistoryRangeState(modal, range);
+            syncCycleHistoryRouteState();
+            const updated = await updateHistoryCharts(range);
+            if (!updated) restoreCycleHistoryRangeAfterFailure(modal, range, retainedRange);
         });
     });
 
-    // Share button
-    const shareBtn = document.getElementById('history-share-btn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', () => {
-            if (typeof window.captureHistoricalData === 'function') {
-                window.captureHistoricalData();
-            }
-        });
-    }
+    modal.querySelector('#cycle-history-metric')?.addEventListener('change', (event) => {
+        cycleHistoryCurrentMetric = canonicalCycleHistoryMetric(event.currentTarget.value);
+        setCycleHistoryMetricState(modal, cycleHistoryCurrentMetric);
+        syncCycleHistoryRouteState();
+        if (cycleHistoryCurrentMetric) {
+            const label = cycleHistoryMetricConfig(cycleHistoryCurrentMetric)?.label || 'selected chart';
+            setCycleHistoryStatus(`Focused ${label}. The route now opens at this chart.`);
+            focusCycleHistoryMetric(cycleHistoryCurrentMetric, { behavior: 'smooth' });
+        } else {
+            setCycleHistoryStatus('Showing all charts. Choose a metric to create a focused route.');
+        }
+    });
+
+    document.getElementById('history-share-btn')?.addEventListener('click', () => {
+        if (typeof window.captureHistoricalData === 'function') window.captureHistoricalData();
+    });
+    return true;
+}
+
+// Backwards-compatible initialization name used by the dashboard orchestrator.
+export function initHistoryModal() {
+    return initCycleHistoryChamber();
 }
 
 // Update all charts in history modal
 async function updateHistoryCharts(range) {
+    const modal = document.getElementById('history-modal');
+    const normalizedRange = normalizeCycleHistoryRange(range, cycleHistoryCurrentRange);
+    const requestId = ++cycleHistoryRequestId;
+    modal?.setAttribute('aria-busy', 'true');
+    setCycleHistoryStatus(`Reading ${rangeLabel(normalizedRange)} snapshots across five source ledgers…`);
     try {
-        const [data, domainData, freshness] = await Promise.all([
-            fetchHistoricalData(range),
-            fetchChamberHistoricalData(range),
+        const [globalReceipt, domainReceipts, freshness] = await Promise.all([
+            fetchHistoricalDataReceipt(normalizedRange),
+            fetchChamberHistoricalDataReceipts(normalizedRange),
             fetchSupabaseHistoryFreshness()
         ]);
-        renderHistoryFreshness(freshness);
-        renderHistoryDigest(data, domainData, range);
+        if (
+            requestId !== cycleHistoryRequestId
+            || !modal?.classList.contains('active')
+            || modal.dataset.historyRange !== normalizedRange
+        ) return false;
 
-        if (data.length === 0) {
-            debugLog('No historical data available yet');
-            // Show message to user
-            const chartsContainer = document.querySelector('.charts-container');
-            if (chartsContainer) {
-                chartsContainer.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #999;">
-                        <p>Historical data is being collected.</p>
-                        <p>Charts will appear once data is available (usually within 2-4 hours).</p>
-                    </div>
-                `;
-            }
-            return;
+        const receipts = { global: globalReceipt, ...domainReceipts };
+        const failedSources = unavailableHistorySources(receipts);
+        cycleHistoryLastFailureSources = failedSources;
+
+        // A range change is all-or-nothing once charts exist. Mixing freshly
+        // fetched ledgers with an unavailable one would make the selected range
+        // and URL lie about what the reader is seeing, so retain the complete
+        // last-good view and let the caller restore its range state.
+        if (failedSources.length && cycleHistoryRenderedRange) {
+            debugLog(`Cycle History retained ${cycleHistoryRenderedRange}; unavailable ledgers: ${failedSources.join(', ')}`);
+            return false;
         }
 
-        CORE_HISTORY_CHARTS.forEach(({ canvasId, metric, label, unit }) => {
-            createFullChart(canvasId, data, metric, label, unit, { range });
-        });
+        const data = historyReceiptRows(globalReceipt);
+        const domainData = Object.fromEntries(
+            Object.entries(domainReceipts).map(([source, receipt]) => [source, historyReceiptRows(receipt)])
+        );
+        renderHistoryFreshness(freshness, receipts);
+        renderHistoryDigest(data, domainData, normalizedRange, receipts);
+        renderHistorySourceCoverage(receipts, normalizedRange);
+
+        if (historyReceiptUnavailable(globalReceipt)) {
+            CORE_HISTORY_CHARTS.forEach(({ canvasId, label }) => {
+                clearChartStatus(canvasId, {
+                    label,
+                    range: normalizedRange,
+                    statusText: 'Unavailable',
+                    emptyKicker: 'Source unavailable',
+                    emptyTitle: `${label} history unavailable`,
+                    emptyBody: `The Global ledger did not answer for ${rangeLabel(normalizedRange)}. This failed query is not shown as an empty range.`
+                });
+            });
+        } else if (data.length === 0) {
+            debugLog('No historical data available yet');
+            CORE_HISTORY_CHARTS.forEach(({ canvasId, label }) => {
+                clearChartStatus(canvasId, { label, range: normalizedRange });
+            });
+        } else {
+            CORE_HISTORY_CHARTS.forEach(({ canvasId, metric, label, unit }) => {
+                createFullChart(canvasId, data, metric, label, unit, { range: normalizedRange });
+            });
+        }
+
         DOMAIN_HISTORY_CHARTS.forEach(({ source, canvasId, metric, label, unit, statusText, emptyTitle, emptyBody }) => {
-            createFullChart(canvasId, domainData?.[source] || [], metric, label, unit, { range, statusText, emptyTitle, emptyBody });
+            if (historyReceiptUnavailable(receipts[source])) {
+                clearChartStatus(canvasId, {
+                    label,
+                    range: normalizedRange,
+                    statusText: 'Unavailable',
+                    emptyKicker: 'Source unavailable',
+                    emptyTitle: `${label} history unavailable`,
+                    emptyBody: `The ${HISTORY_SOURCE_LABELS[source] || source} ledger did not answer for ${rangeLabel(normalizedRange)}. This failed query is not shown as an empty range.`
+                });
+                return;
+            }
+            createFullChart(canvasId, domainData?.[source] || [], metric, label, unit, {
+                range: normalizedRange,
+                statusText,
+                emptyTitle,
+                emptyBody
+            });
         });
 
         debugLog(`Updated ${CORE_HISTORY_CHARTS.length + DOMAIN_HISTORY_CHARTS.length} history charts with ${data.length} core data points`);
+        const allSourcesUnavailable = failedSources.length === Object.keys(receipts).length;
+        if (!allSourcesUnavailable) cycleHistoryRenderedRange = normalizedRange;
+        if (allSourcesUnavailable) {
+            setCycleHistoryStatus(`${rangeLabel(normalizedRange)} · all five history ledgers unavailable · no empty data inferred`);
+        } else if (failedSources.length) {
+            setCycleHistoryStatus(`${rangeLabel(normalizedRange)} · ${historySourceList(failedSources)} unavailable · successful ledgers shown without inferring empty data`);
+        } else {
+            cycleHistoryLastFailureSources = [];
+            setCycleHistoryStatus(`${rangeLabel(normalizedRange)} · ${data.length.toLocaleString('en-US')} global snapshots · five source ledgers`);
+        }
+        return true;
     } catch (error) {
+        if (requestId !== cycleHistoryRequestId) return false;
+        cycleHistoryLastFailureSources = ['history'];
         console.error('Failed to update history charts:', error);
+        return false;
+    } finally {
+        if (requestId === cycleHistoryRequestId) modal?.removeAttribute('aria-busy');
     }
 }
 

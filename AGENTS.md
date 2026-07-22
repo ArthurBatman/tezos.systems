@@ -216,7 +216,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v469`
+- Service worker cache name: `tezos-systems-v470`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -325,13 +325,26 @@ Stamping gotchas:
   recognition archive, not a Maxis lane. Count official category listings and
   distinct recognized months separately, never infer missing per-person XTZ
   payouts, and retain an official Tezos Commons source on every award row.
-- Protocol history: `js/features/history.js`
+- Cycle History Chamber: `js/features/history.js`; `/history/` exposes fifteen
+  captured signals from five Supabase ledgers with 24h/7d/30d/all ranges,
+  source-specific cadence and returned coverage. A failed range refresh must
+  retain the complete last-good charts and route; a valid empty ledger is an
+  empty range, not a source failure. Protocol Anthology remains a separate
+  app-shell surface in `js/core/app.js`.
 - Baker tools: `leaderboard.js`, `my-baker.js`, `my-tezos.js`,
-  `rewards-tracker.js`, `baker-report-card.js`
+  `rewards-tracker.js`, `baker-report-card.js`. `leaderboard.js` also owns the
+  `/leaderboard/` Baker Directory Chamber: Discover uses disclosed strict
+  filters and lexicographic factual ordering, never a blended quality score.
 - Market tools: `price.js`, `price-intelligence.js`, `calculator.js`,
   `comparison.js`
-- Activity feeds: `whales.js`, `sleeping-giants.js`, `moments.js`,
-  `cycle-pulse.js`, `daily-briefing.js`
+- Whale Watch Chamber: `js/features/whale-chamber.js`, with shared operation
+  semantics in `whales.js` and local dormant-account monitoring in
+  `sleeping-giants.js`. `/whales/` unifies the generated complete 24-hour
+  transfer archive, bounded all-or-nothing live transaction/delegation/stake/
+  unstake lanes, grouped flow stories, Deep Sleep, and receipt-to-receipt
+  awakenings. TzKT aliases are source context, not inferred ownership; legacy
+  `#giants` opens the Chamber's Deep Sleep view.
+- Activity feeds: `moments.js`, `cycle-pulse.js`, `daily-briefing.js`
 - Staking Chamber: `js/features/staking-chamber.js`; strict applied explicit
   stake/unstake moves over 10,000 tez, with `/stake/` as the chamber route.
   Preserve `/staking/` for the existing explanatory guide.
@@ -388,6 +401,11 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
 - `data/governance-refresh-report.json`: generated stale-data audit with live
   current protocol/period, lore coverage, active proposal watch notes, and
   blocker/warning status.
+- `data/whale-watch.json`: generated complete TzKT large-account and exact
+  trailing-24-hour applied-transfer snapshot. It keeps operation ids distinct
+  from group hashes, last-activity timestamps distinct from block levels, and
+  awakening moved amounts limited to applied transfers or actual processed
+  stake/unstake amounts. Coverage and receipt semantics are validated offline.
 - `data/maxis-leaders.json`: canonical lane-native-clock Maxis snapshot. It
   intentionally mixes explicitly labeled all-time, all-time-active, live,
   rolling, and cross-lane clocks rather than pretending every crown shares one
@@ -490,6 +508,11 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   full/compact derived summaries, and validates offline with `npm run
   check:tezoscrp`. Parser/alias coverage lives in
   `tests/tezoscrp-check.mjs`.
+- `scripts/refresh-whale-watch-data.mjs`: rebuilds `data/whale-watch.json` from
+  complete paged TzKT ledgers with a generated-at-bounded 24-hour window and
+  receipt-to-receipt awakening intervals. `npm run check:whales` validates the
+  committed artifact without network access; scheduled/full generated runs
+  refresh it, while normal pre-commit checks it.
 - `scripts/refresh-maxis-l2-governance.mjs`: rebuilds the independent L2
   Governance career artifact from all three official Etherlink canonical-period
   ledgers and complete TzKT big-map key receipts. The command
@@ -568,8 +591,12 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   `config.js` uses `2018-09-17T00:00:00Z`.
 - A comment near the comparison section says it defaults visible, but the local
   storage toggle defaults to hidden unless explicitly set to `true`.
-- TzKT filters can be surprising. Some amount-based filtering is done
-  client-side for whales and sleeping giants.
+- TzKT filters can be surprising. The shared Whale archive uses complete paged
+  server-side thresholds, while its explicitly bounded live tape filters large
+  delegation balances and processed staking amounts client-side. All four live
+  lanes must succeed before a new snapshot is committed; keep the last-good
+  tape on any lane failure. Sleeping Giants remains a bounded local monitor,
+  while the generated artifact is the shared Deep Sleep source.
 - Share captures are fragile. Test visually after touching share UI, chart
   rendering, gradient text, canvas conversion, or word spacing.
 - Service worker cache can hide changes during QA. Hard refresh or unregister

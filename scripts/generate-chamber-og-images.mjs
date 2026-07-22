@@ -73,11 +73,29 @@ function routeDetails(route, report) {
       chips: ['Tezos + Etherlink', 'markets + RWA', 'art economy'],
       body: 'Read cross-layer capital, XTZ market structure, ecosystem assets, real-world proofbooks, and Tezos art activity with visible source and coverage boundaries.'
     },
+    history: {
+      kicker: 'Measured History',
+      value: '15 captured signals',
+      chips: ['24H to all retained', 'five source ledgers', 'no invented gaps'],
+      body: 'Rewind consensus, staking, issuance, market, Network Health, Tezos X, and governance signals with honest range and freshness context.'
+    },
+    whales: {
+      kicker: 'Large Value Movement',
+      value: 'Receipts beneath the surface',
+      chips: ['complete 24H transfers', 'grouped flow stories', 'deep sleep + awakenings'],
+      body: 'Read large tez operations, related operation-group hops, large dormant accounts, and verified post-dormancy movement without inferred ownership claims.'
+    },
     stake: {
       kicker: 'Staking Flow',
       value: 'Stake + unstake tape',
       chips: ['>10K XTZ moves', 'staking ratio', 'complete history'],
       body: 'Track the latest large Tezos stake and unstake operations, current network staking share, and every historical move above the same threshold.'
+    },
+    leaderboard: {
+      kicker: 'Baker Discovery',
+      value: 'Every funded active baker',
+      chips: ['capacity + tenure', 'governance receipts', 'no synthetic grades'],
+      body: 'Search and compare the complete active baker set through transparent on-chain facts, then inspect the source-backed signals behind each match.'
     },
     maxis: {
       kicker: 'On-Chain Crowns',

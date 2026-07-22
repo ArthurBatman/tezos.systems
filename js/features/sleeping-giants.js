@@ -1,128 +1,123 @@
 /**
- * Sleeping Giants - Dormant Whale Awakening Tracker
- * Tracks large wallets that have been dormant and alerts when they awaken
+ * Sleeping Giants - dormant large-account observation and awakening receipts.
+ *
+ * TzKT `lastActivity` is a block level. Dormancy is calculated exclusively
+ * from `lastActivityTime` (with a timestamp-shaped legacy-fixture fallback),
+ * and awakening amounts come from the triggering operation, never the
+ * account's current holding balance.
  */
 
 import { debugLog, escapeHtml } from '../core/utils.js';
 import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
 import { THRESHOLDS, API_URLS } from '../core/config.js';
 
-// Configuration
-const CONFIG = {
+const CONFIG = Object.freeze({
     minBalance: THRESHOLDS.giantMinBalance,
-    minDormantDays: 365,        // 1 year minimum dormancy
-    maxGiants: 25,              // Top 25 sleeping giants
-    pollInterval: 300000,       // 5 minutes
+    minDormantDays: 365,
+    maxGiants: 25,
+    pollInterval: 300_000,
     apiBase: API_URLS.tzkt
-};
+});
+const STORAGE_KEY = 'tezos-systems-giants-enabled';
+const AWAKENINGS_KEY = 'tezos-systems-awakenings';
+const NOTIFICATIONS_KEY = 'tezos-systems-awakening-notifications';
+const MAX_STORED_AWAKENINGS = 20;
+const MAINNET_LAUNCH = new Date('2018-09-17T00:00:00Z').getTime();
+const DAY_MS = 86_400_000;
+const ACCOUNT_OPERATION_PAGE_SIZE = 100;
+const MAX_ACCOUNT_OPERATION_PAGES = 100;
 
-// State
-let giants = [];
-let awakenings = [];
+export const giants = [];
+export const awakenings = [];
+let lastGoodAt = null;
+let lastError = '';
 let pollTimer = null;
 let isEnabled = false;
 let notificationsEnabled = false;
+let initialLoadPromise = null;
 
-const STORAGE_KEY = 'tezos-systems-giants-enabled';
-const AWAKENINGS_KEY = 'tezos-systems-awakenings';
-const MAX_STORED_AWAKENINGS = 10;
-
-/**
- * Load stored awakenings from localStorage
- */
-function loadStoredAwakenings() {
-    try {
-        const stored = localStorage.getItem(AWAKENINGS_KEY);
-        if (stored) {
-            awakenings = JSON.parse(stored);
-        }
-    } catch (e) {
-        awakenings = [];
-    }
+function number(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-/**
- * Save awakenings to localStorage
- */
-function saveAwakenings() {
-    try {
-        // Keep only the most recent
-        const toStore = awakenings.slice(0, MAX_STORED_AWAKENINGS);
-        localStorage.setItem(AWAKENINGS_KEY, JSON.stringify(toStore));
-    } catch (e) {
-        console.error('Failed to save awakenings:', e);
-    }
+function timestampValue(value) {
+    if (!value || typeof value !== 'string' || /^\d+$/.test(value.trim())) return '';
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : '';
 }
 
-/**
- * Request browser notification permission
- */
-async function requestNotificationPermission() {
-    if (!('Notification' in window)) {
-        debugLog('Browser does not support notifications');
-        return false;
-    }
-    
-    if (Notification.permission === 'granted') {
-        notificationsEnabled = true;
-        return true;
-    }
-    
-    if (Notification.permission !== 'denied') {
-        const permission = await Notification.requestPermission();
-        notificationsEnabled = permission === 'granted';
-        return notificationsEnabled;
-    }
-    
-    return false;
+/** `lastActivity` is retained as a block-level receipt, never parsed as time. */
+export function giantActivityTime(account) {
+    return timestampValue(account?.lastActivityTime) || timestampValue(account?.lastActivity);
 }
 
-/**
- * Send browser notification for awakening
- */
-function sendAwakeningNotification(awakening) {
-    if (!notificationsEnabled || Notification.permission !== 'granted') return;
-    
-    const balance = formatXTZ(awakening.balance);
-    const dormancy = formatDormancy(awakening.dormantDays);
-    
-    const notification = new Notification('🚨 Sleeping Giant Awakened!', {
-        body: `${balance} ꜩ woke up after ${dormancy} of sleep`,
-        icon: '/favicon.svg',
-        badge: '/favicon.svg',
-        tag: `awakening-${awakening.address}`,
-        requireInteraction: true
-    });
-    
-    notification.onclick = () => {
-        window.focus();
-        window.open(`https://tzkt.io/${awakening.address}`, '_blank');
-        notification.close();
-    };
+export function classifyLargeAccount(account) {
+    const type = String(account?.type || '').toLowerCase().replaceAll('_', ' ');
+    const address = String(account?.address || '');
+    if (type.includes('delegate') || type.includes('baker')) return { id: 'baker', label: 'Baker', icon: '🍞' };
+    if (type.includes('smart') || type.includes('contract') || address.startsWith('KT1')) return { id: 'contract', label: 'Contract', icon: '🧩' };
+    if (type.includes('rollup') || address.startsWith('sr1')) return { id: 'rollup', label: 'Rollup', icon: '🧱' };
+    if (type.includes('user') || /^tz[1-4]/.test(address)) return { id: 'account', label: 'Implicit account', icon: '👤' };
+    return { id: 'unknown', label: 'Unclassified account', icon: '❔' };
 }
 
-/**
- * Format XTZ amount
- */
-function formatXTZ(mutez) {
-    const xtz = mutez / 1e6;
-    if (xtz >= 1000000) {
-        return `${(xtz / 1000000).toFixed(2)}M`;
-    } else if (xtz >= 1000) {
-        return `${(xtz / 1000).toFixed(0)}K`;
-    }
-    return xtz.toLocaleString();
+export function awakeningMovedAmount(operation) {
+    if (String(operation?.status || '').toLowerCase() !== 'applied') return null;
+    const rawType = String(operation?.type || operation?.kind || '').toLowerCase();
+    const type = rawType === 'staking' ? String(operation?.action || 'staking').toLowerCase() : rawType;
+    if (!['transaction', 'stake', 'unstake'].includes(type)) return null;
+    const candidate = operation?.movedAmountMutez ?? operation?.amount;
+    if (candidate === null || candidate === undefined || candidate === '') return null;
+    const value = Number(candidate);
+    return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+export function formatGiantAmount(mutez, maximumFractionDigits = 1) {
+    const xtz = number(mutez) / 1e6;
+    if (xtz >= 1_000_000) return `${(xtz / 1_000_000).toFixed(2)}M`;
+    if (xtz >= 1_000) return `${(xtz / 1_000).toFixed(0)}K`;
+    return xtz.toLocaleString('en-US', { maximumFractionDigits });
 }
 
 function shortAddress(address, head = 10, tail = 4) {
     const value = String(address || '');
-    if (value.length <= head + tail + 3) return value;
-    return `${value.slice(0, head)}...${value.slice(-tail)}`;
+    return value.length <= head + tail + 3 ? value : `${value.slice(0, head)}...${value.slice(-tail)}`;
+}
+
+export function daysSinceActivity(accountOrTimestamp) {
+    const timestamp = typeof accountOrTimestamp === 'object'
+        ? giantActivityTime(accountOrTimestamp)
+        : timestampValue(accountOrTimestamp);
+    const activityTime = timestamp ? Date.parse(timestamp) : MAINNET_LAUNCH;
+    return Math.max(0, Math.floor((Date.now() - Math.max(activityTime, MAINNET_LAUNCH)) / DAY_MS));
+}
+
+export function formatDormancy(days) {
+    if (days >= 365) {
+        const years = Math.floor(days / 365);
+        const months = Math.floor((days % 365) / 30);
+        return months ? `${years}y ${months}mo` : `${years}y`;
+    }
+    return days >= 30 ? `${Math.floor(days / 30)}mo` : `${days}d`;
+}
+
+export function getDormancyTier(days) {
+    if (days >= 1825) return { tier: 'ancient', label: '5+ years quiet', emoji: '🦴' };
+    if (days >= 1095) return { tier: 'legendary', label: '3+ years quiet', emoji: '👑' };
+    if (days >= 730) return { tier: 'epic', label: '2+ years quiet', emoji: '💎' };
+    if (days >= 365) return { tier: 'rare', label: '1+ year quiet', emoji: '⭐' };
+    return { tier: 'common', label: 'Dormant', emoji: '😴' };
 }
 
 function operationLabel(operation) {
     const type = String(operation?.type || operation?.kind || 'operation').replaceAll('_', ' ').toLowerCase();
-    return type ? type.replace(/^\w/, (char) => char.toUpperCase()) : 'Operation';
+    return type.replace(/^\w/, (character) => character.toUpperCase());
+}
+
+function operationIdentity(operation, address = '') {
+    if (operation?.id !== null && operation?.id !== undefined) return String(operation.id);
+    return `${operation?.hash || operation?.operationGroupHash || 'operation'}:${address}`;
 }
 
 function operationHref(awakening) {
@@ -134,402 +129,356 @@ function safeHotId(value, fallback = 'awakening') {
     return String(value || fallback).replace(/[^a-z0-9-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || fallback;
 }
 
-function dispatchHotSignal(detail) {
-    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
-    window.dispatchEvent(new CustomEvent('hot-signal', { detail }));
-}
-
 function dispatchAwakeningHotSignal(awakening) {
-    const opHash = awakening?.operation?.hash || awakening?.operation?.operationGroupHash || '';
-    const awakenedAt = new Date(awakening?.awakenedAt || Date.now()).getTime();
-    dispatchHotSignal({
-        id: `giant-awakening-${safeHotId(opHash || awakening?.address)}`,
-        category: 'whales',
-        kind: 'event',
-        visual: 'giant',
-        spectacle: 'peacock',
-        score: 126,
-        title: 'Giant awakening',
-        detail: operationLabel(awakening?.operation),
-        text: `A wallet holding ${formatXTZ(awakening.balance)} XTZ moved after ${formatDormancy(awakening.dormantDays)} dormant.`,
-        route: '#giants',
-        createdAt: Number.isFinite(awakenedAt) ? awakenedAt : Date.now(),
-        ttlMs: 24 * 60 * 60 * 1000
-    });
-}
-
-// Tezos mainnet launch date
-const MAINNET_LAUNCH = new Date('2018-09-17T00:00:00Z').getTime();
-
-/**
- * Calculate days since a timestamp (capped at mainnet launch)
- */
-function daysSince(timestamp) {
-    if (!timestamp) {
-        // Never active = dormant since mainnet launch
-        return Math.floor((Date.now() - MAINNET_LAUNCH) / (1000 * 60 * 60 * 24));
-    }
-    const activityTime = new Date(timestamp).getTime();
-    // Cap at mainnet launch (can't be dormant longer than Tezos exists)
-    const effectiveTime = Math.max(activityTime, MAINNET_LAUNCH);
-    const ms = Date.now() - effectiveTime;
-    return Math.floor(ms / (1000 * 60 * 60 * 24));
-}
-
-/**
- * Format days as human readable
- */
-function formatDormancy(days) {
-    if (days >= 365) {
-        const years = Math.floor(days / 365);
-        const remainingDays = days % 365;
-        if (remainingDays > 30) {
-            return `${years}y ${Math.floor(remainingDays / 30)}mo`;
+    if (typeof window === 'undefined' || typeof window.CustomEvent !== 'function') return;
+    const operationId = operationIdentity(awakening?.operation, awakening?.address);
+    const awakenedAt = Date.parse(awakening?.awakenedAt || '') || Date.now();
+    const moved = awakening.movedAmount === null
+        ? 'performed a new operation'
+        : `moved ${formatGiantAmount(awakening.movedAmount)} XTZ`;
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+        detail: {
+            id: `giant-awakening-${safeHotId(operationId)}`,
+            category: 'whales',
+            kind: 'event',
+            visual: 'giant',
+            spectacle: 'peacock',
+            score: 126,
+            title: 'Giant awakening',
+            detail: operationLabel(awakening?.operation),
+            text: `A large ${classifyLargeAccount(awakening).label.toLowerCase()} ${moved} after ${formatDormancy(awakening.dormantDays)} quiet.`,
+            route: '#giants',
+            createdAt: awakenedAt,
+            ttlMs: 86_400_000
         }
-        return `${years}y`;
-    } else if (days >= 30) {
-        return `${Math.floor(days / 30)}mo`;
+    }));
+}
+
+function normalizeStoredAwakening(event) {
+    const operationTimestamp = timestampValue(event?.operation?.timestamp);
+    const awakenedTimestamp = timestampValue(event?.awakenedAt);
+    const previousTimestamp = timestampValue(event?.previousActivityTime);
+    const operationTime = Date.parse(operationTimestamp || '');
+    const awakenedAt = Date.parse(awakenedTimestamp || '');
+    const previousActivity = Date.parse(previousTimestamp || '');
+    const dormantDays = Math.floor((awakenedAt - previousActivity) / DAY_MS);
+    if (!event?.address
+        || String(event?.operation?.status || '').toLowerCase() !== 'applied'
+        || !Number.isFinite(operationTime)
+        || operationTime <= MAINNET_LAUNCH
+        || !Number.isFinite(awakenedAt)
+        || awakenedAt !== operationTime
+        || !Number.isFinite(previousActivity)
+        || previousActivity < MAINNET_LAUNCH
+        || previousActivity >= awakenedAt
+        || !Number.isFinite(dormantDays)
+        || dormantDays < CONFIG.minDormantDays
+        || (!event?.operation?.id && !event?.operation?.hash && !event?.operation?.operationGroupHash)) {
+        return null;
     }
-    return `${days}d`;
+    return {
+        ...event,
+        operation: { ...event.operation, timestamp: operationTimestamp },
+        awakenedAt: new Date(awakenedAt).toISOString(),
+        previousActivityTime: new Date(previousActivity).toISOString(),
+        dormantDays,
+        movedAmount: awakeningMovedAmount(event.operation)
+    };
 }
 
-/**
- * Get dormancy tier for styling
- */
-function getDormancyTier(days) {
-    if (days >= 1825) return { tier: 'ancient', label: 'Ancient', emoji: '🦴' };      // 5+ years
-    if (days >= 1095) return { tier: 'legendary', label: 'Legendary', emoji: '👑' };  // 3+ years
-    if (days >= 730) return { tier: 'epic', label: 'Epic', emoji: '💎' };             // 2+ years
-    if (days >= 365) return { tier: 'rare', label: 'Rare', emoji: '⭐' };             // 1+ year
-    return { tier: 'common', label: 'Dormant', emoji: '😴' };
-}
-
-/**
- * Fetch dormant whales from TzKT
- */
-async function fetchSleepingGiants() {
+function loadStoredAwakenings() {
     try {
-        // Get large accounts sorted by balance
-        const params = new URLSearchParams({
-            'balance.ge': CONFIG.minBalance,
-            'sort.desc': 'balance',
-            'limit': 100,
-            'select': 'address,balance,lastActivity'
-        });
-        
-        const response = await fetch(`${CONFIG.apiBase}/accounts?${params}`);
-        if (!response.ok) throw new Error('API error');
-        
-        const accounts = await response.json();
-        
-        // Filter for dormant accounts
-        const now = Date.now();
-        const dormantThreshold = now - (CONFIG.minDormantDays * 24 * 60 * 60 * 1000);
-        
-        const dormant = accounts.filter(acc => {
-            if (!acc.lastActivity) return true; // Never active = very dormant
-            const lastActive = new Date(acc.lastActivity).getTime();
-            return lastActive < dormantThreshold;
-        });
-        
-        // Sort by dormancy (most dormant first)
-        dormant.sort((a, b) => {
-            const aTime = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
-            const bTime = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
-            return aTime - bTime;
-        });
-        
-        return dormant.slice(0, CONFIG.maxGiants);
-    } catch (error) {
-        console.error('Failed to fetch sleeping giants:', error);
-        return [];
+        const parsed = JSON.parse(localStorage.getItem(AWAKENINGS_KEY) || '[]');
+        const safe = (Array.isArray(parsed) ? parsed : [])
+            .map(normalizeStoredAwakening)
+            .filter(Boolean)
+            .slice(0, MAX_STORED_AWAKENINGS);
+        awakenings.splice(0, awakenings.length, ...safe);
+        if (JSON.stringify(parsed) !== JSON.stringify(safe)) {
+            localStorage.setItem(AWAKENINGS_KEY, JSON.stringify(safe));
+        }
+    } catch {
+        awakenings.splice(0);
+        try { localStorage.setItem(AWAKENINGS_KEY, '[]'); } catch {}
     }
 }
 
-/**
- * Check for recent awakenings
- */
-async function checkAwakenings(previousGiants) {
-    if (previousGiants.length === 0) return [];
-    
-    const addresses = previousGiants.map(g => g.address);
-    const newAwakenings = [];
-    
-    // Check each giant for recent activity
+function saveAwakenings() {
+    try {
+        localStorage.setItem(AWAKENINGS_KEY, JSON.stringify(awakenings.slice(0, MAX_STORED_AWAKENINGS)));
+    } catch (error) {
+        console.warn('Failed to save awakening receipts:', error);
+    }
+}
+
+export function getAwakeningNotificationState() {
+    const supported = typeof window !== 'undefined' && 'Notification' in window;
+    return {
+        supported,
+        enabled: supported && notificationsEnabled && Notification.permission === 'granted',
+        permission: supported ? Notification.permission : 'unsupported'
+    };
+}
+
+/** Must be called only from a direct user action, such as the Chamber button. */
+export async function requestAwakeningNotifications() {
+    if (!('Notification' in window)) return false;
+    if (Notification.permission === 'denied') {
+        notificationsEnabled = false;
+        localStorage.removeItem(NOTIFICATIONS_KEY);
+        return false;
+    }
+    const permission = Notification.permission === 'granted'
+        ? 'granted'
+        : await Notification.requestPermission();
+    notificationsEnabled = permission === 'granted';
+    if (notificationsEnabled) localStorage.setItem(NOTIFICATIONS_KEY, 'true');
+    else localStorage.removeItem(NOTIFICATIONS_KEY);
+    window.dispatchEvent?.(new CustomEvent('awakening-notifications-changed', { detail: getAwakeningNotificationState() }));
+    return notificationsEnabled;
+}
+
+export function disableAwakeningNotifications() {
+    notificationsEnabled = false;
+    localStorage.removeItem(NOTIFICATIONS_KEY);
+    window.dispatchEvent?.(new CustomEvent('awakening-notifications-changed', { detail: getAwakeningNotificationState() }));
+}
+
+function sendAwakeningNotification(awakening) {
+    if (!getAwakeningNotificationState().enabled) return;
+    const amount = awakening.movedAmount === null
+        ? `${operationLabel(awakening.operation)} recorded; no transfer/stake amount`
+        : `${formatGiantAmount(awakening.movedAmount)} ꜩ moved`;
+    const notification = new Notification('🚨 Large account awakened', {
+        body: `${amount} after ${formatDormancy(awakening.dormantDays)} quiet`,
+        icon: '/favicon.svg',
+        badge: '/favicon.svg',
+        tag: `awakening-${operationIdentity(awakening.operation, awakening.address)}`,
+        requireInteraction: true
+    });
+    notification.onclick = () => {
+        window.focus();
+        window.open(operationHref(awakening), '_blank', 'noopener');
+        notification.close();
+    };
+}
+
+export async function fetchSleepingGiants() {
+    const params = new URLSearchParams({
+        'balance.ge': String(CONFIG.minBalance),
+        'sort.desc': 'balance',
+        limit: '100',
+        select: 'address,alias,type,balance,lastActivity,lastActivityTime'
+    });
+    const response = await fetch(`${CONFIG.apiBase}/accounts?${params}`);
+    if (!response.ok) throw new Error(`TzKT large accounts unavailable (${response.status})`);
+    const accounts = await response.json();
+    return accounts
+        .map((account) => ({
+            ...account,
+            accountType: classifyLargeAccount(account),
+            activityTime: giantActivityTime(account),
+            dormantDays: daysSinceActivity(account)
+        }))
+        .filter((account) => account.dormantDays >= CONFIG.minDormantDays)
+        .sort((a, b) => {
+            const timeDelta = (Date.parse(a.activityTime) || 0) - (Date.parse(b.activityTime) || 0);
+            return timeDelta || number(b.balance) - number(a.balance);
+        })
+        .slice(0, CONFIG.maxGiants);
+}
+
+function operationChronology(left, right) {
+    const timeDelta = Date.parse(left?.timestamp || '') - Date.parse(right?.timestamp || '');
+    if (timeDelta) return timeDelta;
+    return number(left?.id, Number.MAX_SAFE_INTEGER) - number(right?.id, Number.MAX_SAFE_INTEGER);
+}
+
+async function earliestAppliedAccountOperation(address, afterTime) {
+    const after = Date.parse(afterTime || '');
+    if (!Number.isFinite(after)) return null;
+    let earliest = null;
+    let offset = 0;
+    for (let page = 0; page < MAX_ACCOUNT_OPERATION_PAGES; page += 1) {
+        const params = new URLSearchParams({
+            limit: String(ACCOUNT_OPERATION_PAGE_SIZE),
+            offset: String(offset),
+            'sort.desc': 'id'
+        });
+        const response = await fetch(`${CONFIG.apiBase}/accounts/${encodeURIComponent(address)}/operations?${params}`);
+        if (!response.ok) return null;
+        const rows = await response.json();
+        if (!Array.isArray(rows)) return null;
+        let crossedBoundary = false;
+        for (const operation of rows) {
+            const timestamp = Date.parse(operation?.timestamp || '');
+            if (!Number.isFinite(timestamp)) continue;
+            if (timestamp <= after) {
+                crossedBoundary = true;
+                continue;
+            }
+            if (String(operation?.status || '').toLowerCase() !== 'applied') continue;
+            if (!earliest || operationChronology(operation, earliest) < 0) earliest = operation;
+        }
+        if (crossedBoundary || rows.length < ACCOUNT_OPERATION_PAGE_SIZE) return earliest;
+        offset += ACCOUNT_OPERATION_PAGE_SIZE;
+    }
+    return null;
+}
+
+export async function checkAwakenings(previousGiants) {
+    if (!previousGiants.length) return [];
+    const found = [];
     for (const giant of previousGiants) {
         try {
-            const response = await fetch(
-                `${CONFIG.apiBase}/accounts/${giant.address}/operations?limit=1&sort.desc=id`
-            );
-            if (!response.ok) continue;
-            
-            const ops = await response.json();
-            if (ops.length === 0) continue;
-            
-            const lastOp = ops[0];
-            const opTime = new Date(lastOp.timestamp).getTime();
-            const giantLastActive = giant.lastActivity ? new Date(giant.lastActivity).getTime() : 0;
-            
-            // If there's new activity since we last checked
-            if (opTime > giantLastActive) {
-                newAwakenings.push({
-                    address: giant.address,
-                    balance: giant.balance,
-                    dormantDays: daysSince(giant.lastActivity),
-                    awakenedAt: lastOp.timestamp,
-                    operation: lastOp
-                });
-            }
-        } catch (e) {
-            // Skip on error
+            const previousActivity = Date.parse(giantActivityTime(giant)) || MAINNET_LAUNCH;
+            const operation = await earliestAppliedAccountOperation(giant.address, new Date(previousActivity).toISOString());
+            if (!operation?.timestamp) continue;
+            const operationTime = Date.parse(operation.timestamp);
+            if (!Number.isFinite(operationTime) || operationTime <= previousActivity) continue;
+            const dormantDays = Math.floor((operationTime - previousActivity) / DAY_MS);
+            if (!Number.isFinite(dormantDays) || dormantDays < CONFIG.minDormantDays) continue;
+            found.push({
+                address: giant.address,
+                alias: giant.alias || '',
+                type: giant.type || '',
+                accountType: classifyLargeAccount(giant),
+                holdingBalance: number(giant.balance),
+                movedAmount: awakeningMovedAmount(operation),
+                dormantDays,
+                previousActivityTime: giantActivityTime(giant) || new Date(MAINNET_LAUNCH).toISOString(),
+                awakenedAt: operation.timestamp,
+                operation
+            });
+        } catch {
+            // A single account receipt failure must not discard the cohort.
         }
     }
-    
-    return newAwakenings;
+    return found;
 }
 
-/**
- * Create giant card element
- */
-function createGiantCard(giant, rank) {
-    const dormantDays = daysSince(giant.lastActivity);
+function addAwakening(awakening, { notify = true } = {}) {
+    const id = operationIdentity(awakening.operation, awakening.address);
+    if (awakenings.some((candidate) => operationIdentity(candidate.operation, candidate.address) === id)) return false;
+    awakenings.unshift({ ...awakening, timestamp: Date.now() });
+    awakenings.splice(MAX_STORED_AWAKENINGS);
+    saveAwakenings();
+    updateAwakeningsLog();
+    const alerts = document.getElementById('awakening-alerts');
+    if (alerts) quietlyMutate(alerts, () => alerts.prepend(createAwakeningAlert(awakening)));
+    if (notify) sendAwakeningNotification(awakening);
+    dispatchAwakeningHotSignal(awakening);
+    window.dispatchEvent?.(new CustomEvent('giant-awakening', { detail: awakening }));
+    if (window.playSound) window.playSound('alert');
+    return true;
+}
+
+export function getSleepingGiantsSnapshot() {
+    return {
+        giants: [...giants],
+        awakenings: [...awakenings],
+        updatedAt: lastGoodAt,
+        error: lastError,
+        minimumBalance: CONFIG.minBalance,
+        minimumDormantDays: CONFIG.minDormantDays,
+        notifications: getAwakeningNotificationState()
+    };
+}
+
+export async function refreshSleepingGiantsData({ checkForAwakenings = true } = {}) {
+    if (document.visibilityState !== 'visible') return getSleepingGiantsSnapshot();
+    const previous = [...giants];
+    try {
+        const fresh = await fetchSleepingGiants();
+        const events = checkForAwakenings && previous.length ? await checkAwakenings(previous) : [];
+        giants.splice(0, giants.length, ...fresh);
+        events.forEach((event) => addAwakening(event));
+        lastGoodAt = new Date().toISOString();
+        lastError = '';
+        window.dispatchEvent?.(new CustomEvent('sleeping-giants-data-updated', { detail: getSleepingGiantsSnapshot() }));
+        return getSleepingGiantsSnapshot();
+    } catch (error) {
+        lastError = error?.message || String(error);
+        window.dispatchEvent?.(new CustomEvent('sleeping-giants-data-error', { detail: { error: lastError, snapshot: getSleepingGiantsSnapshot() } }));
+        throw error;
+    }
+}
+
+function giantCardMarkup(giant, rank) {
+    const dormantDays = giant.dormantDays ?? daysSinceActivity(giant);
     const tier = getDormancyTier(dormantDays);
-    const balance = formatXTZ(giant.balance);
-    const dormancy = giant.lastActivity ? formatDormancy(dormantDays) : 'Since Genesis';
-    const neverActive = !giant.lastActivity;
-    
-    const card = document.createElement('div');
-    card.className = `giant-card giant-${tier.tier}`;
-    card.dataset.address = giant.address;
-    
-    card.innerHTML = `
-        <div class="giant-rank">#${rank}</div>
-        <div class="giant-status">
-            <span class="giant-emoji">${neverActive ? '🥚' : tier.emoji}</span>
-            <span class="giant-tier">${neverActive ? 'Unrevealed' : tier.label}</span>
-        </div>
-        <div class="giant-balance">${balance} <span class="xtz">ꜩ</span></div>
-        <div class="giant-dormancy">
-            <span class="dormancy-label">${neverActive ? 'Dormant' : 'Asleep for'}</span>
-            <span class="dormancy-value">${dormancy}</span>
-        </div>
-        <div class="giant-address" title="${escapeHtml(giant.address)}">
-            ${escapeHtml(giant.address.slice(0, 8))}...${escapeHtml(giant.address.slice(-4))}
-        </div>
-        <div class="giant-heartbeat">
-            <svg viewBox="0 0 100 30" class="flatline">
-                <polyline points="0,15 20,15 25,15 30,15 35,15 40,15 100,15" />
-            </svg>
-        </div>
-    `;
-    
-    // Click to view on TzKT
-    card.addEventListener('click', () => {
-        window.open(`https://tzkt.io/${giant.address}`, '_blank');
-    });
-    
-    return card;
+    const kind = giant.accountType || classifyLargeAccount(giant);
+    const activityTime = giantActivityTime(giant);
+    return `
+        <div class="giant-card giant-${escapeHtml(tier.tier)}" data-quiet-key="giant-${escapeHtml(giant.address)}" data-address="${escapeHtml(giant.address)}" role="link" tabindex="0" aria-label="View ${escapeHtml(kind.label)} on TzKT">
+            <div class="giant-rank">#${rank}</div>
+            <div class="giant-status"><span class="giant-emoji">${escapeHtml(activityTime ? tier.emoji : '🥚')}</span><span class="giant-tier">${escapeHtml(kind.label)}</span></div>
+            <div class="giant-balance">${escapeHtml(formatGiantAmount(giant.balance))} <span class="xtz">ꜩ</span></div>
+            <div class="giant-dormancy"><span class="dormancy-label">Quiet for</span><span class="dormancy-value">${escapeHtml(activityTime ? formatDormancy(dormantDays) : 'Since mainnet launch')}</span></div>
+            <div class="giant-address" title="${escapeHtml(giant.address)}">${escapeHtml(shortAddress(giant.alias || giant.address, 12, 5))}</div>
+            <div class="giant-heartbeat" aria-hidden="true"><svg viewBox="0 0 100 30" class="flatline"><polyline points="0,15 100,15" /></svg></div>
+        </div>`;
 }
 
-/**
- * Create awakening alert element
- */
+function awakeningAmountLabel(awakening) {
+    return awakening.movedAmount === null || awakening.movedAmount === undefined
+        ? 'No transfer/stake amount'
+        : `${formatGiantAmount(awakening.movedAmount)} ꜩ moved`;
+}
+
 function createAwakeningAlert(awakening) {
-    const tier = getDormancyTier(awakening.dormantDays);
-    const balance = formatXTZ(awakening.balance);
-    const dormancy = formatDormancy(awakening.dormantDays);
-    const opLabel = operationLabel(awakening.operation);
-    const href = operationHref(awakening);
-    
     const alert = document.createElement('div');
     alert.className = 'awakening-alert';
-    
+    alert.dataset.quietKey = `awakening-${operationIdentity(awakening.operation, awakening.address)}`;
     alert.innerHTML = `
-        <div class="awakening-header awakening-event-header">
-            <span class="awakening-icon">${tier.emoji}</span>
-            <span class="awakening-title">Awakening Event</span>
-            <span class="awakening-op-type">${escapeHtml(opLabel)}</span>
-        </div>
-        <div class="awakening-event-headline">
-            <strong>${balance} ꜩ moved</strong>
-            <span>after ${escapeHtml(dormancy)} quiet</span>
-        </div>
-        <div class="awakening-details awakening-event-details">
-            <span class="awakening-balance">${balance} ꜩ</span>
-            <span class="awakening-dormancy">${escapeHtml(tier.label)} wallet woke up</span>
-        </div>
+        <div class="awakening-header awakening-event-header"><span class="awakening-icon">🚨</span><span class="awakening-title">Awakening receipt</span><span class="awakening-op-type">${escapeHtml(operationLabel(awakening.operation))}</span></div>
+        <div class="awakening-event-headline"><strong>${escapeHtml(awakeningAmountLabel(awakening))}</strong><span>after ${escapeHtml(formatDormancy(awakening.dormantDays))} quiet</span></div>
+        <div class="awakening-details awakening-event-details"><span class="awakening-balance">Holding observed before event: ${escapeHtml(formatGiantAmount(awakening.holdingBalance))} ꜩ</span><span class="awakening-dormancy">${escapeHtml((awakening.accountType || classifyLargeAccount(awakening)).label)}</span></div>
         <div class="awakening-address">${escapeHtml(shortAddress(awakening.address, 12, 5))}</div>
-        <a class="awakening-action" href="${escapeHtml(href)}" target="_blank" rel="noopener">View receipt</a>
-    `;
-    
-    alert.addEventListener('click', () => {
-        window.open(href, '_blank');
-    });
-    alert.querySelector('.awakening-action')?.addEventListener('click', (event) => {
-        event.stopPropagation();
-    });
-    
-    // Auto-remove after 30 seconds
-    setTimeout(() => {
-        const container = alert.parentElement;
-        if (container) quietlyMutate(container, () => alert.remove());
-    }, 30000);
-    
+        <a class="awakening-action" href="${escapeHtml(operationHref(awakening))}" target="_blank" rel="noopener">View operation receipt</a>`;
     return alert;
 }
 
-/**
- * Update the UI
- */
-function updateUI() {
+function wireGiantGrid(container) {
+    if (!container || container.dataset.giantGridWired === 'true') return;
+    container.dataset.giantGridWired = 'true';
+    const openAccount = (target) => {
+        const card = target.closest?.('.giant-card[data-address]');
+        if (card && container.contains(card)) window.open(`https://tzkt.io/${encodeURIComponent(card.dataset.address)}`, '_blank', 'noopener');
+    };
+    container.addEventListener('click', (event) => openAccount(event.target));
+    container.addEventListener('keydown', (event) => {
+        if (!['Enter', ' '].includes(event.key) || !event.target.closest?.('.giant-card')) return;
+        event.preventDefault();
+        openAccount(event.target);
+    });
+}
+
+function updateUI({ loading = false } = {}) {
     const container = document.getElementById('giants-grid');
-    const statsEl = document.getElementById('giants-stats');
-    
+    const stats = document.getElementById('giants-stats');
     if (!container) return;
-    
-    if (giants.length === 0) {
-        quietlySyncHtml(container, `
-            <div class="giants-empty">
-                <span class="giants-empty-icon">😴</span>
-                <span>Scanning for sleeping giants...</span>
-            </div>
-        `);
+    wireGiantGrid(container);
+    if (loading && !giants.length) {
+        quietlySyncHtml(container, '<div class="giants-loading"><span class="loading-icon">🔍</span><span>Searching for dormant large accounts...</span></div>');
         return;
     }
-    
-    // Calculate stats
-    const totalDormant = giants.reduce((sum, g) => sum + g.balance, 0);
-    const avgDormancy = giants.reduce((sum, g) => {
-        return sum + daysSince(g.lastActivity);
-    }, 0) / giants.length;
-    
-    // Update stats
-    if (statsEl) {
-        quietlySyncHtml(statsEl, `
-            <div class="giants-stat">
-                <span class="stat-value">${formatXTZ(totalDormant)}</span>
-                <span class="stat-label">Total Dormant</span>
-            </div>
-            <div class="giants-stat">
-                <span class="stat-value">${Math.round(avgDormancy)}</span>
-                <span class="stat-label">Avg Days Asleep</span>
-            </div>
-            <div class="giants-stat">
-                <span class="stat-value">${giants.length}</span>
-                <span class="stat-label">Giants Tracked</span>
-            </div>
-        `);
-    }
-    
-    // Update grid
-    const html = giants.map((giant, index) => createGiantCard(giant, index + 1).outerHTML).join('');
-    quietlySyncHtml(container, html);
-    if (container.dataset.giantGridWired !== 'true') {
-        container.dataset.giantGridWired = 'true';
-        container.addEventListener('click', (event) => {
-            const card = event.target.closest('.giant-card[data-address]');
-            if (card && container.contains(card)) window.open(`https://tzkt.io/${card.dataset.address}`, '_blank');
-        });
-    }
-}
-
-/**
- * Show awakening alert
- */
-function showAwakening(awakening) {
-    // Add to awakenings list (newest first)
-    awakenings.unshift({
-        ...awakening,
-        timestamp: Date.now()
-    });
-    
-    // Keep only recent awakenings
-    if (awakenings.length > MAX_STORED_AWAKENINGS) {
-        awakenings = awakenings.slice(0, MAX_STORED_AWAKENINGS);
-    }
-    
-    // Persist to localStorage
-    saveAwakenings();
-    
-    // Update the awakenings log UI
-    updateAwakeningsLog();
-    
-    // Show alert banner
-    const alertsContainer = document.getElementById('awakening-alerts');
-    if (alertsContainer) {
-        const alert = createAwakeningAlert(awakening);
-        quietlyMutate(alertsContainer, () => alertsContainer.appendChild(alert));
-    }
-    
-    // Send browser notification
-    sendAwakeningNotification(awakening);
-    dispatchAwakeningHotSignal(awakening);
-    
-    // Play sound if enabled
-    if (window.playSound) {
-        window.playSound('alert');
-    }
-}
-
-/**
- * Update the awakenings history log UI
- */
-function updateAwakeningsLog() {
-    const logContainer = document.getElementById('awakenings-log');
-    if (!logContainer) return;
-    
-    if (awakenings.length === 0) {
-        logContainer.innerHTML = `
-            <div class="awakenings-empty">
-                No awakenings recorded yet. Giants are still sleeping...
-            </div>
-        `;
+    if (!giants.length) {
+        const detail = lastError ? `Last refresh failed: ${lastError}` : 'No accounts meet the current balance and dormancy thresholds.';
+        quietlySyncHtml(container, `<div class="giants-empty"><span class="giants-empty-icon">😴</span><span>${escapeHtml(detail)}</span></div>`);
         return;
     }
-    
-    logContainer.innerHTML = awakenings.map(a => {
-        const balance = formatXTZ(a.balance);
-        const dormancy = formatDormancy(a.dormantDays);
-        const timeAgo = formatTimeAgo(a.timestamp || a.awakenedAt);
-        const opLabel = operationLabel(a.operation);
-        
-        return `
-            <div class="awakening-log-item" data-address="${escapeHtml(a.address)}" role="button" tabindex="0">
-                <div class="log-item-main">
-                    <span class="log-event-kicker">Event</span>
-                    <span class="log-balance">${balance} ꜩ</span>
-                    <span class="log-dormancy">slept ${dormancy}</span>
-                </div>
-                <div class="log-item-meta">
-                    <span class="log-address">${escapeHtml(shortAddress(a.address, 10, 4))}</span>
-                    <span class="log-op-type">${escapeHtml(opLabel)}</span>
-                    <span class="log-time">${timeAgo}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    logContainer.querySelectorAll('.awakening-log-item').forEach(item => {
-        const openAddress = () => {
-            const address = item.dataset.address;
-            if (address) window.open(`https://tzkt.io/${address}`, '_blank');
-        };
-        item.addEventListener('click', openAddress);
-        item.addEventListener('keydown', e => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openAddress();
-            }
-        });
-    });
+    const totalHoldings = giants.reduce((sum, giant) => sum + number(giant.balance), 0);
+    const averageDormancy = giants.reduce((sum, giant) => sum + (giant.dormantDays ?? daysSinceActivity(giant)), 0) / giants.length;
+    if (stats) quietlySyncHtml(stats, `
+        <div class="giants-stat"><span class="stat-value">${escapeHtml(formatGiantAmount(totalHoldings))}</span><span class="stat-label">Observed holdings</span></div>
+        <div class="giants-stat"><span class="stat-value">${Math.round(averageDormancy)}</span><span class="stat-label">Avg quiet days</span></div>
+        <div class="giants-stat"><span class="stat-value">${giants.length}</span><span class="stat-label">Large accounts</span></div>`);
+    quietlySyncHtml(container, giants.map(giantCardMarkup).join(''));
 }
 
-/**
- * Format time ago
- */
 function formatTimeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
-    
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000));
     if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -537,166 +486,142 @@ function formatTimeAgo(timestamp) {
     return new Date(timestamp).toLocaleDateString();
 }
 
-/**
- * Poll for updates
- */
-async function pollForUpdates() {
-    const previousGiants = [...giants];
-    giants = await fetchSleepingGiants();
-    
-    // Check for awakenings
-    const newAwakenings = await checkAwakenings(previousGiants);
-    newAwakenings.forEach(showAwakening);
-    
-    updateUI();
+function updateAwakeningsLog() {
+    const log = document.getElementById('awakenings-log');
+    if (!log) return;
+    if (!awakenings.length) {
+        quietlySyncHtml(log, '<div class="awakenings-empty">No locally observed awakening receipts yet.</div>');
+        return;
+    }
+    quietlySyncHtml(log, awakenings.map((awakening) => `
+        <a class="awakening-log-item" data-quiet-key="awakening-log-${escapeHtml(operationIdentity(awakening.operation, awakening.address))}" href="${escapeHtml(operationHref(awakening))}" target="_blank" rel="noopener">
+            <div class="log-item-main"><span class="log-event-kicker">${escapeHtml(operationLabel(awakening.operation))}</span><span class="log-balance">${escapeHtml(awakeningAmountLabel(awakening))}</span><span class="log-dormancy">after ${escapeHtml(formatDormancy(awakening.dormantDays))}</span></div>
+            <div class="log-item-meta"><span class="log-address">${escapeHtml(shortAddress(awakening.address))}</span><span class="log-op-type">${escapeHtml((awakening.accountType || classifyLargeAccount(awakening)).label)}</span><span class="log-time">${escapeHtml(formatTimeAgo(awakening.awakenedAt || awakening.timestamp))}</span></div>
+        </a>`).join(''));
 }
 
-/**
- * Start polling
- */
+async function pollForUpdates() {
+    if (document.visibilityState !== 'visible') return getSleepingGiantsSnapshot();
+    try {
+        const snapshot = await refreshSleepingGiantsData();
+        updateUI();
+        updateAwakeningsLog();
+        return snapshot;
+    } catch (error) {
+        console.warn('Sleeping Giants refresh failed; keeping last-good cohort:', error);
+        updateUI();
+        return getSleepingGiantsSnapshot();
+    }
+}
+
 function startPolling() {
     if (pollTimer) return;
-    pollTimer = setInterval(() => {
+    pollTimer = window.setInterval(() => {
         if (document.visibilityState === 'visible') pollForUpdates();
     }, CONFIG.pollInterval);
 }
 
-/**
- * Stop polling
- */
 function stopPolling() {
-    if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-    }
+    if (pollTimer) window.clearInterval(pollTimer);
+    pollTimer = null;
 }
 
-/**
- * Toggle sleeping giants visibility
- */
-export function toggleSleepingGiants() {
-    isEnabled = !isEnabled;
-    localStorage.setItem(STORAGE_KEY, isEnabled ? 'true' : 'false');
-    updateVisibility();
-    
-    if (isEnabled) {
-        const container = document.getElementById('optional-sections');
-        const section = document.getElementById('giants-section');
-        if (container && section && section.parentElement === container) container.prepend(section);
-        if (giants.length === 0) {
-            loadInitialData();
-        }
-        updateAwakeningsLog();
-        
-        // Request notification permission on first enable
-        requestNotificationPermission();
-    }
-    
-    return isEnabled;
-}
-
-/**
- * Update visibility based on state
- */
-function setLauncherToggleState(btn, isOn) {
+function setLauncherToggleState(button, on) {
     const helper = window.tezosSystemsLauncher?.setToggleState;
-    if (helper) {
-        helper(btn, isOn);
-        return;
-    }
-    btn?.classList.toggle('active', isOn);
-    btn?.setAttribute('aria-pressed', String(isOn));
-    const pill = btn?.querySelector('.feature-status');
-    if (pill) pill.textContent = btn?.dataset[isOn ? 'statusOn' : 'statusOff'] || (isOn ? 'Showing' : 'Hidden');
+    if (helper) return helper(button, on);
+    button?.classList.toggle('active', on);
+    button?.setAttribute('aria-pressed', String(on));
+    const pill = button?.querySelector('.feature-status');
+    if (pill) pill.textContent = button?.dataset[on ? 'statusOn' : 'statusOff'] || (on ? 'Showing' : 'Hidden');
 }
 
 function updateVisibility() {
     const section = document.getElementById('giants-section');
-    const toggleBtn = document.getElementById('giants-toggle');
-    
-    if (section) {
-        section.classList.toggle('visible', isEnabled);
+    const toggleButton = document.getElementById('giants-toggle');
+    section?.classList.toggle('visible', isEnabled);
+    if (toggleButton) {
+        setLauncherToggleState(toggleButton, isEnabled);
+        toggleButton.title = `Dormant Account Movement: ${isEnabled ? 'Showing' : 'Hidden'}`;
     }
-    
-    if (toggleBtn) {
-        setLauncherToggleState(toggleBtn, isEnabled);
-        toggleBtn.title = `Dormant Wallet Movement: ${isEnabled ? 'Showing' : 'Hidden'}`;
-    }
-    
-    if (isEnabled) {
-        startPolling();
-    } else {
-        stopPolling();
-    }
+    if (isEnabled) startPolling();
+    else stopPolling();
 }
 
-/**
- * Load initial data
- */
 async function loadInitialData() {
-    const container = document.getElementById('giants-grid');
-    if (container) {
-        container.innerHTML = `
-            <div class="giants-loading">
-                <span class="loading-icon">🔍</span>
-                <span>Searching for sleeping giants...</span>
-            </div>
-        `;
-    }
-    
-    giants = await fetchSleepingGiants();
-    updateUI();
+    if (initialLoadPromise) return initialLoadPromise;
+    updateUI({ loading: true });
+    initialLoadPromise = refreshSleepingGiantsData({ checkForAwakenings: false })
+        .then((snapshot) => {
+            updateUI();
+            updateAwakeningsLog();
+            return snapshot;
+        })
+        .catch((error) => {
+            console.warn('Sleeping Giants initial load failed:', error);
+            updateUI();
+            return getSleepingGiantsSnapshot();
+        })
+        .finally(() => { initialLoadPromise = null; });
+    return initialLoadPromise;
 }
 
-/**
- * Initialize sleeping giants tracker
- */
-export async function initSleepingGiants() {
+export function toggleSleepingGiants() {
+    isEnabled = !isEnabled;
+    localStorage.setItem(STORAGE_KEY, String(isEnabled));
+    updateVisibility();
+    if (isEnabled) {
+        const container = document.getElementById('optional-sections');
+        const section = document.getElementById('giants-section');
+        if (container && section?.parentElement === container) container.prepend(section);
+        if (!giants.length) loadInitialData();
+        else updateUI();
+        updateAwakeningsLog();
+    }
+    return isEnabled;
+}
+
+export async function initSleepingGiants({ legacyUi = true } = {}) {
+    if (!legacyUi) {
+        debugLog('Initializing dormant-account data without the legacy inline section...');
+        loadStoredAwakenings();
+        notificationsEnabled = localStorage.getItem(NOTIFICATIONS_KEY) === 'true'
+            && 'Notification' in window
+            && Notification.permission === 'granted';
+        window.sleepingGiantsData = {
+            get giants() { return giants; },
+            get awakenings() { return awakenings; },
+            get snapshot() { return getSleepingGiantsSnapshot(); }
+        };
+        return;
+    }
     const section = document.getElementById('giants-section');
     if (!section) {
         debugLog('Giants section not found');
         return;
     }
-    
     debugLog('Initializing Sleeping Giants...');
-    
-    // Load saved preference (default: off)
     isEnabled = localStorage.getItem(STORAGE_KEY) === 'true';
-    
-    // Load stored awakenings history
     loadStoredAwakenings();
-    
-    // Setup toggle button
-    const toggleBtn = document.getElementById('giants-toggle');
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', toggleSleepingGiants);
+    notificationsEnabled = localStorage.getItem(NOTIFICATIONS_KEY) === 'true'
+        && 'Notification' in window
+        && Notification.permission === 'granted';
+    const toggleButton = document.getElementById('giants-toggle');
+    if (toggleButton && toggleButton.dataset.giantsToggleWired !== '1') {
+        toggleButton.dataset.giantsToggleWired = '1';
+        toggleButton.addEventListener('click', toggleSleepingGiants);
     }
-    
-    // Set initial visibility
     updateVisibility();
-    
-    // Load data if enabled
-    if (isEnabled) {
-        await loadInitialData();
-        startPolling();
-        updateAwakeningsLog();
-        
-        // Request notification permission when user enables the feature
-        requestNotificationPermission();
-    }
-    
-    // Handle visibility changes
+    if (isEnabled) await loadInitialData();
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            stopPolling();
-        } else if (isEnabled) {
+        if (document.visibilityState !== 'visible') stopPolling();
+        else if (isEnabled) {
             pollForUpdates();
             startPolling();
         }
     });
+    window.sleepingGiantsData = {
+        get giants() { return giants; },
+        get awakenings() { return awakenings; },
+        get snapshot() { return getSleepingGiantsSnapshot(); }
+    };
 }
-
-// Expose for pulse indicator
-window.sleepingGiantsData = { get awakenings() { return awakenings; } };
-
-export { giants, awakenings };

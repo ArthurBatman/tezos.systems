@@ -57,6 +57,7 @@ import { initCapitalChamber } from '../features/capital-chamber.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
 import { initTezosCrpChamber } from '../features/tezoscrp.js';
+import { initWhaleChamber, openWhaleChamber } from '../features/whale-chamber.js';
 
 const SPARKLINE_LIVE_METRICS = [
     ['tz4_percentage', 'tz4Percentage'],
@@ -98,7 +99,7 @@ import { initCalculator } from '../features/calculator.js';
 import { checkMoments, initMomentsTimeline } from '../features/moments.js';
 import { initVibes } from '../effects/vibes.js';
 import { initChangelog } from '../features/changelog.js';
-import { initLeaderboard, refreshLeaderboard } from '../features/leaderboard.js';
+import { initBakerDirectoryChamber, initLeaderboard, refreshLeaderboard } from '../features/leaderboard.js';
 import { initBakerReportCard } from '../features/baker-report-card.js';
 
 import { initMyTezos, refreshMyTezos } from '../features/my-tezos.js';
@@ -113,7 +114,7 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=469';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=470';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 
@@ -308,9 +309,20 @@ async function init() {
     safe('tezosDomainsChamber', initTezosDomainsChamber);
     safe('maxisChamber', initMaxisChamber);
     safe('tezosCrpChamber', initTezosCrpChamber);
+    safe('whaleChamber', initWhaleChamber);
+    safe('bakerDirectoryChamber', initBakerDirectoryChamber);
+    safe('whaleChamberLauncher', () => {
+        const launcher = document.getElementById('whale-toggle');
+        if (!launcher || launcher.dataset.whaleChamberWired === '1') return;
+        launcher.dataset.whaleChamberWired = '1';
+        launcher.addEventListener('click', () => {
+            openWhaleChamber().catch((error) => console.warn('Failed to open Whale Watch Chamber', error));
+        });
+    });
     safe('governanceAlerts', initGovernanceAlerts);
     safe('protocolHistoryChamber', initProtocolHistoryChamber);
     safe('protocolHistoryHeaderLauncher', initProtocolHistoryHeaderLauncher);
+    safe('cycleHistoryChamber', initHistoryModal);
     
     // Initialize changelog modal
     safe('changelog', initChangelog);
@@ -319,10 +331,10 @@ async function init() {
     safe('cardHistory', addCardHistoryButtons);
     
     // Initialize whale tracker
-    safe('whaleTracker', initWhaleTracker);
+    safe('whaleTracker', () => initWhaleTracker({ legacyUi: false }));
     
     // Initialize sleeping giants
-    safe('sleepingGiants', initSleepingGiants);
+    safe('sleepingGiants', () => initSleepingGiants({ legacyUi: false }));
 
     // Initialize price bar
     safe('priceBar', initPriceBar);
@@ -430,7 +442,6 @@ async function init() {
     refreshInBackground();
 
     // Initialize history features
-    initHistoryModal();
     updateSparklines(); // Don't await - let it load in background
 
     // Setup sparkline refresh interval (visibility-gated)
@@ -1487,6 +1498,10 @@ const CHAMBER_CARD_PAIRS = [
         selectors: ['#network-pulse-entry-card', '#capital-entry-card']
     },
     {
+        key: 'whales-bakers',
+        selectors: ['#whale-watch-entry-card', '#baker-directory-entry-card']
+    },
+    {
         key: 'health-governance',
         selectors: ['[data-stat="network-health"]', '#chamber-entry-card']
     },
@@ -1500,7 +1515,7 @@ const CHAMBER_CARD_PAIRS = [
     },
     {
         key: 'ledger-history',
-        selectors: ['#ledger-flow-entry-card', '#protocol-history-entry-card']
+        selectors: ['#ledger-flow-entry-card', '#protocol-history-entry-card', '#cycle-history-entry-card']
     },
     {
         key: 'maxis',
@@ -1530,6 +1545,18 @@ const CHAMBER_INFO_COPY = {
         body: 'Cross-layer Tezos and Etherlink intelligence for network activity, markets, ecosystem assets, real-world assets, and the art economy.',
         href: '/capital/',
         link: 'Open Capital Chamber ->'
+    },
+    'whale-watch-entry-card': {
+        title: 'Whale Watch',
+        body: 'Large applied operations, complete 24-hour transfer receipts, related flow stories, large dormant accounts, and verified awakenings.',
+        href: '/whales/',
+        link: 'Open Whale Watch ->'
+    },
+    'baker-directory-entry-card': {
+        title: 'Baker Directory',
+        body: 'Discover every funded active baker through transparent capacity, tenure, governance, and tz4 facts without a synthetic performance grade.',
+        href: '/leaderboard/',
+        link: 'Open Baker Directory ->'
     },
     'staking-entry-card': {
         title: 'Staking Chamber',
@@ -1578,6 +1605,12 @@ const CHAMBER_INFO_COPY = {
         body: 'Maps sent, received, and first-funding transfer paths around any Tezos account with amount-weighted connections.',
         href: '/ledger-flow/',
         link: 'Open Ledger Flow ->'
+    },
+    'cycle-history-entry-card': {
+        title: 'Cycle History',
+        body: 'Fifteen captured global, market, Network Health, Tezos X, and governance signals with honest range and freshness context.',
+        href: '/history/',
+        link: 'Open Cycle History ->'
     },
     'protocol-history-entry-card': {
         title: 'Protocol Anthology',
@@ -1805,6 +1838,7 @@ function syncChamberEntryFooter(card) {
         footer.innerHTML = '<span class="chamber-entry-freshness"></span>';
         front.appendChild(footer);
     }
+    footer.dataset.quietKey = 'chamber-entry-footer';
 
     const freshness = footer.querySelector('.chamber-entry-freshness');
     const label = card.dataset.updatedLabel || '';
@@ -4867,24 +4901,20 @@ function initDeepLinkAffordances() {
 function initPulseIndicators() {
     function checkPulse() {
         const whaleBtn = document.getElementById('whale-toggle');
-        const giantsBtn = document.getElementById('giants-toggle');
         const now = Date.now();
         const FIVE_MIN = 5 * 60 * 1000;
         const ONE_DAY = 24 * 60 * 60 * 1000;
 
-        // Whale pulse: any transaction in last 5 minutes
-        if (whaleBtn && window.whaleTracker?.transactions?.length) {
-            const latest = window.whaleTracker.transactions[0];
-            const age = now - new Date(latest.timestamp).getTime();
-            whaleBtn.classList.toggle('has-pulse', age < FIVE_MIN);
-        }
-
-        // Giants pulse: any awakening in last 24 hours
-        if (giantsBtn && window.sleepingGiantsData?.awakenings?.length) {
-            const latest = window.sleepingGiantsData.awakenings[0];
-            const age = now - new Date(latest.awakenedAt).getTime();
-            giantsBtn.classList.toggle('has-pulse', age < ONE_DAY);
-        }
+        if (!whaleBtn) return;
+        const latestOperation = window.whaleTracker?.transactions?.[0];
+        const latestAwakening = window.sleepingGiantsData?.awakenings?.[0];
+        const operationIsFresh = latestOperation
+            ? now - new Date(latestOperation.timestamp).getTime() < FIVE_MIN
+            : false;
+        const awakeningIsFresh = latestAwakening
+            ? now - new Date(latestAwakening.awakenedAt).getTime() < ONE_DAY
+            : false;
+        whaleBtn.classList.toggle('has-pulse', operationIsFresh || awakeningIsFresh);
     }
 
     // Check every 30 seconds
@@ -5012,9 +5042,10 @@ function initOfflineIndicator() {
 //   #baker=tz1...      → open Baker profile modal
 //   #calculator        → open Rewards Calculator
 //   #compare           → show comparison section
-//   #whales            → show whale tracker
-//   #giants            → show sleeping giants
-//   #history           → open history modal
+//   #leaderboard       → open Baker Directory Chamber
+//   #whales            → open Whale Watch Chamber
+//   #giants            → open Whale Watch Deep Sleep
+//   #history           → open Cycle History Chamber
 //   #chamber           → open Tezos L1 Governance modal
 //   #pulse             -> open Network Pulse Chamber
 //   #capital           -> open Capital Chamber
@@ -5038,7 +5069,10 @@ function initOfflineIndicator() {
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
 //   /capital/          -> open Capital Chamber
+//   /whales/           -> open Whale Watch Chamber
 //   /stake/            -> open Staking Chamber
+//   /leaderboard/      -> open Baker Directory Chamber
+//   /history/          -> open Cycle History Chamber
 //   /anthology/        → open Protocol History Chamber
 //   /health/           → open Network Health Chamber
 //   /tezosx/           → open Tezos X Chamber
@@ -5298,11 +5332,6 @@ function applyDeepLink() {
     };
 
     const closeHashModalSurfaces = async () => {
-        const historyModal = document.getElementById('history-modal');
-        if (historyModal) {
-            historyModal.classList.remove('active');
-            historyModal.setAttribute('aria-hidden', 'true');
-        }
         document.getElementById('protocol-history-modal')?.remove();
         const protocolHistoryChamber = document.getElementById('protocol-history-chamber-modal');
         if (protocolHistoryChamber) {
@@ -5326,6 +5355,9 @@ function applyDeepLink() {
             import('../features/tezos-domains.js').then((module) => module.closeTezosDomainsChamber?.()),
             import('../features/maxis.js').then((module) => module.closeMaxisChamber?.()),
             import('../features/tezoscrp.js').then((module) => module.closeTezosCrpChamber?.()),
+            import('../features/leaderboard.js').then((module) => module.closeBakerDirectoryChamber?.({ preserveRoute: true })),
+            import('../features/whale-chamber.js').then((module) => module.closeWhaleChamber?.({ preserveRoute: true })),
+            import('../features/history.js').then((module) => module.closeCycleHistoryChamber?.({ preserveRoute: true })),
             import('../features/native-explorer.js').then((module) => module.closeNativeExplorer?.())
         ]);
 
@@ -5365,10 +5397,22 @@ function applyDeepLink() {
                     'Failed to open Capital Chamber'
                 );
                 break;
+            case 'whales':
+                openHashModal(
+                    () => import('../features/whale-chamber.js').then(({ openWhaleChamber }) => openWhaleChamber()),
+                    'Failed to open Whale Watch Chamber'
+                );
+                break;
             case 'staking':
                 openHashModal(
                     () => import('../features/staking-chamber.js').then(({ openStakingChamber }) => openStakingChamber()),
                     'Failed to open Staking Chamber'
+                );
+                break;
+            case 'leaderboard':
+                openHashModal(
+                    () => import('../features/leaderboard.js').then(({ openBakerDirectoryChamber }) => openBakerDirectoryChamber()),
+                    'Failed to open Baker Directory Chamber'
                 );
                 break;
             case 'health':
@@ -5435,6 +5479,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => openProtocolHistoryChamber(),
                     'Failed to open Protocol History Chamber'
+                );
+                break;
+            case 'history':
+                openHashModal(
+                    () => import('../features/history.js').then(({ openCycleHistoryChamber }) => openCycleHistoryChamber()),
+                    'Failed to open Cycle History Chamber'
                 );
                 break;
         }
@@ -5673,9 +5723,12 @@ function applyDeepLink() {
         );
     }
 
-    // #leaderboard
+    // #leaderboard — open Baker Directory Chamber
     if (params.has('leaderboard') || hash === 'leaderboard') {
-        showToggleSection('leaderboard-toggle', 'leaderboard-section');
+        openHashModal(
+            () => import('../features/leaderboard.js').then(({ openBakerDirectoryChamber }) => openBakerDirectoryChamber()),
+            'Failed to open Baker Directory Chamber'
+        );
     }
 
     // #baker=tz1... or #baker=name.tez — open baker profile modal
@@ -5689,14 +5742,20 @@ function applyDeepLink() {
         }
     }
 
-    // #whales
+    // #whales — open Whale Watch Chamber
     if (params.has('whales') || hash === 'whales') {
-        showToggleSection('whale-toggle', 'whale-section');
+        openHashModal(
+            () => import('../features/whale-chamber.js').then(({ openWhaleChamber }) => openWhaleChamber()),
+            'Failed to open Whale Watch Chamber'
+        );
     }
 
-    // #giants
+    // #giants — legacy alias for Whale Watch Deep Sleep
     if (params.has('giants') || hash === 'giants') {
-        showToggleSection('giants-toggle', 'giants-section');
+        openHashModal(
+            () => import('../features/whale-chamber.js').then(({ openWhaleChamber }) => openWhaleChamber('dormant')),
+            'Failed to open Whale Watch Deep Sleep'
+        );
     }
 
     // #nfts
@@ -5710,12 +5769,12 @@ function applyDeepLink() {
         revealStaticSection('widgets-gallery');
     }
 
-    // #history
+    // #history — open Cycle History Chamber
     if (params.has('history') || hash === 'history') {
-        openHashModal(() => {
-            const btn = document.getElementById('history-btn');
-            if (btn) btn.click();
-        }, 'Failed to open history modal');
+        openHashModal(
+            () => import('../features/history.js').then(({ openCycleHistoryChamber }) => openCycleHistoryChamber()),
+            'Failed to open Cycle History Chamber'
+        );
     }
 
     // #protocol=Ushuaia
@@ -5768,7 +5827,9 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'protocol-history-chamber-modal': { entryIds: ['anthology'], hashes: ['protocol-history', 'protocol'] },
     'network-pulse-modal': { entryIds: ['pulse'], hashes: ['pulse', 'network-pulse'] },
     'capital-modal': { entryIds: ['capital'], hashes: ['capital'] },
+    'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants'] },
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },
+    'baker-directory-modal': { entryIds: ['leaderboard'], hashes: ['leaderboard'] },
     'maxis-modal': { entryIds: ['maxis'], hashes: ['maxis', 'tezos-maxis'] },
     'network-health-modal': { entryIds: ['health'], hashes: ['health', 'network-health'] },
     'tezlink-modal': { entryIds: ['tezosx'], hashes: ['tezosx', 'tezlink'] },
@@ -6040,13 +6101,13 @@ function initKeyboardShortcuts() {
         { key: 'Enter', desc: 'Open selected command result' },
         { key: 'r', desc: 'Refresh data' },
         { key: 'm', desc: 'Open or close My Tezos' },
-        { key: 'h', desc: 'Open Historical Data' },
+        { key: 'h', desc: 'Open Cycle History Chamber' },
         { key: 't', desc: 'Cycle theme' },
         { key: 'c', desc: 'Toggle Rewards Calculator' },
         { key: 'k', desc: 'Open Compare Chains' },
-        { key: 'l', desc: 'Toggle Baker Leaderboard' },
-        { key: 'w', desc: 'Toggle Whales' },
-        { key: 'g', desc: 'Toggle Giants' },
+        { key: 'l', desc: 'Open Baker Directory' },
+        { key: 'w', desc: 'Open Whale Watch' },
+        { key: 'g', desc: 'Open Whale Watch Deep Sleep' },
         { key: '?', desc: 'Show this help' },
         { key: 'Esc', desc: 'Close modals/help' },
     ];
@@ -6152,7 +6213,9 @@ function initKeyboardShortcuts() {
             }
             case 'g': {
                 e.preventDefault();
-                document.getElementById('giants-toggle')?.click();
+                import('../features/whale-chamber.js')
+                    .then(({ openWhaleChamber }) => openWhaleChamber('dormant'))
+                    .catch((error) => console.warn('Failed to open Whale Watch Deep Sleep', error));
                 break;
             }
             case 'k': {

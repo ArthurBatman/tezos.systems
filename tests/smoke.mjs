@@ -59,6 +59,9 @@ const browserRoutes = [
   '/chamber/',
   '/pulse/',
   '/capital/',
+  '/whales/',
+  '/leaderboard/',
+  '/history/',
   '/maxis/',
   '/tezoscrp/',
   '/health/',
@@ -160,6 +163,8 @@ const ETHERLINK_PROMOTION_LEDGER = [
 const EXPECTED_CHAMBER_ORDER = [
   'network-pulse-entry-card',
   'capital-entry-card',
+  'whale-watch-entry-card',
+  'baker-directory-entry-card',
   'network-health',
   'chamber-entry-card',
   'tezlink-entry-card',
@@ -169,6 +174,7 @@ const EXPECTED_CHAMBER_ORDER = [
   'lb-entry-card',
   'ledger-flow-entry-card',
   'protocol-history-entry-card',
+  'cycle-history-entry-card',
   'maxis-entry-card',
   'tezoscrp-entry-card',
   'tezos-domains-entry-card'
@@ -287,6 +293,148 @@ const sampleBakers = [
     software: { version: 'v25.1', date: '2026-06-18T19:55:16Z' }
   }
 ];
+
+function sampleWhaleWatchArtifact({ dormantDaysOffset = 0 } = {}) {
+  const generatedAt = new Date().toISOString();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const sameHashDistinctOperationIds = [7001, 7002];
+  const sharedHash = 'opSmokeWhaleGroupedFlow111111111111111111111111111';
+  const groupedOperations = [
+    {
+      id: sameHashDistinctOperationIds[0],
+      hash: sharedHash,
+      type: 'transaction',
+      status: 'applied',
+      timestamp: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+      amountMutez: 125000000000,
+      sender: SAMPLE_ADDRESS,
+      senderAlias: 'QA Baker',
+      target: SAMPLE_ADDRESS_2,
+      targetAlias: 'Second Baker'
+    },
+    {
+      id: sameHashDistinctOperationIds[1],
+      hash: sharedHash,
+      type: 'transaction',
+      status: 'applied',
+      timestamp: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+      amountMutez: 75000000000,
+      sender: SAMPLE_ADDRESS_2,
+      senderAlias: 'Second Baker',
+      target: SAMPLE_ADDRESS_3,
+      targetAlias: 'Pending Baker'
+    }
+  ];
+  const singleOperation = {
+    id: 7003,
+    hash: 'opSmokeWhaleSingleFlow1111111111111111111111111111',
+    type: 'transaction',
+    status: 'applied',
+    timestamp: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+    amountMutez: 10000000000,
+    sender: SAMPLE_ADDRESS_3,
+    senderAlias: 'Pending Baker',
+    target: SAMPLE_ADDRESS,
+    targetAlias: 'QA Baker'
+  };
+  const awakeningDormantDays = 900;
+  const awakeningTimestamp = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+  const previousActivityTime = new Date(Date.parse(awakeningTimestamp) - awakeningDormantDays * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    kind: 'tezos-whale-watch',
+    version: 1,
+    generatedAt,
+    methodology: {
+      minimumTransferXtz: 1000,
+      minimumDormantBalanceXtz: 1000000,
+      minimumDormantDays: 365,
+      identity: 'TzKT operation id identifies one operation; operation-group hash groups related hops into a flow story.',
+      dormancy: 'Dormancy uses TzKT lastActivityTime. lastActivity is retained only as a block-level receipt.',
+      accountLanguage: 'Rows are large accounts, not presumed individual wallets.'
+    },
+    coverage: {
+      largeAccounts: { complete: true, pages: 2, eligibleCount: 1002 },
+      transfers24h: { complete: true, pages: 2, eligibleCount: 3 }
+    },
+    dormant: {
+      eligibleCount: 1,
+      eligibleBalanceMutez: 4500000000000,
+      displayLimit: 100,
+      records: [{
+        address: 'KT1SmokeDormantAccount1111111111111111111',
+        alias: 'Deep Vault',
+        labelSource: 'tzkt-alias',
+        accountType: 'contract',
+        balanceMutez: 4500000000000,
+        lastActivityLevel: 7654321,
+        lastActivityTime: '2022-02-03T04:05:06.000Z',
+        dormantDays: 1600
+      }]
+    },
+    awakenings: [{
+      id: 'op:7100',
+      address: 'tz1SmokeAwakenedAccount111111111111111111',
+      alias: 'Old Current',
+      accountType: 'implicit-account',
+      balanceBeforeMutez: 9000000000000,
+      balanceAfterMutez: 8876544000000,
+      previousActivityTime,
+      dormantDays: awakeningDormantDays + dormantDaysOffset,
+      awakenedAt: awakeningTimestamp,
+      movedAmountMutez: 123456000000,
+      receipt: {
+        id: 7100,
+        hash: 'opSmokeAwakeningReceipt111111111111111111111111',
+        type: 'transaction',
+        status: 'applied',
+        timestamp: awakeningTimestamp,
+        amountMutez: 123456000000,
+        sender: 'tz1SmokeAwakenedAccount111111111111111111',
+        senderAlias: 'Old Current',
+        target: SAMPLE_ADDRESS,
+        targetAlias: 'QA Baker'
+      }
+    }],
+    transfers24h: {
+      window: { since, until: generatedAt, hours: 24 },
+      semantics: 'Gross observed tez transferred by applied transaction operations. This is not economic volume and can include related internal hops.',
+      minimumXtz: 1000,
+      complete: true,
+      operationCount: 3,
+      operationGroupCount: 2,
+      uniqueSenders: 3,
+      uniqueTargets: 3,
+      grossObservedMutez: 210000000000,
+      thresholds: [
+        { thresholdXtz: 1000, operationCount: 3, operationGroupCount: 2, grossObservedMutez: 210000000000 },
+        { thresholdXtz: 10000, operationCount: 3, operationGroupCount: 2, grossObservedMutez: 210000000000 },
+        { thresholdXtz: 100000, operationCount: 1, operationGroupCount: 1, grossObservedMutez: 125000000000 },
+        { thresholdXtz: 1000000, operationCount: 0, operationGroupCount: 0, grossObservedMutez: 0 }
+      ],
+      largestOperation: groupedOperations[0],
+      topFlowStories: [
+        {
+          hash: sharedHash,
+          timestamp: groupedOperations[0].timestamp,
+          grossObservedMutez: 200000000000,
+          operations: groupedOperations,
+          operationCount: 2
+        },
+        {
+          hash: singleOperation.hash,
+          timestamp: singleOperation.timestamp,
+          grossObservedMutez: singleOperation.amountMutez,
+          operations: [singleOperation],
+          operationCount: 1
+        }
+      ]
+    },
+    sources: [
+      { label: 'TzKT large-account ledger', url: 'https://api.tzkt.io/v1/accounts', observedAt: generatedAt },
+      { label: 'TzKT applied transaction ledger', url: 'https://api.tzkt.io/v1/operations/transactions', observedAt: generatedAt }
+    ]
+  };
+}
 
 const overdelegatedBaker = {
   address: OVERDELEGATED_ADDRESS,
@@ -1141,7 +1289,15 @@ async function installFeatureMocks(context, options = {}) {
   const governanceLiveVote = Boolean(options.governanceLiveVote);
   const governanceAdoptionPeriod = Boolean(options.governanceAdoptionPeriod);
   const leaderboardSignals = Boolean(options.leaderboardSignals);
-  const leaderboardBakers = leaderboardSignals
+  const bakerDirectoryPaged = Boolean(options.bakerDirectoryPaged);
+  const whaleChamberMocks = Boolean(options.whaleChamberMocks);
+  const bakerPageOffsets = [];
+  let whaleLiveRequests = 0;
+  let whaleFailureLane = '';
+  let whaleDormancyMismatch = false;
+  let bakerGovernanceFailure = '';
+  const whaleCursorRequests = [];
+  const signalBakers = leaderboardSignals
     ? sampleBakers.map((baker, index) => ({
         ...baker,
         firstActivityTime: [
@@ -1151,6 +1307,68 @@ async function installFeatureMocks(context, options = {}) {
         ][index] || '2024-01-01T00:00:00Z'
       }))
     : sampleBakers;
+  const factualFitProfiles = [
+    {
+      alias: 'Paged Baker Community',
+      stakedBalance: 500000000000,
+      externalDelegatedBalance: 100000000000,
+      numDelegators: 80,
+      stakersCount: 20
+    },
+    {
+      alias: 'Paged Baker Alpha Tie',
+      stakedBalance: 800000000000,
+      externalDelegatedBalance: 100000000000,
+      numDelegators: 60,
+      stakersCount: 20
+    },
+    {
+      alias: 'Paged Baker Zulu Tie',
+      stakedBalance: 800000000000,
+      externalDelegatedBalance: 100000000000,
+      numDelegators: 60,
+      stakersCount: 20
+    },
+    {
+      alias: 'Paged Baker Capacity',
+      stakedBalance: 900000000000,
+      externalDelegatedBalance: 100000000000,
+      numDelegators: 15,
+      stakersCount: 5
+    },
+    {
+      alias: 'Paged Baker Over Capacity',
+      stakedBalance: 100000000000,
+      externalDelegatedBalance: 1350000000000,
+      numDelegators: 12,
+      stakersCount: 3
+    }
+  ];
+  const pagedBakerTail = Array.from({ length: 499 }, (_, index) => ({
+    ...sampleBakers[2],
+    address: `tz1SmokePagedBaker${String(index + 1).padStart(4, '0')}xxxxxxxxxxxxxxxx`,
+    alias: `Paged Baker ${String(index + 1).padStart(4, '0')}`,
+    stakingBalance: 690000000000 - index * 1000000,
+    bakingPower: 410000000000 - index * 100000,
+    numDelegators: 10 + (index % 50),
+    stakersCount: 2 + (index % 12),
+    firstActivityTime: '2024-01-01T00:00:00Z',
+    ...(factualFitProfiles[index] || {})
+  }));
+  const leaderboardBakers = bakerDirectoryPaged
+    ? [...signalBakers, ...pagedBakerTail]
+    : signalBakers;
+  const whaleLiveInitialRows = Array.from({ length: 28 }, (_, index) => ({
+    id: 8000 - index,
+    hash: index < 2
+      ? 'opSmokeLiveGrouped1111111111111111111111111111111'
+      : `opSmokeLive${String(index).padStart(3, '0')}111111111111111111111111111`,
+    timestamp: new Date(Date.now() - (index + 1) * 60_000).toISOString(),
+    amount: (2500 + index * 125) * 1e6,
+    status: 'applied',
+    sender: { address: index % 2 ? SAMPLE_ADDRESS_2 : SAMPLE_ADDRESS, alias: index % 2 ? 'Second Baker' : 'QA Baker' },
+    target: { address: index % 3 ? SAMPLE_ADDRESS_3 : SAMPLE_ADDRESS_2, alias: index % 3 ? 'Pending Baker' : 'Second Baker' }
+  }));
   const nullCycleTiming = Boolean(options.nullCycleTiming);
   const forwardDomainAddress = Object.prototype.hasOwnProperty.call(options, 'forwardDomainAddress')
     ? options.forwardDomainAddress
@@ -1211,9 +1429,16 @@ async function installFeatureMocks(context, options = {}) {
       return fulfillText(route, dashboardHtml, 'text/html');
     }
 
+    if (whaleChamberMocks && parsedUrl.pathname.endsWith('/data/whale-watch.json')) {
+      return fulfillJson(route, sampleWhaleWatchArtifact({ dormantDaysOffset: whaleDormancyMismatch ? 1000 : 0 }));
+    }
+
     if (leaderboardSignals
       && parsedUrl.pathname.endsWith('/data/maxis-careers.json')
       && parsedUrl.searchParams.get('surface') === 'leaderboard') {
+      if (bakerGovernanceFailure === 'career' || bakerGovernanceFailure === 'both') {
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke governance career unavailable"}' });
+      }
       return fulfillJson(route, {
         schema: 1,
         kind: 'maxis-governance-careers',
@@ -1239,6 +1464,9 @@ async function installFeatureMocks(context, options = {}) {
     if (leaderboardSignals
       && parsedUrl.pathname.endsWith('/data/governance-votes.json')
       && parsedUrl.searchParams.get('surface') === 'leaderboard') {
+      if (bakerGovernanceFailure === 'proposals' || bakerGovernanceFailure === 'both') {
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke governance proposals unavailable"}' });
+      }
       return fulfillJson(route, {
         generatedAt: new Date().toISOString(),
         epochCount: 1,
@@ -1682,7 +1910,14 @@ async function installFeatureMocks(context, options = {}) {
         ]);
       }
       if (url.includes('/delegates/count?active=true')) return fulfillJson(route, leaderboardBakers.length);
-      if (url.includes('/delegates?active=true') && url.includes('select=') && url.includes('bakingPower')) return fulfillJson(route, leaderboardBakers);
+      if (url.includes('/delegates?active=true') && url.includes('select=') && url.includes('bakingPower')) {
+        const offset = Number(parsedUrl.searchParams.get('offset') || 0);
+        const limit = Number(parsedUrl.searchParams.get('limit') || 500);
+        bakerPageOffsets.push(offset);
+        return fulfillJson(route, bakerDirectoryPaged
+          ? leaderboardBakers.slice(offset, offset + limit)
+          : leaderboardBakers);
+      }
       if (url.includes('/delegates?active=true&limit=')) return fulfillJson(route, sampleBakers.map((b) => b.address));
       if (url.includes('/rights?')) {
         const rights = new URL(url).searchParams;
@@ -2005,6 +2240,29 @@ async function installFeatureMocks(context, options = {}) {
       }
       if (url.includes('/operations/transactions?')) {
         const txParams = parsedUrl.searchParams;
+        if (whaleChamberMocks && txParams.has('amount.ge')) {
+          whaleLiveRequests += 1;
+          if (txParams.has('timestamp.ge') || txParams.has('timestamp.gt')) {
+            whaleCursorRequests.push({ lane: 'transactions', cursor: txParams.has('timestamp.ge') ? 'timestamp.ge' : 'timestamp.gt' });
+          }
+          if (whaleFailureLane === 'transactions') {
+            return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke transaction lane unavailable"}' });
+          }
+          if (txParams.has('timestamp.ge')) {
+            return fulfillJson(route, [{
+              id: whaleFailureLane ? 9999 : 9001,
+              hash: whaleFailureLane
+                ? 'opSmokeLiveMustNotCommit111111111111111111111111'
+                : 'opSmokeLivePrepend11111111111111111111111111111',
+              timestamp: new Date(Date.now() + 1000).toISOString(),
+              amount: 987654000000,
+              status: 'applied',
+              sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+              target: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' }
+            }]);
+          }
+          return fulfillJson(route, whaleLiveInitialRows);
+        }
         const isLedgerFlowSender = txParams.get('sender') === SAMPLE_ADDRESS;
         const isLedgerFlowTarget = txParams.get('target') === SAMPLE_ADDRESS;
         const isSpecializedTxQuery = txParams.has('targetCodeHash.in')
@@ -2046,7 +2304,16 @@ async function installFeatureMocks(context, options = {}) {
           }
         ]);
       }
-      if (url.includes('/operations/delegations?')) return fulfillJson(route, []);
+      if (whaleChamberMocks && whaleFailureLane === 'delegations' && url.includes('/operations/delegations?')) {
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke delegation lane unavailable"}' });
+      }
+      if (url.includes('/operations/delegations?')) {
+        if (whaleChamberMocks) {
+          const cursor = parsedUrl.searchParams.has('timestamp.ge') ? 'timestamp.ge' : parsedUrl.searchParams.has('timestamp.gt') ? 'timestamp.gt' : '';
+          if (cursor) whaleCursorRequests.push({ lane: 'delegations', cursor });
+        }
+        return fulfillJson(route, []);
+      }
       if (url.includes('/operations/staking?') && url.includes(`baker=${SAMPLE_ADDRESS}`) && url.includes('action=stake')) {
         return fulfillJson(route, [
           {
@@ -2058,6 +2325,14 @@ async function installFeatureMocks(context, options = {}) {
             action: 'stake'
           }
         ]);
+      }
+      if (whaleChamberMocks && url.includes('/operations/staking?')) {
+        const action = parsedUrl.searchParams.get('action') || '';
+        const cursor = parsedUrl.searchParams.has('timestamp.ge') ? 'timestamp.ge' : parsedUrl.searchParams.has('timestamp.gt') ? 'timestamp.gt' : '';
+        if (cursor && ['stake', 'unstake'].includes(action)) whaleCursorRequests.push({ lane: action, cursor });
+        if (whaleFailureLane === action) {
+          return route.fulfill({ status: 503, contentType: 'application/json', body: `{"error":"smoke ${action} lane unavailable"}` });
+        }
       }
       if (url.includes('/operations/staking?')) return fulfillJson(route, []);
       if (url.includes(`/accounts/${OVERDELEGATED_ADDRESS}`) && !url.includes('/operations?')) {
@@ -2471,6 +2746,14 @@ async function installFeatureMocks(context, options = {}) {
 
     return route.continue();
   });
+  return {
+    bakerPageOffsets,
+    failBakerGovernance(lane = '') { bakerGovernanceFailure = lane; },
+    failWhaleLane(lane = '') { whaleFailureLane = lane; },
+    mismatchWhaleDormancy(on = true) { whaleDormancyMismatch = Boolean(on); },
+    get whaleCursorRequests() { return whaleCursorRequests.map((entry) => ({ ...entry })); },
+    get whaleLiveRequests() { return whaleLiveRequests; }
+  };
 }
 
 function log(message) {
@@ -2497,10 +2780,11 @@ async function assertChamberOrder(page, label) {
   );
   const expectedPairs = [
     ['network-pulse-entry-card', 'capital-entry-card'],
+    ['whale-watch-entry-card', 'baker-directory-entry-card'],
     ['network-health', 'chamber-entry-card'],
     ['tezlink-entry-card', 'etherlink-governance-entry-card'],
     ['tz4-adoption', 'staking-entry-card', 'lb-entry-card'],
-    ['ledger-flow-entry-card', 'protocol-history-entry-card'],
+    ['ledger-flow-entry-card', 'protocol-history-entry-card', 'cycle-history-entry-card'],
     ['maxis-entry-card'],
     ['tezoscrp-entry-card'],
     ['tezos-domains-entry-card']
@@ -2514,8 +2798,8 @@ async function assertChamberOrder(page, label) {
     `${label}: Capital Chamber must sit immediately after Network Pulse, saw ${JSON.stringify(chamberState.pairs.at(0))}`
   );
   assert(
-    chamberState.pairs.at(3)?.join(',') === 'tz4-adoption,staking-entry-card,lb-entry-card',
-    `${label}: Staking Chamber must sit between tz4 Adoption and Liquidity Baking, saw ${JSON.stringify(chamberState.pairs.at(3))}`
+    chamberState.pairs.at(4)?.join(',') === 'tz4-adoption,staking-entry-card,lb-entry-card',
+    `${label}: Staking Chamber must sit between tz4 Adoption and Liquidity Baking, saw ${JSON.stringify(chamberState.pairs.at(4))}`
   );
   assert(
     chamberState.pairs.at(-1)?.length === 1 && chamberState.pairs.at(-1)?.[0] === 'tezos-domains-entry-card',
@@ -2523,11 +2807,79 @@ async function assertChamberOrder(page, label) {
   );
 }
 
+async function assertPromotedLauncherGeometry(page, label, { desktop = false } = {}) {
+  await page.waitForFunction(() => {
+    if (window.innerWidth > 560) return true;
+    const stylesheet = document.getElementById('leaderboard-css');
+    const baker = document.getElementById('baker-directory-entry-card');
+    return Boolean(stylesheet?.sheet && baker && Number.parseFloat(getComputedStyle(baker).minHeight) >= 340);
+  }, null, { timeout: 5000 });
+  const geometry = await page.evaluate(() => {
+    const readCard = (selector, railsSelector) => {
+      const card = document.querySelector(selector);
+      const front = card?.querySelector('.card-front');
+      const cardRect = card?.getBoundingClientRect();
+      const frontRect = front?.getBoundingClientRect();
+      const boundedSelectors = [
+        '.card-copy-link',
+        '.chamber-info-btn',
+        '.chamber-expand-cue',
+        railsSelector
+      ];
+      const controls = boundedSelectors.flatMap((boundedSelector) => (
+        [...(card?.querySelectorAll(boundedSelector) || [])].map((node) => {
+          const rect = node.getBoundingClientRect();
+          return {
+            selector: boundedSelector,
+            visible: rect.width > 0 && rect.height > 0,
+            inside: Boolean(cardRect
+              && rect.left >= cardRect.left - 1
+              && rect.right <= cardRect.right + 1
+              && rect.top >= cardRect.top - 1
+              && rect.bottom <= cardRect.bottom + 1),
+            rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }
+          };
+        })
+      ));
+      return {
+        exists: Boolean(card && front),
+        cardHeight: cardRect?.height || 0,
+        frontHeight: frontRect?.height || 0,
+        cardScrollHeight: card?.scrollHeight || 0,
+        cardClientHeight: card?.clientHeight || 0,
+        frontScrollHeight: front?.scrollHeight || 0,
+        frontClientHeight: front?.clientHeight || 0,
+        controls
+      };
+    };
+    return {
+      whale: readCard('#whale-watch-entry-card', '.whale-watch-entry-rails'),
+      baker: readCard('#baker-directory-entry-card', '.baker-directory-entry-rails'),
+      cycle: readCard(
+        '#cycle-history-entry-card',
+        '.cycle-history-entry-range, .cycle-history-entry-metrics, .cycle-history-entry-route'
+      )
+    };
+  });
+  for (const [name, card] of Object.entries(geometry)) {
+    assert(card.exists && card.cardHeight > 0 && card.frontHeight > 0, `${label}: ${name} launcher card is missing or collapsed ${JSON.stringify(card)}`);
+    assert(card.cardScrollHeight <= card.cardClientHeight + 1, `${label}: ${name} launcher card clips its content ${JSON.stringify(card)}`);
+    assert(card.frontScrollHeight <= card.frontClientHeight + 1, `${label}: ${name} launcher front clips its content ${JSON.stringify(card)}`);
+    const outside = card.controls.filter((control) => control.visible && !control.inside);
+    assert(outside.length === 0, `${label}: ${name} launcher control or route rail escapes the card ${JSON.stringify(outside)}`);
+  }
+  if (desktop) {
+    assert(Math.abs(geometry.whale.cardHeight - geometry.baker.cardHeight) <= 1, `${label}: Whale Watch and Baker Directory desktop pair heights differ ${JSON.stringify(geometry)}`);
+  }
+}
+
 async function assertChamberControlGeometry(page, label) {
   const issues = await page.evaluate(() => {
     const cardSelectors = [
       '#network-pulse-entry-card',
       '#capital-entry-card',
+      '#whale-watch-entry-card',
+      '#baker-directory-entry-card',
       '#chamber-entry-card',
       '#staking-entry-card',
       '#tezlink-entry-card',
@@ -2535,6 +2887,7 @@ async function assertChamberControlGeometry(page, label) {
       '#lb-entry-card',
       '#ledger-flow-entry-card',
       '#protocol-history-entry-card',
+      '#cycle-history-entry-card',
       '#maxis-entry-card',
       '#tezoscrp-entry-card',
       '#tezos-domains-entry-card',
@@ -3748,7 +4101,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   const rankedSearchIntents = [
     ['my tezos', 'My Tezos'],
     ['wallet', 'My Tezos'],
-    ['/leaderboard', 'Baker Leaderboard'],
+    ['/leaderboard', 'Baker Directory'],
     ['/history', 'Cycle History'],
     ['widgets', 'Embed Widgets'],
     ['chambers', 'Tezos Chambers'],
@@ -10080,7 +10433,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await page.locator('#shortcuts-btn').click();
   await page.locator('#keyboard-help.visible').waitFor({ state: 'visible', timeout: 5000 });
   const keyboardHelpText = await page.locator('#keyboard-help').innerText();
-  assert(/Focus command bar/i.test(keyboardHelpText) && /Open selected command result/i.test(keyboardHelpText) && /Open Historical Data/i.test(keyboardHelpText), `keyboard help overlay copy mismatch: ${keyboardHelpText}`);
+  assert(/Focus command bar/i.test(keyboardHelpText) && /Open selected command result/i.test(keyboardHelpText) && /Open Cycle History Chamber/i.test(keyboardHelpText), `keyboard help overlay copy mismatch: ${keyboardHelpText}`);
   await page.keyboard.press('Escape');
   await page.locator('#keyboard-help').waitFor({ state: 'detached', timeout: 5000 });
 
@@ -10244,26 +10597,52 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
   });
-  await installFeatureMocks(context, { leaderboardSignals: true });
+  const mockState = await installFeatureMocks(context, {
+    leaderboardSignals: true,
+    bakerDirectoryPaged: true
+  });
   await context.addInitScript(() => {
+    window.__BAKER_DIRECTORY_REFRESH_MS__ = 1000;
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
-    localStorage.setItem('tezos-systems-leaderboard-visible', 'true');
     localStorage.removeItem('tezos-systems-leaderboard-cache-v5');
   });
 
   const page = await context.newPage();
-  attachIssueCollectors(page, 'leaderboard signals', issues);
-  const response = await page.goto(`${baseUrl}/?theme=matrix#leaderboard`, { waitUntil: 'domcontentloaded' });
-  assert(response?.ok(), `leaderboard signals: dashboard failed with HTTP ${response?.status()}`);
-  await page.locator('#leaderboard-results .leaderboard-table').waitFor({ state: 'visible', timeout: 12000 });
-  await page.locator(`#leaderboard-results .lb-row[data-address="${SAMPLE_ADDRESS}"]`).waitFor({ state: 'visible', timeout: 8000 });
+  attachIssueCollectors(page, 'Baker Directory', issues);
+  const response = await page.goto(`${baseUrl}/leaderboard/?view=directory`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Baker Directory: direct route failed with HTTP ${response?.status()}`);
+  await page.locator('#baker-directory-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#baker-directory-panel .baker-directory-table').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#baker-directory-panel .baker-directory-table tbody tr').length === 502, null, { timeout: 15000 });
+  await assertPromotedLauncherGeometry(page, 'Baker Directory desktop launcher pair', { desktop: true });
+  assert(mockState.bakerPageOffsets.includes(0) && mockState.bakerPageOffsets.includes(500), `Baker Directory: complete active set was not fetched through the second page: ${JSON.stringify(mockState.bakerPageOffsets)}`);
+  assert(new URL(page.url()).pathname === '/leaderboard/' && new URL(page.url()).searchParams.get('view') === 'directory', `Baker Directory: direct route state drifted: ${page.url()}`);
+  await expectCount(page, '#baker-directory-modal [role="tab"][data-bdc-view]', 3, 'Baker Directory views');
+  await expectCount(page, '#baker-directory-panel .baker-directory-table tbody tr', 502, 'Baker Directory complete funded active set');
+
+  const overCapacityState = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('#baker-directory-panel .baker-directory-table tbody tr')]
+      .find((candidate) => candidate.textContent?.includes('Paged Baker Over Capacity'));
+    const cell = row?.querySelector('td:nth-child(5)');
+    return {
+      critical: cell?.classList.contains('cap-critical') || false,
+      hasOpenRoom: Boolean(cell?.querySelector('[aria-label="Open delegation room"]')),
+      text: cell?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(
+    overCapacityState.text === '150%'
+      && overCapacityState.critical
+      && !overCapacityState.hasOpenRoom,
+    `Baker Directory: raw delegation use above 100% must remain visible instead of being clamped ${JSON.stringify(overCapacityState)}`
+  );
 
   const signalState = await page.evaluate(({ og, veteran, postCutoff }) => {
     const readRow = (address) => {
-      const row = document.querySelector(`#leaderboard-results .lb-row[data-address="${address}"]`);
+      const row = document.querySelector(`#baker-directory-panel .baker-directory-table tr[data-address="${address}"]`);
       return {
         exists: Boolean(row),
         badges: Array.from(row?.querySelectorAll('.lb-badge') || []).map((badge) => ({
@@ -10277,77 +10656,196 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
       og: readRow(og),
       veteran: readRow(veteran),
       postCutoff: readRow(postCutoff),
-      footer: document.querySelector('#leaderboard-results .leaderboard-footer')?.textContent || ''
+      footer: document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent || '',
+      setCopy: document.querySelector('#baker-directory-panel .baker-directory-section-heading')?.textContent || ''
     };
   }, { og: SAMPLE_ADDRESS, veteran: SAMPLE_ADDRESS_2, postCutoff: SAMPLE_ADDRESS_3 });
 
-  assert(signalState.og.badges.some((badge) => badge.kind === 'og' && /OG · 2018/.test(badge.text)), `leaderboard signals: launch-era OG tier missing ${JSON.stringify(signalState)}`);
-  assert(!signalState.og.badges.some((badge) => badge.kind === 'veteran'), `leaderboard signals: OG baker should not carry a redundant Veteran tier ${JSON.stringify(signalState.og)}`);
-  assert(signalState.og.badges.some((badge) => badge.kind === 'accepted' && /Accepted · 2/.test(badge.text) && /Smoke One, Smoke Two/.test(badge.title)), `leaderboard signals: accepted-proposal initiator count missing ${JSON.stringify(signalState.og)}`);
-  assert(signalState.og.badges.some((badge) => badge.kind === 'voting' && /Streak · 12/.test(badge.text) && /Career high: 18/.test(badge.title)), `leaderboard signals: completed ballot streak missing ${JSON.stringify(signalState.og)}`);
-  assert(signalState.veteran.badges.some((badge) => badge.kind === 'veteran' && /Veteran · 2021/.test(badge.text)), `leaderboard signals: end-of-2021 Veteran cutoff missing ${JSON.stringify(signalState.veteran)}`);
-  assert(!signalState.postCutoff.badges.some((badge) => ['og', 'veteran'].includes(badge.kind)), `leaderboard signals: 2022 baker crossed the Veteran cutoff ${JSON.stringify(signalState.postCutoff)}`);
-  assert(/governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer), `leaderboard signals: governance receipt freshness missing ${signalState.footer}`);
+  assert(signalState.og.badges.some((badge) => badge.kind === 'og' && /OG · 2018/.test(badge.text)), `Baker Directory: launch-era OG receipt missing ${JSON.stringify(signalState)}`);
+  assert(!signalState.og.badges.some((badge) => badge.kind === 'veteran'), `Baker Directory: OG baker should not carry redundant Veteran marker ${JSON.stringify(signalState.og)}`);
+  assert(signalState.og.badges.some((badge) => badge.kind === 'accepted' && /Accepted · 2/.test(badge.text) && /Smoke One, Smoke Two/.test(badge.title)), `Baker Directory: accepted-proposal initiator receipt missing ${JSON.stringify(signalState.og)}`);
+  assert(signalState.og.badges.some((badge) => badge.kind === 'voting' && /Streak · 12/.test(badge.text) && /Career high: 18/.test(badge.title)), `Baker Directory: completed-ballot streak receipt missing ${JSON.stringify(signalState.og)}`);
+  assert(signalState.veteran.badges.some((badge) => badge.kind === 'veteran' && /Veteran · 2021/.test(badge.text)), `Baker Directory: end-of-2021 Veteran cutoff missing ${JSON.stringify(signalState.veteran)}`);
+  assert(!signalState.postCutoff.badges.some((badge) => ['og', 'veteran'].includes(badge.kind)), `Baker Directory: post-cutoff baker received a tenure marker ${JSON.stringify(signalState.postCutoff)}`);
+  assert(/Complete funded set/.test(signalState.setCopy) && /governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer), `Baker Directory: set or source receipt copy drifted ${JSON.stringify(signalState)}`);
 
-  await page.locator('.leaderboard-signal-legend summary').click();
-  await page.locator('.leaderboard-signal-legend[open] .leaderboard-signal-legend-panel').waitFor({ state: 'visible', timeout: 5000 });
-  const legendState = await page.evaluate(() => {
-    const panel = document.querySelector('.leaderboard-signal-legend-panel');
-    const rect = panel?.getBoundingClientRect();
-    const badges = Array.from(document.querySelectorAll('#leaderboard-results .lb-badge'));
-    return {
-      text: panel?.textContent || '',
-      panelVisible: Boolean(rect && rect.width > 0 && rect.height > 0),
-      panelInsideViewport: Boolean(rect && rect.left >= 0 && rect.right <= window.innerWidth + 1),
-      badgeCount: badges.length,
-      hiddenBadges: badges.filter((badge) => {
-        const badgeRect = badge.getBoundingClientRect();
-        return badgeRect.width <= 0 || badgeRect.height <= 0;
-      }).length,
-      bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
-    };
-  });
-  assert(/shown instead of Veteran/.test(legendState.text)
-    && /final TzKT status accepted/.test(legendState.text)
-    && /Consecutive completed Exploration\/Promotion periods/.test(legendState.text)
-    && /not uptime, payout, or performance grades/.test(legendState.text), `leaderboard signals: factual legend drifted ${legendState.text}`);
-  assert(legendState.panelVisible && legendState.panelInsideViewport && legendState.badgeCount >= 4 && legendState.hiddenBadges === 0 && legendState.bodyOverflow <= 1, `leaderboard signals: desktop geometry failed ${JSON.stringify(legendState)}`);
-
-  const quietBefore = await page.evaluate((address) => {
-    const root = document.querySelector('#leaderboard-results');
-    const wrap = root.querySelector('.leaderboard-table-wrap');
-    const summary = root.querySelector('.leaderboard-signal-legend summary');
-    const row = root.querySelector(`.lb-row[data-address="${address}"]`);
-    wrap.scrollLeft = Math.min(120, Math.max(0, wrap.scrollWidth - wrap.clientWidth));
-    summary.focus({ preventScroll: true });
-    window.__leaderboardSignalRow = row;
-    window.__leaderboardSignalSummary = summary;
-    window.__leaderboardSignalWrap = wrap;
-    return { left: wrap.scrollLeft };
+  await page.evaluate((address) => {
+    const row = document.querySelector(`#baker-directory-panel .baker-directory-table tr[data-address="${address}"]`);
+    window.__bakerAcceptedBadge = row?.querySelector('[data-badge="accepted"]');
+    window.__bakerVotingBadge = row?.querySelector('[data-badge="voting"]');
   }, SAMPLE_ADDRESS);
+  mockState.failBakerGovernance('both');
+  const failedGovernanceState = await page.evaluate(async (address) => {
+    const feature = await import('/js/features/leaderboard.js');
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await feature.refreshBakerDirectoryChamber({ quiet: true });
+      const footer = document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent || '';
+      if (/last-good governance receipts/i.test(footer)) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const row = document.querySelector(`#baker-directory-panel .baker-directory-table tr[data-address="${address}"]`);
+    const accepted = row?.querySelector('[data-badge="accepted"]');
+    const voting = row?.querySelector('[data-badge="voting"]');
+    return {
+      acceptedText: accepted?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      footer: document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      sameAccepted: accepted === window.__bakerAcceptedBadge,
+      sameVoting: voting === window.__bakerVotingBadge,
+      votingText: voting?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  }, SAMPLE_ADDRESS);
+  mockState.failBakerGovernance('');
+  assert(
+    failedGovernanceState.acceptedText === '🏛 Accepted · 2'
+      && failedGovernanceState.votingText === '🗳 Streak · 12'
+      && failedGovernanceState.sameAccepted
+      && failedGovernanceState.sameVoting
+      && /last-good governance receipts/i.test(failedGovernanceState.footer),
+    `Baker Directory: career/proposal refresh failures must retain validated badge maps and label them last-good ${JSON.stringify(failedGovernanceState)}`
+  );
+  for (const artifactName of ['maxis-careers.json', 'governance-votes.json']) {
+    const expectedFailureIssue = issues.findIndex((issue) => issue.includes('503 (Service Unavailable)') && issue.includes(artifactName));
+    assert(expectedFailureIssue >= 0, `Baker Directory: ${artifactName} failure probe did not reach the browser fetch path ${JSON.stringify(issues)}`);
+    issues.splice(expectedFailureIssue, 1);
+  }
   await page.evaluate(async () => {
-    const leaderboard = await import('/js/features/leaderboard.js');
-    await leaderboard.refreshLeaderboard({ quiet: true });
+    const feature = await import('/js/features/leaderboard.js');
+    await feature.refreshBakerDirectoryChamber({ quiet: true });
   });
-  await page.waitForFunction(() => document.querySelector('#leaderboard-results')?.dataset.quietRefreshSettled === 'true', null, { timeout: 8000 });
-  const quietAfter = await page.evaluate((address) => {
-    const root = document.querySelector('#leaderboard-results');
-    const wrap = root.querySelector('.leaderboard-table-wrap');
-    const badge = root.querySelector(`.lb-row[data-address="${address}"] .lb-badge-og`);
-    const style = badge ? getComputedStyle(badge) : null;
+  await page.waitForFunction(() => {
+    const footer = document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent || '';
+    return /governance receipts/i.test(footer) && !/last-good/i.test(footer);
+  }, null, { timeout: 5000 });
+
+  await page.locator('#baker-directory-tab-discover').click();
+  await page.locator('#baker-directory-panel .baker-directory-match').first().waitFor({ state: 'visible', timeout: 5000 });
+  const communityFit = await page.evaluate(() => ({
+    method: document.querySelector('.baker-directory-method')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    names: Array.from(document.querySelectorAll('.baker-directory-match h3')).slice(0, 3).map((node) => node.textContent?.trim()),
+    reasons: Array.from(document.querySelectorAll('.baker-directory-match p')).slice(0, 3).map((node) => node.textContent?.replace(/\s+/g, ' ').trim()),
+    scoreNodes: document.querySelectorAll('#baker-directory-panel [data-score], #baker-directory-panel .baker-fit-score, #baker-directory-panel .baker-directory-match-score').length
+  }));
+  assert(
+    communityFit.names.join(',') === 'Paged Baker Community,Paged Baker Alpha Tie,Paged Baker Zulu Tie',
+    `Baker Directory: Community must order by community, then room, then name ${JSON.stringify(communityFit)}`
+  );
+  assert(
+    /strict filters/i.test(communityFit.method)
+      && /ties use the other fact, then baker name/i.test(communityFit.method)
+      && /No blended score or inferred quality grade is calculated/i.test(communityFit.method)
+      && communityFit.scoreNodes === 0
+      && communityFit.reasons.every((reason) => /XTZ room/.test(reason) && /delegators \+ stakers/.test(reason)),
+    `Baker Directory: Discover must disclose factual lexicographic ordering without a hidden score ${JSON.stringify(communityFit)}`
+  );
+
+  await page.locator('[data-fit-key="priority"][data-fit-value="capacity"]').click();
+  await page.waitForFunction(() => document.querySelector('.baker-directory-match h3')?.textContent?.trim() === 'Paged Baker Capacity', null, { timeout: 5000 });
+  const capacityFitNames = await page.locator('.baker-directory-match h3').allTextContents();
+  assert(
+    capacityFitNames.slice(0, 3).map((name) => name.trim()).join(',') === 'Paged Baker Capacity,Paged Baker Alpha Tie,Paged Baker Zulu Tie',
+    `Baker Directory: Capacity must order by room, then community, then name ${JSON.stringify(capacityFitNames.slice(0, 6))}`
+  );
+  await page.locator('[data-fit-key="style"][data-fit-value="modern"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('.baker-directory-match').length === 1, null, { timeout: 5000 });
+  assert((await page.locator('.baker-directory-match h3').innerText()).trim() === 'QA Baker', 'Baker Directory: tz4-ready evidence must be a strict factual filter');
+  await page.locator('[data-fit-key="style"][data-fit-value="balanced"]').click();
+  await page.locator('[data-fit-key="priority"][data-fit-value="community"]').click();
+
+  await page.locator('#baker-directory-tab-signals').click();
+  await page.locator('#baker-directory-panel .baker-directory-signal-grid').waitFor({ state: 'visible', timeout: 5000 });
+  const signalsCopy = await page.locator('#baker-directory-panel').innerText();
+  assert(/final TzKT status is accepted/.test(signalsCopy)
+    && /completed Exploration or Promotion period/.test(signalsCopy)
+    && /None is an uptime, payout, reliability, or overall performance score/.test(signalsCopy), `Baker Directory: factual signal rules drifted: ${signalsCopy}`);
+  await page.locator('[data-bdc-signal="accepted"]').click();
+  await expectCount(page, '.baker-directory-signal-roster-grid article', 1, 'Baker Directory accepted proposal roster');
+  assert((await page.locator('.baker-directory-signal-roster-grid').innerText()).includes('QA Baker'), 'Baker Directory: accepted proposal signal attributed to wrong baker');
+  await page.locator('[data-bdc-signal="all"]').click();
+
+  await page.locator('#baker-directory-tab-directory').click();
+  const search = page.locator('#baker-directory-search-input');
+  await search.fill('Paged Baker');
+  await page.waitForFunction(() => document.querySelectorAll('.baker-directory-table tbody tr').length === 499, null, { timeout: 5000 });
+  const quietBefore = await page.evaluate(() => {
+    const body = document.querySelector('#baker-directory-body');
+    const input = document.querySelector('#baker-directory-search-input');
+    const tab = document.querySelector('#baker-directory-tab-directory');
+    const row = document.querySelector('.baker-directory-table tbody tr');
+    body.scrollTop = Math.min(640, Math.max(0, body.scrollHeight - body.clientHeight));
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(0, 5);
+    window.__bakerDirectoryInput = input;
+    window.__bakerDirectoryTab = tab;
+    window.__bakerDirectoryRow = row;
+    window.__bakerDirectoryBody = body;
     return {
-      sameRow: root.querySelector(`.lb-row[data-address="${address}"]`) === window.__leaderboardSignalRow,
-      sameSummary: root.querySelector('.leaderboard-signal-legend summary') === window.__leaderboardSignalSummary,
-      sameWrap: wrap === window.__leaderboardSignalWrap,
-      focused: document.activeElement === window.__leaderboardSignalSummary,
-      legendOpen: root.querySelector('.leaderboard-signal-legend')?.open || false,
-      left: wrap.scrollLeft,
-      animation: style?.animationName || '',
-      opacity: style?.opacity || ''
+      pageY: window.scrollY,
+      top: body.scrollTop,
+      selection: input.value.slice(input.selectionStart, input.selectionEnd),
+      rowAddress: row?.dataset.address || ''
     };
-  }, SAMPLE_ADDRESS);
-  assert(quietAfter.sameRow && quietAfter.sameSummary && quietAfter.sameWrap && quietAfter.focused && quietAfter.legendOpen, `leaderboard signals: quiet refresh replaced browsing state ${JSON.stringify({ quietBefore, quietAfter })}`);
-  assert(Math.abs(quietAfter.left - quietBefore.left) < 1 && quietAfter.animation === 'none' && quietAfter.opacity === '1', `leaderboard signals: quiet refresh moved or reanimated signals ${JSON.stringify({ quietBefore, quietAfter })}`);
+  });
+  await page.evaluate(async () => {
+    const feature = await import('/js/features/leaderboard.js');
+    await feature.refreshBakerDirectoryChamber({ quiet: true });
+  });
+  await page.waitForFunction(() => document.querySelector('#baker-directory-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 8000 });
+  const quietAfter = await page.evaluate((rowAddress) => {
+    const body = document.querySelector('#baker-directory-body');
+    const input = document.querySelector('#baker-directory-search-input');
+    const tab = document.querySelector('#baker-directory-tab-directory');
+    const row = document.querySelector(`.baker-directory-table tr[data-address="${rowAddress}"]`);
+    return {
+      sameBody: body === window.__bakerDirectoryBody,
+      sameInput: input === window.__bakerDirectoryInput,
+      sameTab: tab === window.__bakerDirectoryTab,
+      sameRow: row === window.__bakerDirectoryRow,
+      focused: document.activeElement === input,
+      selection: input.value.slice(input.selectionStart, input.selectionEnd),
+      selectedView: tab?.getAttribute('aria-selected'),
+      pageY: window.scrollY,
+      top: body.scrollTop,
+      settled: body.dataset.quietRefreshSettled,
+      animation: getComputedStyle(row).animationName,
+      opacity: getComputedStyle(row).opacity
+    };
+  }, quietBefore.rowAddress);
+  assert(quietAfter.sameBody && quietAfter.sameInput && quietAfter.sameTab && quietAfter.sameRow && quietAfter.focused, `Baker Directory: quiet refresh replaced focused browsing nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.selection === quietBefore.selection && quietAfter.selectedView === 'true', `Baker Directory: quiet refresh lost selection or active tab ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(Math.abs(quietAfter.top - quietBefore.top) < 1 && quietAfter.pageY === quietBefore.pageY, `Baker Directory: quiet refresh moved nested or page scroll ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.settled === 'true' && quietAfter.animation === 'none' && quietAfter.opacity === '1', `Baker Directory: quiet refresh replayed or stranded animation state ${JSON.stringify(quietAfter)}`);
+  const readerTop = await page.evaluate(() => {
+    const body = document.querySelector('#baker-directory-body');
+    body.scrollTop = Math.max(0, body.scrollTop - 43);
+    return body.scrollTop;
+  });
+  await page.waitForTimeout(120);
+  assert(Math.abs((await page.locator('#baker-directory-body').evaluate((body) => body.scrollTop)) - readerTop) < 1, 'Baker Directory: delayed restore overrode a reader scroll made after reconciliation');
+
+  await page.locator('[data-bdc-clear-search]').click();
+  await page.waitForFunction(() => {
+    const input = document.querySelector('#baker-directory-search-input');
+    return input?.value === ''
+      && input.getAttribute('value') === ''
+      && document.querySelectorAll('.baker-directory-table tbody tr').length === 502
+      && document.activeElement === input
+      && !new URL(window.location.href).searchParams.has('search');
+  }, null, { timeout: 5000 });
+  const clearedSearchState = await page.evaluate(() => ({
+    attribute: document.querySelector('#baker-directory-search-input')?.getAttribute('value'),
+    focused: document.activeElement === document.querySelector('#baker-directory-search-input'),
+    property: document.querySelector('#baker-directory-search-input')?.value,
+    rows: document.querySelectorAll('.baker-directory-table tbody tr').length,
+    route: window.location.href
+  }));
+  assert(
+    clearedSearchState.property === ''
+      && clearedSearchState.attribute === ''
+      && clearedSearchState.focused
+      && clearedSearchState.rows === 502
+      && !new URL(clearedSearchState.route).searchParams.has('search'),
+    `Baker Directory: Clear must reset the live input property, complete rows, focus, and route state ${JSON.stringify(clearedSearchState)}`
+  );
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
@@ -10355,28 +10853,556 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
     localStorage.setItem('tezos-systems-theme', 'clean');
     return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
+  await assertPromotedLauncherGeometry(page, 'Baker Directory mobile launcher pair');
   const mobileState = await page.evaluate(() => {
-    const panel = document.querySelector('.leaderboard-signal-legend-panel');
-    const panelRect = panel?.getBoundingClientRect();
-    const wrap = document.querySelector('.leaderboard-table-wrap');
+    const overlay = document.querySelector('#baker-directory-modal');
+    const content = document.querySelector('.baker-directory-content');
+    const wrap = document.querySelector('.baker-directory-table-wrap');
     const badge = document.querySelector('.lb-badge-accepted');
     const badgeStyle = badge ? getComputedStyle(badge) : null;
     return {
       bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      panelInsideViewport: Boolean(panelRect && panelRect.left >= 0 && panelRect.right <= window.innerWidth + 1),
-      panelScrollable: Boolean(panel && panel.scrollHeight >= panel.clientHeight),
+      overlayActive: overlay?.classList.contains('active') || false,
+      contentInsideViewport: Boolean(content && content.getBoundingClientRect().left >= -1 && content.getBoundingClientRect().right <= window.innerWidth + 1),
       tableContained: Boolean(wrap && wrap.scrollWidth > wrap.clientWidth && wrap.getBoundingClientRect().right <= window.innerWidth + 1),
       badgeVisible: Boolean(badge && badge.getBoundingClientRect().width > 0 && badgeStyle?.display !== 'none'),
       badgeColor: badgeStyle?.color || '',
       badgeBackground: badgeStyle?.backgroundColor || ''
     };
   });
-  assert(mobileState.bodyOverflow <= 1 && mobileState.panelInsideViewport && mobileState.tableContained && mobileState.badgeVisible, `leaderboard signals: mobile containment failed ${JSON.stringify(mobileState)}`);
-  assert(mobileState.badgeColor !== mobileState.badgeBackground, `leaderboard signals: Clean theme flattened accepted badge contrast ${JSON.stringify(mobileState)}`);
+  assert(mobileState.bodyOverflow <= 1 && mobileState.overlayActive && mobileState.contentInsideViewport && mobileState.tableContained, `Baker Directory: mobile containment failed ${JSON.stringify(mobileState)}`);
+
+  await page.evaluate(() => {
+    window.__bakerDirectoryDirectRouteFocus = document.querySelector('#baker-directory-entry-card [aria-label="Open Baker Directory Chamber"]');
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#baker-directory-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.waitForURL((url) => url.pathname === '/', { timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement === window.__bakerDirectoryDirectRouteFocus, null, { timeout: 5000 });
+  const closeState = await page.evaluate(() => ({
+    exactFocus: document.activeElement === window.__bakerDirectoryDirectRouteFocus,
+    focusConnected: Boolean(window.__bakerDirectoryDirectRouteFocus?.isConnected),
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow,
+    activeModals: document.querySelectorAll('.modal-overlay.active').length,
+    route: window.location.pathname
+  }));
+  assert(
+    closeState.exactFocus
+      && closeState.focusConnected
+      && closeState.route === '/'
+      && closeState.bodyOverflow !== 'hidden'
+      && closeState.htmlOverflow !== 'hidden'
+      && closeState.activeModals === 0,
+    `Baker Directory: direct-route Escape did not restore its exact launcher, home route, and scroll lock ${JSON.stringify(closeState)}`
+  );
 
   await context.close();
-  assert(issues.length === 0, `leaderboard signals browser issues:\n${issues.join('\n')}`);
-  log('ok - leaderboard tenure and governance signals smoke');
+  assert(issues.length === 0, `Baker Directory browser issues:\n${issues.join('\n')}`);
+  log('ok - Baker Directory complete-set, factual signals, direct route, quiet refresh, and mobile smoke');
+}
+
+async function smokeWhaleWatchChamber(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  const mockState = await installFeatureMocks(context, { whaleChamberMocks: true });
+  await context.addInitScript(() => {
+    window.__WHALE_WATCH_REFRESH_MS__ = 1000;
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'Whale Watch Chamber', issues);
+  let response = await page.goto(`${baseUrl}/whales/?view=overview`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Whale Watch: direct route failed with HTTP ${response?.status()}`);
+  await page.locator('#whale-watch-modal.active #whale-watch-panel-overview').waitFor({ state: 'visible', timeout: 15000 });
+  await assertPromotedLauncherGeometry(page, 'Whale Watch desktop launcher pair', { desktop: true });
+  await expectCount(page, '#whale-watch-modal [role="tab"][data-whale-view]', 5, 'Whale Watch views');
+  const overviewText = await page.locator('#whale-watch-panel-overview').innerText();
+  assert(/3/.test(overviewText) && /2 operation groups/.test(overviewText), `Whale Watch: complete operation/group counts missing: ${overviewText}`);
+  assert(/Gross observed legs/i.test(overviewText) && /not economic volume/i.test(overviewText), `Whale Watch: observed-leg semantics missing: ${overviewText}`);
+  assert(/One operation id is one tape row/.test(overviewText) && /operation-group hash can connect several related hops/.test(overviewText), `Whale Watch: identity methodology missing: ${overviewText}`);
+  await page.waitForFunction(() => document.querySelectorAll('#whale-watch-panel-overview .whale-watch-label-receipts a').length === 3, null, { timeout: 10000 });
+  const aliasReceiptState = await page.evaluate(() => ({
+    copy: document.querySelector('#whale-watch-panel-overview')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    receipts: Array.from(document.querySelectorAll('#whale-watch-panel-overview .whale-watch-label-receipts a')).map((link) => ({
+      href: link.getAttribute('href') || '',
+      text: link.textContent?.replace(/\s+/g, ' ').trim() || ''
+    }))
+  }));
+  assert(
+    aliasReceiptState.receipts.map(({ text }) => text).join(' ').includes('QA Baker')
+      && aliasReceiptState.receipts.map(({ text }) => text).join(' ').includes('Second Baker')
+      && aliasReceiptState.receipts.map(({ text }) => text).join(' ').includes('Pending Baker')
+      && aliasReceiptState.receipts.every(({ href, text }) => /^https:\/\/tzkt\.io\/tz/i.test(href) && /current live-sample label/.test(text))
+      && /TzKT aliases are presented as source context only/.test(aliasReceiptState.copy)
+      && /does not infer exchange ownership or beneficial control/.test(aliasReceiptState.copy),
+    `Whale Watch: entity context must come from current TzKT alias receipts without inferred ownership ${JSON.stringify(aliasReceiptState)}`
+  );
+
+  await page.locator('#whale-watch-tab-flows').click();
+  await page.locator('#whale-watch-panel-flows').waitFor({ state: 'visible', timeout: 5000 });
+  await expectCount(page, '#whale-watch-panel-flows .whale-watch-story', 2, 'Whale Watch flow stories');
+  await expectCount(page, '#whale-watch-panel-flows .whale-watch-story:first-of-type li', 2, 'Whale Watch grouped flow legs');
+  const flowText = await page.locator('#whale-watch-panel-flows .whale-watch-story').first().innerText();
+  assert(/2 related hops/.test(flowText) && /op 7001/.test(flowText) && /op 7002/.test(flowText), `Whale Watch: same-hash operations were deduplicated instead of grouped: ${flowText}`);
+  assert(/Grouped by shared operation hash; repeated capital is possible/.test(flowText), `Whale Watch: grouped-flow caveat missing: ${flowText}`);
+
+  await page.locator('#whale-watch-tab-dormant').click();
+  await page.locator('#whale-watch-panel-dormant').waitFor({ state: 'visible', timeout: 5000 });
+  const dormantText = await page.locator('#whale-watch-panel-dormant').innerText();
+  assert(/lastActivityTime drives dormancy/i.test(dormantText), `Whale Watch: dormant timestamp rule missing: ${dormantText}`);
+  assert(/Feb [23], 2022/.test(dormantText) && /block 7,654,321/.test(dormantText), `Whale Watch: dormant timestamp and block-level receipt were conflated: ${dormantText}`);
+  assert(/Observed holdings/i.test(dormantText) && /Deep Vault/.test(dormantText), `Whale Watch: dormant account context missing: ${dormantText}`);
+
+  await page.locator('#whale-watch-tab-awakenings').click();
+  await page.locator('#whale-watch-panel-awakenings').waitFor({ state: 'visible', timeout: 5000 });
+  await expectCount(page, '#whale-watch-panel-awakenings .whale-watch-awakening', 1, 'Whale Watch receipt-backed awakenings');
+  const awakeningText = await page.locator('.whale-watch-awakening').innerText();
+  assert(/123\.46K ꜩ moved/.test(awakeningText), `Whale Watch: triggering receipt moved amount missing: ${awakeningText}`);
+  assert(/Holding before\s+9\.00M ꜩ/i.test(awakeningText), `Whale Watch: holding balance not shown separately from moved amount: ${awakeningText}`);
+  assert(!/9\.00M ꜩ moved/.test(awakeningText), `Whale Watch: holding balance was substituted for operation amount: ${awakeningText}`);
+
+  await page.locator('#whale-watch-tab-live').click();
+  await page.locator('#whale-watch-panel-live .whale-watch-tape-row').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => {
+    const rows = document.querySelectorAll('#whale-watch-live-tape .whale-watch-tape-row').length;
+    return rows === 28 || rows === 29;
+  }, null, { timeout: 5000 });
+  const acceptedWhaleTypes = await page.locator('#whale-watch-type option').evaluateAll((options) => options.map((option) => option.value));
+  assert(acceptedWhaleTypes.join(',') === 'all,transaction,stake,unstake,delegation', `Whale Watch: route/filter types must not include an inferred exchange class ${JSON.stringify(acceptedWhaleTypes)}`);
+  const search = page.locator('#whale-watch-search');
+  await search.fill('Baker');
+  await page.waitForFunction(() => document.querySelectorAll('#whale-watch-live-tape .whale-watch-tape-row').length >= 28, null, { timeout: 5000 });
+  const quietBefore = await page.evaluate(() => {
+    const body = document.querySelector('#whale-watch-body');
+    const input = document.querySelector('#whale-watch-search');
+    const tab = document.querySelector('#whale-watch-tab-live');
+    body.scrollTop = Math.min(900, Math.max(1, body.scrollHeight - body.clientHeight - 80));
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(0, 5);
+    const viewportTop = body.getBoundingClientRect().top;
+    const visibleRow = [...body.querySelectorAll('#whale-watch-live-tape [data-quiet-key]')]
+      .find((row) => row.getBoundingClientRect().bottom > viewportTop + 1);
+    window.__whaleWatchBody = body;
+    window.__whaleWatchInput = input;
+    window.__whaleWatchTab = tab;
+    window.__whaleWatchRow = visibleRow;
+    return {
+      pageY: window.scrollY,
+      top: body.scrollTop,
+      anchorKey: visibleRow?.dataset.quietKey || '',
+      anchorOffset: visibleRow ? visibleRow.getBoundingClientRect().top - viewportTop : 0,
+      hadPrepend: Boolean(body.querySelector('[data-quiet-key="whale-watch-op-9001"]')),
+      rows: body.querySelectorAll('#whale-watch-live-tape .whale-watch-tape-row').length,
+      selection: input.value.slice(input.selectionStart, input.selectionEnd)
+    };
+  });
+  assert(quietBefore.anchorKey, `Whale Watch: could not establish a visible live-tape anchor ${JSON.stringify(quietBefore)}`);
+  await page.evaluate(async () => {
+    const feature = await import('/js/features/whale-chamber.js');
+    await feature.refreshWhaleChamber({ quiet: true });
+  });
+  await page.waitForFunction(() => document.querySelector('#whale-watch-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 8000 });
+  await page.locator('[data-quiet-key="whale-watch-op-9001"]').waitFor({ state: 'attached', timeout: 5000 });
+  const quietAfter = await page.evaluate((anchorKey) => {
+    const body = document.querySelector('#whale-watch-body');
+    const input = document.querySelector('#whale-watch-search');
+    const tab = document.querySelector('#whale-watch-tab-live');
+    const row = body.querySelector(`[data-quiet-key="${anchorKey}"]`);
+    const viewportTop = body.getBoundingClientRect().top;
+    const style = row ? getComputedStyle(row) : null;
+    return {
+      sameBody: body === window.__whaleWatchBody,
+      sameInput: input === window.__whaleWatchInput,
+      sameTab: tab === window.__whaleWatchTab,
+      sameRow: row === window.__whaleWatchRow,
+      focused: document.activeElement === input,
+      selection: input.value.slice(input.selectionStart, input.selectionEnd),
+      selectedView: tab?.getAttribute('aria-selected'),
+      pageY: window.scrollY,
+      top: body.scrollTop,
+      anchorOffset: row ? row.getBoundingClientRect().top - viewportTop : null,
+      settled: body.dataset.quietRefreshSettled,
+      animation: style?.animationName || '',
+      opacity: style?.opacity || '',
+      rows: body.querySelectorAll('#whale-watch-live-tape .whale-watch-tape-row').length
+    };
+  }, quietBefore.anchorKey);
+  assert(mockState.whaleLiveRequests >= 2, `Whale Watch: quiet refresh did not request a fresh bounded tape (${mockState.whaleLiveRequests})`);
+  const overlappingCursorLanes = new Set(mockState.whaleCursorRequests
+    .filter(({ cursor }) => cursor === 'timestamp.ge')
+    .map(({ lane }) => lane));
+  assert(
+    ['transactions', 'delegations', 'stake', 'unstake'].every((lane) => overlappingCursorLanes.has(lane))
+      && mockState.whaleCursorRequests.every(({ cursor }) => cursor !== 'timestamp.gt'),
+    `Whale Watch: every live lane must overlap the last timestamp with timestamp.ge ${JSON.stringify(mockState.whaleCursorRequests)}`
+  );
+  assert(quietAfter.sameBody && quietAfter.sameInput && quietAfter.sameTab && quietAfter.sameRow && quietAfter.focused, `Whale Watch: quiet refresh replaced focused browsing nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.selection === quietBefore.selection && quietAfter.selectedView === 'true', `Whale Watch: quiet refresh lost selection or live tab state ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.pageY === quietBefore.pageY && Math.abs(quietAfter.anchorOffset - quietBefore.anchorOffset) < 2, `Whale Watch: prepended row moved the reader's live-tape anchor ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.rows === quietBefore.rows + (quietBefore.hadPrepend ? 0 : 1)
+    && quietAfter.settled === 'true'
+    && quietAfter.animation === 'none'
+    && quietAfter.opacity === '1', `Whale Watch: prepend or settled-animation state failed ${JSON.stringify({ quietBefore, quietAfter })}`);
+  const readerTop = await page.evaluate(() => {
+    const body = document.querySelector('#whale-watch-body');
+    body.scrollTop = Math.max(0, body.scrollTop - 37);
+    return body.scrollTop;
+  });
+  await page.waitForTimeout(120);
+  assert(Math.abs((await page.locator('#whale-watch-body').evaluate((body) => body.scrollTop)) - readerTop) < 1, 'Whale Watch: delayed anchor restore overrode a reader scroll made after reconciliation');
+
+  await page.locator('#whale-watch-tab-awakenings').click();
+  await page.locator('.whale-watch-awakening').waitFor({ state: 'visible', timeout: 5000 });
+  const awakeningBeforeMismatch = await page.evaluate(() => {
+    const row = document.querySelector('.whale-watch-awakening');
+    window.__whaleWatchValidAwakening = row;
+    return row?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  });
+  mockState.mismatchWhaleDormancy(true);
+  await page.evaluate(async () => {
+    const feature = await import('/js/features/whale-chamber.js');
+    await feature.refreshWhaleChamber({ quiet: true, forceArtifact: true });
+  });
+  await page.waitForFunction(() => /last-good retained.*refresh failed/i.test(document.querySelector('#whale-watch-freshness')?.textContent || ''), null, { timeout: 5000 });
+  const mismatchedDormancyState = await page.evaluate(() => {
+    const row = document.querySelector('.whale-watch-awakening');
+    return {
+      sameRow: row === window.__whaleWatchValidAwakening,
+      text: row?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      freshness: document.querySelector('#whale-watch-freshness')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(
+    mismatchedDormancyState.sameRow
+      && mismatchedDormancyState.text === awakeningBeforeMismatch
+      && /last-good retained.*refresh failed/i.test(mismatchedDormancyState.freshness)
+      && !/1,900 days|5 years/i.test(mismatchedDormancyState.text),
+    `Whale Watch: browser validation accepted a dormantDays value that disagreed with its prior/current receipt timestamps ${JSON.stringify(mismatchedDormancyState)}`
+  );
+  mockState.mismatchWhaleDormancy(false);
+  await page.evaluate(async () => {
+    const feature = await import('/js/features/whale-chamber.js');
+    await feature.refreshWhaleChamber({ quiet: true, forceArtifact: true });
+  });
+  await page.waitForFunction(() => !document.querySelector('#whale-watch-freshness')?.classList.contains('is-stale'), null, { timeout: 5000 });
+  await page.locator('#whale-watch-tab-live').click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await assertPromotedLauncherGeometry(page, 'Whale Watch mobile launcher pair');
+  const mobile = await page.evaluate(() => {
+    const content = document.querySelector('.whale-watch-content');
+    const tabs = document.querySelector('.whale-watch-tabs');
+    return {
+      bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      contentInsideViewport: Boolean(content && content.getBoundingClientRect().left >= -1 && content.getBoundingClientRect().right <= window.innerWidth + 1),
+      tabsScrollable: Boolean(tabs && tabs.scrollWidth >= tabs.clientWidth),
+      rowVisible: Boolean(document.querySelector('.whale-watch-tape-row')?.getBoundingClientRect().height)
+    };
+  });
+  assert(mobile.bodyOverflow <= 1 && mobile.contentInsideViewport && mobile.tabsScrollable && mobile.rowVisible, `Whale Watch: mobile containment failed ${JSON.stringify(mobile)}`);
+
+  await page.evaluate(() => {
+    window.__whaleWatchDirectRouteOpen = document.querySelector('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#whale-watch-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.waitForURL((url) => url.pathname === '/', { timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement === window.__whaleWatchDirectRouteOpen, null, { timeout: 5000 });
+  const whaleDirectClose = await page.evaluate(() => ({
+    bodyOverflow: document.body.style.overflow,
+    exactFocus: document.activeElement === window.__whaleWatchDirectRouteOpen,
+    focusConnected: Boolean(window.__whaleWatchDirectRouteOpen?.isConnected),
+    focusLabel: document.activeElement?.getAttribute('aria-label') || '',
+    htmlOverflow: document.documentElement.style.overflow,
+    route: window.location.pathname
+  }));
+  assert(
+    whaleDirectClose.route === '/'
+      && whaleDirectClose.exactFocus
+      && whaleDirectClose.focusConnected
+      && whaleDirectClose.focusLabel === 'Open Whale Watch Chamber'
+      && whaleDirectClose.bodyOverflow !== 'hidden'
+      && whaleDirectClose.htmlOverflow !== 'hidden',
+    `Whale Watch: direct-route close must restore /, scroll, and the exact connected Open button ${JSON.stringify(whaleDirectClose)}`
+  );
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Whale Watch: dashboard lifecycle route failed with HTTP ${response?.status()}`);
+  const whaleOpenCue = page.locator('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
+  await whaleOpenCue.waitFor({ state: 'visible', timeout: 15000 });
+  const footerBefore = await page.evaluate(() => {
+    const cue = document.querySelector('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
+    window.__whaleWatchOpenCue = cue;
+    cue?.focus({ preventScroll: true });
+    return {
+      ariaLabel: cue?.getAttribute('aria-label') || '',
+      connected: Boolean(cue?.isConnected),
+      focused: document.activeElement === cue,
+      text: cue?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(footerBefore.connected && footerBefore.focused && footerBefore.ariaLabel === 'Open Whale Watch Chamber', `Whale Watch: could not establish footer Open focus before refresh ${JSON.stringify(footerBefore)}`);
+  await page.evaluate(async () => {
+    const feature = await import('/js/features/whale-chamber.js');
+    await feature.refreshWhaleChamber({ quiet: true });
+  });
+  const footerAfter = await page.evaluate(() => {
+    const cue = document.querySelector('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
+    return {
+      ariaLabel: cue?.getAttribute('aria-label') || '',
+      connected: Boolean(cue?.isConnected),
+      focused: document.activeElement === cue,
+      sameNode: cue === window.__whaleWatchOpenCue,
+      text: cue?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(footerAfter.sameNode && footerAfter.connected && footerAfter.focused && footerAfter.ariaLabel === 'Open Whale Watch Chamber', `Whale Watch: quiet entry refresh replaced or defocused its footer Open control ${JSON.stringify({ footerBefore, footerAfter })}`);
+
+  mockState.failWhaleLane('unstake');
+  const atomicFailure = await page.evaluate(async () => {
+    const chamber = await import('/js/features/whale-chamber.js');
+    const whales = await import('/js/features/whales.js');
+    const before = whales.getWhaleSnapshot();
+    await chamber.refreshWhaleChamber({ quiet: true });
+    const after = whales.getWhaleSnapshot();
+    const cue = document.querySelector('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
+    return {
+      afterIds: after.operations.map((operation) => String(operation.id)),
+      beforeIds: before.operations.map((operation) => String(operation.id)),
+      complete: after.coverage?.complete,
+      error: after.error || '',
+      focused: document.activeElement === cue,
+      lanes: after.coverage?.lanes || [],
+      mode: after.coverage?.mode || '',
+      sameFooter: cue === window.__whaleWatchOpenCue,
+      sameUpdatedAt: after.updatedAt === before.updatedAt,
+      uncommittedLaneRow: after.operations.some((operation) => Number(operation.id) === 9999)
+    };
+  });
+  mockState.failWhaleLane('');
+  assert(
+    atomicFailure.beforeIds.join(',') === atomicFailure.afterIds.join(',')
+      && atomicFailure.sameUpdatedAt
+      && !atomicFailure.uncommittedLaneRow
+      && atomicFailure.mode === 'all-or-nothing'
+      && atomicFailure.complete === false
+      && atomicFailure.lanes.join(',') === 'transactions,delegations,stake,unstake'
+      && /unstake operations unavailable \(503\)/i.test(atomicFailure.error)
+      && atomicFailure.sameFooter
+      && atomicFailure.focused,
+    `Whale Watch: one failed TzKT lane must retain the complete four-lane snapshot and focused footer node ${JSON.stringify(atomicFailure)}`
+  );
+
+  response = await page.goto(`${baseUrl}/#giants`, { waitUntil: 'domcontentloaded' });
+  assert(response == null || response.ok(), `Whale Watch: legacy #giants route failed with HTTP ${response?.status()}`);
+  await page.locator('#whale-watch-modal.active #whale-watch-panel-dormant').waitFor({ state: 'visible', timeout: 15000 });
+  assert(await page.locator('#whale-watch-tab-dormant').getAttribute('aria-selected') === 'true', 'Whale Watch: legacy #giants did not canonicalize to Deep Sleep');
+  assert((await page.locator('#whale-watch-panel-dormant').innerText()).includes('Deep Vault'), 'Whale Watch: legacy #giants lost the shared dormant artifact');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#whale-watch-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
+  await context.close();
+  assert(issues.length === 0, `Whale Watch Chamber browser issues:\n${issues.join('\n')}`);
+  log('ok - Whale Watch complete receipts, grouped flows, dormancy, awakenings, legacy alias, quiet prepend anchoring, and mobile smoke');
+}
+
+async function smokeCycleHistoryChamber(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'Cycle History Chamber', issues);
+  let response = await page.goto(`${baseUrl}/history/?range=24h&metric=price`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Cycle History: direct route failed with HTTP ${response?.status()}`);
+  await page.locator('#history-modal.active.cycle-history-chamber').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => document.querySelector('#history-modal')?.getAttribute('aria-busy') !== 'true', null, { timeout: 15000 });
+  const directState = await page.evaluate(() => {
+    const modal = document.querySelector('#history-modal');
+    const focus = modal?.querySelector('[data-history-metric="price"]');
+    return {
+      range: modal?.dataset.historyRange || '',
+      metric: modal?.dataset.historyMetric || '',
+      select: modal?.querySelector('#cycle-history-metric')?.value || '',
+      focusedCurrent: focus?.getAttribute('aria-current') || '',
+      focusedVisible: Boolean(focus?.getBoundingClientRect().height),
+      contentTop: modal?.querySelector('.cycle-history-content')?.scrollTop || 0,
+      title: modal?.querySelector('#history-modal-title')?.textContent || '',
+      chartCount: modal?.querySelectorAll('[data-history-metric]').length || 0,
+      sourceLedgers: modal?.querySelectorAll('.cycle-history-system-strip span').length || 0
+    };
+  });
+  assert(directState.range === '24h' && directState.metric === 'price' && directState.select === 'price' && directState.focusedCurrent === 'true', `Cycle History: direct range/metric state failed ${JSON.stringify(directState)}`);
+  assert(directState.title === 'Cycle History Chamber' && directState.chartCount === 15 && directState.sourceLedgers === 5 && directState.focusedVisible, `Cycle History: full Chamber anatomy failed ${JSON.stringify(directState)}`);
+
+  await page.locator('.history-controls .time-range-btn[data-range="7d"]').click();
+  await page.waitForFunction(() => document.querySelector('#history-modal')?.dataset.historyRange === '7d' && document.querySelector('#history-modal')?.getAttribute('aria-busy') !== 'true', null, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelector('#history-digest')?.textContent?.includes('7d'), null, { timeout: 10000 });
+  assert(new URL(page.url()).searchParams.get('range') === '7d', `Cycle History: range did not synchronize to direct route ${page.url()}`);
+  const immediateMetricState = await page.locator('#cycle-history-metric').evaluate((select) => {
+    select.value = 'network-health';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const section = document.querySelector('.chart-section[data-history-metric="network-health"]');
+    return {
+      current: section?.getAttribute('aria-current') || '',
+      className: section?.className || '',
+      modalMetric: document.querySelector('#history-modal')?.dataset.historyMetric || ''
+    };
+  });
+  await page.waitForTimeout(100);
+  const metricInteractionState = await page.evaluate(() => ({
+    selected: document.querySelector('#cycle-history-metric')?.value || '',
+    modalMetric: document.querySelector('#history-modal')?.dataset.historyMetric || '',
+    current: document.querySelector('.chart-section[data-history-metric="network-health"]')?.getAttribute('aria-current') || '',
+    route: window.location.href,
+    status: document.querySelector('#cycle-history-route-status')?.textContent || ''
+  }));
+  assert(metricInteractionState.current === 'true', `Cycle History: metric selector did not focus its chart ${JSON.stringify({ immediateMetricState, metricInteractionState })}`);
+  const metricRoute = new URL(page.url());
+  assert(metricRoute.searchParams.get('metric') === 'network-health' && metricRoute.searchParams.get('range') === '7d', `Cycle History: focused metric route drifted ${page.url()}`);
+  await page.waitForFunction(() => {
+    const content = document.querySelector('.cycle-history-content');
+    const section = document.querySelector('.chart-section[data-history-metric="network-health"]');
+    const contentRect = content?.getBoundingClientRect();
+    const sectionRect = section?.getBoundingClientRect();
+    return Boolean(content && section && content.scrollTop > 0 && contentRect && sectionRect
+      && sectionRect.bottom > contentRect.top && sectionRect.top < contentRect.bottom);
+  }, null, { timeout: 3000 });
+  const focusState = await page.evaluate(() => {
+    const content = document.querySelector('.cycle-history-content');
+    const section = document.querySelector('.chart-section[data-history-metric="network-health"]');
+    const contentRect = content?.getBoundingClientRect();
+    const sectionRect = section?.getBoundingClientRect();
+    return {
+      scrollTop: content?.scrollTop || 0,
+      sectionInView: Boolean(contentRect && sectionRect && sectionRect.bottom > contentRect.top && sectionRect.top < contentRect.bottom),
+      status: document.querySelector('#cycle-history-route-status')?.textContent || ''
+    };
+  });
+  assert(focusState.scrollTop > 0 && focusState.sectionInView && /Focused Network Health/.test(focusState.status), `Cycle History: metric focus did not scroll and announce correctly ${JSON.stringify(focusState)}`);
+
+  await page.evaluate(() => {
+    window.__cycleHistoryLastGoodDigest = document.querySelector('#history-digest');
+    window.__cycleHistoryLastGoodCanvas = document.querySelector('#chart-price');
+    const nativeGetElementById = Document.prototype.getElementById;
+    Document.prototype.getElementById = function smokeFailCycleHistoryRange(id) {
+      if (id === 'history-freshness-strip') {
+        Document.prototype.getElementById = nativeGetElementById;
+        throw new Error('smoke forced Cycle History range refresh failure');
+      }
+      return nativeGetElementById.call(this, id);
+    };
+  });
+  await page.locator('.history-controls .time-range-btn[data-range="30d"]').click();
+  await page.waitForFunction(() => {
+    const modal = document.querySelector('#history-modal');
+    const status = document.querySelector('#cycle-history-route-status')?.textContent || '';
+    return modal?.dataset.historyRange === '7d'
+      && !modal.hasAttribute('aria-busy')
+      && /(?:Refresh unavailable|history could not refresh).*last-good 7d/i.test(status);
+  }, null, { timeout: 10000 });
+  const failedRangeState = await page.evaluate(() => ({
+    activeRange: document.querySelector('.history-controls .time-range-btn.active')?.dataset.range || '',
+    attemptedActive: document.querySelector('.history-controls .time-range-btn[data-range="30d"]')?.getAttribute('aria-pressed') || '',
+    digestIdentity: document.querySelector('#history-digest') === window.__cycleHistoryLastGoodDigest,
+    canvasIdentity: document.querySelector('#chart-price') === window.__cycleHistoryLastGoodCanvas,
+    metric: document.querySelector('#history-modal')?.dataset.historyMetric || '',
+    range: document.querySelector('#history-modal')?.dataset.historyRange || '',
+    route: window.location.href,
+    status: document.querySelector('#cycle-history-route-status')?.textContent || ''
+  }));
+  const failedRangeRoute = new URL(failedRangeState.route);
+  assert(
+    failedRangeState.range === '7d'
+      && failedRangeState.activeRange === '7d'
+      && failedRangeState.attemptedActive === 'false'
+      && failedRangeState.metric === 'network-health'
+      && failedRangeState.digestIdentity
+      && failedRangeState.canvasIdentity
+      && failedRangeRoute.searchParams.get('range') === '7d'
+      && failedRangeRoute.searchParams.get('metric') === 'network-health'
+      && /(?:Refresh unavailable|history could not refresh).*last-good 7d/i.test(failedRangeState.status),
+    `Cycle History: failed range refresh drifted the last-good range, route, metric, or rendered nodes ${JSON.stringify(failedRangeState)}`
+  );
+  const expectedFailureIssue = issues.findIndex((issue) => issue.includes('smoke forced Cycle History range refresh failure'));
+  assert(expectedFailureIssue >= 0, `Cycle History: deterministic failed-range probe did not reach the guarded refresh path ${JSON.stringify(issues)}`);
+  issues.splice(expectedFailureIssue, 1);
+
+  await page.locator('#history-modal-close').click();
+  await page.waitForURL((url) => url.pathname === '/', { timeout: 10000 });
+  await page.locator('main').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#cycle-history-entry-card').scrollIntoViewIfNeeded();
+  await assertPromotedLauncherGeometry(page, 'Cycle History desktop launcher geometry');
+  assert(await page.locator('#cycle-history-entry-card .cycle-history-entry-route').getAttribute('href') === '/history/', 'Cycle History: entry card must retain the canonical first-party route');
+  const cycleKeyboardLauncher = page.locator('#cycle-history-entry-card [aria-label="Open Cycle History Chamber"]');
+  await cycleKeyboardLauncher.waitFor({ state: 'visible', timeout: 5000 });
+  await cycleKeyboardLauncher.focus();
+  await page.evaluate(() => {
+    window.__cycleHistoryKeyboardLauncher = document.activeElement;
+  });
+  await page.keyboard.press('Enter');
+  await page.locator('#history-modal.active').waitFor({ state: 'visible', timeout: 10000 });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#history-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement === window.__cycleHistoryKeyboardLauncher, null, { timeout: 5000 });
+  const restored = await page.evaluate(() => ({
+    exactFocus: document.activeElement === window.__cycleHistoryKeyboardLauncher,
+    focusConnected: Boolean(window.__cycleHistoryKeyboardLauncher?.isConnected),
+    focusLabel: document.activeElement?.getAttribute('aria-label') || '',
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    restored.exactFocus
+      && restored.focusConnected
+      && restored.focusLabel === 'Open Cycle History Chamber'
+      && restored.bodyOverflow !== 'hidden'
+      && restored.htmlOverflow !== 'hidden',
+    `Cycle History: keyboard close did not restore the exact connected Open button and scroll lock ${JSON.stringify(restored)}`
+  );
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await assertPromotedLauncherGeometry(page, 'Cycle History mobile launcher geometry');
+  await page.evaluate(async () => window.openCycleHistoryChamber({ range: 'all', metric: 'governance' }));
+  await page.waitForFunction(() => document.querySelector('#history-modal')?.getAttribute('aria-busy') !== 'true', null, { timeout: 15000 });
+  const mobile = await page.evaluate(() => {
+    const content = document.querySelector('.cycle-history-content');
+    const controls = document.querySelector('.cycle-history-route-controls');
+    const focused = document.querySelector('.chart-section[data-history-metric="governance"]');
+    return {
+      bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      contentInsideViewport: Boolean(content && content.getBoundingClientRect().left >= -1 && content.getBoundingClientRect().right <= window.innerWidth + 1),
+      controlsInsideViewport: Boolean(controls && controls.getBoundingClientRect().right <= window.innerWidth + 1),
+      focused: focused?.getAttribute('aria-current') || '',
+      range: document.querySelector('#history-modal')?.dataset.historyRange || ''
+    };
+  });
+  assert(mobile.bodyOverflow <= 1 && mobile.contentInsideViewport && mobile.controlsInsideViewport && mobile.focused === 'true' && mobile.range === 'all', `Cycle History: mobile direct focus containment failed ${JSON.stringify(mobile)}`);
+  await page.keyboard.press('Escape');
+
+  await context.close();
+  assert(issues.length === 0, `Cycle History Chamber browser issues:\n${issues.join('\n')}`);
+  log('ok - Cycle History direct route, range, metric focus, close lifecycle, entry focus, and mobile smoke');
 }
 
 async function smokeFeatureWorkflows(browser, baseUrl) {
@@ -10386,7 +11412,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
     serviceWorkers: 'block'
   });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
-  await installFeatureMocks(context);
+  await installFeatureMocks(context, { whaleChamberMocks: true });
   await context.addInitScript(() => {
     window.__smokeLatestStats = null;
     window.addEventListener('stats-updated', (event) => {
@@ -10522,22 +11548,17 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   log('ok - staking ratio and APY use TzKT total staked with pp trend');
 
   await clickFeatureLauncher(page, '#leaderboard-toggle');
-  await page.locator('#leaderboard-section.visible').waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('#leaderboard-results .leaderboard-table').waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('#leaderboard-results .baker-fit-finder').waitFor({ state: 'visible', timeout: 10000 });
-  await expectCount(page, '#leaderboard-results .lb-row', 2, 'feature workflows leaderboard rows');
-  await expectCount(page, '#leaderboard-results .lb-sort-btn', 6, 'feature workflows leaderboard sort buttons');
-  await page.locator('#leaderboard-results .lb-sort-btn[data-col="name"]').focus();
-  await page.keyboard.press('Enter');
-  await expectClassContains(page.locator('#leaderboard-results .lb-th[data-col="name"]'), 'active', 'feature workflows leaderboard sort');
-  assert(await page.locator('#leaderboard-results .lb-th[data-col="name"]').getAttribute('aria-sort') === 'ascending', 'feature workflows leaderboard name column should expose ascending aria-sort');
-  assert(await page.locator('#leaderboard-results .lb-sort-btn[data-col="name"]').evaluate((button) => document.activeElement === button), 'feature workflows leaderboard sort should retain keyboard focus after rerender');
-  await expectCount(page, '#leaderboard-results .lb-share-btn', 0, 'feature workflows leaderboard per-row share buttons');
-  await expectCount(page, '#leaderboard-results .lb-baker-open', 2, 'feature workflows leaderboard baker detail buttons');
-  await page.locator('#leaderboard-results .lb-baker-open').first().click();
+  await page.locator('#baker-directory-modal.active').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#baker-directory-tab-directory').click();
+  await expectCount(page, '#baker-directory-panel .baker-directory-table tbody tr', 3, 'feature workflows Baker Directory rows');
+  await page.locator('#baker-directory-panel [data-bdc-sort="name"]').click();
+  assert(await page.locator('#baker-directory-panel thead th').nth(0).getAttribute('aria-sort') === 'ascending', 'feature workflows Baker Directory name sort should expose ascending aria-sort');
+  await page.locator('#baker-directory-panel [data-bdc-select]').first().click();
+  await page.locator('#baker-directory-panel .baker-directory-detail').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#baker-directory-panel [data-bdc-open-profile]').click();
   await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#drawer-close').click();
-  log('ok - feature workflow: leaderboard');
+  log('ok - feature workflow: Baker Directory Chamber');
 
   await clickFeatureLauncher(page, '#calc-toggle');
   await page.locator('#calculator-section.visible').waitFor({ state: 'visible', timeout: 5000 });
@@ -10585,17 +11606,18 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   log('ok - feature workflow: comparison');
 
   await clickFeatureLauncher(page, '#whale-toggle');
-  await page.locator('#whale-section.visible').waitFor({ state: 'visible', timeout: 5000 });
-  await page.locator('#whale-feed .whale-tx').waitFor({ state: 'visible', timeout: 10000 });
-  assert((await page.locator('#whale-feed').innerText()).includes('QA Baker'), 'feature workflows whale feed missing mocked sender');
-  log('ok - feature workflow: whale feed');
+  await page.locator('#whale-watch-modal.active #whale-watch-panel-overview').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#whale-watch-tab-live').click();
+  await page.locator('#whale-watch-live-tape .whale-watch-tape-row').first().waitFor({ state: 'visible', timeout: 10000 });
+  assert((await page.locator('#whale-watch-live-tape').innerText()).includes('QA Baker'), 'feature workflows Whale Watch tape missing mocked sender');
+  await page.locator('#whale-watch-tab-dormant').click();
+  assert((await page.locator('#whale-watch-panel-dormant').innerText()).includes('Deep Vault'), 'feature workflows Whale Watch Deep Sleep missing shared dormant account');
+  await page.locator('#whale-watch-modal .chamber-close').click();
+  log('ok - feature workflow: Whale Watch Chamber');
 
-  await clickFeatureLauncher(page, '#giants-toggle');
-  await page.locator('#giants-section.visible').waitFor({ state: 'visible', timeout: 5000 });
-  await page.waitForFunction(() => document.querySelectorAll('#giants-grid .giant-card').length > 0, null, { timeout: 10000 });
-  await expectCount(page, '#giants-stats .giants-stat', 3, 'feature workflows giant stats');
-  log('ok - feature workflow: sleeping giants');
-
+  await page.evaluate(() => {
+    window.__featureWorkflowCycleOpenCue = document.querySelector('#cycle-history-entry-card [aria-label="Open Cycle History Chamber"]');
+  });
   await clickFeatureLauncher(page, '#history-btn');
   await page.locator('#history-modal[aria-hidden="false"]').waitFor({ state: 'attached', timeout: 10000 });
   await expectCount(page, '#history-modal .time-range-btn', 4, 'feature workflows history ranges');
@@ -10604,7 +11626,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await page.locator('#history-copy-link').click();
   await page.waitForFunction(() => document.querySelector('#history-copy-link')?.textContent?.trim() === '✓', null, { timeout: 3000 });
   const historyCopy = await page.evaluate(() => navigator.clipboard.readText?.());
-  assert(historyCopy.endsWith('/#history'), `feature workflows history copy link mismatch: ${historyCopy}`);
+  assert(historyCopy.endsWith('/history/'), `feature workflows history copy link mismatch: ${historyCopy}`);
   const digestText = (await page.locator('#history-digest').innerText()).toLowerCase();
   for (const expected of ['Consensus', 'Economy', 'Liquidity Baking', 'Market', 'Network Health', 'Tezos X', 'Governance']) {
     assert(digestText.includes(expected.toLowerCase()), `feature workflows history digest missing ${expected}: ${digestText}`);
@@ -10620,8 +11642,29 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await expectShareModal(page, 'feature workflows historical data share', issues);
   await page.keyboard.press('Escape');
   await page.locator('#history-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
-  assert(await page.evaluate(() => ['history-btn', 'features-gear'].includes(document.activeElement?.id)), 'feature workflows history Escape should restore focus to a visible launcher');
-  log('ok - feature workflow: history modal');
+  await page.waitForTimeout(250);
+  const historyFocusState = await page.evaluate(() => {
+    const active = document.activeElement;
+    const rect = active?.getBoundingClientRect?.();
+    return {
+      ariaLabel: active?.getAttribute?.('aria-label') || '',
+      connected: Boolean(active?.isConnected),
+      exactLauncher: active === window.__featureWorkflowCycleOpenCue,
+      id: active?.id || '',
+      tag: active?.tagName || '',
+      className: typeof active?.className === 'string' ? active.className : '',
+      visible: Boolean(rect && rect.width > 0 && rect.height > 0)
+    };
+  });
+  assert(
+    historyFocusState.exactLauncher
+      && historyFocusState.connected
+      && historyFocusState.tag === 'BUTTON'
+      && historyFocusState.ariaLabel === 'Open Cycle History Chamber'
+      && historyFocusState.visible,
+    `feature workflows history Escape should restore focus to the exact connected Open button ${JSON.stringify(historyFocusState)}`
+  );
+  log('ok - feature workflow: Cycle History Chamber');
 
   await page.evaluate(() => {
     window.location.hash = 'section=consensus';
@@ -10880,15 +11923,13 @@ async function smokeInfoModals(browser, baseUrl) {
     ['#network-info-btn', '#network-modal', '#network-modal-close'],
     ['#ecosystem-info-btn', '#ecosystem-modal', '#ecosystem-modal-close'],
     ['#comparison-info-btn', '#comparison-modal', '#comparison-modal-close'],
-    ['#leaderboard-info-btn', '#leaderboard-modal', '#leaderboard-modal-close'],
-    ['#calc-info-btn', '#calc-modal', '#calc-modal-close'],
-    ['#whale-info-btn', '#whale-modal', '#whale-modal-close'],
-    ['#giants-info-btn', '#giants-modal', '#giants-modal-close']
+    ['#calc-info-btn', '#calc-modal', '#calc-modal-close']
   ];
 
   for (const [trigger, modal, close] of modalPairs) {
     const triggerLocator = page.locator(trigger);
     await assertLocatorCount(triggerLocator, 1, `info modals trigger ${trigger}`);
+    assert(await triggerLocator.isVisible(), `info modals trigger is not visible: ${trigger}`);
     await triggerLocator.scrollIntoViewIfNeeded();
     await triggerLocator.click();
     await page.locator(`${modal}[aria-hidden="false"]`).waitFor({ state: 'attached', timeout: 5000 });
@@ -12068,8 +13109,10 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'hash-modal-cleanup', description: 'Hash-routed modal navigation closes stale history and chamber overlays before opening the next room', run: () => smokeHashModalCleanup(browser, baseUrl) },
     { name: 'ux-regressions', description: 'Clean theme contrast, deep-linked utility sections, share picker contrast, widget utility', run: () => smokeUxChanges(browser, baseUrl) },
     { name: 'quiet-refresh', description: 'Background data reconciliation preserves page, rail, chamber, focus, selection, and animation state', run: () => smokeQuietRefresh(browser, baseUrl) },
-    { name: 'leaderboard-signals', description: 'Baker OG/Veteran cutoffs, accepted-proposal attribution, completed-ballot streaks, legend, quiet refresh, and mobile geometry', run: () => smokeLeaderboardSignals(browser, baseUrl) },
-    { name: 'feature-workflows', description: 'Leaderboard, calculator modes, price intelligence, comparison, whales, giants, history, share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
+    { name: 'baker-directory', description: 'Complete paged active-baker set, search, factual signals, direct route, quiet reading state, and mobile geometry', run: () => smokeLeaderboardSignals(browser, baseUrl) },
+    { name: 'whale-watch-chamber', description: 'Complete-window receipts, grouped flow legs, timestamp dormancy, receipt-backed awakenings, legacy giants alias, prepend anchoring, and mobile geometry', run: () => smokeWhaleWatchChamber(browser, baseUrl) },
+    { name: 'cycle-history-chamber', description: 'Direct range and metric routes, focused charts, close lifecycle, restored entry focus, and mobile geometry', run: () => smokeCycleHistoryChamber(browser, baseUrl) },
+    { name: 'feature-workflows', description: 'Baker Directory, calculator modes, price intelligence, comparison, Whale Watch, Cycle History, and share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
     { name: 'share-actions', description: 'Share modal copy, post, download, native share, and mobile photo fallback buttons', run: () => smokeShareActions(browser, baseUrl) },
     { name: 'info-modals', description: 'All section info modals and About Tezos launch-date copy', run: () => smokeInfoModals(browser, baseUrl) },
     { name: 'themes', description: 'Theme picker availability and representative light/dark/colorful theme switching', run: () => smokeThemeSelection(browser, baseUrl) },

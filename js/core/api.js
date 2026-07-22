@@ -1505,12 +1505,34 @@ export async function checkApiHealth() {
     }
 }
 
-// Historical data fetching
-export async function fetchHistoricalData(range = '7d') {
+function availableHistoryReceipt(rows) {
+    return {
+        status: 'available',
+        rows: Array.isArray(rows) ? rows : [],
+        error: null
+    };
+}
+
+function unavailableHistoryReceipt(error) {
+    return {
+        status: 'unavailable',
+        rows: [],
+        error: error?.message || String(error || 'History source unavailable')
+    };
+}
+
+// Historical data fetching. Receipt variants expose source availability to
+// provenance-sensitive surfaces without changing the longstanding array
+// return contract used by sparklines and card-history callers.
+export async function fetchHistoricalDataReceipt(range = '7d') {
     const cacheKey = `history:${range}`;
     const cached = historicalDataCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < cache.ttl) {
-        return cached.promise || cached.data;
+        try {
+            return await (cached.promise || cached.data);
+        } catch (error) {
+            return unavailableHistoryReceipt(error);
+        }
     }
 
     const { SUPABASE_CONFIG } = await import('./config.js');
@@ -1538,7 +1560,7 @@ export async function fetchHistoricalData(range = '7d') {
             if (rows.length < HISTORICAL_PAGE_SIZE) break;
         }
 
-        return allRows;
+        return availableHistoryReceipt(allRows);
     })();
 
     historicalDataCache.set(cacheKey, {
@@ -1547,20 +1569,25 @@ export async function fetchHistoricalData(range = '7d') {
     });
 
     try {
-        const rows = await requestPromise;
+        const receipt = await requestPromise;
         historicalDataCache.set(cacheKey, {
             timestamp: Date.now(),
-            data: rows
+            data: receipt
         });
-        return rows;
+        return receipt;
     } catch (error) {
         historicalDataCache.delete(cacheKey);
         console.error('Failed to fetch historical data:', error);
-        return [];
+        return unavailableHistoryReceipt(error);
     }
 }
 
-async function fetchSupabaseHistoryRows(table, range = '7d', select = '*') {
+export async function fetchHistoricalData(range = '7d') {
+    const receipt = await fetchHistoricalDataReceipt(range);
+    return receipt.rows;
+}
+
+async function fetchSupabaseHistoryRowsReceipt(table, range = '7d', select = '*') {
     const allowedTables = new Set(['tezos_history', ...Object.values(DOMAIN_HISTORY_TABLES)]);
     if (!allowedTables.has(table)) {
         throw new Error(`Unsupported Supabase history table: ${table}`);
@@ -1569,7 +1596,11 @@ async function fetchSupabaseHistoryRows(table, range = '7d', select = '*') {
     const cacheKey = `history-table:${table}:${range}:${select}`;
     const cached = historicalDataCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < cache.ttl) {
-        return cached.promise || cached.data;
+        try {
+            return await (cached.promise || cached.data);
+        } catch (error) {
+            return unavailableHistoryReceipt(error);
+        }
     }
 
     const { SUPABASE_CONFIG } = await import('./config.js');
@@ -1596,7 +1627,7 @@ async function fetchSupabaseHistoryRows(table, range = '7d', select = '*') {
             if (rows.length < HISTORICAL_PAGE_SIZE) break;
         }
 
-        return allRows;
+        return availableHistoryReceipt(allRows);
     })();
 
     historicalDataCache.set(cacheKey, {
@@ -1605,28 +1636,28 @@ async function fetchSupabaseHistoryRows(table, range = '7d', select = '*') {
     });
 
     try {
-        const rows = await requestPromise;
+        const receipt = await requestPromise;
         historicalDataCache.set(cacheKey, {
             timestamp: Date.now(),
-            data: rows
+            data: receipt
         });
-        return rows;
+        return receipt;
     } catch (error) {
         historicalDataCache.delete(cacheKey);
         if (!reportedHistoryFetchFailures.has(table)) {
             reportedHistoryFetchFailures.add(table);
-            console.warn(`Supabase history table ${table} unavailable; using empty history rows until the next refresh succeeds.`, error);
+            console.warn(`Supabase history table ${table} unavailable; exposing an unavailable receipt until the next refresh succeeds.`, error);
         }
-        return [];
+        return unavailableHistoryReceipt(error);
     }
 }
 
-export async function fetchChamberHistoricalData(range = '7d') {
+export async function fetchChamberHistoricalDataReceipts(range = '7d') {
     const [market, networkHealth, tezosx, governance] = await Promise.all([
-        fetchSupabaseHistoryRows(DOMAIN_HISTORY_TABLES.market, range),
-        fetchSupabaseHistoryRows(DOMAIN_HISTORY_TABLES.networkHealth, range),
-        fetchSupabaseHistoryRows(DOMAIN_HISTORY_TABLES.tezosx, range),
-        fetchSupabaseHistoryRows(DOMAIN_HISTORY_TABLES.governance, range)
+        fetchSupabaseHistoryRowsReceipt(DOMAIN_HISTORY_TABLES.market, range),
+        fetchSupabaseHistoryRowsReceipt(DOMAIN_HISTORY_TABLES.networkHealth, range),
+        fetchSupabaseHistoryRowsReceipt(DOMAIN_HISTORY_TABLES.tezosx, range),
+        fetchSupabaseHistoryRowsReceipt(DOMAIN_HISTORY_TABLES.governance, range)
     ]);
 
     return {
@@ -1635,6 +1666,11 @@ export async function fetchChamberHistoricalData(range = '7d') {
         tezosx,
         governance
     };
+}
+
+export async function fetchChamberHistoricalData(range = '7d') {
+    const receipts = await fetchChamberHistoricalDataReceipts(range);
+    return Object.fromEntries(Object.entries(receipts).map(([source, receipt]) => [source, receipt.rows]));
 }
 
 async function fetchLatestHistoryRow(config, table) {

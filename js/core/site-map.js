@@ -257,21 +257,21 @@ export const SITE_MAP = [
     },
     {
         id: 'whales',
-        title: 'Large Tez Transfers',
-        href: '/#whales',
+        title: 'Whale Watch',
+        href: '/whales/',
         hash: '#whales',
-        group: 'Live Signals',
-        detail: 'Transfers, stakes, and delegations over 1,000 tez as they land',
-        keywords: ['whales', 'large transfers', 'mini whale', 'transfer feed']
-    },
-    {
-        id: 'giants',
-        title: 'Dormant Wallet Movement',
-        href: '/#giants',
-        hash: '#giants',
-        group: 'Live Signals',
-        detail: 'Large inactive wallets moving again after long quiet periods',
-        keywords: ['giants', 'sleeping giants', 'dormant wallets', 'awakenings']
+        hashAliases: ['#giants'],
+        group: 'Live Rooms',
+        detail: 'Large tez movement, grouped flow stories, dormant large accounts, and verified awakenings',
+        keywords: ['whales', 'whale watch', 'large transfers', 'large tez movement', 'mini whale', 'transfer feed', 'source aliases', 'sleeping giants', 'dormant accounts', 'awakenings'],
+        searchIntents: [
+            { id: 'whales-live', title: 'Whale Watch Live Tape', href: '/whales/?view=live', detail: 'Inspect the latest large tez operations with amount, operation, and text filters', keywords: ['whale live tape', 'large transfer feed'], directory: true },
+            { id: 'whales-flows', title: 'Whale Flow Stories', href: '/whales/?view=flows', detail: 'Collapse related operation-group hops into readable, receipt-backed flow stories', keywords: ['whale flows', 'operation groups', 'transfer stories'], directory: true },
+            { id: 'whales-dormant', title: 'Deep Sleep', href: '/whales/?view=dormant', detail: 'Inspect large accounts that have remained inactive for at least one year', keywords: ['sleeping giants', 'dormant accounts', 'deep sleep'], directory: true },
+            { id: 'whales-awakenings', title: 'Whale Awakenings', href: '/whales/?view=awakenings', detail: 'Inspect verified post-dormancy operations and their actual moved amounts', keywords: ['giant awakenings', 'dormant account moved'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'hourly', priority: '0.8' }
     },
     {
         id: 'hot-today',
@@ -335,22 +335,35 @@ export const SITE_MAP = [
     },
     {
         id: 'leaderboard',
-        title: 'Baker Leaderboard',
-        href: '/#leaderboard',
+        title: 'Baker Directory',
+        href: '/leaderboard/',
         hash: '#leaderboard',
         hashAliases: ['#baker'],
         group: 'Tools',
-        detail: 'Rank active bakers and find candidates with open delegation room',
-        keywords: ['leaderboard', 'baker leaderboard', 'baker directory', 'baker', 'validator', 'capacity', '/leaderboard']
+        detail: 'Discover active bakers through transparent on-chain capacity, tenure, governance, and tz4 signals',
+        keywords: ['leaderboard', 'baker leaderboard', 'baker directory', 'baker', 'validator', 'capacity', 'delegation room', '/leaderboard'],
+        searchIntents: [
+            { id: 'leaderboard-discover', title: 'Discover a Baker', href: '/leaderboard/?view=discover', detail: 'Find candidates through transparent delegation-lane filters', keywords: ['find baker', 'choose baker', 'delegator match'], directory: true },
+            { id: 'leaderboard-directory', title: 'All Active Bakers', href: '/leaderboard/?view=directory', detail: 'Search, filter, and sort the complete funded active-baker directory', keywords: ['all bakers', 'active baker list'], directory: true },
+            { id: 'leaderboard-signals', title: 'Baker Signals', href: '/leaderboard/?view=signals', detail: 'Read the factual tenure, governance, capacity, and tz4 signal methodology', keywords: ['baker signals', 'governance streak', 'accepted proposal', 'tz4 baker'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'hourly', priority: '0.8' }
     },
     {
         id: 'history',
         title: 'Cycle History',
-        href: '/#history',
+        href: '/history/',
         hash: '#history',
         group: 'Tools',
         detail: 'Rewind core Tezos metrics across cycles and open historical charts',
-        keywords: ['history', 'historical data', 'charts', 'cycles', '/history']
+        keywords: ['history', 'historical data', 'charts', 'cycles', 'signal history', '/history'],
+        searchIntents: [
+            { id: 'history-day', title: 'Last 24 Hours', href: '/history/?range=24h', detail: 'Open the latest day of captured Tezos signal history', keywords: ['24 hour history', 'daily charts'], directory: true },
+            { id: 'history-month', title: 'Last 30 Days', href: '/history/?range=30d', detail: 'Open the latest month of captured Tezos signal history', keywords: ['30 day history', 'monthly charts'], directory: true },
+            { id: 'history-all', title: 'All Captured History', href: '/history/?range=all', detail: 'Open the complete captured multi-domain signal archive', keywords: ['all time history', 'complete charts'], directory: true }
+        ],
+        sitemap: { changefreq: 'hourly', priority: '0.8' }
     },
     {
         id: 'snapshot',
@@ -424,34 +437,33 @@ export const SITE_MAP_NAV_GROUPS = [
 
 export const SITE_MAP_RELATIONS = {
     home: ['chambers', 'pulse', 'capital', 'my-tezos'],
-    chambers: ['pulse', 'staking-chamber', 'health', 'maxis'],
+    chambers: ['pulse', 'staking-chamber', 'leaderboard', 'whales'],
     'my-tezos': ['domains', 'ledger-flow', 'maxis', 'calculator'],
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
     pulse: ['capital', 'health', 'hot-today', 'staking-chamber'],
     capital: ['tezosx', 'price', 'ledger-flow', 'hen'],
-    'staking-chamber': ['ledger-flow', 'leaderboard', 'staking', 'calculator'],
+    'staking-chamber': ['leaderboard', 'ledger-flow', 'staking', 'calculator'],
     maxis: ['tezoscrp', 'ledger-flow', 'domains', 'hen'],
     tezoscrp: ['maxis', 'anthology', 'hen', 'feed'],
-    health: ['pulse', 'tz4', 'bakers-guide', 'staking-chamber'],
+    health: ['pulse', 'tz4', 'leaderboard', 'staking-chamber'],
     'liquidity-baking': ['chamber', 'pulse', 'staking', 'health'],
     tezosx: ['l2-governance', 'pulse', 'compare', 'health'],
     'l2-governance': ['tezosx', 'chamber', 'anthology', 'pulse'],
     tz4: ['health', 'bakers-guide', 'pulse', 'staking-chamber'],
-    'ledger-flow': ['my-tezos', 'domains', 'ctez', 'whales'],
+    'ledger-flow': ['my-tezos', 'whales', 'domains', 'ctez'],
     domains: ['my-tezos', 'ledger-flow', 'maxis', 'hen'],
     ctez: ['my-tezos', 'ledger-flow', 'staking', 'pulse'],
     price: ['live-compare', 'history', 'pulse', 'snapshot'],
-    whales: ['ledger-flow', 'staking-chamber', 'giants', 'pulse'],
-    giants: ['ledger-flow', 'whales', 'pulse', 'history'],
+    whales: ['ledger-flow', 'capital', 'staking-chamber', 'history'],
     'hot-today': ['pulse', 'health', 'staking-chamber', 'maxis'],
     staking: ['staking-chamber', 'calculator', 'bakers-guide', 'ledger-flow'],
     'governance-guide': ['chamber', 'anthology', 'feed', 'my-tezos'],
     'bakers-guide': ['leaderboard', 'health', 'tz4', 'staking'],
     compare: ['pulse', 'health', 'anthology', 'staking-chamber'],
     calculator: ['staking', 'staking-chamber', 'bakers-guide', 'leaderboard'],
-    leaderboard: ['bakers-guide', 'health', 'tz4', 'my-tezos'],
-    history: ['pulse', 'health', 'price', 'anthology'],
+    leaderboard: ['my-tezos', 'staking-chamber', 'health', 'tz4'],
+    history: ['pulse', 'anthology', 'health', 'price'],
     snapshot: ['pulse', 'history', 'widgets', 'price'],
     'live-compare': ['compare', 'pulse', 'health', 'price'],
     widgets: ['pulse', 'snapshot', 'price', 'home'],

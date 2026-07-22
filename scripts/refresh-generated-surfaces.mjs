@@ -34,6 +34,7 @@ const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
 const CAPITAL_TARGETS = ['data/capital-snapshot.json'];
+const WHALE_WATCH_TARGETS = ['data/whale-watch.json'];
 const TEZOSCRP_TARGETS = ['data/tezoscrp-awards.json', 'data/tezoscrp-summary.json'];
 
 const GENERATED_TARGETS = unique([
@@ -50,6 +51,7 @@ const GENERATED_TARGETS = unique([
   ...MAXIS_CAREER_TARGETS,
   ...MAXIS_L2_GOVERNANCE_TARGETS,
   ...CAPITAL_TARGETS,
+  ...WHALE_WATCH_TARGETS,
   ...TEZOSCRP_TARGETS
 ]);
 
@@ -210,6 +212,8 @@ async function main() {
     ran.push('nakamoto-check');
     nodeScript('scripts/refresh-capital-data.mjs', ['--check']);
     ran.push('capital-check');
+    nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check']);
+    ran.push('whale-watch-check');
   } else if (modeName === 'all' || modeName === 'scheduled') {
     nodeScript('scripts/refresh-maxis-l2-governance.mjs');
     ran.push('maxis-l2-governance');
@@ -226,6 +230,9 @@ async function main() {
     nodeScript('scripts/refresh-capital-data.mjs');
     ran.push('capital');
     if (shouldStage) stageTargets(CAPITAL_TARGETS);
+    nodeScript('scripts/refresh-whale-watch-data.mjs');
+    ran.push('whale-watch');
+    if (shouldStage) stageTargets(WHALE_WATCH_TARGETS);
   }
 
   const milestoneArgs = [];

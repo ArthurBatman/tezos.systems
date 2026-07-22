@@ -24,6 +24,8 @@
     "refresh:generated:scheduled": "node scripts/refresh-generated-surfaces.mjs --mode scheduled",
     "refresh:capital": "node scripts/refresh-capital-data.mjs",
     "check:capital": "node scripts/refresh-capital-data.mjs --check",
+    "refresh:whales": "node scripts/refresh-whale-watch-data.mjs",
+    "check:whales": "node scripts/refresh-whale-watch-data.mjs --check",
     "refresh:milestones": "node scripts/generate-milestone-catalog.mjs --force",
     "refresh:nakamoto": "node scripts/refresh-nakamoto-sources.mjs",
     "refresh:maxis": "node scripts/refresh-maxis-data.mjs",

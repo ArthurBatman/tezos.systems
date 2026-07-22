@@ -17370,6 +17370,14 @@ body {
         height: 338px;
     }
 
+    /* These two launchers carry richer room previews than the compact cards.
+       Keep the pair level and leave enough room for every metric, route rail,
+       and the shared Chamber footer instead of clipping their contents. */
+    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card {
+        height: 320px;
+        min-height: 320px;
+    }
+
     #chamber-entry-card.chamber-entry-wide .chamber-entry-front {
         display: grid;
         grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
@@ -17423,6 +17431,10 @@ body {
 }
 
 @media (min-width: 760px) and (max-width: 1040px) {
+    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card {
+        height: 360px;
+    }
+
     #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="health-governance"] > .chamber-entry-card {
         height: 300px;
     }
@@ -17538,6 +17550,19 @@ body {
     #chambers-grid .chamber-entry-card.chamber-entry-wide {
         height: auto !important;
         min-height: 236px;
+    }
+
+    /* Rich Chamber launchers must be allowed to establish their own mobile
+       height. Their shared flip-card front is absolute by default, which
+       otherwise leaves the old 236px floor in charge and clips wrapped
+       metrics or route rails on narrow screens. */
+    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card .card-inner {
+        height: auto;
+    }
+
+    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card .chamber-entry-front {
+        position: relative;
+        height: auto;
     }
 
     #chambers-grid #chamber-entry-card.chamber-entry-wide {
