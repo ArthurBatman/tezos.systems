@@ -6780,7 +6780,7 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
       };
     });
     assert(initial.path === '/tezoscrp/' && initial.canonical === 'https://tezos.systems/tezoscrp/', `TezosCRP ${label}: canonical route mismatch ${JSON.stringify(initial)}`);
-    assert(initial.metrics.join('|').includes('2,218') && initial.metrics.join('|').includes('870') && initial.metrics.join('|').includes('69'), `TezosCRP ${label}: baseline totals missing ${JSON.stringify(initial.metrics)}`);
+    assert(initial.metrics.join('|').includes('2,218') && initial.metrics.join('|').includes('827') && initial.metrics.join('|').includes('69'), `TezosCRP ${label}: baseline totals missing ${JSON.stringify(initial.metrics)}`);
     assert(initial.tabs === 4, `TezosCRP ${label}: expected four archive views`);
     assert(/one official category listing equals one award/i.test(initial.truth) && /most posts do not state a per-person XTZ payout/i.test(initial.truth), `TezosCRP ${label}: count truth is missing ${initial.truth}`);
     assert(!initial.pageOverflow && !initial.modalOverflow && !initial.bodyOverflow, `TezosCRP ${label}: initial view overflows ${JSON.stringify(initial)}`);
@@ -6793,6 +6793,22 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     await page.locator('#tezoscrp-person-detail:not([hidden]) .tezoscrp-receipts article').first().waitFor({ state: 'visible' });
     assert(await page.locator('#tezoscrp-person-detail .tezoscrp-receipts article').count() === 63, `TezosCRP ${label}: person receipt trail is incomplete`);
     assert(await page.locator('#tezoscrp-person-detail .tezoscrp-receipts a').count() >= 63, `TezosCRP ${label}: official source receipts are missing`);
+
+    await page.locator('#tezoscrp-person-close').click();
+    await page.locator('#tezoscrp-hall-search').fill('cleof');
+    await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-hall-results [data-tezoscrp-person]').length === 1);
+    const cleofText = (await page.locator('#tezoscrp-hall-results [data-tezoscrp-person]').innerText()).replace(/\s+/g, ' ');
+    assert(/cle0fis/i.test(cleofText) && /\b2\b/.test(cleofText), `TezosCRP ${label}: cleof aliases were not consolidated ${cleofText}`);
+
+    await page.locator('#tezoscrp-hall-search').fill('PixelSushiRobot');
+    await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-hall-results [data-tezoscrp-person]').length === 1);
+    const pixelText = (await page.locator('#tezoscrp-hall-results [data-tezoscrp-person]').innerText()).replace(/\s+/g, ' ');
+    assert(/NiceFishTaco/i.test(pixelText) && /\b3\b/.test(pixelText), `TezosCRP ${label}: PixelSushiRobot continuity was not consolidated ${pixelText}`);
+
+    await page.locator('#tezoscrp-hall-search').fill('onebalddude');
+    await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-hall-results [data-tezoscrp-person]').length === 1);
+    const crossPlatformText = (await page.locator('#tezoscrp-hall-results [data-tezoscrp-person]').innerText()).replace(/\s+/g, ' ');
+    assert(/one_bald_dude/i.test(crossPlatformText) && /\b7\b/.test(crossPlatformText), `TezosCRP ${label}: cross-platform alias was not consolidated ${crossPlatformText}`);
 
     await page.locator('[data-tezoscrp-view="latest"]').click();
     await page.locator('.tezoscrp-latest-hero h2').waitFor({ state: 'visible' });

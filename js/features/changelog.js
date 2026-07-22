@@ -5,6 +5,13 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-22',
+        entries: [
+            { type: '🔧', text: 'TezosCRP now consolidates verified handle changes, spelling variants, and cross-platform identities while preserving every originally published recipient and source receipt' },
+            { type: '🔧', text: 'TezosCRP identity continuity now comes from an auditable high-confidence registry, with uncertain lookalikes held for review instead of being guessed' }
+        ]
+    },
+    {
         date: '2026-07-21',
         entries: [
             { type: '✨', text: 'The new TezosCRP Recognition Hall preserves every official Tezos Commons monthly community award by identity, category, month, and source receipt' },

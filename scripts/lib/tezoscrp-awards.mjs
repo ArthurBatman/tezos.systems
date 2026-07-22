@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
-export const TEZOSCRP_SCHEMA_VERSION = '1.1.0';
+export const TEZOSCRP_SCHEMA_VERSION = '1.2.0';
+export const TEZOSCRP_IDENTITY_REGISTRY_VERSION = '1.0.0';
 export const TEZOSCRP_RSS_URL = 'https://medium.com/feed/tezoscommons';
 
 export const CURRENT_CATEGORY_DEFINITIONS = [
@@ -185,13 +186,90 @@ function nameSlug(value) {
     .replace(/^-|-$/g, '') || 'unknown';
 }
 
-function identityIndexes(dataset) {
+function identityLabel(personId) {
+  const [platform, ...rest] = String(personId || '').split(':');
+  const value = rest.join(':');
+  if (platform === 'x') return `@${value}`;
+  if (platform === 'reddit') return `u/${value}`;
+  return value;
+}
+
+function identityRegistryIndexes(registry) {
+  const canonicalByAlias = new Map();
+  const entryByCanonical = new Map();
+  for (const entry of registry?.identities || []) {
+    const canonical = String(entry?.canonical_person_id || '');
+    if (!canonical) continue;
+    entryByCanonical.set(canonical, entry);
+    for (const alias of entry.alias_person_ids || []) canonicalByAlias.set(String(alias), canonical);
+  }
+  return { canonicalByAlias, entryByCanonical };
+}
+
+export function validateTezosCrpIdentityAliases(registry, dataset = null) {
+  const errors = [];
+  if (!registry || typeof registry !== 'object') return ['identity registry must be an object'];
+  if (registry.schema_version !== TEZOSCRP_IDENTITY_REGISTRY_VERSION) {
+    errors.push(`identity registry schema_version must be ${TEZOSCRP_IDENTITY_REGISTRY_VERSION}`);
+  }
+  if (!Array.isArray(registry.identities)) errors.push('identity registry identities must be an array');
+  if (!Array.isArray(registry.pending_review)) errors.push('identity registry pending_review must be an array');
+  if (registry.policy?.merge_threshold !== 'high_confidence_only') errors.push('identity registry must use the high_confidence_only merge policy');
+  if (registry.policy?.preserve_published_recipient !== true) errors.push('identity registry must preserve published recipients');
+  if (registry.policy?.infer_wallets !== false) errors.push('identity registry must not infer wallets');
+
+  const canonicalIds = new Set();
+  const aliases = new Map();
+  for (const [index, entry] of (registry.identities || []).entries()) {
+    const canonical = String(entry?.canonical_person_id || '');
+    if (!/^(?:x|reddit|name):[^\s:]+$/i.test(canonical)) errors.push(`identity registry entry ${index} has invalid canonical_person_id`);
+    if (canonicalIds.has(canonical)) errors.push(`duplicate canonical identity ${canonical}`);
+    canonicalIds.add(canonical);
+    if (!entry?.display_name) errors.push(`identity registry entry ${canonical || index} lacks display_name`);
+    if (!Array.isArray(entry?.alias_person_ids) || !entry.alias_person_ids.length) errors.push(`identity registry entry ${canonical || index} lacks aliases`);
+    if (!entry?.basis) errors.push(`identity registry entry ${canonical || index} lacks basis`);
+    if (!Array.isArray(entry?.evidence_urls) || !entry.evidence_urls.length || entry.evidence_urls.some((url) => !/^https:\/\//.test(url))) {
+      errors.push(`identity registry entry ${canonical || index} needs HTTPS evidence_urls`);
+    }
+    if (entry?.profile) {
+      if (!['x', 'reddit'].includes(entry.profile.platform) || !/^[A-Za-z0-9_][A-Za-z0-9_-]{0,30}$/.test(entry.profile.handle || '')) {
+        errors.push(`identity registry entry ${canonical || index} has an invalid profile`);
+      }
+    }
+    for (const alias of entry?.alias_person_ids || []) {
+      if (!/^(?:x|reddit|name):[^\s:]+$/i.test(alias)) errors.push(`identity registry entry ${canonical || index} has invalid alias ${alias}`);
+      if (alias === canonical) errors.push(`identity registry entry ${canonical || index} aliases itself`);
+      if (aliases.has(alias)) errors.push(`identity alias ${alias} is claimed by both ${aliases.get(alias)} and ${canonical}`);
+      aliases.set(alias, canonical);
+    }
+  }
+  for (const canonical of canonicalIds) {
+    if (aliases.has(canonical)) errors.push(`canonical identity ${canonical} is also registered as an alias`);
+  }
+  for (const [index, row] of (registry.pending_review || []).entries()) {
+    if (!Array.isArray(row?.person_ids) || row.person_ids.length < 2 || !row.reason) errors.push(`pending identity review ${index} is incomplete`);
+    for (const personId of row?.person_ids || []) {
+      if (aliases.has(personId)) errors.push(`pending identity ${personId} is already merged`);
+    }
+  }
+  if (dataset) {
+    const datasetIds = new Set((dataset.awards || []).map(({ person_id }) => person_id));
+    for (const [alias, canonical] of aliases) {
+      if (datasetIds.has(alias)) errors.push(`dataset still uses registered alias ${alias}; expected ${canonical}`);
+    }
+  }
+  return [...new Set(errors)];
+}
+
+function identityIndexes(dataset, identityRegistry = null) {
+  const registry = identityRegistryIndexes(identityRegistry);
   const byHandle = new Map();
   const byName = new Map();
   const displayByPerson = new Map();
   const knownHandlesByPerson = new Map();
   for (const award of dataset?.awards || []) {
-    const personId = String(award?.person_id || '');
+    const sourceId = String(award?.identity_source_id || award?.person_id || '');
+    const personId = registry.canonicalByAlias.get(sourceId) || registry.canonicalByAlias.get(String(award?.person_id || '')) || String(award?.person_id || '');
     if (!personId) continue;
     if (!displayByPerson.has(personId) || award.period >= displayByPerson.get(personId).period) {
       displayByPerson.set(personId, { period: award.period, value: award.recipient_name || award.handle || award.recipient_raw });
@@ -206,6 +284,19 @@ function identityIndexes(dataset) {
     }
     if (award.recipient_name) byName.set(nameKey(award.recipient_name), personId);
     if (award.recipient_raw) byName.set(nameKey(award.recipient_raw), personId);
+  }
+  for (const [canonical, entry] of registry.entryByCanonical) {
+    displayByPerson.set(canonical, { period: '9999-12', value: entry.display_name });
+    if (!knownHandlesByPerson.has(canonical)) knownHandlesByPerson.set(canonical, new Set());
+    for (const personId of [canonical, ...(entry.alias_person_ids || [])]) {
+      const [platform, value] = personId.split(':');
+      if (platform === 'x') {
+        byHandle.set(handleKey(value), canonical);
+        knownHandlesByPerson.get(canonical).add(handleKey(value));
+      } else if (value) {
+        byName.set(nameKey(value), canonical);
+      }
+    }
   }
   return { byHandle, byName, displayByPerson, knownHandlesByPerson };
 }
@@ -252,14 +343,14 @@ function announcedTotalTez(article) {
   return match ? Number(match[1].replaceAll(',', '')) : null;
 }
 
-export function awardsFromArticle(article, dataset) {
+export function awardsFromArticle(article, dataset, identityRegistry = null) {
   const period = periodFromArticle(article);
   if (!period) throw new Error(`Could not determine award period from ${article?.title || article?.url || 'article'}`);
   const sections = articleWinnerSections(article);
   if (!sections.some(({ category }) => CURRENT_CATEGORIES.includes(category))) {
     throw new Error(`No current TezosCRP award sections found in ${article?.url || article?.title}`);
   }
-  const indexes = identityIndexes(dataset);
+  const indexes = identityIndexes(dataset, identityRegistry);
   const occurrences = new Map();
   const awards = [];
   for (const section of sections) {
@@ -310,8 +401,9 @@ function sortedCountEntries(values) {
   return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
 }
 
-export function rebuildDerivedFields(dataset, generatedAt = new Date().toISOString()) {
+export function rebuildDerivedFields(dataset, generatedAt = new Date().toISOString(), identityRegistry = null) {
   const awards = Array.isArray(dataset?.awards) ? dataset.awards : [];
+  const registry = identityRegistryIndexes(identityRegistry);
   const periods = [...new Set(awards.map(({ period }) => period).filter(Boolean))].sort();
   const first = periods[0] || dataset?.program?.first_award_period || null;
   const latest = periods.at(-1) || dataset?.program?.latest_award_period || null;
@@ -328,15 +420,24 @@ export function rebuildDerivedFields(dataset, generatedAt = new Date().toISOStri
     if (award.recipient_raw) person.rawNames.add(award.recipient_raw);
     for (const alias of award.aliases || []) person.aliases.add(alias);
   }
-  const peopleSummary = [...people.entries()].map(([person_id, person]) => ({
-    person_id,
-    total_awards: person.awards.length,
-    distinct_periods: person.periods.size,
-    periods: [...person.periods].sort(),
-    categories: Object.fromEntries([...person.categories].sort(([left], [right]) => left.localeCompare(right))),
-    raw_names: [...person.rawNames].sort((left, right) => left.localeCompare(right)),
-    aliases: [...person.aliases].sort((left, right) => left.localeCompare(right))
-  })).sort((left, right) => right.total_awards - left.total_awards || right.distinct_periods - left.distinct_periods || left.person_id.localeCompare(right.person_id));
+  const peopleSummary = [...people.entries()].map(([person_id, person]) => {
+    const entry = registry.entryByCanonical.get(person_id);
+    const latestAward = [...person.awards].sort((left, right) => right.period.localeCompare(left.period))[0];
+    for (const alias of entry?.alias_person_ids || []) person.aliases.add(identityLabel(alias));
+    return {
+      person_id,
+      display_name: entry?.display_name || latestAward?.recipient_name || latestAward?.handle || person_id,
+      ...(entry?.profile ? { profile: entry.profile } : {}),
+      total_awards: person.awards.length,
+      distinct_periods: person.periods.size,
+      periods: [...person.periods].sort(),
+      categories: Object.fromEntries([...person.categories].sort(([left], [right]) => left.localeCompare(right))),
+      raw_names: [...person.rawNames].sort((left, right) => left.localeCompare(right)),
+      aliases: [...person.aliases].sort((left, right) => left.localeCompare(right))
+    };
+  }).sort((left, right) => right.total_awards - left.total_awards || right.distinct_periods - left.distinct_periods || left.person_id.localeCompare(right.person_id));
+
+  const appliedAliasIds = [...new Set(awards.map(({ identity_source_id }) => identity_source_id).filter((personId) => registry.canonicalByAlias.has(personId)))].sort();
 
   return {
     ...dataset,
@@ -355,9 +456,38 @@ export function rebuildDerivedFields(dataset, generatedAt = new Date().toISOStri
       unexpected_periods: periods.filter((period) => !expected.includes(period)),
       periods: periods.map((period) => ({ period, award_rows: awardRowsByPeriod.get(period) || 0 }))
     },
+    identity_resolution: {
+      registry_schema_version: identityRegistry?.schema_version || null,
+      registry_updated_at: identityRegistry?.updated_at || null,
+      canonical_records: registry.entryByCanonical.size,
+      registry_alias_ids: registry.canonicalByAlias.size,
+      applied_alias_ids: appliedAliasIds.length,
+      pending_review_records: identityRegistry?.pending_review?.length || 0
+    },
     category_summary: sortedCountEntries(awards.map(({ category }) => category)).map(([category, award_rows]) => ({ category, award_rows })),
     people_summary: peopleSummary
   };
+}
+
+export function applyIdentityAliases(dataset, identityRegistry, generatedAt = dataset?.generated_at || new Date().toISOString()) {
+  const registryErrors = validateTezosCrpIdentityAliases(identityRegistry);
+  if (registryErrors.length) throw new Error(`TezosCRP identity registry validation failed:\n- ${registryErrors.join('\n- ')}`);
+  const { canonicalByAlias } = identityRegistryIndexes(identityRegistry);
+  const next = structuredClone(dataset);
+  next.awards = (next.awards || []).map((award) => {
+    const sourceId = String(award.identity_source_id || award.person_id || '');
+    const canonical = canonicalByAlias.get(sourceId) || canonicalByAlias.get(String(award.person_id || ''));
+    if (!canonical) return award;
+    const aliases = new Set(award.aliases || []);
+    aliases.add(identityLabel(sourceId));
+    return {
+      ...award,
+      identity_source_id: sourceId,
+      person_id: canonical,
+      aliases: [...aliases]
+    };
+  });
+  return rebuildDerivedFields(next, generatedAt, identityRegistry);
 }
 
 function displayAwardForPerson(dataset, personId) {
@@ -374,9 +504,10 @@ export function buildTezosCrpSummary(dataset) {
     const award = displayAwardForPerson(dataset, person.person_id);
     return {
       person_id: person.person_id,
-      display_name: award?.recipient_name || award?.handle || person.person_id,
-      handle: award?.handle || null,
-      platform: award?.platform || null,
+      display_name: person.display_name || award?.recipient_name || award?.handle || person.person_id,
+      handle: person.profile?.handle || award?.handle || null,
+      platform: person.profile?.platform || award?.platform || null,
+      ...(person.profile ? { profile: person.profile } : {}),
       total_awards: person.total_awards,
       distinct_periods: person.distinct_periods,
       latest_period: person.periods?.at(-1) || null,
@@ -388,6 +519,7 @@ export function buildTezosCrpSummary(dataset) {
     generated_at: dataset.generated_at,
     program: dataset.program,
     coverage: dataset.coverage,
+    identity_resolution: dataset.identity_resolution,
     totals: {
       awards: dataset.awards?.length || 0,
       people: people.length,
@@ -415,21 +547,21 @@ export function buildTezosCrpSummary(dataset) {
   };
 }
 
-export function mergeNewArticles(dataset, rssItems, generatedAt = new Date().toISOString()) {
+export function mergeNewArticles(dataset, rssItems, generatedAt = new Date().toISOString(), identityRegistry = null) {
   const existingPeriods = new Set((dataset.articles_and_threads || []).map(({ period }) => period));
   const candidates = rssItems
     .filter((article) => /tezos community rewards/i.test(article.title))
     .map((article) => ({ ...article, period: periodFromArticle(article) }))
     .filter((article) => article.period && !existingPeriods.has(article.period))
     .sort((left, right) => left.period.localeCompare(right.period));
-  if (!candidates.length) return { dataset, addedPeriods: [] };
+  if (!candidates.length) return { dataset: identityRegistry ? applyIdentityAliases(dataset, identityRegistry, dataset.generated_at || generatedAt) : dataset, addedPeriods: [] };
 
-  const next = structuredClone(dataset);
+  const next = identityRegistry ? applyIdentityAliases(dataset, identityRegistry, dataset.generated_at || generatedAt) : structuredClone(dataset);
   next.awards ||= [];
   next.articles_and_threads ||= [];
   const addedPeriods = [];
   for (const article of candidates) {
-    const parsed = awardsFromArticle(article, next);
+    const parsed = awardsFromArticle(article, next, identityRegistry);
     next.awards.push(...parsed.awards);
     next.articles_and_threads.push({
       period: parsed.period,
@@ -442,10 +574,10 @@ export function mergeNewArticles(dataset, rssItems, generatedAt = new Date().toI
     addedPeriods.push(parsed.period);
   }
   next.articles_and_threads.sort((left, right) => left.period.localeCompare(right.period));
-  return { dataset: rebuildDerivedFields(next, generatedAt), addedPeriods };
+  return { dataset: identityRegistry ? applyIdentityAliases(next, identityRegistry, generatedAt) : rebuildDerivedFields(next, generatedAt), addedPeriods };
 }
 
-export function validateTezosCrpDataset(dataset) {
+export function validateTezosCrpDataset(dataset, identityRegistry = null) {
   const errors = [];
   if (!dataset || typeof dataset !== 'object') return ['dataset must be an object'];
   if (!Array.isArray(dataset.awards) || !dataset.awards.length) errors.push('awards must be a non-empty array');
@@ -462,6 +594,15 @@ export function validateTezosCrpDataset(dataset) {
     const sources = Array.isArray(award.sources) ? award.sources : [];
     if (!sources.some((source) => /^official_tezos_commons_/.test(source?.type || '') && /^https:\/\//.test(source?.url || ''))) {
       errors.push(`award ${award.award_id || index} lacks an official Tezos Commons HTTPS source`);
+    }
+  }
+  if (identityRegistry) {
+    errors.push(...validateTezosCrpIdentityAliases(identityRegistry, dataset));
+    const { canonicalByAlias } = identityRegistryIndexes(identityRegistry);
+    for (const award of dataset.awards || []) {
+      if (award.identity_source_id && canonicalByAlias.get(award.identity_source_id) !== award.person_id) {
+        errors.push(`award ${award.award_id} has identity_source_id ${award.identity_source_id} without canonical person_id ${award.person_id}`);
+      }
     }
   }
   if (dataset.coverage?.missing_periods?.length) errors.push(`coverage has missing periods: ${dataset.coverage.missing_periods.join(', ')}`);

@@ -7,20 +7,29 @@ import { fileURLToPath } from 'node:url';
 import {
   CURRENT_CATEGORY_DEFINITIONS,
   TEZOSCRP_SCHEMA_VERSION,
+  applyIdentityAliases,
   awardsFromArticle,
   buildTezosCrpSummary,
   mergeNewArticles,
   parseMediumRss,
-  validateTezosCrpDataset
+  validateTezosCrpDataset,
+  validateTezosCrpIdentityAliases
 } from '../scripts/lib/tezoscrp-awards.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataset = JSON.parse(await fs.readFile(path.join(ROOT, 'data/tezoscrp-awards.json'), 'utf8'));
 const summary = JSON.parse(await fs.readFile(path.join(ROOT, 'data/tezoscrp-summary.json'), 'utf8'));
+const identityAliases = JSON.parse(await fs.readFile(path.join(ROOT, 'data/tezoscrp-identity-aliases.json'), 'utf8'));
 
 assert.equal(dataset.schema_version, TEZOSCRP_SCHEMA_VERSION);
-assert.deepEqual(validateTezosCrpDataset(dataset), []);
+assert.deepEqual(validateTezosCrpIdentityAliases(identityAliases, dataset), []);
+assert.deepEqual(validateTezosCrpDataset(dataset, identityAliases), []);
+assert.deepEqual(applyIdentityAliases(dataset, identityAliases, dataset.generated_at), dataset);
 assert.deepEqual(summary, buildTezosCrpSummary(dataset));
+assert.equal(dataset.awards.length, 2_218);
+assert.equal(dataset.people_summary.length, 827);
+assert.equal(dataset.identity_resolution.applied_alias_ids, 43);
+assert.equal(dataset.identity_resolution.pending_review_records, 2);
 assert.equal(CURRENT_CATEGORY_DEFINITIONS.length, 9);
 assert.equal(new Set(CURRENT_CATEGORY_DEFINITIONS.map(({ icon }) => icon)).size, 9);
 for (const definition of CURRENT_CATEGORY_DEFINITIONS) {
@@ -34,7 +43,7 @@ const fixtureArticle = {
   html: `
     <p>For this round, a total of 10,000 tez has been awarded.</p>
     <h3>Helping Hand Award</h3>
-    <ul><li>@FixtureHelper</li><li>@TozartWeb3 (ex @TezosNFTMusic)</li></ul>
+    <ul><li>@FixtureHelper</li><li>@TozartWeb3 (ex @TezosNFTMusic)</li><li>@PixelSushiRobot</li></ul>
     <h3>Patissier Award</h3>
     <ul><li>@FixtureBaker</li></ul>
     <h3>Nominations Are Open For August</h3>
@@ -42,11 +51,12 @@ const fixtureArticle = {
   `
 };
 
-const fixture = awardsFromArticle(fixtureArticle, dataset);
+const fixture = awardsFromArticle(fixtureArticle, dataset, identityAliases);
 assert.equal(fixture.period, '2026-07');
-assert.equal(fixture.awards.length, 3);
+assert.equal(fixture.awards.length, 4);
 assert.equal(fixture.announced_total_tez, 10_000);
 assert.equal(fixture.awards.find(({ handle }) => handle === 'TozartWeb3')?.person_id, 'x:tozartweb3');
+assert.equal(fixture.awards.find(({ handle }) => handle === 'PixelSushiRobot')?.person_id, 'x:nicefishtaco');
 assert.equal(fixture.awards.find(({ handle }) => handle === 'FixtureBaker')?.category, 'Pâtissier Award');
 assert.equal(fixture.awards.some(({ handle }) => handle === 'ThisIsNotAWinner'), false);
 
@@ -60,10 +70,27 @@ const rss = `<?xml version="1.0"?><rss><channel><item>
 const items = parseMediumRss(rss);
 assert.equal(items.length, 1);
 assert.equal(items[0].url, fixtureArticle.url);
-const merged = mergeNewArticles(dataset, items, '2026-08-20T18:01:00.000Z');
+const merged = mergeNewArticles(dataset, items, '2026-08-20T18:01:00.000Z', identityAliases);
 assert.deepEqual(merged.addedPeriods, ['2026-07']);
-assert.equal(merged.dataset.awards.length, dataset.awards.length + 3);
+assert.equal(merged.dataset.awards.length, dataset.awards.length + 4);
 assert.equal(merged.dataset.coverage.missing_periods.length, 0);
-assert.deepEqual(validateTezosCrpDataset(merged.dataset), []);
+assert.deepEqual(validateTezosCrpDataset(merged.dataset, identityAliases), []);
 
-console.log(`TezosCRP focused checks passed: ${dataset.awards.length} awards, 9 official category icons, RSS parser and alias continuity`);
+for (const [personId, awards, periods] of [
+  ['x:nicefishtaco', 3, 3],
+  ['x:cleofis', 2, 2],
+  ['x:flexasaurusrex', 7, 7],
+  ['x:one_bald_dude', 7, 7]
+]) {
+  const person = dataset.people_summary.find((row) => row.person_id === personId);
+  assert.equal(person?.total_awards, awards, `${personId} award total`);
+  assert.equal(person?.distinct_periods, periods, `${personId} month total`);
+}
+for (const personId of ['x:pixelsushirobot', 'x:cle0fis', 'x:rexflexasaurus', 'reddit:onebalddude']) {
+  assert.equal(dataset.people_summary.some((person) => person.person_id === personId), false, `${personId} should resolve to its canonical record`);
+}
+for (const personId of ['reddit:amethyst-001', 'x:amethyst001_', 'x:tezosafrica', 'x:tezosinafrica']) {
+  assert.equal(dataset.people_summary.some((person) => person.person_id === personId), true, `${personId} should remain separate pending evidence`);
+}
+
+console.log(`TezosCRP focused checks passed: ${dataset.awards.length} awards, ${dataset.people_summary.length} verified identities, RSS parser and alias continuity`);

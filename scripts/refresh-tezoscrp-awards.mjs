@@ -6,16 +6,18 @@ import { fileURLToPath } from 'node:url';
 import {
   TEZOSCRP_RSS_URL,
   TEZOSCRP_SCHEMA_VERSION,
+  applyIdentityAliases,
   buildTezosCrpSummary,
   mergeNewArticles,
   parseMediumRss,
-  rebuildDerivedFields,
-  validateTezosCrpDataset
+  validateTezosCrpDataset,
+  validateTezosCrpIdentityAliases
 } from './lib/tezoscrp-awards.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DATA_FILE = path.join(ROOT, 'data', 'tezoscrp-awards.json');
 const SUMMARY_FILE = path.join(ROOT, 'data', 'tezoscrp-summary.json');
+const IDENTITY_FILE = path.join(ROOT, 'data', 'tezoscrp-identity-aliases.json');
 
 function hasFlag(name) {
   return process.argv.includes(name);
@@ -39,21 +41,23 @@ async function writeJson(file, value) {
   await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function assertValid(dataset) {
-  const errors = validateTezosCrpDataset(dataset);
+function assertValid(dataset, identityRegistry) {
+  const registryErrors = validateTezosCrpIdentityAliases(identityRegistry, dataset);
+  if (registryErrors.length) throw new Error(`TezosCRP identity registry validation failed:\n- ${registryErrors.join('\n- ')}`);
+  const errors = validateTezosCrpDataset(dataset, identityRegistry);
   if (errors.length) throw new Error(`TezosCRP dataset validation failed:\n- ${errors.join('\n- ')}`);
 }
 
-function assertDerived(dataset) {
-  const rebuilt = rebuildDerivedFields(dataset, dataset.generated_at);
-  const fields = ['schema_version', 'program', 'coverage', 'category_summary', 'people_summary'];
+function assertDerived(dataset, identityRegistry) {
+  const rebuilt = applyIdentityAliases(dataset, identityRegistry, dataset.generated_at);
+  const fields = ['schema_version', 'program', 'coverage', 'identity_resolution', 'category_summary', 'people_summary', 'awards'];
   const drift = fields.filter((field) => !equalJson(dataset[field], rebuilt[field]));
   if (drift.length) throw new Error(`TezosCRP derived fields drifted: ${drift.join(', ')}. Run npm run refresh:tezoscrp -- --rebuild-only.`);
 }
 
-async function check(dataset) {
-  assertValid(dataset);
-  assertDerived(dataset);
+async function check(dataset, identityRegistry) {
+  assertValid(dataset, identityRegistry);
+  assertDerived(dataset, identityRegistry);
   const expectedSummary = buildTezosCrpSummary(dataset);
   const actualSummary = await readJson(SUMMARY_FILE);
   if (!equalJson(actualSummary, expectedSummary)) throw new Error('data/tezoscrp-summary.json does not match the full TezosCRP dataset');
@@ -70,28 +74,28 @@ async function fetchRss() {
 }
 
 async function main() {
-  const current = await readJson(DATA_FILE);
+  const [current, identityRegistry] = await Promise.all([readJson(DATA_FILE), readJson(IDENTITY_FILE)]);
   if (hasFlag('--check')) {
-    await check(current);
+    await check(current, identityRegistry);
     return;
   }
 
   let next = current;
   let addedPeriods = [];
   if (hasFlag('--rebuild-only')) {
-    next = rebuildDerivedFields(current, current.generated_at || new Date().toISOString());
+    next = applyIdentityAliases(current, identityRegistry, current.generated_at || new Date().toISOString());
   } else {
     const items = parseMediumRss(await fetchRss());
-    const merged = mergeNewArticles(current, items);
+    const merged = mergeNewArticles(current, items, new Date().toISOString(), identityRegistry);
     next = merged.dataset;
     addedPeriods = merged.addedPeriods;
   }
 
   if (next.schema_version !== TEZOSCRP_SCHEMA_VERSION) {
-    next = rebuildDerivedFields(next, next.generated_at || new Date().toISOString());
+    next = applyIdentityAliases(next, identityRegistry, next.generated_at || new Date().toISOString());
   }
-  assertValid(next);
-  assertDerived(next);
+  assertValid(next, identityRegistry);
+  assertDerived(next, identityRegistry);
 
   if (!equalJson(current, next)) await writeJson(DATA_FILE, next);
   const summary = buildTezosCrpSummary(next);
@@ -101,7 +105,7 @@ async function main() {
 
   if (addedPeriods.length) console.log(`Added TezosCRP award periods: ${addedPeriods.join(', ')}`);
   else console.log('No new TezosCRP winner article found; dataset remains current');
-  await check(next);
+  await check(next, identityRegistry);
 }
 
 main().catch((error) => {

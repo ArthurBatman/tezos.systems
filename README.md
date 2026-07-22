@@ -76,6 +76,7 @@ tezos.systems/
 │   ├── maxis-l2-governance.json         # Exact all-history Etherlink governance careers
 │   ├── maxis-leaders.json              # Generated canonical lane-native-clock Maxis snapshot
 │   ├── tezoscrp-awards.json             # Full official human-identity recognition archive
+│   ├── tezoscrp-identity-aliases.json    # Evidence-backed identity continuity registry
 │   ├── tezoscrp-summary.json            # Compact launcher/latest-winners projection
 │   ├── maxis/
 │   │   ├── manifest.json               # Protocol-season index and active season
@@ -697,6 +698,7 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
 | Tezos Commons rewards page and official Medium publication | TezosCRP category definitions, official icons, monthly winner announcements, and source receipts |
 | `data/tezoscrp-awards.json` | Same-origin full TezosCRP recognition archive, with human-identity aliases, monthly/category coverage, and known published amounts kept separate from award counts |
+| `data/tezoscrp-identity-aliases.json` | Auditable high-confidence handle, spelling, and cross-platform continuity; uncertain lookalikes remain explicitly pending instead of being guessed |
 | Etherlink JSON-RPC `https://node.mainnet.etherlink.com` | Tezos X chamber RPC head and gas fallback |
 | Etherlink governance `https://governance.etherlink.com/governance` | Official FAST, SLOW, and Sequencer action pages linked from the read-only chamber |
 | Octez.Connect `@tezos-x/octez.connect-sdk` via `https://esm.sh` | Lazy browser wallet pairing and ctez/My Tezos account actions |
@@ -959,7 +961,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v457`, including hero search, theme
+- Current aligned shell cache stamp: `v458`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

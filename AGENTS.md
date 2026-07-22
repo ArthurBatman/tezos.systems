@@ -407,9 +407,11 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   must not change immutable v2 Season, Season Unicorn, frozen Passport shards,
   or Champions.
 - `data/tezoscrp-awards.json`: full official TezosCRP archive from October 2020
-  onward. Recipients are conservatively merged human/social identities because
-  the program does not publish a verified wallet for each winner. Preserve raw
-  names, handles, aliases, categories, periods, and source receipts.
+  onward. Recipients are merged only through the evidence-backed
+  `data/tezoscrp-identity-aliases.json` registry because the program does not
+  publish a verified wallet for each winner. Preserve raw published names,
+  handles, aliases, categories, periods, and source receipts; keep uncertain
+  lookalikes in `pending_review` rather than guessing.
 - `data/tezoscrp-summary.json`: compact launcher/latest-winners projection of
   the full TezosCRP archive. Its totals must reconcile exactly to the full file.
 - `data/maxis/manifest.json`: protocol-season catalog and active/settling/final
@@ -484,8 +486,9 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   static contracts keep those two route identities aligned.
 - `scripts/refresh-tezoscrp-awards.mjs`: parses the official Tezos Commons
   Medium RSS, adds only unseen winner periods, preserves historical category
-  names, rebuilds the full/compact derived summaries, and validates offline with
-  `npm run check:tezoscrp`. Parser/alias coverage lives in
+  names, applies the evidence-backed identity registry, rebuilds the
+  full/compact derived summaries, and validates offline with `npm run
+  check:tezoscrp`. Parser/alias coverage lives in
   `tests/tezoscrp-check.mjs`.
 - `scripts/refresh-maxis-l2-governance.mjs`: rebuilds the independent L2
   Governance career artifact from all three official Etherlink canonical-period

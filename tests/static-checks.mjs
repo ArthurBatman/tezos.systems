@@ -75,7 +75,7 @@ import {
   validateL2GovernanceCareerArtifact
 } from '../scripts/lib/maxis-l2-governance.mjs';
 import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
-import { validateTezosCrpDataset } from '../scripts/lib/tezoscrp-awards.mjs';
+import { validateTezosCrpDataset, validateTezosCrpIdentityAliases } from '../scripts/lib/tezoscrp-awards.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -291,6 +291,7 @@ async function checkRequiredFiles() {
     'data/maxis-leaders.json',
     'data/maxis/manifest.json',
     'data/tezoscrp-awards.json',
+    'data/tezoscrp-identity-aliases.json',
     'data/tezoscrp-summary.json',
     'maxis/index.html',
     'og/maxis.png',
@@ -5230,6 +5231,7 @@ async function checkMaxisContracts() {
 async function checkTezosCrpContracts() {
   const dataset = JSON.parse(await readText('data/tezoscrp-awards.json'));
   const summary = JSON.parse(await readText('data/tezoscrp-summary.json'));
+  const identityAliases = JSON.parse(await readText('data/tezoscrp-identity-aliases.json'));
   const feature = await readText('js/features/tezoscrp.js');
   const css = await readText('css/tezoscrp.css');
   const app = await readText('js/core/app.js');
@@ -5239,10 +5241,19 @@ async function checkTezosCrpContracts() {
   const workflow = await readText('.github/workflows/refresh-tezoscrp.yml');
   const packageJson = JSON.parse(await readText('package.json'));
 
-  const errors = validateTezosCrpDataset(dataset);
+  const identityErrors = validateTezosCrpIdentityAliases(identityAliases, dataset);
+  if (identityErrors.length) fail(`TezosCRP identity registry is invalid: ${identityErrors.join('; ')}`);
+  const errors = validateTezosCrpDataset(dataset, identityAliases);
   if (errors.length) fail(`TezosCRP dataset is invalid: ${errors.join('; ')}`);
-  if (dataset.awards.length < 2218 || dataset.people_summary.length < 870 || dataset.coverage.covered_periods < 69) {
+  if (dataset.awards.length < 2218 || dataset.people_summary.length < 827 || dataset.coverage.covered_periods < 69) {
     fail('TezosCRP archive must preserve the complete October 2020 through June 2026 baseline');
+  }
+  if (dataset.identity_resolution?.applied_alias_ids < 43 || dataset.identity_resolution?.pending_review_records !== identityAliases.pending_review.length) {
+    fail('TezosCRP archive must retain its verified alias resolutions and explicit pending-review boundary');
+  }
+  for (const [canonicalPersonId, expectedAwards] of [['x:nicefishtaco', 3], ['x:cleofis', 2], ['x:flexasaurusrex', 7], ['x:one_bald_dude', 7]]) {
+    const person = dataset.people_summary.find(({ person_id }) => person_id === canonicalPersonId);
+    if (!person || person.total_awards < expectedAwards) fail(`TezosCRP canonical identity ${canonicalPersonId} lost verified award receipts`);
   }
   if (dataset.coverage.missing_periods.length || dataset.coverage.expected_periods !== dataset.coverage.covered_periods) {
     fail('TezosCRP monthly coverage must remain consecutive from the first through latest award period');
@@ -5281,7 +5292,9 @@ async function checkTezosCrpContracts() {
   for (const copy of [
     'one official category listing equals one award',
     'most posts do not state a per-person XTZ payout',
+    'uncertain lookalikes remain separate',
     'Ranked by category awards, with recognized months shown separately',
+    'after verified alias merges',
     'Official source'
   ]) {
     if (!feature.includes(copy)) fail(`TezosCRP truth/source copy is missing: ${copy}`);

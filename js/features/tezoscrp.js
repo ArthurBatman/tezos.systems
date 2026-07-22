@@ -6,9 +6,9 @@
 import { escapeHtml } from '../core/utils.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
-const SUMMARY_URL = '/data/tezoscrp-summary.json?v=457';
-const DATA_URL = '/data/tezoscrp-awards.json?v=457';
-const CSS_URL = '/css/tezoscrp.css?v=457';
+const SUMMARY_URL = '/data/tezoscrp-summary.json?v=458';
+const DATA_URL = '/data/tezoscrp-awards.json?v=458';
+const CSS_URL = '/css/tezoscrp.css?v=458';
 const VIEW_KEYS = ['hall', 'latest', 'categories', 'archive'];
 const VIEW_LABELS = {
     hall: 'Recognition Hall',
@@ -113,15 +113,23 @@ function latestAwardForPerson(personId) {
 
 function displayPerson(person) {
     const latest = latestAwardForPerson(person?.person_id);
-    return latest?.recipient_name || latest?.handle || person?.display_name || person?.person_id || 'Unknown recipient';
+    return person?.display_name || latest?.recipient_name || latest?.handle || person?.person_id || 'Unknown recipient';
 }
 
-function profileLink(award, label, className = '') {
-    const handle = String(award?.handle || '').replace(/^@/, '');
-    if (award?.platform === 'x' && /^[A-Za-z0-9_]{1,15}$/.test(handle)) {
+function profileLink(identity, label, className = '') {
+    const platform = identity?.profile?.platform || identity?.platform;
+    const handle = String(identity?.profile?.handle || identity?.handle || '').replace(/^@/, '');
+    if (platform === 'x' && /^[A-Za-z0-9_]{1,15}$/.test(handle)) {
         return `<a class="${escapeHtml(className)}" href="https://x.com/${encodeURIComponent(handle)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
     }
+    if (platform === 'reddit' && /^[A-Za-z0-9_-]{1,30}$/.test(handle)) {
+        return `<a class="${escapeHtml(className)}" href="https://www.reddit.com/user/${encodeURIComponent(handle)}/" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    }
     return `<span class="${escapeHtml(className)}">${escapeHtml(label)}</span>`;
+}
+
+function personForAward(award) {
+    return fullData?.people_summary?.find(({ person_id }) => person_id === award?.person_id) || award;
 }
 
 function sourceLink(award, label = 'Official source') {
@@ -330,7 +338,7 @@ function roomHeader() {
             </div>
             <a class="tezoscrp-official-link" href="https://tezoscommons.org/rewards/" target="_blank" rel="noopener noreferrer">Official program ↗</a>
         </header>
-        <div class="tezoscrp-truth-note"><strong>What is counted:</strong> one official category listing equals one award. Monthly recognitions and known published amounts remain separate; most posts do not state a per-person XTZ payout.</div>
+        <div class="tezoscrp-truth-note"><strong>What is counted:</strong> one official category listing equals one award. Monthly recognitions and known published amounts remain separate; most posts do not state a per-person XTZ payout. <strong>Identity continuity:</strong> verified aliases share one record, every published name stays on its receipt, and uncertain lookalikes remain separate.</div>
         <nav class="tezoscrp-tabs" role="tablist" aria-label="TezosCRP Chamber views">
             ${VIEW_KEYS.map((view) => `<button type="button" role="tab" aria-selected="${state.view === view}" tabindex="${state.view === view ? '0' : '-1'}" data-tezoscrp-view="${view}">${escapeHtml(VIEW_LABELS[view])}</button>`).join('')}
         </nav>
@@ -343,7 +351,7 @@ function overviewMetrics() {
     return `
         <section class="tezoscrp-metrics" aria-label="TezosCRP archive totals">
             <div><span>Official awards</span><strong>${formatNumber(totals.awards)}</strong><small>category recognitions</small></div>
-            <div><span>Community identities</span><strong>${formatNumber(totals.people)}</strong><small>conservatively merged</small></div>
+            <div><span>Community identities</span><strong>${formatNumber(totals.people)}</strong><small>after verified alias merges</small></div>
             <div><span>Monthly rounds</span><strong>${formatNumber(totals.periods)}</strong><small>${shortPeriod(fullData?.program?.first_award_period)} – ${shortPeriod(fullData?.program?.latest_award_period)}</small></div>
             <div><span>Category names</span><strong>${formatNumber(totals.categories)}</strong><small>current + historical</small></div>
         </section>
@@ -351,7 +359,7 @@ function overviewMetrics() {
 }
 
 function personSearchText(person) {
-    return [person.person_id, ...(person.raw_names || []), ...(person.aliases || []), ...Object.keys(person.categories || {})].join(' ').toLowerCase();
+    return [person.person_id, person.display_name, person.profile?.handle, ...(person.raw_names || []), ...(person.aliases || []), ...Object.keys(person.categories || {})].join(' ').toLowerCase();
 }
 
 function sortedPeople() {
@@ -417,7 +425,7 @@ function renderPersonDetail() {
     slot.hidden = false;
     slot.innerHTML = `
         <div class="tezoscrp-person-detail-head">
-            <div><span>Recognition record</span><h2>${profileLink(latest, displayPerson(person))}</h2><p>${formatNumber(person.total_awards)} awards across ${formatNumber(person.distinct_periods)} ${person.distinct_periods === 1 ? 'month' : 'months'} and ${formatNumber(Object.keys(person.categories || {}).length)} ${Object.keys(person.categories || {}).length === 1 ? 'category' : 'categories'}.</p></div>
+            <div><span>Recognition record</span><h2>${profileLink(person, displayPerson(person))}</h2><p>${formatNumber(person.total_awards)} awards across ${formatNumber(person.distinct_periods)} ${person.distinct_periods === 1 ? 'month' : 'months'} and ${formatNumber(Object.keys(person.categories || {}).length)} ${Object.keys(person.categories || {}).length === 1 ? 'category' : 'categories'}.</p></div>
             <button type="button" id="tezoscrp-person-close" aria-label="Close recognition record">×</button>
         </div>
         <div class="tezoscrp-person-categories">${Object.entries(person.categories || {}).sort((left, right) => right[1] - left[1]).map(([category, count]) => `<span>${categoryMark(category)}<b>${escapeHtml(category)}</b><small>${formatNumber(count)}</small></span>`).join('')}</div>
@@ -485,7 +493,7 @@ function renderLatest() {
         <div class="tezoscrp-latest-grid">
             ${groupAwardsByCategory(awards).map(([category, rows]) => `<section class="tezoscrp-category-winners">
                 <header>${categoryMark(category)}<div><span>${categoryDefinition(category) ? 'Current category' : 'Special recognition'}</span><h3>${escapeHtml(category)}</h3></div><strong>${formatNumber(rows.length)}</strong></header>
-                <div>${rows.map((award) => `<span>${profileLink(award, award.recipient_name || award.handle || award.person_id)}<small>${sourceLink(award, 'Source')}</small></span>`).join('')}</div>
+                <div>${rows.map((award) => `<span>${profileLink(personForAward(award), award.recipient_name || award.handle || award.person_id)}<small>${sourceLink(award, 'Source')}</small></span>`).join('')}</div>
             </section>`).join('')}
         </div>
     `;
@@ -550,7 +558,7 @@ function renderArchiveRows() {
         <div class="tezoscrp-archive-list">${visible.map((award) => `<article>
             <time datetime="${escapeHtml(award.period)}">${escapeHtml(shortPeriod(award.period))}</time>
             ${categoryMark(award.category)}
-            <div>${profileLink(award, award.recipient_name || award.handle || award.person_id)}<small>${escapeHtml(award.category)}${hasPublishedAmount(award) ? ` · ${formatNumber(award.amount_tez)} ꜩ published` : ''}</small></div>
+            <div>${profileLink(personForAward(award), award.recipient_name || award.handle || award.person_id)}<small>${escapeHtml(award.category)}${hasPublishedAmount(award) ? ` · ${formatNumber(award.amount_tez)} ꜩ published` : ''}</small></div>
             ${sourceLink(award)}
         </article>`).join('')}</div>
         ${visible.length < rows.length ? `<button class="tezoscrp-load-more" id="tezoscrp-archive-more" type="button">Show ${formatNumber(Math.min(PAGE_SIZE, rows.length - visible.length))} more</button>` : ''}
