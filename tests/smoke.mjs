@@ -5943,6 +5943,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelector('#health-nc-33')?.textContent === '1' && document.querySelector('#health-nc-66')?.textContent === '2', null, { timeout: 10000 });
   await page.waitForFunction(() => /Octez Versions/.test(document.querySelector('#health-octez-versions')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /Block/.test(document.querySelector('#block-ticker-line')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => /\bTX\b/.test(document.querySelector('#header-activity-line')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+s$/.test((document.querySelector('#hero-chain-uptime-finality')?.textContent || '').trim()), null, { timeout: 20000 });
 
@@ -5966,6 +5967,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const topProofMilestoneRect = topProofMilestone?.getBoundingClientRect();
     const topProofRuntime = topProofHistory?.querySelector('#hero-chain-uptime-counter');
     const topProofHistoryZoom = topProofHistory ? (parseFloat(getComputedStyle(topProofHistory).zoom) || 1) : 1;
+    const headerActivityButton = document.querySelector('#header-activity-button');
+    const headerActivityLine = document.querySelector('#header-activity-line');
+    const headerActivityCluster = headerActivityLine?.querySelector('.header-activity-cluster');
+    const headerActivityRect = headerActivityButton?.getBoundingClientRect();
+    const headerActivityClusterRect = headerActivityCluster?.getBoundingClientRect();
     const card = document.querySelector('[data-stat="network-health"]');
     const ticker = document.querySelector('#block-ticker-strip');
     const tickerButton = document.querySelector('#block-ticker-button');
@@ -6095,6 +6101,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofHistoryAriaControls: topProofHistory?.getAttribute('aria-controls') || '',
       topProofMilestoneAfterHistory: Boolean(topProofMilestone && topProofHistory && (topProofHistory.compareDocumentPosition(topProofMilestone) & Node.DOCUMENT_POSITION_FOLLOWING)),
       topProofMilestoneGap: topProofHistoryRect && topProofMilestoneRect ? topProofMilestoneRect.left - topProofHistoryRect.right : null,
+      topProofMilestoneHidden: Boolean(topProofMilestone?.hidden),
+      topProofMilestoneDisplay: topProofMilestone ? getComputedStyle(topProofMilestone).display : '',
       topProofHistoryWired: topProof?.dataset.historyWired || '',
       topProofPillCards: Array.from(topProof?.querySelectorAll('.top-continuity-stat[data-card-history]') || []).map((pill) => pill.dataset.cardHistory || ''),
       topProofPillsWired: Array.from(topProof?.querySelectorAll('.top-continuity-stat[data-card-history]') || []).every((pill) => pill.dataset.topContinuityHistoryPillWired === '1'),
@@ -6112,6 +6120,23 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofFinality: topProof?.querySelector('#hero-chain-uptime-finality')?.textContent || '',
       topProofStaked: topProof?.querySelector('#hero-chain-uptime-staked')?.textContent || '',
       topProofIssuance: topProof?.querySelector('#hero-chain-uptime-issuance')?.textContent || '',
+      headerActivityText: headerActivityLine?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      headerActivityInHeader: Boolean(headerActivityButton && header?.contains(headerActivityButton)),
+      headerActivityAfterHistory: Boolean(headerActivityButton && topProofHistory && (topProofHistory.compareDocumentPosition(headerActivityButton) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      headerActivityRightOfHistory: Boolean(headerActivityRect && topProofHistoryRect && headerActivityRect.left >= topProofHistoryRect.right - 1),
+      headerActivityVerticallyAligned: Boolean(headerActivityRect && topProofHistoryRect && Math.abs((headerActivityRect.top + headerActivityRect.height / 2) - (topProofHistoryRect.top + topProofHistoryRect.height / 2)) <= 4),
+      headerActivityFullyVisible: Boolean(headerActivityRect && headerActivityClusterRect
+        && headerActivityClusterRect.left >= headerActivityRect.left - 1
+        && headerActivityClusterRect.right <= headerActivityRect.right + 1
+        && Array.from(headerActivityCluster?.querySelectorAll('.block-ticker-usage') || []).filter((segment) => getComputedStyle(segment).display !== 'none').every((segment) => {
+          const rect = segment.getBoundingClientRect();
+          return rect.left >= headerActivityRect.left - 1 && rect.right <= headerActivityRect.right + 1;
+        })),
+      headerActivityLabels: Array.from(headerActivityCluster?.querySelectorAll('.block-ticker-label') || []).filter((label) => getComputedStyle(label).display !== 'none').map((label) => label.textContent?.trim() || ''),
+      headerActivityWired: headerActivityButton?.dataset.headerActivityWired || '',
+      headerActivityTag: headerActivityButton?.tagName || '',
+      headerActivityType: headerActivityButton?.getAttribute('type') || '',
+      headerActivityOutsideTicker: Boolean(headerActivityButton && ticker && !ticker.contains(headerActivityButton)),
       systemLinks: modal?.querySelectorAll('.health-baker-name-link[href^="#baker="]').length || 0,
       tzktLinks: modal?.querySelectorAll('.lb-baker-source-link[href^="https://tzkt.io/"]').length || 0,
       footer: modal?.querySelector('.chamber-footer')?.textContent || '',
@@ -6269,7 +6294,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.topProofInHeader && healthState.topProofHistoryInHeader, 'network health chamber: continuity stats and mainnet-age counter should live in the top header');
   assert(healthState.topProofTag === 'DIV' && healthState.topProofHistoryTag === 'BUTTON' && healthState.topProofHistoryType === 'button', `network health chamber: continuity surface should use a stat container with a button uptime launcher, saw ${healthState.topProofTag}/${healthState.topProofHistoryTag}/${healthState.topProofHistoryType}`);
   assert(healthState.topProofHistoryAriaControls === 'protocol-history-chamber-modal' && healthState.topProofHistoryWired === '1', `network health chamber: continuity proof Protocol Anthology launcher missing: ${healthState.topProofHistoryAriaControls}/${healthState.topProofHistoryWired}`);
-  assert(healthState.topProofMilestoneAfterHistory && healthState.topProofMilestoneGap >= 0 && healthState.topProofMilestoneGap <= 24, `network health chamber: milestone marker must sit directly right of the uptime/year counter: ${JSON.stringify({ after: healthState.topProofMilestoneAfterHistory, gap: healthState.topProofMilestoneGap })}`);
+  assert(healthState.topProofMilestoneAfterHistory
+    && (healthState.topProofMilestoneHidden
+      ? healthState.topProofMilestoneDisplay === 'none'
+      : healthState.topProofMilestoneGap >= 0 && healthState.topProofMilestoneGap <= 24),
+  `network health chamber: inactive milestone must reserve no space and an active marker must sit directly right of uptime: ${JSON.stringify({ after: healthState.topProofMilestoneAfterHistory, gap: healthState.topProofMilestoneGap, hidden: healthState.topProofMilestoneHidden, display: healthState.topProofMilestoneDisplay })}`);
   assert(['total-bakers', 'finality', 'staking-ratio', 'issuance-rate'].every((key) => healthState.topProofPillCards.includes(key)) && healthState.topProofPillsWired, `network health chamber: continuity proof all-time pills missing or unwired: ${healthState.topProofPillCards.join(',')}/${healthState.topProofPillsWired}`);
   assert(/mainnet age/i.test(healthState.topProofHistoryText) && /since 2018/i.test(healthState.topProofHistoryText) && !/100% uptime|zero forks|zero outages/i.test(healthState.topProofHistoryText), `network health chamber: mainnet-age counter should identify its elapsed-time meaning: ${healthState.topProofHistoryText}`);
   assert(healthState.topProofPairUnderTitle && healthState.topProofPairLeftAligned, `network health chamber: milestone/year pair should sit directly under Tezos Systems title: ${JSON.stringify({ under: healthState.topProofPairUnderTitle, aligned: healthState.topProofPairLeftAligned })}`);
@@ -6283,6 +6312,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(/\d+s/.test(healthState.topProofFinality), `network health chamber: top proof finality missing: ${healthState.topProofFinality}`);
   assert(/^\d+(?:\.\d+)?%$/.test(healthState.topProofStaked), `network health chamber: top proof staked ratio mismatch: ${healthState.topProofStaked}`);
   assert(/^\d+(?:\.\d+)?%$/.test(healthState.topProofIssuance), `network health chamber: top proof issuance mismatch: ${healthState.topProofIssuance}`);
+  assert(healthState.headerActivityInHeader && healthState.headerActivityAfterHistory && healthState.headerActivityRightOfHistory && healthState.headerActivityVerticallyAligned, `network health chamber: trailing-hour activity should sit directly right of mainnet age ${JSON.stringify({ inHeader: healthState.headerActivityInHeader, afterHistory: healthState.headerActivityAfterHistory, rightOfHistory: healthState.headerActivityRightOfHistory, verticallyAligned: healthState.headerActivityVerticallyAligned })}`);
+  assert(healthState.headerActivityTag === 'BUTTON' && healthState.headerActivityType === 'button' && healthState.headerActivityWired === '1', `network health chamber: trailing-hour activity launcher semantics missing: ${healthState.headerActivityTag}/${healthState.headerActivityType}/${healthState.headerActivityWired}`);
+  assert(healthState.headerActivityOutsideTicker && healthState.headerActivityFullyVisible, `network health chamber: trailing-hour activity must be a separate unclipped header line: ${JSON.stringify({ outsideTicker: healthState.headerActivityOutsideTicker, fullyVisible: healthState.headerActivityFullyVisible })}`);
+  assert(/\b1H\b/.test(healthState.headerActivityText) && /\bTX\b/.test(healthState.headerActivityText) && /Moved/.test(healthState.headerActivityText) && /NFT/.test(healthState.headerActivityText), `network health chamber: trailing-hour TX, moved, and NFT text missing: ${healthState.headerActivityText}`);
+  assert(['TX', 'Moved', 'NFT'].every((label) => healthState.headerActivityLabels.includes(label)), `network health chamber: trailing-hour activity labels are hidden: ${healthState.headerActivityLabels.join(', ')}`);
   assert(healthState.systemLinks >= healthState.attesterRows, `network health chamber: baker profile links missing, saw ${healthState.systemLinks}`);
   assert(healthState.tzktLinks >= healthState.attesterRows, `network health chamber: TzKT links missing, saw ${healthState.tzktLinks}`);
   assert(/Direct: \/health\//.test(healthState.footer), `network health chamber: direct footer missing: ${healthState.footer}`);
@@ -6315,6 +6349,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(/Health(Peak|Healthy|Watch|Degraded)/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing health: ${healthState.blockTickerText}`);
   assert(/Octezv25\.0/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing baker Octez version: ${healthState.blockTickerText}`);
   assert(/Attested[\d,]+\/7,000/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing attestation power: ${healthState.blockTickerText}`);
+  assert(!/\b1H\b|\bMoved\b|\bNFT\b/.test(healthState.blockTickerText), `network health chamber: trailing-hour activity should no longer be clipped inside the block ticker: ${healthState.blockTickerText}`);
   assert(!healthState.blockTickerHasUptimeProof, 'network health chamber: uptime proof should not live inside the live block ticker');
   assert(/mainnet continuity/i.test(healthState.networkHealthProofText) && /chain-age measure/i.test(healthState.networkHealthProofText) && /not an availability percentage/i.test(healthState.networkHealthProofText), `network health chamber: continuity panel must distinguish chain age from availability: ${healthState.networkHealthProofText}`);
   assert(/\d+y\s+\d+d\s+\d{2}h\s+\d{2}m\s+\d{2}s/.test(healthState.networkHealthProofCounter), `network health chamber: uptime counter missing fixed-width runtime: ${healthState.networkHealthProofCounter}`);
@@ -10980,13 +11015,17 @@ async function smokeThemeSelection(browser, baseUrl) {
     assert(themeResponse?.ok(), `theme ${theme} mobile: dashboard failed with HTTP ${themeResponse?.status()}`);
     await mobilePage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
     await mobilePage.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
+    await mobilePage.waitForFunction(() => /\bTX\b/.test(document.querySelector('#header-activity-line')?.textContent || ''), null, { timeout: 10000 });
     const state = await mobilePage.evaluate(async () => {
       await document.fonts.ready;
       const title = document.querySelector('.title');
       const uptime = document.querySelector('#top-continuity-history');
       const runtime = document.querySelector('.top-continuity-runtime');
+      const activity = document.querySelector('#header-activity-button');
+      const activityLine = document.querySelector('#header-activity-line');
       const titleRect = title?.getBoundingClientRect();
       const uptimeRect = uptime?.getBoundingClientRect();
+      const activityRect = activity?.getBoundingClientRect();
       const runtimeStyle = runtime ? getComputedStyle(runtime) : null;
       const uptimeZoom = uptime ? Number.parseFloat(getComputedStyle(uptime).zoom || '1') || 1 : 1;
       const ledgerMetricOverflow = Math.max(0, ...Array.from(document.querySelectorAll('.ledger-flow-entry-metrics strong'))
@@ -11001,13 +11040,18 @@ async function smokeThemeSelection(browser, baseUrl) {
         runtimeNoWrap: runtimeStyle?.whiteSpace === 'nowrap',
         runtimeVisualFontSize: runtimeStyle ? Number.parseFloat(runtimeStyle.fontSize) * uptimeZoom : 0,
         titleOverflow: title ? title.scrollWidth - title.clientWidth : 999,
-        uptimeInsideViewport: Boolean(uptimeRect && uptimeRect.left >= -1 && uptimeRect.right <= innerWidth + 1)
+        uptimeInsideViewport: Boolean(uptimeRect && uptimeRect.left >= -1 && uptimeRect.right <= innerWidth + 1),
+        activityInsideViewport: Boolean(activityRect && activityRect.left >= -1 && activityRect.right <= innerWidth + 1),
+        activityUnderUptime: Boolean(activityRect && uptimeRect && activityRect.top >= uptimeRect.bottom - 1),
+        activityOverflow: activityLine ? activityLine.scrollWidth - activityLine.clientWidth : 999,
+        activityLabels: Array.from(activityLine?.querySelectorAll('.block-ticker-label') || []).filter((label) => getComputedStyle(label).display !== 'none').map((label) => label.textContent?.trim() || '')
       };
     });
     assert(state.runtimeFont.includes(fontExpectations[theme].runtime), `theme ${theme} mobile: runtime font mismatch ${state.runtimeFont}`);
     assert(state.centerDelta <= 2, `theme ${theme} mobile: uptime should share the title center (${state.centerDelta}px)`);
     assert(state.runtimeVisualFontSize >= 17, `theme ${theme} mobile: runtime should remain comfortably readable (${state.runtimeVisualFontSize}px)`);
     assert(state.runtimeNoWrap && state.uptimeInsideViewport, `theme ${theme} mobile: runtime escaped or wrapped ${JSON.stringify(state)}`);
+    assert(state.activityInsideViewport && state.activityUnderUptime && state.activityOverflow <= 1 && ['TX', 'Moved', 'NFT'].every((label) => state.activityLabels.includes(label)), `theme ${theme} mobile: trailing-hour activity should remain visible below mainnet age ${JSON.stringify(state)}`);
     assert(state.ledgerMetricOverflow <= 1, `theme ${theme} mobile: Ledger Flow metric labels should not clip (${state.ledgerMetricOverflow}px)`);
     assert(state.titleOverflow <= 1 && state.documentOverflow <= 1, `theme ${theme} mobile: typography overflow ${JSON.stringify(state)}`);
 

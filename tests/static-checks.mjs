@@ -966,6 +966,8 @@ async function checkSelectorContracts() {
     'chambers-grid',
     'block-ticker-strip',
     'block-ticker-line',
+    'header-activity-button',
+    'header-activity-line',
     'header-protocol-chip',
     'header-current-protocol',
     'upgrade-clock',
@@ -1058,6 +1060,13 @@ async function checkSelectorContracts() {
   const uptimeYearIndex = index.indexOf('<button class="top-continuity-history"', uptimeClusterStart);
   if (uptimeClusterStart < 0 || milestoneMarkerIndex < uptimeClusterStart || uptimeYearIndex < uptimeClusterStart || milestoneMarkerIndex < uptimeYearIndex) {
     fail('header milestone marker must follow the uptime/year counter inside the uptime cluster');
+  }
+  const brandStackStart = index.indexOf('<div class="header-brand-stack">');
+  const titleRowIndex = index.indexOf('<div class="header-title-row"', brandStackStart);
+  const continuityRowIndex = index.indexOf('<div class="top-continuity-row">', titleRowIndex);
+  const activityButtonIndex = index.indexOf('id="header-activity-button"', brandStackStart);
+  if (brandStackStart < 0 || titleRowIndex < brandStackStart || continuityRowIndex < titleRowIndex || uptimeClusterStart < continuityRowIndex || activityButtonIndex < milestoneMarkerIndex) {
+    fail('header must keep title first, then order mainnet age and trailing-hour activity in the lower continuity row');
   }
 
   const chambersLauncherIndex = index.indexOf('id="chambers-toggle"');
@@ -1751,6 +1760,9 @@ async function checkSelectorContracts() {
     ['top continuity since-2018 marker', 'top-continuity-origin">since 2018', index],
     ['top continuity milestone runtime marker', 'class="top-continuity-primary-line"', index],
     ['top continuity milestone destination link', '<a class="top-continuity-milestone-info" href="#pulse" hidden>', index],
+    ['header trailing-hour activity launcher', 'id="header-activity-button"', index],
+    ['header trailing-hour activity cluster', 'class="header-activity-cluster"', health],
+    ['header trailing-hour activity updater', 'function updateHeaderActivity', health],
     ['top continuity proof baker metric', 'id="hero-chain-uptime-bakers"', index],
     ['top continuity baker all-time pill', 'data-card-history="total-bakers"', index],
     ['top continuity finality all-time pill', 'data-card-history="finality"', index],
@@ -1777,6 +1789,8 @@ async function checkSelectorContracts() {
     ['chain uptime baker updater', "setChainText('chain-uptime-bakers'", app],
     ['top continuity proof styles', '.top-continuity-panel', styles],
     ['header uptime badge title stack styles', '.header-brand-stack', styles],
+    ['header continuity row styles', '.header-continuity-row', shellExtrasCss],
+    ['header trailing-hour activity styles', '.header-activity-button', shellExtrasCss],
     ['top continuity stat rail right aligned', 'justify-content: flex-end', styles],
     ['top continuity rail is borderless tape', 'border: 0;', styles],
     ['top continuity identity claim styles', '.top-continuity-claim', heroSearchCss],

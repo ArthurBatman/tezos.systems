@@ -53,7 +53,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=465';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=466';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -380,7 +380,7 @@ const USAGE_SLOTS = [
     { slot: 'whale', label: 'Whale', className: 'block-ticker-whale' }
 ];
 
-function renderTickerUsageCluster(usage) {
+function renderHeaderActivityCluster(usage) {
     const segments = USAGE_SLOTS.map(({ slot, label, className }) => {
         const { html, title } = usageSlotContent(slot, usage);
         return `
@@ -390,25 +390,41 @@ function renderTickerUsageCluster(usage) {
         </span>`;
     }).join('');
     return `
-        <span class="block-ticker-cluster" title="Network pulse — trailing hour across Tezos L1">
-            <span class="block-ticker-cluster-kicker" aria-hidden="true">1H</span>${segments}
+        <span class="header-activity-cluster" title="Network pulse — trailing hour across Tezos L1">
+            <span class="header-activity-cluster-kicker" aria-hidden="true">1H</span>${segments}
         </span>`;
 }
 
-function patchTickerUsage(usage) {
-    const line = document.getElementById('block-ticker-line');
-    if (!line || !usage?.updatedAt) return;
-    const stamp = String(usage.updatedAt);
-    if (line.dataset.usagePulseStamp === stamp) return;
-    line.dataset.usagePulseStamp = stamp;
+function updateHeaderActivity(usage) {
+    const line = document.getElementById('header-activity-line');
+    const button = document.getElementById('header-activity-button');
+    if (!line || !button) return;
+    if (!line.querySelector('.header-activity-cluster')) {
+        line.innerHTML = renderHeaderActivityCluster(usage);
+    }
     line.querySelectorAll('[data-usage-slot]').forEach((element) => {
         const { html, title } = usageSlotContent(element.dataset.usageSlot, usage);
         element.innerHTML = html;
         element.title = title;
     });
+    if (usage?.updatedAt) line.dataset.usagePulseStamp = String(usage.updatedAt);
+
+    const summary = usage && Number.isFinite(usage.txCount)
+        ? `Last hour: ${formatCount(usage.txCount)} transactions${Number.isFinite(usage.movedXtz) ? `, ${formatTezAmount(usage.movedXtz)}${usage.movedClipped ? '+' : ''} XTZ moved` : ''}${Number.isFinite(usage.nftCount) ? `, ${formatCount(usage.nftCount)} NFT transfers` : ''}.`
+        : 'Trailing hour Tezos L1 activity is syncing.';
+    button.title = `${summary} Open Network Health Chamber.`;
+    button.setAttribute('aria-label', `Open Network Health Chamber. ${summary}`);
 }
 
-function renderBlockTickerLine(block, timestamp, octezVersions, usage) {
+function patchTickerUsage(usage) {
+    const line = document.getElementById('header-activity-line');
+    if (!line || !usage?.updatedAt) return;
+    const stamp = String(usage.updatedAt);
+    if (line.dataset.usagePulseStamp === stamp) return;
+    updateHeaderActivity(usage);
+}
+
+function renderBlockTickerLine(block, timestamp, octezVersions) {
     const status = latestBlockStatus(block);
     const producer = block?.producer || {};
     const name = bakerName(producer);
@@ -458,7 +474,6 @@ function renderBlockTickerLine(block, timestamp, octezVersions, usage) {
             <span class="block-ticker-label">Age</span>
             <strong class="block-ticker-value" data-health-age="${escapeHtml(timestamp || '')}" data-health-age-format="ticker">${escapeHtml(formatTickerAge(timestamp))}</strong>
         </span>
-        ${renderTickerUsageCluster(usage)}
     `;
 }
 
@@ -500,12 +515,18 @@ function updateBlockTicker(data, { error = false } = {}) {
     const strip = document.getElementById('block-ticker-strip');
     const button = document.getElementById('block-ticker-button');
     const line = document.getElementById('block-ticker-line');
-    if (!strip || !button || !line) return;
+    const activityButton = document.getElementById('header-activity-button');
+    if (!strip || !button || !line || !activityButton) return;
 
     if (!button.dataset.blockTickerWired) {
         button.dataset.blockTickerWired = '1';
         button.addEventListener('click', openNetworkHealthChamber);
     }
+    if (!activityButton.dataset.headerActivityWired) {
+        activityButton.dataset.headerActivityWired = '1';
+        activityButton.addEventListener('click', openNetworkHealthChamber);
+    }
+    updateHeaderActivity(usagePulseCache);
 
     const latest = data?.blocks?.[0] || null;
     if (!latest) {
@@ -533,11 +554,7 @@ function updateBlockTicker(data, { error = false } = {}) {
     const octezTitle = octez.known
         ? ` Octez ${octez.value}: ${octez.label}${octez.latestVersion ? `; latest observed ${octez.latestVersion}.` : '.'}`
         : ' Octez version unavailable for this baker.';
-    const usage = usagePulseCache;
-    const usageTitle = usage && Number.isFinite(usage.txCount)
-        ? ` Last hour: ${formatCount(usage.txCount)} transactions${Number.isFinite(usage.movedXtz) ? `, ${formatTezAmount(usage.movedXtz)}${usage.movedClipped ? '+' : ''} XTZ moved` : ''}${Number.isFinite(usage.nftCount) ? `, ${formatCount(usage.nftCount)} NFT transfers` : ''}.`
-        : '';
-    const title = `Block ${formatCount(latest.level)} baked by ${producerName}. ${status.label}: ${formatCount(latest.power)} / ${formatCount(latest.committee)} attested, ${formatCount(latest.missedPower)} missed, round ${formatCount(latest.blockRound)}.${octezTitle}${usageTitle}`;
+    const title = `Block ${formatCount(latest.level)} baked by ${producerName}. ${status.label}: ${formatCount(latest.power)} / ${formatCount(latest.committee)} attested, ${formatCount(latest.missedPower)} missed, round ${formatCount(latest.blockRound)}.${octezTitle}`;
 
     strip.dataset.blockHealth = status.className;
     button.title = title;
@@ -550,8 +567,7 @@ function updateBlockTicker(data, { error = false } = {}) {
 
     const previousSignature = line.dataset.blockTickerSignature || '';
     line.dataset.blockTickerSignature = signature;
-    line.dataset.usagePulseStamp = String(usage?.updatedAt || '');
-    line.innerHTML = renderBlockTickerLine(latest, timestamp, data?.octezVersions, usage);
+    line.innerHTML = renderBlockTickerLine(latest, timestamp, data?.octezVersions);
     animateBlockTicker(strip, line, Boolean(previousSignature && previousSignature !== signature));
 }
 

@@ -292,7 +292,10 @@ inline modal styles in `js/core/app.js`.
   `mainnet age · since 2018` label. The counter measures elapsed time
   since launch, not an availability percentage or incident ledger. Active baker
   count, finality, staked share, and issuance rate remain in theme-matched stat
-  pills.
+  pills. A separate trailing-hour activity box sits immediately to the right of
+  mainnet age on desktop, shows transaction count, XTZ moved, and NFT transfers,
+  and opens Network Health; it stacks below mainnet age on narrow screens rather
+  than crowding the stat pills or the live block ticker.
   On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   Imminent or newly crossed network milestones make the runtime glow and add a

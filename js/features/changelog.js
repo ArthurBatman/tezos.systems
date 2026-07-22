@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '🎨', text: 'The lower header row now places trailing-hour TX, XTZ moved, and NFT activity immediately right of mainnet age, while preserving the metric pills in their original lane and removing the clipped copy from the live block ticker' },
             { type: '✨', text: 'Site credits now identify Primate as the baker Baking Benjamins, invite support through BakingBenjamins.tez or baking.tez, and offer a wallet-reviewed direct delegation action for connected visitors' },
             { type: '✨', text: 'Capital Markets now leads with a full-width XTZ/USD daily-close chart, range open/high/low/latest context, and an accessible 90-day price line on the Capital launcher card' },
             { type: '🔧', text: 'The header no longer repeats a personalized greeting or join-era story beside My Tezos, and first visits stay quiet while the search field itself explains the / shortcut' },
