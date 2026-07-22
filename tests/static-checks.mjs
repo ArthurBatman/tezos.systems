@@ -5234,6 +5234,8 @@ async function checkTezosCrpContracts() {
   const identityAliases = JSON.parse(await readText('data/tezoscrp-identity-aliases.json'));
   const feature = await readText('js/features/tezoscrp.js');
   const css = await readText('css/tezoscrp.css');
+  const maxisCss = await readText('css/maxis.css');
+  const tezosDomainsCss = await readText('css/tezos-domains.css');
   const app = await readText('js/core/app.js');
   const siteMap = await readText('js/core/site-map.js');
   const routes = await readText('scripts/lib/chamber-routes.mjs');
@@ -5267,6 +5269,16 @@ async function checkTezosCrpContracts() {
   if (summary.current_categories.length !== 9 || summary.current_categories.some((category, index) => category.icon !== `/assets/tezoscrp/cat-icon${String(index + 1).padStart(2, '0')}.png`)) {
     fail('TezosCRP summary must retain all nine current categories and their official icon mapping');
   }
+  const year2022 = summary.records?.years?.find(({ year }) => year === 2022);
+  const assimilationRecord = summary.records?.categories?.find(({ category }) => category === 'Assimilation Award');
+  if (summary.records?.years?.length < 7
+      || summary.records?.categories?.length !== dataset.category_summary.length
+      || year2022?.record !== 17
+      || year2022?.leaders?.[0]?.display_name !== 'Baking Benjamins'
+      || assimilationRecord?.record !== 25
+      || assimilationRecord?.leaders?.[0]?.display_name !== 'spike_0124') {
+    fail('TezosCRP category and annual record projections must reconcile to the official award archive');
+  }
   for (let index = 1; index <= 9; index += 1) {
     const icon = `assets/tezoscrp/cat-icon${String(index).padStart(2, '0')}.png`;
     if (!(await pathExists(icon))) fail(`TezosCRP official category icon is missing: ${icon}`);
@@ -5279,6 +5291,7 @@ async function checkTezosCrpContracts() {
     ['close cleanup', 'closeTezosCrpChamber', app],
     ['standalone card pair', "selectors: ['#tezoscrp-entry-card']", app],
     ['site-map destination', "href: '/tezoscrp/'", siteMap],
+    ['site-map records intent', "view=records", siteMap],
     ['site-map archive intent', "view=archive", siteMap],
     ['pretty route metadata', "slug: 'tezoscrp'", routes],
     ['generated data target', "'data/tezoscrp-summary.json'", generatedSurfaces],
@@ -5294,6 +5307,7 @@ async function checkTezosCrpContracts() {
     'most posts do not state a per-person XTZ payout',
     'uncertain lookalikes remain separate',
     'Ranked by category awards, with recognized months shown separately',
+    'Ties stay ties',
     'after verified alias merges',
     'Official source'
   ]) {
@@ -5303,8 +5317,23 @@ async function checkTezosCrpContracts() {
     fail('TezosCRP must distinguish an unpublished payout amount from an explicit numeric amount');
   }
   if (feature.includes('setInterval(')) fail('TezosCRP client must not poll; the committed archive is refreshed by the repository workflow');
-  for (const selector of ['.tezoscrp-entry-card', '.tezoscrp-overlay', '.tezoscrp-tabs', '.tezoscrp-ranking', '.tezoscrp-category-grid', '.tezoscrp-archive-list']) {
+  for (const selector of ['.tezoscrp-entry-card', '.tezoscrp-entry-identity-strip', '.tezoscrp-entry-pulse', '.tezoscrp-system-strip', '.tezoscrp-hero-badges', '.tezoscrp-overlay', '.tezoscrp-tabs', '.tezoscrp-ranking', '.tezoscrp-record-board', '.tezoscrp-record-holder-grid', '.tezoscrp-category-grid', '.tezoscrp-archive-list']) {
     if (!css.includes(selector)) fail(`TezosCRP CSS is missing ${selector}`);
+  }
+  for (const contract of ['data-tezoscrp-place="${index + 1}"', 'Most recognized TezosCRP identities', 'Human identity archive', '${overviewMetrics()}', "records: 'Records'", 'function renderRecords()', 'data-tezoscrp-record-year']) {
+    if (!feature.includes(contract)) fail(`TezosCRP Maxis-inspired presentation contract is missing: ${contract}`);
+  }
+  if (!/#chambers-grid \.tezoscrp-entry-card\s*\{[^}]*height:\s*290px;[^}]*min-height:\s*290px;/s.test(css)) {
+    fail('TezosCRP full-row launcher must keep its tightened 290px desktop shell');
+  }
+  if (!/\.tezoscrp-overlay\s*\{[^}]*z-index:\s*10002\s*!important;/s.test(css)) {
+    fail('TezosCRP Chamber must render above theme spectacle canvases so archive figures stay readable');
+  }
+  if (!/#chambers-grid #maxis-entry-card\.maxis-entry-card\.chamber-entry-wide\s*\{[^}]*height:\s*258px !important;[^}]*min-height:\s*258px !important;/s.test(maxisCss)) {
+    fail('Maxis full-row launcher must keep its tightened 258px desktop shell');
+  }
+  if (!/@media \(min-width: 900px\)\s*\{[^}]*data-chamber-pair="tezos-domains"[^}]*height:\s*274px;[^}]*min-height:\s*274px;/s.test(tezosDomainsCss)) {
+    fail('Tezos Domains full-row launcher must keep its tightened 274px desktop shell');
   }
 
   const route = await readText('tezoscrp/index.html');

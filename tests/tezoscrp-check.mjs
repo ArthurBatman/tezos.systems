@@ -9,6 +9,7 @@ import {
   TEZOSCRP_SCHEMA_VERSION,
   applyIdentityAliases,
   awardsFromArticle,
+  buildTezosCrpRecords,
   buildTezosCrpSummary,
   mergeNewArticles,
   parseMediumRss,
@@ -32,6 +33,12 @@ assert.equal(dataset.identity_resolution.applied_alias_ids, 43);
 assert.equal(dataset.identity_resolution.pending_review_records, 2);
 assert.equal(CURRENT_CATEGORY_DEFINITIONS.length, 9);
 assert.equal(new Set(CURRENT_CATEGORY_DEFINITIONS.map(({ icon }) => icon)).size, 9);
+const records = buildTezosCrpRecords(dataset);
+assert.equal(records.years.length, 7);
+assert.equal(records.categories.length, dataset.category_summary.length);
+assert.deepEqual(records.years.find(({ year }) => year === 2022)?.leaders.map(({ display_name, awards }) => [display_name, awards]), [['Baking Benjamins', 17]]);
+assert.equal(records.years.find(({ year }) => year === 2025)?.leaders.length, 3);
+assert.deepEqual(records.categories.find(({ category }) => category === 'Assimilation Award')?.leaders.map(({ display_name, awards }) => [display_name, awards]), [['spike_0124', 25]]);
 for (const definition of CURRENT_CATEGORY_DEFINITIONS) {
   await fs.access(path.join(ROOT, definition.icon.replace(/^\//, '')));
 }

@@ -143,6 +143,7 @@ export const SITE_MAP = [
         detail: 'Official Tezos Commons monthly community awards, identity totals, categories, and source-receipted history since October 2020',
         keywords: ['tezoscrp', 'tezos crp', 'community rewards', 'tezos commons rewards', 'crp winners', 'community recognition', 'awards', 'winners'],
         searchIntents: [
+            { id: 'tezoscrp-records', title: 'TezosCRP Records', href: '/tezoscrp/?view=records', detail: 'Compare all-time category record holders and selectable calendar-year standings', keywords: ['tezoscrp records', 'most awards by year', 'category record holders', 'crp leaderboard'] },
             { id: 'tezoscrp-latest', title: 'Latest TezosCRP Winners', href: '/tezoscrp/?view=latest', detail: 'Open the latest official Tezos Commons recognition round', keywords: ['latest tezoscrp winners', 'current community rewards', 'new crp winners'] },
             { id: 'tezoscrp-categories', title: 'TezosCRP Categories', href: '/tezoscrp/?view=categories', detail: 'Browse current official award categories and preserved historical names', keywords: ['tezoscrp categories', 'community reward badges', 'official category icons'] },
             { id: 'tezoscrp-archive', title: 'TezosCRP Monthly Archive', href: '/tezoscrp/?view=archive', detail: 'Search every official award receipt by month, category, or identity', keywords: ['tezoscrp archive', 'community rewards history', 'past crp winners'] }

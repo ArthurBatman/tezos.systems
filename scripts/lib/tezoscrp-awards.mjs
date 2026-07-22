@@ -495,6 +495,81 @@ function displayAwardForPerson(dataset, personId) {
   return rows.sort((left, right) => right.period.localeCompare(left.period))[0] || null;
 }
 
+function compactRecordIdentity(dataset, person, record = {}) {
+  const award = displayAwardForPerson(dataset, person.person_id);
+  return {
+    person_id: person.person_id,
+    display_name: person.display_name || award?.recipient_name || award?.handle || person.person_id,
+    ...(person.profile ? { profile: person.profile } : {}),
+    ...record
+  };
+}
+
+export function buildTezosCrpRecords(dataset) {
+  const people = dataset?.people_summary || [];
+  const peopleById = new Map(people.map((person) => [person.person_id, person]));
+  const years = new Map();
+
+  for (const award of dataset?.awards || []) {
+    const year = String(award.period || '').match(/^(20\d{2})-/)?.[1];
+    if (!year) continue;
+    if (!years.has(year)) years.set(year, { awards: 0, periods: new Set(), categories: new Set(), people: new Map() });
+    const bucket = years.get(year);
+    bucket.awards += 1;
+    bucket.periods.add(award.period);
+    bucket.categories.add(award.category);
+    if (!bucket.people.has(award.person_id)) bucket.people.set(award.person_id, { awards: 0, periods: new Set(), categories: new Set() });
+    const identity = bucket.people.get(award.person_id);
+    identity.awards += 1;
+    identity.periods.add(award.period);
+    identity.categories.add(award.category);
+  }
+
+  const yearRecords = [...years.entries()].map(([year, bucket]) => {
+    const standings = [...bucket.people.entries()].map(([personId, record]) => ({
+      person: peopleById.get(personId) || { person_id: personId },
+      awards: record.awards,
+      months: record.periods.size,
+      categories: record.categories.size
+    })).sort((left, right) => right.awards - left.awards
+      || right.months - left.months
+      || right.categories - left.categories
+      || left.person.person_id.localeCompare(right.person.person_id));
+    const record = standings[0]?.awards || 0;
+    return {
+      year: Number(year),
+      award_rows: bucket.awards,
+      identities: bucket.people.size,
+      periods: bucket.periods.size,
+      categories: bucket.categories.size,
+      record,
+      leaders: standings.filter(({ awards }) => awards === record).map(({ person, awards, months, categories }) => (
+        compactRecordIdentity(dataset, person, { awards, months, categories })
+      ))
+    };
+  }).sort((left, right) => right.year - left.year);
+
+  const currentOrder = new Map(CURRENT_CATEGORY_DEFINITIONS.map(({ category }, index) => [category, index]));
+  const categoryRecords = (dataset?.category_summary || []).map(({ category, award_rows }) => {
+    const candidates = people.filter((person) => Number(person.categories?.[category]) > 0)
+      .sort((left, right) => Number(right.categories[category]) - Number(left.categories[category])
+        || right.total_awards - left.total_awards
+        || left.person_id.localeCompare(right.person_id));
+    const record = Number(candidates[0]?.categories?.[category] || 0);
+    return {
+      category,
+      current: currentOrder.has(category),
+      award_rows,
+      record,
+      leaders: candidates.filter((person) => Number(person.categories?.[category]) === record)
+        .map((person) => compactRecordIdentity(dataset, person, { awards: record }))
+    };
+  }).sort((left, right) => (currentOrder.get(left.category) ?? 99) - (currentOrder.get(right.category) ?? 99)
+    || left.category.localeCompare(right.category));
+
+  return { years: yearRecords, categories: categoryRecords };
+}
+
 export function buildTezosCrpSummary(dataset) {
   const latestPeriod = dataset?.program?.latest_award_period || dataset?.coverage?.periods?.at(-1)?.period || null;
   const latestArticle = (dataset?.articles_and_threads || []).find(({ period }) => period === latestPeriod) || null;
@@ -531,6 +606,7 @@ export function buildTezosCrpSummary(dataset) {
       ...definition,
       award_rows: dataset.category_summary?.find(({ category }) => category === definition.category)?.award_rows || 0
     })),
+    records: buildTezosCrpRecords(dataset),
     top_people: topPeople,
     latest: {
       period: latestPeriod,

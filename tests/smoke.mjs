@@ -2507,6 +2507,7 @@ async function assertChamberControlGeometry(page, label) {
       '#ledger-flow-entry-card',
       '#protocol-history-entry-card',
       '#maxis-entry-card',
+      '#tezoscrp-entry-card',
       '#tezos-domains-entry-card',
       '#chambers-section [data-stat="tz4-adoption"]',
       '#chambers-section [data-stat="network-health"]'
@@ -2541,6 +2542,13 @@ async function assertChamberControlGeometry(page, label) {
       '.card-front .maxis-entry-season-meta',
       '.card-front .maxis-entry-season-pulse',
       '.card-front .maxis-entry-pulse-line',
+      '.card-front .tezoscrp-entry-main',
+      '.card-front .tezoscrp-entry-identity-strip',
+      '.card-front .tezoscrp-entry-identity-strip > span',
+      '.card-front .tezoscrp-entry-meta',
+      '.card-front .tezoscrp-entry-pulse',
+      '.card-front .tezoscrp-entry-pulse-line',
+      '.card-front .tezoscrp-entry-icons',
       '.card-front .network-health-blocks',
       '.card-front .network-health-block',
       '.card-front .health-live-tape',
@@ -6773,6 +6781,10 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
         canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '',
         metrics,
         tabs: document.querySelectorAll('#tezoscrp-modal [data-tezoscrp-view]').length,
+        heroBadges: document.querySelectorAll('#tezoscrp-modal .tezoscrp-hero-badges img').length,
+        podiumPlaces: Array.from(document.querySelectorAll('#tezoscrp-hall-results .tezoscrp-ranking > li.is-podium')).map((row) => row.dataset.tezoscrpPlace),
+        launcherIdentities: document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length,
+        bottomRowHeights: Object.fromEntries(['maxis-entry-card', 'tezoscrp-entry-card', 'tezos-domains-entry-card'].map((id) => [id, Math.round(document.getElementById(id)?.getBoundingClientRect().height || 0)])),
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         modalOverflow: modal.scrollWidth > modal.clientWidth + 1,
         bodyOverflow: body.scrollWidth > body.clientWidth + 1,
@@ -6781,7 +6793,15 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     });
     assert(initial.path === '/tezoscrp/' && initial.canonical === 'https://tezos.systems/tezoscrp/', `TezosCRP ${label}: canonical route mismatch ${JSON.stringify(initial)}`);
     assert(initial.metrics.join('|').includes('2,218') && initial.metrics.join('|').includes('827') && initial.metrics.join('|').includes('69'), `TezosCRP ${label}: baseline totals missing ${JSON.stringify(initial.metrics)}`);
-    assert(initial.tabs === 4, `TezosCRP ${label}: expected four archive views`);
+    assert(initial.tabs === 5, `TezosCRP ${label}: expected five archive and records views`);
+    assert(initial.heroBadges === 9, `TezosCRP ${label}: expected all nine current category badges in the hero`);
+    assert(initial.podiumPlaces.join('|') === '1|2|3', `TezosCRP ${label}: top recognition rows lost their distinct placement treatment ${JSON.stringify(initial.podiumPlaces)}`);
+    assert(initial.launcherIdentities === 6, `TezosCRP ${label}: launcher must surface six leading recognition identities`);
+    if (label === 'desktop') {
+      assert(initial.bottomRowHeights['maxis-entry-card'] >= 256 && initial.bottomRowHeights['maxis-entry-card'] <= 260, `TezosCRP desktop: Maxis full-row height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['tezoscrp-entry-card'] >= 288 && initial.bottomRowHeights['tezoscrp-entry-card'] <= 292, `TezosCRP desktop: TezosCRP full-row height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['tezos-domains-entry-card'] >= 272 && initial.bottomRowHeights['tezos-domains-entry-card'] <= 276, `TezosCRP desktop: Domains full-row height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+    }
     assert(/one official category listing equals one award/i.test(initial.truth) && /most posts do not state a per-person XTZ payout/i.test(initial.truth), `TezosCRP ${label}: count truth is missing ${initial.truth}`);
     assert(!initial.pageOverflow && !initial.modalOverflow && !initial.bodyOverflow, `TezosCRP ${label}: initial view overflows ${JSON.stringify(initial)}`);
 
@@ -6809,6 +6829,27 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-hall-results [data-tezoscrp-person]').length === 1);
     const crossPlatformText = (await page.locator('#tezoscrp-hall-results [data-tezoscrp-person]').innerText()).replace(/\s+/g, ' ');
     assert(/one_bald_dude/i.test(crossPlatformText) && /\b7\b/.test(crossPlatformText), `TezosCRP ${label}: cross-platform alias was not consolidated ${crossPlatformText}`);
+
+    await page.locator('[data-tezoscrp-view="records"]').click();
+    await page.locator('.tezoscrp-record-holder-card').first().waitFor({ state: 'visible' });
+    const recordState = await page.evaluate(() => ({
+      yearOptions: document.querySelectorAll('#tezoscrp-record-year option').length,
+      selectedYear: document.querySelector('#tezoscrp-record-year')?.value || '',
+      annualCards: document.querySelectorAll('[data-tezoscrp-record-year]').length,
+      leaderRows: document.querySelectorAll('.tezoscrp-record-board .is-record-leader').length,
+      currentCategoryRecords: document.querySelectorAll('.tezoscrp-record-holder-card.is-current').length,
+      historicalCategoryRecords: document.querySelectorAll('.tezoscrp-record-holder-card.is-historical').length,
+      summary: document.querySelector('.tezoscrp-record-year-lead')?.textContent.replace(/\s+/g, ' ').trim() || '',
+      overflow: document.querySelector('#tezoscrp-modal .tezoscrp-body').scrollWidth > document.querySelector('#tezoscrp-modal .tezoscrp-body').clientWidth + 1
+    }));
+    assert(recordState.yearOptions === 7 && recordState.annualCards === 7 && recordState.selectedYear === '2026', `TezosCRP ${label}: annual record selector is incomplete ${JSON.stringify(recordState)}`);
+    assert(recordState.leaderRows === 12 && /12 identities share the 2026 record/i.test(recordState.summary), `TezosCRP ${label}: tied 2026 annual record is not explicit ${JSON.stringify(recordState)}`);
+    assert(recordState.currentCategoryRecords === 9 && recordState.historicalCategoryRecords >= 24, `TezosCRP ${label}: category record holders are incomplete ${JSON.stringify(recordState)}`);
+    assert(!recordState.overflow, `TezosCRP ${label}: records view overflows`);
+    await page.locator('#tezoscrp-record-year').selectOption('2022');
+    await page.waitForFunction(() => /Baking Benjamins leads 2022 with 17/.test(document.querySelector('.tezoscrp-record-year-lead')?.textContent || ''));
+    const year2022Row = (await page.locator('.tezoscrp-record-board li').first().innerText()).replace(/\s+/g, ' ');
+    assert(/Baking Benjamins/i.test(year2022Row) && /\b17\b/.test(year2022Row) && /\b11\b/.test(year2022Row), `TezosCRP ${label}: 2022 annual leader mismatch ${year2022Row}`);
 
     await page.locator('[data-tezoscrp-view="latest"]').click();
     await page.locator('.tezoscrp-latest-hero h2').waitFor({ state: 'visible' });

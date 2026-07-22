@@ -7,6 +7,9 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '✨', text: 'TezosCRP now has a Records desk for all-time category record holders, selectable calendar-year standings, annual leaders, and explicit shared records when award counts tie' },
+            { type: '🎨', text: 'TezosCRP now carries Maxis-inspired archive theater across its launcher and Recognition Hall, with an official-round pulse, category-badge hero, and distinct gold, silver, and bronze recognition rows' },
+            { type: '🎨', text: 'The full-width Maxis, TezosCRP, and Tezos Domains launchers now use tighter desktop shells with less empty space before their footer rails' },
             { type: '🔧', text: 'TezosCRP now consolidates verified handle changes, spelling variants, and cross-platform identities while preserving every originally published recipient and source receipt' },
             { type: '🔧', text: 'TezosCRP identity continuity now comes from an auditable high-confidence registry, with uncertain lookalikes held for review instead of being guessed' }
         ]

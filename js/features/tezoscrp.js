@@ -6,12 +6,13 @@
 import { escapeHtml } from '../core/utils.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
-const SUMMARY_URL = '/data/tezoscrp-summary.json?v=458';
-const DATA_URL = '/data/tezoscrp-awards.json?v=458';
-const CSS_URL = '/css/tezoscrp.css?v=458';
-const VIEW_KEYS = ['hall', 'latest', 'categories', 'archive'];
+const SUMMARY_URL = '/data/tezoscrp-summary.json?v=460';
+const DATA_URL = '/data/tezoscrp-awards.json?v=460';
+const CSS_URL = '/css/tezoscrp.css?v=460';
+const VIEW_KEYS = ['hall', 'records', 'latest', 'categories', 'archive'];
 const VIEW_LABELS = {
     hall: 'Recognition Hall',
+    records: 'Records',
     latest: 'Latest Winners',
     categories: 'Categories',
     archive: 'Monthly Archive'
@@ -32,6 +33,7 @@ const state = {
     hallSort: 'awards',
     hallLimit: PAGE_SIZE,
     selectedPersonId: '',
+    recordYear: '',
     archivePeriod: '',
     archiveCategory: '',
     archiveQuery: '',
@@ -184,30 +186,40 @@ function renderEntryCard(summary) {
     const card = document.getElementById('tezoscrp-entry-card');
     if (!card) return;
     const latest = summary.latest || {};
-    const top = summary.top_people?.slice(0, 3) || [];
+    const top = summary.top_people?.slice(0, 6) || [];
+    const latestPeople = new Set((latest.awards || []).map(({ person_id: personId }) => personId).filter(Boolean)).size;
+    const latestYearRecord = summary.records?.years?.[0] || null;
+    const yearRecordLabel = latestYearRecord?.leaders?.length === 1
+        ? `${latestYearRecord.leaders[0].display_name} · ${formatNumber(latestYearRecord.record)}`
+        : latestYearRecord ? `${formatNumber(latestYearRecord.leaders?.length)}-way tie · ${formatNumber(latestYearRecord.record)} each` : 'October 2020';
     const icons = summary.current_categories?.map((category) => (
         `<img src="${escapeHtml(category.icon)}" alt="" width="30" height="35" title="${escapeHtml(category.category)}">`
     )).join('') || '';
     const front = card.querySelector('.tezoscrp-entry-front');
     if (front) {
         front.innerHTML = `
-            <div class="tezoscrp-entry-copy">
-                <span class="tezoscrp-kicker">Tezos Commons · Community Rewards</span>
+            <div class="tezoscrp-entry-main">
+                <span class="tezoscrp-entry-label">✦ Official community recognition</span>
                 <h2 class="stat-label chamber-entry-title" id="tezoscrp-entry-title">TezosCRP Recognition Hall</h2>
-                <p>Every officially published category recognition since October 2020, organized around community identities rather than wallets.</p>
+                <p>Every official Tezos Commons category recognition, organized around community identities rather than wallets.</p>
+                <div class="tezoscrp-entry-identity-strip" aria-label="Most recognized TezosCRP identities">
+                    ${top.map((person, index) => `<span data-tezoscrp-place="${index + 1}"><b>${index + 1}</b><span><strong>${escapeHtml(person.display_name)}</strong><small>${formatNumber(person.total_awards)} awards · ${formatNumber(person.distinct_periods)} months</small></span></span>`).join('')}
+                </div>
+                <div class="tezoscrp-entry-meta">
+                    <span><strong>${formatNumber(summary.totals?.awards)}</strong> awards</span>
+                    <span><strong>${formatNumber(summary.totals?.people)}</strong> identities</span>
+                    <span><strong>${formatNumber(summary.totals?.periods)}</strong> monthly rounds</span>
+                </div>
+            </div>
+            <aside class="tezoscrp-entry-pulse" aria-label="Latest official TezosCRP round">
+                <span class="tezoscrp-entry-label">◉ Latest official round</span>
+                <strong>${escapeHtml(formatPeriod(latest.period))}</strong>
+                <p>The newest source-receipted monthly chapter in the Recognition Hall.</p>
+                <div class="tezoscrp-entry-pulse-line"><span>Recognitions</span><strong>${formatNumber(latest.awards?.length)}</strong></div>
+                <div class="tezoscrp-entry-pulse-line"><span>Community identities</span><strong>${formatNumber(latestPeople)}</strong></div>
+                <div class="tezoscrp-entry-pulse-line"><span>${latestYearRecord ? `${escapeHtml(String(latestYearRecord.year))} record` : 'Archive begins'}</span><strong>${escapeHtml(yearRecordLabel)}</strong></div>
                 <div class="tezoscrp-entry-icons" aria-label="Nine current TezosCRP categories">${icons}</div>
-            </div>
-            <div class="tezoscrp-entry-scoreboard" aria-label="TezosCRP archive summary">
-                <div class="tezoscrp-entry-totals">
-                    <span><strong>${formatNumber(summary.totals?.awards)}</strong><small>awards</small></span>
-                    <span><strong>${formatNumber(summary.totals?.people)}</strong><small>identities</small></span>
-                    <span><strong>${formatNumber(summary.totals?.periods)}</strong><small>months</small></span>
-                </div>
-                <div class="tezoscrp-entry-leaders">
-                    ${top.map((person, index) => `<span><b>${index + 1}</b><strong>${escapeHtml(person.display_name)}</strong><small>${formatNumber(person.total_awards)} awards</small></span>`).join('')}
-                </div>
-                <div class="tezoscrp-entry-latest"><span>Latest official round</span><strong>${escapeHtml(formatPeriod(latest.period))}</strong><small>${formatNumber(latest.awards?.length)} recognitions</small></div>
-            </div>
+            </aside>
         `;
     }
     card.dataset.updatedLabel = `${summary.totals?.periods || '—'} months · through ${shortPeriod(latest.period)} · Tezos Commons`;
@@ -310,6 +322,8 @@ function readRouteState() {
     const params = new URLSearchParams(window.location.search);
     const requested = params.get('view');
     state.view = VIEW_KEYS.includes(requested) ? requested : 'hall';
+    const year = params.get('year');
+    if (year && /^20\d{2}$/.test(year)) state.recordYear = year;
     const period = params.get('period');
     if (period && /^20\d{2}-(?:0[1-9]|1[0-2])$/.test(period)) state.archivePeriod = period;
     const category = params.get('category');
@@ -321,6 +335,8 @@ function syncRoute() {
     const url = new URL(window.location.href);
     if (state.view === 'hall') url.searchParams.delete('view');
     else url.searchParams.set('view', state.view);
+    if (state.view === 'records' && state.recordYear) url.searchParams.set('year', state.recordYear);
+    else url.searchParams.delete('year');
     if (state.view === 'archive' && state.archivePeriod) url.searchParams.set('period', state.archivePeriod);
     else url.searchParams.delete('period');
     if (state.view === 'archive' && state.archiveCategory) url.searchParams.set('category', state.archiveCategory);
@@ -329,15 +345,21 @@ function syncRoute() {
 }
 
 function roomHeader() {
+    const categoryIcons = (summaryData?.current_categories || []).map((category) => (
+        `<img src="${escapeHtml(category.icon)}" alt="" width="34" height="40" title="${escapeHtml(category.category)}">`
+    )).join('');
     return `
         <header class="tezoscrp-header">
-            <div>
-                <span class="tezoscrp-kicker">Tezos Commons · monthly since October 2020</span>
-                <h1 class="chamber-title" id="tezoscrp-title">TezosCRP Recognition Hall</h1>
-                <p>Who was recognized, how often, in which categories, and by which official monthly source.</p>
+            <div class="tezoscrp-system-strip" aria-label="Recognition Hall archive contract">
+                <span>Human identity archive</span><span>Official sources</span><span>Monthly memory</span>
             </div>
+            <div class="tezoscrp-hero-badges" aria-label="Nine current TezosCRP category badges">${categoryIcons}</div>
+            <span class="tezoscrp-kicker">Tezos Commons · monthly since October 2020</span>
+            <h1 class="chamber-title" id="tezoscrp-title">TezosCRP Recognition Hall</h1>
+            <p class="tezoscrp-hero-lead">Who was recognized, how often, in which categories, and by which official monthly source.</p>
             <a class="tezoscrp-official-link" href="https://tezoscommons.org/rewards/" target="_blank" rel="noopener noreferrer">Official program ↗</a>
         </header>
+        ${overviewMetrics()}
         <div class="tezoscrp-truth-note"><strong>What is counted:</strong> one official category listing equals one award. Monthly recognitions and known published amounts remain separate; most posts do not state a per-person XTZ payout. <strong>Identity continuity:</strong> verified aliases share one record, every published name stays on its receipt, and uncertain lookalikes remain separate.</div>
         <nav class="tezoscrp-tabs" role="tablist" aria-label="TezosCRP Chamber views">
             ${VIEW_KEYS.map((view) => `<button type="button" role="tab" aria-selected="${state.view === view}" tabindex="${state.view === view ? '0' : '-1'}" data-tezoscrp-view="${view}">${escapeHtml(VIEW_LABELS[view])}</button>`).join('')}
@@ -385,7 +407,7 @@ function renderHallResults() {
             ${visible.map((person, index) => {
                 const name = displayPerson(person);
                 const topCategory = Object.entries(person.categories || {}).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0];
-                return `<li class="${state.selectedPersonId === person.person_id ? 'is-selected' : ''}">
+                return `<li data-tezoscrp-place="${index + 1}" class="${index < 3 ? 'is-podium ' : ''}${state.selectedPersonId === person.person_id ? 'is-selected' : ''}">
                     <button type="button" data-tezoscrp-person="${escapeHtml(person.person_id)}" aria-expanded="${state.selectedPersonId === person.person_id}">
                         <span class="tezoscrp-rank">${index + 1}</span>
                         <span class="tezoscrp-person"><span>${escapeHtml(name)}</span><small>${topCategory ? `${escapeHtml(topCategory[0])} · ${formatNumber(topCategory[1])}` : 'Recognition archive'}</small></span>
@@ -443,7 +465,6 @@ function renderPersonDetail() {
 function renderHall() {
     const view = document.getElementById('tezoscrp-view');
     view.innerHTML = `
-        ${overviewMetrics()}
         <section class="tezoscrp-panel tezoscrp-hall-panel">
             <div class="tezoscrp-panel-head"><div><span>All-time official record</span><h2>Recognition Hall</h2><p>Ranked by category awards, with recognized months shown separately.</p></div></div>
             <div class="tezoscrp-controls">
@@ -497,6 +518,119 @@ function renderLatest() {
             </section>`).join('')}
         </div>
     `;
+}
+
+function annualStandings(year) {
+    const byPerson = new Map();
+    for (const award of fullData?.awards || []) {
+        if (!String(award.period || '').startsWith(`${year}-`)) continue;
+        if (!byPerson.has(award.person_id)) byPerson.set(award.person_id, { awards: 0, periods: new Set(), categories: new Set() });
+        const record = byPerson.get(award.person_id);
+        record.awards += 1;
+        record.periods.add(award.period);
+        record.categories.add(award.category);
+    }
+    const people = new Map((fullData?.people_summary || []).map((person) => [person.person_id, person]));
+    return [...byPerson.entries()].map(([personId, record]) => ({
+        person: people.get(personId) || { person_id: personId },
+        awards: record.awards,
+        months: record.periods.size,
+        categories: record.categories.size
+    })).sort((left, right) => right.awards - left.awards
+        || right.months - left.months
+        || right.categories - left.categories
+        || left.person.person_id.localeCompare(right.person.person_id));
+}
+
+function openRecordIdentity(personId) {
+    state.hallQuery = '';
+    state.hallLimit = PAGE_SIZE;
+    state.selectedPersonId = personId;
+    selectView('hall');
+    requestAnimationFrame(() => document.getElementById('tezoscrp-person-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
+function renderRecords() {
+    const view = document.getElementById('tezoscrp-view');
+    const years = summaryData?.records?.years || [];
+    const availableYears = new Set(years.map(({ year }) => String(year)));
+    if (!availableYears.has(state.recordYear)) state.recordYear = String(years[0]?.year || '');
+    const annual = years.find(({ year }) => String(year) === state.recordYear) || years[0] || null;
+    const standings = annualStandings(state.recordYear);
+    const categoryRecords = summaryData?.records?.categories || [];
+    const currentCategories = categoryRecords.filter(({ current }) => current);
+    const historicalCategories = categoryRecords.filter(({ current }) => !current);
+    const leaderNames = annual?.leaders?.map(({ display_name: name }) => name) || [];
+    const leaderCopy = leaderNames.length === 1
+        ? `${leaderNames[0]} leads ${annual.year} with ${formatNumber(annual.record)} official recognitions.`
+        : `${formatNumber(leaderNames.length)} identities share the ${annual?.year || ''} record with ${formatNumber(annual?.record)} recognitions each.`;
+    const compactNames = (leaders, limit = 3) => {
+        const names = (leaders || []).slice(0, limit).map(({ display_name: name }) => name);
+        const remaining = Math.max(0, (leaders?.length || 0) - names.length);
+        return `${names.join(', ')}${remaining ? ` +${formatNumber(remaining)} more` : ''}`;
+    };
+    const holderCard = (row) => `<button type="button" class="tezoscrp-record-holder-card ${row.current ? 'is-current' : 'is-historical'}" data-tezoscrp-record-category="${escapeHtml(row.category)}">
+        <span class="tezoscrp-record-holder-mark">${categoryMark(row.category)}</span>
+        <span class="tezoscrp-record-holder-type">${row.current ? 'Current category record' : 'Historical category record'}</span>
+        <strong>${escapeHtml(row.category)}</strong>
+        <span class="tezoscrp-record-holder-names">${escapeHtml(compactNames(row.leaders))}</span>
+        <span class="tezoscrp-record-holder-total"><b>${formatNumber(row.record)}</b> recognitions${row.leaders?.length > 1 ? ` · ${formatNumber(row.leaders.length)}-way tie` : ''}</span>
+    </button>`;
+    let previousAwards = null;
+    let competitionRank = 0;
+
+    view.innerHTML = `
+        <section class="tezoscrp-record-hero">
+            <div><span>Recognition record desk</span><h2>Category and yearly records</h2><p>Official category listings are compared within their natural category or calendar year. Ties stay ties; no wallet score, payout estimate, or subjective points are added.</p></div>
+            <label><span>Year</span><select id="tezoscrp-record-year">${years.map(({ year }) => `<option value="${year}" ${String(year) === state.recordYear ? 'selected' : ''}>${year}</option>`).join('')}</select></label>
+        </section>
+        ${annual ? `<section class="tezoscrp-record-year-summary">
+            <div class="tezoscrp-record-year-lead"><span>${annual.year} official record</span><h3>${escapeHtml(leaderCopy)}</h3><p>${escapeHtml(compactNames(annual.leaders, 6))}</p></div>
+            <div class="tezoscrp-record-year-metrics">
+                <span><b>${formatNumber(annual.award_rows)}</b><small>recognitions</small></span>
+                <span><b>${formatNumber(annual.identities)}</b><small>identities</small></span>
+                <span><b>${formatNumber(annual.periods)}</b><small>monthly rounds</small></span>
+                <span><b>${formatNumber(annual.categories)}</b><small>category names</small></span>
+            </div>
+        </section>` : ''}
+        <section class="tezoscrp-record-section">
+            <div class="tezoscrp-record-section-head"><div><span>Annual leaders</span><h3>Every calendar-year record</h3></div><p>A partial first or current year remains labeled by its actual monthly coverage.</p></div>
+            <div class="tezoscrp-record-years">${years.map((record) => `<button type="button" class="${String(record.year) === state.recordYear ? 'is-selected' : ''}" data-tezoscrp-record-year="${record.year}"><span>${record.year}</span><strong>${escapeHtml(compactNames(record.leaders, 2))}</strong><small>${formatNumber(record.record)} awards · ${formatNumber(record.periods)} months${record.leaders.length > 1 ? ` · ${formatNumber(record.leaders.length)} tied` : ''}</small></button>`).join('')}</div>
+        </section>
+        <section class="tezoscrp-record-section">
+            <div class="tezoscrp-record-section-head"><div><span>${escapeHtml(state.recordYear)} standings</span><h3>Most recognized identities</h3></div><p>Ranks compare award rows first; months and category breadth are shown separately.</p></div>
+            <div class="tezoscrp-record-board-head"><span>Rank</span><span>Identity</span><span>Awards</span><span>Months</span><span>Categories</span></div>
+            <ol class="tezoscrp-record-board">${standings.slice(0, 20).map((row, index) => {
+                if (row.awards !== previousAwards) competitionRank = index + 1;
+                previousAwards = row.awards;
+                const leader = row.awards === annual?.record;
+                return `<li class="${leader ? 'is-record-leader' : ''}" data-tezoscrp-record-rank="${competitionRank}"><button type="button" data-tezoscrp-record-person="${escapeHtml(row.person.person_id)}"><span>${competitionRank}</span><span><strong>${escapeHtml(displayPerson(row.person))}</strong><small>${leader && annual?.leaders?.length > 1 ? 'Joint annual leader' : leader ? 'Annual leader' : `${formatNumber(row.categories)} category names`}</small></span><b>${formatNumber(row.awards)}</b><span>${formatNumber(row.months)}</span><span>${formatNumber(row.categories)}</span></button></li>`;
+            }).join('')}</ol>
+        </section>
+        <section class="tezoscrp-record-section">
+            <div class="tezoscrp-record-section-head"><div><span>All-time category records</span><h3>Current category record holders</h3></div><p>Open a record to inspect every source-receipted recognition in that category.</p></div>
+            <div class="tezoscrp-record-holder-grid">${currentCategories.map(holderCard).join('')}</div>
+            <details class="tezoscrp-record-history"><summary>${formatNumber(historicalCategories.length)} historical and special category records</summary><div class="tezoscrp-record-holder-grid">${historicalCategories.map(holderCard).join('')}</div></details>
+        </section>
+    `;
+    view.querySelector('#tezoscrp-record-year')?.addEventListener('change', (event) => {
+        state.recordYear = event.target.value;
+        syncRoute();
+        renderRecords();
+    });
+    view.querySelectorAll('[data-tezoscrp-record-year]').forEach((button) => button.addEventListener('click', () => {
+        state.recordYear = button.dataset.tezoscrpRecordYear;
+        syncRoute();
+        renderRecords();
+    }));
+    view.querySelectorAll('[data-tezoscrp-record-person]').forEach((button) => button.addEventListener('click', () => openRecordIdentity(button.dataset.tezoscrpRecordPerson)));
+    view.querySelectorAll('[data-tezoscrp-record-category]').forEach((button) => button.addEventListener('click', () => {
+        state.archiveCategory = button.dataset.tezoscrpRecordCategory;
+        state.archivePeriod = '';
+        state.archiveQuery = '';
+        state.archiveLimit = PAGE_SIZE;
+        selectView('archive');
+    }));
 }
 
 function categoryLeader(category) {
@@ -606,7 +740,8 @@ function renderArchive() {
 }
 
 function renderView() {
-    if (state.view === 'latest') renderLatest();
+    if (state.view === 'records') renderRecords();
+    else if (state.view === 'latest') renderLatest();
     else if (state.view === 'categories') renderCategories();
     else if (state.view === 'archive') renderArchive();
     else renderHall();

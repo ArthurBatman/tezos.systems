@@ -394,9 +394,10 @@ inline modal styles in `js/core/app.js`.
   and social identities, usually without a verified wallet. The Hall therefore
   ranks official category recognitions, shows distinct recognized months as a
   separate measure, preserves aliases conservatively, and links every row to an
-  official Tezos Commons article or X post. Its four views cover the all-time
-  Recognition Hall, latest winners, the nine current categories with official
-  category icons, and the complete monthly archive. Published per-person XTZ
+  official Tezos Commons article or X post. Its five views cover the all-time
+  Recognition Hall, category and calendar-year records with explicit ties,
+  latest winners, the nine current categories with official category icons,
+  and the complete monthly archive. Published per-person XTZ
   amounts are shown only where a source states them; missing payout amounts are
   never inferred from award counts.
 - Season is the protocol-bounded game layer, beginning with Ushuaia. Its end is the next known
@@ -930,8 +931,9 @@ Current smoke suites:
   unchanged My Tezos state)
 - `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
 - `tezoscrp` (covers the human-identity Recognition Hall, award/month count
-  separation, source-complete person history, official category icons, latest
-  winners, archive filters, `/tezoscrp/`, and desktop/mobile containment)
+  separation, source-complete person history, tied category and annual records,
+  official category icons, latest winners, archive filters, `/tezoscrp/`, and
+  desktop/mobile containment)
 - `tezos-domains`
 - `ctez`
 - `governance-lb` (covers Chamber current-stage/historical vote ordering, paired Chambers card layout, fixed Chamber footer geometry, Tezos X Governance card geometry and rollover timing, Tezos X direction fallbacks, LB tile latest-vote tape, LB auto-scaled EMA trend, tz4 card preview/month bars/holdout wrapping, and mobile vote-row geometry)
@@ -961,7 +963,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v458`, including hero search, theme
+- Current aligned shell cache stamp: `v460`, including hero search, theme
   bundles, and the Leaderboard, Ledger Flow, Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v318`.
 - `version.json` is stamped by `.githooks/pre-commit`.

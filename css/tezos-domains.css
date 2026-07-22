@@ -8,7 +8,8 @@
     --chamber-live-color: var(--td-cyan);
     --chamber-watch-color: var(--td-pink);
     --chamber-adoption-color: var(--td-gold);
-    min-height: 322px;
+    min-height: 274px;
+    padding: 0 !important;
     border-color: color-mix(in srgb, var(--td-cyan) 24%, transparent) !important;
     background:
         linear-gradient(135deg, color-mix(in srgb, var(--td-cyan) 11%, transparent), color-mix(in srgb, var(--td-pink) 7%, transparent)),
@@ -953,9 +954,22 @@
     width: 100%;
 }
 
-@media (min-width: 760px) {
+@media (max-width: 899px) {
+    #chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
+        min-height: 322px;
+    }
+}
+
+@media (min-width: 760px) and (max-width: 899px) {
     #chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
         height: 322px;
+    }
+}
+
+@media (min-width: 900px) {
+    #chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
+        height: 274px;
+        min-height: 274px;
     }
 }
 
@@ -1036,7 +1050,7 @@
 
 @media (max-width: 560px) {
     .tezos-domains-entry-card {
-        min-height: 460px !important;
+        min-height: 420px !important;
     }
 
     .tezos-domains-entry-card::after {
