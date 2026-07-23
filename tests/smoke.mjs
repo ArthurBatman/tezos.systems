@@ -3923,6 +3923,77 @@ async function smokeAppShell(browser, baseUrl) {
   log(`ok - app shell smoke (${shell.assetResults.length} shell assets)`);
 }
 
+async function smokeHeroLandscape(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 844, height: 390 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'aurora');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'hero mobile landscape', issues);
+  const response = await page.goto(`${baseUrl}/?theme=aurora`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `hero mobile landscape: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
+  await page.waitForFunction(() => /\bTX\b/.test(document.querySelector('#header-activity-line')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent?.trim() || ''), null, { timeout: 10000 });
+
+  const state = await page.evaluate(() => {
+    const row = document.querySelector('.top-continuity-row');
+    const left = document.querySelector('.header-continuity-row');
+    const history = document.querySelector('#top-continuity-history');
+    const activity = document.querySelector('#header-activity-button');
+    const activityLine = document.querySelector('#header-activity-line');
+    const panel = document.querySelector('#top-continuity-panel');
+    const pills = Array.from(document.querySelectorAll('#top-continuity-panel .top-continuity-stat'));
+    const rect = (element) => element?.getBoundingClientRect() || null;
+    const rowRect = rect(row);
+    const leftRect = rect(left);
+    const historyRect = rect(history);
+    const activityRect = rect(activity);
+    const panelRect = rect(panel);
+    const pillRects = pills.map((pill) => rect(pill));
+    return {
+      breakpoint: matchMedia('(min-width: 561px) and (max-width: 960px) and (orientation: landscape)').matches,
+      leftDisplay: left ? getComputedStyle(left).display : '',
+      rowColumns: row ? getComputedStyle(row).gridTemplateColumns : '',
+      pillColumns: panel?.querySelector('.top-continuity-stats')
+        ? getComputedStyle(panel.querySelector('.top-continuity-stats')).gridTemplateColumns
+        : '',
+      ageAboveActivity: Boolean(historyRect && activityRect && historyRect.bottom <= activityRect.top + 1),
+      leftAligned: Boolean(historyRect && activityRect && Math.abs(historyRect.left - activityRect.left) <= 2),
+      equalColumns: Boolean(leftRect && panelRect && Math.abs(leftRect.width - panelRect.width) <= 2),
+      balancedHeight: Boolean(leftRect && panelRect && Math.abs(leftRect.height - panelRect.height) <= 8),
+      pillCount: pills.length,
+      twoPillRows: pillRects.length === 4
+        && Math.abs(pillRects[0].top - pillRects[1].top) <= 2
+        && Math.abs(pillRects[2].top - pillRects[3].top) <= 2
+        && pillRects[2].top - pillRects[0].top >= 20,
+      rowInsideViewport: Boolean(rowRect && rowRect.left >= -1 && rowRect.right <= innerWidth + 1),
+      activityOverflow: activityLine ? activityLine.scrollWidth - activityLine.clientWidth : 999,
+      documentOverflow: document.documentElement.scrollWidth - innerWidth
+    };
+  });
+
+  assert(state.breakpoint && state.leftDisplay === 'grid', `hero mobile landscape: balance breakpoint did not collapse the left rail ${JSON.stringify(state)}`);
+  assert(state.ageAboveActivity && state.leftAligned, `hero mobile landscape: age and 1H activity should form one aligned left stack ${JSON.stringify(state)}`);
+  assert(state.equalColumns && state.balancedHeight, `hero mobile landscape: left and right signal groups should carry equal visual weight ${JSON.stringify(state)}`);
+  assert(state.pillCount === 4 && state.twoPillRows, `hero mobile landscape: network signals should remain a two-by-two pill grid ${JSON.stringify(state)}`);
+  assert(state.rowInsideViewport && state.activityOverflow <= 1 && state.documentOverflow <= 1, `hero mobile landscape: responsive signal row escaped or clipped ${JSON.stringify(state)}`);
+
+  await context.close();
+  assert(issues.length === 0, `hero mobile landscape browser issues:\n${issues.join('\n')}`);
+  log('ok - hero mobile-landscape continuity balance');
+}
+
 async function smokeHeroCommandBar(browser, baseUrl) {
   const intentNavigationTimeout = 15000;
   const issues = [];
@@ -13284,6 +13355,7 @@ function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
     { name: 'app-shell', description: 'Version metadata, service worker, manifest, icons, robots, sitemap, and shell assets', run: () => smokeAppShell(browser, baseUrl) },
+    { name: 'hero-landscape', description: 'Hero continuity signals balance into matching left and right stacks on mobile landscape', run: () => smokeHeroLandscape(browser, baseUrl) },
     { name: 'hero-command-bar', description: 'Hero command bar owns the first-screen retrieval path, protocol deep dives, and command routing', run: () => smokeHeroCommandBar(browser, baseUrl) },
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },

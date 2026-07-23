@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '🎨', text: 'Mobile landscape now stacks mainnet age above trailing-hour activity opposite a balanced two-by-two network-signal grid' },
             { type: '✨', text: 'My Tezos now has Overview and Portfolio views, with a complete watch-only Tezos L1 summary across up to ten browser-local addresses' },
             { type: '✨', text: 'The new My Tezos Portfolio tracks total, spendable, staked, and unstaking XTZ, current USD/EUR context, local history ranges, and versioned address-only import/export' },
             { type: '🎨', text: 'My Tezos is now an adaptive wide personal room with sticky tabs, paired desktop sections, and a full baker signal band followed by four equal operator tiles' },

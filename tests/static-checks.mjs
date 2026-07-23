@@ -1930,6 +1930,8 @@ async function checkSelectorContracts() {
     ['header uptime badge title stack styles', '.header-brand-stack', styles],
     ['header continuity row styles', '.header-continuity-row', shellExtrasCss],
     ['header trailing-hour activity styles', '.header-activity-button', shellExtrasCss],
+    ['header mobile-landscape balance breakpoint', '@media (min-width: 561px) and (max-width: 960px) and (orientation: landscape)', shellExtrasCss],
+    ['header mobile-landscape two-column pill grid', 'grid-template-columns: repeat(2, max-content);', shellExtrasCss],
     ['top continuity stat rail right aligned', 'justify-content: flex-end', styles],
     ['top continuity rail is borderless tape', 'border: 0;', styles],
     ['top continuity identity claim styles', '.top-continuity-claim', heroSearchCss],
@@ -5981,7 +5983,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=472'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=473'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
