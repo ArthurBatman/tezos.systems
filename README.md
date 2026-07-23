@@ -668,7 +668,9 @@ inline modal styles in `js/core/app.js`.
   tabs. Overview keeps the active address synchronized with Ledger Flow, Maxi
   Passport, HEN, and the existing baker/reward lifecycle, while its baker
   signal uses one full-width next-round band plus four equal Octez, working,
-  attestation, and DAL tiles. Portfolio aggregates up to ten locally saved,
+  attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
+  frame while live sections settle into independent desktop columns, and later
+  refreshes reconcile in place. Portfolio aggregates up to ten locally saved,
   independently includable Tezos L1 addresses through one bounded TzKT read and
   shows total, spendable, staked, and unstaking XTZ with current USD/EUR context
   when available. Saved entries use the versioned
@@ -967,7 +969,8 @@ Current smoke suites:
 - `tzkt-throttle`
 - `dashboard-desktop`
 - `dashboard-mobile`
-- `my-tezos-baker-activity`
+- `my-tezos-baker-activity` (covers shape-correct first-read geometry,
+  independent no-gap desktop stacks, and recent delegator/staker rows)
 - `my-tezos-live-signal`
 - `my-tezos-drawer-live-refresh`
 - `my-tezos-wallet-connect`
@@ -1026,7 +1029,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v470`, including hero search, theme
+- Current aligned shell cache stamp: `v474`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v320`.

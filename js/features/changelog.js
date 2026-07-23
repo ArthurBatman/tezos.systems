@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '🎨', text: 'My Tezos now holds a shape-correct loading frame and flows live sections through independent columns, removing blank grid holes and refresh-driven layout jumps' },
             { type: '🔧', text: 'My Tezos now clears successful domain-resolution status and names the delegated baker directly in non-baker operator signals' },
             { type: '🔧', text: 'My Tezos now stays fully off-screen during cold and hard refreshes instead of briefly appearing before its room styles load' },
             { type: '🎨', text: 'Mobile landscape now stacks mainnet age above trailing-hour activity opposite a balanced two-by-two network-signal grid' },

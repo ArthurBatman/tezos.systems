@@ -1379,6 +1379,7 @@ async function installFeatureMocks(context, options = {}) {
     : null;
   let operatorAttestationCalls = 0;
   const myTezosLiveRefresh = Boolean(options.myTezosLiveRefresh);
+  const myTezosAccountDelayMs = Math.max(0, Number(options.myTezosAccountDelayMs) || 0);
   const isDrawerOpenForRequest = async (request) => {
     if (!myTezosLiveRefresh) return false;
     try {
@@ -2361,6 +2362,7 @@ async function installFeatureMocks(context, options = {}) {
         });
       }
       if (url.includes(`/accounts/${SAMPLE_ADDRESS}`) && !url.includes('/operations?')) {
+        if (myTezosAccountDelayMs > 0) await sleep(myTezosAccountDelayMs);
         return fulfillJson(route, await sampleAddressAccount(request));
       }
       if (url.includes(`/accounts/${SAMPLE_ADDRESS_2}`) && !url.includes('/operations?')) {
@@ -5295,7 +5297,7 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
     serviceWorkers: 'block'
   });
   await context.grantPermissions(['clipboard-write'], { origin: baseUrl });
-  await installFeatureMocks(context);
+  await installFeatureMocks(context, { myTezosAccountDelayMs: 1200 });
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
@@ -5314,6 +5316,32 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   await expectClassContains(page.locator('#my-tezos-drawer'), 'open', 'my tezos baker activity drawer');
   await page.locator('#drawer-address-input').fill(SAMPLE_ADDRESS);
   await page.locator('#drawer-connect-btn').click();
+  await page.waitForFunction(() => {
+    return document.querySelectorAll('#drawer-brief .drawer-loading-card').length === 3
+      && document.querySelectorAll('#my-baker-results .my-baker-loading-stat').length === 8;
+  }, null, { timeout: 5000 });
+  const loadingLayout = await page.evaluate(() => {
+    const brief = document.querySelector('#drawer-brief')?.getBoundingClientRect();
+    const rewards = document.querySelector('#drawer-rewards')?.getBoundingClientRect();
+    const baker = document.querySelector('#drawer-baker')?.getBoundingClientRect();
+    return {
+      columns: document.querySelectorAll('.drawer-live-columns > .drawer-live-column').length,
+      briefHeight: Math.round(brief?.height || 0),
+      rewardsHeight: Math.round(rewards?.height || 0),
+      bakerHeight: Math.round(baker?.height || 0),
+      loadingCards: document.querySelectorAll('.drawer-loading-card').length,
+      loadingStats: document.querySelectorAll('.my-baker-loading-stat').length
+    };
+  });
+  assert(
+    loadingLayout.columns === 2
+      && loadingLayout.briefHeight >= 400
+      && loadingLayout.rewardsHeight >= 300
+      && loadingLayout.bakerHeight >= 480
+      && loadingLayout.loadingCards >= 4
+      && loadingLayout.loadingStats === 8,
+    `my tezos baker activity: first account read did not hold a shape-correct two-column frame ${JSON.stringify(loadingLayout)}`
+  );
   try {
     await page.waitForFunction(() => {
       const text = document.querySelector('#drawer-baker-activity')?.textContent || '';
@@ -5350,6 +5378,31 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   assert(operatorOctezState.className.includes('drawer-operator-watch') && operatorOctezState.text.includes('v25.1'), `my tezos baker activity: stale same-major Octez version should be yellow/watch ${JSON.stringify(operatorOctezState)}`);
   assert(operatorText.includes('attestation') && operatorText.includes('100.0%'), 'my tezos baker activity: should show prominent attestation rate');
   assert(operatorText.includes('dal') && operatorText.includes('14/14 dal slots'), 'my tezos baker activity: should show prominent DAL participation');
+
+  const settledLayout = await page.evaluate(() => {
+    const gap = (beforeId, afterId) => {
+      const before = document.getElementById(beforeId)?.getBoundingClientRect();
+      const after = document.getElementById(afterId)?.getBoundingClientRect();
+      return before && after ? Math.round(after.top - before.bottom) : null;
+    };
+    return {
+      rewardsColumn: document.querySelector('#drawer-rewards')?.parentElement?.className || '',
+      bakerColumn: document.querySelector('#drawer-baker')?.parentElement?.className || '',
+      primaryJourneyGap: gap('drawer-baker-activity', 'drawer-more-section'),
+      secondaryJourneyGap: gap('drawer-network', 'drawer-more-section-secondary'),
+      accountError: document.querySelector('#my-baker-results .my-baker-error')?.textContent || ''
+    };
+  });
+  assert(
+    settledLayout.rewardsColumn.includes('drawer-live-column-primary')
+      && settledLayout.bakerColumn.includes('drawer-live-column-secondary')
+      && settledLayout.primaryJourneyGap >= 0
+      && settledLayout.primaryJourneyGap <= 24
+      && settledLayout.secondaryJourneyGap >= 0
+      && settledLayout.secondaryJourneyGap <= 24
+      && !settledLayout.accountError,
+    `my tezos baker activity: independent drawer stacks left a row-coupled hole ${JSON.stringify(settledLayout)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `my tezos baker activity browser issues:\n${issues.join('\n')}`);

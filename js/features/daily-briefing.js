@@ -2598,7 +2598,7 @@ function renderToDrawer(cycle, sentences) {
     .filter(signal => signal.text && !signal.hotOnly)
     .slice(0, 6);
   const lead = getBriefingLead(profile, signals);
-  container.innerHTML = `
+  const html = `
     <section class="network-context-panel">
       <div class="network-context-header">
         <a class="network-context-title" href="#health" data-network-route="#health" aria-label="Open Network Health" style="color:inherit;">🌐 Network Context</a>
@@ -2613,6 +2613,8 @@ function renderToDrawer(cycle, sentences) {
       </div>
     </section>
   `;
+  if (container.children.length) quietlySyncHtml(container, html);
+  else container.innerHTML = html;
   wireNetworkContextNavigation(container);
 }
 

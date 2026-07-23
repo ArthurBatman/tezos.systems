@@ -2544,8 +2544,17 @@ async function renderMorningBrief(address, force = false) {
         console.warn('Morning Brief error:', err);
         const container = document.getElementById('drawer-brief');
         if (container) {
-            if (!container.children.length) {
-                container.innerHTML = `<div style="color:var(--text-dim);font-size:0.85rem;">⚠️ Could not load data. <button id="brief-retry" style="background:none;border:none;color:var(--accent);cursor:pointer;">Retry</button></div>`;
+            const hasLastGoodBrief = container.querySelector('.brief-section:not(.drawer-loading-card)');
+            if (!hasLastGoodBrief) {
+                const errorHtml = `
+                    <div class="my-baker-load-state my-baker-load-state-error drawer-brief-error">
+                        <strong>Personal brief unavailable</strong>
+                        <span>Your saved address is intact. Retry the account read without clearing the rest of My Tezos.</span>
+                        <button id="brief-retry" class="glass-button my-baker-load-retry" type="button">Retry personal brief</button>
+                    </div>
+                `;
+                if (container.children.length) quietlySyncHtml(container, errorHtml);
+                else container.innerHTML = errorHtml;
                 document.getElementById('brief-retry')?.addEventListener('click', () => renderMorningBrief(address, true));
             }
         }
@@ -2708,13 +2717,78 @@ function initDrawerLiveRefresh() {
 
 // ─── Init & Export ───────────────────────────────────
 
+function drawerLoadingCard(label, size = '') {
+    const sizeClass = size ? ` drawer-loading-card-${size}` : '';
+    return `
+        <div class="drawer-loading-card${sizeClass}" role="status" aria-label="${escapeHtml(label)}">
+            <span class="drawer-loading-kicker">${escapeHtml(label)}</span>
+            <span class="drawer-loading-line drawer-loading-line-strong"></span>
+            <span class="drawer-loading-line"></span>
+            <span class="drawer-loading-line drawer-loading-line-short"></span>
+        </div>
+    `;
+}
+
+function seedDrawerLoadingState() {
+    const brief = document.getElementById('drawer-brief');
+    if (brief && !brief.children.length) {
+        brief.innerHTML = [
+            drawerLoadingCard('Reading your account'),
+            drawerLoadingCard('Checking baker signal'),
+            drawerLoadingCard('Building your Tezos story', 'story')
+        ].join('');
+    }
+
+    const rewards = document.getElementById('drawer-rewards');
+    if (rewards && !rewards.children.length) {
+        rewards.innerHTML = drawerLoadingCard('Syncing rewards', 'panel');
+    }
+
+    const network = document.getElementById('drawer-network');
+    if (network && !network.children.length) {
+        network.innerHTML = drawerLoadingCard('Reading network context', 'panel');
+    }
+}
+
 function organizeDrawerJourneys() {
+    const connected = document.getElementById('drawer-connected');
+    const share = connected?.querySelector('.drawer-share-section');
+    const rewards = document.getElementById('drawer-rewards');
+    const baker = document.getElementById('drawer-baker');
+    const activity = document.getElementById('drawer-baker-activity');
+    const network = document.getElementById('drawer-network');
+    const more = document.getElementById('drawer-more-section');
     const actions = document.getElementById('drawer-more-actions');
-    if (!actions) return;
-    ['my-tezos-ledger-flow-link', 'my-tezos-maxi-passport-link'].forEach((id) => {
-        const link = document.getElementById(id);
-        if (link && link.parentElement !== actions) actions.appendChild(link);
-    });
+    if (!connected || !share || !rewards || !baker || !activity || !network || !more || !actions) return;
+
+    let columns = connected.querySelector('.drawer-live-columns');
+    if (!columns) {
+        columns = document.createElement('div');
+        columns.className = 'drawer-live-columns';
+        columns.innerHTML = `
+            <div class="drawer-live-column drawer-live-column-primary"></div>
+            <div class="drawer-live-column drawer-live-column-secondary">
+                <div class="drawer-section drawer-more-section drawer-more-section-secondary" id="drawer-more-section-secondary">
+                    <div class="drawer-more-actions" id="drawer-more-actions-secondary"></div>
+                </div>
+            </div>
+        `;
+        connected.insertBefore(columns, share);
+    }
+
+    const primary = columns.querySelector('.drawer-live-column-primary');
+    const secondary = columns.querySelector('.drawer-live-column-secondary');
+    const secondaryMore = document.getElementById('drawer-more-section-secondary');
+    const secondaryActions = document.getElementById('drawer-more-actions-secondary');
+    if (!primary || !secondary || !secondaryMore || !secondaryActions) return;
+
+    [rewards, activity, more].forEach((section) => primary.appendChild(section));
+    [baker, network, secondaryMore].forEach((section) => secondary.appendChild(section));
+
+    const ledger = document.getElementById('my-tezos-ledger-flow-link');
+    const passport = document.getElementById('my-tezos-maxi-passport-link');
+    if (ledger && ledger.parentElement !== actions) actions.appendChild(ledger);
+    if (passport && passport.parentElement !== secondaryActions) secondaryActions.appendChild(passport);
 }
 
 function routeCanOwnMyTezosView() {
@@ -2788,10 +2862,12 @@ export function initMyTezos() {
     initDrawerLiveRefresh();
 
     const address = localStorage.getItem(STORAGE_KEY);
+    if (address) seedDrawerLoadingState();
 
     window.addEventListener('my-baker-updated', (e) => {
         const newAddr = e.detail?.address;
         if (newAddr) {
+            seedDrawerLoadingState();
             const previousAddress = e.detail?.previousAddress;
             if (previousAddress && previousAddress !== newAddr) {
                 window._myTezosData = {

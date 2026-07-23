@@ -5571,6 +5571,7 @@ async function checkQuietRefreshContracts() {
     fail('What is hot today must not auto-rotate or auto-scroll on a timer');
   }
   if (!daily.includes('quietlySyncHtml(island, islandHtml)')) fail('What is hot today background signals must reconcile without replacing the rail');
+  if (!daily.includes('quietlySyncHtml(container, html)')) fail('My Tezos network context must reconcile in place after its first render');
   if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
     fail('headline and heavy dashboard timers must both defer while the tab is hidden');
   }
@@ -5588,6 +5589,19 @@ async function checkQuietRefreshContracts() {
   const quietStyles = `${styles}\n${await readText('css/shell-extras.css')}`;
   if (!quietStyles.includes('[data-quiet-refreshing="true"]') || !quietStyles.includes('[data-quiet-refresh-settled="true"]')) {
     fail('quiet refresh CSS must suppress scroll animation and replayed entrances');
+  }
+  for (const snippet of ['drawer-live-columns', 'drawer-live-column-primary', 'seedDrawerLoadingState', 'drawerLoadingCard']) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos stable loading/layout contract is missing ${snippet}`);
+  }
+  for (const snippet of ['.drawer-live-columns', '.drawer-loading-card', '.my-baker-loading-grid', '.my-baker-load-state']) {
+    if (!styles.includes(snippet)) fail(`My Tezos stable loading/layout CSS is missing ${snippet}`);
+  }
+  if (!myBaker.includes('my-baker-loading-stat') || !myBaker.includes('Retry account stats')) {
+    fail('My Baker first-load geometry and recoverable error state are missing');
+  }
+  if (!smoke.includes('first account read did not hold a shape-correct two-column frame')
+    || !smoke.includes('independent drawer stacks left a row-coupled hole')) {
+    fail('My Tezos loading geometry regression coverage is missing');
   }
   if (!smoke.includes("name: 'quiet-refresh'")) fail('smoke catalog must include the quiet-refresh browsing-state suite');
   pass('quiet background refresh scroll, focus, selection, animation, and hidden-tab contracts checked');
@@ -6002,7 +6016,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=473'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=474'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

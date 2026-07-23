@@ -301,43 +301,20 @@ function createCapacityBar(label, used, max, note) {
 }
 
 /**
- * Create a subtle matrix-style character shimmer loader
+ * Create a shape-correct account-stat loader that holds the drawer geometry
+ * while the first TzKT/RPC reads are in flight.
  */
 function createMatrixLoader() {
     const wrapper = document.createElement('div');
     wrapper.className = 'my-baker-loading-matrix';
-
-    const chars = 'tz14KTꜩ0xABCDEF89';
-    const count = 24;
-
-    for (let i = 0; i < count; i++) {
-        const span = document.createElement('span');
-        span.className = 'matrix-char';
-        span.textContent = chars[Math.floor(Math.random() * chars.length)];
-        span.style.animationDelay = `${(Math.random() * 2).toFixed(2)}s`;
-        span.style.animationDuration = `${(1.2 + Math.random() * 1.6).toFixed(2)}s`;
-        wrapper.appendChild(span);
-    }
-
-    // Cycle characters periodically
-    const interval = setInterval(() => {
-        const spans = wrapper.querySelectorAll('.matrix-char');
-        if (!wrapper.classList.contains('my-baker-loading-matrix') || !spans.length) {
-            clearInterval(interval);
-            observer.disconnect();
-            return;
-        }
-        const idx = Math.floor(Math.random() * spans.length);
-        spans[idx].textContent = chars[Math.floor(Math.random() * chars.length)];
-    }, 150);
-
-    const observer = new MutationObserver(() => {
-        if (!wrapper.isConnected) {
-            clearInterval(interval);
-            observer.disconnect();
-        }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    wrapper.setAttribute('role', 'status');
+    wrapper.setAttribute('aria-label', 'Reading account statistics');
+    wrapper.innerHTML = `
+        <span class="drawer-loading-kicker">Reading account statistics</span>
+        <div class="my-baker-loading-grid" aria-hidden="true">
+            ${Array.from({ length: 8 }, () => '<span class="my-baker-loading-stat"></span>').join('')}
+        </div>
+    `;
 
     return wrapper;
 }
@@ -652,8 +629,17 @@ async function renderBakerData(address, container, { quiet = false } = {}) {
         if (quiet && container.children.length) return;
         container.innerHTML = '';
         const errorEl = document.createElement('div');
-        errorEl.className = 'my-baker-error';
-        errorEl.textContent = 'Failed to load account data. Check the address and try again.';
+        errorEl.className = 'my-baker-load-state my-baker-load-state-error';
+        const title = document.createElement('strong');
+        title.textContent = 'Account statistics unavailable';
+        const detail = document.createElement('span');
+        detail.textContent = 'The address is still saved. Retry this read without clearing the rest of My Tezos.';
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'glass-button my-baker-load-retry';
+        retry.textContent = 'Retry account stats';
+        retry.addEventListener('click', () => renderBakerData(address, container));
+        errorEl.append(title, detail, retry);
         container.appendChild(errorEl);
     }
 }
