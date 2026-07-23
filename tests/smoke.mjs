@@ -102,6 +102,7 @@ const formattingViewports = [
 const SAMPLE_ADDRESS = 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9';
 const SAMPLE_ADDRESS_2 = 'tz1hThMBD8jQjFt78heuCnKxJnJtQo9Ao25X';
 const SAMPLE_ADDRESS_3 = 'tz1PendingBaker1111111111111111111111';
+const SAMPLE_ETHERLINK_ADDRESS = '0x1111111111111111111111111111111111111111';
 const SAMPLE_LEDGER_ORIGIN = 'tz1LedgerOrigin1111111111111111111111';
 const SAMPLE_LEDGER_MARKET = 'tz1LedgerMarket1111111111111111111111';
 const SAMPLE_LEDGER_SMALL = 'tz1LedgerSmall11111111111111111111111';
@@ -1610,6 +1611,105 @@ async function installFeatureMocks(context, options = {}) {
           }
         });
       }
+      if (postData.includes('MyTezosCollection')) {
+        const body = JSON.parse(postData || '{}');
+        const vars = body.variables || {};
+        const addresses = Array.isArray(vars.addresses) ? vars.addresses : [];
+        const offset = Number(vars.offset) || 0;
+        const collected = offset > 0 ? [] : addresses.flatMap((address, index) => ([
+          {
+            holder_address: address,
+            last_incremented_at: new Date(Date.now() - index * 3600000).toISOString(),
+            quantity: index === 0 ? '2' : '1',
+            token: {
+              token_id: '42',
+              fa_contract: 'KT1SmokeCollection1111111111111111111',
+              name: 'Shared Smoke Artifact',
+              thumbnail_uri: 'ipfs://smoke-collection-image',
+              pk: 4200,
+              supply: '10',
+              lowest_ask: '1250000',
+              flag: false,
+              metadata_status: 'processed',
+              content_rating: 'safe',
+              fa: {
+                name: 'Smoke Collection',
+                contract: 'KT1SmokeCollection1111111111111111111',
+                collection_id: 'smoke-collection',
+                logo: null
+              },
+              creators: [{
+                creator_address: SAMPLE_ADDRESS,
+                holder: { address: SAMPLE_ADDRESS, alias: 'QA Artist', tzdomain: 'qa-artist.tez' }
+              }]
+            }
+          },
+          ...(index === 0 ? [{
+            holder_address: address,
+            last_incremented_at: new Date(Date.now() - 7200000).toISOString(),
+            quantity: '1',
+            token: {
+              token_id: '99',
+              fa_contract: 'KT1SmokeFlaggedCollection11111111111111',
+              name: 'Flagged Smoke Asset',
+              thumbnail_uri: null,
+              pk: 9900,
+              supply: '1',
+              lowest_ask: null,
+              flag: true,
+              metadata_status: 'failed',
+              content_rating: 'unsafe',
+              fa: {
+                name: 'Flagged Collection',
+                contract: 'KT1SmokeFlaggedCollection11111111111111',
+                collection_id: 'flagged-smoke',
+                logo: null
+              },
+              creators: []
+            }
+          }] : [])
+        ]));
+        const created = offset > 0 || !addresses.includes(SAMPLE_ADDRESS) ? [] : [{
+          creator_address: SAMPLE_ADDRESS,
+          token_pk: 4201,
+          token: {
+            token_id: '7',
+            fa_contract: 'KT1SmokeCreatedCollection11111111111111',
+            name: 'Created Smoke Artifact',
+            thumbnail_uri: null,
+            pk: 4201,
+            supply: '5',
+            lowest_ask: null,
+            flag: false,
+            metadata_status: 'processed',
+            content_rating: 'safe',
+            fa: {
+              name: 'QA Originals',
+              contract: 'KT1SmokeCreatedCollection11111111111111',
+              collection_id: 'qa-originals',
+              logo: null
+            },
+            creators: [{
+              creator_address: SAMPLE_ADDRESS,
+              holder: { address: SAMPLE_ADDRESS, alias: 'QA Artist', tzdomain: 'qa-artist.tez' }
+            }]
+          }
+        }];
+        return fulfillJson(route, {
+          data: {
+            holder: addresses.map((address, index) => ({
+              address,
+              alias: index === 0 ? 'QA Artist' : 'Second Collector',
+              tzdomain: index === 0 ? 'qa-artist.tez' : null,
+              twitter: null,
+              description: index === 0 ? 'Smoke collector and creator' : null,
+              logo: null
+            })),
+            token_holder: collected,
+            token_creator: created
+          }
+        });
+      }
       if (postData.includes('holder(')) {
         const body = JSON.parse(postData || '{}');
         const vars = body.variables || {};
@@ -1640,6 +1740,14 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes('assets.objkt.media/file/assets-003/')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/gif',
+        body: Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64')
+      });
+    }
+
+    if (url.includes('/ipfs/smoke-collection-image')) {
       return route.fulfill({
         status: 200,
         contentType: 'image/gif',
@@ -1707,6 +1815,87 @@ async function installFeatureMocks(context, options = {}) {
       });
     }
 
+    if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}/transactions`)) {
+      return fulfillJson(route, {
+        items: [{
+          hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          method: 'transfer',
+          status: 'error',
+          fee: { type: 'actual', value: '21000000000000' },
+          value: '0',
+          timestamp: new Date(Date.now() - 300000).toISOString(),
+          block_number: 44808890,
+          from: { hash: SAMPLE_ETHERLINK_ADDRESS, name: null },
+          to: { hash: '0x2222222222222222222222222222222222222222', name: 'Smoke Contract' }
+        }],
+        next_page_params: null
+      });
+    }
+
+    if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}/token-balances`)) {
+      return fulfillJson(route, [{
+        value: '2500000',
+        token: {
+          address_hash: '0x3333333333333333333333333333333333333333',
+          decimals: '6',
+          name: 'Smoke USD',
+          symbol: 'sUSD',
+          type: 'ERC-20'
+        }
+      }]);
+    }
+
+    if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}/nft`)) {
+      return fulfillJson(route, {
+        items: [{
+          id: '12',
+          value: '1',
+          metadata: { name: 'Etherlink Smoke NFT' },
+          token: {
+            address_hash: '0x4444444444444444444444444444444444444444',
+            name: 'Smoke L2 Collection',
+            symbol: 'SL2',
+            type: 'ERC-721'
+          }
+        }],
+        next_page_params: null
+      });
+    }
+
+    if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}/token-transfers`)) {
+      return fulfillJson(route, {
+        items: [{
+          transaction_hash: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          timestamp: new Date(Date.now() - 600000).toISOString(),
+          block_number: 44808880,
+          log_index: 2,
+          from: { hash: '0x5555555555555555555555555555555555555555', name: null },
+          to: { hash: SAMPLE_ETHERLINK_ADDRESS, name: null },
+          total: { value: '1000000', decimals: '6' },
+          token: {
+            address_hash: '0x3333333333333333333333333333333333333333',
+            decimals: '6',
+            name: 'Smoke USD',
+            symbol: 'sUSD',
+            type: 'ERC-20'
+          }
+        }],
+        next_page_params: null
+      });
+    }
+
+    if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}`)) {
+      return fulfillJson(route, {
+        coin_balance: '2500000000000000000',
+        transactions_count: '42',
+        token_transfers_count: '7',
+        gas_usage_count: '21000',
+        is_contract: false,
+        name: null,
+        last_activity_time: new Date(Date.now() - 300000).toISOString()
+      });
+    }
+
     if (url.includes('explorer.etherlink.com/api/v2/stats/charts/active-accounts')) {
       return fulfillJson(route, Array.from({ length: 30 }, (_, index) => ({
         date: new Date(Date.now() - (29 - index) * 86400000).toISOString().slice(0, 10),
@@ -1765,6 +1954,15 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes('node.mainnet.etherlink.com')) {
+      if (postData.includes('eth_getBalance')) {
+        const body = JSON.parse(postData || '[]');
+        const calls = Array.isArray(body) ? body : [body];
+        return fulfillJson(route, calls.map((call) => ({
+          jsonrpc: '2.0',
+          id: call.id,
+          result: '0x22b1c8c1227a0000'
+        })));
+      }
       if (postData.includes('eth_blockNumber')) return fulfillJson(route, { jsonrpc: '2.0', id: 1, result: '0x2abbd5f' });
       if (postData.includes('eth_gasPrice')) return fulfillJson(route, { jsonrpc: '2.0', id: 1, result: '0x3b9aca00' });
       return fulfillJson(route, { jsonrpc: '2.0', id: 1, result: null });
@@ -1833,6 +2031,84 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes('api.tzkt.io/v1')) {
+      if (url.includes('/accounts/activity?')) {
+        const lastId = Number(parsedUrl.searchParams.get('lastId')) || null;
+        if (lastId) return fulfillJson(route, []);
+        return fulfillJson(route, [
+          {
+            id: 5004,
+            type: 'token_transfer',
+            timestamp: new Date(Date.now() - 3600000).toISOString(),
+            level: 12345004,
+            status: 'applied',
+            hash: 'opSmokeNftTransfer111111111111111111111111111',
+            from: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' },
+            to: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+            token: {
+              contract: { address: 'KT1SmokeCollection1111111111111111111', alias: 'Smoke Collection' },
+              tokenId: '42',
+              standard: 'fa2',
+              metadata: { symbol: 'NFT', name: 'Shared Smoke Artifact', decimals: '0' }
+            },
+            amount: '1'
+          },
+          {
+            id: 5003,
+            type: 'staking',
+            timestamp: new Date(Date.now() - 7200000).toISOString(),
+            level: 12345003,
+            status: 'applied',
+            hash: 'opSmokeStake1111111111111111111111111111111',
+            action: 'stake',
+            sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+            baker: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+            amount: 250000000
+          },
+          {
+            id: 5002,
+            type: 'delegation',
+            timestamp: new Date(Date.now() - 10800000).toISOString(),
+            level: 12345002,
+            status: 'applied',
+            hash: 'opSmokeDelegation11111111111111111111111111',
+            sender: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' },
+            prevDelegate: null,
+            newDelegate: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
+          },
+          {
+            id: 5001,
+            type: 'transaction',
+            timestamp: new Date(Date.now() - 14400000).toISOString(),
+            level: 12345001,
+            status: 'applied',
+            hash: 'opSmokeSelfTransfer1111111111111111111111111',
+            amount: 1250000,
+            sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+            target: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' }
+          }
+        ]);
+      }
+      if (url.includes('/balance_history?')) {
+        const address = decodeURIComponent(parsedUrl.pathname.split('/accounts/')[1]?.split('/')[0] || SAMPLE_ADDRESS);
+        const offset = address === SAMPLE_ADDRESS ? 0 : 100000000;
+        return fulfillJson(route, [
+          {
+            level: 12000000,
+            timestamp: new Date(Date.now() - 3 * 86400000).toISOString(),
+            balance: 400000000000 + offset
+          },
+          {
+            level: 12100000,
+            timestamp: new Date(Date.now() - 2 * 86400000).toISOString(),
+            balance: 450000000000 + offset
+          },
+          {
+            level: 12200000,
+            timestamp: new Date(Date.now() - 86400000).toISOString(),
+            balance: 500000000000 + offset
+          }
+        ]);
+      }
       if (url.includes('/contracts/KT1GWnsoFZVHGh7roXEER3qeCcgJgrXT3de2/storage')) {
         return fulfillJson(route, {
           drift: '0',
@@ -6503,6 +6779,12 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   ), SAMPLE_ADDRESS_2, { timeout: 5000 });
   await page.locator('#my-tezos-tab-overview').press('ArrowRight');
   await page.waitForFunction(() => document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') === 'true', null, { timeout: 3000 });
+  await page.locator('#my-tezos-tab-portfolio').press('End');
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-tezos-x')?.getAttribute('aria-selected') === 'true' && document.activeElement?.id === 'my-tezos-tab-tezos-x', null, { timeout: 3000 });
+  await page.locator('#my-tezos-tab-tezos-x').press('Home');
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-overview')?.getAttribute('aria-selected') === 'true' && document.activeElement?.id === 'my-tezos-tab-overview', null, { timeout: 3000 });
+  await page.locator('#my-tezos-tab-overview').press('ArrowRight');
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') === 'true', null, { timeout: 3000 });
 
   const state = await page.evaluate(() => ({
     stored: localStorage.getItem('tezos-systems-my-baker-address'),
@@ -6538,6 +6820,404 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   await context.close();
   assert(issues.length === 0, `my tezos address switch browser issues:\n${issues.join('\n')}`);
   log('ok - my tezos address switch smoke');
+}
+
+async function openMyTezosSmokeView(page, baseUrl, view) {
+  const response = await page.goto(`${baseUrl}/?theme=clean`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `my tezos ${view}: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#my-tezos-btn').click();
+  await expectClassContains(page.locator('#my-tezos-drawer'), 'open', `my tezos ${view} drawer`);
+  await page.locator(`#my-tezos-tab-${view}`).click();
+  await page.waitForFunction((selectedView) => (
+    document.querySelector(`[data-my-tezos-view="${selectedView}"]`)?.getAttribute('aria-selected') === 'true'
+      && document.querySelector(`[data-my-tezos-panel="${selectedView}"]`)?.hidden === false
+  ), view, { timeout: 10000 });
+}
+
+async function smokeMyTezosStorage(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block',
+    acceptDownloads: true
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(({ address }) => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', address);
+    localStorage.setItem(`tezos-systems-rewards-v4-${address}`, JSON.stringify({
+      data: {
+        currentRole: 'staker',
+        rows: [{ cycle: 1000, _earnedRewards: 1250000 }]
+      }
+    }));
+  }, { address: SAMPLE_ADDRESS });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'my tezos storage', issues);
+  await openMyTezosSmokeView(page, baseUrl, 'portfolio');
+  await page.waitForFunction(() => (
+    document.querySelector('#portfolio-freshness')?.dataset.state === 'complete'
+      || document.querySelector('#portfolio-freshness')?.textContent?.includes('Complete')
+  ), null, { timeout: 20000 });
+  await page.waitForFunction((address) => !localStorage.getItem(`tezos-systems-rewards-v4-${address}`), SAMPLE_ADDRESS, { timeout: 10000 });
+
+  const dbState = await page.evaluate(async () => {
+    const request = indexedDB.open('tezos-systems-my-tezos');
+    const db = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const stores = Array.from(db.objectStoreNames);
+    const tx = db.transaction(['rewards', 'meta'], 'readonly');
+    const rewards = tx.objectStore('rewards').getAll();
+    const marker = tx.objectStore('meta').get('legacy-v1-migrated');
+    const result = await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve({
+        stores,
+        rewards: rewards.result,
+        marker: marker.result?.value || null
+      });
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return result;
+  });
+  assert(
+    ['snapshots', 'activityByAccount', 'rewards', 'holdings', 'syncState', 'meta'].every((name) => dbState.stores.includes(name)),
+    `my tezos storage: IndexedDB schema incomplete ${JSON.stringify(dbState)}`
+  );
+  assert(
+    dbState.marker?.rewards === 1
+      && dbState.rewards.length >= 1
+      && dbState.rewards.every((row) => Number.isFinite(row.cycle) && Number.isFinite(row.earned) && !Object.hasOwn(row, 'rows')),
+    `my tezos storage: legacy reward migration or compact replacement failed ${JSON.stringify(dbState)}`
+  );
+
+  const labelInput = page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS}"]`);
+  await labelInput.fill('Primary Vault');
+  await labelInput.press('Enter');
+  await page.waitForFunction((address) => {
+    const entries = JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]');
+    return entries.find((entry) => entry.address === address)?.label === 'Primary Vault';
+  }, SAMPLE_ADDRESS, { timeout: 5000 });
+  const orderBefore = await page.evaluate(() => (
+    JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]').map((entry) => entry.address)
+  ));
+  await page.locator('#portfolio-add-address').fill(SAMPLE_ADDRESS);
+  await page.locator('#portfolio-add-form button[type="submit"]').click();
+  await page.waitForFunction(() => /already saved/i.test(document.querySelector('#portfolio-management-status')?.textContent || ''), null, { timeout: 5000 });
+  const duplicateState = await page.evaluate(() => {
+    const entries = JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]');
+    return {
+      order: entries.map((entry) => entry.address),
+      label: entries.find((entry) => entry.address)?.label || ''
+    };
+  });
+  assert(JSON.stringify(duplicateState.order) === JSON.stringify(orderBefore), `my tezos storage: duplicate add reordered the Wallet Stack ${JSON.stringify(duplicateState)}`);
+  assert(duplicateState.label === 'Primary Vault', `my tezos storage: duplicate add erased the saved label ${JSON.stringify(duplicateState)}`);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#my-tezos-btn').click();
+  await page.locator('#my-tezos-tab-portfolio').click();
+  await page.waitForFunction((address) => (
+    document.querySelector(`[data-portfolio-label="${address}"]`)?.value === 'Primary Vault'
+  ), SAMPLE_ADDRESS, { timeout: 10000 });
+
+  const importPayload = {
+    schema: 'tezos-systems-my-tezos/v2',
+    entries: [
+      { network: 'tezos-l1', address: SAMPLE_ADDRESS, label: 'Imported Primary', included: true, addedAt: Date.now() - 1000 },
+      { network: 'tezos-l1', address: SAMPLE_DELEGATOR_ADDRESS, label: 'Imported Watch', included: false, addedAt: Date.now() }
+    ],
+    linkedL2Accounts: [{
+      chainId: 42793,
+      address: SAMPLE_ETHERLINK_ADDRESS,
+      label: 'Imported L2',
+      linkedL1Addresses: [SAMPLE_ADDRESS],
+      included: true,
+      addedAt: Date.now(),
+      linkMethod: 'manual',
+      verification: 'unverified-device-local'
+    }],
+    observedSnapshots: [{
+      scopeId: 'import-smoke',
+      timestamp: Date.now() - 60000,
+      total: 1000000,
+      spendable: 1000000,
+      staked: 0,
+      unstaking: 0
+    }],
+    seenWatermarks: { memoryLastSeen: Date.now() - 30000 }
+  };
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#portfolio-import-file').setInputFiles({
+    name: 'my-tezos-import-smoke.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(importPayload))
+  });
+  await page.waitForFunction(() => /Imported My Tezos/i.test(document.querySelector('#portfolio-management-status')?.textContent || ''), null, { timeout: 10000 });
+  const importedState = await page.evaluate(async ({ imported, l2 }) => {
+    const entries = JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]');
+    const links = JSON.parse(localStorage.getItem('tezos-systems-linked-etherlink-accounts-v1') || '[]');
+    const request = indexedDB.open('tezos-systems-my-tezos');
+    const db = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('snapshots', 'readonly');
+    const snapshots = tx.objectStore('snapshots').getAll();
+    const records = await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve(snapshots.result);
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return {
+      imported: entries.find((entry) => entry.address === imported),
+      primary: entries.find((entry) => entry.label === 'Imported Primary'),
+      link: links.find((entry) => entry.address === l2),
+      observed: records.some((row) => row.scopeId === 'import-smoke' && row.sourceType === 'observed')
+    };
+  }, { imported: SAMPLE_DELEGATOR_ADDRESS, l2: SAMPLE_ETHERLINK_ADDRESS });
+  assert(
+    importedState.imported?.included === false
+      && importedState.primary?.address === SAMPLE_ADDRESS
+      && importedState.link?.linkedL1Addresses?.includes(SAMPLE_ADDRESS)
+      && importedState.observed,
+    `my tezos storage: atomic v2 import did not preserve user-authored and observed state ${JSON.stringify(importedState)}`
+  );
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#portfolio-export').click();
+  const download = await downloadPromise;
+  const exportStream = await download.createReadStream();
+  const exportChunks = [];
+  for await (const chunk of exportStream) exportChunks.push(chunk);
+  const exported = JSON.parse(Buffer.concat(exportChunks).toString('utf8'));
+  assert(
+    exported.schema === 'tezos-systems-my-tezos/v2'
+      && exported.entries.some((entry) => entry.address === SAMPLE_DELEGATOR_ADDRESS)
+      && exported.linkedL2Accounts.some((entry) => entry.address === SAMPLE_ETHERLINK_ADDRESS)
+      && exported.observedSnapshots.some((row) => row.scopeId === 'import-smoke')
+      && !Object.hasOwn(exported, 'holdings'),
+    `my tezos storage: v2 export boundary is incorrect ${JSON.stringify(exported)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `my tezos storage browser issues:\n${issues.join('\n')}`);
+  log('ok - my tezos storage smoke');
+}
+
+async function smokeMyTezosMemory(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(({ first, second }) => {
+    localStorage.setItem('tezos-systems-theme', 'dark');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', first);
+    localStorage.setItem('tezos-systems-saved-addresses', JSON.stringify([
+      { network: 'tezos-l1', address: first, label: 'Primary', included: true, addedAt: Date.now() - 1000 },
+      { network: 'tezos-l1', address: second, label: 'Second', included: true, addedAt: Date.now() }
+    ]));
+  }, { first: SAMPLE_ADDRESS, second: SAMPLE_ADDRESS_2 });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'my tezos memory', issues);
+  await openMyTezosSmokeView(page, baseUrl, 'portfolio');
+  await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#portfolio-memory-status')?.dataset.state), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelectorAll('#portfolio-activity-list .portfolio-activity-item').length >= 3, null, { timeout: 10000 });
+  await page.locator('[data-portfolio-range="all"]').click();
+  await page.waitForFunction(() => {
+    const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+    return chart?.data?.datasets?.some((dataset) => dataset.label === 'Reconstructed liquid*');
+  }, null, { timeout: 10000 });
+  const memoryState = await page.evaluate(async () => {
+    const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+    const request = indexedDB.open('tezos-systems-my-tezos');
+    const db = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction(['snapshots', 'activityByAccount', 'syncState'], 'readonly');
+    const snapshotsRequest = tx.objectStore('snapshots').getAll();
+    const activityRequest = tx.objectStore('activityByAccount').getAll();
+    const syncRequest = tx.objectStore('syncState').getAll();
+    const stored = await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve({
+        snapshots: snapshotsRequest.result,
+        activity: activityRequest.result,
+        sync: syncRequest.result
+      });
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return {
+      labels: chart?.data?.datasets?.map((dataset) => dataset.label) || [],
+      boundary: document.querySelector('.portfolio-history-boundary')?.textContent || '',
+      whileAway: document.querySelector('#portfolio-while-away')?.textContent || '',
+      activity: document.querySelector('#portfolio-activity-list')?.textContent || '',
+      lastSeen: Number(localStorage.getItem('tezos-systems-my-tezos-memory-last-seen-v1')) || 0,
+      reconstructed: stored.snapshots.filter((row) => row.sourceType === 'reconstructed').length,
+      observed: stored.snapshots.filter((row) => row.sourceType === 'observed').length,
+      activityRows: stored.activity.length,
+      sync: stored.sync
+    };
+  });
+  assert(memoryState.labels.includes('Reconstructed liquid*') && memoryState.labels.includes('Total'), `my tezos memory: evidence tracks were not kept separate ${JSON.stringify(memoryState)}`);
+  assert(/exclude staked tez/i.test(memoryState.boundary) && !/P&L/i.test(memoryState.activity), `my tezos memory: historical limitation boundary missing ${JSON.stringify(memoryState)}`);
+  assert(/Memory is ready/i.test(memoryState.whileAway) && memoryState.lastSeen > 0, `my tezos memory: initial reconstruction was mislabeled as unseen ${JSON.stringify(memoryState)}`);
+  assert(/Moved XTZ|Staked XTZ|Delegate changed/i.test(memoryState.activity), `my tezos memory: human activity classification missing ${memoryState.activity}`);
+  assert(memoryState.reconstructed === 6 && memoryState.observed >= 1 && memoryState.activityRows >= 4, `my tezos memory: normalized records were not persisted ${JSON.stringify(memoryState)}`);
+  assert(memoryState.sync.some((state) => state.stream === 'activity' && state.windowComplete === true), `my tezos memory: resumable activity state missing ${JSON.stringify(memoryState.sync)}`);
+
+  await context.close();
+  assert(issues.length === 0, `my tezos memory browser issues:\n${issues.join('\n')}`);
+  log('ok - my tezos memory smoke');
+}
+
+async function smokeMyTezosCollection(browser, baseUrl) {
+  const issues = [];
+  let objktRequests = 0;
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  context.on('request', (request) => {
+    if (request.url().includes('data.objkt.com/v3/graphql') && request.postData()?.includes('MyTezosCollection')) objktRequests += 1;
+  });
+  await context.addInitScript(({ first, second }) => {
+    localStorage.setItem('tezos-systems-theme', 'aurora');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', first);
+    localStorage.setItem('tezos-systems-saved-addresses', JSON.stringify([
+      { network: 'tezos-l1', address: first, label: 'Artist', included: true, addedAt: Date.now() - 1000 },
+      { network: 'tezos-l1', address: second, label: 'Collector', included: true, addedAt: Date.now() }
+    ]));
+  }, { first: SAMPLE_ADDRESS, second: SAMPLE_ADDRESS_2 });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'my tezos collection', issues);
+  await openMyTezosSmokeView(page, baseUrl, 'collection');
+  await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#collection-status')?.dataset.state), null, { timeout: 30000 });
+  await page.waitForFunction(() => Number(document.querySelector('[data-collection-total="assets"] strong')?.textContent) >= 1, null, { timeout: 10000 });
+  const collected = await page.evaluate(() => ({
+    assets: document.querySelector('[data-collection-total="assets"] strong')?.textContent || '',
+    editions: document.querySelector('[data-collection-total="editions"] strong')?.textContent || '',
+    cards: document.querySelectorAll('#collection-grid .collection-asset-card').length,
+    profile: document.querySelector('#collection-profiles')?.textContent || '',
+    body: document.querySelector('#my-tezos-panel-collection')?.textContent || '',
+    flaggedHidden: document.querySelector('#collection-spam-toggle')?.hidden === false,
+    overflow: document.querySelector('#my-tezos-panel-collection')?.scrollWidth - document.querySelector('#my-tezos-panel-collection')?.clientWidth
+  }));
+  assert(Number(collected.assets) === 1 && Number(collected.editions) === 3 && collected.cards === 1, `my tezos collection: multi-wallet holdings did not aggregate by token ${JSON.stringify(collected)}`);
+  assert(/QA Artist/.test(collected.profile) && /not a portfolio value/i.test(collected.body) && !/\bCollection value\b/i.test(collected.body), `my tezos collection: profile or valuation boundary missing ${JSON.stringify(collected)}`);
+  assert(collected.flaggedHidden && collected.overflow <= 1, `my tezos collection: flagged or mobile geometry state failed ${JSON.stringify(collected)}`);
+  assert(objktRequests === 1, `my tezos collection: summary-first load exceeded one Objkt request (${objktRequests})`);
+
+  await page.locator('[data-collection-mode="created"]').click();
+  await page.waitForFunction(() => /Created Smoke Artifact/.test(document.querySelector('#collection-grid')?.textContent || ''), null, { timeout: 5000 });
+  await page.locator('#collection-spam-toggle').click();
+  await page.locator('[data-collection-mode="collected"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#collection-grid .collection-asset-card').length === 2, null, { timeout: 5000 });
+
+  await context.close();
+  assert(issues.length === 0, `my tezos collection browser issues:\n${issues.join('\n')}`);
+  log('ok - my tezos collection smoke');
+}
+
+async function smokeMyTezosTezosX(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(({ first, second }) => {
+    localStorage.setItem('tezos-systems-theme', 'dark');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', first);
+    localStorage.setItem('tezos-systems-saved-addresses', JSON.stringify([
+      { network: 'tezos-l1', address: first, label: 'Primary', included: true, addedAt: Date.now() - 1000 },
+      { network: 'tezos-l1', address: second, label: 'Second', included: true, addedAt: Date.now() }
+    ]));
+  }, { first: SAMPLE_ADDRESS, second: SAMPLE_ADDRESS_2 });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'my tezos tezos x', issues);
+  await openMyTezosSmokeView(page, baseUrl, 'tezos-x');
+
+  await page.locator('#tezosx-add-address').fill('not-an-address');
+  await page.locator('#tezosx-add-form button[type="submit"]').click();
+  await page.waitForFunction(() => /valid Etherlink 0x address/i.test(document.querySelector('#tezosx-management-status')?.textContent || ''), null, { timeout: 5000 });
+  await page.locator('#tezosx-add-address').fill(SAMPLE_ETHERLINK_ADDRESS.toUpperCase().replace('0X', '0x'));
+  await page.locator('#tezosx-add-label').fill('L2 Vault');
+  await page.locator('#tezosx-add-form button[type="submit"]').click();
+  await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#tezosx-status')?.dataset.state), null, { timeout: 30000 });
+  await page.waitForFunction(() => /Smoke USD/.test(document.querySelector('#tezosx-details')?.textContent || ''), null, { timeout: 10000 });
+
+  await page.locator('#tezosx-add-address').fill(SAMPLE_ETHERLINK_ADDRESS);
+  await page.locator('#tezosx-add-form button[type="submit"]').click();
+  await page.waitForFunction(() => /already linked on this device/i.test(document.querySelector('#tezosx-management-status')?.textContent || ''), null, { timeout: 5000 });
+  await page.locator('#tezosx-account-list details summary').click();
+  const association = page.locator(`[data-tezosx-l1-link="${SAMPLE_ETHERLINK_ADDRESS}"][value="${SAMPLE_ADDRESS_2}"]`);
+  await association.check();
+  await page.waitForFunction(({ l2, second }) => {
+    const rows = JSON.parse(localStorage.getItem('tezos-systems-linked-etherlink-accounts-v1') || '[]');
+    return rows.find((row) => row.address === l2)?.linkedL1Addresses?.includes(second);
+  }, { l2: SAMPLE_ETHERLINK_ADDRESS, second: SAMPLE_ADDRESS_2 }, { timeout: 5000 });
+
+  const state = await page.evaluate((l2) => {
+    const rows = JSON.parse(localStorage.getItem('tezos-systems-linked-etherlink-accounts-v1') || '[]');
+    const panel = document.querySelector('#my-tezos-panel-tezos-x');
+    const refresh = document.querySelector('#tezosx-refresh');
+    const tablist = document.querySelector('.my-tezos-tabs');
+    const selectedTab = tablist?.querySelector('[role="tab"][aria-selected="true"]');
+    const tablistRect = tablist?.getBoundingClientRect();
+    const selectedTabRect = selectedTab?.getBoundingClientRect();
+    return {
+      rows,
+      linkedRows: document.querySelectorAll('#tezosx-account-list .tezosx-account-row').length,
+      native: document.querySelector('[data-tezosx-total="native"] strong')?.textContent || '',
+      erc20: document.querySelector('[data-tezosx-total="erc20"] strong')?.textContent || '',
+      nfts: document.querySelector('[data-tezosx-total="nfts"] strong')?.textContent || '',
+      transactions: document.querySelector('[data-tezosx-total="transactions"] strong')?.textContent || '',
+      copy: panel?.textContent || '',
+      detail: document.querySelector('#tezosx-details')?.textContent || '',
+      overflow: (panel?.scrollWidth || 0) - (panel?.clientWidth || 0),
+      refreshClips: (refresh?.scrollWidth || 0) - (refresh?.clientWidth || 0),
+      selectedTabVisible: Boolean(
+        tablistRect
+          && selectedTabRect
+          && selectedTabRect.left >= tablistRect.left - 1
+          && selectedTabRect.right <= tablistRect.right + 1
+      ),
+      selected: rows.find((row) => row.address === l2) || null
+    };
+  }, SAMPLE_ETHERLINK_ADDRESS);
+  assert(state.rows.length === 1 && state.linkedRows === 1 && state.selected?.linkedL1Addresses?.length === 2, `my tezos tezos x: deduplication or many-to-many links failed ${JSON.stringify(state)}`);
+  assert(/2\.5/.test(state.native) && state.erc20 === '1' && state.nfts === '1' && state.transactions === '42', `my tezos tezos x: account summary incorrect ${JSON.stringify(state)}`);
+  assert(/Linked on this device/i.test(state.copy) && /not an ownership proof/i.test(state.copy) && /error/i.test(state.detail) && /Blockscout receipt/i.test(state.detail), `my tezos tezos x: L2 provenance or revert state missing ${JSON.stringify(state)}`);
+  assert(state.overflow <= 1 && state.refreshClips <= 1 && state.selectedTabVisible, `my tezos tezos x: mobile controls overflow ${JSON.stringify(state)}`);
+
+  const include = page.locator(`[data-tezosx-include="${SAMPLE_ETHERLINK_ADDRESS}"]`);
+  await include.uncheck();
+  await page.waitForFunction(() => /No linked accounts are included/i.test(document.querySelector('#tezosx-status')?.textContent || ''), null, { timeout: 5000 });
+
+  await context.close();
+  assert(issues.length === 0, `my tezos tezos x browser issues:\n${issues.join('\n')}`);
+  log('ok - my tezos tezos x smoke');
 }
 
 async function smokeMyTezosLedgerFlowHandoff(browser, baseUrl) {
@@ -6919,11 +7599,13 @@ async function smokeMyTezosDeepLinkOverridesStale(browser, baseUrl) {
 }
 
 async function smokeMyTezosPrettyRoute(browser, baseUrl) {
-  for (const { label, viewport, path = '/my', portfolio = false } of [
+  for (const { label, viewport, path = '/my', expectedView = 'overview' } of [
     { label: 'desktop', viewport: { width: 1280, height: 900 } },
     { label: 'mobile', viewport: { width: 390, height: 844 } },
-    { label: 'portfolio tablet', viewport: { width: 760, height: 900 }, path: '/my/?view=portfolio', portfolio: true },
-    { label: 'portfolio mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=portfolio', portfolio: true }
+    { label: 'portfolio tablet', viewport: { width: 760, height: 900 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
+    { label: 'portfolio mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
+    { label: 'collection mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=collection', expectedView: 'collection' },
+    { label: 'tezos x mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=tezos-x', expectedView: 'tezos-x' }
   ]) {
     const issues = [];
     const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
@@ -6955,6 +7637,8 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
         title: document.title,
         emptyStateVisible: getComputedStyle(document.querySelector('#drawer-empty-state')).display !== 'none',
         portfolioSelected: document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') || '',
+        selectedView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+        activePanel: document.querySelector('[data-my-tezos-panel]:not([hidden])')?.dataset.myTezosPanel || '',
         drawerWidth: drawer.getBoundingClientRect().width,
         summaryRows: new Set(summaryCards.map((rect) => Math.round(rect.top))).size,
         summaryInsideDrawer: summaryCards.every((rect) => rect.left >= -1 && rect.right <= drawer.getBoundingClientRect().right + 1),
@@ -6967,13 +7651,20 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
     assert(state.pathname === '/my/' && state.hash === '', `my tezos pretty route ${label} should remain canonical: ${JSON.stringify(state)}`);
     assert(state.canonical === 'https://tezos.systems/my/', `my tezos pretty route ${label} canonical mismatch: ${state.canonical}`);
     assert(state.title.startsWith('My Tezos'), `my tezos pretty route ${label} title mismatch: ${state.title}`);
-    if (portfolio) {
+    if (expectedView === 'portfolio') {
       assert(state.search === '?view=portfolio' && state.portfolioSelected === 'true', `my tezos pretty route ${label} did not select Portfolio: ${JSON.stringify(state)}`);
       assert(state.drawerWidth >= viewport.width - 1 && state.summaryRows === 2, `my tezos pretty route ${label} did not use full-width 2x2 Portfolio geometry: ${JSON.stringify(state)}`);
       assert(state.summaryInsideDrawer && state.refreshReadable, `my tezos pretty route ${label} clipped Portfolio cards or action labels: ${JSON.stringify(state)}`);
       assert(!/tz[1-4]|KT1/.test(state.search), `my tezos pretty route ${label} leaked an address into the route: ${state.search}`);
-    } else {
+    } else if (expectedView === 'overview') {
       assert(state.emptyStateVisible && state.portfolioSelected === 'false', `my tezos pretty route ${label} should open the address-free Overview state`);
+    } else {
+      assert(
+        state.search === `?view=${expectedView}`
+          && state.selectedView === expectedView
+          && state.activePanel === expectedView,
+        `my tezos pretty route ${label} did not activate ${expectedView}: ${JSON.stringify(state)}`
+      );
     }
     assert(!state.drawerOverflow && !state.pageOverflow, `my tezos pretty route ${label} overflowed: ${JSON.stringify(state)}`);
 
@@ -14163,7 +14854,11 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-staker-rewards', description: 'My Tezos connected drawer uses personal staker reward rows for regular and mostly-staked accounts', run: () => smokeMyTezosStakerRewards(browser, baseUrl) },
     { name: 'my-tezos-delegator-rewards', description: 'My Tezos connected drawer uses delegator estimate rows for zero-stake delegated accounts', run: () => smokeMyTezosDelegatorRewards(browser, baseUrl) },
     { name: 'my-tezos-historical-rewards', description: 'My Tezos keeps historical rewards out of the Current Cycle value and shows an inactive reward role honestly', run: () => smokeMyTezosHistoricalRewards(browser, baseUrl) },
+    { name: 'my-tezos-storage', description: 'My Tezos migrates legacy browser data into normalized IndexedDB without reordering duplicates or losing labels', run: () => smokeMyTezosStorage(browser, baseUrl) },
     { name: 'my-tezos-portfolio', description: 'My Tezos adaptive tabs, exact multi-address totals, activation links, complete-only failure state, quiet refresh, and desktop geometry', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
+    { name: 'my-tezos-memory', description: 'Portfolio Memory keeps reconstructed and observed evidence separate while persisting human-readable activity and resumable coverage', run: () => smokeMyTezosMemory(browser, baseUrl) },
+    { name: 'my-tezos-collection', description: 'Collection aggregates included L1 NFT holdings without presenting marketplace asks as portfolio value', run: () => smokeMyTezosCollection(browser, baseUrl) },
+    { name: 'my-tezos-tezosx', description: 'Tezos X links device-local Etherlink accounts with explicit L2 provenance, assets, activity, and independent inclusion', run: () => smokeMyTezosTezosX(browser, baseUrl) },
     { name: 'my-tezos-ledger-flow-handoff', description: 'My Tezos closes its mobile drawer before opening the address-scoped Ledger Flow Chamber', run: () => smokeMyTezosLedgerFlowHandoff(browser, baseUrl) },
     { name: 'my-tezos-subdomain-input', description: 'My Tezos connected drawer accepts Tezos Domains subdomains and saves their resolved address', run: () => smokeMyTezosSubdomainInput(browser, baseUrl) },
     { name: 'my-tezos-proposal-attribution', description: 'My Tezos Story distinguishes a delegator from their baker when accepted proposals are shown', run: () => smokeMyTezosProposalAttribution(browser, baseUrl) },

@@ -20,13 +20,17 @@ import {
     initMyTezosPortfolio,
     refreshMyTezosPortfolio
 } from './my-tezos-portfolio.js';
+import {
+    initMyTezosTabs,
+    registerMyTezosView,
+    setMyTezosView
+} from './my-tezos-tabs.mjs';
 import { enqueueToast } from '../ui/toast-queue.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
 const OCTEZ = API_URLS.octez;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
-const VIEW_SESSION_KEY = 'tezos-systems-my-tezos-view';
 const REWARDS_HISTORY_KEY = 'tezos-systems-my-rewards-history';
 const LAST_PORTFOLIO_KEY = 'tezos-systems-my-last-portfolio';
 const OVERNIGHT_KEY = 'tezos-systems-overnight-snapshot';
@@ -2791,71 +2795,16 @@ function organizeDrawerJourneys() {
     if (passport && passport.parentElement !== secondaryActions) secondaryActions.appendChild(passport);
 }
 
-function routeCanOwnMyTezosView() {
-    return window.location.pathname.replace(/\/+$/, '') === '/my';
-}
-
-function syncMyTezosViewRoute(view) {
-    if (!routeCanOwnMyTezosView()) return;
-    const url = new URL(window.location.href);
-    if (view === 'portfolio') url.searchParams.set('view', 'portfolio');
-    else url.searchParams.delete('view');
-    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
-}
-
-export function setMyTezosView(view, { focus = false, syncRoute = true } = {}) {
-    const selected = view === 'portfolio' ? 'portfolio' : 'overview';
-    document.querySelectorAll('[data-my-tezos-view]').forEach((button) => {
-        const active = button.dataset.myTezosView === selected;
-        button.classList.toggle('active', active);
-        button.setAttribute('aria-selected', String(active));
-        button.tabIndex = active ? 0 : -1;
-        if (active && focus) button.focus({ preventScroll: true });
-    });
-    document.querySelectorAll('[data-my-tezos-panel]').forEach((panel) => {
-        const active = panel.dataset.myTezosPanel === selected;
-        panel.classList.toggle('active', active);
-        panel.hidden = !active;
-    });
-    try { sessionStorage.setItem(VIEW_SESSION_KEY, selected); } catch {}
-    if (syncRoute) syncMyTezosViewRoute(selected);
-    if (selected === 'portfolio') activateMyTezosPortfolio().catch(() => {});
-    window.dispatchEvent(new CustomEvent('my-tezos-view-changed', { detail: { view: selected } }));
-    return selected;
-}
-
-function initMyTezosTabs() {
-    const tabs = Array.from(document.querySelectorAll('[data-my-tezos-view]'));
-    if (!tabs.length) return;
-    tabs.forEach((button, index) => {
-        button.addEventListener('click', () => setMyTezosView(button.dataset.myTezosView));
-        button.addEventListener('keydown', (event) => {
-            let nextIndex = null;
-            if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
-            if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
-            if (event.key === 'Home') nextIndex = 0;
-            if (event.key === 'End') nextIndex = tabs.length - 1;
-            if (nextIndex == null) return;
-            event.preventDefault();
-            setMyTezosView(tabs[nextIndex].dataset.myTezosView, { focus: true });
-        });
-    });
-    window.addEventListener('my-tezos-view-request', (event) => {
-        setMyTezosView(event.detail?.view || 'overview');
-    });
-
-    let initial = 'overview';
-    if (routeCanOwnMyTezosView() && new URLSearchParams(window.location.search).get('view') === 'portfolio') {
-        initial = 'portfolio';
-    } else {
-        try { initial = sessionStorage.getItem(VIEW_SESSION_KEY) || 'overview'; } catch {}
-    }
-    setMyTezosView(initial, { syncRoute: false });
-}
+export { setMyTezosView };
 
 export function initMyTezos() {
     organizeDrawerJourneys();
     initMyTezosPortfolio();
+    registerMyTezosView('portfolio', () => activateMyTezosPortfolio());
+    registerMyTezosView('collection', () => import('./my-tezos-collection.mjs')
+        .then((module) => module.activateMyTezosCollection()));
+    registerMyTezosView('tezos-x', () => import('./my-tezos-tezosx.mjs')
+        .then((module) => module.activateMyTezosTezosX()));
     initMyTezosTabs();
     // Create minibar under price bar
     createMinibar();
@@ -2867,6 +2816,7 @@ export function initMyTezos() {
     window.addEventListener('my-baker-updated', (e) => {
         const newAddr = e.detail?.address;
         if (newAddr) {
+            updateDrawerGreeting('');
             seedDrawerLoadingState();
             const previousAddress = e.detail?.previousAddress;
             if (previousAddress && previousAddress !== newAddr) {
@@ -2891,6 +2841,46 @@ export function initMyTezos() {
                 }
             });
         }
+    });
+    window.addEventListener('my-tezos-current-account-ready', (event) => {
+        const address = String(event.detail?.address || '');
+        const account = event.detail?.account;
+        const current = window._myTezosData;
+        if (
+            !address
+            || !account
+            || localStorage.getItem(STORAGE_KEY) !== address
+            || current?.fullAddress !== address
+            || current.loading
+        ) return;
+        const totalXTZ = Math.max(0, Number(account.balance) || 0) / 1e6;
+        const staked = Math.max(0, Number(account.stakedBalance) || 0) / 1e6;
+        const isBaker = account.type === 'delegate' || account.delegate?.address === address;
+        const isStaker = staked > 0;
+        const bakerAddr = isBaker ? address : account.delegate?.address || null;
+        const bakerName = isBaker
+            ? 'Self (Baker)'
+            : account.delegate?.alias || current.bakerName || (bakerAddr ? shortAddress(bakerAddr) : 'None');
+        const activeRewardEstimate = current.activeRewardEstimate === true
+            && (isBaker || isStaker)
+            && Number.isFinite(Number(current.apyRate));
+        const rewardBase = isStaker ? staked : totalXTZ;
+        const estAnnual = activeRewardEstimate ? rewardBase * (Number(current.apyRate) / 100) : null;
+        const updated = {
+            ...current,
+            totalXTZ,
+            staked,
+            isBaker,
+            isStaker,
+            bakerAddr,
+            bakerName,
+            activeRewardEstimate,
+            estDaily: estAnnual == null ? null : estAnnual / 365.25,
+            estAnnual
+        };
+        window._myTezosData = updated;
+        renderBriefTabs(buildMorningBrief(updated), updated);
+        window.dispatchEvent(new Event('my-tezos-data-ready'));
     });
 
     window.addEventListener('my-tezos-show-onboarding', () => {

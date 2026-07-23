@@ -309,8 +309,7 @@ function processProfile(holder) {
                     logo: fa?.logo || null,
                     assetCount: 0,
                     editionCount: 0,
-                    assetKeys: new Set(),
-                    estimatedValue: 0
+                    assetKeys: new Set()
                 });
             }
             const entry = collectionMap.get(key);
@@ -320,9 +319,6 @@ function processProfile(holder) {
             entry.assetKeys.add(assetKey);
             entry.assetCount = entry.assetKeys.size;
             entry.editionCount += quantity;
-            if (h.token.lowest_ask) {
-                entry.estimatedValue += (asNumber(h.token.lowest_ask) * quantity);
-            }
         }
 
         // Total spent
@@ -337,14 +333,6 @@ function processProfile(holder) {
             totalSpent = allTimeCollector.volume;
         }
 
-        // Estimated portfolio value (sum of floor prices)
-        let portfolioValue = 0;
-        for (const h of validHeld) {
-            if (h.token.lowest_ask) {
-                portfolioValue += asNumber(h.token.lowest_ask) * asNumber(h.quantity);
-            }
-        }
-
         // Top collections by distinct assets. Edition quantity can be misleading
         // for high-supply FA2 tokens, so keep it as secondary metadata only.
         const topCollections = [...collectionMap.values()]
@@ -357,7 +345,6 @@ function processProfile(holder) {
             uniqueAssetsHeld: uniqueAssetKeys.size,
             uniqueCollections: collectionMap.size,
             totalSpent: totalSpent / 1e6,
-            portfolioValue: portfolioValue / 1e6,
             topCollections,
             recentAcquisitions: validHeld.slice(0, 5).map(h => ({
                 name: h.token.name,

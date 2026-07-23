@@ -80,8 +80,28 @@ import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
 import { validateTezosCrpDataset, validateTezosCrpIdentityAliases } from '../scripts/lib/tezoscrp-awards.mjs';
 import { normalizeSavedMyTezosEntries } from '../js/core/my-tezos-entries.mjs';
 import {
+  createActivity,
+  dedupeMyTezosActivities,
+  normalizeLinkedL2Accounts
+} from '../js/core/my-tezos-models.mjs';
+import {
+  MyTezosRequestBroker,
+  fingerprintMyTezosRequest
+} from '../js/core/my-tezos-request-broker.mjs';
+import { findMyTezosContractRule } from '../js/core/my-tezos-contract-registry.mjs';
+import {
+  aggregateCollectionHoldings,
+  classifyObjktNftActivity,
+  normalizeObjktHolding
+} from '../js/features/my-tezos-collection-model.mjs';
+import {
+  aggregateEtherlinkAccounts,
+  upsertLinkedEtherlinkAccount
+} from '../js/features/my-tezos-tezosx-model.mjs';
+import {
   MY_TEZOS_PORTFOLIO_SCHEMA,
   appendPortfolioSnapshot,
+  buildReconstructedPortfolioSeries,
   calculatePortfolioTotals,
   compactPortfolioHistory,
   mergePortfolioEntries,
@@ -163,7 +183,7 @@ async function checkMyTezosPortfolioContracts() {
     makePoint(now - 31 * 24 * 60 * 60 * 1000 + 2, 4),
     makePoint(now - 366 * 24 * 60 * 60 * 1000, 5)
   ], { now });
-  assert.deepEqual(compacted.map((point) => point.total), [4, 2]);
+  assert.deepEqual(compacted.map((point) => point.total), [5, 4, 2]);
   const composition = portfolioCompositionKey([migrated[0]]);
   const store = appendPortfolioSnapshot({ schema: 1, series: {} }, composition, makePoint(now, 6), { now });
   assert.equal(store.series[composition].length, 1);
@@ -185,18 +205,134 @@ async function checkMyTezosPortfolioContracts() {
     [addressA, addressB]
   );
 
-  const [portfolio, myTezos, wallet, savedEntries, index, styles, smoke] = await Promise.all([
+  const l2Address = `0x${'a'.repeat(40)}`;
+  const linked = upsertLinkedEtherlinkAccount([], {
+    address: l2Address.toUpperCase().replace('0X', '0x'),
+    label: 'Studio'
+  }, { activeL1Address: addressA, now: 1000 });
+  assert.equal(linked.entries.length, 1);
+  assert.equal(linked.entries[0].verification, 'unverified-device-local');
+  const relinked = upsertLinkedEtherlinkAccount(linked.entries, {
+    address: l2Address,
+    linkedL1Addresses: [addressB]
+  }, { activeL1Address: addressA, now: 2000 });
+  assert.equal(relinked.existed, true);
+  assert.deepEqual(relinked.entries[0].linkedL1Addresses, [addressA, addressB]);
+  assert.equal(normalizeLinkedL2Accounts([...linked.entries, ...relinked.entries]).length, 1);
+  assert.deepEqual(aggregateEtherlinkAccounts([
+    { address: l2Address, nativeXtz: 1, transactions: 2 },
+    { address: l2Address.toUpperCase().replace('0X', '0x'), nativeXtz: 100, transactions: 200 }
+  ]), {
+    accounts: 1, nativeXtz: 1, erc20Assets: 0, nftAssets: 0, transactions: 2, lastActivity: 0
+  });
+
+  const receiptActivity = createActivity({
+    id: 'out',
+    accountKey: `l1:${addressA}`,
+    layer: 'l1',
+    kind: 'xtz-transfer',
+    direction: 'out',
+    timestamp: now,
+    operationHash: 'opSelf',
+    groupKey: 'opSelf',
+    amount: 1_000_000,
+    confidence: 'exact'
+  });
+  const selfActivity = dedupeMyTezosActivities([
+    receiptActivity,
+    { ...receiptActivity, id: 'in', accountKey: `l1:${addressB}`, direction: 'in' }
+  ], [`l1:${addressA}`, `l1:${addressB}`]);
+  assert.equal(selfActivity.length, 1);
+  assert.equal(selfActivity[0].kind, 'self-transfer');
+  assert.equal(selfActivity[0].summary, 'Moved between your included wallets');
+
+  const reconstructed = buildReconstructedPortfolioSeries(
+    [{ address: addressA }, { address: addressB }],
+    [
+      { address: addressA, timestamp: now, liquid: 1, sourceType: 'reconstructed' },
+      { address: addressB, timestamp: now, liquid: 2, sourceType: 'reconstructed' }
+    ]
+  );
+  assert.equal(reconstructed[0].liquid, 3);
+  assert.match(reconstructed[0].limitation, /staked tez/i);
+
+  const holdingA = normalizeObjktHolding({
+    quantity: 2,
+    last_incremented_at: new Date(now).toISOString(),
+    token: {
+      fa_contract: 'KT1Asset',
+      token_id: '1',
+      name: 'One',
+      fa: { name: 'Collection', contract: 'KT1Asset' }
+    }
+  }, addressA);
+  const holdingB = normalizeObjktHolding({
+    quantity: 3,
+    token: {
+      fa_contract: 'KT1Asset',
+      token_id: '1',
+      name: 'One',
+      flag: 'none',
+      fa: { name: 'Collection', contract: 'KT1Asset' }
+    }
+  }, addressB);
+  assert.equal(holdingB.spam, false, 'neutral Objkt flag values must not hide valid holdings');
+  const aggregatedHoldings = aggregateCollectionHoldings([holdingA, holdingB]);
+  assert.equal(aggregatedHoldings[0].quantity, 5);
+  assert.deepEqual(new Set(aggregatedHoldings[0].ownerAddresses), new Set([addressA, addressB]));
+  assert.deepEqual(classifyObjktNftActivity({
+    event: { type: 'listing_sale', ophash: 'opSale' },
+    tzktTransfer: { operationHash: 'opSale', from: addressB, to: addressA },
+    ownerAddress: addressA
+  }), { kind: 'nft-purchase', direction: 'in', confidence: 'joined' });
+  assert.equal(classifyObjktNftActivity({ event: { type: 'sale' } }).confidence, 'unknown');
+  assert.equal(findMyTezosContractRule({
+    l1: [{ address: 'KT1Dex', kind: 'dex' }],
+    l2: []
+  }, 'l1', 'KT1Dex')?.kind, 'dex');
+
+  assert.equal(
+    fingerprintMyTezosRequest({ method: 'post', url: '/same', body: '{"a":1}' }),
+    fingerprintMyTezosRequest({ method: 'POST', url: '/same', body: '{"a":1}' })
+  );
+  let brokerCalls = 0;
+  let releaseBroker;
+  const brokerGate = new Promise((resolve) => { releaseBroker = resolve; });
+  const dedupeBroker = new MyTezosRequestBroker({
+    fetchImpl: async () => {
+      brokerCalls += 1;
+      await brokerGate;
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+  });
+  const firstBrokerRequest = dedupeBroker.request('/dedupe', { provider: 'tzkt' });
+  const secondBrokerRequest = dedupeBroker.request('/dedupe', { provider: 'tzkt' });
+  releaseBroker();
+  assert.deepEqual(await Promise.all([firstBrokerRequest, secondBrokerRequest]), [{ ok: true }, { ok: true }]);
+  assert.equal(brokerCalls, 1);
+
+  const [portfolio, myTezos, tabs, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, collection, tezosx, rewards, sw] = await Promise.all([
     readText('js/features/my-tezos-portfolio.js'),
     readText('js/features/my-tezos.js'),
+    readText('js/features/my-tezos-tabs.mjs'),
+    readText('js/features/my-tezos-tzkt-adapter.mjs'),
     readText('js/core/wallet.js'),
     readText('js/core/my-tezos-entries.mjs'),
     readText('index.html'),
     readText('css/styles.css'),
-    readText('tests/smoke.mjs')
+    readText('tests/smoke.mjs'),
+    readText('js/core/my-tezos-db.mjs'),
+    readText('js/core/my-tezos-request-broker.mjs'),
+    readText('js/features/my-tezos-memory.mjs'),
+    readText('js/features/my-tezos-collection.mjs'),
+    readText('js/features/my-tezos-tezosx.mjs'),
+    readText('js/features/rewards-tracker.js'),
+    readText('sw.js')
   ]);
   for (const snippet of [
-    "'address.in': addresses.join(',')",
-    'Portfolio coverage incomplete',
     'saveCompleteSnapshot(composition, totals, model.timestamp)',
     "document.visibilityState === 'visible'",
     'portfolioChart.update(\'none\')',
@@ -205,22 +341,52 @@ async function checkMyTezosPortfolioContracts() {
   ]) {
     if (!portfolio.includes(snippet)) fail(`My Tezos Portfolio data/quiet contract missing: ${snippet}`);
   }
-  for (const snippet of ['setMyTezosView', 'sessionStorage.setItem(VIEW_SESSION_KEY', "event.key === 'ArrowRight'", 'activateMyTezosPortfolio']) {
-    if (!myTezos.includes(snippet)) fail(`My Tezos tab contract missing: ${snippet}`);
+  for (const snippet of ["'address.in': addresses.join(',')", '/accounts/activity?', 'lastId', 'Portfolio coverage incomplete']) {
+    if (!adapter.includes(snippet)) fail(`My Tezos TzKT adapter contract missing: ${snippet}`);
+  }
+  for (const snippet of ['setMyTezosView', 'sessionStorage.setItem(VIEW_SESSION_KEY', "event.key === 'ArrowRight'", "event.key === 'Home'", "routeMode: 'push'", "window.addEventListener('popstate'"]) {
+    if (!tabs.includes(snippet)) fail(`My Tezos tab contract missing: ${snippet}`);
+  }
+  for (const snippet of ['activateMyTezosPortfolio', "import('./my-tezos-collection.mjs')", "import('./my-tezos-tezosx.mjs')"]) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos lazy feature registration missing: ${snippet}`);
   }
   for (const snippet of ['normalizeSavedMyTezosEntries', 'MAX_SAVED_MY_TEZOS_ADDRESSES = 10', "included: item?.included !== false"]) {
     if (!savedEntries.includes(snippet)) fail(`My Tezos saved-entry schema contract missing: ${snippet}`);
   }
   if (!wallet.includes('my-tezos-portfolio-changed')) fail('My Tezos shared wallet mutation event is missing');
-  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'data-portfolio-total="unstaking"', 'portfolio-history-chart']) {
+  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'Linked on this device', 'not an ownership proof']) {
     if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
   }
-  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row']) {
+  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
+  }
+  for (const snippet of ['tezos-systems-my-tezos', "'activityByAccount'", "'syncState'", 'commitMyTezosPage', 'pruneMyTezosActivityRecords']) {
+    if (!db.includes(snippet)) fail(`My Tezos IndexedDB contract missing: ${snippet}`);
+  }
+  for (const snippet of ['this.inFlight', 'RETRYABLE', 'retry-after', 'this.paused', 'callerRace']) {
+    if (!broker.includes(snippet)) fail(`My Tezos request broker contract missing: ${snippet}`);
+  }
+  for (const snippet of ['buildReconstructedPortfolioSeries', 'Historical account balance can exclude staked tez', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed']) {
+    if (!memory.includes(snippet)) fail(`My Tezos Memory contract missing: ${snippet}`);
+  }
+  for (const snippet of ['MY_TEZOS_COLLECTION_PAGE_SIZE', 'showing last saved holdings', 'not a portfolio value', 'sourceReceipt']) {
+    if (!collection.includes(snippet) && !index.includes(snippet)) fail(`My Tezos Collection contract missing: ${snippet}`);
+  }
+  for (const snippet of ['normalizeLinkedL2Accounts', 'linkedL1Addresses', 'data-tezosx-l1-link', 'nativeAvailable', 'Blockscout receipt']) {
+    if (!tezosx.includes(snippet)) fail(`My Tezos Tezos X contract missing: ${snippet}`);
+  }
+  if (rewards.includes('tezos-systems-rewards-v4-') || rewards.includes('localStorage.setItem(cacheKey')) {
+    fail('My Tezos rewards still writes the retired raw localStorage payload');
+  }
+  for (const host of ['explorer.etherlink.com', 'node.mainnet.etherlink.com']) {
+    if (!sw.includes(`'${host}'`)) fail(`Service worker API no-cache host missing: ${host}`);
   }
   if (!smoke.includes("name: 'my-tezos-portfolio'")) fail('focused My Tezos Portfolio browser smoke is missing');
   if (!smoke.includes("name: 'my-tezos-cold-start'")) fail('focused My Tezos cold-start browser smoke is missing');
-  pass('My Tezos Portfolio schema, accounting, history, import, routing, and quiet-refresh contracts checked');
+  for (const suite of ['my-tezos-storage', 'my-tezos-memory', 'my-tezos-collection', 'my-tezos-tezosx']) {
+    if (!smoke.includes(`name: '${suite}'`)) fail(`focused ${suite} browser smoke is missing`);
+  }
+  pass('My Tezos storage, Portfolio Memory, Collection, Tezos X, routing, provenance, and quiet-refresh contracts checked');
 }
 
 function stableJsonValue(value) {
@@ -366,6 +532,12 @@ async function checkRequiredFiles() {
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
     'js/core/my-tezos-entries.mjs',
+    'js/core/my-tezos-db.mjs',
+    'js/core/my-tezos-models.mjs',
+    'js/core/my-tezos-request-broker.mjs',
+    'js/core/my-tezos-contract-registry.mjs',
+    'js/core/objkt-client.mjs',
+    'js/core/etherlink-client.mjs',
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
@@ -374,6 +546,14 @@ async function checkRequiredFiles() {
     'js/features/milestone-catalog.mjs',
     'js/features/my-tezos-portfolio.js',
     'js/features/my-tezos-portfolio-model.mjs',
+    'js/features/my-tezos-tabs.mjs',
+    'js/features/my-tezos-tzkt-adapter.mjs',
+    'js/features/my-tezos-activity-model.mjs',
+    'js/features/my-tezos-memory.mjs',
+    'js/features/my-tezos-collection-model.mjs',
+    'js/features/my-tezos-collection.mjs',
+    'js/features/my-tezos-tezosx-model.mjs',
+    'js/features/my-tezos-tezosx.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
     'js/ui/wayfinder.js',
@@ -420,6 +600,7 @@ async function checkRequiredFiles() {
     'scripts/lib/maxis-transactions-v2.mjs',
     'scripts/lib/tezoscrp-awards.mjs',
     'data/governance-votes.json',
+    'data/my-tezos-contracts.json',
     'data/nakamoto-sources.json',
     'data/governance-refresh-report.json',
     'data/capital-snapshot.json',

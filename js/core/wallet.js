@@ -132,10 +132,10 @@ export function upsertSavedMyTezosEntry(address, {
         included: existing ? existing.included !== false : included !== false,
         addedAt: existing?.addedAt || Date.now()
     };
-    return writeSavedMyTezosEntries([
-        entry,
-        ...current.filter((item) => item.address !== value)
-    ], { source });
+    const next = existing
+        ? current.map((item) => item.address === value ? entry : item)
+        : [entry, ...current];
+    return writeSavedMyTezosEntries(next, { source });
 }
 
 export function rememberMyTezosAddress(address, { label = null, source = 'wallet' } = {}) {

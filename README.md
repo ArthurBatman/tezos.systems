@@ -666,8 +666,8 @@ inline modal styles in `js/core/app.js`.
   Explore's collapsed Recovery tools group, linking to
   `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
   migration path while new multisig setups move toward protocol-native accounts.
-- My Tezos adaptive personal room with session-persisted Overview and Portfolio
-  tabs. Overview keeps the active address synchronized with Ledger Flow, Maxi
+- My Tezos adaptive personal room with Overview, Portfolio, Collection, and
+  Tezos X tabs. Overview keeps the active L1 address synchronized with Ledger Flow, Maxi
   Passport, HEN, and the existing baker/reward lifecycle, while its baker
   signal uses one full-width next-round band plus four equal Octez, working,
   attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
@@ -676,11 +676,28 @@ inline modal styles in `js/core/app.js`.
   independently includable Tezos L1 addresses through one bounded TzKT read and
   shows total, spendable, staked, and unstaking XTZ with current USD/EUR context
   when available. Saved entries use the versioned
-  `{ network, address, label, included, addedAt }` shape; the address-only JSON
-  import/export path never carries keys, permissions, balances, or history.
-  Complete hourly browser-local snapshots are composition-keyed, compact to
-  daily points after 30 days, and expire after 365 days. This watch-only grouping
-  is a private browser convenience and never claims common ownership.
+  `{ network, address, label, included, addedAt }` shape. The v2 JSON
+  import/export path carries only user-authored L1 configuration, device-local
+  L2 links, exact browser-observed snapshots, and seen watermarks; it never
+  carries keys, permissions, current balances, holdings, reconstructed caches,
+  or estimates.
+  Complete browser-observed snapshots remain visually separate from the
+  reconstructed TzKT liquid-balance track and its documented historical-stake
+  limitation. Human-readable applied receipts, resumable 365-day activity, and
+  While You Were Away all share one provenance-aware Memory store. Large
+  histories, compact rewards, current holdings, and sync cursors live in
+  bounded IndexedDB rather than localStorage; last-good current totals survive
+  reloads and incomplete source reads never replace them.
+  Collection summarizes included L1 accounts before lazily paging current Objkt
+  holdings, separates Collected from Created, hides flagged metadata by default,
+  and exposes active asks only as reference—not portfolio value. Tezos X accepts
+  up to ten manually linked Etherlink `0x` accounts, keeps L1 associations and
+  L2 inclusion independently editable, and permanently labels every link
+  `Linked on this device` and not an ownership proof. Versioned v2 export carries
+  user-authored L1 configuration, device-local L2 links, observed snapshots, and
+  seen watermarks, but no balances, reconstructed caches, images, or valuation.
+  This watch-only grouping is a private browser convenience and never claims
+  common ownership.
 - Staking calculator, chain comparison, HEN NFT/profile mode, TzSafe Recovery,
   changelog, share captures, and embeddable widgets. The calculator opens with
   a 1,000 XTZ starting amount, live APY context, protocol
@@ -691,7 +708,8 @@ inline modal styles in `js/core/app.js`.
 Useful deep links include:
 
 - `#my-baker=...`
-- `/my/` or `/my/?view=portfolio` for the Overview or Portfolio personal room
+- `/my/`, `/my/?view=portfolio`, `/my/?view=collection`, or
+  `/my/?view=tezos-x` for the four My Tezos views
 - `/tz1...`, `/name.tez`, or `/sub.name.tez` to resolve directly into My Tezos
 - `#baker=...`
 - `#calculator`
@@ -743,17 +761,17 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
 | CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, and public RWA token mappings |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
-| OBJKT APIs | HEN mode's live Teia + OBJKT feed, collector and creator profile stats, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
+| OBJKT APIs | HEN mode's live Teia + OBJKT feed, My Tezos summary-first Collection holdings and profiles, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
 | DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories; DefiLlama currently indexes Tezos X as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | Tezos X chamber transaction, address, gas, and block stats plus Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
+| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; and Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
 | Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
 | Tezos Commons rewards page and official Medium publication | TezosCRP category definitions, official icons, monthly winner announcements, and source receipts |
 | `data/tezoscrp-awards.json` | Same-origin full TezosCRP recognition archive, with human-identity aliases, monthly/category coverage, and known published amounts kept separate from award counts |
 | `data/tezoscrp-identity-aliases.json` | Auditable high-confidence handle, spelling, and cross-platform continuity; uncertain lookalikes remain explicitly pending instead of being guessed |
-| Etherlink JSON-RPC `https://node.mainnet.etherlink.com` | Tezos X chamber RPC head and gas fallback |
+| Etherlink JSON-RPC `https://node.mainnet.etherlink.com` | My Tezos linked-account native XTZ balances plus Tezos X chamber RPC head and gas fallback |
 | Etherlink governance `https://governance.etherlink.com/governance` | Official FAST, SLOW, and Sequencer action pages linked from the read-only chamber |
 | Octez.Connect `@tezos-x/octez.connect-sdk` via `https://esm.sh` | Lazy browser wallet pairing and ctez/My Tezos account actions |
 

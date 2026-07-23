@@ -23055,6 +23055,457 @@ body[data-theme="nerv"]::after {
 .portfolio-wallet-empty strong { color: var(--text-primary); }
 .portfolio-wallet-empty span { font-size: 0.76rem; }
 
+/* ── My Tezos Memory, Collection, and Tezos X ── */
+.my-tezos-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: thin;
+}
+.my-tezos-tabs .my-tezos-tab { flex: 0 0 auto; }
+.portfolio-memory-panel,
+.portfolio-activity-panel,
+.my-tezos-feature-shell,
+.my-tezos-feature-panel,
+.collection-profile-panel,
+.tezosx-link-panel,
+.tezosx-detail-section {
+    min-width: 0;
+    display: grid;
+    gap: 0.85rem;
+    padding: 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+}
+.my-tezos-feature-shell {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.my-tezos-feature-panel {
+    min-width: 0;
+    display: grid;
+    gap: 0.85rem;
+}
+.my-tezos-feature-heading,
+.collection-toolbar,
+.tezosx-toolbar,
+.tezosx-account-row,
+.tezosx-account-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+}
+.my-tezos-feature-heading { align-items: flex-start; }
+.my-tezos-feature-heading h3,
+.my-tezos-feature-heading p,
+.collection-profile-panel h4,
+.tezosx-detail-section h4 { margin: 0; }
+.my-tezos-feature-heading p,
+.collection-profile-panel > p,
+.tezosx-detail-section > p,
+.portfolio-memory-status,
+.portfolio-activity-status,
+.collection-status,
+.tezosx-status,
+.collection-coverage,
+.tezosx-coverage,
+.collection-management-status,
+.tezosx-management-status {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+.portfolio-memory-status[data-state="error"],
+.portfolio-activity-status[data-state="error"],
+.collection-status[data-state="error"],
+.tezosx-status[data-state="error"],
+.collection-management-status[data-state="error"],
+.tezosx-management-status[data-state="error"] { color: #f08b8b; }
+.collection-status[data-state="complete"],
+.tezosx-status[data-state="complete"],
+.collection-management-status[data-state="success"],
+.tezosx-management-status[data-state="success"] { color: #45e0c8; }
+.portfolio-away-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.portfolio-memory-delta {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.8rem;
+    border: 1px solid rgba(69,224,200,0.2);
+    border-radius: 8px;
+    background: rgba(69,224,200,0.045);
+}
+.portfolio-memory-delta > div,
+.portfolio-activity-filters,
+.portfolio-activity-footer,
+.my-tezos-feature-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+.portfolio-memory-delta span {
+    padding: 0.2rem 0.42rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.055);
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+}
+.portfolio-memory-empty {
+    display: grid;
+    gap: 0.3rem;
+    color: var(--text-secondary);
+}
+.portfolio-memory-empty strong { color: var(--text-primary); }
+.portfolio-away-summary article,
+.collection-summary-grid article,
+.my-tezos-feature-summary article,
+.tezosx-summary-grid article,
+.tezosx-assets-grid article {
+    min-width: 0;
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.075);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.12);
+}
+.portfolio-away-summary span,
+.collection-summary-grid span,
+.my-tezos-feature-summary span,
+.tezosx-summary-grid span,
+.tezosx-assets-grid span {
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.portfolio-away-summary strong,
+.collection-summary-grid strong,
+.my-tezos-feature-summary strong,
+.tezosx-summary-grid strong,
+.tezosx-assets-grid strong {
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.05rem;
+}
+.portfolio-away-summary small,
+.collection-summary-grid small,
+.my-tezos-feature-summary small,
+.tezosx-summary-grid small,
+.tezosx-assets-grid small { color: var(--text-tertiary, var(--text-secondary)); font-size: 0.65rem; }
+.portfolio-activity-controls,
+.portfolio-activity-filters,
+.collection-mode-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.portfolio-activity-controls button,
+.portfolio-activity-filters button,
+.collection-mode-controls button,
+.collection-toolbar button,
+.tezosx-toolbar button,
+.collection-load-more,
+.tezosx-link-form button {
+    min-height: 36px;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 7px;
+    background: rgba(255,255,255,0.035);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+.my-tezos-feature-shell .portfolio-heading-row > .glass-button,
+.my-tezos-feature-panel .portfolio-section-heading > .glass-button,
+.my-tezos-feature-footer > .glass-button {
+    flex: 0 0 auto;
+    width: auto;
+    height: auto;
+    white-space: nowrap;
+}
+.my-tezos-feature-footer > span {
+    min-width: 0;
+    flex: 1 1 240px;
+}
+.portfolio-activity-controls button.active,
+.portfolio-activity-filters button.active,
+.collection-mode-controls button.active,
+.portfolio-activity-controls button[aria-pressed="true"],
+.portfolio-activity-filters button[aria-pressed="true"],
+.collection-mode-controls button[aria-pressed="true"] {
+    border-color: rgba(69,224,200,0.35);
+    background: rgba(69,224,200,0.075);
+    color: var(--accent-cyan, #45e0c8);
+}
+.portfolio-activity-list,
+.tezosx-transaction-list,
+.tezosx-token-list,
+.tezosx-nft-list,
+.collection-profile-list,
+.collection-profiles,
+.tezosx-account-list {
+    min-width: 0;
+    display: grid;
+    gap: 0.45rem;
+}
+.portfolio-activity-item,
+.tezosx-transaction-list > a {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.7rem;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.1);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+.portfolio-activity-item > div,
+.tezosx-transaction-list > a > div { min-width: 0; display: grid; gap: 0.2rem; }
+.portfolio-activity-item strong,
+.tezosx-transaction-list strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-activity-item small,
+.portfolio-activity-item > div > span,
+.tezosx-transaction-list small {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.portfolio-storage-notice,
+.portfolio-history-boundary {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    line-height: 1.45;
+}
+.portfolio-storage-notice {
+    padding: 0.65rem;
+    border: 1px solid rgba(245,184,75,0.28);
+    border-radius: 8px;
+    background: rgba(245,184,75,0.06);
+    color: #f5b84b;
+}
+.portfolio-activity-panel .portfolio-history-empty,
+.collection-shell > .portfolio-history-empty { min-height: 110px; }
+.portfolio-activity-confidence,
+.tezosx-local-badge,
+.tezosx-layer-badge {
+    width: fit-content;
+    padding: 0.16rem 0.38rem;
+    border: 1px solid rgba(69,224,200,0.28);
+    border-radius: 999px;
+    color: var(--accent-cyan, #45e0c8);
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.collection-summary-grid,
+.my-tezos-feature-summary,
+.tezosx-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.tezosx-summary-grid,
+.tezosx-shell .my-tezos-feature-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.collection-toolbar label,
+.tezosx-toolbar label,
+.tezosx-link-form label {
+    min-width: 0;
+    display: grid;
+    gap: 0.3rem;
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    font-weight: 800;
+}
+.collection-toolbar select,
+.tezosx-toolbar select,
+.tezosx-link-form input { min-width: 0; width: 100%; }
+.collection-profile-list,
+.collection-profiles { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.collection-profile-list article,
+.collection-profiles article,
+.tezosx-token-list article,
+.tezosx-nft-list article {
+    min-width: 0;
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.65rem;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.1);
+}
+.collection-profile-list span,
+.collection-profile-list small,
+.collection-profiles span,
+.collection-profiles small,
+.tezosx-token-list span,
+.tezosx-token-list small,
+.tezosx-nft-list span,
+.tezosx-nft-list small {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.collection-grid {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+.collection-asset-card {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 9px;
+    background: rgba(0,0,0,0.12);
+}
+.collection-asset-card.flagged { border-color: rgba(245,184,75,0.35); }
+.collection-asset-card > div:last-of-type { min-width: 0; display: grid; gap: 0.22rem; padding: 0.7rem; }
+.collection-asset-card strong,
+.collection-asset-card span,
+.collection-asset-card small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.collection-asset-card span,
+.collection-asset-card small { color: var(--text-secondary); font-size: 0.64rem; }
+.collection-asset-card > a {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.45rem;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.72);
+    color: #fff;
+    text-decoration: none;
+}
+.collection-asset-media {
+    min-height: 132px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    aspect-ratio: 1;
+    background: rgba(255,255,255,0.035);
+    color: var(--text-secondary);
+}
+.collection-asset-media img { width: 100%; height: 100%; object-fit: cover; }
+.collection-image-fallback { padding: 0.8rem; text-align: center; }
+.collection-empty,
+.tezosx-empty {
+    min-height: 120px;
+    display: grid;
+    place-content: center;
+    gap: 0.3rem;
+    padding: 1rem;
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+.tezosx-link-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.55rem;
+}
+.tezosx-account-row {
+    align-items: flex-start;
+    padding: 0.7rem;
+    border: 1px solid rgba(255,255,255,0.075);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.1);
+}
+.tezosx-account-row.active { border-color: rgba(69,224,200,0.32); }
+.tezosx-account-row.excluded { opacity: 0.58; }
+.tezosx-account-identity { min-width: 0; display: grid; gap: 0.22rem; }
+.tezosx-account-identity > button {
+    min-width: 0;
+    display: grid;
+    gap: 0.15rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.tezosx-account-identity code {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tezosx-account-links {
+    color: var(--text-tertiary, var(--text-secondary));
+    font-size: 0.62rem;
+    line-height: 1.35;
+}
+.tezosx-account-identity details { color: var(--text-secondary); font-size: 0.62rem; }
+.tezosx-account-identity summary { width: fit-content; cursor: pointer; }
+.tezosx-l1-associations { display: grid; gap: 0.3rem; padding-top: 0.4rem; }
+.tezosx-l1-associations label { display: flex; align-items: center; gap: 0.4rem; }
+.tezosx-l1-associations input { width: 16px; height: 16px; accent-color: var(--accent-cyan, #45e0c8); }
+.tezosx-account-actions { flex: 0 0 auto; }
+.tezosx-account-actions button {
+    min-height: 32px;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.65rem;
+    cursor: pointer;
+}
+.tezosx-assets-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.tezosx-shell #tezosx-details { min-width: 0; display: grid; gap: 0.75rem; }
+.tezosx-token-list,
+.tezosx-nft-list { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+[data-theme="clean"] .portfolio-memory-panel,
+[data-theme="clean"] .portfolio-activity-panel,
+[data-theme="clean"] .my-tezos-feature-panel,
+[data-theme="clean"] .collection-profile-panel,
+[data-theme="clean"] .tezosx-link-panel,
+[data-theme="clean"] .tezosx-detail-section,
+[data-theme="clean"] .collection-asset-card,
+[data-theme="clean"] .tezosx-account-row {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+}
+
 /* ── Drawer content overrides ── */
 .my-tezos-drawer .my-baker-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 .my-tezos-drawer .capacity-bars { grid-template-columns: 1fr 1fr; }
@@ -23103,6 +23554,16 @@ body[data-theme="nerv"]::after {
         text-transform: uppercase;
     }
     .portfolio-wallet-actions { grid-column: 2 / -1; }
+    .portfolio-away-summary,
+    .collection-summary-grid,
+    .my-tezos-feature-summary,
+    .tezosx-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .my-tezos-feature-heading,
+    .collection-toolbar,
+    .tezosx-toolbar { align-items: stretch; flex-direction: column; }
+    .tezosx-link-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tezosx-link-form button { grid-column: 1 / -1; }
 }
 @media (max-width: 480px) {
     .drawer-body { padding: 0.85rem; }
@@ -23164,6 +23625,16 @@ body[data-theme="nerv"]::after {
     .portfolio-wallet-identity,
     .portfolio-wallet-row > [data-label],
     .portfolio-wallet-actions { grid-column: 2 / -1; }
+    .collection-grid,
+    .tezosx-assets-grid,
+    .tezosx-link-form { grid-template-columns: minmax(0, 1fr); }
+    .tezosx-link-form button { grid-column: auto; }
+    .tezosx-account-row { flex-direction: column; }
+    .tezosx-account-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+    .portfolio-activity-item,
+    .tezosx-transaction-list > a { grid-template-columns: auto minmax(0, 1fr); }
+    .portfolio-activity-item > :last-child,
+    .tezosx-transaction-list > a > :last-child { grid-column: 2; }
 }
 @media (max-width: 340px) {
     .drawer-operator-grid,

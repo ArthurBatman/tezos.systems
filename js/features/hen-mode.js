@@ -919,7 +919,6 @@ const HenMode = (() => {
             if (collector.totalHeld > assetsHeld && collector.totalHeld <= 1000000) metrics.push(renderProfileMetric('Editions', fmtCount(collector.totalHeld)));
             metrics.push(renderProfileMetric('Collections', fmtCount(collector.uniqueCollections)));
             metrics.push(renderProfileMetric('Spent', fmtProfileXTZ(collector.totalSpent)));
-            if (collector.portfolioValue > 0) metrics.push(renderProfileMetric('Floor Value', fmtProfileXTZ(collector.portfolioValue)));
         }
         if (creator) {
             metrics.push(renderProfileMetric('Created NFTs', fmtCount(creator.totalCreated)));

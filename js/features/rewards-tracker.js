@@ -7,6 +7,17 @@
  */
 import { API_URLS } from '../core/config.js';
 import { fetchProtocolConstants, fetchWithDeadline } from '../core/api.js';
+import {
+  getAllMyTezosRecords,
+  getMyTezosMeta,
+  initMyTezosDb,
+  replaceMyTezosAccountRecords,
+  setMyTezosMeta
+} from '../core/my-tezos-db.mjs';
+import {
+  initMyTezosRequestBrokerVisibility,
+  myTezosRequestBroker
+} from '../core/my-tezos-request-broker.mjs';
 import { fetchXTZPrice } from './price.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 
@@ -14,7 +25,8 @@ import { quietlySyncHtml } from '../core/quiet-refresh.js';
 const CONTAINER_ID = 'rewards-tracker-container';
 const LS_KEY_ADDR = 'tezos-systems-my-baker-address';
 const LS_KEY_NOTIF = 'tezos-systems-rewards-notif';
-const REWARDS_LIMIT = 10000;
+const REWARDS_LIMIT = 2000;
+const REWARDS_CACHE_MS = 2 * 60 * 1000;
 let countdownInterval = null;
 let lastKnownCycle = null;
 
@@ -22,10 +34,6 @@ let lastKnownCycle = null;
 
 function getAddress() {
   return localStorage.getItem(LS_KEY_ADDR)?.trim() || null;
-}
-
-function getCacheKey(address) {
-  return `tezos-systems-rewards-v4-${address}`;
 }
 
 function parsePrice(xtzPrice) {
@@ -44,9 +52,14 @@ function fmtXtz(mutez) {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`TzKT ${res.status}`);
-  return res.json();
+  initMyTezosRequestBrokerVisibility();
+  return myTezosRequestBroker.request(url, {
+    provider: 'tzkt',
+    priority: 'interactive',
+    retries: 3,
+    responseType: 'json',
+    cache: 'no-store'
+  });
 }
 
 function sumFields(row, fields) {
@@ -152,13 +165,36 @@ function secondsToHms(s) {
 // ─── API ────────────────────────────────────────────────────────────────────
 
 async function fetchRewards(address, { force = false } = {}) {
-  const cacheKey = getCacheKey(address);
-  const cached = localStorage.getItem(cacheKey);
-  if (!force && cached) {
-    try {
-      const { ts, data } = JSON.parse(cached);
-      if (Date.now() - ts < 2 * 60 * 1000 && Array.isArray(data?.rows)) return data; // 2min cache
-    } catch (_) {}
+  const accountKey = `l1:${address}`;
+  let dbAvailable = true;
+  try {
+    await initMyTezosDb();
+  } catch {
+    dbAvailable = false;
+  }
+  if (!force && dbAvailable) {
+    const cached = await getMyTezosMeta(`rewards-cache:${address}`);
+    if (cached && Date.now() - Number(cached.ts) < REWARDS_CACHE_MS) {
+      const stored = await getAllMyTezosRecords('rewards', {
+        index: 'accountKey',
+        query: IDBKeyRange.only(accountKey),
+        limit: REWARDS_LIMIT
+      });
+      if (stored.length || cached.currentRole === 'none') {
+        return {
+          rows: stored.sort((left, right) => Number(right.cycle) - Number(left.cycle)).map((row) => ({
+            cycle: row.cycle,
+            _rewardKind: row.role,
+            _earnedRewards: row.earned,
+            _futureRewards: row.future,
+            _missedRewards: row.missed
+          })),
+          currentRole: cached.currentRole,
+          roleActive: cached.roleActive,
+          accountAvailable: cached.accountAvailable
+        };
+      }
+    }
   }
 
   const enc = encodeURIComponent(address);
@@ -167,35 +203,8 @@ async function fetchRewards(address, { force = false } = {}) {
     account = await fetchJson(`${API_URLS.tzkt}/accounts/${enc}`);
   } catch (_) {}
 
-  const fetchBakerRows = async () => normalizeBakerRewards(
-    await fetchJson(`${API_URLS.tzkt}/rewards/bakers/${enc}?sort.desc=cycle&limit=${REWARDS_LIMIT}`)
-  );
-  const fetchStakerRows = async () => normalizeStakerRewards(
-    await fetchJson(`${API_URLS.tzkt}/rewards/stakers/${enc}?sort.desc=cycle&limit=${REWARDS_LIMIT}`)
-  );
-  const fetchDelegatorRows = async () => normalizeDelegatorRewards(
-    await fetchJson(`${API_URLS.tzkt}/rewards/delegators/${enc}?sort.desc=cycle&limit=${REWARDS_LIMIT}`)
-  );
-
-  let data = [];
   const isBaker = account?.type === 'delegate' || account?.delegate?.address === address;
   const hasStake = (Number(account?.stakedBalance) || 0) > 0;
-
-  if (isBaker) {
-    try { data = await fetchBakerRows(); } catch (_) { data = []; }
-  }
-  if (!data.length && hasStake) {
-    try { data = await fetchStakerRows(); } catch (_) { data = []; }
-  }
-  if (!data.length) {
-    try { data = await fetchDelegatorRows(); } catch (_) { data = []; }
-  }
-  if (!data.length && !isBaker) {
-    try { data = await fetchStakerRows(); } catch (_) { data = []; }
-  }
-  if (!data.length) {
-    try { data = await fetchBakerRows(); } catch (_) { data = []; }
-  }
   const currentRole = isBaker
     ? 'baker'
     : hasStake
@@ -205,6 +214,20 @@ async function fetchRewards(address, { force = false } = {}) {
         : account
           ? 'none'
           : 'unknown';
+  let data = [];
+  try {
+    if (currentRole === 'baker') {
+      data = normalizeBakerRewards(await fetchJson(`${API_URLS.tzkt}/rewards/bakers/${enc}?sort.desc=cycle&limit=${REWARDS_LIMIT}`));
+    } else if (currentRole === 'staker') {
+      data = normalizeStakerRewards(await fetchJson(`${API_URLS.tzkt}/rewards/stakers/${enc}?sort.desc=cycle&limit=${REWARDS_LIMIT}`));
+    } else {
+      // Inactive accounts can still have historical delegation records. One
+      // delegator read preserves that history without probing three endpoints.
+      data = normalizeDelegatorRewards(await fetchJson(`${API_URLS.tzkt}/rewards/delegators/${enc}?sort.desc=cycle&limit=${REWARDS_LIMIT}`));
+    }
+  } catch {
+    data = [];
+  }
   const roleActive = currentRole === 'baker'
     ? account?.active !== false
     : currentRole === 'staker' || currentRole === 'delegator-estimate'
@@ -218,7 +241,32 @@ async function fetchRewards(address, { force = false } = {}) {
     roleActive,
     accountAvailable: Boolean(account)
   };
-  localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: report }));
+  if (dbAvailable) {
+    const records = data.map((row) => ({
+      id: `reward:${accountKey}:${row._rewardKind || currentRole}:${row.cycle}`,
+      accountKey,
+      address,
+      role: row._rewardKind || currentRole,
+      cycle: Number(row.cycle),
+      earned: rewardAmountMutez(row),
+      future: Number(row._futureRewards) || 0,
+      missed: Number(row._missedRewards) || 0,
+      confidence: row._rewardKind === 'delegator-estimate' ? 'estimated' : 'exact',
+      updatedAt: Date.now()
+    })).filter((row) => Number.isFinite(row.cycle));
+    await Promise.all([
+      replaceMyTezosAccountRecords('rewards', accountKey, records),
+      setMyTezosMeta(`rewards-cache:${address}`, {
+        ts: Date.now(),
+        currentRole,
+        roleActive,
+        accountAvailable: Boolean(account)
+      })
+    ]).catch(() => {});
+  }
+  window.dispatchEvent(new CustomEvent('my-tezos-rewards-updated', {
+    detail: { address, currentRole, rows: data.length }
+  }));
   return report;
 }
 

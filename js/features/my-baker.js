@@ -579,6 +579,15 @@ async function renderBakerData(address, container, { quiet = false } = {}) {
             missedCycleEl = container.querySelector('[data-quiet-key="my-baker-stat:Missed rights (cycle)"]');
             missedLifetimeEl = container.querySelector('[data-quiet-key="my-baker-stat:Missed rights (10 cycles)"]');
         }
+        if (renderSeq === _bakerRenderSeq) {
+            window.dispatchEvent(new CustomEvent('my-tezos-current-account-ready', {
+                detail: {
+                    address,
+                    account,
+                    observedAt: Date.now()
+                }
+            }));
+        }
 
         // Fetch missed rights (no delay — sequential calls handle rate limits)
         if (participationAddr && currentCycle && missedCycleEl && missedLifetimeEl) {

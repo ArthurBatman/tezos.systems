@@ -2,13 +2,44 @@ import {
     MAX_SAVED_MY_TEZOS_ADDRESSES,
     MY_TEZOS_PORTFOLIO_NETWORK
 } from '../core/my-tezos-entries.mjs';
+import { normalizeLinkedL2Accounts } from '../core/my-tezos-models.mjs';
 
-export const MY_TEZOS_PORTFOLIO_SCHEMA = 'tezos-systems-portfolio/v1';
+export const MY_TEZOS_PORTFOLIO_SCHEMA = 'tezos-systems-my-tezos/v2';
+
+function portfolioDayKey(timestamp) {
+    return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+export function buildReconstructedPortfolioSeries(entries, snapshots) {
+    const addresses = entries.map((entry) => entry.address);
+    if (!addresses.length) return [];
+    const byAddress = new Map(addresses.map((address) => [address, new Map()]));
+    for (const point of Array.isArray(snapshots) ? snapshots : []) {
+        if (point?.sourceType !== 'reconstructed' || !byAddress.has(point.address)) continue;
+        const timestamp = Number(point.timestamp);
+        if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+        byAddress.get(point.address).set(portfolioDayKey(timestamp), point);
+    }
+    const sharedDays = [...(byAddress.get(addresses[0])?.keys() || [])]
+        .filter((day) => addresses.every((address) => byAddress.get(address)?.has(day)))
+        .sort();
+    return sharedDays.map((day) => {
+        const points = addresses.map((address) => byAddress.get(address).get(day));
+        return {
+            timestamp: Date.parse(`${day}T00:00:00Z`),
+            liquid: points.reduce((sum, point) => sum + (Number(point.liquid) || 0), 0),
+            sourceType: 'reconstructed',
+            confidence: 'exact',
+            limitation: 'TzKT historical balance; staked tez can be excluded for non-bakers.'
+        };
+    });
+}
+export const MY_TEZOS_PORTFOLIO_LEGACY_SCHEMA = 'tezos-systems-portfolio/v1';
 export const MY_TEZOS_PORTFOLIO_HISTORY_SCHEMA = 1;
 export { MY_TEZOS_PORTFOLIO_NETWORK };
 export const MY_TEZOS_PORTFOLIO_MAX_ENTRIES = MAX_SAVED_MY_TEZOS_ADDRESSES;
 export const MY_TEZOS_PORTFOLIO_HISTORY_HOURLY_DAYS = 30;
-export const MY_TEZOS_PORTFOLIO_HISTORY_RETENTION_DAYS = 365;
+export const MY_TEZOS_PORTFOLIO_HISTORY_MAX_POINTS = 5_000;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -83,7 +114,6 @@ function validSnapshot(point) {
 }
 
 export function compactPortfolioHistory(points, { now = Date.now() } = {}) {
-    const oldest = now - (MY_TEZOS_PORTFOLIO_HISTORY_RETENTION_DAYS * DAY_MS);
     const hourlyCutoff = now - (MY_TEZOS_PORTFOLIO_HISTORY_HOURLY_DAYS * DAY_MS);
     const hourly = new Map();
     const daily = new Map();
@@ -97,7 +127,7 @@ export function compactPortfolioHistory(points, { now = Date.now() } = {}) {
             staked: Number(raw.staked),
             unstaking: Number(raw.unstaking)
         };
-        if (point.timestamp < oldest || point.timestamp > now + HOUR_MS) continue;
+        if (point.timestamp > now + HOUR_MS) continue;
         if (point.timestamp >= hourlyCutoff) {
             const bucket = Math.floor(point.timestamp / HOUR_MS);
             const existing = hourly.get(bucket);
@@ -110,7 +140,12 @@ export function compactPortfolioHistory(points, { now = Date.now() } = {}) {
         }
     }
 
-    return [...daily.values(), ...hourly.values()].sort((a, b) => a.timestamp - b.timestamp);
+    const compacted = [...daily.values(), ...hourly.values()].sort((a, b) => a.timestamp - b.timestamp);
+    if (compacted.length <= MY_TEZOS_PORTFOLIO_HISTORY_MAX_POINTS) return compacted;
+    return [
+        compacted[0],
+        ...compacted.slice(-(MY_TEZOS_PORTFOLIO_HISTORY_MAX_POINTS - 1))
+    ];
 }
 
 export function appendPortfolioSnapshot(store, composition, snapshot, { now = Date.now() } = {}) {
@@ -136,8 +171,10 @@ function importLabel(value) {
 }
 
 export function parsePortfolioImport(payload) {
-    if (!payload || typeof payload !== 'object' || payload.schema !== MY_TEZOS_PORTFOLIO_SCHEMA) {
-        throw new Error('This is not a Tezos Systems portfolio v1 file.');
+    const acceptedSchema = payload?.schema === MY_TEZOS_PORTFOLIO_SCHEMA
+        || payload?.schema === MY_TEZOS_PORTFOLIO_LEGACY_SCHEMA;
+    if (!payload || typeof payload !== 'object' || !acceptedSchema) {
+        throw new Error('This is not a supported Tezos Systems My Tezos export.');
     }
     if (!Array.isArray(payload.entries)) {
         throw new Error('The portfolio file has no address list.');
@@ -169,7 +206,34 @@ export function parsePortfolioImport(payload) {
         });
     }
     if (!entries.length) throw new Error('The portfolio file contains no valid Tezos L1 addresses.');
-    return { entries, skipped };
+    const observedSnapshots = payload.schema === MY_TEZOS_PORTFOLIO_SCHEMA
+        ? (Array.isArray(payload.observedSnapshots) ? payload.observedSnapshots : [])
+            .filter(validSnapshot)
+            .map((point) => ({
+                ...point,
+                timestamp: Number(point.timestamp),
+                total: Number(point.total),
+                spendable: Number(point.spendable),
+                staked: Number(point.staked),
+                unstaking: Number(point.unstaking),
+                scopeId: String(point.scopeId || point.composition || ''),
+                sourceType: 'observed',
+                confidence: 'exact'
+            }))
+            .filter((point) => point.scopeId)
+            .slice(0, 25_000)
+        : [];
+    return {
+        entries,
+        skipped,
+        linkedL2Accounts: payload.schema === MY_TEZOS_PORTFOLIO_SCHEMA
+            ? normalizeLinkedL2Accounts(payload.linkedL2Accounts)
+            : [],
+        observedSnapshots,
+        seenWatermarks: payload.schema === MY_TEZOS_PORTFOLIO_SCHEMA && payload.seenWatermarks && typeof payload.seenWatermarks === 'object'
+            ? { memoryLastSeen: Number(payload.seenWatermarks.memoryLastSeen) || null }
+            : { memoryLastSeen: null }
+    };
 }
 
 export function mergePortfolioEntries(current, incoming, max = MY_TEZOS_PORTFOLIO_MAX_ENTRIES) {
