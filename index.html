@@ -51,25 +51,28 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=471">
-    <link rel="stylesheet" href="css/loading.css?v=471">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=471">
-    <link rel="stylesheet" href="css/site-map.css?v=471">
+    <link rel="stylesheet" href="css/styles.min.css?v=472">
+    <link rel="stylesheet" href="css/loading.css?v=472">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=472">
+    <link rel="stylesheet" href="css/site-map.css?v=472">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=471">
+    <link rel="modulepreload" href="js/core/app.js?v=472">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
     <link rel="modulepreload" href="js/core/utils.js">
     <link rel="modulepreload" href="js/core/wallet.js">
+    <link rel="modulepreload" href="js/core/my-tezos-entries.mjs">
     <link rel="modulepreload" href="js/ui/animations.js">
     <link rel="modulepreload" href="js/ui/share.js">
     <link rel="modulepreload" href="js/ui/wayfinder.js">
     <link rel="modulepreload" href="js/features/my-tezos.js">
+    <link rel="modulepreload" href="js/features/my-tezos-portfolio.js">
+    <link rel="modulepreload" href="js/features/my-tezos-portfolio-model.mjs">
     <link rel="modulepreload" href="js/effects/bg-effects.js">
     <link rel="modulepreload" href="js/features/comparison.js">
     <link rel="modulepreload" href="js/features/my-baker.js">
@@ -267,7 +270,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=471"></script>
+    <script src="js/core/theme-preload.js?v=472"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -2194,7 +2197,12 @@
         <h2 class="drawer-title" id="my-tezos-drawer-title">👤 My Tezos</h2>
         <button id="drawer-close" class="drawer-close" aria-label="Close drawer">✕</button>
       </div>
+      <div id="my-tezos-tabs" class="my-tezos-tabs" role="tablist" aria-label="My Tezos views">
+        <button id="my-tezos-tab-overview" class="my-tezos-tab active" type="button" role="tab" aria-selected="true" aria-controls="my-tezos-panel-overview" tabindex="0" data-my-tezos-view="overview">Overview</button>
+        <button id="my-tezos-tab-portfolio" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-portfolio" tabindex="-1" data-my-tezos-view="portfolio">Portfolio</button>
+      </div>
       <div class="drawer-body" id="drawer-body">
+        <section id="my-tezos-panel-overview" class="my-tezos-view-panel active" role="tabpanel" aria-labelledby="my-tezos-tab-overview" data-my-tezos-panel="overview">
         <!-- Empty state (shown when no address) -->
         <div id="drawer-empty-state" class="drawer-empty-state">
           <div class="empty-state-content">
@@ -2266,7 +2274,6 @@
               <span id="my-tezos-wallet-status" class="wallet-connect-status">No wallet connected</span>
             </div>
             <div id="my-baker-error-msg" class="my-baker-error"></div>
-            <div id="drawer-saved-addresses" class="drawer-saved-addresses"></div>
           </div>
 
           <!-- Baker Operator Signal -->
@@ -2289,8 +2296,6 @@
           <!-- Network Context (daily briefing, separated) -->
           <div class="drawer-section" id="drawer-network"></div>
 
-          <div class="drawer-section drawer-saved-section" id="drawer-saved-section"></div>
-
           <!-- Secondary journeys stay available after the wallet's live signal -->
           <div class="drawer-section drawer-more-section" id="drawer-more-section">
             <span class="drawer-more-label">Do more with this address</span>
@@ -2307,6 +2312,72 @@
             <div id="drawer-freshness" class="drawer-freshness"></div>
           </div>
         </div>
+        </section>
+
+        <section id="my-tezos-panel-portfolio" class="my-tezos-view-panel" role="tabpanel" aria-labelledby="my-tezos-tab-portfolio" data-my-tezos-panel="portfolio" hidden>
+          <div class="my-tezos-portfolio-shell">
+            <div class="portfolio-heading-row">
+              <div>
+                <span class="portfolio-kicker">Tezos L1 · browser-local</span>
+                <h3>Your portfolio</h3>
+                <p id="portfolio-coverage">Add or include saved addresses to build a complete current XTZ view.</p>
+              </div>
+              <button id="portfolio-refresh" class="glass-button portfolio-refresh" type="button">↻ Refresh</button>
+            </div>
+
+            <div id="portfolio-summary" class="portfolio-summary-grid" aria-label="Portfolio totals">
+              <article class="portfolio-summary-card portfolio-summary-total" data-portfolio-total="total"><span>Total</span><strong>—</strong><small>Current XTZ</small></article>
+              <article class="portfolio-summary-card portfolio-summary-spendable" data-portfolio-total="spendable"><span>Spendable</span><strong>—</strong><small>Liquid XTZ</small></article>
+              <article class="portfolio-summary-card portfolio-summary-staked" data-portfolio-total="staked"><span>Staked</span><strong>—</strong><small>Frozen stake</small></article>
+              <article class="portfolio-summary-card portfolio-summary-unstaking" data-portfolio-total="unstaking"><span>Unstaking</span><strong>—</strong><small>Not finalized</small></article>
+            </div>
+            <div id="portfolio-rates" class="portfolio-rates" aria-live="polite">Current fiat equivalents appear when the shared XTZ price is available.</div>
+
+            <section class="portfolio-history-panel" aria-labelledby="portfolio-history-title">
+              <div class="portfolio-section-heading">
+                <div>
+                  <h4 id="portfolio-history-title">Portfolio history</h4>
+                  <p>Complete browser-local snapshots only. No pre-installation balance is inferred.</p>
+                </div>
+                <div class="portfolio-history-ranges" role="group" aria-label="Portfolio history range">
+                  <button type="button" class="active" data-portfolio-range="24h" aria-pressed="true">24h</button>
+                  <button type="button" data-portfolio-range="7d" aria-pressed="false">7d</button>
+                  <button type="button" data-portfolio-range="30d" aria-pressed="false">30d</button>
+                  <button type="button" data-portfolio-range="all" aria-pressed="false">All</button>
+                </div>
+              </div>
+              <div class="portfolio-history-stage">
+                <canvas id="portfolio-history-chart" aria-label="Portfolio XTZ history chart" role="img"></canvas>
+                <p id="portfolio-history-empty" class="portfolio-history-empty">History begins after the first complete portfolio check.</p>
+              </div>
+            </section>
+
+            <section class="portfolio-wallets-panel" aria-labelledby="portfolio-wallets-title">
+              <div class="portfolio-section-heading portfolio-wallets-heading">
+                <div>
+                  <h4 id="portfolio-wallets-title">Saved addresses</h4>
+                  <p>Watch-only and saved only in this browser. Inclusion never proves common ownership.</p>
+                </div>
+                <div class="portfolio-file-actions">
+                  <button id="portfolio-export" class="glass-button" type="button">Export</button>
+                  <button id="portfolio-import" class="glass-button" type="button">Import</button>
+                  <input id="portfolio-import-file" type="file" accept="application/json,.json" hidden>
+                </div>
+              </div>
+
+              <form id="portfolio-add-form" class="portfolio-add-form">
+                <label><span>Address or .tez name</span><input id="portfolio-add-address" class="my-baker-input" type="text" placeholder="tz1… or name.tez" spellcheck="false" autocomplete="off"></label>
+                <label><span>Label (optional)</span><input id="portfolio-add-label" class="my-baker-input" type="text" maxlength="80" placeholder="Vault, Ledger, DAO…" autocomplete="off"></label>
+                <button class="glass-button my-baker-btn" type="submit">Add address</button>
+              </form>
+              <div id="portfolio-management-status" class="portfolio-management-status" aria-live="polite"></div>
+
+              <div id="drawer-saved-addresses" class="drawer-saved-addresses portfolio-wallet-list" data-portfolio-owned="true"></div>
+            </section>
+
+            <div id="portfolio-freshness" class="portfolio-freshness" aria-live="polite"></div>
+          </div>
+        </section>
       </div>
     </aside>
 
@@ -2316,7 +2387,7 @@
 
     <!-- Load app as module -->
     <script src="js/features/hen-mode.js?v=94"></script>
-    <script type="module" src="js/core/app.js?v=471"></script>
+    <script type="module" src="js/core/app.js?v=472"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

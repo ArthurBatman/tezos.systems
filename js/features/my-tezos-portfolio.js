@@ -1,0 +1,712 @@
+/**
+ * My Tezos Portfolio — watch-only Tezos L1 XTZ aggregation and local history.
+ * No address grouping, balances, or history leaves the visitor's browser.
+ */
+
+import { API_URLS } from '../core/config.js';
+import { fetchWithRetry } from '../core/api.js';
+import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
+import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
+import {
+    MAX_SAVED_MY_TEZOS_ADDRESSES,
+    MY_TEZOS_ADDRESS_KEY,
+    isTezosAddress,
+    normalizeSavedMyTezosEntries,
+    readSavedMyTezosEntries,
+    rememberMyTezosAddress,
+    shortAddress,
+    upsertSavedMyTezosEntry,
+    writeSavedMyTezosEntries
+} from '../core/wallet.js';
+import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
+import { fetchXTZPrice } from './price.js';
+import {
+    MY_TEZOS_PORTFOLIO_HISTORY_SCHEMA,
+    MY_TEZOS_PORTFOLIO_SCHEMA,
+    appendPortfolioSnapshot,
+    calculatePortfolioTotals,
+    compactPortfolioHistory,
+    mergePortfolioEntries,
+    parsePortfolioImport,
+    portfolioCompositionKey,
+    portfolioRowFromAccount
+} from './my-tezos-portfolio-model.mjs';
+
+export {
+    appendPortfolioSnapshot,
+    calculatePortfolioTotals,
+    compactPortfolioHistory,
+    mergePortfolioEntries,
+    parsePortfolioImport,
+    portfolioCompositionKey,
+    portfolioRowFromAccount
+} from './my-tezos-portfolio-model.mjs';
+
+const HISTORY_KEY = 'tezos-systems-my-tezos-portfolio-history-v1';
+const REFRESH_MS = 30_000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+let lastCompletePortfolio = null;
+let portfolioChart = null;
+let portfolioRange = '24h';
+let portfolioRefreshInFlight = null;
+let portfolioTimer = null;
+let portfolioInitialized = false;
+
+function getPortfolioPanel() {
+    return document.getElementById('my-tezos-panel-portfolio');
+}
+
+function isPortfolioVisible() {
+    const panel = getPortfolioPanel();
+    return document.visibilityState === 'visible'
+        && panel?.hidden === false
+        && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
+}
+
+function portfolioRefreshMs() {
+    const override = Number(window.__MY_TEZOS_PORTFOLIO_REFRESH_MS__);
+    return Number.isFinite(override) && override >= 1000 ? override : REFRESH_MS;
+}
+
+function formatXtz(mutez, maximumFractionDigits = 2) {
+    const value = Number(mutez) / 1e6;
+    if (!Number.isFinite(value)) return '—';
+    return `${value.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits
+    })} ꜩ`;
+}
+
+function formatFiat(mutez, price, symbol) {
+    const value = (Number(mutez) / 1e6) * Number(price);
+    if (!Number.isFinite(value)) return '';
+    return `${symbol}${value.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
+}
+
+function readHistoryStore() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) || 'null');
+        if (parsed?.schema === MY_TEZOS_PORTFOLIO_HISTORY_SCHEMA && parsed.series && typeof parsed.series === 'object') {
+            return parsed;
+        }
+    } catch {}
+    return { schema: MY_TEZOS_PORTFOLIO_HISTORY_SCHEMA, series: {} };
+}
+
+function writeHistoryStore(store) {
+    try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(store));
+    } catch {}
+}
+
+function saveCompleteSnapshot(composition, totals, timestamp = Date.now()) {
+    const store = readHistoryStore();
+    const existing = Array.isArray(store.series?.[composition]) ? store.series[composition] : [];
+    const last = existing.at(-1);
+    const snapshot = {
+        timestamp,
+        total: totals.total,
+        spendable: totals.spendable,
+        staked: totals.staked,
+        unstaking: totals.unstaking
+    };
+    // Keep one point per hour, but replace the current hour with the newest
+    // complete read so a manual refresh improves rather than duplicates it.
+    if (last && Math.floor(last.timestamp / ONE_HOUR_MS) === Math.floor(timestamp / ONE_HOUR_MS)) {
+        existing[existing.length - 1] = snapshot;
+        store.series[composition] = compactPortfolioHistory(existing, { now: timestamp });
+        writeHistoryStore(store);
+        return;
+    }
+    writeHistoryStore(appendPortfolioSnapshot(store, composition, snapshot, { now: timestamp }));
+}
+
+function currentEntries() {
+    return readSavedMyTezosEntries();
+}
+
+function includedEntries(entries = currentEntries()) {
+    return entries.filter((entry) => entry.included !== false);
+}
+
+function renderEmptySummary(message = 'Add or include an address to calculate a complete portfolio.') {
+    const summary = document.getElementById('portfolio-summary');
+    if (summary) quietlyMutate(summary, () => {
+        summary.querySelectorAll('[data-portfolio-total]').forEach((card) => {
+            const value = card.querySelector('strong');
+            const note = card.querySelector('small');
+            if (value) value.textContent = '—';
+            if (note) note.textContent = card.dataset.portfolioTotal === 'total' ? 'Current XTZ' : card.dataset.portfolioTotal;
+        });
+    });
+    const coverage = document.getElementById('portfolio-coverage');
+    if (coverage) coverage.textContent = message;
+    const rates = document.getElementById('portfolio-rates');
+    if (rates) rates.textContent = 'Current fiat equivalents appear when the shared XTZ price is available.';
+}
+
+function renderSummary(model) {
+    const summary = document.getElementById('portfolio-summary');
+    if (!summary) return;
+    const { totals, prices, entries, timestamp } = model;
+    quietlyMutate(summary, () => {
+        for (const key of ['total', 'spendable', 'staked', 'unstaking']) {
+            const card = summary.querySelector(`[data-portfolio-total="${key}"]`);
+            const value = card?.querySelector('strong');
+            const note = card?.querySelector('small');
+            if (value) value.textContent = formatXtz(totals[key]);
+            if (note) {
+                const usd = prices?.usd ? formatFiat(totals[key], prices.usd, '$') : '';
+                const eur = prices?.eur ? formatFiat(totals[key], prices.eur, '€') : '';
+                note.textContent = [usd, eur].filter(Boolean).join(' · ') || 'XTZ value';
+            }
+        }
+    });
+    const coverage = document.getElementById('portfolio-coverage');
+    if (coverage) coverage.textContent = `${entries.length}/${currentEntries().length} saved addresses included · complete current read`;
+    const rates = document.getElementById('portfolio-rates');
+    if (rates) {
+        const priceCopy = prices?.usd && prices?.eur
+            ? `1 ꜩ = $${Number(prices.usd).toFixed(4)} · €${Number(prices.eur).toFixed(4)}`
+            : 'XTZ price unavailable; on-chain totals remain current.';
+        rates.textContent = `${priceCopy} · ${formatFreshnessStamp(new Date(timestamp), { source: 'Portfolio' })}`;
+    }
+}
+
+function walletValue(row, key) {
+    if (!row) return '<span class="portfolio-wallet-unavailable">—</span>';
+    return `<strong>${escapeHtml(formatXtz(row[key]))}</strong>`;
+}
+
+function walletBaker(row) {
+    if (!row?.baker) return '<span class="portfolio-wallet-muted">None</span>';
+    const display = row.baker.self
+        ? (row.baker.alias || 'Self (Baker)')
+        : (row.baker.alias || shortAddress(row.baker.address));
+    return `<span class="portfolio-wallet-baker${row.baker.self ? ' self' : ''}" title="${escapeHtml(row.baker.address)}">${escapeHtml(display)}</span>`;
+}
+
+function renderWalletList(entries, model = lastCompletePortfolio) {
+    const container = document.getElementById('drawer-saved-addresses');
+    if (!container) return;
+    const active = localStorage.getItem(MY_TEZOS_ADDRESS_KEY) || '';
+    const rows = model?.composition === portfolioCompositionKey(includedEntries(entries))
+        ? new Map(model.rows.map((row) => [row.address, row]))
+        : new Map();
+
+    if (!entries.length) {
+        quietlySyncHtml(container, `
+            <div class="portfolio-wallet-empty">
+                <strong>No saved addresses yet</strong>
+                <span>Add a public Tezos address or .tez name above. No wallet connection is required.</span>
+            </div>
+        `);
+        return;
+    }
+
+    const header = `
+        <div class="portfolio-wallet-row portfolio-wallet-row-header" aria-hidden="true">
+            <span>Use</span><span>Name</span><span>Baker</span><span>Total</span><span>Spendable</span><span>Staked</span><span>Unstaking</span><span>Actions</span>
+        </div>
+    `;
+    const body = entries.map((entry) => {
+        const row = entry.included === false ? null : rows.get(entry.address);
+        const label = entry.label || shortAddress(entry.address);
+        const isActive = entry.address === active;
+        return `
+            <article class="portfolio-wallet-row${entry.included === false ? ' excluded' : ''}${isActive ? ' active' : ''}" data-address="${escapeHtml(entry.address)}">
+                <label class="portfolio-include-control" title="${entry.included === false ? 'Include in totals' : 'Included in totals'}">
+                    <input type="checkbox" data-portfolio-include="${escapeHtml(entry.address)}" ${entry.included === false ? '' : 'checked'} aria-label="Include ${escapeHtml(label)} in portfolio totals">
+                    <span aria-hidden="true"></span>
+                </label>
+                <div class="portfolio-wallet-identity">
+                    <button type="button" class="saved-addr portfolio-wallet-activate" data-portfolio-activate="${escapeHtml(entry.address)}" aria-pressed="${isActive ? 'true' : 'false'}" title="${isActive ? 'Current Overview address' : `Open ${escapeHtml(label)} in Overview`}">
+                        ${isActive ? '<span class="portfolio-active-dot" aria-hidden="true"></span>' : ''}${escapeHtml(label)}
+                    </button>
+                    <span title="${escapeHtml(entry.address)}">${escapeHtml(shortAddress(entry.address))}</span>
+                    <input type="text" class="portfolio-wallet-label-input" data-portfolio-label="${escapeHtml(entry.address)}" value="${escapeHtml(entry.label || '')}" maxlength="80" aria-label="Label for ${escapeHtml(entry.address)}" placeholder="Add label">
+                </div>
+                <div data-label="Baker">${entry.included === false ? '<span class="portfolio-wallet-muted">Excluded</span>' : walletBaker(row)}</div>
+                <div data-label="Total">${entry.included === false ? '—' : walletValue(row, 'total')}</div>
+                <div data-label="Spendable">${entry.included === false ? '—' : walletValue(row, 'spendable')}</div>
+                <div data-label="Staked">${entry.included === false ? '—' : walletValue(row, 'staked')}</div>
+                <div data-label="Unstaking">${entry.included === false ? '—' : walletValue(row, 'unstaking')}</div>
+                <div class="portfolio-wallet-actions">
+                    <button type="button" data-portfolio-copy="${escapeHtml(entry.address)}" aria-label="Copy ${escapeHtml(label)} address" title="Copy address">⧉</button>
+                    <button type="button" data-portfolio-remove="${escapeHtml(entry.address)}" aria-label="Remove ${escapeHtml(label)}" title="Remove from this browser">✕</button>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    quietlySyncHtml(container, header + body);
+    wireWalletList(entries);
+}
+
+function setManagementStatus(message, state = '') {
+    const status = document.getElementById('portfolio-management-status');
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+}
+
+async function copyAddress(address, button) {
+    try {
+        await navigator.clipboard.writeText(address);
+    } catch {
+        const input = document.createElement('textarea');
+        input.value = address;
+        input.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+    }
+    const original = button.textContent;
+    button.textContent = '✓';
+    setTimeout(() => { if (button.isConnected) button.textContent = original; }, 1200);
+}
+
+function wireWalletList(entries) {
+    const container = document.getElementById('drawer-saved-addresses');
+    if (!container) return;
+
+    container.querySelectorAll('[data-portfolio-include]').forEach((input) => {
+        input.onchange = () => {
+            const address = input.dataset.portfolioInclude;
+            writeSavedMyTezosEntries(entries.map((entry) => (
+                entry.address === address ? { ...entry, included: input.checked } : entry
+            )), { source: 'portfolio-inclusion' });
+        };
+    });
+
+    container.querySelectorAll('[data-portfolio-activate]').forEach((button) => {
+        button.onclick = () => {
+            const entry = entries.find((item) => item.address === button.dataset.portfolioActivate);
+            if (!entry) return;
+            rememberMyTezosAddress(entry.address, { label: entry.label, source: 'portfolio' });
+            window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'overview' } }));
+        };
+    });
+
+    container.querySelectorAll('[data-portfolio-label]').forEach((input) => {
+        const save = () => {
+            const address = input.dataset.portfolioLabel;
+            const label = input.value.trim().slice(0, 80) || null;
+            const current = readSavedMyTezosEntries();
+            writeSavedMyTezosEntries(current.map((entry) => (
+                entry.address === address ? { ...entry, label } : entry
+            )), { source: 'portfolio-label' });
+        };
+        input.onchange = save;
+        input.onkeydown = (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                input.blur();
+            }
+        };
+    });
+
+    container.querySelectorAll('[data-portfolio-copy]').forEach((button) => {
+        button.onclick = () => copyAddress(button.dataset.portfolioCopy, button);
+    });
+
+    container.querySelectorAll('[data-portfolio-remove]').forEach((button) => {
+        button.onclick = () => {
+            const address = button.dataset.portfolioRemove;
+            const current = readSavedMyTezosEntries();
+            const next = current.filter((entry) => entry.address !== address);
+            writeSavedMyTezosEntries(next, { source: 'portfolio-remove' });
+            if (localStorage.getItem(MY_TEZOS_ADDRESS_KEY) === address) {
+                const replacement = next.find((entry) => entry.included !== false) || next[0];
+                if (replacement) {
+                    rememberMyTezosAddress(replacement.address, { label: replacement.label, source: 'portfolio-remove' });
+                } else {
+                    localStorage.removeItem(MY_TEZOS_ADDRESS_KEY);
+                    window.dispatchEvent(new CustomEvent('my-baker-updated', {
+                        detail: { address: null, source: 'portfolio-remove', previousAddress: address }
+                    }));
+                    document.getElementById('drawer-empty-state')?.style.removeProperty('display');
+                    const connected = document.getElementById('drawer-connected');
+                    if (connected) connected.style.display = 'none';
+                }
+            }
+        };
+    });
+}
+
+function historyPointsForRange(points, range, now = Date.now()) {
+    const duration = range === '24h' ? 24 * 60 * 60 * 1000
+        : range === '7d' ? 7 * 24 * 60 * 60 * 1000
+            : range === '30d' ? 30 * 24 * 60 * 60 * 1000
+                : Infinity;
+    return duration === Infinity ? points : points.filter((point) => point.timestamp >= now - duration);
+}
+
+function chartLabel(timestamp, range) {
+    const date = new Date(timestamp);
+    if (range === '24h') return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function renderHistory(composition) {
+    const canvas = document.getElementById('portfolio-history-chart');
+    const empty = document.getElementById('portfolio-history-empty');
+    if (!canvas || !empty) return;
+    const store = readHistoryStore();
+    const points = historyPointsForRange(
+        compactPortfolioHistory(store.series?.[composition] || []),
+        portfolioRange
+    );
+
+    if (points.length < 2 || !window.Chart) {
+        canvas.hidden = true;
+        empty.hidden = false;
+        const first = points[0];
+        empty.textContent = first
+            ? `History began ${new Date(first.timestamp).toLocaleString()}. Another complete hourly point is needed to draw this range.`
+            : 'History begins after the first complete portfolio check.';
+        if (portfolioChart) {
+            portfolioChart.destroy();
+            portfolioChart = null;
+        }
+        return;
+    }
+
+    canvas.hidden = false;
+    empty.hidden = true;
+    const labels = points.map((point) => chartLabel(point.timestamp, portfolioRange));
+    const datasets = [
+        ['Total', 'total', '#4dd4ff', 2.5],
+        ['Spendable', 'spendable', '#45e0c8', 1.5],
+        ['Staked', 'staked', '#8f91ff', 1.5],
+        ['Unstaking', 'unstaking', '#f5b84b', 1.5]
+    ].map(([label, key, color, width]) => ({
+        label,
+        data: points.map((point) => point[key] / 1e6),
+        borderColor: color,
+        backgroundColor: `${color}18`,
+        borderWidth: width,
+        pointRadius: points.length > 48 ? 0 : 2,
+        pointHoverRadius: 3,
+        tension: 0.2,
+        fill: false
+    }));
+
+    if (portfolioChart) {
+        portfolioChart.data.labels = labels;
+        portfolioChart.data.datasets = datasets;
+        portfolioChart.update('none');
+        return;
+    }
+
+    portfolioChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: { color: getComputedStyle(document.body).getPropertyValue('--text-secondary') || '#9aa5b1', boxWidth: 10 }
+                },
+                tooltip: {
+                    callbacks: { label: (context) => `${context.dataset.label}: ${Number(context.raw).toLocaleString('en-US', { maximumFractionDigits: 2 })} ꜩ` }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#7e8998', maxTicksLimit: 8 }, grid: { display: false } },
+                y: {
+                    beginAtZero: false,
+                    ticks: { color: '#7e8998', callback: (value) => `${Number(value).toLocaleString('en-US', { notation: 'compact' })}ꜩ` },
+                    grid: { color: 'rgba(127,140,160,0.12)' }
+                }
+            }
+        }
+    });
+}
+
+async function fetchPortfolioAccounts(entries) {
+    const addresses = entries.map((entry) => entry.address);
+    const query = new URLSearchParams({
+        'address.in': addresses.join(','),
+        select: 'address,alias,type,delegate,balance,stakedBalance,unstakedBalance',
+        limit: String(addresses.length)
+    });
+    const rows = await fetchWithRetry(`${API_URLS.tzkt}/accounts?${query}`, {
+        cache: 'no-store',
+        memoryCache: false,
+        __tezosSystemsPriority: 'interactive'
+    }, 2);
+    if (!Array.isArray(rows)) throw new Error('TzKT returned an invalid portfolio response.');
+    const byAddress = new Map(rows.map((row) => [row.address, row]));
+    const missing = entries.filter((entry) => !byAddress.has(entry.address));
+    if (missing.length) {
+        throw new Error(`Portfolio coverage incomplete · ${rows.length}/${entries.length} accounts loaded`);
+    }
+    return entries.map((entry) => portfolioRowFromAccount(entry, byAddress.get(entry.address)));
+}
+
+function setFreshness(message, state = '') {
+    const freshness = document.getElementById('portfolio-freshness');
+    if (!freshness) return;
+    freshness.textContent = message;
+    freshness.dataset.state = state;
+}
+
+export async function refreshMyTezosPortfolio({ force = false } = {}) {
+    if (!isPortfolioVisible()) return null;
+    if (portfolioRefreshInFlight) return portfolioRefreshInFlight;
+
+    const entries = currentEntries();
+    renderWalletList(entries);
+    const included = includedEntries(entries);
+    const composition = portfolioCompositionKey(included);
+    if (!included.length) {
+        lastCompletePortfolio = null;
+        renderEmptySummary();
+        renderHistory(composition);
+        setFreshness('No addresses are currently included.', 'empty');
+        return null;
+    }
+    if (lastCompletePortfolio?.composition !== composition) {
+        renderEmptySummary('Portfolio composition changed. Waiting for a complete current read.');
+    }
+
+    const refreshButton = document.getElementById('portfolio-refresh');
+    if (refreshButton) {
+        refreshButton.disabled = true;
+        refreshButton.textContent = '↻ Refreshing…';
+    }
+    setFreshness(`Checking ${included.length} included address${included.length === 1 ? '' : 'es'} through TzKT…`, 'loading');
+
+    portfolioRefreshInFlight = (async () => {
+        try {
+            const [rows, prices] = await Promise.all([
+                fetchPortfolioAccounts(included),
+                fetchXTZPrice().catch(() => null)
+            ]);
+            if (portfolioCompositionKey(includedEntries(currentEntries())) !== composition) return null;
+            const totals = calculatePortfolioTotals(rows);
+            const model = {
+                composition,
+                entries: included,
+                rows,
+                totals,
+                prices,
+                timestamp: Date.now()
+            };
+            lastCompletePortfolio = model;
+            saveCompleteSnapshot(composition, totals, model.timestamp);
+            renderSummary(model);
+            renderWalletList(currentEntries(), model);
+            renderHistory(composition);
+            setFreshness(`Complete · ${included.length}/${included.length} included addresses · ${formatFreshnessStamp(new Date(model.timestamp), { source: 'Portfolio' })}`, 'complete');
+            window.dispatchEvent(new CustomEvent('my-tezos-portfolio-ready', { detail: { composition, totals, count: included.length } }));
+            return model;
+        } catch (error) {
+            const sameComposition = lastCompletePortfolio?.composition === composition;
+            if (sameComposition) {
+                renderSummary(lastCompletePortfolio);
+                renderWalletList(currentEntries(), lastCompletePortfolio);
+                renderHistory(composition);
+            } else {
+                renderEmptySummary('Current portfolio unavailable. No partial total is shown.');
+            }
+            setFreshness(`${error.message || 'Portfolio refresh failed'} · ${sameComposition ? 'showing last complete read' : 'try again'}`, 'error');
+            return null;
+        } finally {
+            portfolioRefreshInFlight = null;
+            if (refreshButton) {
+                refreshButton.disabled = false;
+                refreshButton.textContent = '↻ Refresh';
+            }
+        }
+    })();
+    return portfolioRefreshInFlight;
+}
+
+async function addPortfolioAddress(rawAddress, rawLabel) {
+    const raw = String(rawAddress || '').trim();
+    let address = raw;
+    let label = String(rawLabel || '').trim().slice(0, 80) || null;
+    if (isTezDomainName(raw)) {
+        const domain = normalizeTezDomainName(raw);
+        setManagementStatus(`Resolving ${domain}…`, 'loading');
+        address = await resolveTezDomainAddress(domain);
+        if (!address) throw new Error(`${domain} did not resolve to a Tezos address.`);
+        if (!label) label = domain;
+    }
+    if (!isTezosAddress(address)) throw new Error('Enter a valid tz1/tz2/tz3/tz4/KT1 address or .tez name.');
+    const current = readSavedMyTezosEntries();
+    if (!current.some((entry) => entry.address === address) && current.length >= MAX_SAVED_MY_TEZOS_ADDRESSES) {
+        throw new Error(`My Tezos can keep up to ${MAX_SAVED_MY_TEZOS_ADDRESSES} local addresses.`);
+    }
+    upsertSavedMyTezosEntry(address, { label, included: true, source: 'portfolio-add' });
+    if (!localStorage.getItem(MY_TEZOS_ADDRESS_KEY)) {
+        rememberMyTezosAddress(address, { label, source: 'portfolio-add' });
+    }
+    return { address, label };
+}
+
+function exportPortfolio() {
+    const entries = readSavedMyTezosEntries();
+    if (!entries.length) {
+        setManagementStatus('Add an address before exporting.', 'error');
+        return;
+    }
+    const payload = {
+        schema: MY_TEZOS_PORTFOLIO_SCHEMA,
+        exportedAt: new Date().toISOString(),
+        entries: entries.map(({ network, address, label, included, addedAt }) => ({ network, address, label, included, addedAt }))
+    };
+    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `tezos-systems-portfolio-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setManagementStatus(`Exported ${entries.length} address${entries.length === 1 ? '' : 'es'} without balances or history.`, 'success');
+}
+
+async function importPortfolioFile(file) {
+    if (!file) return;
+    const payload = JSON.parse(await file.text());
+    const parsed = parsePortfolioImport(payload);
+    const current = readSavedMyTezosEntries();
+    const conflicts = parsed.entries.filter((incoming) => current.some((entry) => entry.address === incoming.address)).length;
+    const available = Math.max(0, MAX_SAVED_MY_TEZOS_ADDRESSES - current.length + conflicts);
+    const newCount = parsed.entries.length - conflicts;
+    const acceptedNew = Math.min(newCount, available);
+    const description = [
+        `${parsed.entries.length} valid address${parsed.entries.length === 1 ? '' : 'es'}`,
+        conflicts ? `${conflicts} update${conflicts === 1 ? '' : 's'}` : '',
+        parsed.skipped ? `${parsed.skipped} invalid or extra skipped` : '',
+        newCount > acceptedNew ? `${newCount - acceptedNew} over the local limit skipped` : ''
+    ].filter(Boolean).join(' · ');
+    if (!window.confirm(`Import this portfolio?\n\n${description}\n\nAddresses and labels will merge with this browser. Existing history is untouched.`)) {
+        setManagementStatus('Import cancelled.', '');
+        return;
+    }
+    const merged = normalizeSavedMyTezosEntries(mergePortfolioEntries(current, parsed.entries));
+    writeSavedMyTezosEntries(merged, { source: 'portfolio-import' });
+    setManagementStatus(`Imported portfolio · ${description}`, 'success');
+}
+
+function wirePortfolioControls() {
+    const refresh = document.getElementById('portfolio-refresh');
+    if (refresh) refresh.onclick = () => refreshMyTezosPortfolio({ force: true });
+
+    document.querySelectorAll('[data-portfolio-range]').forEach((button) => {
+        button.onclick = () => {
+            portfolioRange = button.dataset.portfolioRange;
+            document.querySelectorAll('[data-portfolio-range]').forEach((candidate) => {
+                const active = candidate === button;
+                candidate.classList.toggle('active', active);
+                candidate.setAttribute('aria-pressed', String(active));
+            });
+            renderHistory(portfolioCompositionKey(includedEntries()));
+        };
+    });
+
+    const form = document.getElementById('portfolio-add-form');
+    if (form) form.onsubmit = async (event) => {
+        event.preventDefault();
+        const addressInput = document.getElementById('portfolio-add-address');
+        const labelInput = document.getElementById('portfolio-add-label');
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit) submit.disabled = true;
+        try {
+            const added = await addPortfolioAddress(addressInput?.value, labelInput?.value);
+            if (addressInput) addressInput.value = '';
+            if (labelInput) labelInput.value = '';
+            setManagementStatus(`Added ${added.label || shortAddress(added.address)} to this browser.`, 'success');
+        } catch (error) {
+            setManagementStatus(error.message || 'Could not add that address.', 'error');
+        } finally {
+            if (submit) submit.disabled = false;
+        }
+    };
+
+    const exportButton = document.getElementById('portfolio-export');
+    if (exportButton) exportButton.onclick = exportPortfolio;
+    const importButton = document.getElementById('portfolio-import');
+    const importFile = document.getElementById('portfolio-import-file');
+    if (importButton && importFile) {
+        importButton.onclick = () => importFile.click();
+        importFile.onchange = async () => {
+            try {
+                await importPortfolioFile(importFile.files?.[0]);
+            } catch (error) {
+                setManagementStatus(error.message || 'Could not import that portfolio.', 'error');
+            } finally {
+                importFile.value = '';
+            }
+        };
+    }
+}
+
+export function activateMyTezosPortfolio({ force = false } = {}) {
+    const entries = currentEntries();
+    renderWalletList(entries);
+    const composition = portfolioCompositionKey(includedEntries(entries));
+    if (lastCompletePortfolio?.composition === composition) {
+        renderSummary(lastCompletePortfolio);
+    } else if (!includedEntries(entries).length) {
+        renderEmptySummary();
+    }
+    renderHistory(composition);
+    return refreshMyTezosPortfolio({ force: force || !lastCompletePortfolio || lastCompletePortfolio.composition !== composition });
+}
+
+export function initMyTezosPortfolio() {
+    if (portfolioInitialized) return;
+    portfolioInitialized = true;
+    readSavedMyTezosEntries(); // Normalize legacy saved entries in place.
+    wirePortfolioControls();
+    renderWalletList(currentEntries());
+    renderHistory(portfolioCompositionKey(includedEntries()));
+
+    window.addEventListener('my-tezos-portfolio-changed', () => {
+        const entries = currentEntries();
+        renderWalletList(entries);
+        const composition = portfolioCompositionKey(includedEntries(entries));
+        if (lastCompletePortfolio?.composition !== composition) {
+            renderEmptySummary('Portfolio composition changed. Waiting for a complete current read.');
+        }
+        renderHistory(composition);
+        if (isPortfolioVisible()) refreshMyTezosPortfolio({ force: true }).catch(() => {});
+    });
+    window.addEventListener('my-baker-updated', () => renderWalletList(currentEntries()));
+    const drawer = document.getElementById('my-tezos-drawer');
+    if (drawer) {
+        new MutationObserver(() => {
+            if (isPortfolioVisible()) refreshMyTezosPortfolio({ force: true }).catch(() => {});
+        }).observe(drawer, { attributes: true, attributeFilter: ['class'] });
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (isPortfolioVisible()) refreshMyTezosPortfolio({ force: true }).catch(() => {});
+    });
+
+    portfolioTimer = setInterval(() => {
+        refreshMyTezosPortfolio().catch(() => {});
+    }, portfolioRefreshMs());
+}
+
+export function destroyMyTezosPortfolioForTests() {
+    if (portfolioTimer) clearInterval(portfolioTimer);
+    portfolioTimer = null;
+    if (portfolioChart) portfolioChart.destroy();
+    portfolioChart = null;
+    portfolioInitialized = false;
+}

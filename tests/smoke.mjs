@@ -2169,12 +2169,24 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/accounts?') && url.includes('address.in=')) {
         const params = new URL(url).searchParams;
         const requested = (params.get('address.in') || '').split(',').filter(Boolean);
-        const aliases = new Map([
-          [SAMPLE_ADDRESS, 'QA Baker'],
-          [SAMPLE_ADDRESS_2, 'Second Baker'],
-          [SAMPLE_ADDRESS_3, 'Pending Baker']
-        ]);
-        return fulfillJson(route, requested.map((address) => ({ address, alias: aliases.get(address) || null })));
+        const accounts = new Map(sampleBakers.map((baker) => [baker.address, {
+          address: baker.address,
+          alias: baker.alias,
+          type: 'delegate',
+          balance: baker.balance,
+          stakedBalance: baker.stakedBalance,
+          unstakedBalance: 0,
+          delegate: null
+        }]));
+        return fulfillJson(route, requested.map((address) => accounts.get(address) || {
+          address,
+          alias: null,
+          type: 'user',
+          balance: 0,
+          stakedBalance: 0,
+          unstakedBalance: 0,
+          delegate: null
+        }));
       }
       if (url.includes('/operations/transactions?') && url.includes(`target=${ETHERLINK_FAST_CONTRACT}`)) {
         if (etherlinkPromotion) {
@@ -5084,7 +5096,7 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
 
   await page.waitForFunction(() => {
     const text = (document.querySelector('#drawer-operator-status')?.innerText || '').toLowerCase();
-    return text.includes('next round 0 block') && text.includes('back online') && text.includes('last 10 attestations ok') && text.includes('v25.0');
+    return text.includes('next round 0') && text.includes('back online') && text.includes('last 10 attestations ok') && text.includes('v25.0');
   }, null, { timeout: 15000 });
   const operatorText = (await page.locator('#drawer-operator-status').innerText()).toLowerCase();
   const operatorOctezState = await page.evaluate(() => {
@@ -5095,7 +5107,7 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
       className: tile?.className || ''
     };
   });
-  assert(operatorText.includes('next round 0 block'), 'my tezos baker activity: should show the next round 0 block prominently');
+  assert(operatorText.includes('next round 0'), 'my tezos baker activity: should show the next round 0 band prominently');
   assert(operatorText.includes('18m'), `my tezos baker activity: should estimate next block ETA, saw: ${operatorText}`);
   assert(operatorText.includes('back online'), 'my tezos baker activity: should show recovered baker state from fresh attestations');
   assert(!operatorText.includes('round 5'), `my tezos baker activity: should not surface nonzero-round baking rights, saw: ${operatorText}`);
@@ -5796,28 +5808,131 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     throw new Error(`my tezos address switch: external delegation stat did not settle (${error.message}); debug=${JSON.stringify(debug)}; issues=${issues.join(' | ')}`);
   }
 
-  await page.locator('[data-saved-wallet-combine]').click();
-  await page.waitForFunction(() => {
-    const text = document.querySelector('[data-saved-wallet-total]')?.textContent || '';
-    return text.includes('Saved-wallet total:') && text.includes('2,100,000.00') && text.includes('2/2 loaded');
-  }, null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelectorAll('#drawer-operator-status .drawer-operator-tile').length === 5, null, { timeout: 15000 });
+  const operatorGeometry = await page.evaluate(() => {
+    const grid = document.querySelector('.drawer-operator-grid');
+    const children = Array.from(grid?.children || []).map((child) => child.getBoundingClientRect());
+    const drawer = document.querySelector('#my-tezos-drawer')?.getBoundingClientRect();
+    return {
+      drawerWidth: drawer?.width || 0,
+      labels: Array.from(grid?.querySelectorAll('.drawer-operator-label') || []).map((node) => node.textContent.trim()),
+      children: children.map((rect) => ({ top: Math.round(rect.top), width: Math.round(rect.width) }))
+    };
+  });
+  assert(operatorGeometry.drawerWidth >= 879 && operatorGeometry.drawerWidth <= 961, `my tezos address switch: adaptive desktop width failed ${JSON.stringify(operatorGeometry)}`);
+  assert(operatorGeometry.labels.join('|') === 'Next round 0|Octez|Baker working?|Attestation|DAL', `my tezos address switch: operator tile contract drifted ${JSON.stringify(operatorGeometry)}`);
+  assert(operatorGeometry.children.slice(1).every((rect) => rect.top === operatorGeometry.children[1].top && Math.abs(rect.width - operatorGeometry.children[1].width) <= 1), `my tezos address switch: four operator tiles are not one equal row ${JSON.stringify(operatorGeometry)}`);
 
-  await page.route(`**/accounts/${SAMPLE_ADDRESS}`, (route) => route.fulfill({ status: 503, body: 'partial aggregate smoke' }));
-  await page.locator('[data-saved-wallet-combine]').click();
+  await page.locator('#my-tezos-tab-portfolio').click();
   await page.waitForFunction(() => {
-    const text = document.querySelector('[data-saved-wallet-total]')?.textContent || '';
-    return text.includes('600,000.00') && text.includes('1/2 loaded') && text.includes('partial');
-  }, null, { timeout: 10000 });
+    const freshness = document.querySelector('#portfolio-freshness')?.textContent || '';
+    const total = document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '';
+    return freshness.includes('Complete') && freshness.includes('2/2') && total.includes('2,700,000.00');
+  }, null, { timeout: 15000 });
+  const initialPortfolio = await page.evaluate(() => ({
+    selected: document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected'),
+    sessionView: sessionStorage.getItem('tezos-systems-my-tezos-view'),
+    total: document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '',
+    spendable: document.querySelector('[data-portfolio-total="spendable"] strong')?.textContent || '',
+    staked: document.querySelector('[data-portfolio-total="staked"] strong')?.textContent || '',
+    unstaking: document.querySelector('[data-portfolio-total="unstaking"] strong')?.textContent || '',
+    walletRows: document.querySelectorAll('.portfolio-wallet-row[data-address]').length
+  }));
+  assert(initialPortfolio.selected === 'true' && initialPortfolio.sessionView === 'portfolio', `my tezos address switch: Portfolio tab did not persist for the session ${JSON.stringify(initialPortfolio)}`);
+  assert(initialPortfolio.total.includes('2,700,000.00') && initialPortfolio.spendable.includes('1,500,000.00') && initialPortfolio.staked.includes('1,200,000.00') && initialPortfolio.unstaking.includes('0.00') && initialPortfolio.walletRows === 2, `my tezos address switch: exact four-way aggregate failed ${JSON.stringify(initialPortfolio)}`);
+
+  const firstInclude = page.locator(`[data-portfolio-include="${SAMPLE_ADDRESS}"]`);
+  await firstInclude.uncheck();
+  await page.waitForFunction(() => {
+    const freshness = document.querySelector('#portfolio-freshness')?.textContent || '';
+    const total = document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '';
+    return freshness.includes('Complete') && freshness.includes('1/1') && total.includes('1,100,000.00');
+  }, null, { timeout: 15000 });
+
+  await page.evaluate(async (activeAddress) => {
+    const entries = JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]').filter((entry) => entry.included !== false);
+    const { portfolioCompositionKey } = await import('/js/features/my-tezos-portfolio-model.mjs');
+    const key = portfolioCompositionKey(entries);
+    const now = Date.now();
+    const current = { timestamp: now, total: 1100000000000, spendable: 600000000000, staked: 500000000000, unstaking: 0 };
+    localStorage.setItem('tezos-systems-my-tezos-portfolio-history-v1', JSON.stringify({
+      schema: 1,
+      series: { [key]: [{ ...current, timestamp: now - 2 * 60 * 60 * 1000, total: 1050000000000 }, current] }
+    }));
+    window.__portfolioQuietBefore = {
+      summary: document.querySelector('#portfolio-summary'),
+      row: document.querySelector(`.portfolio-wallet-row[data-address="${activeAddress}"]`)
+    };
+  }, SAMPLE_ADDRESS_2);
+  await page.locator('[data-portfolio-range="24h"]').click();
+  await page.waitForFunction(() => Boolean(window.Chart?.getChart(document.querySelector('#portfolio-history-chart'))), null, { timeout: 5000 });
+  await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).focus();
+  await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).fill('Second Vault');
+  await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).evaluate((input) => input.setSelectionRange(1, 6));
+  await page.evaluate(() => { document.querySelector('#drawer-body').scrollTop = 220; });
+  const quietBefore = await page.evaluate(() => {
+    window.__portfolioChartBefore = window.Chart.getChart(document.querySelector('#portfolio-history-chart'));
+    return {
+      scroll: document.querySelector('#drawer-body').scrollTop,
+      hasChart: Boolean(window.__portfolioChartBefore)
+    };
+  });
+  await page.evaluate(() => document.querySelector('#portfolio-refresh').click());
+  await page.waitForFunction(() => document.querySelector('#portfolio-freshness')?.textContent?.includes('Complete'), null, { timeout: 15000 });
+  const quietAfter = await page.evaluate((activeAddress) => {
+    const input = document.querySelector(`[data-portfolio-label="${activeAddress}"]`);
+    return {
+      sameSummary: window.__portfolioQuietBefore.summary === document.querySelector('#portfolio-summary'),
+      sameRow: window.__portfolioQuietBefore.row === document.querySelector(`.portfolio-wallet-row[data-address="${activeAddress}"]`),
+      sameChart: window.__portfolioChartBefore === window.Chart.getChart(document.querySelector('#portfolio-history-chart')),
+      scroll: document.querySelector('#drawer-body').scrollTop,
+      focused: document.activeElement === input,
+      selectionStart: input?.selectionStart,
+      selectionEnd: input?.selectionEnd,
+      activeTab: document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected')
+    };
+  }, SAMPLE_ADDRESS_2);
+  assert(quietAfter.sameSummary && quietAfter.sameRow && quietAfter.sameChart && quietAfter.focused && quietAfter.selectionStart === 1 && quietAfter.selectionEnd === 6 && quietAfter.activeTab === 'true' && Math.abs(quietAfter.scroll - quietBefore.scroll) <= 1, `my tezos address switch: quiet Portfolio refresh moved the reader ${JSON.stringify({ quietBefore, quietAfter })}`);
+
+  let failPortfolio = true;
+  await page.route('**/accounts?*', async (route) => {
+    const url = route.request().url();
+    if (failPortfolio && url.includes('address.in=')) return fulfillJson(route, []);
+    return route.fallback();
+  });
+  await page.evaluate(() => document.querySelector('#portfolio-refresh').click());
+  await page.waitForFunction(() => document.querySelector('#portfolio-freshness')?.textContent?.includes('showing last complete read'), null, { timeout: 15000 });
+  const failureTotal = await page.locator('[data-portfolio-total="total"] strong').innerText();
+  assert(failureTotal.includes('1,100,000.00'), `my tezos address switch: failed portfolio refresh replaced the last complete total ${failureTotal}`);
+  failPortfolio = false;
+
+  await page.locator(`[data-portfolio-activate="${SAMPLE_ADDRESS}"]`).click();
+  await page.waitForFunction((address) => (
+    localStorage.getItem('tezos-systems-my-baker-address') === address
+      && document.querySelector('#my-tezos-tab-overview')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-ledger-flow-link')?.getAttribute('href') === `#ledger-flow=${encodeURIComponent(address)}`
+      && document.querySelector('#my-tezos-maxi-passport-link')?.getAttribute('href') === `/maxis/?view=passport&address=${encodeURIComponent(address)}`
+  ), SAMPLE_ADDRESS, { timeout: 5000 });
+  await page.locator('#my-tezos-tab-portfolio').click();
+  await page.locator(`[data-portfolio-activate="${SAMPLE_ADDRESS_2}"]`).click();
+  await page.waitForFunction((address) => (
+    localStorage.getItem('tezos-systems-my-baker-address') === address
+      && document.querySelector('#my-tezos-tab-overview')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-ledger-flow-link')?.getAttribute('href') === `#ledger-flow=${encodeURIComponent(address)}`
+      && document.querySelector('#my-tezos-maxi-passport-link')?.getAttribute('href') === `/maxis/?view=passport&address=${encodeURIComponent(address)}`
+  ), SAMPLE_ADDRESS_2, { timeout: 5000 });
+  await page.locator('#my-tezos-tab-overview').press('ArrowRight');
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') === 'true', null, { timeout: 3000 });
 
   const state = await page.evaluate(() => ({
     stored: localStorage.getItem('tezos-systems-my-baker-address'),
     connectedWallet: localStorage.getItem('tezos-systems-octez-wallet-address'),
-    savedWallets: JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]').map((item) => item.address),
+    savedWallets: JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]'),
     input: document.querySelector('#my-baker-input')?.value || '',
     button: document.querySelector('#my-baker-save')?.textContent?.trim() || '',
-    savedNote: document.querySelector('[data-saved-wallet-note]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     savedButtons: document.querySelectorAll('#drawer-saved-addresses .saved-addr').length,
-    savedTotal: document.querySelector('[data-saved-wallet-total]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    portfolioTotal: document.querySelector('[data-portfolio-total="total"] strong')?.textContent?.trim() || '',
+    portfolioFreshness: document.querySelector('#portfolio-freshness')?.textContent?.trim() || '',
     ledgerFlowHref: document.querySelector('#my-tezos-ledger-flow-link')?.getAttribute('href') || '',
     ledgerFlowHidden: document.querySelector('#my-tezos-ledger-flow-link')?.hidden === true,
     maxiPassportHref: document.querySelector('#my-tezos-maxi-passport-link')?.getAttribute('href') || '',
@@ -5831,14 +5946,12 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
 
   assert(state.stored === SAMPLE_ADDRESS_2, `my tezos address switch: localStorage kept stale address ${state.stored}`);
   assert(state.connectedWallet === null, `my tezos address switch: manually saved wallets should not require a connected wallet ${JSON.stringify(state)}`);
-  assert(state.savedWallets.includes(SAMPLE_ADDRESS) && state.savedWallets.includes(SAMPLE_ADDRESS_2), `my tezos address switch: pre-existing address was not retained in the local wallet set ${JSON.stringify(state)}`);
+  assert(state.savedWallets.some((entry) => entry.address === SAMPLE_ADDRESS && entry.included === false) && state.savedWallets.some((entry) => entry.address === SAMPLE_ADDRESS_2 && entry.included === true), `my tezos address switch: normalized include state was not retained ${JSON.stringify(state)}`);
   assert(state.input === SAMPLE_ADDRESS_2, `my tezos address switch: connected input mismatch ${state.input}`);
   assert(state.button === '📋 Copy', `my tezos address switch: save button did not return to copy mode, saw ${state.button}`);
-  assert(state.savedButtons === 2 && /Saved only in this browser/i.test(state.savedNote) && /no wallet connection or on-chain claim required/i.test(state.savedNote), `my tezos address switch: local-only wallet switcher copy missing ${JSON.stringify(state)}`);
-  assert(state.savedTotal.includes('600,000.00') && state.savedTotal.includes('1/2 loaded') && state.savedTotal.includes('partial'), `my tezos address switch: partial combined balance did not preserve the available wallet ${JSON.stringify(state)}`);
+  assert(state.savedButtons === 2 && state.portfolioTotal.includes('1,100,000.00'), `my tezos address switch: normalized local Portfolio state missing ${JSON.stringify(state)}`);
   assert(!state.ledgerFlowHidden && state.ledgerFlowHref === `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Ledger Flow link not scoped to active address ${JSON.stringify(state)}`);
   assert(!state.maxiPassportHidden && state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Maxi Passport link not scoped to active address ${JSON.stringify(state)}`);
-  assert(state.extDelegated.includes('220,000.00'), `my tezos address switch: drawer still shows stale baker metrics: ${state.extDelegated}`);
   assert(!state.header.includes(SAMPLE_ADDRESS.slice(0, 6)), `my tezos address switch: header still points at old baker: ${state.header}`);
   assert(state.heroCount === 0, `my tezos address switch: homepage address tracker should not render ${JSON.stringify(state)}`);
 
@@ -6226,9 +6339,11 @@ async function smokeMyTezosDeepLinkOverridesStale(browser, baseUrl) {
 }
 
 async function smokeMyTezosPrettyRoute(browser, baseUrl) {
-  for (const { label, viewport } of [
+  for (const { label, viewport, path = '/my', portfolio = false } of [
     { label: 'desktop', viewport: { width: 1280, height: 900 } },
-    { label: 'mobile', viewport: { width: 390, height: 844 } }
+    { label: 'mobile', viewport: { width: 390, height: 844 } },
+    { label: 'portfolio tablet', viewport: { width: 760, height: 900 }, path: '/my/?view=portfolio', portfolio: true },
+    { label: 'portfolio mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=portfolio', portfolio: true }
   ]) {
     const issues = [];
     const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
@@ -6243,18 +6358,27 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
 
     const page = await context.newPage();
     attachIssueCollectors(page, `my tezos pretty route ${label}`, issues);
-    const response = await page.goto(`${baseUrl}/my`, { waitUntil: 'domcontentloaded' });
+    const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'domcontentloaded' });
     assert(response?.ok(), `my tezos pretty route ${label} failed with HTTP ${response?.status()}`);
     await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 15000 });
 
     const state = await page.evaluate(() => {
       const drawer = document.querySelector('#my-tezos-drawer');
+      const summaryCards = Array.from(document.querySelectorAll('.portfolio-summary-card')).map((card) => card.getBoundingClientRect());
+      const refreshButton = document.querySelector('#portfolio-refresh');
+      const refreshRect = refreshButton?.getBoundingClientRect();
       return {
         pathname: window.location.pathname,
+        search: window.location.search,
         hash: window.location.hash,
         canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '',
         title: document.title,
         emptyStateVisible: getComputedStyle(document.querySelector('#drawer-empty-state')).display !== 'none',
+        portfolioSelected: document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') || '',
+        drawerWidth: drawer.getBoundingClientRect().width,
+        summaryRows: new Set(summaryCards.map((rect) => Math.round(rect.top))).size,
+        summaryInsideDrawer: summaryCards.every((rect) => rect.left >= -1 && rect.right <= drawer.getBoundingClientRect().right + 1),
+        refreshReadable: Boolean(refreshButton && refreshRect.width >= 88 && refreshButton.scrollWidth <= refreshButton.clientWidth + 1),
         drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
       };
@@ -6263,7 +6387,14 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
     assert(state.pathname === '/my/' && state.hash === '', `my tezos pretty route ${label} should remain canonical: ${JSON.stringify(state)}`);
     assert(state.canonical === 'https://tezos.systems/my/', `my tezos pretty route ${label} canonical mismatch: ${state.canonical}`);
     assert(state.title.startsWith('My Tezos'), `my tezos pretty route ${label} title mismatch: ${state.title}`);
-    assert(state.emptyStateVisible, `my tezos pretty route ${label} should open the address-free My Tezos state`);
+    if (portfolio) {
+      assert(state.search === '?view=portfolio' && state.portfolioSelected === 'true', `my tezos pretty route ${label} did not select Portfolio: ${JSON.stringify(state)}`);
+      assert(state.drawerWidth >= viewport.width - 1 && state.summaryRows === 2, `my tezos pretty route ${label} did not use full-width 2x2 Portfolio geometry: ${JSON.stringify(state)}`);
+      assert(state.summaryInsideDrawer && state.refreshReadable, `my tezos pretty route ${label} clipped Portfolio cards or action labels: ${JSON.stringify(state)}`);
+      assert(!/tz[1-4]|KT1/.test(state.search), `my tezos pretty route ${label} leaked an address into the route: ${state.search}`);
+    } else {
+      assert(state.emptyStateVisible && state.portfolioSelected === 'false', `my tezos pretty route ${label} should open the address-free Overview state`);
+    }
     assert(!state.drawerOverflow && !state.pageOverflow, `my tezos pretty route ${label} overflowed: ${JSON.stringify(state)}`);
 
     await context.close();
@@ -13169,7 +13300,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-staker-rewards', description: 'My Tezos connected drawer uses personal staker reward rows for regular and mostly-staked accounts', run: () => smokeMyTezosStakerRewards(browser, baseUrl) },
     { name: 'my-tezos-delegator-rewards', description: 'My Tezos connected drawer uses delegator estimate rows for zero-stake delegated accounts', run: () => smokeMyTezosDelegatorRewards(browser, baseUrl) },
     { name: 'my-tezos-historical-rewards', description: 'My Tezos keeps historical rewards out of the Current Cycle value and shows an inactive reward role honestly', run: () => smokeMyTezosHistoricalRewards(browser, baseUrl) },
-    { name: 'my-tezos-address-switch', description: 'My Tezos connected drawer saves a newly typed address over a stale saved baker', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
+    { name: 'my-tezos-portfolio', description: 'My Tezos adaptive tabs, exact multi-address totals, activation links, complete-only failure state, quiet refresh, and desktop geometry', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
     { name: 'my-tezos-ledger-flow-handoff', description: 'My Tezos closes its mobile drawer before opening the address-scoped Ledger Flow Chamber', run: () => smokeMyTezosLedgerFlowHandoff(browser, baseUrl) },
     { name: 'my-tezos-subdomain-input', description: 'My Tezos connected drawer accepts Tezos Domains subdomains and saves their resolved address', run: () => smokeMyTezosSubdomainInput(browser, baseUrl) },
     { name: 'my-tezos-proposal-attribution', description: 'My Tezos Story distinguishes a delegator from their baker when accepted proposals are shown', run: () => smokeMyTezosProposalAttribution(browser, baseUrl) },

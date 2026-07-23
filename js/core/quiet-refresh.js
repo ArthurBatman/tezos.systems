@@ -218,6 +218,13 @@ function captureState(root) {
         viewportAnchor: captureViewportAnchor(),
         active,
         activeLocator: elementLocator(root, active),
+        controlSelection: active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
+            ? {
+                start: active.selectionStart,
+                end: active.selectionEnd,
+                direction: active.selectionDirection
+            }
+            : null,
         selection: captureSelection(root),
         scrollers: scrollableElements(root).map((element) => ({
             element,
@@ -259,6 +266,18 @@ function restoreState(root, state) {
         focusTarget.focus({ preventScroll: true });
     }
     restoreSelection(root, state.selection);
+    if ((focusTarget instanceof HTMLInputElement || focusTarget instanceof HTMLTextAreaElement)
+        && state.controlSelection
+        && Number.isInteger(state.controlSelection.start)
+        && Number.isInteger(state.controlSelection.end)) {
+        try {
+            focusTarget.setSelectionRange(
+                state.controlSelection.start,
+                state.controlSelection.end,
+                state.controlSelection.direction || 'none'
+            );
+        } catch {}
+    }
 }
 
 /** Run a synchronous DOM mutation without moving the reader's viewport. */

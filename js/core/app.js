@@ -114,7 +114,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=471';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=472';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=472';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -274,6 +275,15 @@ function ensureShellExtrasCss() {
     document.head.appendChild(link);
 }
 
+function ensureMyTezosCss() {
+    if (document.getElementById('my-tezos-css')) return;
+    const link = document.createElement('link');
+    link.id = 'my-tezos-css';
+    link.rel = 'stylesheet';
+    link.href = MY_TEZOS_CSS_URL;
+    document.head.appendChild(link);
+}
+
 /**
  * Initialize the dashboard
  */
@@ -283,6 +293,7 @@ async function init() {
     // Initialize theme
     safe('theme', initTheme);
     safe('shellExtrasCss', ensureShellExtrasCss);
+    safe('myTezosCss', ensureMyTezosCss);
 
     // Initialize arcade effects
     safe('arcadeEffects', initArcadeEffects);
@@ -5180,6 +5191,8 @@ async function openMyTezosTarget(rawTarget) {
         setMyTezosDrawerOpen(localStorage.getItem('tezos-systems-my-baker-address'));
         return;
     }
+
+    window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'overview' } }));
 
     const input = document.getElementById('my-baker-input');
     const errorMsg = document.getElementById('my-baker-error-msg');

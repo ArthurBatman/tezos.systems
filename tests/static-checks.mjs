@@ -76,6 +76,17 @@ import {
 } from '../scripts/lib/maxis-l2-governance.mjs';
 import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
 import { validateTezosCrpDataset, validateTezosCrpIdentityAliases } from '../scripts/lib/tezoscrp-awards.mjs';
+import { normalizeSavedMyTezosEntries } from '../js/core/my-tezos-entries.mjs';
+import {
+  MY_TEZOS_PORTFOLIO_SCHEMA,
+  appendPortfolioSnapshot,
+  calculatePortfolioTotals,
+  compactPortfolioHistory,
+  mergePortfolioEntries,
+  parsePortfolioImport,
+  portfolioCompositionKey,
+  portfolioRowFromAccount
+} from '../js/features/my-tezos-portfolio-model.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -96,6 +107,114 @@ function warn(message) {
 
 async function readText(file) {
   return fs.readFile(path.join(ROOT, file), 'utf8');
+}
+
+async function checkMyTezosPortfolioContracts() {
+  const addressA = 'tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4';
+  const addressB = 'tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm';
+  const addressC = 'tz1Yw8SgnsAmbQcJyaBbQokoYGxeeoX5AKYw';
+  const migrated = normalizeSavedMyTezosEntries([
+    { address: addressA, label: 'Vault' },
+    { address: addressA, label: 'Duplicate' },
+    { address: addressB, included: false }
+  ], { now: 1234 });
+  assert.equal(migrated.length, 2);
+  assert.deepEqual(migrated[0], {
+    network: 'tezos-l1', address: addressA, label: 'Vault', included: true, addedAt: 1234
+  });
+  assert.equal(migrated[1].included, false);
+  const uniqueAddresses = '123456789ABC'.split('').map((suffix) => `tz1${'1'.repeat(32)}${suffix}`);
+  assert.equal(normalizeSavedMyTezosEntries(uniqueAddresses.map((address) => ({ address }))).length, 10);
+
+  const rowA = portfolioRowFromAccount(migrated[0], {
+    address: addressA,
+    balance: 1_000_000,
+    stakedBalance: 2_000_000,
+    unstakedBalance: 3_000_000,
+    delegate: { address: addressC, alias: 'Baker' }
+  });
+  const rowB = portfolioRowFromAccount({ ...migrated[1], included: true }, {
+    address: addressB,
+    type: 'delegate',
+    balance: 4_000_000,
+    stakedBalance: 5_000_000,
+    unstakedBalance: 6_000_000
+  });
+  assert.equal(rowA.total, 6_000_000);
+  assert.deepEqual(calculatePortfolioTotals([rowA, rowB]), {
+    total: 21_000_000, spendable: 5_000_000, staked: 7_000_000, unstaking: 9_000_000
+  });
+  assert.notEqual(
+    portfolioCompositionKey([migrated[0]]),
+    portfolioCompositionKey([migrated[0], { ...migrated[1], included: true }])
+  );
+
+  const now = Date.UTC(2026, 6, 22, 12);
+  const makePoint = (timestamp, total) => ({ timestamp, total, spendable: total, staked: 0, unstaking: 0 });
+  const compacted = compactPortfolioHistory([
+    makePoint(now - 60 * 60 * 1000 + 1, 1),
+    makePoint(now - 60 * 60 * 1000 + 2, 2),
+    makePoint(now - 31 * 24 * 60 * 60 * 1000 + 1, 3),
+    makePoint(now - 31 * 24 * 60 * 60 * 1000 + 2, 4),
+    makePoint(now - 366 * 24 * 60 * 60 * 1000, 5)
+  ], { now });
+  assert.deepEqual(compacted.map((point) => point.total), [4, 2]);
+  const composition = portfolioCompositionKey([migrated[0]]);
+  const store = appendPortfolioSnapshot({ schema: 1, series: {} }, composition, makePoint(now, 6), { now });
+  assert.equal(store.series[composition].length, 1);
+
+  const parsed = parsePortfolioImport({
+    schema: MY_TEZOS_PORTFOLIO_SCHEMA,
+    entries: [
+      { network: 'tezos-l1', address: addressA, label: 'Imported', included: false },
+      { network: 'etherlink', address: addressB },
+      { network: 'tezos-l1', address: 'not-an-address' }
+    ]
+  });
+  assert.equal(parsed.entries.length, 1);
+  assert.equal(parsed.skipped, 2);
+  assert.equal(parsed.entries[0].included, false);
+  assert.throws(() => parsePortfolioImport({ schema: 'unknown', entries: [] }));
+  assert.deepEqual(
+    mergePortfolioEntries(migrated, parsed.entries).map((entry) => entry.address),
+    [addressA, addressB]
+  );
+
+  const [portfolio, myTezos, wallet, savedEntries, index, styles, smoke] = await Promise.all([
+    readText('js/features/my-tezos-portfolio.js'),
+    readText('js/features/my-tezos.js'),
+    readText('js/core/wallet.js'),
+    readText('js/core/my-tezos-entries.mjs'),
+    readText('index.html'),
+    readText('css/styles.css'),
+    readText('tests/smoke.mjs')
+  ]);
+  for (const snippet of [
+    "'address.in': addresses.join(',')",
+    'Portfolio coverage incomplete',
+    'saveCompleteSnapshot(composition, totals, model.timestamp)',
+    "document.visibilityState === 'visible'",
+    'portfolioChart.update(\'none\')',
+    'quietlySyncHtml(container, header + body)',
+    'showing last complete read'
+  ]) {
+    if (!portfolio.includes(snippet)) fail(`My Tezos Portfolio data/quiet contract missing: ${snippet}`);
+  }
+  for (const snippet of ['setMyTezosView', 'sessionStorage.setItem(VIEW_SESSION_KEY', "event.key === 'ArrowRight'", 'activateMyTezosPortfolio']) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos tab contract missing: ${snippet}`);
+  }
+  for (const snippet of ['normalizeSavedMyTezosEntries', 'MAX_SAVED_MY_TEZOS_ADDRESSES = 10', "included: item?.included !== false"]) {
+    if (!savedEntries.includes(snippet)) fail(`My Tezos saved-entry schema contract missing: ${snippet}`);
+  }
+  if (!wallet.includes('my-tezos-portfolio-changed')) fail('My Tezos shared wallet mutation event is missing');
+  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'data-portfolio-total="unstaking"', 'portfolio-history-chart']) {
+    if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
+  }
+  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row']) {
+    if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
+  }
+  if (!smoke.includes("name: 'my-tezos-portfolio'")) fail('focused My Tezos Portfolio browser smoke is missing');
+  pass('My Tezos Portfolio schema, accounting, history, import, routing, and quiet-refresh contracts checked');
 }
 
 function stableJsonValue(value) {
@@ -220,6 +339,7 @@ async function checkRequiredFiles() {
     'landing.html',
     'css/styles.css',
     'css/styles.min.css',
+    'css/my-tezos.min.css',
     'css/hero-search.css',
     'css/site-map.css',
     'css/leaderboard.css',
@@ -239,12 +359,15 @@ async function checkRequiredFiles() {
     'js/core/etherlink-governance-contracts.mjs',
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
+    'js/core/my-tezos-entries.mjs',
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
     'js/features/whale-chamber.js',
     'js/features/tezoscrp.js',
     'js/features/milestone-catalog.mjs',
+    'js/features/my-tezos-portfolio.js',
+    'js/features/my-tezos-portfolio-model.mjs',
     'js/features/search.js',
     'js/landing/site-nav.js',
     'js/ui/wayfinder.js',
@@ -768,6 +891,7 @@ async function checkCacheBustAlignment() {
   const cacheMatch = sw.match(/CACHE_NAME\s*=\s*['"]tezos-systems-v(\d+)['"]/);
   const heroSearchCssMatch = heroSearch.match(/HERO_SEARCH_CSS_URL\s*=\s*['"]\/css\/hero-search\.css\?v=(\d+)['"]/);
   const shellExtrasCssMatch = app.match(/SHELL_EXTRAS_CSS_URL\s*=\s*['"]\/css\/shell-extras\.css\?v=(\d+)['"]/);
+  const myTezosCssMatch = app.match(/MY_TEZOS_CSS_URL\s*=\s*['"]\/css\/my-tezos\.min\.css\?v=(\d+)['"]/);
   const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
   const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
   const networkPulseCssMatch = networkPulse.match(/NETWORK_PULSE_CSS_URL\s*=\s*['"]\/css\/network-pulse\.css\?v=(\d+)['"]/);
@@ -786,6 +910,7 @@ async function checkCacheBustAlignment() {
   if (!cacheMatch) fail('sw.js CACHE_NAME must be tezos-systems-vNN');
   if (!heroSearchCssMatch) fail('search.js hero-search.css loader must carry a ?v= cache stamp');
   if (!shellExtrasCssMatch) fail('app.js shell-extras.css loader must carry a ?v= cache stamp');
+  if (!myTezosCssMatch) fail('app.js generated My Tezos CSS loader must carry a ?v= cache stamp');
   if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
   if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
   if (!networkPulseCssMatch) fail('network-pulse.js network-pulse.css loader must carry a ?v= cache stamp');
@@ -805,6 +930,7 @@ async function checkCacheBustAlignment() {
     cacheMatch?.[1],
     heroSearchCssMatch?.[1],
     shellExtrasCssMatch?.[1],
+    myTezosCssMatch?.[1],
     leaderboardCssMatch?.[1],
     ledgerFlowCssMatch?.[1],
     networkPulseCssMatch?.[1],
@@ -814,7 +940,7 @@ async function checkCacheBustAlignment() {
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 15) {
+  } else if (versions.length === 16) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -5855,7 +5981,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=471'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=472'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -5957,6 +6083,7 @@ async function main() {
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
   await checkPromotedChamberContracts();
+  await checkMyTezosPortfolioContracts();
   await checkCapitalContracts();
   await checkQuietRefreshContracts();
   checkMilestoneLifecycleBehavior();

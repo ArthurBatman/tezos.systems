@@ -15,12 +15,18 @@ import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
 import { fetchObjktProfile } from './objkt.js';
 import { refresh as refreshMyBakerStats } from './my-baker.js';
 import { initRewardsTracker } from './rewards-tracker.js';
+import {
+    activateMyTezosPortfolio,
+    initMyTezosPortfolio,
+    refreshMyTezosPortfolio
+} from './my-tezos-portfolio.js';
 import { enqueueToast } from '../ui/toast-queue.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
 const OCTEZ = API_URLS.octez;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
+const VIEW_SESSION_KEY = 'tezos-systems-my-tezos-view';
 const REWARDS_HISTORY_KEY = 'tezos-systems-my-rewards-history';
 const LAST_PORTFOLIO_KEY = 'tezos-systems-my-last-portfolio';
 const OVERNIGHT_KEY = 'tezos-systems-overnight-snapshot';
@@ -957,15 +963,15 @@ function renderBakerOperatorStatus(status, isBaker) {
     }
 
     const next = status.nextBlock
-        ? renderOperatorTile('Next round 0 block', status.nextBlock.eta, status.nextBlock.detail, 'ok', 'drawer-operator-next')
-        : renderOperatorTile('Next round 0 block', 'No right found', 'No upcoming round 0 baking right returned', 'unknown', 'drawer-operator-next');
+        ? renderOperatorTile('Next round 0', status.nextBlock.eta, status.nextBlock.detail, 'ok', 'drawer-operator-next')
+        : renderOperatorTile('Next round 0', 'No right found', 'No upcoming round 0 baking right returned', 'unknown', 'drawer-operator-next');
     const live = renderOperatorTile(
         'Baker working?',
         status.live.value,
         status.live.detail,
         status.live.state
     );
-    const attest = renderOperatorTile('Attestation signal', status.attestation.value, status.attestation.detail, status.attestation.state);
+    const attest = renderOperatorTile('Attestation', status.attestation.value, status.attestation.detail, status.attestation.state);
     const dal = renderOperatorTile('DAL', status.dal.value, status.dal.detail, status.dal.state);
     const octez = renderOperatorTile(
         'Octez',
@@ -2695,11 +2701,6 @@ function initDrawerLiveRefresh() {
 
 function organizeDrawerJourneys() {
     const actions = document.getElementById('drawer-more-actions');
-    const savedSection = document.getElementById('drawer-saved-section');
-    const savedAddresses = document.getElementById('drawer-saved-addresses');
-    if (savedSection && savedAddresses && savedAddresses.parentElement !== savedSection) {
-        savedSection.appendChild(savedAddresses);
-    }
     if (!actions) return;
     ['my-tezos-ledger-flow-link', 'my-tezos-maxi-passport-link'].forEach((id) => {
         const link = document.getElementById(id);
@@ -2707,8 +2708,72 @@ function organizeDrawerJourneys() {
     });
 }
 
+function routeCanOwnMyTezosView() {
+    return window.location.pathname.replace(/\/+$/, '') === '/my';
+}
+
+function syncMyTezosViewRoute(view) {
+    if (!routeCanOwnMyTezosView()) return;
+    const url = new URL(window.location.href);
+    if (view === 'portfolio') url.searchParams.set('view', 'portfolio');
+    else url.searchParams.delete('view');
+    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+export function setMyTezosView(view, { focus = false, syncRoute = true } = {}) {
+    const selected = view === 'portfolio' ? 'portfolio' : 'overview';
+    document.querySelectorAll('[data-my-tezos-view]').forEach((button) => {
+        const active = button.dataset.myTezosView === selected;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+        if (active && focus) button.focus({ preventScroll: true });
+    });
+    document.querySelectorAll('[data-my-tezos-panel]').forEach((panel) => {
+        const active = panel.dataset.myTezosPanel === selected;
+        panel.classList.toggle('active', active);
+        panel.hidden = !active;
+    });
+    try { sessionStorage.setItem(VIEW_SESSION_KEY, selected); } catch {}
+    if (syncRoute) syncMyTezosViewRoute(selected);
+    if (selected === 'portfolio') activateMyTezosPortfolio().catch(() => {});
+    window.dispatchEvent(new CustomEvent('my-tezos-view-changed', { detail: { view: selected } }));
+    return selected;
+}
+
+function initMyTezosTabs() {
+    const tabs = Array.from(document.querySelectorAll('[data-my-tezos-view]'));
+    if (!tabs.length) return;
+    tabs.forEach((button, index) => {
+        button.addEventListener('click', () => setMyTezosView(button.dataset.myTezosView));
+        button.addEventListener('keydown', (event) => {
+            let nextIndex = null;
+            if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+            if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+            if (event.key === 'Home') nextIndex = 0;
+            if (event.key === 'End') nextIndex = tabs.length - 1;
+            if (nextIndex == null) return;
+            event.preventDefault();
+            setMyTezosView(tabs[nextIndex].dataset.myTezosView, { focus: true });
+        });
+    });
+    window.addEventListener('my-tezos-view-request', (event) => {
+        setMyTezosView(event.detail?.view || 'overview');
+    });
+
+    let initial = 'overview';
+    if (routeCanOwnMyTezosView() && new URLSearchParams(window.location.search).get('view') === 'portfolio') {
+        initial = 'portfolio';
+    } else {
+        try { initial = sessionStorage.getItem(VIEW_SESSION_KEY) || 'overview'; } catch {}
+    }
+    setMyTezosView(initial, { syncRoute: false });
+}
+
 export function initMyTezos() {
     organizeDrawerJourneys();
+    initMyTezosPortfolio();
+    initMyTezosTabs();
     // Create minibar under price bar
     createMinibar();
     initDrawerLiveRefresh();
@@ -2779,4 +2844,5 @@ export function refreshMyTezos() {
     if (address) {
         renderMorningBrief(address, true);
     }
+    refreshMyTezosPortfolio().catch(() => {});
 }

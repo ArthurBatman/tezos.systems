@@ -7,6 +7,9 @@ const CHANGELOG = [
     {
         date: '2026-07-22',
         entries: [
+            { type: '✨', text: 'My Tezos now has Overview and Portfolio views, with a complete watch-only Tezos L1 summary across up to ten browser-local addresses' },
+            { type: '✨', text: 'The new My Tezos Portfolio tracks total, spendable, staked, and unstaking XTZ, current USD/EUR context, local history ranges, and versioned address-only import/export' },
+            { type: '🎨', text: 'My Tezos is now an adaptive wide personal room with sticky tabs, paired desktop sections, and a full baker signal band followed by four equal operator tiles' },
             { type: '🔧', text: 'Opening Ledger Flow from My Tezos now closes the mobile profile drawer first, preserving the selected address and transferring focus into the Chamber' },
             { type: '✨', text: 'Baker Directory is now a full Chamber with Discover, complete Directory, and factual Signals views at /leaderboard/' },
             { type: '✨', text: 'Whale Watch now unifies its live operation tape, complete 24-hour transfer ledger, grouped flow stories, Deep Sleep accounts, and verified Awakenings at /whales/' },

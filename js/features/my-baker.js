@@ -9,9 +9,15 @@ import { fetchProtocolConstants, fetchStakingAPY, fetchWithDeadline, getExternal
 import { fetchBakerLiquidityBakingVote } from './liquidity-baking.js';
 import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import {
+    MAX_SAVED_MY_TEZOS_ADDRESSES,
+    MY_TEZOS_ADDRESS_KEY,
+    readSavedMyTezosEntries,
+    upsertSavedMyTezosEntry,
+    writeSavedMyTezosEntries
+} from '../core/wallet.js';
 
-const STORAGE_KEY = 'tezos-systems-my-baker-address';
-const SAVED_ADDRESSES_KEY = 'tezos-systems-saved-addresses';
+const STORAGE_KEY = MY_TEZOS_ADDRESS_KEY;
 const TZKT = API_URLS.tzkt;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
 const DEFAULT_DELEGATION_LIMIT = 9;
@@ -696,27 +702,7 @@ export function init() {
 
     // Feature 9: Multi-address support
     function addToSavedAddresses(addr, label = null) {
-        let saved;
-        try {
-            saved = JSON.parse(localStorage.getItem(SAVED_ADDRESSES_KEY) || '[]');
-            if (!Array.isArray(saved)) throw new Error('not an array');
-        } catch {
-            saved = [];
-            localStorage.setItem(SAVED_ADDRESSES_KEY, '[]');
-        }
-        const existing = saved.find(s => s.address === addr);
-        if (existing) {
-            if (label && existing.label !== label) {
-                existing.label = label;
-                localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(saved));
-            }
-            renderSavedAddresses();
-            return;
-        }
-        saved.unshift({ address: addr, label, addedAt: Date.now() });
-        // Max 10
-        if (saved.length > 10) saved.pop();
-        localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(saved));
+        upsertSavedMyTezosEntry(addr, { label, source: 'my-baker' });
         renderSavedAddresses();
     }
 
@@ -763,19 +749,8 @@ export function init() {
 
     function renderSavedAddresses() {
         const container = document.getElementById('drawer-saved-addresses');
-        if (!container) return;
-        let saved = [];
-        try {
-            const parsed = JSON.parse(localStorage.getItem(SAVED_ADDRESSES_KEY) || '[]');
-            if (Array.isArray(parsed)) {
-                const seen = new Set();
-                saved = parsed.filter((item) => {
-                    if (!isValidAddress(item?.address) || seen.has(item.address)) return false;
-                    seen.add(item.address);
-                    return true;
-                }).slice(0, 10);
-            }
-        } catch {}
+        if (!container || container.dataset.portfolioOwned === 'true') return;
+        const saved = readSavedMyTezosEntries();
         const active = localStorage.getItem(STORAGE_KEY);
         if (!saved.length) { container.innerHTML = ''; return; }
 
@@ -807,7 +782,7 @@ export function init() {
         container.innerHTML = `
             <div class="saved-wallet-heading">
                 <strong>Saved wallets</strong>
-                <span>${saved.length}/10 local</span>
+                <span>${saved.length}/${MAX_SAVED_MY_TEZOS_ADDRESSES} local</span>
             </div>
             <div class="wallet-connect-status" data-saved-wallet-note>Saved only in this browser · no wallet connection or on-chain claim required. Paste another address above, then Save.</div>
             <div class="wallet-connect-row" role="group" aria-label="Saved My Tezos wallets">${savedButtons}</div>
@@ -818,7 +793,7 @@ export function init() {
             btn.addEventListener('click', () => {
                 const addr = btn.dataset.addr;
                 const newSaved = saved.filter(s => s.address !== addr);
-                localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(newSaved));
+                writeSavedMyTezosEntries(newSaved, { source: 'my-baker' });
                 renderSavedAddresses();
             });
         });

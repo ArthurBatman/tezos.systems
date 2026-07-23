@@ -11,6 +11,7 @@ const CleanCSS = require('clean-css');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = path.join(ROOT, 'css', 'styles.css');
 const BASE_MIN = path.join(ROOT, 'css', 'styles.min.css');
+const MY_TEZOS_MIN = path.join(ROOT, 'css', 'my-tezos.min.css');
 const THEME_DIR = path.join(ROOT, 'css', 'themes');
 const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
 
@@ -244,11 +245,25 @@ function cleanGeneratedText(text) {
   return text.replace(/[ \t]+$/gm, '').replace(/\n+$/g, '\n');
 }
 
+function extractMyTezosLazyCss(source) {
+  const blocks = [];
+  const base = source.replace(
+    /\/\* MY_TEZOS_LAZY_START \*\/([\s\S]*?)\/\* MY_TEZOS_LAZY_END \*\//g,
+    (_match, css) => {
+      blocks.push(css);
+      return '';
+    }
+  );
+  return { base, css: blocks.join('\n') };
+}
+
 async function main() {
   const source = await fs.readFile(SOURCE, 'utf8');
-  const { base, themes } = splitCss(source);
+  const myTezos = extractMyTezosLazyCss(source);
+  const { base, themes } = splitCss(myTezos.base);
   await fs.mkdir(THEME_DIR, { recursive: true });
   await fs.writeFile(BASE_MIN, minify(base, 'css/styles.min.css'));
+  await fs.writeFile(MY_TEZOS_MIN, minify(myTezos.css, 'css/my-tezos.min.css'));
 
   let moved = 0;
   for (const theme of THEMES) {
@@ -261,11 +276,12 @@ async function main() {
   }
 
   const baseKb = Buffer.byteLength(await fs.readFile(BASE_MIN)) / 1024;
+  const myTezosKb = Buffer.byteLength(await fs.readFile(MY_TEZOS_MIN)) / 1024;
   const themeKb = Object.fromEntries(await Promise.all(THEMES.map(async (theme) => [
     theme,
     Math.round((await fs.stat(path.join(THEME_DIR, `${theme}.min.css`))).size / 1024)
   ])));
-  console.log(`Built css/styles.min.css (${baseKb.toFixed(1)} KB) plus ${THEMES.length} lazy theme bundles`);
+  console.log(`Built css/styles.min.css (${baseKb.toFixed(1)} KB), css/my-tezos.min.css (${myTezosKb.toFixed(1)} KB), plus ${THEMES.length} lazy theme bundles`);
   console.log(`Moved ${(moved / 1024).toFixed(1)} KB of source theme rules`, themeKb);
 }
 

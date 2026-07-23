@@ -5,6 +5,19 @@
  * its browser bundle only when a wallet action needs it.
  */
 
+import {
+    MAX_SAVED_MY_TEZOS_ADDRESSES,
+    MY_TEZOS_PORTFOLIO_NETWORK,
+    cleanSavedMyTezosLabel,
+    normalizeSavedMyTezosEntries
+} from './my-tezos-entries.mjs';
+
+export {
+    MAX_SAVED_MY_TEZOS_ADDRESSES,
+    MY_TEZOS_PORTFOLIO_NETWORK,
+    normalizeSavedMyTezosEntries
+} from './my-tezos-entries.mjs';
+
 export const OCTEZ_CONNECT_VERSION = '4.8.5';
 export const OCTEZ_CONNECT_SRC = `https://esm.sh/@tezos-x/octez.connect-sdk@${OCTEZ_CONNECT_VERSION}?bundle`;
 
@@ -72,19 +85,57 @@ function rememberAccount(account, status = 'ready') {
     return _activeAccount;
 }
 
-function readSavedAddresses() {
+function emitPortfolioUpdate(entries, source = 'wallet') {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('my-tezos-portfolio-changed', {
+        detail: { entries, source }
+    }));
+}
+
+export function readSavedMyTezosEntries() {
     try {
         const parsed = JSON.parse(localStorage.getItem(SAVED_ADDRESSES_KEY) || '[]');
-        return Array.isArray(parsed) ? parsed.filter((item) => isTezosAddress(item?.address)) : [];
+        const normalized = normalizeSavedMyTezosEntries(parsed);
+        if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+            localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(normalized));
+        }
+        return normalized;
     } catch {
         return [];
     }
 }
 
-function writeSavedAddresses(saved) {
+export function writeSavedMyTezosEntries(entries, { source = 'wallet', notify = true } = {}) {
+    const normalized = normalizeSavedMyTezosEntries(entries);
     try {
-        localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(saved.slice(0, 10)));
+        localStorage.setItem(SAVED_ADDRESSES_KEY, JSON.stringify(normalized));
     } catch {}
+    if (notify) emitPortfolioUpdate(normalized, source);
+    return normalized;
+}
+
+export function upsertSavedMyTezosEntry(address, {
+    label = null,
+    included = true,
+    source = 'wallet'
+} = {}) {
+    const value = String(address || '').trim();
+    if (!isTezosAddress(value)) {
+        throw new Error('Saved My Tezos address must be a tz1/tz2/tz3/tz4 or KT1 address');
+    }
+    const current = readSavedMyTezosEntries();
+    const existing = current.find((item) => item.address === value);
+    const entry = {
+        network: MY_TEZOS_PORTFOLIO_NETWORK,
+        address: value,
+        label: cleanSavedMyTezosLabel(label) || existing?.label || null,
+        included: existing ? existing.included !== false : included !== false,
+        addedAt: existing?.addedAt || Date.now()
+    };
+    return writeSavedMyTezosEntries([
+        entry,
+        ...current.filter((item) => item.address !== value)
+    ], { source });
 }
 
 export function rememberMyTezosAddress(address, { label = null, source = 'wallet' } = {}) {
@@ -92,13 +143,13 @@ export function rememberMyTezosAddress(address, { label = null, source = 'wallet
     if (!isTezosAddress(value)) {
         throw new Error('My Tezos address must be a tz1/tz2/tz3/tz4 or KT1 address');
     }
+    let previousAddress = '';
     try {
+        previousAddress = localStorage.getItem(MY_TEZOS_ADDRESS_KEY) || '';
         localStorage.setItem(MY_TEZOS_ADDRESS_KEY, value);
     } catch {}
 
-    const saved = readSavedAddresses().filter((item) => item.address !== value);
-    saved.unshift({ address: value, label, addedAt: Date.now() });
-    writeSavedAddresses(saved);
+    upsertSavedMyTezosEntry(value, { label, source });
 
     const drawerInput = document.getElementById('drawer-address-input');
     const mainInput = document.getElementById('my-baker-input');
@@ -110,7 +161,9 @@ export function rememberMyTezosAddress(address, { label = null, source = 'wallet
     if (emptyState) emptyState.style.display = 'none';
     if (connectedState) connectedState.style.display = '';
 
-    window.dispatchEvent(new CustomEvent('my-baker-updated', { detail: { address: value, source } }));
+    window.dispatchEvent(new CustomEvent('my-baker-updated', {
+        detail: { address: value, source, previousAddress }
+    }));
     return value;
 }
 

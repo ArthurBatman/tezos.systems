@@ -664,10 +664,19 @@ inline modal styles in `js/core/app.js`.
   Explore's collapsed Recovery tools group, linking to
   `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
   migration path while new multisig setups move toward protocol-native accounts.
-- My Tezos drawer and My Baker lookup, including live drawer-open stats refresh,
-  live baker signal refresh, baker Octez version status coloring, baker
-  performance, latest LB vote state, Octez.Connect wallet sync, and recent baker
-  delegator/staker activity.
+- My Tezos adaptive personal room with session-persisted Overview and Portfolio
+  tabs. Overview keeps the active address synchronized with Ledger Flow, Maxi
+  Passport, HEN, and the existing baker/reward lifecycle, while its baker
+  signal uses one full-width next-round band plus four equal Octez, working,
+  attestation, and DAL tiles. Portfolio aggregates up to ten locally saved,
+  independently includable Tezos L1 addresses through one bounded TzKT read and
+  shows total, spendable, staked, and unstaking XTZ with current USD/EUR context
+  when available. Saved entries use the versioned
+  `{ network, address, label, included, addedAt }` shape; the address-only JSON
+  import/export path never carries keys, permissions, balances, or history.
+  Complete hourly browser-local snapshots are composition-keyed, compact to
+  daily points after 30 days, and expire after 365 days. This watch-only grouping
+  is a private browser convenience and never claims common ownership.
 - Staking calculator, chain comparison, HEN NFT/profile mode, TzSafe Recovery,
   changelog, share captures, and embeddable widgets. The calculator opens with
   a 1,000 XTZ starting amount, live APY context, protocol
@@ -678,6 +687,7 @@ inline modal styles in `js/core/app.js`.
 Useful deep links include:
 
 - `#my-baker=...`
+- `/my/` or `/my/?view=portfolio` for the Overview or Portfolio personal room
 - `/tz1...`, `/name.tez`, or `/sub.name.tez` to resolve directly into My Tezos
 - `#baker=...`
 - `#calculator`
@@ -965,7 +975,10 @@ Current smoke suites:
 - `my-tezos-baker-capacity`
 - `my-tezos-staker-rewards`
 - `my-tezos-delegator-rewards`
-- `my-tezos-address-switch`
+- `my-tezos-portfolio` (covers tabs, session state, exact four-way account
+  totals, inclusion, active-address handoffs, last-complete failure behavior,
+  quiet chart/list reconciliation, `/my/?view=portfolio`, and responsive room
+  geometry)
 - `my-tezos-ledger-flow-handoff`
 - `my-tezos-subdomain-input`
 - `my-tezos-proposal-attribution`
