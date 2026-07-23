@@ -357,6 +357,10 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'Linked on this device', 'not an ownership proof']) {
     if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
   }
+  if (!index.includes('id="tezosx-add-form" class="portfolio-add-form" aria-busy="true"')
+      || !index.includes('class="glass-button my-baker-btn" type="submit" disabled')) {
+    fail('My Tezos Tezos X form must remain disabled until its lazy validation module is ready');
+  }
   for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
   }
@@ -372,7 +376,7 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['MY_TEZOS_COLLECTION_PAGE_SIZE', 'showing last saved holdings', 'not a portfolio value', 'sourceReceipt']) {
     if (!collection.includes(snippet) && !index.includes(snippet)) fail(`My Tezos Collection contract missing: ${snippet}`);
   }
-  for (const snippet of ['normalizeLinkedL2Accounts', 'linkedL1Addresses', 'data-tezosx-l1-link', 'nativeAvailable', 'Blockscout receipt']) {
+  for (const snippet of ['normalizeLinkedL2Accounts', 'linkedL1Addresses', 'data-tezosx-l1-link', 'nativeAvailable', 'Blockscout receipt', 'submitButton.disabled = false', "form?.setAttribute('aria-busy', 'false')"]) {
     if (!tezosx.includes(snippet)) fail(`My Tezos Tezos X contract missing: ${snippet}`);
   }
   if (rewards.includes('tezos-systems-rewards-v4-') || rewards.includes('localStorage.setItem(cacheKey')) {

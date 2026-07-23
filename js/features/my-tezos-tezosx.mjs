@@ -420,6 +420,8 @@ async function refreshTezosX({ force = false, loadMore = false } = {}) {
 
 function wireTezosXControls() {
     const form = document.getElementById('tezosx-add-form');
+    const submitButton = form?.querySelector('button[type="submit"]');
+    const refreshButton = document.getElementById('tezosx-refresh');
     form?.addEventListener('submit', (event) => {
         event.preventDefault();
         const addressInput = document.getElementById('tezosx-add-address');
@@ -453,12 +455,15 @@ function wireTezosXControls() {
         renderLinkedAccounts();
         refreshTezosX({ force: true }).catch(() => {});
     });
-    document.getElementById('tezosx-refresh')?.addEventListener('click', () => {
+    refreshButton?.addEventListener('click', () => {
         refreshTezosX({ force: true }).catch(() => {});
     });
     document.getElementById('tezosx-load-more')?.addEventListener('click', () => {
         refreshTezosX({ loadMore: true }).catch(() => {});
     });
+    if (submitButton) submitButton.disabled = false;
+    if (refreshButton) refreshButton.disabled = false;
+    form?.setAttribute('aria-busy', 'false');
 }
 
 export async function activateMyTezosTezosX({ force = false } = {}) {
