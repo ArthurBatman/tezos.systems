@@ -5216,7 +5216,7 @@ async function smokeMyTezosBakerLiveSignal(browser, baseUrl) {
 
   await page.locator('#my-tezos-btn').click();
   await expectClassContains(page.locator('#my-tezos-drawer'), 'open', 'my tezos baker live signal drawer');
-  await page.locator('#drawer-address-input').fill(SAMPLE_ADDRESS);
+  await page.locator('#drawer-address-input').fill(SAMPLE_DELEGATOR_ADDRESS);
   await page.locator('#drawer-connect-btn').click();
 
   const readSignalState = () => page.evaluate(() => ({
@@ -5227,7 +5227,9 @@ async function smokeMyTezosBakerLiveSignal(browser, baseUrl) {
   try {
     await page.waitForFunction(() => {
       const text = (document.querySelector('#drawer-operator-status')?.innerText || '').toLowerCase();
-      return text.includes('check now') && text.includes('10/10 recent attestation issues');
+      return text.includes('your baker signal · qa baker')
+        && text.includes('check now')
+        && text.includes('10/10 recent attestation issues');
     }, null, { timeout: 15000 });
   } catch {
     const state = await readSignalState();
@@ -5239,6 +5241,7 @@ async function smokeMyTezosBakerLiveSignal(browser, baseUrl) {
       const text = (document.querySelector('#drawer-operator-status')?.innerText || '').toLowerCase();
       const freshness = (document.querySelector('#drawer-freshness')?.innerText || '').toLowerCase();
       return text.includes('back online')
+        && text.includes('your baker signal · qa baker')
         && text.includes('last 10 attestations ok')
         && freshness.includes('operator signal');
     }, null, { timeout: 15000 });
@@ -5248,6 +5251,7 @@ async function smokeMyTezosBakerLiveSignal(browser, baseUrl) {
   }
 
   const operatorText = (await page.locator('#drawer-operator-status').innerText()).toLowerCase();
+  assert(operatorText.includes('your baker signal · qa baker'), `my tezos baker live signal: delegated baker identity was lost during refresh, saw: ${operatorText}`);
   assert(operatorText.includes('back online'), `my tezos baker live signal: open drawer did not recover live, saw: ${operatorText}`);
   assert(!operatorText.includes('check now'), `my tezos baker live signal: stale issue state remained visible, saw: ${operatorText}`);
 
@@ -5639,6 +5643,7 @@ async function getMyTezosRewardReport(browser, baseUrl, { address, label, requir
         lifetimeText,
         statsText,
         statsLabels,
+        operatorHeading: document.querySelector('#drawer-operator-status h3')?.textContent?.trim() || '',
         fullAddress: data.fullAddress,
         isStaker: data.isStaker,
         rewardsLastCycle: data.rewardsLastCycle,
@@ -5734,14 +5739,16 @@ async function smokeMyTezosDelegatorRewards(browser, baseUrl) {
       address: SAMPLE_REGULAR_DELEGATOR_ADDRESS,
       expectedLifetime: '1.5000 XTZ',
       expectedCurrent: '1.0000 XTZ',
-      expectedLastCycle: 1
+      expectedLastCycle: 1,
+      expectedBaker: 'QA Baker'
     },
     {
       label: 'my tezos delegator rewards small wallet',
       address: SAMPLE_SMALL_DELEGATOR_ADDRESS,
       expectedLifetime: '0.5400 XTZ',
       expectedCurrent: '0.4200 XTZ',
-      expectedLastCycle: 0.42
+      expectedLastCycle: 0.42,
+      expectedBaker: 'Second Baker'
     }
   ];
 
@@ -5770,6 +5777,7 @@ async function smokeMyTezosDelegatorRewards(browser, baseUrl) {
     assert(state.statsLabels.includes('Personal Projection') && state.statsText.includes('Policy-dependent'), `${rewardCase.label}: My Baker should withhold a personal delegation projection without baker payout terms: ${state.statsText}`);
     assert(state.activeRewardEstimate === false && state.estAnnual === null, `${rewardCase.label}: My Tezos must not turn gross delegation context into personal annual yield: ${JSON.stringify(state)}`);
     assert(state.statsLabels.includes('Missed rights (10 cycles)'), `${rewardCase.label}: delegated wallet should still label the baker missed-right window explicitly, saw ${state.statsLabels.join(', ')}`);
+    assert(state.operatorHeading === `Your baker signal · ${rewardCase.expectedBaker}`, `${rewardCase.label}: operator signal did not name the delegated baker: ${state.operatorHeading}`);
     assert(!state.lifetimeText.includes('Protocol staking rewards'), `${rewardCase.label}: delegator report should not use staking copy: ${state.lifetimeText}`);
     assert(!state.lifetimeText.includes('9.1000 XTZ'), `${rewardCase.label}: old generic baker mock leaked into lifetime card: ${state.lifetimeText}`);
   }
@@ -6156,7 +6164,7 @@ async function smokeMyTezosSubdomainInput(browser, baseUrl) {
   assert(state.stored === SAMPLE_ADDRESS_2, `my tezos subdomain input: localStorage did not save resolved address ${JSON.stringify(state)}`);
   assert(state.savedLabels.some((item) => item.address === SAMPLE_ADDRESS_2 && item.label === domain) && state.savedListText.includes(domain), `my tezos subdomain input: local wallet set did not preserve the entered .tez label ${JSON.stringify(state)}`);
   assert(state.input === SAMPLE_ADDRESS_2, `my tezos subdomain input: drawer input did not switch to resolved address ${JSON.stringify(state)}`);
-  assert(!/invalid address|domain not found/i.test(state.error), `my tezos subdomain input: subdomain was rejected: ${state.error}`);
+  assert(state.error === '', `my tezos subdomain input: successful domain resolution left stale status text: ${state.error}`);
   assert(state.button === '📋 Copy', `my tezos subdomain input: save button did not return to copy mode ${JSON.stringify(state)}`);
   assert(state.ledgerFlowHref === `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos subdomain input: Ledger Flow link not scoped to resolved address ${JSON.stringify(state)}`);
   assert(state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos subdomain input: Maxi Passport link not scoped to resolved address ${JSON.stringify(state)}`);

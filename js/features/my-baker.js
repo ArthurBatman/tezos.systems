@@ -951,6 +951,7 @@ export function init() {
             return '';
         }
 
+        setStatus(statusEl, '');
         const previousAddress = localStorage.getItem(STORAGE_KEY);
         localStorage.setItem(STORAGE_KEY, addr);
         input.value = addr;

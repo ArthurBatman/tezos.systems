@@ -951,7 +951,7 @@ function renderOperatorTile(label, value, detail, state = 'unknown', extraClass 
     `;
 }
 
-function renderBakerOperatorStatus(status, isBaker) {
+function renderBakerOperatorStatus(status, isBaker, bakerName = '') {
     const container = document.getElementById('drawer-operator-status');
     if (!container) return;
     if (!status) {
@@ -981,10 +981,13 @@ function renderBakerOperatorStatus(status, isBaker) {
     );
 
     const wasHidden = container.hidden;
+    const signalHeading = !isBaker && bakerName && bakerName !== 'None'
+        ? `Your baker signal · ${bakerName}`
+        : (isBaker ? 'Baker signal' : 'Your baker signal');
     const html = `
         <div class="drawer-operator-panel">
             <div class="drawer-operator-header">
-                <h3>${isBaker ? 'Baker signal' : 'Your baker signal'}</h3>
+                <h3>${escapeHtml(signalHeading)}</h3>
                 <p>Fresh round 0 rights, Octez version, and last ${RECENT_OPERATOR_ATTESTATIONS} attestations</p>
             </div>
             <div class="drawer-operator-grid">
@@ -2226,7 +2229,8 @@ function getActiveMyTezosContext(address) {
     if (!data || data.fullAddress !== address) return null;
     return {
         bakerAddr: data.bakerAddr || null,
-        isBaker: data.isBaker === true
+        isBaker: data.isBaker === true,
+        bakerName: data.bakerName || ''
     };
 }
 
@@ -2320,7 +2324,7 @@ async function renderMorningBrief(address, force = false) {
             : Promise.resolve(null);
         operatorStatusPromise.then((status) => {
             if (requestSeq !== _briefRequestSeq || localStorage.getItem(STORAGE_KEY) !== address) return;
-            renderBakerOperatorStatus(status, isBaker);
+            renderBakerOperatorStatus(status, isBaker, bakerName);
         }).catch(() => {});
         const bakerActivityPromise = isBaker
             ? fetchRecentBakerActivity(address)
@@ -2451,7 +2455,7 @@ async function renderMorningBrief(address, force = false) {
 
         // Render morning brief sections in drawer
         updateDrawerGreeting(greetingName);
-        renderBakerOperatorStatus(operatorStatus, isBaker);
+        renderBakerOperatorStatus(operatorStatus, isBaker, bakerName);
         renderBriefTabs(cards, data);
         renderBakerActivity(bakerActivity);
 
@@ -2588,9 +2592,13 @@ async function getOperatorSignalContext(address) {
     try {
         const account = await fetchTzktJson(`${TZKT}/accounts/${encodeURIComponent(address)}`);
         const isBaker = account.type === 'delegate' || account.delegate?.address === address;
+        const bakerAddr = isBaker ? address : account.delegate?.address || null;
         return {
-            bakerAddr: isBaker ? address : account.delegate?.address || null,
-            isBaker
+            bakerAddr,
+            isBaker,
+            bakerName: isBaker
+                ? 'Self (Baker)'
+                : (account.delegate?.alias || (bakerAddr ? `${bakerAddr.slice(0, 8)}…` : ''))
         };
     } catch {
         return null;
@@ -2618,12 +2626,13 @@ async function refreshOperatorSignal({ force = false } = {}) {
         const operatorStatus = await fetchBakerOperatorStatus(context.bakerAddr, participation);
         if (requestSeq !== _operatorSignalSeq || localStorage.getItem(STORAGE_KEY) !== address) return;
 
-        renderBakerOperatorStatus(operatorStatus, context.isBaker);
+        renderBakerOperatorStatus(operatorStatus, context.isBaker, context.bakerName);
         if (window._myTezosData?.fullAddress === address) {
             window._myTezosData = {
                 ...window._myTezosData,
                 bakerAddr: context.bakerAddr,
                 isBaker: context.isBaker,
+                bakerName: context.bakerName || window._myTezosData.bakerName,
                 operatorStatus,
             };
         }
