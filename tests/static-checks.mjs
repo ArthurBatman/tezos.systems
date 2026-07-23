@@ -214,6 +214,7 @@ async function checkMyTezosPortfolioContracts() {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
   }
   if (!smoke.includes("name: 'my-tezos-portfolio'")) fail('focused My Tezos Portfolio browser smoke is missing');
+  if (!smoke.includes("name: 'my-tezos-cold-start'")) fail('focused My Tezos cold-start browser smoke is missing');
   pass('My Tezos Portfolio schema, accounting, history, import, routing, and quiet-refresh contracts checked');
 }
 
@@ -2033,6 +2034,24 @@ async function checkSelectorContracts() {
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
   }
+  const criticalMyTezosDrawer = loadingCss.match(/\.my-tezos-drawer\s*\{([^}]*)\}/)?.[1] || '';
+  const criticalMyTezosScrim = loadingCss.match(/\.drawer-scrim\s*\{([^}]*)\}/)?.[1] || '';
+  for (const declaration of [
+    'position: fixed',
+    'right: 0',
+    'max-width: 100vw',
+    'transform: translateX(100%)'
+  ]) {
+    if (!criticalMyTezosDrawer.includes(declaration)) {
+      fail(`My Tezos critical first-paint drawer state is missing ${declaration}`);
+    }
+  }
+  for (const declaration of ['position: fixed', 'opacity: 0', 'pointer-events: none']) {
+    if (!criticalMyTezosScrim.includes(declaration)) {
+      fail(`My Tezos critical first-paint scrim state is missing ${declaration}`);
+    }
+  }
+  pass('My Tezos critical first-paint closed state checked');
   if (/function\s+scoreBakerFit|\bfitScore\b|\bcompositeFitScore\b/.test(leaderboard)) {
     fail('Delegator fit must use strict factual filters and lexicographic facts, never a hidden composite score');
   }

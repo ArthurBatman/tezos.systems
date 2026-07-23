@@ -5124,6 +5124,170 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   log(`ok - dashboard smoke (${label})`);
 }
 
+async function smokeMyTezosColdStart(browser, baseUrl) {
+  const viewports = [
+    { label: 'desktop', viewport: { width: 1440, height: 1000 } },
+    { label: 'mobile', viewport: { width: 390, height: 844 } }
+  ];
+
+  for (const { label, viewport } of viewports) {
+    const issues = [];
+    const context = await browser.newContext({
+      viewport,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'matrix');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    });
+
+    let markCssRequested;
+    let releaseCss;
+    const cssRequested = new Promise((resolve) => { markCssRequested = resolve; });
+    const cssRelease = new Promise((resolve) => { releaseCss = resolve; });
+    const page = await context.newPage();
+    attachIssueCollectors(page, `my tezos cold start ${label}`, issues);
+    await page.route('**/css/my-tezos.min.css*', async (route) => {
+      markCssRequested();
+      const response = await route.fetch();
+      await cssRelease;
+      await route.fulfill({ response });
+    });
+
+    try {
+      const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'commit' });
+      assert(response?.ok(), `my tezos cold start ${label}: dashboard failed with HTTP ${response?.status()}`);
+      await page.locator('#my-tezos-drawer').waitFor({ state: 'attached', timeout: 15000 });
+      await Promise.race([
+        cssRequested,
+        sleep(15000).then(() => { throw new Error(`my tezos cold start ${label}: lazy drawer CSS was never requested`); })
+      ]);
+
+      const beforeCss = await page.evaluate(() => {
+        const drawer = document.querySelector('#my-tezos-drawer');
+        const scrim = document.querySelector('#my-tezos-drawer-scrim');
+        const link = document.querySelector('#my-tezos-css');
+        const drawerRect = drawer.getBoundingClientRect();
+        const drawerStyle = getComputedStyle(drawer);
+        const scrimStyle = getComputedStyle(scrim);
+        return {
+          cssLoaded: Boolean(link?.sheet),
+          drawerClass: drawer.className,
+          ariaHidden: drawer.getAttribute('aria-hidden'),
+          inert: drawer.hasAttribute('inert'),
+          position: drawerStyle.position,
+          transform: drawerStyle.transform,
+          transitionDuration: drawerStyle.transitionDuration,
+          left: drawerRect.left,
+          right: drawerRect.right,
+          viewportWidth: window.innerWidth,
+          intersectsViewport: drawerRect.left < window.innerWidth && drawerRect.right > 0,
+          scrimOpacity: scrimStyle.opacity,
+          scrimPointerEvents: scrimStyle.pointerEvents
+        };
+      });
+      assert(!beforeCss.cssLoaded, `my tezos cold start ${label}: lazy CSS gate did not hold ${JSON.stringify(beforeCss)}`);
+      assert(
+        beforeCss.position === 'fixed'
+          && beforeCss.transform !== 'none'
+          && beforeCss.left >= beforeCss.viewportWidth - 1
+          && !beforeCss.intersectsViewport,
+        `my tezos cold start ${label}: raw drawer became visible before lazy CSS ${JSON.stringify(beforeCss)}`
+      );
+      assert(
+        beforeCss.drawerClass === 'my-tezos-drawer'
+          && beforeCss.ariaHidden === 'true'
+          && beforeCss.inert
+          && beforeCss.transitionDuration === '0s',
+        `my tezos cold start ${label}: closed drawer startup state drifted ${JSON.stringify(beforeCss)}`
+      );
+      assert(
+        beforeCss.scrimOpacity === '0' && beforeCss.scrimPointerEvents === 'none',
+        `my tezos cold start ${label}: scrim was visible or interactive before lazy CSS ${JSON.stringify(beforeCss)}`
+      );
+
+      releaseCss();
+      await page.waitForFunction(() => Boolean(document.querySelector('#my-tezos-css')?.sheet), null, { timeout: 15000 });
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const afterCss = await page.evaluate(() => {
+        const drawer = document.querySelector('#my-tezos-drawer');
+        const rect = drawer.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          viewportWidth: window.innerWidth,
+          transform: getComputedStyle(drawer).transform,
+          transitionDuration: getComputedStyle(drawer).transitionDuration,
+          intersectsViewport: rect.left < window.innerWidth && rect.right > 0
+        };
+      });
+      assert(
+        afterCss.left >= afterCss.viewportWidth - 1
+          && !afterCss.intersectsViewport
+          && afterCss.transform !== 'none'
+          && afterCss.transitionDuration === '0.35s',
+        `my tezos cold start ${label}: loading full drawer CSS moved the closed drawer through the viewport ${JSON.stringify(afterCss)}`
+      );
+
+      await page.locator('#my-tezos-btn').click();
+      await page.waitForFunction(() => {
+        const drawer = document.querySelector('#my-tezos-drawer');
+        const rect = drawer?.getBoundingClientRect();
+        return drawer?.classList.contains('open') && rect && rect.right <= window.innerWidth + 1 && rect.left < window.innerWidth - 1;
+      }, null, { timeout: 5000 });
+      const openState = await page.evaluate(() => {
+        const drawer = document.querySelector('#my-tezos-drawer');
+        const rect = drawer.getBoundingClientRect();
+        return {
+          ariaHidden: drawer.getAttribute('aria-hidden'),
+          inert: drawer.hasAttribute('inert'),
+          left: rect.left,
+          right: rect.right,
+          viewportWidth: window.innerWidth
+        };
+      });
+      assert(
+        openState.ariaHidden === 'false'
+          && !openState.inert
+          && openState.left < openState.viewportWidth
+          && openState.right <= openState.viewportWidth + 1,
+        `my tezos cold start ${label}: drawer did not open normally after lazy CSS settled ${JSON.stringify(openState)}`
+      );
+
+      await page.locator('#drawer-close').click();
+      await page.waitForFunction(() => {
+        const drawer = document.querySelector('#my-tezos-drawer');
+        return !drawer?.classList.contains('open') && drawer?.getBoundingClientRect().left >= window.innerWidth - 1;
+      }, null, { timeout: 5000 });
+      const closedState = await page.evaluate(() => {
+        const drawer = document.querySelector('#my-tezos-drawer');
+        return {
+          ariaHidden: drawer.getAttribute('aria-hidden'),
+          inert: drawer.hasAttribute('inert'),
+          left: drawer.getBoundingClientRect().left,
+          viewportWidth: window.innerWidth
+        };
+      });
+      assert(
+        closedState.ariaHidden === 'true'
+          && closedState.inert
+          && closedState.left >= closedState.viewportWidth - 1,
+        `my tezos cold start ${label}: normal close behavior regressed ${JSON.stringify(closedState)}`
+      );
+    } finally {
+      releaseCss();
+      await context.close();
+    }
+
+    assert(issues.length === 0, `my tezos cold start ${label} browser issues:\n${issues.join('\n')}`);
+  }
+
+  log('ok - my tezos cold start smoke');
+}
+
 async function smokeMyTezosBakerActivity(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -13371,6 +13535,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
+    { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
     { name: 'my-tezos-drawer-live-refresh', description: 'My Tezos opening drawer refreshes stale brief, header, and baker-grid stats together', run: () => smokeMyTezosDrawerLiveRefresh(browser, baseUrl) },

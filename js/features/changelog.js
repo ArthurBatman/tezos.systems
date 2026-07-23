@@ -8,6 +8,7 @@ const CHANGELOG = [
         date: '2026-07-22',
         entries: [
             { type: '🔧', text: 'My Tezos now clears successful domain-resolution status and names the delegated baker directly in non-baker operator signals' },
+            { type: '🔧', text: 'My Tezos now stays fully off-screen during cold and hard refreshes instead of briefly appearing before its room styles load' },
             { type: '🎨', text: 'Mobile landscape now stacks mainnet age above trailing-hour activity opposite a balanced two-by-two network-signal grid' },
             { type: '✨', text: 'My Tezos now has Overview and Portfolio views, with a complete watch-only Tezos L1 summary across up to ten browser-local addresses' },
             { type: '✨', text: 'The new My Tezos Portfolio tracks total, spendable, staked, and unstaking XTZ, current USD/EUR context, local history ranges, and versioned address-only import/export' },
