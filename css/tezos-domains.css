@@ -945,47 +945,31 @@
     justify-content: center;
 }
 
-#chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] {
-    grid-template-columns: 1fr;
-}
-
-#chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
-    grid-column: 1 / -1;
+#chambers-grid > .chamber-category > .chamber-category-cards > .tezos-domains-entry-card {
     width: 100%;
 }
 
 @media (max-width: 899px) {
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
+    #chambers-grid > .chamber-category > .chamber-category-cards > .tezos-domains-entry-card {
         min-height: 322px;
     }
 }
 
 @media (min-width: 760px) and (max-width: 899px) {
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
+    #chambers-grid > .chamber-category > .chamber-category-cards > .tezos-domains-entry-card {
         height: 322px;
     }
 }
 
 @media (min-width: 900px) {
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .tezos-domains-entry-card {
-        height: 274px;
-        min-height: 274px;
+    #chambers-grid > .chamber-category > .chamber-category-cards > .tezos-domains-entry-card {
+        height: 298px;
+        min-height: 298px;
     }
 }
 
 @media (min-width: 900px) and (max-width: 1040px) {
     .tezos-domains-entry-front .stat-description { display: none; }
-}
-
-@media (min-width: 1180px) {
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] {
-        grid-template-columns: 1fr;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .chamber-entry-card:not(.chamber-entry-wide),
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"] > .chamber-entry-wide {
-        grid-column: 1 / -1;
-    }
 }
 
 @media (max-width: 1120px) {

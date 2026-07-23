@@ -1484,7 +1484,8 @@ async function checkSelectorContracts() {
     ['Network Pulse mobile nav wraps on phones', 'flex-wrap: wrap', networkPulseCss],
     ['Network Pulse direct footer link', 'Direct: /pulse/', networkPulse],
     ['Network Pulse pretty route', "slug: 'pulse'", chamberRoutes],
-    ['Network Pulse chamber pair', "key: 'network-pulse'", app],
+    ['Network Pulse chamber category facet', "chamberCategory: 'network'", siteMap],
+    ['Network Pulse chamber category target', "pulse: { selector: '#network-pulse-entry-card', layout: 'featured' }", app],
     ['Network Pulse share route', 'siteMapCanonicalRoute', share],
     ['Network Pulse hero stats spread', '...heroStats', app],
     ['Network Pulse hero stats fallback event', "source: 'hero'", app],
@@ -1503,7 +1504,8 @@ async function checkSelectorContracts() {
     ['Staking Chamber legacy short hash route', "hash === 'stake'", app],
     ['Staking Chamber pretty route opens without hash redirect', "case 'staking':", app],
     ['Staking Chamber modal cleanup', 'closeStakingChamber', app],
-    ['Staking Chamber card pair', "key: 'tz4-staking-liquidity'", app],
+    ['Staking Chamber Capital category facet', "id: 'staking-chamber'", siteMap],
+    ['Staking Chamber category target', "'staking-chamber': { selector: '#staking-entry-card', layout: 'compact' }", app],
     ['Staking Chamber card copy link', 'data-copy-hash="#staking"', stakingChamber],
     ['Staking Chamber card ratio', 'id="staking-entry-ratio"', stakingChamber],
     ['Staking Chamber two-action tape', "renderEntryMove('stake', data?.stake)}${renderEntryMove('unstake', data?.unstake)", stakingChamber],
@@ -1525,14 +1527,15 @@ async function checkSelectorContracts() {
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
     ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
     ['Staking Chamber share route', 'siteMapCanonicalRoute', share],
-    ['Staking Chamber sits between tz4 and Liquidity Baking', "selectors: ['[data-stat=\"tz4-adoption\"]', '#staking-entry-card', '#lb-entry-card']", app],
-    ['Staking Chamber shared three-card desktop row', 'data-chamber-pair="tz4-staking-liquidity"', stakingChamberCss],
+    ['Staking Chamber Capital category membership', "entryIds: Object.freeze(['capital', 'whales', 'staking-chamber'])", siteMap],
+    ['Staking Chamber category-aware desktop geometry', '#chambers-grid .staking-entry-card', stakingChamberCss],
     ['Chamber info tooltip viewport positioning', 'positionChamberInfoTooltip(button)', app],
     ['Chamber info tooltip bounded height', '--card-tooltip-max-height', stakingChamberCss],
     ['Staking Chamber mobile operation rows', '.staking-operation-row {', stakingChamberCss],
     ['Chamber card copy link', 'data-copy-hash="#chamber"', chamber],
     ['Tezos L1 Governance card label', 'Tezos L1 Governance', chamber],
-    ['Tezos L1 Governance quiet headline', "setEntryHero(heroEl, currentPeriod.kind === 'proposal' ? 'No Proposal' : '')", chamber],
+    ['Tezos L1 Governance quiet headline', "setEntryHero(heroEl, isQuietProposalPeriod ? 'No Proposal' : '')", chamber],
+    ['Tezos L1 Governance quiet period metrics', "label: 'Candidates',\n                        value: 'None'", chamber],
     ['Tezos L1 Governance quiet status', 'No active L1 proposal · refresh 60s', chamber],
     ['Chamber current state panel', 'id="chamber-now-panel"', chamber],
     ['Chamber current state watch list', 'chamber-now-watch', chamber],
@@ -1629,9 +1632,10 @@ async function checkSelectorContracts() {
     ['Tezos Domains expiring soon query', 'expiringSoon: domains', tezosDomains],
     ['Tezos Domains 30-day expiration window', 'lessThanOrEqualTo: $soon', tezosDomains],
     ['Tezos Domains chamber modal', 'tezos-domains-modal', tezosDomains],
-    ['Tezos Domains full-row pair', "key: 'tezos-domains'", app],
+    ['Tezos Domains People category facet', "chamberCategory: 'people'", siteMap],
+    ['Tezos Domains category target', "domains: { selector: '#tezos-domains-entry-card', layout: 'featured' }", app],
     ['Tezos Domains lookup panel CSS', '.td-lookup-panel', tezosDomainsCss],
-    ['Tezos Domains final strip CSS', '[data-chamber-pair="tezos-domains"]', tezosDomainsCss],
+    ['Tezos Domains category-aware CSS', '#chambers-grid > .chamber-category > .chamber-category-cards > .tezos-domains-entry-card', tezosDomainsCss],
     ['Tezos Domains share route', 'siteMapCanonicalRoute', share],
     ['ctez hash route', "hash === 'ctez'", app],
     ['ctez feature copy link', 'data-copy-hash="#ctez"', index],
@@ -5523,7 +5527,8 @@ async function checkTezosCrpContracts() {
     ['pretty route opener', "case 'tezoscrp':", app],
     ['hash route', "hash === 'tezoscrp'", app],
     ['close cleanup', 'closeTezosCrpChamber', app],
-    ['standalone card pair', "selectors: ['#tezoscrp-entry-card']", app],
+    ['People category facet', "id: 'tezoscrp'", siteMap],
+    ['category target', "tezoscrp: { selector: '#tezoscrp-entry-card', layout: 'featured' }", app],
     ['site-map destination', "href: '/tezoscrp/'", siteMap],
     ['site-map records intent', "view=records", siteMap],
     ['site-map archive intent', "view=archive", siteMap],
@@ -5563,11 +5568,11 @@ async function checkTezosCrpContracts() {
   if (!/\.tezoscrp-overlay\s*\{[^}]*z-index:\s*10002\s*!important;/s.test(css)) {
     fail('TezosCRP Chamber must render above theme spectacle canvases so archive figures stay readable');
   }
-  if (!/#chambers-grid #maxis-entry-card\.maxis-entry-card\.chamber-entry-wide\s*\{[^}]*height:\s*258px !important;[^}]*min-height:\s*258px !important;/s.test(maxisCss)) {
-    fail('Maxis full-row launcher must keep its tightened 258px desktop shell');
+  if (!/#chambers-grid #maxis-entry-card\.maxis-entry-card\.chamber-entry-wide\s*\{[^}]*height:\s*414px !important;[^}]*min-height:\s*414px !important;/s.test(maxisCss)) {
+    fail('Maxis categorized launcher must keep its 414px half-row desktop shell');
   }
-  if (!/@media \(min-width: 900px\)\s*\{[^}]*data-chamber-pair="tezos-domains"[^}]*height:\s*274px;[^}]*min-height:\s*274px;/s.test(tezosDomainsCss)) {
-    fail('Tezos Domains full-row launcher must keep its tightened 274px desktop shell');
+  if (!/@media \(min-width: 900px\)\s*\{[^}]*#chambers-grid > \.chamber-category > \.chamber-category-cards > \.tezos-domains-entry-card[^}]*height:\s*298px;[^}]*min-height:\s*298px;/s.test(tezosDomainsCss)) {
+    fail('Tezos Domains category launcher must keep its 298px desktop shell');
   }
 
   const route = await readText('tezoscrp/index.html');
@@ -5756,7 +5761,7 @@ async function checkCapitalContracts() {
     ['Capital Chamber hash route', "hash === 'capital'", app],
     ['Capital Chamber close cleanup', 'closeCapitalChamber', app],
     ['Capital Chamber routed overlay', "'capital-modal': { entryIds: ['capital']", app],
-    ['Capital Chamber card directly follows Network Pulse', "selectors: ['#network-pulse-entry-card', '#capital-entry-card']", app]
+    ['Capital Chamber category membership', "entryIds: Object.freeze(['capital', 'whales', 'staking-chamber'])", siteMap]
   ];
   for (const [label, needle, source] of routeContracts) {
     if (!source.includes(needle)) fail(`${label} contract is missing`);
@@ -5811,6 +5816,168 @@ async function checkCapitalContracts() {
   }
 
   pass(`Capital Chamber snapshot, source, route, quality, and quiet-refresh contracts checked (${snapshot.markets.xtz.tickers.length} venue rows)`);
+}
+
+async function checkChamberCategoryContracts() {
+  const [siteMapSource, app, styles] = await Promise.all([
+    readText('js/core/site-map.js'),
+    readText('js/core/app.js'),
+    readText('css/styles.css')
+  ]);
+  const expectedCategories = [
+    {
+      key: 'network',
+      label: 'Network',
+      question: 'What is the chain doing now?',
+      entryIds: ['pulse', 'health', 'tezosx']
+    },
+    {
+      key: 'capital',
+      label: 'Capital',
+      question: 'Where is value sitting and moving?',
+      entryIds: ['capital', 'whales', 'staking-chamber']
+    },
+    {
+      key: 'bakers',
+      label: 'Bakers',
+      question: 'Who is securing Tezos and upgrading its keys?',
+      entryIds: ['leaderboard', 'tz4']
+    },
+    {
+      key: 'governance',
+      label: 'Governance',
+      question: 'What is Tezos deciding?',
+      entryIds: ['chamber', 'l2-governance', 'liquidity-baking']
+    },
+    {
+      key: 'people',
+      label: 'People & Accounts',
+      question: 'Who is here, and what have they done?',
+      entryIds: ['ledger-flow', 'domains', 'maxis', 'tezoscrp']
+    },
+    {
+      key: 'history',
+      label: 'History',
+      question: 'What happened before now?',
+      entryIds: ['anthology', 'history']
+    }
+  ];
+  const expectedEntries = expectedCategories.flatMap(({ key, entryIds }) => (
+    entryIds.map((id) => ({ id, category: key }))
+  ));
+  const expectedLayouts = {
+    pulse: 'featured',
+    health: 'standard',
+    tezosx: 'standard',
+    capital: 'featured',
+    whales: 'wide',
+    'staking-chamber': 'compact',
+    leaderboard: 'wide',
+    tz4: 'compact',
+    chamber: 'standard',
+    'l2-governance': 'standard',
+    'liquidity-baking': 'featured',
+    'ledger-flow': 'featured',
+    domains: 'featured',
+    maxis: 'featured',
+    tezoscrp: 'featured',
+    anthology: 'standard',
+    history: 'standard'
+  };
+
+  const destinationBlocks = siteMapSource.split(/\n    \{\n        id:\s*/).slice(1);
+  const categorizedEntries = destinationBlocks
+    .map((block) => ({
+      id: block.match(/^'([^']+)'/)?.[1] || '',
+      category: block.match(/\n        chamberCategory:\s*'([^']+)'/)?.[1] || ''
+    }))
+    .filter(({ category }) => category);
+  assert.deepEqual(
+    categorizedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
+    expectedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
+    'site-map Chamber facets must define exactly one category for each of the 17 entry points'
+  );
+  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 17);
+
+  const metadataSource = siteMapSource
+    .split('export const CHAMBER_CATEGORY_META = Object.freeze([')[1]
+    ?.split('export const SITE_MAP_NAV_GROUPS')[0] || '';
+  assert.deepEqual(
+    [...metadataSource.matchAll(/\n        key:\s*'([^']+)'/g)].map((match) => match[1]),
+    expectedCategories.map(({ key }) => key),
+    'Chamber metadata order must remain the canonical dashboard order'
+  );
+  for (const category of expectedCategories) {
+    for (const contract of [
+      `key: '${category.key}'`,
+      `label: '${category.label}'`,
+      `question: '${category.question}'`,
+      `entryIds: Object.freeze([${category.entryIds.map((id) => `'${id}'`).join(', ')}])`
+    ]) {
+      assert(metadataSource.includes(contract), `missing Chamber category metadata contract: ${contract}`);
+    }
+  }
+
+  const targetSource = app
+    .split('const CHAMBER_CARD_TARGETS = Object.freeze({')[1]
+    ?.split('});')[0] || '';
+  const targetIds = [...targetSource.matchAll(/^\s{4}(?:'([^']+)'|([a-z][\w-]*)):\s*/gm)]
+    .map((match) => match[1] || match[2]);
+  assert.deepEqual(
+    targetIds,
+    expectedEntries.map(({ id }) => id),
+    'every categorized site-map ID must have one ordered Chamber card target'
+  );
+  for (const [entryId, layout] of Object.entries(expectedLayouts)) {
+    const key = entryId.includes('-') ? `'${entryId}'` : entryId;
+    assert(
+      new RegExp(`${key}: \\{ selector: [^\\n]+, layout: '${layout}' \\}`).test(targetSource),
+      `Chamber launcher ${entryId} must use the ${layout} layout`
+    );
+  }
+  for (const obsolete of ['CHAMBER_CARD_PAIRS', 'data-chamber-pair', 'dataset.chamberPair']) {
+    assert(!app.includes(obsolete), `legacy Chamber pair configuration remains: ${obsolete}`);
+  }
+  assert(!siteMapSource.includes("href: '/chambers/'"), 'Chambers must remain on the dashboard');
+
+  for (const contract of [
+    "document.createElement('details')",
+    "document.createElement('summary')",
+    "category.className = 'chamber-card-pair chamber-category'",
+    "window.matchMedia('(min-width: 760px)').matches",
+    "categoryConfig.key === 'network'",
+    'categoryConfig.key === _pendingChamberCategoryKey',
+    'if (category) category.open = true',
+    'card.dataset.chamberLayout = target.layout',
+    'quietlyMutate(grid, () => {',
+    'grid.querySelector(',
+    'grid.insertBefore(category, expectedNode)'
+  ]) {
+    assert(app.includes(contract), `reusable Chamber category DOM contract is missing: ${contract}`);
+  }
+  for (const selector of [
+    '.chamber-category-head',
+    '.chamber-category-name',
+    '.chamber-category-question',
+    '.chamber-category-count',
+    '.chamber-category:not([open]) > .chamber-category-cards',
+    '#chambers-grid > .stat-card',
+    '.chamber-entry-card[data-chamber-layout="featured"]',
+    '.chamber-entry-card[data-chamber-layout="wide"]',
+    '.chamber-entry-card[data-chamber-layout="compact"]'
+  ]) {
+    assert(styles.includes(selector), `Chamber category CSS is missing ${selector}`);
+  }
+
+  const perimeterAnimationSelectors = [...styles.matchAll(/([^{}]+)\{[^{}]*animation:\s*entryCardPulse\b[^{}]*\}/g)]
+    .map((match) => match[1].trim());
+  assert.deepEqual(
+    perimeterAnimationSelectors,
+    ['.chamber-entry-card.chamber-entry-risk::before'],
+    'infinite Chamber perimeter animation must be reserved for explicit risk/watch state'
+  );
+
+  pass('six responsive Chamber categories, 17 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
 }
 
 async function checkPromotedChamberContracts() {
@@ -5953,8 +6120,10 @@ async function checkPromotedChamberContracts() {
     ['Cycle History site-map route', "href: '/history/'", siteMap],
     ['legacy giants canonical hash alias', "hashAliases: ['#giants']", siteMap],
     ['legacy giants direct dormant view', "href: '/whales/?view=dormant'", siteMap],
-    ['Whale/Baker paired entry cards', "selectors: ['#whale-watch-entry-card', '#baker-directory-entry-card']", app],
-    ['Ledger/Anthology/Cycle paired entry cards', "selectors: ['#ledger-flow-entry-card', '#protocol-history-entry-card', '#cycle-history-entry-card']", app],
+    ['Whale Watch Capital category facet', "id: 'whales'", siteMap],
+    ['Baker Directory Bakers category facet', "id: 'leaderboard'", siteMap],
+    ['Ledger Flow People category facet', "id: 'ledger-flow'", siteMap],
+    ['Anthology and Cycle History category membership', "entryIds: Object.freeze(['anthology', 'history'])", siteMap],
     ['Whale routed overlay ownership', "'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants']", app],
     ['Baker routed overlay ownership', "'baker-directory-modal': { entryIds: ['leaderboard']", app],
     ['Cycle History routed overlay ownership', "'history-modal': { entryIds: ['history']", app],
@@ -6052,7 +6221,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=475'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=476'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -6153,6 +6322,7 @@ async function main() {
   await checkTourAndShareCaptureContracts();
   await checkDailyBriefingPriceContracts();
   await checkNetworkContextNavigationContracts();
+  await checkChamberCategoryContracts();
   await checkPromotedChamberContracts();
   await checkMyTezosPortfolioContracts();
   await checkCapitalContracts();

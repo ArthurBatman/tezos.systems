@@ -2219,16 +2219,22 @@ export function initChamber() {
     if (grid) {
         const card = document.createElement('div');
         card.id = 'chamber-entry-card';
-        card.className = 'stat-card chamber-entry-card';
+        card.className = 'stat-card chamber-entry-card chamber-entry-wide';
+        card.dataset.chamberEntrySize = 'wide';
         card.innerHTML = `
             <button class="card-copy-link" type="button" data-copy-hash="#chamber" aria-label="Copy Tezos L1 Governance direct link" title="Copy Tezos L1 Governance link">🔗</button>
             <div class="card-inner">
                 <div class="card-front chamber-entry-front">
                     <h2 class="stat-label">Tezos L1 Governance</h2>
                     <div class="stat-value chamber-entry-icon" id="chamber-entry-hero">${CHAMBER_MARK_SVG}</div>
-                    <p class="stat-description">Enter governance war room</p>
-                    <div class="chamber-entry-status" id="chamber-entry-mini"></div>
-                    <div class="chamber-entry-metrics" id="chamber-entry-metrics" hidden></div>
+                    <p class="stat-description">Five-stage baker voting cycle</p>
+                    <div class="chamber-entry-status" id="chamber-entry-mini">Checking the current voting period</div>
+                    <div class="chamber-entry-metrics" id="chamber-entry-metrics">
+                        <div class="chamber-entry-metric"><span>Cycle</span><strong>5 stages</strong></div>
+                        <div class="chamber-entry-metric"><span>Voters</span><strong>Bakers</strong></div>
+                        <div class="chamber-entry-metric"><span>Ballots</span><strong>On-chain</strong></div>
+                        <div class="chamber-entry-metric"><span>Source</span><strong>TzKT</strong></div>
+                    </div>
                 </div>
             </div>
         `;
@@ -2369,6 +2375,9 @@ async function loadEntryCardStatus({ force = false } = {}) {
         const description = card?.querySelector('.stat-description');
         
         const currentPeriod = await fetchCurrentVotingPeriod({ force });
+        if (!currentPeriod || typeof currentPeriod !== 'object') {
+            throw new Error('Current voting period unavailable');
+        }
         if (card) {
             const updatedAt = Date.now();
             const time = new Date(updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
@@ -2460,19 +2469,59 @@ async function loadEntryCardStatus({ force = false } = {}) {
                 clearEntryMetrics(card, metricsEl);
             }
         } else {
-            setEntryHero(heroEl, currentPeriod.kind === 'proposal' ? 'No Proposal' : '');
-            if (description) description.textContent = currentPeriod.kind === 'proposal'
+            const isQuietProposalPeriod = currentPeriod.kind === 'proposal';
+            setEntryHero(heroEl, isQuietProposalPeriod ? 'No Proposal' : '');
+            if (description) description.textContent = isQuietProposalPeriod
                 ? 'L1 · Proposal period'
                 : 'Governance watch';
-            mini.innerHTML = currentPeriod.kind === 'proposal'
+            mini.innerHTML = isQuietProposalPeriod
                 ? 'No active L1 proposal · refresh 60s'
                 : 'Governance idle';
             mini.classList.remove('live');
-            card?.classList.remove('chamber-entry-live');
-            clearEntryMetrics(card, metricsEl);
+            card?.classList.remove('chamber-entry-live', 'chamber-entry-risk', 'chamber-entry-adoption');
+            if (isQuietProposalPeriod) {
+                card?.classList.add('chamber-entry-wide');
+                if (card) card.dataset.chamberEntrySize = 'wide';
+                setEntryMetrics(metricsEl, [
+                    {
+                        label: 'Period ends',
+                        value: entryCountdown(currentPeriod.endTime),
+                        countdownEndTime: currentPeriod.endTime,
+                        countdownEnded: 'Window closing'
+                    },
+                    {
+                        label: 'Candidates',
+                        value: 'None'
+                    },
+                    {
+                        label: 'Ballots',
+                        value: 'Not open'
+                    },
+                    {
+                        label: 'Next',
+                        value: 'Proposal window'
+                    }
+                ]);
+            } else {
+                clearEntryMetrics(card, metricsEl);
+            }
         }
     } catch (error) {
         console.warn('Tezos L1 Governance entry refresh failed:', error);
+        const mini = document.getElementById('chamber-entry-mini');
+        const card = mini?.closest('.chamber-entry-card');
+        if (card) {
+            card.classList.add('chamber-data-stale');
+            card.dataset.freshnessState = 'stale';
+            if (card.dataset.updatedLabel) {
+                card.dataset.updatedLabel = `${card.dataset.updatedLabel.replace(/\s+·\s+refresh delayed$/, '')} · refresh delayed`;
+            } else {
+                card.dataset.updatedLabel = 'current period unavailable · retrying';
+            }
+        }
+        if (mini && !card?.dataset.freshnessTimestamp) {
+            mini.textContent = 'Current period temporarily unavailable · retrying';
+        }
     } finally {
         _chamberEntryRefreshInFlight = false;
     }

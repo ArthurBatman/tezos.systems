@@ -6,6 +6,7 @@
 import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth, fetchWithDeadline } from './api.js';
 import {
+    CHAMBER_CATEGORY_META,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
     navigateSiteMapEntry,
@@ -114,8 +115,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=475';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=475';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=476';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=476';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -1505,45 +1506,27 @@ function initNavButtons() {
 // CHAMBERS SURFACE
 // ==========================================
 const CHAMBERS_VISIBLE_KEY = 'tezos-systems-chambers-visible';
-const CHAMBER_CARD_PAIRS = [
-    {
-        key: 'network-pulse',
-        selectors: ['#network-pulse-entry-card', '#capital-entry-card']
-    },
-    {
-        key: 'whales-bakers',
-        selectors: ['#whale-watch-entry-card', '#baker-directory-entry-card']
-    },
-    {
-        key: 'health-governance',
-        selectors: ['[data-stat="network-health"]', '#chamber-entry-card']
-    },
-    {
-        key: 'tezlink-governance',
-        selectors: ['#tezlink-entry-card', '#etherlink-governance-entry-card']
-    },
-    {
-        key: 'tz4-staking-liquidity',
-        selectors: ['[data-stat="tz4-adoption"]', '#staking-entry-card', '#lb-entry-card']
-    },
-    {
-        key: 'ledger-history',
-        selectors: ['#ledger-flow-entry-card', '#protocol-history-entry-card', '#cycle-history-entry-card']
-    },
-    {
-        key: 'maxis',
-        selectors: ['#maxis-entry-card']
-    },
-    {
-        key: 'tezoscrp',
-        selectors: ['#tezoscrp-entry-card']
-    },
-    {
-        key: 'tezos-domains',
-        selectors: ['#tezos-domains-entry-card']
-    }
-];
+const CHAMBER_CARD_TARGETS = Object.freeze({
+    pulse: { selector: '#network-pulse-entry-card', layout: 'featured' },
+    health: { selector: '[data-stat="network-health"]', layout: 'standard' },
+    tezosx: { selector: '#tezlink-entry-card', layout: 'standard' },
+    capital: { selector: '#capital-entry-card', layout: 'featured' },
+    whales: { selector: '#whale-watch-entry-card', layout: 'wide' },
+    'staking-chamber': { selector: '#staking-entry-card', layout: 'compact' },
+    leaderboard: { selector: '#baker-directory-entry-card', layout: 'wide' },
+    tz4: { selector: '[data-stat="tz4-adoption"]', layout: 'compact' },
+    chamber: { selector: '#chamber-entry-card', layout: 'standard' },
+    'l2-governance': { selector: '#etherlink-governance-entry-card', layout: 'standard' },
+    'liquidity-baking': { selector: '#lb-entry-card', layout: 'featured' },
+    'ledger-flow': { selector: '#ledger-flow-entry-card', layout: 'featured' },
+    domains: { selector: '#tezos-domains-entry-card', layout: 'featured' },
+    maxis: { selector: '#maxis-entry-card', layout: 'featured' },
+    tezoscrp: { selector: '#tezoscrp-entry-card', layout: 'featured' },
+    anthology: { selector: '#protocol-history-entry-card', layout: 'standard' },
+    history: { selector: '#cycle-history-entry-card', layout: 'standard' }
+});
 let _chamberPairObserver = null;
+let _pendingChamberCategoryKey = '';
 const CHAMBER_EXPAND_CUE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h5v5"/><path d="M9 20H4v-5"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/></svg>';
 const CHAMBER_INFO_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>';
 const CHAMBER_INFO_COPY = {
@@ -1872,14 +1855,20 @@ window.syncChamberEntryFooters = syncChamberEntryFooters;
 
 function updateChamberPairState(pair) {
     if (!pair) return;
-    const cards = Array.from(pair.querySelectorAll(':scope > .stat-card'));
+    const cards = Array.from(pair.querySelectorAll(':scope > .chamber-category-cards > .stat-card'));
     const wideCount = cards.filter((card) => card.classList.contains('chamber-entry-wide')).length;
     pair.dataset.cardCount = String(cards.length);
     pair.dataset.wideCount = String(wideCount);
+    const count = pair.querySelector(':scope > .chamber-category-head .chamber-category-count');
+    if (count) {
+        const value = String(cards.length).padStart(2, '0');
+        if (count.textContent !== value) count.textContent = value;
+        count.setAttribute('aria-label', `${cards.length} ${cards.length === 1 ? 'room' : 'rooms'}`);
+    }
 }
 
 function updateAllChamberPairStates() {
-    document.querySelectorAll('#chambers-grid > .chamber-card-pair').forEach(updateChamberPairState);
+    document.querySelectorAll('#chambers-grid > .chamber-category').forEach(updateChamberPairState);
 }
 
 function getKnownProtocols() {
@@ -2276,39 +2265,150 @@ function ensureProtocolHistoryEntryCard() {
     return card;
 }
 
+function createChamberCategory(categoryConfig) {
+    const category = document.createElement('details');
+    category.className = 'chamber-card-pair chamber-category';
+    category.dataset.chamberCategory = categoryConfig.key;
+    category.open = window.matchMedia('(min-width: 760px)').matches
+        || categoryConfig.key === 'network'
+        || categoryConfig.key === _pendingChamberCategoryKey;
+
+    const head = document.createElement('summary');
+    head.className = 'chamber-category-head';
+    head.addEventListener('click', (event) => {
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const restoreScroll = () => {
+            const html = document.documentElement;
+            const previousBehavior = html.style.scrollBehavior;
+            html.style.scrollBehavior = 'auto';
+            window.scrollTo(scrollX, scrollY);
+            html.style.scrollBehavior = previousBehavior;
+        };
+        event.preventDefault();
+        category.open = !category.open;
+        category.getBoundingClientRect();
+        if (window.scrollX !== scrollX || window.scrollY !== scrollY) restoreScroll();
+        requestAnimationFrame(() => {
+            const shift = Math.max(Math.abs(window.scrollX - scrollX), Math.abs(window.scrollY - scrollY));
+            if (document.activeElement === head && shift > 0 && shift <= 128) restoreScroll();
+            requestAnimationFrame(() => {
+                const settledShift = Math.max(Math.abs(window.scrollX - scrollX), Math.abs(window.scrollY - scrollY));
+                if (document.activeElement === head && settledShift > 0 && settledShift <= 128) restoreScroll();
+            });
+        });
+    });
+
+    const name = document.createElement('span');
+    name.className = 'chamber-category-name';
+    name.setAttribute('role', 'heading');
+    name.setAttribute('aria-level', '3');
+    name.textContent = categoryConfig.label;
+
+    const question = document.createElement('span');
+    question.className = 'chamber-category-question';
+    question.textContent = categoryConfig.question;
+
+    const rule = document.createElement('span');
+    rule.className = 'chamber-category-rule';
+    rule.setAttribute('aria-hidden', 'true');
+
+    const count = document.createElement('span');
+    count.className = 'chamber-category-count';
+    count.textContent = '00';
+    count.setAttribute('aria-label', '0 rooms');
+
+    const cue = document.createElement('span');
+    cue.className = 'chamber-category-cue';
+    cue.setAttribute('aria-hidden', 'true');
+    cue.textContent = '⌄';
+
+    const cards = document.createElement('div');
+    cards.className = 'chamber-category-cards';
+
+    head.append(name, question, rule, count, cue);
+    category.append(head, cards);
+    return category;
+}
+
+function revealChamberCategory(categoryKey) {
+    if (!categoryKey) return;
+    _pendingChamberCategoryKey = categoryKey;
+    const category = document.querySelector(
+        `#chambers-grid > .chamber-category[data-chamber-category="${categoryKey}"]`
+    );
+    if (category) category.open = true;
+}
+
+function revealChamberCategoryForEntry(entry) {
+    revealChamberCategory(entry?.chamberCategory || '');
+}
+
 function orderChambersSurface() {
     const grid = document.getElementById('chambers-grid');
     if (!grid) return;
+    grid.style.overflowAnchor = 'none';
 
-    grid.classList.add('chambers-paired-grid');
-    const orderedCards = [];
+    quietlyMutate(grid, () => {
+        grid.classList.add('chambers-paired-grid');
+        const orderedCards = [];
+        let previousCategory = null;
 
-    CHAMBER_CARD_PAIRS.forEach((pairConfig) => {
-        let pair = grid.querySelector(`:scope > .chamber-card-pair[data-chamber-pair="${pairConfig.key}"]`);
-        if (!pair) {
-            pair = document.createElement('div');
-            pair.className = 'chamber-card-pair';
-            pair.dataset.chamberPair = pairConfig.key;
-        }
+        CHAMBER_CATEGORY_META.forEach((categoryConfig) => {
+            let category = grid.querySelector(
+                `:scope > .chamber-category[data-chamber-category="${categoryConfig.key}"]`
+            );
+            if (!category) category = createChamberCategory(categoryConfig);
+            const categoryCards = category.querySelector(':scope > .chamber-category-cards');
+            let previousCard = null;
 
-        pairConfig.selectors.forEach((selector) => {
-            const card = document.querySelector(selector);
-            if (!card) return;
-            pair.appendChild(card);
-            orderedCards.push(card);
+            categoryConfig.entryIds.forEach((entryId) => {
+                const target = CHAMBER_CARD_TARGETS[entryId];
+                if (!target) return;
+                const card = document.querySelector(target.selector);
+                if (!card) return;
+                card.dataset.chamberLayout = target.layout;
+                const expectedCard = previousCard
+                    ? previousCard.nextElementSibling
+                    : categoryCards?.firstElementChild;
+                if (categoryCards && (card.parentElement !== categoryCards || card !== expectedCard)) {
+                    categoryCards.insertBefore(card, expectedCard || null);
+                }
+                previousCard = card;
+                orderedCards.push(card);
+            });
+
+            const cardCount = categoryCards?.querySelectorAll(':scope > .stat-card').length || 0;
+            if (cardCount) {
+                if (categoryConfig.key === _pendingChamberCategoryKey) category.open = true;
+                const expectedNode = previousCategory
+                    ? previousCategory.nextElementSibling
+                    : grid.firstElementChild;
+                if (category.parentElement !== grid || category !== expectedNode) {
+                    grid.insertBefore(category, expectedNode);
+                }
+                previousCategory = category;
+            }
+            updateChamberPairState(category);
         });
 
-        if (pair.children.length) {
-            grid.appendChild(pair);
-        }
-        updateChamberPairState(pair);
+        grid.dataset.chambersOrder = orderedCards.map((card) => card.id || card.dataset.stat || '').join(',');
+        syncChamberEntryFooters(grid);
     });
 
-    grid.dataset.chambersOrder = orderedCards.map((card) => card.id || card.dataset.stat || '').join(',');
-    syncChamberEntryFooters(grid);
-
     if (!_chamberPairObserver) {
-        _chamberPairObserver = new MutationObserver(() => {
+        _chamberPairObserver = new MutationObserver((records) => {
+            const hasLateDirectCard = records.some((record) => (
+                record.type === 'childList'
+                && record.target === grid
+                && Array.from(record.addedNodes).some((node) => (
+                    node instanceof Element && node.matches('.stat-card')
+                ))
+            ));
+            if (hasLateDirectCard) {
+                orderChambersSurface();
+                return;
+            }
             updateAllChamberPairStates();
             syncChamberEntryFooters(grid);
         });
@@ -5226,9 +5326,10 @@ async function openMyTezosTarget(rawTarget) {
 function applyDeepLink() {
     const hash = window.location.hash.slice(1);
     const params = new URLSearchParams(hash);
+    const currentEntry = findCurrentSiteMapEntry();
+    revealChamberCategoryForEntry(currentEntry);
 
     if (ROOT_DASHBOARD_TITLE) {
-        const currentEntry = findCurrentSiteMapEntry();
         document.title = currentEntry?.id && currentEntry.id !== 'home'
             ? `${currentEntry.title} | tezos.systems`
             : ROOT_DASHBOARD_TITLE;

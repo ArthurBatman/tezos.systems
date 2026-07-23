@@ -40,6 +40,7 @@ export const SITE_MAP = [
         hash: '#protocol-history',
         hashAliases: ['#protocol'],
         group: 'Story Rooms',
+        chamberCategory: 'history',
         detail: 'Self-amendment lore, upgrade arc, debates, and the documented amendment record',
         keywords: ['protocol history', 'upgrades', 'self amendment', 'archive', 'lore', 'history'],
         sitemap: { changefreq: 'daily', priority: '0.9' }
@@ -51,6 +52,7 @@ export const SITE_MAP = [
         hash: '#chamber',
         hashAliases: ['#the-chamber'],
         group: 'Story Rooms',
+        chamberCategory: 'governance',
         detail: 'Current vote room, quorum, baker ballots, and governance context',
         keywords: ['governance', 'vote', 'proposal', 'chamber', 'ballot', 'quorum'],
         sitemap: { changefreq: 'hourly', priority: '0.9' }
@@ -62,6 +64,7 @@ export const SITE_MAP = [
         hash: '#pulse',
         hashAliases: ['#network-pulse'],
         group: 'Live Rooms',
+        chamberCategory: 'network',
         detail: 'Consensus, economy, market, governance, activity, and ecosystem cards in one live chamber',
         keywords: ['network pulse', 'live stats', 'daily briefing', 'cycle pulse', 'consensus', 'economy', 'activity', 'market', 'what is hot today', "what's hot today", 'hot today', 'network moments'],
         starter: 2,
@@ -74,6 +77,7 @@ export const SITE_MAP = [
         href: '/capital/',
         hash: '#capital',
         group: 'Live Rooms',
+        chamberCategory: 'capital',
         detail: 'Cross-layer Tezos and Etherlink activity, markets, ecosystem assets, real-world assets, and art-economy intelligence',
         keywords: ['capital chamber', 'tezos economy', 'capital markets', 'market structure', 'tezos and etherlink', 'l1 l2', 'stablecoins', 'tvl', 'ecosystem tokens', 'protocol tvl', 'real world assets', 'rwa', 'nft market', 'art economy', 'exchange flows', 'cex liquidity', 'network fees', 'transaction fees', 'transaction costs', 'gas fees'],
         searchIntents: [
@@ -93,6 +97,7 @@ export const SITE_MAP = [
         hash: '#staking',
         hashAliases: ['#stake'],
         group: 'Live Rooms',
+        chamberCategory: 'capital',
         detail: 'Large stake and unstake moves, current staking share, and the complete >10K history',
         keywords: ['staking chamber', 'stake', 'unstake', 'stakers', 'staking ratio', 'large stake', 'staking moves', '/stake'],
         starter: 3,
@@ -107,6 +112,7 @@ export const SITE_MAP = [
         hash: '#maxis',
         hashAliases: ['#tezos-maxis'],
         group: 'Live Rooms',
+        chamberCategory: 'people',
         detail: 'Canonical Tezos crowns, L1 and L2 governance records, protocol-season races, career Passports, and permanent Champions',
         keywords: ['maxis', 'maxi', 'on-chain crowns', 'all time', 'live', 'protocol season', 'maxi passport', 'passport', 'champions', 'leaderboard', 'art', 'collector', 'mint', 'defi', 'gaming', 'governance', 'l1 governance', 'l2 governance', 'tezos x governance', 'etherlink governance', 'staking', 'unicorn'],
         searchIntents: [
@@ -140,6 +146,7 @@ export const SITE_MAP = [
         hash: '#tezoscrp',
         hashAliases: ['#community-rewards', '#crp'],
         group: 'Culture & Feeds',
+        chamberCategory: 'people',
         detail: 'Official Tezos Commons monthly community awards, identity totals, categories, and source-receipted history since October 2020',
         keywords: ['tezoscrp', 'tezos crp', 'community rewards', 'tezos commons rewards', 'crp winners', 'community recognition', 'awards', 'winners'],
         searchIntents: [
@@ -158,6 +165,7 @@ export const SITE_MAP = [
         hash: '#health',
         hashAliases: ['#network-health'],
         group: 'Live Rooms',
+        chamberCategory: 'network',
         detail: 'Blocks, Nakamoto coefficients, consensus timing, Octez versions, missed rights, and the Teztale lens',
         keywords: ['health', 'blocks', 'finality', 'attestation power', 'missed attestations', 'missed blocks', 'round zero', 'round 0', 'consensus', 'consensus lens', 'pre quorum', 'quorum timing', 'validation delay', 'application delay', 'reception histogram', 'octez', 'octez versions', 'version adoption', 'teztale', 'native explorer', 'operation receipt', 'block receipt', 'block fees', 'operation fees', 'missed rights', 'nakamoto', 'nakamoto coefficient', 'quorum control coefficient', 'decentralization', 'one third', 'two thirds'],
         starter: 5,
@@ -171,6 +179,7 @@ export const SITE_MAP = [
         hash: '#lb',
         hashAliases: ['#liquidity-baking', '#lb-tile', '#liquidity-baking-tile'],
         group: 'Live Rooms',
+        chamberCategory: 'governance',
         detail: 'LB votes, OFF-vote EMA, subsidy state, and liquidity lore',
         keywords: ['lb', 'liquidity', 'ema', 'subsidy', 'liquidity baking'],
         starter: 6,
@@ -184,6 +193,7 @@ export const SITE_MAP = [
         hash: '#tezosx',
         hashAliases: ['#tezlink'],
         group: 'Live Rooms',
+        chamberCategory: 'network',
         detail: 'Etherlink TVL, transaction tape, gas oracle, and L2 activity',
         keywords: ['tezos x', 'etherlink', 'l2', 'tezlink', 'gas', 'gas price', 'gas fees', 'l2 fees'],
         sitemap: { changefreq: 'hourly', priority: '0.8' }
@@ -195,6 +205,7 @@ export const SITE_MAP = [
         hash: '#l2chamber',
         hashAliases: ['#etherlink-governance', '#etherlink-gov', '#etherlink'],
         group: 'Live Rooms',
+        chamberCategory: 'governance',
         detail: 'Etherlink FAST, SLOW, sequencer, and governance contract tracks',
         keywords: ['etherlink governance', 'l2 governance', 'fast', 'slow', 'sequencer'],
         sitemap: { changefreq: 'hourly', priority: '0.8' }
@@ -206,6 +217,7 @@ export const SITE_MAP = [
         hash: '#tz4',
         hashAliases: ['#tz4-adoption'],
         group: 'Live Rooms',
+        chamberCategory: 'bakers',
         detail: 'BLS consensus keys, pending switches, adoption power, and holdouts',
         keywords: ['tz4', 'bls', 'consensus keys', 'baker adoption'],
         sitemap: { changefreq: 'hourly', priority: '0.8' }
@@ -217,6 +229,7 @@ export const SITE_MAP = [
         hash: '#ledger-flow',
         hashAliases: ['#flow'],
         group: 'Account Rooms',
+        chamberCategory: 'people',
         detail: 'Transfer paths around any Tezos account: sent, received, and first funding',
         keywords: ['ledger flow', 'transfers', 'account flow', 'graph', 'wallet history'],
         searchChip: { label: '/flow', order: 7 },
@@ -229,6 +242,7 @@ export const SITE_MAP = [
         hash: '#domains',
         hashAliases: ['#tezos-domains'],
         group: 'Account Rooms',
+        chamberCategory: 'people',
         detail: '.tez lookup, live registrations, auctions, offers, and expiry pressure',
         keywords: ['domains', '.tez', 'identity', 'names', 'domain lookup'],
         searchChip: { label: '/domains', order: 6 },
@@ -262,6 +276,7 @@ export const SITE_MAP = [
         hash: '#whales',
         hashAliases: ['#giants'],
         group: 'Live Rooms',
+        chamberCategory: 'capital',
         detail: 'Large tez movement, grouped flow stories, dormant large accounts, and verified awakenings',
         keywords: ['whales', 'whale watch', 'large transfers', 'large tez movement', 'mini whale', 'transfer feed', 'source aliases', 'sleeping giants', 'dormant accounts', 'awakenings'],
         searchIntents: [
@@ -340,6 +355,7 @@ export const SITE_MAP = [
         hash: '#leaderboard',
         hashAliases: ['#baker'],
         group: 'Tools',
+        chamberCategory: 'bakers',
         detail: 'Discover active bakers through transparent on-chain capacity, tenure, governance, and tz4 signals',
         keywords: ['leaderboard', 'baker leaderboard', 'baker directory', 'baker', 'validator', 'capacity', 'delegation room', '/leaderboard'],
         searchIntents: [
@@ -356,6 +372,7 @@ export const SITE_MAP = [
         href: '/history/',
         hash: '#history',
         group: 'Tools',
+        chamberCategory: 'history',
         detail: 'Rewind core Tezos metrics across cycles and open historical charts',
         keywords: ['history', 'historical data', 'charts', 'cycles', 'signal history', '/history'],
         searchIntents: [
@@ -423,6 +440,45 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.5' }
     }
 ];
+
+export const CHAMBER_CATEGORY_META = Object.freeze([
+    Object.freeze({
+        key: 'network',
+        label: 'Network',
+        question: 'What is the chain doing now?',
+        entryIds: Object.freeze(['pulse', 'health', 'tezosx'])
+    }),
+    Object.freeze({
+        key: 'capital',
+        label: 'Capital',
+        question: 'Where is value sitting and moving?',
+        entryIds: Object.freeze(['capital', 'whales', 'staking-chamber'])
+    }),
+    Object.freeze({
+        key: 'bakers',
+        label: 'Bakers',
+        question: 'Who is securing Tezos and upgrading its keys?',
+        entryIds: Object.freeze(['leaderboard', 'tz4'])
+    }),
+    Object.freeze({
+        key: 'governance',
+        label: 'Governance',
+        question: 'What is Tezos deciding?',
+        entryIds: Object.freeze(['chamber', 'l2-governance', 'liquidity-baking'])
+    }),
+    Object.freeze({
+        key: 'people',
+        label: 'People & Accounts',
+        question: 'Who is here, and what have they done?',
+        entryIds: Object.freeze(['ledger-flow', 'domains', 'maxis', 'tezoscrp'])
+    }),
+    Object.freeze({
+        key: 'history',
+        label: 'History',
+        question: 'What happened before now?',
+        entryIds: Object.freeze(['anthology', 'history'])
+    })
+]);
 
 export const SITE_MAP_NAV_GROUPS = [
     'Home',

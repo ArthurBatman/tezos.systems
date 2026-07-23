@@ -160,25 +160,51 @@ const ETHERLINK_PROMOTION_LEDGER = [
   { address: SAMPLE_ADDRESS_2, alias: 'Second Baker', votingPower: 25000000000000, vote: 'pass', level: 12345590 },
   { address: SAMPLE_ADDRESS, alias: 'QA Baker', votingPower: 30000000000000, vote: 'yea', level: 12345600 }
 ];
-const EXPECTED_CHAMBER_ORDER = [
-  'network-pulse-entry-card',
-  'capital-entry-card',
-  'whale-watch-entry-card',
-  'baker-directory-entry-card',
-  'network-health',
-  'chamber-entry-card',
-  'tezlink-entry-card',
-  'etherlink-governance-entry-card',
-  'tz4-adoption',
-  'staking-entry-card',
-  'lb-entry-card',
-  'ledger-flow-entry-card',
-  'protocol-history-entry-card',
-  'cycle-history-entry-card',
-  'maxis-entry-card',
-  'tezoscrp-entry-card',
-  'tezos-domains-entry-card'
+const EXPECTED_CHAMBER_CATEGORIES = [
+  {
+    key: 'network',
+    label: 'Network',
+    question: 'What is the chain doing now?',
+    cards: ['network-pulse-entry-card', 'network-health', 'tezlink-entry-card'],
+    layouts: ['featured', 'standard', 'standard']
+  },
+  {
+    key: 'capital',
+    label: 'Capital',
+    question: 'Where is value sitting and moving?',
+    cards: ['capital-entry-card', 'whale-watch-entry-card', 'staking-entry-card'],
+    layouts: ['featured', 'wide', 'compact']
+  },
+  {
+    key: 'bakers',
+    label: 'Bakers',
+    question: 'Who is securing Tezos and upgrading its keys?',
+    cards: ['baker-directory-entry-card', 'tz4-adoption'],
+    layouts: ['wide', 'compact']
+  },
+  {
+    key: 'governance',
+    label: 'Governance',
+    question: 'What is Tezos deciding?',
+    cards: ['chamber-entry-card', 'etherlink-governance-entry-card', 'lb-entry-card'],
+    layouts: ['standard', 'standard', 'featured']
+  },
+  {
+    key: 'people',
+    label: 'People & Accounts',
+    question: 'Who is here, and what have they done?',
+    cards: ['ledger-flow-entry-card', 'tezos-domains-entry-card', 'maxis-entry-card', 'tezoscrp-entry-card'],
+    layouts: ['featured', 'featured', 'featured', 'featured']
+  },
+  {
+    key: 'history',
+    label: 'History',
+    question: 'What happened before now?',
+    cards: ['protocol-history-entry-card', 'cycle-history-entry-card'],
+    layouts: ['standard', 'standard']
+  }
 ];
+const EXPECTED_CHAMBER_ORDER = EXPECTED_CHAMBER_CATEGORIES.flatMap((category) => category.cards);
 
 function usage() {
   return `
@@ -2808,42 +2834,51 @@ async function assertChamberOrder(page, label) {
     const cardKey = (el) => el.id || el.dataset.stat || '';
     return {
       order: Array.from(document.querySelectorAll('#chambers-grid .stat-card')).map(cardKey),
-      pairs: Array.from(document.querySelectorAll('#chambers-grid > .chamber-card-pair')).map((pair) => (
-        Array.from(pair.querySelectorAll(':scope > .stat-card')).map(cardKey)
-      ))
+      categories: Array.from(document.querySelectorAll('#chambers-grid > .chamber-category')).map((category) => ({
+        key: category.dataset.chamberCategory || '',
+        label: category.querySelector(':scope > .chamber-category-head .chamber-category-name')?.textContent?.trim() || '',
+        question: category.querySelector(':scope > .chamber-category-head .chamber-category-question')?.textContent?.trim() || '',
+        count: category.querySelector(':scope > .chamber-category-head .chamber-category-count')?.textContent?.trim() || '',
+        countLabel: category.querySelector(':scope > .chamber-category-head .chamber-category-count')?.getAttribute('aria-label') || '',
+        open: category.open,
+        tagName: category.tagName,
+        cards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).map(cardKey),
+        layouts: Array.from(
+          category.querySelectorAll(':scope > .chamber-category-cards > .stat-card'),
+          (card) => card.dataset.chamberLayout || ''
+        )
+      })),
+      viewportWidth: window.innerWidth,
+      legacyPairs: document.querySelectorAll('#chambers-grid > [data-chamber-pair]').length
     };
   });
   assert(
+    chamberState.order.length === EXPECTED_CHAMBER_ORDER.length
+      &&
     EXPECTED_CHAMBER_ORDER.every((key, index) => chamberState.order[index] === key),
     `${label}: Chambers order mismatch, expected ${EXPECTED_CHAMBER_ORDER.join(', ')} but saw ${chamberState.order.join(', ')}`
   );
-  const expectedPairs = [
-    ['network-pulse-entry-card', 'capital-entry-card'],
-    ['whale-watch-entry-card', 'baker-directory-entry-card'],
-    ['network-health', 'chamber-entry-card'],
-    ['tezlink-entry-card', 'etherlink-governance-entry-card'],
-    ['tz4-adoption', 'staking-entry-card', 'lb-entry-card'],
-    ['ledger-flow-entry-card', 'protocol-history-entry-card', 'cycle-history-entry-card'],
-    ['maxis-entry-card'],
-    ['tezoscrp-entry-card'],
-    ['tezos-domains-entry-card']
-  ];
   assert(
-    expectedPairs.every((pair, index) => pair.every((key, innerIndex) => chamberState.pairs[index]?.[innerIndex] === key)),
-    `${label}: Chambers pair layout mismatch, expected ${JSON.stringify(expectedPairs)} but saw ${JSON.stringify(chamberState.pairs)}`
+    chamberState.categories.length === EXPECTED_CHAMBER_CATEGORIES.length,
+    `${label}: expected six Chamber categories, saw ${JSON.stringify(chamberState.categories)}`
   );
-  assert(
-    chamberState.pairs.at(0)?.join(',') === 'network-pulse-entry-card,capital-entry-card',
-    `${label}: Capital Chamber must sit immediately after Network Pulse, saw ${JSON.stringify(chamberState.pairs.at(0))}`
-  );
-  assert(
-    chamberState.pairs.at(4)?.join(',') === 'tz4-adoption,staking-entry-card,lb-entry-card',
-    `${label}: Staking Chamber must sit between tz4 Adoption and Liquidity Baking, saw ${JSON.stringify(chamberState.pairs.at(4))}`
-  );
-  assert(
-    chamberState.pairs.at(-1)?.length === 1 && chamberState.pairs.at(-1)?.[0] === 'tezos-domains-entry-card',
-    `${label}: Tezos Domains must stay as its own bottom strip, saw ${JSON.stringify(chamberState.pairs.at(-1))}`
-  );
+  EXPECTED_CHAMBER_CATEGORIES.forEach((expected, index) => {
+    const actual = chamberState.categories[index];
+    assert(actual?.key === expected.key, `${label}: Chamber category ${index + 1} key mismatch ${JSON.stringify(actual)}`);
+    assert(actual?.label === expected.label, `${label}: Chamber category ${expected.key} label mismatch ${JSON.stringify(actual)}`);
+    assert(actual?.question === expected.question, `${label}: Chamber category ${expected.key} question mismatch ${JSON.stringify(actual)}`);
+    assert(actual?.tagName === 'DETAILS', `${label}: Chamber category ${expected.key} must use native disclosure semantics ${JSON.stringify(actual)}`);
+    assert(actual?.cards.join(',') === expected.cards.join(','), `${label}: Chamber category ${expected.key} membership mismatch ${JSON.stringify(actual)}`);
+    assert(actual?.layouts.join(',') === expected.layouts.join(','), `${label}: Chamber category ${expected.key} density layout mismatch ${JSON.stringify(actual)}`);
+    assert(actual?.count === String(expected.cards.length).padStart(2, '0'), `${label}: Chamber category ${expected.key} visible count mismatch ${JSON.stringify(actual)}`);
+    assert(actual?.countLabel === `${expected.cards.length} ${expected.cards.length === 1 ? 'room' : 'rooms'}`, `${label}: Chamber category ${expected.key} accessible count mismatch ${JSON.stringify(actual)}`);
+    if (chamberState.viewportWidth >= 760) {
+      assert(actual?.open, `${label}: desktop Chamber category ${expected.key} must initialize open ${JSON.stringify(actual)}`);
+    }
+  });
+  const uniqueCards = new Set(chamberState.categories.flatMap((category) => category.cards));
+  assert(uniqueCards.size === EXPECTED_CHAMBER_ORDER.length, `${label}: a Chamber card is duplicated across categories ${JSON.stringify(chamberState.categories)}`);
+  assert(chamberState.legacyPairs === 0, `${label}: legacy data-chamber-pair wrappers remain`);
 }
 
 async function assertPromotedLauncherGeometry(page, label, { desktop = false } = {}) {
@@ -3256,6 +3291,57 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     })));
     throw new Error(`${label}: Chamber launchers did not settle: ${JSON.stringify(readiness)}`);
   }
+  await assertChamberOrder(page, label);
+  if (mockOptions.governanceLiveVote) {
+    await page.waitForFunction(() => {
+      const card = document.querySelector('#chamber-entry-card.chamber-entry-wide[data-chamber-entry-size="wide"]');
+      const metrics = card?.querySelector('.chamber-entry-metrics');
+      return Boolean(card && metrics && !metrics.hidden && metrics.querySelector('.chamber-entry-metric strong'));
+    }, null, { timeout: 10000 });
+  }
+  if (viewport.width < 760) {
+    await page.waitForTimeout(250);
+    const initialCategories = await page.evaluate(() => Array.from(
+      document.querySelectorAll('#chambers-grid > .chamber-category'),
+      (category) => ({
+        key: category.dataset.chamberCategory || '',
+        open: category.open,
+        visibleCards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).filter((card) => card.getClientRects().length > 0).length
+      })
+    ));
+    assert(
+      initialCategories.every((category) => category.open === (category.key === 'network')),
+      `${label}: mobile must initialize only Network open ${JSON.stringify(initialCategories)}`
+    );
+    const capitalHead = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+    await page.evaluate(() => {
+      const html = document.documentElement;
+      const previousBehavior = html.style.scrollBehavior;
+      html.style.scrollBehavior = 'auto';
+      document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head')
+        ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+      html.style.scrollBehavior = previousBehavior;
+    });
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const beforeToggle = await page.evaluate(() => ({ scrollY: window.scrollY, active: document.activeElement?.className || '' }));
+    await capitalHead.click();
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const afterToggle = await page.evaluate(() => {
+      const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
+      return {
+        scrollY: window.scrollY,
+        open: category?.open || false,
+        focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head')
+      };
+    });
+    assert(afterToggle.open && afterToggle.focused, `${label}: mobile disclosure toggle must remain focused and open ${JSON.stringify(afterToggle)}`);
+    assert(Math.abs(afterToggle.scrollY - beforeToggle.scrollY) <= 2, `${label}: mobile disclosure toggle moved page scroll ${JSON.stringify({ beforeToggle, afterToggle })}`);
+    await page.evaluate(() => {
+      document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+        category.open = true;
+      });
+    });
+  }
   if (mockOptions.governanceLiveVote) {
     await page.locator('#chamber-entry-card.chamber-entry-wide[data-chamber-entry-size="wide"] .chamber-entry-metric strong').first().waitFor({ state: 'visible', timeout: 10000 });
   }
@@ -3304,6 +3390,12 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       chamberText: document.querySelector('#chamber-entry-card')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       metricColumns,
       metricTruncations,
+      passiveAnimations: Array.from(document.querySelectorAll('#chambers-section .chamber-entry-card:not(.chamber-entry-risk)'))
+        .map((card) => ({
+          id: card.id || card.dataset.stat || '',
+          animationName: getComputedStyle(card, '::before').animationName
+        }))
+        .filter((card) => card.animationName !== 'none'),
       footers,
       titles,
       tezlinkTitleClip: Boolean(tezlinkCardBox && tezlinkLabelBox && tezlinkLabelBox.top < tezlinkCardBox.top - 1),
@@ -3313,6 +3405,7 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
   });
 
   assert(!mockOptions.governanceLiveVote || state.chamberWide, `${label}: live vote should render Tezos L1 Governance as a wide card: ${JSON.stringify(state)}`);
+  assert(state.passiveAnimations.length === 0, `${label}: ordinary live/fresh Chamber cards must not pulse ${JSON.stringify(state.passiveAnimations)}`);
   assert(state.metricTruncations.length === 0, `${label}: live vote metrics should not ellipsize: ${JSON.stringify(state.metricTruncations)}`);
   assert(viewport.width >= 760 ? state.metricColumns === 2 : state.metricColumns >= 1, `${label}: unexpected live vote metric columns: ${state.metricColumns}`);
   assert(!state.tezlinkTitleClip, `${label}: Tezos X title should remain inside the card: ${JSON.stringify({ card: state.tezlinkCardBox, label: state.tezlinkLabelBox })}`);
@@ -4870,13 +4963,16 @@ async function smokeStakingChamber(browser, baseUrl) {
     const rect = card?.getBoundingClientRect();
     const pairRect = pair?.getBoundingClientRect();
     const gridRect = grid?.getBoundingClientRect();
+    const whaleRect = document.querySelector('#whale-watch-entry-card')?.getBoundingClientRect();
     return {
       actions: Array.from(card?.querySelectorAll('.staking-entry-move') || []).map((row) => row.dataset.stakingAction),
       amounts: Array.from(card?.querySelectorAll('.staking-entry-move') || []).map((row) => row.dataset.stakingAmount),
       cardWidth: rect?.width || 0,
+      whaleWidth: whaleRect?.width || 0,
+      layout: card?.dataset.chamberLayout || '',
       gridWidth: gridRect?.width || 0,
-      pair: pair?.dataset.chamberPair || '',
-      pairOrder: Array.from(pair?.querySelectorAll(':scope > .chamber-entry-card') || []).map((entry) => entry.id || entry.dataset.stat || ''),
+      category: pair?.dataset.chamberCategory || '',
+      pairOrder: Array.from(pair?.querySelectorAll(':scope > .chamber-category-cards > .chamber-entry-card') || []).map((entry) => entry.id || entry.dataset.stat || ''),
       pairWidth: pairRect?.width || 0,
       ratio: document.querySelector('#staking-entry-ratio')?.textContent?.trim() || '',
       rows: card?.querySelectorAll('.staking-entry-move').length || 0,
@@ -4888,13 +4984,16 @@ async function smokeStakingChamber(browser, baseUrl) {
   assert(cardState.ratio === '27.62%', `${label}: launcher must show the canonical current staking ratio, saw ${cardState.ratio}`);
   assert(
     !cardState.wide
-      && cardState.pair === 'tz4-staking-liquidity'
-      && cardState.pairOrder.join(',') === 'tz4-adoption,staking-entry-card,lb-entry-card'
-      && cardState.cardWidth < cardState.gridWidth * 0.35,
-    `${label}: launcher must sit between tz4 Adoption and Liquidity Baking in the shared row ${JSON.stringify(cardState)}`
+      && cardState.layout === 'compact'
+      && cardState.category === 'capital'
+      && cardState.pairOrder.join(',') === 'capital-entry-card,whale-watch-entry-card,staking-entry-card'
+      && cardState.cardWidth > cardState.gridWidth * 0.3
+      && cardState.cardWidth < cardState.gridWidth * 0.36
+      && cardState.whaleWidth > cardState.cardWidth * 1.9,
+    `${label}: compact launcher must sit beside the wider Whale Watch preview in Capital ${JSON.stringify(cardState)}`
   );
 
-  await page.locator('#staking-entry-card').click();
+  await page.locator('#staking-entry-card .chamber-expand-cue').click();
   await page.locator('#staking-chamber-modal.active .staking-chamber-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction(() => /Showing 4 of 4 complete >10K moves/.test(document.querySelector('#staking-archive-count')?.textContent || ''), null, { timeout: 30000 });
 
@@ -7959,6 +8058,11 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
         podiumPlaces: Array.from(document.querySelectorAll('#tezoscrp-hall-results .tezoscrp-ranking > li.is-podium')).map((row) => row.dataset.tezoscrpPlace),
         launcherIdentities: document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length,
         bottomRowHeights: Object.fromEntries(['maxis-entry-card', 'tezoscrp-entry-card', 'tezos-domains-entry-card'].map((id) => [id, Math.round(document.getElementById(id)?.getBoundingClientRect().height || 0)])),
+        bottomRowWidths: Object.fromEntries(['maxis-entry-card', 'tezoscrp-entry-card', 'tezos-domains-entry-card'].map((id) => [id, Math.round(document.getElementById(id)?.getBoundingClientRect().width || 0)])),
+        bottomRowClips: ['maxis-entry-card', 'tezoscrp-entry-card', 'tezos-domains-entry-card'].filter((id) => {
+          const front = document.querySelector(`#${id} .card-front`);
+          return front && front.scrollHeight > front.clientHeight + 4;
+        }),
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         modalOverflow: modal.scrollWidth > modal.clientWidth + 1,
         bodyOverflow: body.scrollWidth > body.clientWidth + 1,
@@ -7972,9 +8076,11 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     assert(initial.podiumPlaces.join('|') === '1|2|3', `TezosCRP ${label}: top recognition rows lost their distinct placement treatment ${JSON.stringify(initial.podiumPlaces)}`);
     assert(initial.launcherIdentities === 6, `TezosCRP ${label}: launcher must surface six leading recognition identities`);
     if (label === 'desktop') {
-      assert(initial.bottomRowHeights['maxis-entry-card'] >= 256 && initial.bottomRowHeights['maxis-entry-card'] <= 260, `TezosCRP desktop: Maxis full-row height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
-      assert(initial.bottomRowHeights['tezoscrp-entry-card'] >= 288 && initial.bottomRowHeights['tezoscrp-entry-card'] <= 292, `TezosCRP desktop: TezosCRP full-row height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
-      assert(initial.bottomRowHeights['tezos-domains-entry-card'] >= 272 && initial.bottomRowHeights['tezos-domains-entry-card'] <= 276, `TezosCRP desktop: Domains full-row height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['maxis-entry-card'] >= 400 && initial.bottomRowHeights['maxis-entry-card'] <= 440, `TezosCRP desktop: categorized Maxis intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['tezoscrp-entry-card'] >= 280 && initial.bottomRowHeights['tezoscrp-entry-card'] <= 520, `TezosCRP desktop: categorized TezosCRP intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['tezos-domains-entry-card'] >= 290 && initial.bottomRowHeights['tezos-domains-entry-card'] <= 500, `TezosCRP desktop: categorized Domains intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(Object.values(initial.bottomRowWidths).every((width) => width > 1200), `TezosCRP desktop: dense People launchers must own full rows ${JSON.stringify(initial.bottomRowWidths)}`);
+      assert(initial.bottomRowClips.length === 0, `TezosCRP desktop: dense People launcher content clips ${JSON.stringify(initial.bottomRowClips)}`);
     }
     assert(/one official category listing equals one award/i.test(initial.truth) && /most posts do not state a per-person XTZ payout/i.test(initial.truth), `TezosCRP ${label}: count truth is missing ${initial.truth}`);
     assert(!initial.pageOverflow && !initial.modalOverflow && !initial.bodyOverflow, `TezosCRP ${label}: initial view overflows ${JSON.stringify(initial)}`);
@@ -8100,14 +8206,16 @@ async function smokeMaxisChamber(browser, baseUrl) {
   const desktopLauncher = await readMaxisLauncherGeometry(page);
   assert(
     desktopLauncher.card
+      && desktopLauncher.pair
       && desktopLauncher.stage
+      && desktopLauncher.card.width >= desktopLauncher.pair.width - 2
       && Math.abs(desktopLauncher.stage.left - desktopLauncher.contentLeft) <= 2
-      && Math.abs(desktopLauncher.stage.right - desktopLauncher.contentRight) <= 2
-      && Math.abs(desktopLauncher.stage.width - desktopLauncher.contentWidth) <= 2,
-    `tezos maxis launcher: desktop composition does not fill the card content box ${JSON.stringify(desktopLauncher)}`
+      && desktopLauncher.stage.right <= desktopLauncher.contentRight + 2
+      && desktopLauncher.stage.width >= desktopLauncher.contentWidth * 0.75,
+    `tezos maxis launcher: dense desktop composition must own and use a full People row ${JSON.stringify(desktopLauncher)}`
   );
   assert(desktopLauncher.identityCount === 10 && desktopLauncher.clippedIdentityCells.length === 0, `tezos maxis launcher: desktop identity chips clip or disappear ${JSON.stringify(desktopLauncher)}`);
-  assert(desktopLauncher.card.height <= 360 && desktopLauncher.horizontalOverflow <= 1, `tezos maxis launcher: desktop card is oversized or overflows ${JSON.stringify(desktopLauncher)}`);
+  assert(desktopLauncher.card.height >= 400 && desktopLauncher.card.height <= 430 && desktopLauncher.horizontalOverflow <= 1, `tezos maxis launcher: categorized desktop card misses its geometry baseline or overflows ${JSON.stringify(desktopLauncher)}`);
 
   await page.setViewportSize({ width: 900, height: 1000 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -8116,9 +8224,8 @@ async function smokeMaxisChamber(browser, baseUrl) {
     tabletLauncher.card
       && tabletLauncher.pair
       && Math.abs(tabletLauncher.card.left - tabletLauncher.pair.left) <= 2
-      && Math.abs(tabletLauncher.card.right - tabletLauncher.pair.right) <= 2
-      && Math.abs(tabletLauncher.card.width - tabletLauncher.pair.width) <= 2,
-    `tezos maxis launcher: single-card tablet pair leaves an empty grid column ${JSON.stringify(tabletLauncher)}`
+      && tabletLauncher.card.width >= tabletLauncher.pair.width - 2,
+    `tezos maxis launcher: tablet People category must give the dense card a full row ${JSON.stringify(tabletLauncher)}`
   );
   assert(tabletLauncher.horizontalOverflow <= 1, `tezos maxis launcher: tablet card overflows ${JSON.stringify(tabletLauncher)}`);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -9103,7 +9210,7 @@ async function smokeTezosDomainsChamber(browser, baseUrl) {
 
   const state = await page.evaluate(() => {
     const card = document.querySelector('#tezos-domains-entry-card');
-    const pair = document.querySelector('#chambers-grid > .chamber-card-pair[data-chamber-pair="tezos-domains"]');
+    const pair = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="people"]');
     const grid = document.querySelector('#chambers-grid');
     const modal = document.querySelector('#tezos-domains-modal');
     const rect = (node) => {
@@ -9116,9 +9223,10 @@ async function smokeTezosDomainsChamber(browser, baseUrl) {
       cardCopyHash: card?.querySelector('.card-copy-link')?.dataset.copyHash || '',
       cardText: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
       cardUpdatedLabel: card?.dataset.updatedLabel || '',
-      pairChildren: pair?.querySelectorAll(':scope > .stat-card').length || 0,
-      pairIsLast: pair === grid?.querySelector(':scope > .chamber-card-pair:last-child'),
+      pairChildren: pair?.querySelectorAll(':scope > .chamber-category-cards > .stat-card').length || 0,
+      categoryOrder: Array.from(pair?.querySelectorAll(':scope > .chamber-category-cards > .stat-card') || []).map((entry) => entry.id || entry.dataset.stat || ''),
       pairRect: rect(pair),
+      cardRect: rect(card),
       gridRect: rect(grid),
       title: modal?.querySelector('.chamber-title')?.textContent || '',
       badge: modal?.querySelector('.chamber-badge')?.textContent || '',
@@ -9146,8 +9254,8 @@ async function smokeTezosDomainsChamber(browser, baseUrl) {
   assert(state.cardCopyHash === '#domains', `tezos domains chamber: card copy hash mismatch ${state.cardCopyHash}`);
   assert(/Tezos Domains/.test(state.cardText) && /noob\.tez/.test(state.cardText) && /24h names/i.test(state.cardText), `tezos domains chamber: card content missing ${state.cardText}`);
   assert(/Tezos Domains/.test(state.cardUpdatedLabel), `tezos domains chamber: card freshness missing ${state.cardUpdatedLabel}`);
-  assert(state.pairChildren === 1 && state.pairIsLast, `tezos domains chamber: card must be its own bottom strip ${JSON.stringify(state)}`);
-  assert(state.pairRect?.width >= state.gridRect?.width - 4, `tezos domains chamber: bottom strip should span grid width ${JSON.stringify({ pair: state.pairRect, grid: state.gridRect })}`);
+  assert(state.pairChildren === 4 && state.categoryOrder.join(',') === 'ledger-flow-entry-card,tezos-domains-entry-card,maxis-entry-card,tezoscrp-entry-card', `tezos domains chamber: People & Accounts membership mismatch ${JSON.stringify(state)}`);
+  assert(state.pairRect?.width >= state.gridRect?.width - 4 && state.cardRect?.width >= state.gridRect?.width - 4, `tezos domains chamber: dense categorized launcher must own a full row ${JSON.stringify({ pair: state.pairRect, card: state.cardRect, grid: state.gridRect })}`);
   assert(/Tezos Domains Chamber/.test(state.title), `tezos domains chamber: title mismatch ${state.title}`);
   assert(/Name rush|Market live|Identity pulse/.test(state.badge), `tezos domains chamber: badge mismatch ${state.badge}`);
   assert(/noob\.tez/.test(state.header) && /renewal cliff|drops in/i.test(state.header), `tezos domains chamber: featured expiring name missing ${state.header}`);
@@ -9175,7 +9283,13 @@ async function smokeTezosDomainsChamber(browser, baseUrl) {
   const registeredLookupText = await page.locator('#tezos-domains-lookup-result').innerText();
   assert(/viral\.tez/.test(registeredLookupText) && /owner/i.test(registeredLookupText) && /View on Tezos Domains/.test(registeredLookupText), `tezos domains chamber: registered lookup missing owner/action ${registeredLookupText}`);
 
-  await page.locator('#tezos-domains-modal.active .chamber-close').click();
+  await page.evaluate(() => {
+    if (typeof window.closeTezosDomainsChamber === 'function') {
+      window.closeTezosDomainsChamber();
+    } else {
+      document.querySelector('#tezos-domains-modal.active .chamber-close')?.click();
+    }
+  });
   await page.waitForFunction(() => !document.querySelector('#tezos-domains-modal')?.classList.contains('active'), null, { timeout: 5000 });
 
   const routeResponse = await page.goto(`${baseUrl}/domains/`, { waitUntil: 'domcontentloaded' });
@@ -10025,7 +10139,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       const card = document.querySelector('#lb-entry-card');
       const ema = document.querySelector('#lb-entry-ema');
       const tape = document.querySelector('#lb-entry-vote-tape');
-      const tz4 = document.querySelector('#chambers-section [data-stat="tz4-adoption"]');
+      const category = card?.closest('.chamber-category');
       const rect = (node) => {
         if (!node) return null;
         const box = node.getBoundingClientRect();
@@ -10034,15 +10148,17 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       const cardRect = rect(card);
       const emaRect = rect(ema);
       const tapeRect = rect(tape);
-      const tz4Rect = rect(tz4);
+      const categoryRect = rect(category?.querySelector(':scope > .chamber-category-cards'));
       return {
         cardHeight: cardRect ? Number(cardRect.height.toFixed(2)) : 0,
+        cardWidth: cardRect ? Number(cardRect.width.toFixed(2)) : 0,
+        categoryWidth: categoryRect ? Number(categoryRect.width.toFixed(2)) : 0,
         tapeRightOfEma: Boolean(emaRect && tapeRect && tapeRect.left >= emaRect.right + 8),
         tapeEmaBandOverlap: Boolean(emaRect && tapeRect && tapeRect.top < emaRect.bottom && tapeRect.bottom > emaRect.top),
-        pairedWithTz4: Boolean(cardRect && tz4Rect && Math.abs(cardRect.top - tz4Rect.top) <= 1 && Math.abs(cardRect.bottom - tz4Rect.bottom) <= 1),
+        category: category?.dataset.chamberCategory || '',
+        categoryOrder: Array.from(category?.querySelectorAll(':scope > .chamber-category-cards > .stat-card') || []).map((entry) => entry.id || entry.dataset.stat || ''),
         emaRect,
-        tapeRect,
-        tz4Rect
+        tapeRect
       };
     })(),
     etherlinkEntryValue: document.querySelector('#etherlink-governance-entry-value')?.textContent?.trim() || '',
@@ -10053,9 +10169,9 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     etherlinkEntrySize: document.querySelector('#etherlink-governance-entry-card')?.dataset.etherlinkGovernanceSize || '',
     etherlinkEntryMetrics: document.querySelector('#etherlink-governance-entry-metrics')?.textContent?.trim() || '',
     tezlinkEntryGeometry: (() => {
-      const pair = document.querySelector('#chambers-grid > .chamber-card-pair[data-chamber-pair="tezlink-governance"]');
+      const pair = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="network"]');
       const card = document.querySelector('#tezlink-entry-card');
-      const governance = document.querySelector('#etherlink-governance-entry-card');
+      const health = document.querySelector('#chambers-section [data-stat="network-health"]');
       const main = card?.querySelector('.tezlink-entry-main');
       const metrics = card?.querySelector('.tezlink-entry-metrics');
       const tape = card?.querySelector('.tezlink-entry-tape');
@@ -10067,21 +10183,22 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       const mainRect = rect(main);
       const metricsRect = rect(metrics);
       const tapeRect = rect(tape);
-      const governanceRect = rect(governance);
+      const healthRect = rect(health);
       const metricTruncations = Array.from(card?.querySelectorAll('.tezlink-entry-metric span, .tezlink-entry-metric strong') || [])
         .filter((node) => node.scrollWidth > node.clientWidth + 1)
         .map((node) => node.textContent?.trim() || '');
       return {
-        pairWideCount: pair?.dataset.wideCount || '',
+        category: pair?.dataset.chamberCategory || '',
+        categoryOrder: Array.from(pair?.querySelectorAll(':scope > .chamber-category-cards > .stat-card') || []).map((entry) => entry.id || entry.dataset.stat || ''),
         cardRect: rect(card),
-        governanceRect,
+        healthRect,
         mainRect,
         metricsRect,
         tapeRect,
         metricTruncations,
         tapeBelowMetrics: Boolean(metricsRect && tapeRect && tapeRect.top >= metricsRect.bottom + 6),
         metricsRightOfMain: Boolean(mainRect && metricsRect && metricsRect.left >= mainRect.right + 8),
-        pairedWithGovernance: Boolean(governanceRect && tapeRect && Math.abs((rect(card)?.top || 0) - governanceRect.top) <= 1 && Math.abs((rect(card)?.bottom || 0) - governanceRect.bottom) <= 1)
+        pairedWithHealth: Boolean(healthRect && tapeRect && Math.abs((rect(card)?.top || 0) - healthRect.top) <= 1 && Math.abs((rect(card)?.bottom || 0) - healthRect.bottom) <= 1)
       };
     })(),
     chamberUpdatedLabels: Array.from(document.querySelectorAll('#chambers-section .chamber-entry-card[data-updated-label]')).map((card) => card.dataset.updatedLabel || ''),
@@ -10169,8 +10286,12 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(dashboardState.lbEntryRefreshInterval === '60000', `governance testing period: LB entry refresh interval mismatch: ${dashboardState.lbEntryRefreshInterval}`);
   assert(Number(dashboardState.lbEntryRefreshedAt) > 0, `governance testing period: LB entry refreshed timestamp missing: ${dashboardState.lbEntryRefreshedAt}`);
   assert(dashboardState.lbEntryGeometry.tapeRightOfEma && dashboardState.lbEntryGeometry.tapeEmaBandOverlap, `governance testing period: LB vote tape should sit beside the EMA summary, not stack below it: ${JSON.stringify(dashboardState.lbEntryGeometry)}`);
-  assert(dashboardState.lbEntryGeometry.cardHeight <= 230, `governance testing period: LB entry card should stay compact after adding the vote tape: ${JSON.stringify(dashboardState.lbEntryGeometry)}`);
-  assert(dashboardState.lbEntryGeometry.pairedWithTz4, `governance testing period: LB and tz4 cards should line up in their paired Chambers row: ${JSON.stringify(dashboardState.lbEntryGeometry)}`);
+  assert(
+    dashboardState.lbEntryGeometry.cardHeight <= 250
+      && Math.abs(dashboardState.lbEntryGeometry.cardWidth - dashboardState.lbEntryGeometry.categoryWidth) <= 2,
+    `governance testing period: data-rich LB entry should own a full row without excess height: ${JSON.stringify(dashboardState.lbEntryGeometry)}`
+  );
+  assert(dashboardState.lbEntryGeometry.category === 'governance' && dashboardState.lbEntryGeometry.categoryOrder.join(',') === 'chamber-entry-card,etherlink-governance-entry-card,lb-entry-card', `governance testing period: LB must remain in the Governance category: ${JSON.stringify(dashboardState.lbEntryGeometry)}`);
   assert(dashboardState.etherlinkEntryLive === 'true', `governance testing period: Tezos X Governance entry should show live data, saw ${dashboardState.etherlinkEntryLive}`);
   assert(dashboardState.etherlinkEntryWide, 'governance testing period: Tezos X Governance should be 2x1 while an Etherlink proposal is active');
   assert(dashboardState.etherlinkEntrySize === 'wide', `governance testing period: Tezos X Governance size flag mismatch: ${dashboardState.etherlinkEntrySize}`);
@@ -10179,10 +10300,10 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(/L2 Governance .*FAST: (?:\d+ bakers · )?Proposal quorum met/.test(dashboardState.etherlinkEntryMini), `governance testing period: Tezos X Governance status mismatch: ${dashboardState.etherlinkEntryMini}`);
   assert(/FAST14\.2%\/5%/.test(dashboardState.etherlinkEntryMetrics.replace(/\s+/g, '')), `governance testing period: Tezos X Governance FAST metric mismatch: ${dashboardState.etherlinkEntryMetrics}`);
   assert(/SLOW(5hago|Idle)/.test(dashboardState.etherlinkEntryMetrics.replace(/\s+/g, '')), `governance testing period: Tezos X Governance SLOW metric mismatch: ${dashboardState.etherlinkEntryMetrics}`);
-  assert(dashboardState.tezlinkEntryGeometry.pairWideCount === '2', `governance testing period: Tezos X and Tezos X Governance should share the active wide pair: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
-  assert(dashboardState.tezlinkEntryGeometry.metricsRightOfMain && dashboardState.tezlinkEntryGeometry.tapeBelowMetrics, `governance testing period: Tezos X live tape should sit below the metric tiles in the active governance pair: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
+  assert(dashboardState.tezlinkEntryGeometry.category === 'network' && dashboardState.tezlinkEntryGeometry.categoryOrder.join(',') === 'network-pulse-entry-card,network-health,tezlink-entry-card', `governance testing period: Tezos X must remain in the Network category: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
+  assert(dashboardState.tezlinkEntryGeometry.metricsRightOfMain && dashboardState.tezlinkEntryGeometry.tapeBelowMetrics, `governance testing period: Tezos X live tape should sit below the metric tiles in the Network category: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.metricTruncations.length === 0, `governance testing period: Tezos X metric tiles should not ellipsize while governance is active: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
-  assert(dashboardState.tezlinkEntryGeometry.pairedWithGovernance, `governance testing period: Tezos X and Governance cards should keep matched row height: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
+  assert(dashboardState.tezlinkEntryGeometry.pairedWithHealth, `governance testing period: Tezos X and Network Health cards should keep matched row height: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   const chamberFreshnessLabels = dashboardState.chamberUpdatedLabels.filter((label) => /^as of \d{2}:\d{2} UTC$/.test(label));
   assert(chamberFreshnessLabels.length >= 6, `governance testing period: chamber freshness stamps missing: ${dashboardState.chamberUpdatedLabels.join(', ')}`);
   assert(dashboardState.etherlinkEntryGeometry.titleMetricsOverlap === 0, `governance testing period: Tezos X Governance title should not overlap proposal chips: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
@@ -10828,7 +10949,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   attachIssueCollectors(quietPage, 'quiet governance sizing', issues);
   const quietResponse = await quietPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(quietResponse?.ok(), `quiet governance sizing: dashboard failed with HTTP ${quietResponse?.status()}`);
-  await quietPage.locator('#chamber-entry-card[data-chamber-entry-size="compact"]').waitFor({ state: 'visible', timeout: 10000 });
+  await quietPage.locator('#chamber-entry-card[data-chamber-entry-size="wide"]').waitFor({ state: 'visible', timeout: 10000 });
   await quietPage.locator('#etherlink-governance-entry-card[data-etherlink-governance-size="compact"]').waitFor({ state: 'visible', timeout: 10000 });
   const quietSizing = await quietPage.evaluate(() => {
     const chamber = document.querySelector('#chamber-entry-card');
@@ -10842,6 +10963,8 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       chamberHero: chamber?.querySelector('#chamber-entry-hero span')?.textContent?.trim() || '',
       chamberDescription: chamber?.querySelector('.stat-description')?.textContent?.trim() || '',
       chamberMini: chamber?.querySelector('#chamber-entry-mini')?.textContent?.trim() || '',
+      chamberMetrics: chamber?.querySelector('#chamber-entry-metrics')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      chamberMetricsHidden: chamber?.querySelector('#chamber-entry-metrics')?.hidden ?? true,
       governanceAlertHidden: document.querySelector('#governance-alert-strip')?.hidden ?? false,
       governanceAlertText: document.querySelector('#governance-alert-strip')?.textContent?.replace(/\s+/g, ' ').trim() || '',
       etherlinkWide: etherlink?.classList.contains('chamber-entry-wide') || false,
@@ -10850,6 +10973,10 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       etherlinkMetricsHidden: document.querySelector('#etherlink-governance-entry-metrics')?.hidden ?? false,
       chamberWidth: chamberRect?.width || 0,
       etherlinkWidth: etherlinkRect?.width || 0,
+      lbWidth: document.querySelector('#lb-entry-card')?.getBoundingClientRect().width || 0,
+      categoryOrder: Array.from(
+        chamber?.closest('.chamber-category')?.querySelectorAll(':scope > .chamber-category-cards > .stat-card') || []
+      ).map((card) => card.id || card.dataset.stat || ''),
       etherlinkGeometry: (() => {
         const cue = etherlink?.querySelector('.chamber-expand-cue');
         const sequencer = [...(etherlink?.querySelectorAll('.etherlink-gov-entry-metric') || [])]
@@ -10869,15 +10996,29 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       })()
     };
   });
-  assert(!quietSizing.chamberWide && quietSizing.chamberSize === 'compact', `quiet governance sizing: Tezos L1 Governance should be 1x1, saw ${JSON.stringify(quietSizing)}`);
+  assert(quietSizing.chamberWide && quietSizing.chamberSize === 'wide', `quiet governance sizing: Tezos L1 Governance should keep the quiet period context visible, saw ${JSON.stringify(quietSizing)}`);
   assert(quietSizing.chamberHero === 'No Proposal', `quiet governance sizing: Tezos L1 Governance should lead with No Proposal, saw ${quietSizing.chamberHero}`);
   assert(quietSizing.chamberDescription === 'L1 · Proposal period', `quiet governance sizing: Tezos L1 Governance phase context mismatch: ${quietSizing.chamberDescription}`);
   assert(quietSizing.chamberMini === 'No active L1 proposal · refresh 60s', `quiet governance sizing: Tezos L1 Governance quiet status mismatch: ${quietSizing.chamberMini}`);
+  assert(
+    !quietSizing.chamberMetricsHidden
+      && /Period ends/.test(quietSizing.chamberMetrics)
+      && /Candidates None/.test(quietSizing.chamberMetrics)
+      && /Ballots Not open/.test(quietSizing.chamberMetrics)
+      && /Next Proposal window/.test(quietSizing.chamberMetrics),
+    `quiet governance sizing: Tezos L1 Governance quiet period facts are incomplete: ${quietSizing.chamberMetrics}`
+  );
   assert(quietSizing.governanceAlertHidden && !/needs attention|current proposal/i.test(quietSizing.governanceAlertText), `quiet governance sizing: empty Proposal period should not render governance alert, saw ${quietSizing.governanceAlertText}`);
-  assert(!quietSizing.etherlinkWide && quietSizing.etherlinkSize === 'compact', `quiet governance sizing: Tezos X Governance should be 1x1, saw ${JSON.stringify(quietSizing)}`);
+  assert(!quietSizing.etherlinkWide && quietSizing.etherlinkSize === 'compact', `quiet governance sizing: Tezos X Governance should keep compact content, saw ${JSON.stringify(quietSizing)}`);
   assert(/No Proposal/.test(quietSizing.etherlinkText) && /No active L2 governance proposal/.test(quietSizing.etherlinkText) && /FAST/.test(quietSizing.etherlinkText), `quiet governance sizing: Etherlink idle text mismatch: ${quietSizing.etherlinkText}`);
   assert(!quietSizing.etherlinkMetricsHidden, 'quiet governance sizing: Etherlink metrics should show compact status chips when all tracks are quiet');
-  assert(Math.abs(quietSizing.chamberWidth - quietSizing.etherlinkWidth) < 8, `quiet governance sizing: compact cards should share 1x1 width, saw ${quietSizing.chamberWidth} vs ${quietSizing.etherlinkWidth}`);
+  assert(
+    quietSizing.categoryOrder.join(',') === 'chamber-entry-card,etherlink-governance-entry-card,lb-entry-card'
+      && Math.abs(quietSizing.chamberWidth - quietSizing.etherlinkWidth) <= 2
+      && quietSizing.lbWidth > quietSizing.chamberWidth * 1.9
+      && quietSizing.lbWidth < quietSizing.chamberWidth * 2.1,
+    `quiet governance sizing: L1 and L2 should share a row while the data-rich LB monitor owns the next row, saw ${JSON.stringify(quietSizing)}`
+  );
   assert(quietSizing.etherlinkGeometry.overlap === 0, `quiet governance sizing: Tezos X Governance open cue overlaps Sequencer chip: ${JSON.stringify(quietSizing.etherlinkGeometry)}`);
   await quietPage.locator('#chamber-entry-card .chamber-expand-cue').click();
   await quietPage.locator('#chamber-modal.active').waitFor({ state: 'visible', timeout: 10000 });
@@ -13761,6 +13902,243 @@ async function smokeQuietRefresh(browser, baseUrl) {
   log('ok - quiet background refresh smoke');
 }
 
+async function smokeChamberCategories(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-systems-stats-visible', 'true');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'Chamber categories', issues);
+  let response = await page.goto(`${baseUrl}/?theme=matrix#domains`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Chamber categories direct hash failed with HTTP ${response?.status()}`);
+  await page.locator('#tezos-domains-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction((expectedCount) => (
+    document.querySelectorAll('#chambers-grid > .chamber-category').length === 6
+    && document.querySelectorAll('#chambers-grid .stat-card').length === expectedCount
+  ), EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
+  await assertChamberOrder(page, 'Chamber categories direct hash');
+
+  const directHashState = await page.evaluate(() => ({
+    active: document.querySelector('#tezos-domains-modal')?.classList.contains('active') || false,
+    openCategories: Array.from(
+      document.querySelectorAll('#chambers-grid > .chamber-category[open]'),
+      (category) => category.dataset.chamberCategory
+    )
+  }));
+  assert(
+    directHashState.active
+      && directHashState.openCategories.join(',') === 'network,people',
+    `direct #domains route must reveal People before opening its Chamber: ${JSON.stringify(directHashState)}`
+  );
+
+  await page.locator('#tezos-domains-modal.active .chamber-close').click();
+  await page.locator('#tezos-domains-modal.active').waitFor({ state: 'hidden', timeout: 5000 });
+  await page.waitForFunction(() => (
+    document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length === 6
+    && document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length >= 6
+  ), null, { timeout: 15000 });
+  const capitalSummary = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+  await page.evaluate(() => {
+    const html = document.documentElement;
+    const previousBehavior = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head')
+      ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    html.style.scrollBehavior = previousBehavior;
+  });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const toggleBefore = await page.evaluate(() => window.scrollY);
+  await capitalSummary.click();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const toggleAfter = await page.evaluate(() => {
+    const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
+    return {
+      open: category?.open || false,
+      focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head'),
+      scrollY: window.scrollY
+    };
+  });
+  assert(toggleAfter.open && toggleAfter.focused, `Capital disclosure did not stay open and focused: ${JSON.stringify(toggleAfter)}`);
+  assert(Math.abs(toggleAfter.scrollY - toggleBefore) <= 2, `Capital disclosure toggle moved page scroll: ${JSON.stringify({ toggleBefore, toggleAfter })}`);
+
+  await page.evaluate(() => {
+    const networkQuestion = document.querySelector(
+      '#chambers-grid > .chamber-category[data-chamber-category="network"] .chamber-category-question'
+    );
+    const textNode = networkQuestion?.firstChild;
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    if (textNode?.nodeType === Node.TEXT_NODE && textNode.textContent) {
+      const range = document.createRange();
+      range.setStart(textNode, 0);
+      range.setEnd(textNode, Math.min(7, textNode.textContent.length));
+      selection?.addRange(range);
+    }
+    window.__chamberCategoryRegression = {
+      categories: Array.from(document.querySelectorAll('#chambers-grid > .chamber-category')),
+      staking: document.getElementById('staking-entry-card'),
+      scrollY: window.scrollY,
+      selection: selection?.toString() || ''
+    };
+    window.dispatchEvent(new CustomEvent('stats-updated', {
+      detail: { stats: {}, source: 'hero' }
+    }));
+  });
+
+  for (let passIndex = 0; passIndex < 2; passIndex += 1) {
+    await page.evaluate(() => {
+      const grid = document.getElementById('chambers-grid');
+      const staking = document.getElementById('staking-entry-card');
+      if (grid && staking) grid.appendChild(staking);
+    });
+    await page.waitForFunction(() => (
+      document.getElementById('staking-entry-card')?.closest('.chamber-category')?.dataset.chamberCategory === 'capital'
+      && document.querySelectorAll('#chambers-grid > .chamber-category').length === 6
+    ), null, { timeout: 5000 });
+  }
+
+  const refreshState = await page.evaluate(() => {
+    const saved = window.__chamberCategoryRegression;
+    const categories = Array.from(document.querySelectorAll('#chambers-grid > .chamber-category'));
+    const openCategories = categories.filter((category) => category.open).map((category) => category.dataset.chamberCategory);
+    return {
+      wrappersSame: categories.length === saved?.categories?.length
+        && categories.every((category, index) => category === saved.categories[index]),
+      stakingSame: document.getElementById('staking-entry-card') === saved?.staking,
+      selection: window.getSelection()?.toString() || '',
+      expectedSelection: saved?.selection || '',
+      scrollDelta: Math.abs(window.scrollY - (saved?.scrollY || 0)),
+      openCategories,
+      categoryCount: categories.length,
+      cardCount: document.querySelectorAll('#chambers-grid .stat-card').length,
+      passiveAnimations: Array.from(document.querySelectorAll('#chambers-grid .chamber-entry-card:not(.chamber-entry-risk)'))
+        .map((card) => ({
+          id: card.id || card.dataset.stat || '',
+          animationName: getComputedStyle(card, '::before').animationName
+        }))
+        .filter(({ animationName }) => animationName !== 'none')
+    };
+  });
+  assert(refreshState.wrappersSame && refreshState.stakingSame, `Chamber organization replaced reusable category/card nodes: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.selection === refreshState.expectedSelection && refreshState.selection.length > 0, `Chamber organization lost reader selection: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.scrollDelta <= 1, `Chamber organization moved page scroll: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.openCategories.join(',') === 'network,capital,people', `background refresh reset disclosure state: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.categoryCount === 6 && refreshState.cardCount === 17, `late card organization duplicated categories or entries: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.passiveAnimations.length === 0, `ordinary freshness/live cards still animate their perimeter: ${JSON.stringify(refreshState.passiveAnimations)}`);
+
+  response = await page.goto(`${baseUrl}/history/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Chamber categories pretty route failed with HTTP ${response?.status()}`);
+  await page.locator('#history-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => (
+    document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="history"]')?.open === true
+  ), null, { timeout: 10000 });
+  const prettyRouteState = await page.evaluate(() => ({
+    active: document.querySelector('#history-modal')?.classList.contains('active') || false,
+    historyOpen: document.querySelector(
+      '#chambers-grid > .chamber-category[data-chamber-category="history"]'
+    )?.open || false
+  }));
+  assert(
+    prettyRouteState.active && prettyRouteState.historyOpen,
+    `pretty /history/ route must reveal History before opening its Chamber: ${JSON.stringify(prettyRouteState)}`
+  );
+
+  await context.close();
+
+  for (const { label, viewport } of [
+    { label: 'tablet', viewport: { width: 768, height: 1024 } },
+    { label: 'desktop', viewport: { width: 1440, height: 900 } }
+  ]) {
+    const layoutContext = await browser.newContext({ viewport, serviceWorkers: 'block' });
+    await installFeatureMocks(layoutContext);
+    await layoutContext.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'matrix');
+      localStorage.setItem('tezos-systems-stats-visible', 'true');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    });
+    const layoutPage = await layoutContext.newPage();
+    attachIssueCollectors(layoutPage, `Chamber categories ${label}`, issues);
+    const layoutResponse = await layoutPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+    assert(layoutResponse?.ok(), `Chamber categories ${label} failed with HTTP ${layoutResponse?.status()}`);
+    await layoutPage.waitForFunction((expectedCount) => (
+      document.querySelectorAll('#chambers-grid > .chamber-category').length === 6
+      && document.querySelectorAll('#chambers-grid .stat-card').length === expectedCount
+    ), EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
+    await layoutPage.waitForFunction(() => (
+      document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length === 6
+      && document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length >= 6
+    ), null, { timeout: 15000 });
+    await assertChamberOrder(layoutPage, `Chamber categories ${label}`);
+    const geometry = await layoutPage.evaluate(() => {
+      const grid = document.querySelector('#chambers-grid');
+      const cards = Array.from(document.querySelectorAll('#chambers-grid .chamber-category-cards > .stat-card'));
+      const cardKey = (card) => card.id || card.dataset.stat || '';
+      return {
+        viewportWidth: innerWidth,
+        gridWidth: grid?.getBoundingClientRect().width || 0,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        allOpen: Array.from(document.querySelectorAll('#chambers-grid > .chamber-category')).every((category) => category.open),
+        cards: Object.fromEntries(cards.map((card) => {
+          const front = card.querySelector('.card-front');
+          const rect = card.getBoundingClientRect();
+          return [cardKey(card), {
+            layout: card.dataset.chamberLayout || '',
+            width: rect.width,
+            top: rect.top,
+            bottom: rect.bottom,
+            clipped: Boolean(front && front.scrollHeight > front.clientHeight + 4)
+          }];
+        }))
+      };
+    });
+    assert(geometry.allOpen && !geometry.pageOverflow, `Chamber categories ${label} disclosure/overflow regression ${JSON.stringify(geometry)}`);
+    assert(Object.values(geometry.cards).every((card) => !card.clipped), `Chamber categories ${label} clips launcher content ${JSON.stringify(geometry.cards)}`);
+    if (label === 'tablet') {
+      assert(
+        Object.values(geometry.cards).every((card) => card.width >= geometry.gridWidth - 2),
+        `Chamber categories tablet should give every launcher a full row ${JSON.stringify(geometry)}`
+      );
+    } else {
+      const fullRowIds = [
+        'network-pulse-entry-card',
+        'capital-entry-card',
+        'lb-entry-card',
+        'ledger-flow-entry-card',
+        'tezos-domains-entry-card',
+        'maxis-entry-card',
+        'tezoscrp-entry-card'
+      ];
+      assert(fullRowIds.every((id) => geometry.cards[id]?.width >= geometry.gridWidth - 2), `Chamber categories desktop dense cards lost their full rows ${JSON.stringify(geometry)}`);
+      assert(
+        geometry.cards['whale-watch-entry-card']?.width > geometry.cards['staking-entry-card']?.width * 1.9
+          && geometry.cards['baker-directory-entry-card']?.width > geometry.cards['tz4-adoption']?.width * 1.9,
+        `Chamber categories desktop wide/compact rows are not balanced ${JSON.stringify(geometry.cards)}`
+      );
+      assert(
+        Math.abs(geometry.cards['chamber-entry-card']?.width - geometry.cards['etherlink-governance-entry-card']?.width) <= 2
+          && Math.abs(geometry.cards['chamber-entry-card']?.top - geometry.cards['etherlink-governance-entry-card']?.top) <= 2,
+        `Chamber categories desktop L1/L2 governance row is uneven ${JSON.stringify(geometry.cards)}`
+      );
+    }
+    await layoutContext.close();
+  }
+
+  assert(issues.length === 0, `Chamber categories browser issues:\n${issues.join('\n')}`);
+  log('ok - responsive Chamber categories smoke');
+}
+
 function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
@@ -13771,6 +14149,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
+    { name: 'chamber-categories', description: 'Six responsive Chamber disclosures, exact membership, reusable organization, direct-route reveal, and risk-only attention', run: () => smokeChamberCategories(browser, baseUrl) },
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },

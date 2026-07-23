@@ -3039,6 +3039,7 @@ body::before {
 }
 
 .card-back {
+    top: 0;
     transform: rotateY(180deg);
     /* Hide from screen readers when not visible */
     visibility: hidden;
@@ -3552,12 +3553,16 @@ body::before {
         align-self: center;
     }
 
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="health-governance"] > .chamber-entry-card {
+    #chambers-grid.chambers-paired-grid > .chamber-category > .chamber-category-cards > .health-entry-card {
+        height: 228px;
+    }
+
+    #chambers-grid.chambers-paired-grid > .chamber-category > .chamber-category-cards > #chamber-entry-card {
         height: 220px;
     }
 
     #chambers-grid .health-entry-card.chamber-entry-wide {
-        height: 220px !important;
+        height: 228px !important;
     }
 
     .health-entry-card.chamber-entry-wide .network-health-blocks {
@@ -17004,17 +17009,99 @@ body {
 #chambers-grid.chambers-paired-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1.125rem;
+    gap: 1.5rem;
 }
 
 #chambers-grid.chambers-paired-grid > .chamber-card-pair {
+    display: block;
+    min-width: 0;
+}
+
+#chambers-grid > .stat-card {
+    display: none;
+}
+
+.chamber-category-cards {
     display: grid;
     grid-template-columns: 1fr;
     gap: 1.125rem;
     min-width: 0;
 }
 
-#chambers-grid.chambers-paired-grid > .chamber-card-pair > .stat-card {
+.chamber-category-head {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: max-content minmax(12rem, max-content) minmax(2rem, 1fr) max-content max-content;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.25rem 0.1rem;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    list-style: none;
+}
+
+.chamber-category-head::-webkit-details-marker {
+    display: none;
+}
+
+.chamber-category-head:focus-visible {
+    outline: 2px solid var(--accent-cyan);
+    outline-offset: 4px;
+    border-radius: 6px;
+}
+
+.chamber-category-name {
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.chamber-category-question {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 0.68rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chamber-category-rule {
+    height: 1px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent-cyan) 22%, transparent), transparent);
+}
+
+.chamber-category-count {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.64rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+}
+
+.chamber-category-cue {
+    color: var(--accent-cyan);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1;
+    transform: rotate(-90deg);
+    transition: transform 160ms ease;
+}
+
+.chamber-category[open] > .chamber-category-head .chamber-category-cue {
+    transform: rotate(0deg);
+}
+
+.chamber-category:not([open]) > .chamber-category-cards {
+    display: none !important;
+}
+
+#chambers-grid.chambers-paired-grid > .chamber-card-pair > .chamber-category-cards > .stat-card {
     width: 100%;
     min-width: 0;
 }
@@ -17080,8 +17167,7 @@ body {
     animation: none;
 }
 
-.chamber-entry-card.chamber-entry-live::before,
-.chamber-entry-card[data-updated-label]::before {
+.chamber-entry-card.chamber-entry-risk::before {
     animation: entryCardPulse 6s ease-in-out infinite;
 }
 
@@ -17098,10 +17184,8 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 0.65rem;
-    width: auto;
     min-width: 0;
     min-height: 22px;
-    margin-top: 0;
     padding-top: 0.32rem;
     border-top: 1px solid rgba(255, 255, 255, 0.045);
 }
@@ -17326,26 +17410,43 @@ body {
     color: var(--chamber-watch-color);
 }
 
+#chambers-grid .chamber-entry-card[data-chamber-layout] {
+    height: auto !important;
+    min-height: 236px;
+}
+
+#chambers-grid .chamber-entry-card[data-chamber-layout] > .card-inner {
+    height: auto !important;
+    min-height: inherit;
+}
+
+#chambers-grid .chamber-entry-card[data-chamber-layout] > .card-inner > .card-front {
+    position: relative;
+    height: auto !important;
+    min-height: inherit;
+}
+
 .chamber-entry-card.chamber-entry-risk {
     border-color: color-mix(in srgb, var(--chamber-watch-color) 24%, transparent) !important;
     box-shadow: 0 0 20px color-mix(in srgb, var(--chamber-watch-color) 8%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
 }
 
 @media (min-width: 760px) {
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair > .chamber-category-cards {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-wide-count="2"] {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    #chambers-grid.chambers-paired-grid > .chamber-category > .chamber-category-cards > .chamber-entry-card {
+        grid-column: auto !important;
     }
 
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-wide-count="2"] > .chamber-entry-wide {
-        grid-column: auto;
+    #chambers-grid .chamber-entry-card[data-chamber-layout="standard"],
+    #chambers-grid .chamber-entry-card[data-chamber-layout="compact"] {
+        min-height: 248px;
     }
 
-    #chambers-grid .chamber-entry-card {
-        height: 190px;
+    #chambers-grid .chamber-entry-card[data-chamber-layout="wide"] {
+        min-height: 300px;
     }
 
     #chambers-grid .chamber-entry-card .card-front {
@@ -17356,26 +17457,6 @@ body {
         padding-top: 1.25rem;
         padding-bottom: var(--chamber-footer-clearance);
         text-align: left;
-    }
-
-    #chambers-grid .chamber-entry-card.chamber-entry-wide {
-        grid-column: span 2;
-    }
-
-    #chambers-grid > .chamber-card-pair:is([data-chamber-pair="tezlink-governance"], [data-chamber-pair="tz4-staking-liquidity"]) > .chamber-entry-card {
-        height: 228px;
-    }
-
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="ledger-history"] > .chamber-entry-card {
-        height: 338px;
-    }
-
-    /* These two launchers carry richer room previews than the compact cards.
-       Keep the pair level and leave enough room for every metric, route rail,
-       and the shared Chamber footer instead of clipping their contents. */
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card {
-        height: 320px;
-        min-height: 320px;
     }
 
     #chamber-entry-card.chamber-entry-wide .chamber-entry-front {
@@ -17409,44 +17490,37 @@ body {
 }
 
 @media (min-width: 1180px) {
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
-
-    #chambers-grid .chamber-entry-card.chamber-entry-wide {
-        grid-column: span 3;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair > .chamber-entry-card:not(.chamber-entry-wide) {
-        grid-column: span 2;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-wide-count="2"] {
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair > .chamber-category-cards {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-wide-count="2"] > .chamber-entry-wide {
-        grid-column: auto;
+    #chambers-grid > .chamber-category > .chamber-category-cards > .chamber-entry-card[data-chamber-layout="featured"] {
+        grid-column: 1 / -1 !important;
+    }
+
+    #chambers-grid > :is(
+        .chamber-category[data-chamber-category="capital"],
+        .chamber-category[data-chamber-category="bakers"]
+    ) > .chamber-category-cards {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    #chambers-grid > :is(
+        .chamber-category[data-chamber-category="capital"],
+        .chamber-category[data-chamber-category="bakers"]
+    ) > .chamber-category-cards > .chamber-entry-card[data-chamber-layout="wide"] {
+        grid-column: span 2 !important;
+    }
+
+    #chambers-grid > :is(
+        .chamber-category[data-chamber-category="capital"],
+        .chamber-category[data-chamber-category="bakers"]
+    ) > .chamber-category-cards > .chamber-entry-card[data-chamber-layout="compact"] {
+        grid-column: span 1 !important;
     }
 }
 
 @media (min-width: 760px) and (max-width: 1040px) {
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card {
-        height: 360px;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="health-governance"] > .chamber-entry-card {
-        height: 300px;
-    }
-
-    #chambers-grid .health-entry-card.chamber-entry-wide {
-        height: 300px !important;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair[data-chamber-pair="tezlink-governance"] > .chamber-entry-card {
-        height: 316px;
-    }
-
     #chamber-entry-card.chamber-entry-wide .chamber-entry-front {
         grid-template-columns: minmax(0, 1fr);
         grid-auto-rows: min-content;
@@ -17482,7 +17556,7 @@ body {
 }
 
 @media (min-width: 1180px) {
-    .chamber-card-pair[data-chamber-pair="tezlink-governance"][data-wide-count="2"] > .tezlink-entry-card .tezlink-entry-front {
+    .chamber-category[data-chamber-category="network"] > .chamber-category-cards > .tezlink-entry-card .tezlink-entry-front {
         grid-template:
             "main metrics" min-content
             "main tape" minmax(0, 1fr) / minmax(13.5rem, 0.95fr) minmax(16rem, 1.05fr);
@@ -17490,15 +17564,15 @@ body {
         gap: 0.65rem 0.95rem;
     }
 
-    .chamber-card-pair[data-chamber-pair="tezlink-governance"][data-wide-count="2"] > .tezlink-entry-card .tezlink-entry-main {
+    .chamber-category[data-chamber-category="network"] > .chamber-category-cards > .tezlink-entry-card .tezlink-entry-main {
         grid-area: main;
     }
 
-    .chamber-card-pair[data-chamber-pair="tezlink-governance"][data-wide-count="2"] > .tezlink-entry-card .tezlink-entry-metrics {
+    .chamber-category[data-chamber-category="network"] > .chamber-category-cards > .tezlink-entry-card .tezlink-entry-metrics {
         grid-area: metrics;
     }
 
-    .chamber-card-pair[data-chamber-pair="tezlink-governance"][data-wide-count="2"] > .tezlink-entry-card .tezlink-entry-tape {
+    .chamber-category[data-chamber-category="network"] > .chamber-category-cards > .tezlink-entry-card .tezlink-entry-tape {
         grid-area: tape;
         align-self: stretch;
         align-content: center;
@@ -17508,8 +17582,44 @@ body {
 
 @media (max-width: 759px) {
     #chambers-grid.chambers-paired-grid,
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair {
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair > .chamber-category-cards {
         gap: 1rem;
+    }
+
+    .chamber-category-head {
+        grid-template-columns: minmax(0, 1fr) max-content max-content;
+        grid-template-rows: auto auto;
+        gap: 0.12rem 0.65rem;
+        min-height: 54px;
+        padding: 0.4rem 0.1rem;
+    }
+
+    .chamber-category-name {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .chamber-category-question {
+        grid-column: 1;
+        grid-row: 2;
+        overflow: visible;
+        font-size: 0.62rem;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    .chamber-category-rule {
+        display: none;
+    }
+
+    .chamber-category-count {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+
+    .chamber-category-cue {
+        grid-column: 3;
+        grid-row: 1 / span 2;
     }
 
     #chambers-grid .chamber-entry-card {
@@ -17556,11 +17666,11 @@ body {
        height. Their shared flip-card front is absolute by default, which
        otherwise leaves the old 236px floor in charge and clips wrapped
        metrics or route rails on narrow screens. */
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card .card-inner {
+    #chambers-grid > .chamber-category > .chamber-category-cards > :is(#whale-watch-entry-card, #baker-directory-entry-card) .card-inner {
         height: auto;
     }
 
-    #chambers-grid > .chamber-card-pair[data-chamber-pair="whales-bakers"] > .chamber-entry-card .chamber-entry-front {
+    #chambers-grid > .chamber-category > .chamber-category-cards > :is(#whale-watch-entry-card, #baker-directory-entry-card) .chamber-entry-front {
         position: relative;
         height: auto;
     }

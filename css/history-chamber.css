@@ -453,27 +453,23 @@
 }
 
 @media (min-width: 1180px) {
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> #cycle-history-entry-card) {
-        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> .chamber-category-cards > #cycle-history-entry-card) > .chamber-category-cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> #cycle-history-entry-card) > .chamber-entry-card {
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> .chamber-category-cards > #cycle-history-entry-card) > .chamber-category-cards > .chamber-entry-card {
         grid-column: auto !important;
         min-height: 338px;
     }
 }
 
 @media (min-width: 760px) and (max-width: 1179px) {
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> #cycle-history-entry-card) {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> .chamber-category-cards > #cycle-history-entry-card) > .chamber-category-cards {
+        grid-template-columns: minmax(0, 1fr) !important;
     }
 
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> #cycle-history-entry-card) > .ledger-flow-entry-card {
+    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> .chamber-category-cards > #cycle-history-entry-card) > .chamber-category-cards > :is(.protocol-history-entry-card, #cycle-history-entry-card) {
         grid-column: 1 / -1 !important;
-    }
-
-    #chambers-grid.chambers-paired-grid > .chamber-card-pair:has(> #cycle-history-entry-card) > :is(.protocol-history-entry-card, #cycle-history-entry-card) {
-        grid-column: auto !important;
         min-height: 338px;
     }
 }

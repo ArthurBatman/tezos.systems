@@ -7,6 +7,10 @@ const CHANGELOG = [
     {
         date: '2026-07-23',
         entries: [
+            { type: '🎨', text: 'The 17 Chamber launchers are now organized into six question-led topics, with every room visible on desktop and progressive disclosure on mobile' },
+            { type: '🎨', text: 'Data-rich Chamber launchers now own full rows, related lighter rooms share balanced lanes, and every preview expands to reveal its useful content without clipping' },
+            { type: '✨', text: 'Quiet L1 proposal periods now retain period timing, candidate, ballot, and next-window context instead of collapsing into an empty launcher' },
+            { type: '🔧', text: 'Ordinary live and freshness labels now keep a settled perimeter, reserving continuous Chamber animation for explicit watch or risk states' },
             { type: '🔧', text: 'Live Pulse now celebrates every 100th cycle from its exact Octez boundary for 72 hours, even when the generated milestone catalog or TzKT head is stale' },
             { type: '🔧', text: 'Live Pulse milestone receipts now survive quiet reconciliation and reloads, while the non-interactive Earlier today category breadcrumb has been removed' }
         ]

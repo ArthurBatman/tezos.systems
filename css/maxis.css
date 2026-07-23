@@ -2320,10 +2320,13 @@ button.maxis-crown-card { width: 100%; font: inherit; text-align: left; cursor: 
 .maxis-empty-stage strong { display: block; margin-top: 0.65rem; color: var(--text-primary); font-size: 0.8rem; }
 .maxis-empty-stage p { max-width: 30rem; margin: 0.35rem auto 0; font-size: 0.7rem; line-height: 1.5; }
 
-/* The launcher leads with durable Maxis identities and keeps the season as a pulse. */
-#chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide {
-    height: 258px !important;
-    min-height: 258px !important;
+/* The categorized wall gives this dense launcher half a desktop row. Keep its
+   full identity and season receipt readable at that width. */
+@media (min-width: 760px) {
+    #chambers-grid #maxis-entry-card.maxis-entry-card.chamber-entry-wide {
+        height: 414px !important;
+        min-height: 414px !important;
+    }
 }
 .maxis-entry-season-front { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(18rem, 0.88fr); gap: 0.72rem; height: 100%; min-height: 0; padding-bottom: 3.35rem !important; }
 .maxis-entry-season-copy { min-width: 0; }
