@@ -22785,7 +22785,10 @@ body[data-theme="nerv"]::after {
     padding: 0.45rem 0.8rem;
     white-space: nowrap;
 }
-.portfolio-refresh { flex: 0 0 auto; }
+.portfolio-refresh {
+    flex: 0 0 auto;
+    min-width: 88px;
+}
 .portfolio-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

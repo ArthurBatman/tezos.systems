@@ -11,6 +11,7 @@ const CHANGELOG = [
             { type: '✨', text: 'My Tezos now includes an aggregated Tezos NFT Collection and manually linked Etherlink accounts that remain explicitly device-local and unverified' },
             { type: '⚡', text: 'My Tezos histories, rewards, holdings, and sync cursors now use bounded IndexedDB storage and a shared source-aware request queue instead of large localStorage payloads' },
             { type: '🔧', text: 'Saved-address duplicates, label commits, rapid wallet switching, partial source reads, and last-good Portfolio reloads now have explicit stable behavior' },
+            { type: '🎨', text: 'My Tezos action labels remain fully readable at tablet and mobile widths across loaded theme fonts' },
             { type: '🎨', text: 'The 17 Chamber launchers are now organized into six question-led topics, with every room visible on desktop and progressive disclosure on mobile' },
             { type: '🎨', text: 'Data-rich Chamber launchers now own full rows, related lighter rooms share balanced lanes, and every preview expands to reveal its useful content without clipping' },
             { type: '✨', text: 'Quiet L1 proposal periods now retain period timing, candidate, ballot, and next-window context instead of collapsing into an empty launcher' },
