@@ -505,14 +505,12 @@ async function _doFetchBakers() {
 }
 
 /**
- * Fetch cycle info from TzKT
+ * Fetch cycle info from Octez RPC.
  */
 async function fetchCycleInfo() {
-    // Use Octez RPC instead of TzKT for head + cycle info
-    const [header, metadata] = await Promise.all([
-        fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/head/header`),
-        fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/head/metadata`)
-    ]);
+    const header = await fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/head/header`);
+    const headId = encodeURIComponent(header?.hash || 'head');
+    const metadata = await fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/${headId}/metadata`);
     const levelInfo = metadata.level_info || {};
     const head = {
         level: header.level,
@@ -529,6 +527,8 @@ async function fetchCycleInfo() {
             cycle: Number.isFinite(cycleNumber) ? cycleNumber : null,
             blockLevel: Number.isFinite(currentLevel) ? currentLevel : null,
             blockTime: header.timestamp || null,
+            cycleStartBlock: null,
+            blocksPerCycle: null,
             progress: null,
             timeRemaining: '—'
         };
@@ -554,8 +554,6 @@ async function fetchCycleInfo() {
 
     const currentBlock = currentLevel;
     // cycleStartBlock computed above from RPC metadata
-    const blocksPerCycle = 14400; // Will be overridden by constants below if available
-    const cycleEndBlock = cycleStartBlock + blocksPerCycle - 1;
     const blocksIntoCycle = currentBlock - cycleStartBlock;
     const progress = (blocksIntoCycle / actualBlocksPerCycle) * 100;
 
@@ -582,6 +580,8 @@ async function fetchCycleInfo() {
         cycle: Number.isFinite(cycleNumber) ? cycleNumber : null,
         blockLevel: head.level,
         blockTime: head.timestamp,
+        cycleStartBlock,
+        blocksPerCycle: actualBlocksPerCycle,
         progress: Math.min(progress, 100),
         timeRemaining
     };
@@ -1359,6 +1359,8 @@ export async function fetchAllStats() {
             cycle: cycle.cycle,
             blockLevel: cycle.blockLevel,
             blockTime: cycle.blockTime,
+            cycleStartBlock: cycle.cycleStartBlock,
+            blocksPerCycle: cycle.blocksPerCycle,
             cycleProgress: cycle.progress,
             cycleTimeRemaining: cycle.timeRemaining,
             
@@ -1459,6 +1461,8 @@ export async function fetchHeroStats() {
             cycle: cycleInfo.cycle,
             blockLevel: cycleInfo.blockLevel,
             blockTime: cycleInfo.blockTime,
+            cycleStartBlock: cycleInfo.cycleStartBlock,
+            blocksPerCycle: cycleInfo.blocksPerCycle,
             cycleProgress: cycleInfo.progress,
             cycleTimeRemaining: cycleInfo.timeRemaining,
         };

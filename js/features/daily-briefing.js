@@ -10,7 +10,7 @@ import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
 import { escapeHtml } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { findSiteMapEntry } from '../core/site-map.js';
-import { generatedMilestoneAnchor, generatedMilestoneMoments, generatedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
+import { cycleMilestoneStartLevel, generatedMilestoneAnchor, generatedMilestoneMoments, mergedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS, normalizeMilestoneStore, qualifyMilestoneNearState } from './milestone-lifecycle.mjs';
 import { fetchXTZPrice } from './price.js';
 
@@ -21,7 +21,7 @@ const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
 const LS_PROTOCOL_LORE_DAY = 'tezos-systems-protocol-lore-hot-day';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
-const BRIEFING_SCHEMA_VERSION = 11;
+const BRIEFING_SCHEMA_VERSION = 12;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const NFT_FETCH_TIMEOUT_MS = 2500;
 const MILESTONE_FETCH_TIMEOUT_MS = 2800;
@@ -585,8 +585,8 @@ const MILESTONE_TRACKS = [
 ];
 
 function milestoneThresholds(track) {
-  const generated = generatedMilestoneThresholds(generatedMilestoneCatalog, track.id);
-  return generated.length ? generated : track.thresholds;
+  const merged = mergedMilestoneThresholds(generatedMilestoneCatalog, track.id);
+  return merged.length ? merged : track.thresholds;
 }
 
 function milestoneCatalogRate(track, currentValue, now = Date.now()) {
@@ -637,6 +637,10 @@ function compactMilestoneNumber(value, { unit = '', decimals = null, current = f
 }
 
 function milestoneTargetLabel(track, value) {
+  if (track.id === 'cycle') {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toLocaleString('en-US') : '--';
+  }
   return compactMilestoneNumber(value, {
     unit: track.unit,
     decimals: track.targetDecimals ?? (track.unit === '%' ? 0 : track.decimals)
@@ -664,6 +668,9 @@ function milestoneShortLabel(track, value) {
 }
 
 function milestoneCurrentLabel(track, value) {
+  if (track.id === 'cycle') {
+    return `Cycle ${Math.round(Number(value) || 0).toLocaleString('en-US')}`;
+  }
   const label = compactMilestoneNumber(value, { unit: track.unit, decimals: track.decimals, current: true });
   return `${label} ${track.currentSuffix || track.noun}`.trim();
 }
@@ -737,6 +744,44 @@ async function resolveExactBlockMilestoneMoment(stats = {}) {
   return promise;
 }
 
+async function resolveExactCycleMilestoneMoment(stats = {}) {
+  const track = MILESTONE_TRACKS.find(entry => entry.id === 'cycle');
+  const current = track?.value(stats);
+  const cycleStartBlock = finiteNumber(stats?.cycleStartBlock);
+  const blocksPerCycle = finiteNumber(stats?.blocksPerCycle);
+  if (!track || !hasMilestoneNumber(current) || !hasMilestoneNumber(cycleStartBlock) || !hasMilestoneNumber(blocksPerCycle)) return null;
+  const target = [...milestoneThresholds(track)].reverse().find(value => value <= current);
+  if (!target || Number(current) - target > track.afterWindow) return null;
+
+  const key = `${track.id}:${target}`;
+  const existing = exactMilestoneMoment(track.id, target);
+  if (existing) return existing;
+  if (exactMilestoneMomentPromises.has(key)) return exactMilestoneMomentPromises.get(key);
+
+  const targetLevel = cycleMilestoneStartLevel({
+    currentCycle: current,
+    currentCycleStartLevel: cycleStartBlock,
+    targetCycle: target,
+    blocksPerCycle
+  });
+  if (!targetLevel) return null;
+
+  const promise = fetchMilestoneJson(`${API_URLS.octez}/chains/main/blocks/${targetLevel}/header`).then((header) => {
+    const createdAt = Date.parse(header?.timestamp || '');
+    if (Number(header?.level) !== Number(targetLevel) || !Number.isFinite(createdAt)) return null;
+    const moment = {
+      target: Number(target),
+      createdAt,
+      expiresAt: createdAt + MILESTONE_MOMENT_TTL_MS,
+      crossedValue: Number(current)
+    };
+    exactMilestoneMoments.set(key, moment);
+    return moment.expiresAt > Date.now() ? moment : null;
+  }).catch(() => null);
+  exactMilestoneMomentPromises.set(key, promise);
+  return promise;
+}
+
 function readMilestoneMomentLog() {
   try {
     const parsed = JSON.parse(safeLocalStorageGet(LS_MILESTONE_MOMENTS) || 'null');
@@ -774,6 +819,9 @@ function milestoneText(track, state) {
     return `${current}; ${gap} until ${target} ${targetSuffix}.`;
   }
   if (state.status === 'crossed') {
+    if (track.id === 'cycle') {
+      return `${target} cycles crossed; Cycle ${target} is confirmed on-chain.`;
+    }
     return `${target} ${targetSuffix} crossed; ${current} now visible on-chain.`;
   }
   return '';
@@ -842,11 +890,17 @@ function buildMilestoneSignals(stats = {}) {
       anchorValue: priorValue,
       anchorObservedAt: priorObservedAt
     }).filter(moment => Math.max(0, Number(current) - moment.target) <= (finiteNumber(track.afterWindow) ?? Number.POSITIVE_INFINITY));
-    const exactMoment = track.id === 'blocks'
-      ? exactMilestoneMoment(track.id, [...thresholds].reverse().find(value => value <= current), now)
+    const exactTarget = ['blocks', 'cycle'].includes(track.id)
+      ? [...thresholds].reverse().find(value => value <= current)
       : null;
+    const exactKey = exactTarget == null ? '' : `${track.id}:${exactTarget}`;
+    const exactMoment = exactTarget == null ? null : exactMilestoneMoment(track.id, exactTarget, now);
+    const exactBoundaryResolved = exactKey ? exactMilestoneMoments.has(exactKey) : false;
     const activeMoments = new Map();
-    [...locallyObservedMoments, ...catalogMoments, ...(exactMoment ? [exactMoment] : [])]
+    const activeMomentCandidates = exactBoundaryResolved
+      ? (exactMoment ? [exactMoment] : [])
+      : [...lifecycle.activeMoments, ...locallyObservedMoments, ...catalogMoments];
+    activeMomentCandidates
       .forEach(moment => activeMoments.set(String(moment.target), moment));
 
     activeMoments.forEach((moment) => {
@@ -974,6 +1028,8 @@ async function resolveMilestoneStats(stats = {}) {
 function compactMilestoneStats(stats = {}) {
   const fields = [
     'blockLevel',
+    'cycleStartBlock',
+    'blocksPerCycle',
     'fundedAccounts',
     'totalTransactions',
     'smartContracts',
@@ -1216,14 +1272,9 @@ function hotHistorySummary(currentTop) {
   if (!currentTop) return null;
   const history = readHotHistory();
   if (!history.length) return null;
-  const today = hotHistoryDay();
   const yesterday = hotHistoryDay(Date.now() - 24 * 60 * 60 * 1000);
   const yesterdayEntries = history.filter(entry => entry?.day === yesterday);
   const yesterdayTop = yesterdayEntries.sort((a, b) => (b.topScore || 0) - (a.topScore || 0))[0] || null;
-  const todayTrail = history
-    .filter(entry => entry?.day === today && entry.topCategory && entry.topCategory !== currentTop.category)
-    .map(entry => entry.topCategory);
-  const earlier = Array.from(new Set(todayTrail)).slice(-3);
 
   let chip = '';
   if (yesterdayTop) {
@@ -1237,10 +1288,7 @@ function hotHistorySummary(currentTop) {
     }
   }
 
-  return {
-    chip,
-    earlier: earlier.map(category => categoryMeta(category).label)
-  };
+  return { chip };
 }
 
 async function resolvePriceContext(stats, xtzPrice) {
@@ -1586,7 +1634,8 @@ async function generate(stats, xtzPrice) {
   const profile = getCurrentMyTezosProfile();
   const [priceContext] = await Promise.all([
     resolvePriceContext(sourceStats, xtzPrice),
-    resolveExactBlockMilestoneMoment(sourceStats)
+    resolveExactBlockMilestoneMoment(sourceStats),
+    resolveExactCycleMilestoneMoment(sourceStats)
   ]);
   const nextStats = priceContext.stats;
   const currentPrice = priceContext.xtzPrice;
@@ -2468,23 +2517,26 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     captureDailySnapshot(stats);
     return;
   }
+  const previousActiveId = hotTodaySignals[hotTodayActiveIndex]?.id || '';
   hotTodaySignals = signals;
   scheduleHotSignalExpiryRefresh(hotTodaySignals);
   const arrivingMilestoneIndex = signals.findIndex(milestoneArrivalIsUnseen);
+  const preservedActiveIndex = previousActiveId
+    ? signals.findIndex(signal => signal.id === previousActiveId)
+    : -1;
   const nextLeadId = signals[0]?.id || '';
   const leadChanged = nextLeadId !== lastHotTodayLeadId;
   hotTodayActiveIndex = arrivingMilestoneIndex >= 0
     ? arrivingMilestoneIndex
-    : (!hotTodayHasRendered || leadChanged || signals[0]?.category === 'anniversary')
+    : hotTodayHasRendered && preservedActiveIndex >= 0
+      ? preservedActiveIndex
+      : (!hotTodayHasRendered || leadChanged || signals[0]?.category === 'anniversary')
       ? 0
       : hotTodayActiveIndex % hotTodaySignals.length;
   lastHotTodayLeadId = nextLeadId;
   const history = hotHistorySummary(signals[0]);
   const memoryChip = history?.chip
     ? `<span class="hot-today-memory-chip">${escapeHtml(history.chip)}</span>`
-    : '';
-  const earlierRow = history?.earlier?.length
-    ? `<div class="hot-today-earlier"><span>Earlier today</span>${history.earlier.map(label => `<b>${escapeHtml(label)}</b>`).join('')}</div>`
     : '';
   island.hidden = false;
   island.setAttribute('aria-live', hotTodayHasRendered ? 'off' : 'polite');
@@ -2505,7 +2557,6 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
       ${signals.map(renderHotSignal).join('')}
     </div>
     ${renderHotTodayProgress(signals)}
-    ${earlierRow}
   `;
   if (hotTodayHasRendered) quietlySyncHtml(island, islandHtml);
   else island.innerHTML = islandHtml;

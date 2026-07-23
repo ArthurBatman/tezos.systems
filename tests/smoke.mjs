@@ -1277,9 +1277,13 @@ async function installStakingChamberMocks(page, requestLog) {
 }
 
 async function installFeatureMocks(context, options = {}) {
+  const cycleMilestone = options.cycleMilestone && typeof options.cycleMilestone === 'object'
+    ? options.cycleMilestone
+    : null;
   let lbBlocksHead = 12345678;
-  let rpcHeaderLevel = 12345678;
-  let rpcHeaderTimestamp = Date.now();
+  let rpcHeaderLevel = Number(cycleMilestone?.headLevel) || 12345678;
+  let rpcHeaderTimestamp = Number(cycleMilestone?.headTimestamp) || Date.now();
+  let rpcMetadataLevel = rpcHeaderLevel;
   const blockHeadLagMs = Number(options.blockHeadLagMs) || 0;
   const networkHealthBlocksDelayMs = Number(options.networkHealthBlocksDelayMs) || 0;
   const etherlinkQuiet = Boolean(options.etherlinkQuiet);
@@ -1428,6 +1432,10 @@ async function installFeatureMocks(context, options = {}) {
       dashboardPathnames.has(parsedUrl.pathname)
     ) {
       return fulfillText(route, dashboardHtml, 'text/html');
+    }
+
+    if (options.milestoneCatalog && parsedUrl.pathname.endsWith('/data/milestone-catalog.json')) {
+      return fulfillJson(route, options.milestoneCatalog);
     }
 
     if (whaleChamberMocks && parsedUrl.pathname.endsWith('/data/whale-watch.json')) {
@@ -1743,7 +1751,7 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/context/delegates?active=true')) return fulfillJson(route, [SAMPLE_ADDRESS, SAMPLE_ADDRESS_2]);
       if (url.includes('/context/constants')) {
         return fulfillJson(route, {
-          blocks_per_cycle: 10800,
+          blocks_per_cycle: Number(cycleMilestone?.blocksPerCycle) || 10800,
           minimal_block_delay: '6',
           consensus_committee_size: 7000,
           edge_of_staking_over_delegation: 3,
@@ -1757,14 +1765,31 @@ async function installFeatureMocks(context, options = {}) {
         return fulfillJson(route, {
           level_info: nullCycleTiming
             ? { cycle: null, cycle_position: null }
-            : { cycle: 1143, cycle_position: 1234 }
+            : {
+                cycle: Number(cycleMilestone?.cycle) || 1143,
+                cycle_position: cycleMilestone
+                  ? rpcMetadataLevel - Number(cycleMilestone.startLevel)
+                  : 1234
+              }
         });
       }
       if (url.includes('/header')) {
+        if (cycleMilestone && url.includes(`/blocks/${cycleMilestone.startLevel}/header`)) {
+          return fulfillJson(route, {
+            hash: 'BLCycleMilestoneStartSmoke111111111111111111111111111111111',
+            level: Number(cycleMilestone.startLevel),
+            timestamp: new Date(cycleMilestone.startedAt).toISOString()
+          });
+        }
         const level = rpcHeaderLevel++;
+        rpcMetadataLevel = level;
         const timestamp = new Date(rpcHeaderTimestamp).toISOString();
         rpcHeaderTimestamp += 6000;
-        return fulfillJson(route, { level, timestamp });
+        return fulfillJson(route, {
+          hash: 'BLCycleMilestoneHeadSmoke1111111111111111111111111111111111',
+          level,
+          timestamp
+        });
       }
       if (url.includes('/dal_participation')) {
         return fulfillJson(route, {
@@ -4547,6 +4572,166 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   assert(issues.length === 0, `hero command bar browser issues:\n${issues.join('\n')}`);
   log('ok - hero command bar smoke');
+}
+
+async function smokeCycleMilestone(browser, baseUrl) {
+  const issues = [];
+  const now = Date.now();
+  const startLevel = 14174689;
+  const blocksPerCycle = 14400;
+  const headLevel = startLevel + 12545;
+  const staleCatalog = {
+    schema: 1,
+    generatedAt: new Date(now - 7 * 86400000).toISOString(),
+    generatedAtCommit: 'fe9bf0ee',
+    generatedAtCommitCount: 762,
+    cadence: { days: 14, commits: 100 },
+    source: 'stale smoke catalog',
+    tracks: {
+      cycle: {
+        current: 1293,
+        nextTarget: 1500,
+        thresholds: [1000, 1250, 1500],
+        recentCrossings: []
+      }
+    }
+  };
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context, {
+    milestoneCatalog: staleCatalog,
+    cycleMilestone: {
+      cycle: 1300,
+      cyclePosition: headLevel - startLevel,
+      blocksPerCycle,
+      headLevel,
+      headTimestamp: now,
+      startLevel,
+      startedAt: now - (6 * 60 * 60 * 1000)
+    }
+  });
+  await context.addInitScript(() => {
+    const now = Date.now();
+    const today = new Date(now).toISOString().slice(0, 10);
+    const yesterday = new Date(now - 86400000).toISOString().slice(0, 10);
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-hot-history', JSON.stringify([
+      { day: yesterday, timestamp: now - 86400000, topCategory: 'volume', topScore: 70, signals: [] },
+      { day: today, timestamp: now - 3600000, topCategory: 'whales', topScore: 80, signals: [] }
+    ]));
+  });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'cycle milestone', issues);
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `cycle milestone: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('[data-hot-signal-id="milestone-cycle-1300"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const before = await page.evaluate(() => {
+    const card = document.querySelector('[data-hot-signal-id="milestone-cycle-1300"]');
+    const strip = card?.closest('.hot-today-strip');
+    const text = card?.querySelector('.hot-today-copy strong');
+    if (strip) strip.scrollLeft = Math.min(80, Math.max(0, strip.scrollWidth - strip.clientWidth));
+    card?.focus({ preventScroll: true });
+    if (text) {
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    window.__cycleMilestoneCard = card;
+    window.__cycleMilestoneScroll = strip?.scrollLeft || 0;
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+      detail: {
+        id: 'cycle-milestone-reconcile-smoke',
+        category: 'network',
+        title: 'Reconcile smoke',
+        text: 'Low-priority reconciliation signal.',
+        score: 1,
+        live: true
+      }
+    }));
+    return {
+      title: text?.textContent?.trim() || '',
+      text: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      href: card?.getAttribute('href') || '',
+      active: card?.classList.contains('is-hot-active') || false,
+      status: card?.dataset.milestoneStatus || '',
+      earlier: document.querySelector('.hot-today-earlier')?.textContent?.trim() || ''
+    };
+  });
+  await page.waitForTimeout(1400);
+  const after = await page.evaluate(() => {
+    const card = document.querySelector('[data-hot-signal-id="milestone-cycle-1300"]');
+    const strip = card?.closest('.hot-today-strip');
+    const selection = window.getSelection();
+    return {
+      sameCard: card === window.__cycleMilestoneCard,
+      focused: document.activeElement === card,
+      selected: selection?.toString().trim() || '',
+      scrollLeft: strip?.scrollLeft || 0,
+      expectedScrollLeft: window.__cycleMilestoneScroll || 0,
+      earlier: document.querySelector('.hot-today-earlier')?.textContent?.trim() || ''
+    };
+  });
+
+  assert(before.title === '1,300 cycles', `cycle milestone: expected full cycle title, saw ${JSON.stringify(before)}`);
+  assert(/1,300 cycles crossed/.test(before.text) && /3d left/.test(before.text), `cycle milestone: exact crossed copy or expiry missing ${JSON.stringify(before)}`);
+  assert(before.href === '#health' && before.active && before.status === 'crossed', `cycle milestone: route, arrival lead, or status mismatch ${JSON.stringify(before)}`);
+  assert(!before.earlier && !after.earlier, `cycle milestone: dead Earlier today breadcrumb survived ${JSON.stringify({ before, after })}`);
+  assert(after.sameCard && after.focused && after.selected === '1,300 cycles', `cycle milestone: quiet reconciliation replaced or disturbed the active card ${JSON.stringify(after)}`);
+  assert(Math.abs(after.scrollLeft - after.expectedScrollLeft) <= 1, `cycle milestone: quiet reconciliation reset strip scroll ${JSON.stringify(after)}`);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('[data-hot-signal-id="milestone-cycle-1300"]').waitFor({ state: 'visible', timeout: 10000 });
+  await context.close();
+
+  const expiredContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(expiredContext, {
+    milestoneCatalog: staleCatalog,
+    cycleMilestone: {
+      cycle: 1300,
+      cyclePosition: headLevel - startLevel,
+      blocksPerCycle,
+      headLevel,
+      headTimestamp: now,
+      startLevel,
+      startedAt: now - (73 * 60 * 60 * 1000)
+    }
+  });
+  await expiredContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const expiredPage = await expiredContext.newPage();
+  attachIssueCollectors(expiredPage, 'expired cycle milestone', issues);
+  const expiredResponse = await expiredPage.goto(`${baseUrl}/?theme=clean`, { waitUntil: 'domcontentloaded' });
+  assert(expiredResponse?.ok(), `expired cycle milestone: dashboard failed with HTTP ${expiredResponse?.status()}`);
+  await expiredPage.waitForFunction(() => document.querySelectorAll('#hot-today-island [data-hot-signal-index]').length >= 4, null, { timeout: 10000 });
+  const expiredState = await expiredPage.evaluate(() => {
+    const card = document.querySelector('[data-hot-signal-id="milestone-cycle-1300"]');
+    return {
+      card: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      createdAt: card?.dataset.milestoneCreatedAt || '',
+      expiresAt: card?.dataset.milestoneExpiresAt || '',
+      moments: localStorage.getItem('tezos-systems-milestone-moments-v1') || '',
+      briefing: localStorage.getItem('tezos-systems-briefing-cache') || ''
+    };
+  });
+  assert(!expiredState.card, `expired cycle milestone: 72-hour card resurrected ${JSON.stringify(expiredState)}`);
+  await expiredContext.close();
+
+  assert(issues.length === 0, `cycle milestone browser issues:\n${issues.join('\n')}`);
+  log('ok - exact Cycle 1300 milestone and Live Pulse history cleanup');
 }
 
 async function smokeTzktThrottle(browser, baseUrl) {
@@ -13582,6 +13767,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'app-shell', description: 'Version metadata, service worker, manifest, icons, robots, sitemap, and shell assets', run: () => smokeAppShell(browser, baseUrl) },
     { name: 'hero-landscape', description: 'Hero continuity signals balance into matching left and right stacks on mobile landscape', run: () => smokeHeroLandscape(browser, baseUrl) },
     { name: 'hero-command-bar', description: 'Hero command bar owns the first-screen retrieval path, protocol deep dives, and command routing', run: () => smokeHeroCommandBar(browser, baseUrl) },
+    { name: 'cycle-milestone', description: 'Exact cycle milestones survive stale catalogs and quiet reconciliation while dead history breadcrumbs stay removed', run: () => smokeCycleMilestone(browser, baseUrl) },
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },

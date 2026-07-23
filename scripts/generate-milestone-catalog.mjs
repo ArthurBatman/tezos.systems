@@ -9,6 +9,7 @@ import {
   MILESTONE_CATALOG_SCHEMA,
   MILESTONE_REFRESH_COMMITS,
   MILESTONE_REFRESH_DAYS,
+  cycleMilestoneStartLevel,
   extendMilestoneThresholds,
   generatedMilestoneMoments,
   milestoneCatalogCadence
@@ -18,6 +19,7 @@ import { deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS } from '../js/features/
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_FILE = path.join(ROOT, 'data/milestone-catalog.json');
 const TZKT = 'https://api.tzkt.io/v1';
+const OCTEZ = 'https://eu.rpc.tez.capital';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAINNET_START = Date.parse('2018-09-17T00:00:00Z');
 
@@ -42,11 +44,11 @@ function finitePositive(value) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-async function fetchJson(pathname, timeoutMs = 12_000) {
+async function fetchJson(baseUrl, pathname, timeoutMs = 12_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${TZKT}${pathname}`, {
+    const response = await fetch(`${baseUrl}${pathname}`, {
       headers: { Accept: 'application/json' },
       signal: controller.signal
     });
@@ -80,45 +82,84 @@ function bakerSnapshot(delegates) {
 }
 
 async function liveMilestoneValues(now) {
-  const [headResult, statsResult, txResult, accountsResult, contractsResult, tokensResult, rollupsResult, bakersResult] = await Promise.allSettled([
-    fetchJson('/head'),
-    fetchJson('/statistics/current'),
-    fetchJson('/operations/transactions/count'),
-    fetchJson('/accounts/count?balance.gt=0'),
-    fetchJson('/contracts/count'),
-    fetchJson('/tokens/count'),
-    fetchJson('/smart_rollups/count'),
-    fetchJson('/delegates?active=true&select=address,consensusAddress,bakingPower&limit=10000')
+  const header = await fetchJson(OCTEZ, '/chains/main/blocks/head/header');
+  const headId = encodeURIComponent(header?.hash || 'head');
+  const [metadata, constants] = await Promise.all([
+    fetchJson(OCTEZ, `/chains/main/blocks/${headId}/metadata`),
+    fetchJson(OCTEZ, `/chains/main/blocks/${headId}/context/constants`)
+  ]);
+  const [statsResult, txResult, accountsResult, contractsResult, tokensResult, rollupsResult, bakersResult] = await Promise.allSettled([
+    fetchJson(TZKT, '/statistics/current'),
+    fetchJson(TZKT, '/operations/transactions/count'),
+    fetchJson(TZKT, '/accounts/count?balance.gt=0'),
+    fetchJson(TZKT, '/contracts/count'),
+    fetchJson(TZKT, '/tokens/count'),
+    fetchJson(TZKT, '/smart_rollups/count'),
+    fetchJson(TZKT, '/delegates?active=true&select=address,consensusAddress,bakingPower&limit=10000')
   ]);
 
-  const head = valueFrom(headResult);
   const stats = valueFrom(statsResult);
-  if (!head || !stats) {
-    throw new Error('Milestone catalog refresh needs TzKT head and statistics/current');
+  const levelInfo = metadata?.level_info || {};
+  const currentLevel = finitePositive(header?.level);
+  const currentCycle = finitePositive(levelInfo.cycle);
+  const cyclePosition = Number(levelInfo.cycle_position);
+  const blocksPerCycle = finitePositive(constants?.blocks_per_cycle);
+  if (!currentLevel || !currentCycle || !Number.isFinite(cyclePosition) || cyclePosition < 0 || !blocksPerCycle || !stats) {
+    throw new Error('Milestone catalog refresh needs an Octez head/cycle and TzKT statistics/current');
   }
 
   const bakers = bakerSnapshot(valueFrom(bakersResult));
   const protocolData = await readJson(path.join(ROOT, 'data/protocol-data.json'), {});
   return {
-    blocks: finitePositive(head.level),
-    'funded-wallets': finitePositive(valueFrom(accountsResult)),
-    transactions: finitePositive(valueFrom(txResult)),
-    'smart-contracts': finitePositive(valueFrom(contractsResult)),
-    tokens: finitePositive(valueFrom(tokensResult)),
-    bakers: bakers.total || finitePositive(stats.totalBakers),
-    'tz4-adoption': bakers.tz4Percentage,
-    staking: stakingRatio(stats),
-    burned: finitePositive(stats.totalBurned) ? Number(stats.totalBurned) / 1e6 : null,
-    cycle: finitePositive(head.cycle),
-    'uptime-days': Math.floor((now - MAINNET_START) / DAY_MS),
-    'protocol-upgrades': finitePositive(protocolData?.meta?.totalUpgrades),
-    rollups: finitePositive(valueFrom(rollupsResult))
+    values: {
+      blocks: currentLevel,
+      'funded-wallets': finitePositive(valueFrom(accountsResult)),
+      transactions: finitePositive(valueFrom(txResult)),
+      'smart-contracts': finitePositive(valueFrom(contractsResult)),
+      tokens: finitePositive(valueFrom(tokensResult)),
+      bakers: bakers.total || finitePositive(stats.totalBakers),
+      'tz4-adoption': bakers.tz4Percentage,
+      staking: stakingRatio(stats),
+      burned: finitePositive(stats.totalBurned) ? Number(stats.totalBurned) / 1e6 : null,
+      cycle: currentCycle,
+      'uptime-days': Math.floor((now - MAINNET_START) / DAY_MS),
+      'protocol-upgrades': finitePositive(protocolData?.meta?.totalUpgrades),
+      rollups: finitePositive(valueFrom(rollupsResult))
+    },
+    cycleGeometry: {
+      currentCycle,
+      currentCycleStartLevel: currentLevel - cyclePosition,
+      blocksPerCycle
+    }
   };
 }
 
 function nextTarget(thresholds, current) {
   const value = finitePositive(current) || 0;
   return thresholds.find(target => target > value) || null;
+}
+
+async function exactCycleMilestoneMoment(geometry, thresholds, now) {
+  const current = finitePositive(geometry?.currentCycle);
+  const target = [...thresholds].reverse().find(value => value <= current);
+  if (!current || !target) return null;
+  const targetLevel = cycleMilestoneStartLevel({
+    currentCycle: current,
+    currentCycleStartLevel: geometry?.currentCycleStartLevel,
+    targetCycle: target,
+    blocksPerCycle: geometry?.blocksPerCycle
+  });
+  if (!targetLevel) return null;
+  const header = await fetchJson(OCTEZ, `/chains/main/blocks/${targetLevel}/header`);
+  const createdAt = Date.parse(header?.timestamp || '');
+  if (Number(header?.level) !== Number(targetLevel) || !Number.isFinite(createdAt)) return null;
+  const moment = {
+    target,
+    createdAt,
+    expiresAt: createdAt + MILESTONE_MOMENT_TTL_MS,
+    crossedValue: current
+  };
+  return moment.createdAt <= now && moment.expiresAt > now ? moment : null;
 }
 
 async function main() {
@@ -140,9 +181,9 @@ async function main() {
     return;
   }
 
-  let values;
+  let snapshot;
   try {
-    values = await liveMilestoneValues(now);
+    snapshot = await liveMilestoneValues(now);
   } catch (error) {
     if (existing) {
       console.warn(`Milestone catalog refresh deferred: ${error.message}`);
@@ -151,6 +192,9 @@ async function main() {
     throw error;
   }
 
+  const { values, cycleGeometry } = snapshot;
+  const cycleThresholds = extendMilestoneThresholds('cycle', values.cycle);
+  const exactCycleMoment = await exactCycleMilestoneMoment(cycleGeometry, cycleThresholds, now);
   const tracks = {};
   for (const trackId of Object.keys(MILESTONE_BASE_THRESHOLDS)) {
     const current = finitePositive(values[trackId]);
@@ -162,7 +206,10 @@ async function main() {
       ttlMs: MILESTONE_MOMENT_TTL_MS,
       anchorValue: existing?.tracks?.[trackId]?.current,
       anchorObservedAt: Date.parse(existing?.generatedAt || ''),
-      receipts: generatedMilestoneMoments(existing, trackId, now)
+      receipts: [
+        ...generatedMilestoneMoments(existing, trackId, now),
+        ...(trackId === 'cycle' && exactCycleMoment ? [exactCycleMoment] : [])
+      ]
     });
     tracks[trackId] = {
       current,
@@ -181,7 +228,7 @@ async function main() {
       days: MILESTONE_REFRESH_DAYS,
       commits: MILESTONE_REFRESH_COMMITS
     },
-    source: 'TzKT mainnet snapshot',
+    source: 'Octez mainnet head and cycle with TzKT indexed statistics',
     tracks
   };
 

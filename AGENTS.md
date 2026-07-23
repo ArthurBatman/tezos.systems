@@ -542,12 +542,14 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   MiB for rules + summary + state + shards; a budget fallback may withhold
   Transaction but must never truncate its eligible-wallet Passport set.
 - `scripts/generate-milestone-catalog.mjs`: refreshes
-  `data/milestone-catalog.json` from a compact TzKT snapshot when either 14 days
-  or 100 commits have elapsed. The pre-commit path projects the pending commit;
-  scheduled runs use wall-clock age, and `--force` bypasses both gates. Preserve
-  unexpired `recentCrossings` receipts across refreshes so every visitor shares
-  the same 72-hour celebration window; block-height milestones refine that
-  catalog timing from the target block's TzKT timestamp in the browser.
+  `data/milestone-catalog.json` from an Octez block/cycle head plus TzKT indexed
+  statistics when either 14 days or 100 commits have elapsed. The pre-commit
+  path projects the pending commit; scheduled runs use wall-clock age, and
+  `--force` bypasses both gates. Preserve unexpired `recentCrossings` receipts
+  across refreshes so every visitor shares the same 72-hour celebration window;
+  block-height milestones use their target block timestamp and every 100th
+  cycle uses its exact Octez boundary timestamp. Cycle 1250 remains a curated
+  landmark.
 - `scripts/refresh-nakamoto-sources.mjs`: refreshes reproducible Chainspect and
   Edinburgh EDI rows server-side, preserves manual/secondary reports and
   last-known-good data, and validates locally with `--check` during pre-commit.

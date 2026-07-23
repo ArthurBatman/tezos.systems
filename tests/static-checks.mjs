@@ -11,10 +11,12 @@ import {
   MILESTONE_CATALOG_SCHEMA,
   MILESTONE_REFRESH_COMMITS,
   MILESTONE_REFRESH_DAYS,
+  cycleMilestoneStartLevel,
   extendMilestoneThresholds,
   generatedMilestoneAnchor,
   generatedMilestoneMoments,
   generatedMilestoneThresholds,
+  mergedMilestoneThresholds,
   milestoneCatalogCadence
 } from '../js/features/milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS, normalizeMilestoneStore, qualifyMilestoneNearState } from '../js/features/milestone-lifecycle.mjs';
@@ -3686,6 +3688,7 @@ async function checkNetworkContextNavigationContracts() {
     "if (value == null || value === '') return null;",
     'MILESTONE_MOMENT_TTL_MS',
     'advanceMilestoneTrack(momentStore',
+    '...lifecycle.activeMoments',
     "milestoneStatus: 'crossed'",
     "milestoneStatus: 'near'",
     'shortLabel: milestoneShortLabel',
@@ -3710,12 +3713,13 @@ async function checkNetworkContextNavigationContracts() {
     'fetchNftPulse',
     'maybeDispatchProtocolLoreSignal',
     'delta: normalizeDelta',
-    'BRIEFING_SCHEMA_VERSION = 11',
+    'BRIEFING_SCHEMA_VERSION = 12',
     'MILESTONE_NEAR_MAX_DAYS = 30',
     'MILESTONE_CATALOG_URL',
-    'generatedMilestoneThresholds',
+    'mergedMilestoneThresholds',
     'generatedMilestoneAnchor',
     'resolveExactBlockMilestoneMoment',
+    'resolveExactCycleMilestoneMoment',
     'data-hot-milestone-share',
     'captureNetworkMomentShare',
     '<a class="network-focus-chip"',
@@ -3728,6 +3732,9 @@ async function checkNetworkContextNavigationContracts() {
   ];
   for (const snippet of requiredSnippets) {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
+  }
+  if (briefing.includes('Earlier today') || shellExtras.includes('.hot-today-earlier')) {
+    fail('What is hot today must not render a dead earlier-category breadcrumb');
   }
 
   for (const snippet of [
@@ -3913,6 +3920,29 @@ async function checkMilestoneCatalogContracts() {
       assert.ok(catalog.tracks?.[trackId]?.nextTarget == null || generated.includes(catalog.tracks[trackId].nextTarget));
     }
 
+    assert.ok(MILESTONE_BASE_THRESHOLDS.cycle.includes(1250));
+    assert.ok(MILESTONE_BASE_THRESHOLDS.cycle.includes(1300));
+    assert.ok(MILESTONE_BASE_THRESHOLDS.cycle.includes(1400));
+    const staleCycleCatalog = {
+      schema: MILESTONE_CATALOG_SCHEMA,
+      tracks: { cycle: { thresholds: [1000, 1250, 1500] } }
+    };
+    assert.ok(mergedMilestoneThresholds(staleCycleCatalog, 'cycle').includes(1300));
+    assert.equal(cycleMilestoneStartLevel({
+      currentCycle: 1300,
+      currentCycleStartLevel: 14174689,
+      targetCycle: 1300,
+      blocksPerCycle: 14400
+    }), 14174689);
+    assert.equal(cycleMilestoneStartLevel({
+      currentCycle: 1302,
+      currentCycleStartLevel: 14203489,
+      targetCycle: 1300,
+      blocksPerCycle: 14400
+    }), 14174689);
+    const extendedCycles = extendMilestoneThresholds('cycle', 2601);
+    assert.ok(extendedCycles.includes(2700) && extendedCycles.includes(2800));
+    assert.equal(extendedCycles[extendedCycles.indexOf(2700) + 1] - 2700, 100);
     const extendedBlocks = extendMilestoneThresholds('blocks', 31_200_000);
     assert.ok(extendedBlocks.at(-1) > 31_200_000);
     const cadenceBase = Date.parse('2026-07-01T00:00:00Z');
@@ -3926,6 +3956,9 @@ async function checkMilestoneCatalogContracts() {
     }
     assert.ok(generator.includes('recentCrossings'));
     assert.ok(generator.includes('MILESTONE_MOMENT_TTL_MS'));
+    assert.ok(generator.includes("const OCTEZ = 'https://eu.rpc.tez.capital'"));
+    assert.ok(generator.includes('exactCycleMilestoneMoment'));
+    assert.ok(generator.includes('Octez mainnet head and cycle with TzKT indexed statistics'));
     assert.ok(orchestrator.includes("MILESTONE_TARGETS = ['data/milestone-catalog.json']"));
     pass('milestone catalog preserves curated thresholds and regenerates after 14 days or 100 commits');
   } catch (error) {
@@ -6019,7 +6052,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=474'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=475'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

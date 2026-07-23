@@ -5,6 +5,13 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-23',
+        entries: [
+            { type: '🔧', text: 'Live Pulse now celebrates every 100th cycle from its exact Octez boundary for 72 hours, even when the generated milestone catalog or TzKT head is stale' },
+            { type: '🔧', text: 'Live Pulse milestone receipts now survive quiet reconciliation and reloads, while the non-interactive Earlier today category breadcrumb has been removed' }
+        ]
+    },
+    {
         date: '2026-07-22',
         entries: [
             { type: '🎨', text: 'My Tezos now holds a shape-correct loading frame and flows live sections through independent columns, removing blank grid holes and refresh-driven layout jumps' },

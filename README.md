@@ -568,7 +568,9 @@ inline modal styles in `js/core/app.js`.
   are hard-capped at 30 days before a target; newly crossed milestones remain
   celebratory for 72 hours. Generated catalog receipts make that window shared
   across visitors, target block timestamps provide exact block-height timing,
-  and bounded local observation remains only as a fallback. Each milestone card
+  every 100th cycle uses its exact Octez cycle-boundary timestamp, and bounded
+  local observation remains only as a fallback. The existing Cycle 1250
+  landmark remains part of the catalog. Each milestone card
   can open the existing branded
   image-share composer with milestone-specific promotional tweet styles.
   Internal routes open My Tezos, baker profiles, protocol lore/history,
@@ -840,8 +842,10 @@ current evaluator's category constants.
 The milestone generator is cadence-gated: scheduled runs refresh it after 14
 days, while pre-commit runs refresh it after 100 commits, whichever happens
 first. `npm run refresh:milestones` forces a manual refresh. The browser consumes
-the generated thresholds plus unexpired crossing receipts and falls back to its
-shared base catalog when the manifest is unavailable. The pre-commit hook runs
+the union of generated and shared base thresholds plus unexpired crossing
+receipts, so an older manifest cannot suppress a newly shipped target. Octez
+supplies canonical block/cycle truth while TzKT supplies indexed statistics.
+The pre-commit hook runs
 the same orchestrator in
 commit mode so fast-moving generated outputs update with each normal commit.
 `.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
@@ -1030,7 +1034,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v474`, including hero search, theme
+- Current aligned shell cache stamp: `v475`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v320`.

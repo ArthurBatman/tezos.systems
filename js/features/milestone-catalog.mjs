@@ -19,7 +19,7 @@ export const MILESTONE_BASE_THRESHOLDS = Object.freeze({
   'tz4-adoption': Object.freeze([10, 25, 50, 75, 90, 100]),
   staking: Object.freeze([30, 35, 40, 45, 50]),
   burned: Object.freeze([1_000_000, 2_000_000, 2_500_000, 3_000_000, 5_000_000, 10_000_000]),
-  cycle: Object.freeze([1000, 1250, 1500, 2000, 2500]),
+  cycle: Object.freeze([...new Set([...range(1000, 2500, 100), 1250])].sort((a, b) => a - b)),
   'uptime-days': Object.freeze([1000, 1500, 2000, 2500, 3000, 3500]),
   'protocol-upgrades': Object.freeze([10, 20, 21, 25, 30]),
   rollups: Object.freeze([25, 50, 100, 250])
@@ -33,7 +33,7 @@ const EXTENSION_RULES = Object.freeze({
   tokens: { step: 5_000_000, ahead: 8 },
   bakers: { step: 100, ahead: 5 },
   burned: { step: 1_000_000, ahead: 8 },
-  cycle: { step: 250, ahead: 8 },
+  cycle: { step: 100, ahead: 8 },
   'uptime-days': { step: 500, ahead: 5 },
   'protocol-upgrades': { step: 5, ahead: 6 },
   rollups: { step: 50, ahead: 8 }
@@ -68,6 +68,28 @@ export function generatedMilestoneThresholds(catalog, trackId) {
   const values = catalog.tracks?.[trackId]?.thresholds;
   if (!Array.isArray(values)) return [];
   return [...new Set(values.map(positiveNumber).filter(value => value != null))].sort((a, b) => a - b);
+}
+
+export function mergedMilestoneThresholds(catalog, trackId) {
+  return [...new Set([
+    ...milestoneBaseThresholds(trackId),
+    ...generatedMilestoneThresholds(catalog, trackId)
+  ])].sort((a, b) => a - b);
+}
+
+export function cycleMilestoneStartLevel({
+  currentCycle,
+  currentCycleStartLevel,
+  targetCycle,
+  blocksPerCycle
+} = {}) {
+  const current = positiveNumber(currentCycle);
+  const startLevel = positiveNumber(currentCycleStartLevel);
+  const target = positiveNumber(targetCycle);
+  const cycleLength = positiveNumber(blocksPerCycle);
+  if (current == null || startLevel == null || target == null || cycleLength == null || target > current) return null;
+  const level = startLevel - ((current - target) * cycleLength);
+  return Number.isInteger(level) && level > 0 ? level : null;
 }
 
 export function generatedMilestoneAnchor(catalog, trackId) {
