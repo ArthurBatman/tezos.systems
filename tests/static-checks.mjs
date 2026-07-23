@@ -128,7 +128,7 @@ async function checkMyTezosPortfolioContracts() {
 
   const rowA = portfolioRowFromAccount(migrated[0], {
     address: addressA,
-    balance: 1_000_000,
+    balance: 6_000_000,
     stakedBalance: 2_000_000,
     unstakedBalance: 3_000_000,
     delegate: { address: addressC, alias: 'Baker' }
@@ -136,11 +136,14 @@ async function checkMyTezosPortfolioContracts() {
   const rowB = portfolioRowFromAccount({ ...migrated[1], included: true }, {
     address: addressB,
     type: 'delegate',
-    balance: 4_000_000,
+    balance: 15_000_000,
     stakedBalance: 5_000_000,
     unstakedBalance: 6_000_000
   });
   assert.equal(rowA.total, 6_000_000);
+  assert.equal(rowA.spendable, 1_000_000);
+  assert.equal(rowB.total, 15_000_000);
+  assert.equal(rowB.spendable, 4_000_000);
   assert.deepEqual(calculatePortfolioTotals([rowA, rowB]), {
     total: 21_000_000, spendable: 5_000_000, staked: 7_000_000, unstaking: 9_000_000
   });

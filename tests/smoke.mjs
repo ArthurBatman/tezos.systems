@@ -6123,7 +6123,7 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   await page.waitForFunction(() => {
     const freshness = document.querySelector('#portfolio-freshness')?.textContent || '';
     const total = document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '';
-    return freshness.includes('Complete') && freshness.includes('2/2') && total.includes('2,700,000.00');
+    return freshness.includes('Complete') && freshness.includes('2/2') && total.includes('1,500,000.00');
   }, null, { timeout: 15000 });
   const initialPortfolio = await page.evaluate(() => ({
     selected: document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected'),
@@ -6135,14 +6135,14 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     walletRows: document.querySelectorAll('.portfolio-wallet-row[data-address]').length
   }));
   assert(initialPortfolio.selected === 'true' && initialPortfolio.sessionView === 'portfolio', `my tezos address switch: Portfolio tab did not persist for the session ${JSON.stringify(initialPortfolio)}`);
-  assert(initialPortfolio.total.includes('2,700,000.00') && initialPortfolio.spendable.includes('1,500,000.00') && initialPortfolio.staked.includes('1,200,000.00') && initialPortfolio.unstaking.includes('0.00') && initialPortfolio.walletRows === 2, `my tezos address switch: exact four-way aggregate failed ${JSON.stringify(initialPortfolio)}`);
+  assert(initialPortfolio.total.includes('1,500,000.00') && initialPortfolio.spendable.includes('300,000.00') && initialPortfolio.staked.includes('1,200,000.00') && initialPortfolio.unstaking.includes('0.00') && initialPortfolio.walletRows === 2, `my tezos address switch: TzKT full balances were not partitioned into exact four-way totals ${JSON.stringify(initialPortfolio)}`);
 
   const firstInclude = page.locator(`[data-portfolio-include="${SAMPLE_ADDRESS}"]`);
   await firstInclude.uncheck();
   await page.waitForFunction(() => {
     const freshness = document.querySelector('#portfolio-freshness')?.textContent || '';
     const total = document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '';
-    return freshness.includes('Complete') && freshness.includes('1/1') && total.includes('1,100,000.00');
+    return freshness.includes('Complete') && freshness.includes('1/1') && total.includes('600,000.00');
   }, null, { timeout: 15000 });
 
   await page.evaluate(async (activeAddress) => {
@@ -6150,10 +6150,10 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     const { portfolioCompositionKey } = await import('/js/features/my-tezos-portfolio-model.mjs');
     const key = portfolioCompositionKey(entries);
     const now = Date.now();
-    const current = { timestamp: now, total: 1100000000000, spendable: 600000000000, staked: 500000000000, unstaking: 0 };
+    const current = { timestamp: now, total: 600000000000, spendable: 100000000000, staked: 500000000000, unstaking: 0 };
     localStorage.setItem('tezos-systems-my-tezos-portfolio-history-v1', JSON.stringify({
       schema: 1,
-      series: { [key]: [{ ...current, timestamp: now - 2 * 60 * 60 * 1000, total: 1050000000000 }, current] }
+      series: { [key]: [{ ...current, timestamp: now - 2 * 60 * 60 * 1000, total: 550000000000 }, current] }
     }));
     window.__portfolioQuietBefore = {
       summary: document.querySelector('#portfolio-summary'),
@@ -6199,7 +6199,7 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   await page.evaluate(() => document.querySelector('#portfolio-refresh').click());
   await page.waitForFunction(() => document.querySelector('#portfolio-freshness')?.textContent?.includes('showing last complete read'), null, { timeout: 15000 });
   const failureTotal = await page.locator('[data-portfolio-total="total"] strong').innerText();
-  assert(failureTotal.includes('1,100,000.00'), `my tezos address switch: failed portfolio refresh replaced the last complete total ${failureTotal}`);
+  assert(failureTotal.includes('600,000.00'), `my tezos address switch: failed portfolio refresh replaced the last complete total ${failureTotal}`);
   failPortfolio = false;
 
   await page.locator(`[data-portfolio-activate="${SAMPLE_ADDRESS}"]`).click();
@@ -6245,7 +6245,7 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   assert(state.savedWallets.some((entry) => entry.address === SAMPLE_ADDRESS && entry.included === false) && state.savedWallets.some((entry) => entry.address === SAMPLE_ADDRESS_2 && entry.included === true), `my tezos address switch: normalized include state was not retained ${JSON.stringify(state)}`);
   assert(state.input === SAMPLE_ADDRESS_2, `my tezos address switch: connected input mismatch ${state.input}`);
   assert(state.button === '📋 Copy', `my tezos address switch: save button did not return to copy mode, saw ${state.button}`);
-  assert(state.savedButtons === 2 && state.portfolioTotal.includes('1,100,000.00'), `my tezos address switch: normalized local Portfolio state missing ${JSON.stringify(state)}`);
+  assert(state.savedButtons === 2 && state.portfolioTotal.includes('600,000.00'), `my tezos address switch: normalized local Portfolio state missing ${JSON.stringify(state)}`);
   assert(!state.ledgerFlowHidden && state.ledgerFlowHref === `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Ledger Flow link not scoped to active address ${JSON.stringify(state)}`);
   assert(!state.maxiPassportHidden && state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Maxi Passport link not scoped to active address ${JSON.stringify(state)}`);
   assert(!state.header.includes(SAMPLE_ADDRESS.slice(0, 6)), `my tezos address switch: header still points at old baker: ${state.header}`);

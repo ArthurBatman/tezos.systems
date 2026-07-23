@@ -20,9 +20,13 @@ function finiteNonNegative(value) {
 }
 
 export function portfolioRowFromAccount(entry, account) {
-    const spendable = finiteNonNegative(account?.balance);
+    // TzKT's current account `balance` is the full XTZ balance. It already
+    // includes staked and unfinalized unstaked funds, so those components must
+    // be removed to derive the spendable amount rather than added a second time.
+    const total = finiteNonNegative(account?.balance);
     const staked = finiteNonNegative(account?.stakedBalance);
     const unstaking = finiteNonNegative(account?.unstakedBalance);
+    const spendable = Math.max(0, total - staked - unstaking);
     return {
         network: MY_TEZOS_PORTFOLIO_NETWORK,
         address: entry.address,
@@ -41,7 +45,7 @@ export function portfolioRowFromAccount(entry, account) {
         spendable,
         staked,
         unstaking,
-        total: spendable + staked + unstaking
+        total
     };
 }
 

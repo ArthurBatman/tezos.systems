@@ -979,7 +979,8 @@ Current smoke suites:
 - `my-tezos-staker-rewards`
 - `my-tezos-delegator-rewards`
 - `my-tezos-portfolio` (covers tabs, session state, exact four-way account
-  totals, inclusion, active-address handoffs, last-complete failure behavior,
+  totals from TzKT full-balance partitioning, inclusion, active-address
+  handoffs, last-complete failure behavior,
   quiet chart/list reconciliation, `/my/?view=portfolio`, and responsive room
   geometry)
 - `my-tezos-ledger-flow-handoff`
