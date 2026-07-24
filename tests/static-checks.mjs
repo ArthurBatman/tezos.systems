@@ -2572,7 +2572,12 @@ async function checkSelectorContracts() {
   const goatcounterInit = await readText('js/core/goatcounter-init.js');
   const shareTrackingContracts = [
     ['tracked Tezos URL helper', 'export function trackedTezosUrl', share],
+    ['stable share campaign', "const SHARE_UTM_CAMPAIGN = 'tezos_systems_shares'", share],
+    ['X share source', "return { source: 'x', medium: 'social' }", share],
+    ['native share source', "return { source: 'native_share', medium: 'share' }", share],
+    ['visible canonical share URL', 'addPreferredShareUrlToText', share],
     ['share text tracking rewrite', 'addShareTrackingToText', share],
+    ['preferred canonical share URL', 'preferredUrl || core', share],
     ['share modal event tracking', "trackShareEvent('modal_opened'", share],
     ['native share tracked URL', "'native_share'", share],
     ['X post event tracking', "trackShareEvent('post_x'", share],
@@ -2582,12 +2587,26 @@ async function checkSelectorContracts() {
     ['Network Moments use share modal pipeline', 'captureNetworkMomentShare(moment)', moments],
     ['history share deep link', 'tezos.systems/#history', share],
     ['history copy hidden during capture', 'copyBtn.style.display', share],
-    ['GoatCounter event helper', 'trackTezosSystemsEvent', goatcounterInit]
+    ['GoatCounter event helper', 'trackTezosSystemsEvent', goatcounterInit],
+    ['GoatCounter single pageview mode', 'window.goatcounter.no_onload = true', goatcounterInit],
+    ['GoatCounter bounded readiness retry', 'flushAttempts >= 40', goatcounterInit]
   ];
   for (const [label, snippet, text] of shareTrackingContracts) {
     if (!text.includes(snippet)) fail(`missing share/tracking contract: ${label}`);
   }
   pass(`share and loop tracking contracts checked: ${shareTrackingContracts.length}`);
+
+  const goatcounterEndpoint = 'data-goatcounter="https://tezsys.goatcounter.com/count"';
+  const widgetBuilder = await readText('widgets/builder.html');
+  if (!index.includes(goatcounterEndpoint)) fail('dashboard must configure the GoatCounter collection endpoint');
+  if (index.indexOf('js/core/goatcounter-init.js') > index.indexOf('src="//gc.zgo.at/count.js"')) {
+    fail('dashboard must initialize GoatCounter settings before loading count.js');
+  }
+  if (!widgetBuilder.includes(goatcounterEndpoint)) fail('widget builder must configure the GoatCounter collection endpoint');
+  if (widgetBuilder.indexOf('../js/core/goatcounter-init.js') > widgetBuilder.indexOf('src="//gc.zgo.at/count.js"')) {
+    fail('widget builder must initialize GoatCounter settings before loading count.js');
+  }
+  pass('GoatCounter endpoint and single-pageview initialization checked');
 
   const rawWidgetLinks = [
     'href="/widgets/price.html"',

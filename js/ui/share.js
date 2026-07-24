@@ -23,6 +23,7 @@ const CAPTURE_SCALE = IS_MOBILE_UA ? 1 : 2;
 const STAT_SHARE_WIDTH = 1200;
 const STAT_SHARE_HEIGHT = 630;
 const SHARE_HANDLE_STORAGE_KEY = 'tezos-systems-share-handle';
+const SHARE_UTM_CAMPAIGN = 'tezos_systems_shares';
 
 /**
  * Escape HTML special characters for safe injection into innerHTML
@@ -828,7 +829,10 @@ async function captureChamberCard(card) {
 
         const allOptions = await getTweetOptions(card);
         const displayOptions = pickRandomOptions(allOptions, 4);
-        showShareModal(canvas, displayOptions, `${summary.title} Chamber`, allOptions);
+        showShareModal(canvas, displayOptions, summary.title, allOptions, {
+            url: summary.route,
+            context: summary.title
+        });
     } catch (error) {
         console.error('Chamber card screenshot failed:', error);
         showNotification('Screenshot failed. Try again.', 'error');
@@ -1651,13 +1655,39 @@ function trackShareEvent(action, context, extra = {}) {
     });
 }
 
-export function trackedTezosUrl(raw = 'https://tezos.systems/', context = 'share', medium = 'social') {
+function addPreferredShareUrlToText(text, preferredUrl) {
+    const rawText = String(text || '').trim();
+    if (!preferredUrl) return rawText;
+    try {
+        const url = new URL(String(preferredUrl).startsWith('http') ? preferredUrl : `https://${preferredUrl}`);
+        if (url.hostname !== 'tezos.systems') return rawText;
+        const displayUrl = `tezos.systems${url.pathname}${url.search}${url.hash}`;
+        let replaced = false;
+        const updated = rawText.replace(TEZOS_SHARE_LINK_RE, (match) => {
+            const trailing = match.match(/[),.!?:;]+$/)?.[0] || '';
+            replaced = true;
+            return `${displayUrl}${trailing}`;
+        });
+        return replaced ? updated : `${rawText}\n\n${displayUrl}`;
+    } catch (_) {
+        return rawText;
+    }
+}
+
+function shareAttribution(channel) {
+    if (channel === 'x') return { source: 'x', medium: 'social' };
+    if (channel === 'native_share') return { source: 'native_share', medium: 'share' };
+    return { source: shareSlug(channel || 'direct_share'), medium: 'share' };
+}
+
+export function trackedTezosUrl(raw = 'https://tezos.systems/', context = 'share', channel = 'direct_share') {
     try {
         const url = new URL(String(raw).startsWith('http') ? raw : `https://${raw}`);
         if (url.hostname !== 'tezos.systems') return raw;
-        url.searchParams.set('utm_source', 'tezos_systems');
-        url.searchParams.set('utm_medium', shareSlug(medium));
-        url.searchParams.set('utm_campaign', 'growth_loops');
+        const attribution = shareAttribution(channel);
+        url.searchParams.set('utm_source', attribution.source);
+        url.searchParams.set('utm_medium', attribution.medium);
+        url.searchParams.set('utm_campaign', SHARE_UTM_CAMPAIGN);
         url.searchParams.set('utm_content', shareSlug(context));
         return url.toString();
     } catch (_) {
@@ -1665,26 +1695,28 @@ export function trackedTezosUrl(raw = 'https://tezos.systems/', context = 'share
     }
 }
 
-function addShareTrackingToText(text, context, medium = 'social') {
+function addShareTrackingToText(text, context, channel = 'direct_share', preferredUrl = '') {
     const rawText = String(text || '').trim();
     let replaced = false;
     const updated = rawText.replace(TEZOS_SHARE_LINK_RE, (match) => {
         const trailing = match.match(/[),.!?:;]+$/)?.[0] || '';
         const core = trailing ? match.slice(0, -trailing.length) : match;
         replaced = true;
-        return `${trackedTezosUrl(core, context, medium)}${trailing}`;
+        return `${trackedTezosUrl(preferredUrl || core, context, channel)}${trailing}`;
     });
-    return replaced ? updated : `${rawText}\n\n${trackedTezosUrl('https://tezos.systems/', context, medium)}`;
+    return replaced
+        ? updated
+        : `${rawText}\n\n${trackedTezosUrl(preferredUrl || 'https://tezos.systems/', context, channel)}`;
 }
 
 /**
  * Native share via Web Share API
  */
-async function nativeShare(canvas, text, context) {
+async function nativeShare(canvas, text, context, preferredUrl = '') {
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     if (!blob) throw new Error('Failed to create share image');
     const file = new File([blob], 'tezos-stats.png', { type: 'image/png' });
-    const url = trackedTezosUrl('https://tezos.systems/', context, 'native_share');
+    const url = trackedTezosUrl(preferredUrl || 'https://tezos.systems/', context, 'native_share');
     if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ text, url, files: [file] });
     } else if (typeof navigator.share === 'function') {
@@ -1840,14 +1872,15 @@ export async function captureNetworkMomentShare(moment = {}) {
  * Show modal with share options
  * tweetTextOrOptions: string (legacy) or array of {label, text}
  */
-export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForRefresh) {
+export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForRefresh, shareDetails = {}) {
     const existing = document.getElementById('share-modal');
     if (existing) {
         existing._shareCleanup?.();
         existing.remove();
     }
     
-    const shareContext = shareSlug(title || 'snapshot');
+    const shareContext = shareSlug(shareDetails.context || title || 'snapshot');
+    const preferredUrl = String(shareDetails.url || '').trim();
 
     // Normalize to options array
     let tweetOptions = Array.isArray(tweetTextOrOptions)
@@ -1856,14 +1889,14 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
     tweetOptions = tweetOptions.map((option, index) => ({
         label: String(option?.label || `Option ${index + 1}`),
         category: getTweetCategory(option),
-        text: String(option?.text ?? '')
+        text: addPreferredShareUrlToText(option?.text ?? '', preferredUrl)
     }));
     
     // Keep all options for refresh functionality
     const allTweetOptions = (allOptionsForRefresh || tweetOptions).map((option, index) => ({
         label: String(option?.label || `Option ${index + 1}`),
         category: getTweetCategory(option),
-        text: String(option?.text ?? '')
+        text: addPreferredShareUrlToText(option?.text ?? '', preferredUrl)
     }));
     trackShareEvent('modal_opened', shareContext, { title });
     
@@ -1966,7 +1999,9 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
     };
 
     const getEditableTweet = () => (tweetTextarea?.value || getSelectedOptionText() || '').trim();
-    const getTrackedTweet = (medium = 'social') => addShareTrackingToText(getEditableTweet(), shareContext, medium);
+    const getTrackedTweet = (channel = 'direct_share') => (
+        addShareTrackingToText(getEditableTweet(), shareContext, channel, preferredUrl)
+    );
 
     if (handleInput) {
         const normalizeHandleInput = () => {
@@ -2124,7 +2159,7 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
         nativeBtn.addEventListener('click', async () => {
             try {
                 trackShareEvent('native', shareContext);
-                await nativeShare(canvas, getEditableTweet(), shareContext);
+                await nativeShare(canvas, getEditableTweet(), shareContext, preferredUrl);
             } catch (err) {
                 if (err.name !== 'AbortError') {
                     showNotification('Snapshot failed. Try again.', 'error');

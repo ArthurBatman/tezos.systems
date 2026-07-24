@@ -2,6 +2,11 @@
 (function () {
     const queue = [];
     let pageCounted = false;
+    let flushTimer = null;
+    let flushAttempts = 0;
+
+    window.goatcounter = window.goatcounter || {};
+    window.goatcounter.no_onload = true;
 
     function slug(value) {
         return String(value || 'event')
@@ -30,12 +35,25 @@
     }
 
     function flush() {
-        if (!window.goatcounter?.count) return;
+        if (!window.goatcounter?.count) return false;
         if (!pageCounted) {
             pageCounted = true;
             window.goatcounter.count({ path: function (p) { return `${p}-v2`; } });
         }
         while (queue.length) send(queue.shift());
+        return true;
+    }
+
+    function scheduleFlush() {
+        if (flush()) {
+            if (flushTimer) clearTimeout(flushTimer);
+            flushTimer = null;
+            return;
+        }
+        flushAttempts += 1;
+        if (flushAttempts >= 40) return;
+        if (flushTimer) clearTimeout(flushTimer);
+        flushTimer = setTimeout(scheduleFlush, 250);
     }
 
     window.trackTezosSystemsEvent = function trackTezosSystemsEvent(name, details) {
@@ -47,7 +65,6 @@
         if (!send(payload)) queue.push(payload);
     };
 
-    flush();
-    window.addEventListener('load', flush, { once: true });
-    setTimeout(flush, 1500);
+    scheduleFlush();
+    window.addEventListener('load', scheduleFlush, { once: true });
 })();

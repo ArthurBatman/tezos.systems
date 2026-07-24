@@ -13395,13 +13395,20 @@ async function smokeShareActions(browser, baseUrl) {
     return decodeURIComponent(new URL(opened.url).searchParams.get('text') || '');
   });
   assert(tweetText.includes('Testing an editable Tezos Systems share.'), `share actions: X intent should use editable tweet text: ${tweetText}`);
-  assert(tweetText.includes('utm_campaign=growth_loops') && tweetText.includes('utm_content='), `share actions: X intent should include tracked Tezos Systems link: ${tweetText}`);
+  assert(
+    tweetText.includes('utm_source=x')
+      && tweetText.includes('utm_medium=social')
+      && tweetText.includes('utm_campaign=tezos_systems_shares')
+      && tweetText.includes('utm_content='),
+    `share actions: X intent should include conventional Tezos Systems attribution: ${tweetText}`
+  );
   await page.locator('#share-modal #share-native').click();
   await page.waitForFunction(() => window.__shareActions.nativeShares.some((entry) => (
     entry.fileCount === 1
     && entry.fileTypes.includes('image/png')
-    && entry.url.includes('utm_medium=native_share')
-    && entry.url.includes('utm_campaign=growth_loops')
+    && entry.url.includes('utm_source=native_share')
+    && entry.url.includes('utm_medium=share')
+    && entry.url.includes('utm_campaign=tezos_systems_shares')
   )), null, { timeout: 5000 });
   await page.locator('#share-modal #share-download').click();
   await page.waitForFunction(() => window.__shareActions.downloads.some((entry) => /^tezos-systems-\d+\.png$/.test(entry.download) && entry.href.startsWith('data:image/png')), null, { timeout: 5000 });
@@ -13411,6 +13418,36 @@ async function smokeShareActions(browser, baseUrl) {
   assert(desktopActions.opens.length === 1, `share actions: expected one X intent open: ${JSON.stringify(desktopActions.opens)}`);
   assert(desktopActions.nativeShares.length === 1, `share actions: expected one native share: ${JSON.stringify(desktopActions.nativeShares)}`);
   assert(desktopActions.downloads.length === 1, `share actions: expected one desktop download: ${JSON.stringify(desktopActions.downloads)}`);
+  await page.locator('#share-modal .share-modal-close').click();
+  await page.locator('#share-modal').waitFor({ state: 'detached', timeout: 5000 });
+
+  await page.locator('#capital-entry-card > .card-share-btn').waitFor({ state: 'visible', timeout: 20000 });
+  await page.locator('#capital-entry-card').scrollIntoViewIfNeeded();
+  await page.locator('#capital-entry-card > .card-share-btn').click();
+  await waitForShareModal(page, 'share actions Capital Chamber share', issues);
+  const capitalShareTitle = await page.locator('#share-modal-title').innerText();
+  const capitalComposerText = await page.locator('#share-modal #tweet-compose-text').inputValue();
+  assert(capitalShareTitle === 'Share: Capital Chamber', `share actions: Capital title should not repeat Chamber: ${capitalShareTitle}`);
+  assert(capitalComposerText.includes('tezos.systems/capital/'), `share actions: Capital composer should expose its canonical room URL: ${capitalComposerText}`);
+  await page.locator('#share-modal #share-twitter').click();
+  await page.waitForFunction(() => window.__shareActions.opens.length === 2, null, { timeout: 5000 });
+  const capitalShare = await page.evaluate(() => {
+    const opened = window.__shareActions.opens[1];
+    const text = decodeURIComponent(new URL(opened.url).searchParams.get('text') || '');
+    const match = text.match(/https:\/\/tezos\.systems\/capital\/\?[^\s]+/);
+    if (!match) return { text, url: '' };
+    return { text, url: match[0] };
+  });
+  assert(capitalShare.url, `share actions: Capital share should contain its canonical room URL: ${capitalShare.text}`);
+  const capitalShareUrl = new URL(capitalShare.url);
+  assert(capitalShareUrl.pathname === '/capital/', `share actions: Capital share route mismatch: ${capitalShare.url}`);
+  assert(
+    capitalShareUrl.searchParams.get('utm_source') === 'x'
+      && capitalShareUrl.searchParams.get('utm_medium') === 'social'
+      && capitalShareUrl.searchParams.get('utm_campaign') === 'tezos_systems_shares'
+      && capitalShareUrl.searchParams.get('utm_content') === 'capital-chamber',
+    `share actions: Capital attribution mismatch: ${capitalShare.url}`
+  );
   await page.locator('#share-modal .share-modal-close').click();
   await page.locator('#share-modal').waitFor({ state: 'detached', timeout: 5000 });
 

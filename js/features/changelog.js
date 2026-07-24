@@ -7,7 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-24',
         entries: [
-            { type: '🔧', text: 'Footer credits now contact Primate by email and link Baking Benjamins directly to its X profile' }
+            { type: '🔧', text: 'Footer credits now contact Primate by email and link Baking Benjamins directly to its X profile' },
+            { type: '🔧', text: 'Shared Chamber links now open their exact room, use clean channel attribution, and reach the restored privacy-friendly analytics collector without duplicate pageviews' }
         ]
     },
     {
