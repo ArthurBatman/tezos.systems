@@ -115,9 +115,10 @@ Licensing boundaries:
   original selection, arrangement, and commentary to the extent Primate
   owns those rights; underlying facts and third-party API data retain their
   source terms.
-- Public identity: Tezos Systems is built by Primate, linked to the
-  [BakingBenjamins X profile](https://x.com/BakingBenjamins), and Primate is a
-  co-founding member of Tez Capital; represent Tez Capital as the affiliated brand and RPC
+- Public identity: Tezos Systems is built by Primate, whose public contact is
+  `primate@tez.capital`; Primate is the baker behind
+  [Baking Benjamins](https://x.com/BakingBenjamins) and a co-founding member of
+  Tez Capital. Represent Tez Capital as the affiliated brand and RPC
   infrastructure provider.
 - Legal metadata: keep Primate as the repository's current copyright holder
   and site/schema creator, and as publisher where publisher metadata is present,

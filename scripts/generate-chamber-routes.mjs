@@ -46,7 +46,8 @@ function renderRouteStructuredData(route, url, image) {
       publisher: {
         '@type': 'Person',
         name: 'Primate',
-        url: 'https://x.com/BakingBenjamins',
+        url: 'https://tezos.systems/',
+        email: 'primate@tez.capital',
         sameAs: [
           'https://x.com/BakingBenjamins',
           'https://github.com/Primate411'

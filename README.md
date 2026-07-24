@@ -1226,8 +1226,9 @@ historical copies were received.
 ## Credits
 
 - Data: [TzKT](https://tzkt.io), CoinGecko, Tezos Domains, OBJKT, and Supabase.
-- Built by: [Primate](https://x.com/BakingBenjamins), a co-founding member
-  of [Tez Capital](https://tez.capital).
+- Built by: [Primate](mailto:primate@tez.capital), the baker behind
+  [Baking Benjamins](https://x.com/BakingBenjamins) and a co-founding member of
+  [Tez Capital](https://tez.capital).
 - RPC infrastructure: [Tez Capital](https://tez.capital).
 
 Built for the Tezos ecosystem.

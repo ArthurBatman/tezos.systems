@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-24',
+        entries: [
+            { type: '🔧', text: 'Footer credits now contact Primate by email and link Baking Benjamins directly to its X profile' }
+        ]
+    },
+    {
         date: '2026-07-23',
         entries: [
             { type: '🔧', text: 'The header now paints its final one-hour activity shape immediately instead of briefly flashing an unstyled syncing sentence' },
