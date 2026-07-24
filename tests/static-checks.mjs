@@ -1398,6 +1398,15 @@ async function checkSelectorContracts() {
   if (brandStackStart < 0 || titleRowIndex < brandStackStart || continuityRowIndex < titleRowIndex || uptimeClusterStart < continuityRowIndex || activityButtonIndex < milestoneMarkerIndex) {
     fail('header must keep title first, then order mainnet age and trailing-hour activity in the lower continuity row');
   }
+  if (index.includes('Syncing 1H activity')) {
+    fail('header first paint must not expose the retired one-hour activity loading sentence');
+  }
+  const initialActivityEnd = index.indexOf('</button>', activityButtonIndex);
+  const initialActivityMarkup = index.slice(activityButtonIndex, initialActivityEnd);
+  if (!initialActivityMarkup.includes('header-activity-cluster is-loading')
+      || !['tx', 'moved', 'nft', 'whale'].every((slot) => initialActivityMarkup.includes(`data-usage-slot="${slot}"`))) {
+    fail('header first paint must reserve the final one-hour metric cluster before JavaScript runs');
+  }
 
   const chambersLauncherIndex = index.indexOf('id="chambers-toggle"');
   const pulseLauncherIndex = index.indexOf('id="tezos-stats-toggle"');
@@ -2129,10 +2138,11 @@ async function checkSelectorContracts() {
     ['chain uptime baker updater', "setChainText('chain-uptime-bakers'", app],
     ['top continuity proof styles', '.top-continuity-panel', styles],
     ['header uptime badge title stack styles', '.header-brand-stack', styles],
-    ['header continuity row styles', '.header-continuity-row', shellExtrasCss],
-    ['header trailing-hour activity styles', '.header-activity-button', shellExtrasCss],
-    ['header mobile-landscape balance breakpoint', '@media (min-width: 561px) and (max-width: 960px) and (orientation: landscape)', shellExtrasCss],
-    ['header mobile-landscape two-column pill grid', 'grid-template-columns: repeat(2, max-content);', shellExtrasCss],
+    ['header continuity row styles', '.header-continuity-row', heroSearchCss],
+    ['header render-blocking trailing-hour activity styles', '.header-activity-button', heroSearchCss],
+    ['header first-paint activity loading state', '.header-activity-cluster.is-loading .block-ticker-value', heroSearchCss],
+    ['header mobile-landscape balance breakpoint', '@media (min-width: 561px) and (max-width: 960px) and (orientation: landscape)', heroSearchCss],
+    ['header mobile-landscape two-column pill grid', 'grid-template-columns: repeat(2, max-content);', heroSearchCss],
     ['top continuity stat rail right aligned', 'justify-content: flex-end', styles],
     ['top continuity rail is borderless tape', 'border: 0;', styles],
     ['top continuity identity claim styles', '.top-continuity-claim', heroSearchCss],

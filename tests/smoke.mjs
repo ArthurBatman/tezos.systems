@@ -4339,7 +4339,7 @@ async function smokeHeroLandscape(browser, baseUrl) {
   assert(response?.ok(), `hero mobile landscape: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
-  await page.waitForFunction(() => /\bTX\b/.test(document.querySelector('#header-activity-line')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('#header-activity-button')?.dataset.headerActivityWired === '1', null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent?.trim() || ''), null, { timeout: 10000 });
 
   const state = await page.evaluate(() => {
@@ -4393,6 +4393,57 @@ async function smokeHeroLandscape(browser, baseUrl) {
 async function smokeHeroCommandBar(browser, baseUrl) {
   const intentNavigationTimeout = 15000;
   const issues = [];
+  const firstPaintContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    javaScriptEnabled: false,
+    serviceWorkers: 'block'
+  });
+  const firstPaintPage = await firstPaintContext.newPage();
+  const firstPaintResponse = await firstPaintPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(firstPaintResponse?.ok(), `hero command bar first paint: dashboard failed with HTTP ${firstPaintResponse?.status()}`);
+  await firstPaintPage.locator('#header-activity-button').waitFor({ state: 'visible', timeout: 10000 });
+  const firstPaintState = await firstPaintPage.evaluate(() => {
+    const row = document.querySelector('.header-continuity-row');
+    const history = document.querySelector('#top-continuity-history');
+    const activity = document.querySelector('#header-activity-button');
+    const line = document.querySelector('#header-activity-line');
+    const cluster = line?.querySelector('.header-activity-cluster');
+    const historyRect = history?.getBoundingClientRect();
+    const activityRect = activity?.getBoundingClientRect();
+    const center = (rect) => rect ? rect.top + (rect.height / 2) : 0;
+    return {
+      shellExtrasAbsent: !document.getElementById('shell-extras-css'),
+      rowDisplay: row ? getComputedStyle(row).display : '',
+      buttonDisplay: activity ? getComputedStyle(activity).display : '',
+      buttonHeight: activityRect?.height || 0,
+      sameBand: Boolean(historyRect && activityRect && Math.abs(center(historyRect) - center(activityRect)) <= 2),
+      clusterPresent: Boolean(cluster),
+      clusterLoading: cluster?.classList.contains('is-loading') || false,
+      slots: Array.from(line?.querySelectorAll('[data-usage-slot]') || [], (node) => node.dataset.usageSlot),
+      text: activity?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      ariaBusy: activity?.getAttribute('aria-busy') || '',
+      overflow: document.documentElement.scrollWidth - innerWidth
+    };
+  });
+  assert(
+    firstPaintState.shellExtrasAbsent
+      && firstPaintState.rowDisplay === 'flex'
+      && firstPaintState.buttonDisplay === 'block'
+      && firstPaintState.buttonHeight >= 35
+      && firstPaintState.sameBand,
+    `hero command bar first paint: activity geometry depends on lazy shell styles ${JSON.stringify(firstPaintState)}`
+  );
+  assert(
+    firstPaintState.clusterPresent
+      && firstPaintState.clusterLoading
+      && firstPaintState.slots.join(',') === 'tx,moved,nft,whale'
+      && !/syncing/i.test(firstPaintState.text)
+      && firstPaintState.ariaBusy === 'true'
+      && firstPaintState.overflow <= 1,
+    `hero command bar first paint: activity shell is not shape-correct ${JSON.stringify(firstPaintState)}`
+  );
+  await firstPaintContext.close();
+
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     serviceWorkers: 'block'
@@ -7799,7 +7850,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelector('#health-nc-33')?.textContent === '1' && document.querySelector('#health-nc-66')?.textContent === '2', null, { timeout: 10000 });
   await page.waitForFunction(() => /Octez Versions/.test(document.querySelector('#health-octez-versions')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /Block/.test(document.querySelector('#block-ticker-line')?.textContent || ''), null, { timeout: 10000 });
-  await page.waitForFunction(() => /\bTX\b/.test(document.querySelector('#header-activity-line')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('#header-activity-button')?.getAttribute('aria-busy') === 'false', null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+s$/.test((document.querySelector('#hero-chain-uptime-finality')?.textContent || '').trim()), null, { timeout: 20000 });
 
@@ -7992,6 +8043,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       headerActivityWired: headerActivityButton?.dataset.headerActivityWired || '',
       headerActivityTag: headerActivityButton?.tagName || '',
       headerActivityType: headerActivityButton?.getAttribute('type') || '',
+      headerActivityBusy: headerActivityButton?.getAttribute('aria-busy') || '',
+      headerActivityLoading: headerActivityCluster?.classList.contains('is-loading') || false,
       headerActivityOutsideTicker: Boolean(headerActivityButton && ticker && !ticker.contains(headerActivityButton)),
       systemLinks: modal?.querySelectorAll('.health-baker-name-link[href^="#baker="]').length || 0,
       tzktLinks: modal?.querySelectorAll('.lb-baker-source-link[href^="https://tzkt.io/"]').length || 0,
@@ -8170,6 +8223,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(/^\d+(?:\.\d+)?%$/.test(healthState.topProofIssuance), `network health chamber: top proof issuance mismatch: ${healthState.topProofIssuance}`);
   assert(healthState.headerActivityInHeader && healthState.headerActivityAfterHistory && healthState.headerActivityRightOfHistory && healthState.headerActivityVerticallyAligned, `network health chamber: trailing-hour activity should sit directly right of mainnet age ${JSON.stringify({ inHeader: healthState.headerActivityInHeader, afterHistory: healthState.headerActivityAfterHistory, rightOfHistory: healthState.headerActivityRightOfHistory, verticallyAligned: healthState.headerActivityVerticallyAligned })}`);
   assert(healthState.headerActivityTag === 'BUTTON' && healthState.headerActivityType === 'button' && healthState.headerActivityWired === '1', `network health chamber: trailing-hour activity launcher semantics missing: ${healthState.headerActivityTag}/${healthState.headerActivityType}/${healthState.headerActivityWired}`);
+  assert(healthState.headerActivityBusy === 'false' && !healthState.headerActivityLoading, `network health chamber: trailing-hour activity did not leave its first-paint loading state ${JSON.stringify({ busy: healthState.headerActivityBusy, loading: healthState.headerActivityLoading })}`);
   assert(healthState.headerActivityOutsideTicker && healthState.headerActivityFullyVisible, `network health chamber: trailing-hour activity must be a separate unclipped header line: ${JSON.stringify({ outsideTicker: healthState.headerActivityOutsideTicker, fullyVisible: healthState.headerActivityFullyVisible })}`);
   assert(/\b1H\b/.test(healthState.headerActivityText) && /\bTX\b/.test(healthState.headerActivityText) && /Moved/.test(healthState.headerActivityText) && /NFT/.test(healthState.headerActivityText), `network health chamber: trailing-hour TX, moved, and NFT text missing: ${healthState.headerActivityText}`);
   assert(['TX', 'Moved', 'NFT'].every((label) => healthState.headerActivityLabels.includes(label)), `network health chamber: trailing-hour activity labels are hidden: ${healthState.headerActivityLabels.join(', ')}`);

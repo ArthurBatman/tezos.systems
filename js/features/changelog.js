@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-23',
         entries: [
+            { type: '🔧', text: 'The header now paints its final one-hour activity shape immediately instead of briefly flashing an unstyled syncing sentence' },
             { type: '🎨', text: 'Explore Tezos and Live Pulse now share descriptive collapsible headers, compact in-place explainers, clean internal information routes, and a stable UTC clock treatment' },
             { type: '✨', text: 'My Tezos Portfolio now reconstructs a provenance-labeled year of balance and account activity beside its separate browser-observed history' },
             { type: '✨', text: 'My Tezos now includes an aggregated Tezos NFT Collection and manually linked Etherlink accounts that remain explicitly device-local and unverified' },

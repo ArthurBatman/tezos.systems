@@ -53,7 +53,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=480';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=481';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -402,14 +402,20 @@ function updateHeaderActivity(usage) {
     if (!line.querySelector('.header-activity-cluster')) {
         line.innerHTML = renderHeaderActivityCluster(usage);
     }
+    const cluster = line.querySelector('.header-activity-cluster');
+    const hasUsage = Boolean(usage && Number.isFinite(usage.txCount));
     line.querySelectorAll('[data-usage-slot]').forEach((element) => {
         const { html, title } = usageSlotContent(element.dataset.usageSlot, usage);
         element.innerHTML = html;
         element.title = title;
     });
     if (usage?.updatedAt) line.dataset.usagePulseStamp = String(usage.updatedAt);
+    cluster?.classList.toggle('is-loading', !hasUsage);
+    button.classList.toggle('is-loading', !hasUsage);
+    line.setAttribute('aria-busy', hasUsage ? 'false' : 'true');
+    button.setAttribute('aria-busy', hasUsage ? 'false' : 'true');
 
-    const summary = usage && Number.isFinite(usage.txCount)
+    const summary = hasUsage
         ? `Last hour: ${formatCount(usage.txCount)} transactions${Number.isFinite(usage.movedXtz) ? `, ${formatTezAmount(usage.movedXtz)}${usage.movedClipped ? '+' : ''} XTZ moved` : ''}${Number.isFinite(usage.nftCount) ? `, ${formatCount(usage.nftCount)} NFT transfers` : ''}.`
         : 'Trailing hour Tezos L1 activity is syncing.';
     button.title = `${summary} Open Network Health Chamber.`;

@@ -298,7 +298,8 @@ inline modal styles in `js/core/app.js`.
   pills. A separate trailing-hour activity box sits immediately to the right of
   mainnet age on desktop, shows transaction count, XTZ moved, and NFT transfers,
   and opens Network Health; it stacks below mainnet age on narrow screens rather
-  than crowding the stat pills or the live block ticker.
+  than crowding the stat pills or the live block ticker. Its first paint reserves
+  the final `1H / TX / Moved / NFT` metric shape instead of flashing loading prose.
   On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   Imminent or newly crossed network milestones make the runtime glow and add a
