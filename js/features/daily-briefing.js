@@ -2493,7 +2493,8 @@ function settleMilestoneCardArrivals(island) {
 
 function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   const island = document.getElementById('hot-today-island');
-  if (!island) return;
+  const content = document.getElementById('hot-today-content');
+  if (!island || !content) return;
   hotTodayBriefingSentences = Array.isArray(sentences) ? sentences : [];
   const briefingSignals = (Array.isArray(sentences) ? sentences : [])
     .map(normalizeSignal)
@@ -2541,25 +2542,17 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   island.hidden = false;
   island.setAttribute('aria-live', hotTodayHasRendered ? 'off' : 'polite');
   const islandHtml = `
-    <div class="hot-today-head">
-      <div>
-        <div class="hot-today-titleline">
-          <span class="feature-kicker">Live pulse</span>
-        </div>
-        <h2>What's hot today</h2>
-      </div>
-      <div class="hot-today-head-meta">
-        ${memoryChip}
-        <a class="hot-today-clock" href="#health" data-network-route="#health"><span class="hot-today-clock-dot" aria-hidden="true"></span><span data-hot-live="clock">${escapeHtml(currentUtcTick())} UTC</span></a>
-      </div>
+    <div class="hot-today-head-meta">
+      ${memoryChip}
+      <a class="hot-today-clock" href="#health" data-network-route="#health"><span class="hot-today-clock-dot" aria-hidden="true"></span><span data-hot-live="clock">${escapeHtml(currentUtcTick())} UTC</span></a>
     </div>
     <div class="hot-today-strip" aria-label="Scrollable live pulse">
       ${signals.map(renderHotSignal).join('')}
     </div>
     ${renderHotTodayProgress(signals)}
   `;
-  if (hotTodayHasRendered) quietlySyncHtml(island, islandHtml);
-  else island.innerHTML = islandHtml;
+  if (hotTodayHasRendered) quietlySyncHtml(content, islandHtml);
+  else content.innerHTML = islandHtml;
   hotTodayHasRendered = true;
   settleMilestoneCardArrivals(island);
   wireHotTodayProgressNavigation(island);
@@ -2695,15 +2688,11 @@ export async function initHotTodayIsland(stats, xtzPrice) {
   lastStats = stats || lastStats;
   lastXtzPrice = xtzPrice ?? lastXtzPrice;
   const island = document.getElementById('hot-today-island');
-  if (!island) return;
-  island.innerHTML = `
-    <div class="hot-today-head">
-      <div>
-        <div class="hot-today-titleline">
-          <span class="feature-kicker">Live pulse</span>
-        </div>
-        <h2>What's hot today</h2>
-      </div>
+  const content = document.getElementById('hot-today-content');
+  if (!island || !content) return;
+  island.hidden = false;
+  content.innerHTML = `
+    <div class="hot-today-head-meta">
       <span>Syncing</span>
     </div>
     <div class="hot-today-grid hot-today-grid-loading">

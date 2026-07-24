@@ -390,8 +390,8 @@
     overflow-x: clip;
 }
 
-.hot-today-section:empty {
-    display: none;
+.hot-today-section.collapsed {
+    min-height: 0;
 }
 
 .top-continuity-history.is-anniversary {
@@ -635,6 +635,11 @@
     gap: 0.45rem;
 }
 
+.hot-today-content > .hot-today-head-meta {
+    width: 100%;
+    margin-bottom: 0.55rem;
+}
+
 .hot-today-titleline {
     display: inline-flex;
     align-items: center;
@@ -676,8 +681,25 @@
     display: inline-flex;
     align-items: center;
     gap: 0.42rem;
+    color: var(--accent-cyan);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 850;
+    line-height: 1;
+    text-decoration: none;
+    text-transform: uppercase;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+}
+
+.hot-today-clock:is(:link, :visited) {
+    color: var(--accent-cyan);
+    text-decoration: none;
+}
+
+.hot-today-clock:is(:hover, :focus-visible) {
+    color: var(--text-primary);
+    text-decoration: none;
 }
 
 .hot-today-memory-chip {
@@ -3749,6 +3771,138 @@
         height: 0;
     }
 }
+
+.feature-section-header {
+    position: relative;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.feature-section-heading {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+}
+
+.feature-section-title-row,
+.feature-section-actions {
+    display: flex;
+    align-items: center;
+}
+
+.feature-section-title-row {
+    min-width: 0;
+    gap: 0.32rem;
+}
+
+.feature-section-actions {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    gap: 0.45rem;
+}
+
+.feature-section-header .section-title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-display, 'Orbitron', 'JetBrains Mono', monospace);
+    font-size: clamp(1.05rem, 2vw, 1.45rem);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-transform: none;
+}
+
+.section-collapse-button {
+    display: inline-grid;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.section-collapse-button:hover,
+.section-collapse-button:focus-visible {
+    border-color: color-mix(in srgb, var(--accent-cyan) 34%, var(--glass-border));
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+    color: var(--accent-cyan);
+    outline: none;
+}
+
+.section-collapse-button .section-chevron {
+    display: inline-block;
+    font-size: 0.72rem;
+    line-height: 1;
+    opacity: 0.72;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.feature-section-header .info-button,
+.feature-section-header .section-copy-link {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    margin-left: 0;
+}
+
+.feature-section-header .info-button.is-explaining {
+    border-color: color-mix(in srgb, var(--accent-cyan) 72%, var(--text-primary));
+    color: var(--accent-cyan);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--accent-cyan) 18%, transparent);
+}
+
+.section-explain.top-continuity-explain,
+.section-explain.top-continuity-explain.is-visible {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    left: auto !important;
+    width: min(380px, calc(100vw - 2rem));
+    transform-origin: calc(100% - 2.35rem) top;
+}
+
+.section-explain.top-continuity-explain::before,
+.section-explain.top-continuity-explain.is-visible::before {
+    display: block;
+    right: 2.35rem;
+    left: auto;
+    transform: translateX(50%) rotate(45deg);
+}
+
+.section-explain-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+@media (max-width: 720px) {
+    .feature-section-header {
+        align-items: flex-end;
+    }
+
+    .feature-section-actions {
+        gap: 0.32rem;
+    }
+
+    .hot-today-head.feature-section-header {
+        align-items: flex-end;
+        flex-direction: row;
+    }
+
+    .section-explain.top-continuity-explain,
+    .section-explain.top-continuity-explain.is-visible {
+        width: min(360px, calc(100vw - 2rem));
+    }
+}
+
 /* Background data refreshes must never replay entrances or animate scroll. */
 [data-quiet-refreshing="true"],
 [data-quiet-refreshing="true"] * {

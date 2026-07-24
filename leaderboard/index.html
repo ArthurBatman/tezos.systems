@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=479">
-    <link rel="stylesheet" href="/css/loading.css?v=479">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=479">
-    <link rel="stylesheet" href="/css/site-map.css?v=479">
+    <link rel="stylesheet" href="/css/styles.min.css?v=480">
+    <link rel="stylesheet" href="/css/loading.css?v=480">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=480">
+    <link rel="stylesheet" href="/css/site-map.css?v=480">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=479">
+    <link rel="modulepreload" href="/js/core/app.js?v=480">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/data-assets.js">
@@ -154,7 +154,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=479"></script>
+    <script src="/js/core/theme-preload.js?v=480"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -591,17 +591,47 @@
 
         <section class="stats-section governance-alert-section" id="governance-alert-strip" aria-live="polite" hidden></section>
 
-        <section class="stats-section hot-today-section" id="hot-today-island" aria-live="polite"></section>
+        <section class="stats-section hot-today-section" id="hot-today-island" aria-live="polite" hidden>
+            <div class="section-header feature-section-header hot-today-head">
+                <div class="feature-section-heading">
+                    <span class="feature-kicker">Live pulse</span>
+                    <div class="feature-section-title-row">
+                        <h2 class="section-title">What's hot today</h2>
+                        <button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true" aria-controls="hot-today-content" aria-label="Collapse Live Pulse">
+                            <span class="section-chevron" aria-hidden="true">▾</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="feature-section-actions" data-section-actions>
+                    <button class="info-button" id="hot-today-info-btn" type="button" aria-label="About Live Pulse" title="About Live Pulse">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="hot-today-content" id="hot-today-content"></div>
+        </section>
 
         <!-- Chambers Section -->
         <section class="stats-section chamber-suite-section" id="chambers-section">
-            <div class="section-header">
-                <h2 class="section-title">🏛️ Chambers</h2>
-                <button class="info-button" id="chambers-info-btn" aria-label="About Chambers" title="About Chambers">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                    </svg>
-                </button>
+            <div class="section-header feature-section-header">
+                <div class="feature-section-heading">
+                    <span class="feature-kicker">Explore Tezos</span>
+                    <div class="feature-section-title-row">
+                        <h2 class="section-title">Choose a topic</h2>
+                        <button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true" aria-controls="chambers-grid" aria-label="Collapse Explore Tezos">
+                            <span class="section-chevron" aria-hidden="true">▾</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="feature-section-actions" data-section-actions>
+                    <button class="info-button" id="chambers-info-btn" type="button" aria-label="About Explore Tezos" title="About Explore Tezos">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <div class="stats-grid" id="chambers-grid"></div>
@@ -1688,28 +1718,6 @@
         </div>
     </div>
 
-    <!-- Chambers Info Modal -->
-    <div class="modal-overlay" id="chambers-modal" aria-hidden="true">
-        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="chambers-modal-title" tabindex="-1">
-            <button class="modal-close" id="chambers-modal-close" aria-label="Close">&times;</button>
-            <h3 class="modal-title" id="chambers-modal-title">Tezos Chambers</h3>
-            <div class="modal-body">
-                <p>
-                    Chambers are focused rooms for the parts of Tezos that deserve more than a single stat card.
-                </p>
-                <ul>
-                    <li><strong>Protocol and governance</strong>: Follow the current amendment cycle, protocol history, and proposal context</li>
-                    <li><strong>Network health</strong>: Check live chain timing, quorum context, operations flow, and reliability signals</li>
-                    <li><strong>Identity and scaling</strong>: Jump into Tezos Domains, Tezos X, Etherlink governance, and tz4 adoption</li>
-                    <li><strong>Direct rooms</strong>: Copy a room link or open a card for a shareable, deeper view</li>
-                </ul>
-                <p>
-                    Use Chambers when you want the story behind a live number, not just the number itself.
-                </p>
-            </div>
-        </div>
-    </div>
-
     <!-- Consensus Info Modal -->
     <div class="modal-overlay" id="consensus-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="consensus-modal-title" tabindex="-1">
@@ -2386,7 +2394,7 @@
 
     <!-- Load app as module -->
     <script src="/js/features/hen-mode.js?v=94"></script>
-    <script type="module" src="/js/core/app.js?v=479"></script>
+    <script type="module" src="/js/core/app.js?v=480"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">
@@ -2616,6 +2624,6 @@
             <div class="hen-expanded-inner"></div>
         </div>
     </div>
-    <script src="/js/features/tooltip-tour.js?v=350" defer></script>
+    <script src="/js/features/tooltip-tour.js?v=351" defer></script>
 </body>
 </html>

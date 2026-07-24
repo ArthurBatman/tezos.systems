@@ -152,7 +152,8 @@ tezos.systems/
 3. `app.js` initializes feature modules behind safe wrappers, registers the
    service worker, handles deep links, and starts the refresh loop.
 4. Cached stats and protocol data are displayed first when available.
-5. First-visit default content is the command deck plus the Chambers section.
+5. First-visit default content is the command deck plus the question-led
+   Explore Tezos section at `/chambers/`.
    During proposal and ballot windows, a compact Governance Alert strip sits
    above Chambers and reuses the live voting/My Tezos baker-vote logic to expose
    Chamber, My Tezos, RSS, and browser-reminder actions. Outside active voting
@@ -266,20 +267,16 @@ inline modal styles in `js/core/app.js`.
 ## Main Surfaces
 
 - Explore is a progressively disclosed launcher rather than a second dashboard:
-  Chambers stays the hero, the three canonical starter rooms fit in the first
+  the question-led Explore Tezos topics stay central, the three canonical starter rooms fit in the first
   mobile view, and live signals, baker tools, account tools, markets, publishing,
   and recovery open only when requested. Its mobile corner gift launcher owns a
   dedicated in-flow slot beside the top price rail and scrolls away with that
   rail instead of painting over telemetry or the centered wordmark.
-- Chambers section is visible by default and orders the chamber rows as Network
-  Pulse <> Capital Chamber, Whale Watch <> Baker Directory, Network Health <>
-  Tezos L1 Governance, Tezos X <> Tezos X Governance, tz4 Adoption <> Staking
-  Chamber <> LB Monitor, Ledger Flow <> Protocol Anthology <> Cycle History,
-  Tezos Maxis, TezosCRP Recognition Hall, then
-  a full-width Tezos Domains strip at the bottom. ctez Oven Exit and KT1
-  Multisig Recovery stay off the
-  default Chambers grid and open from Explore's collapsed Recovery tools drawer
-  or the corner gift tray launcher.
+- Explore Tezos is visible by default and organizes all 17 room launchers into
+  six question-led topics: Network, Capital, Bakers, Governance, People &
+  Accounts, and History. ctez Oven Exit and KT1 Multisig Recovery stay off the
+  default topic grid and open from Explore's collapsed Recovery tools drawer or
+  the corner gift tray launcher.
   Each Chamber row is wrapped responsively so wide cards keep their companion
   card instead of creating desktop grid holes; cards also keep a canonical
   app-shell open affordance in the fixed footer rail, card-level direct-link
@@ -740,7 +737,7 @@ Useful deep links include:
 - `#domains` or `#domains=name.tez`
 - `#ctez`
 
-Public share routes are also available at `/my/`, `/chamber/`, `/pulse/`,
+Public share routes are also available at `/chambers/`, `/my/`, `/chamber/`, `/pulse/`,
 `/capital/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
 `/tezoscrp/`, `/health/`, `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`,
 `/ledger-flow/`, `/domains/`, and `/ctez/`.

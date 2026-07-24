@@ -28,8 +28,8 @@
         },
         {
             target: '#chambers-section .section-header',
-            title: 'Chambers explain the chain',
-            text: 'Open Network Health, L1 Governance, Tezos X, Tezos X Governance, tz4, Liquidity Baking, and Protocol Anthology from here or with direct routes.',
+            title: 'Explore Tezos by question',
+            text: 'Choose Network, Capital, Bakers, Governance, People & Accounts, or History, then open the focused room that answers your question.',
         },
         {
             target: '#my-tezos-btn',
@@ -44,7 +44,7 @@
         {
             target: '#features-gear',
             title: 'Explore without the wall of choices',
-            text: 'Explore leads with Chambers, Network Pulse, Staking, and Maxis. Live signals and specialist tools stay folded by category until you need them.',
+            text: 'Explore leads with all topics, Network Pulse, Staking, and Maxis. Live signals and specialist tools stay folded by category until you need them.',
         },
         {
             target: '#settings-gear',

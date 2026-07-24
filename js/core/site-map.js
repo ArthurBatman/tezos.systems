@@ -4,7 +4,7 @@ const home = {
     href: '/',
     paths: ['/landing.html'],
     group: 'Home',
-    detail: 'Live Tezos dashboard, command search, Chambers, widgets, and My Tezos',
+    detail: 'Live Tezos dashboard, command search, topic rooms, widgets, and My Tezos',
     keywords: ['tezos systems', 'dashboard', 'home', 'live stats', 'chambers'],
     sitemap: { changefreq: 'hourly', priority: '1.0' }
 };
@@ -13,12 +13,13 @@ export const SITE_MAP = [
     home,
     {
         id: 'chambers',
-        title: 'Tezos Chambers',
-        href: '/#chambers',
+        title: 'Explore Tezos',
+        href: '/chambers/',
         hash: '#chambers',
         group: 'Tools',
-        detail: 'Browse every focused Tezos room from one live dashboard suite',
-        keywords: ['chambers', 'all chambers', 'rooms', 'feature rooms']
+        detail: 'Choose a question-led topic and browse every focused Tezos room',
+        keywords: ['chambers', 'all chambers', 'rooms', 'feature rooms', 'explore tezos', 'topics'],
+        sitemap: { changefreq: 'hourly', priority: '0.9' }
     },
     {
         id: 'my-tezos',

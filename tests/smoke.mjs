@@ -4574,7 +4574,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   const browseAllText = await page.locator('#hero-search-panel').innerText();
   const browseAllOptions = await page.locator('#hero-search-panel [role="option"]').count();
   assert(browseAllOptions === destinationCount, `hero command bar: complete directory rendered ${browseAllOptions} of ${destinationCount} canonical destinations`);
-  for (const representative of ['Protocol Anthology', 'Ledger Flow', 'XTZ Market Watch', 'Staking Guide', 'Tezos Chambers', 'HEN Live Feed', 'Governance RSS', 'XTZ Price Widget']) {
+  for (const representative of ['Protocol Anthology', 'Ledger Flow', 'XTZ Market Watch', 'Staking Guide', 'Explore Tezos', 'HEN Live Feed', 'Governance RSS', 'XTZ Price Widget']) {
     assert(browseAllText.includes(representative), `hero command bar: explicit complete directory is missing ${representative}`);
   }
   const rankedSearchIntents = [
@@ -4583,7 +4583,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     ['/leaderboard', 'Baker Directory'],
     ['/history', 'Cycle History'],
     ['widgets', 'Embed Widgets'],
-    ['chambers', 'Tezos Chambers'],
+    ['chambers', 'Explore Tezos'],
     ['governance', 'Tezos L1 Governance'],
     ['staking', 'Staking Chamber'],
     ['liquidity', 'Liquidity Baking'],
@@ -5675,7 +5675,7 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await expectCount(page, '#section-picker-modal input[type="checkbox"]', 2, label);
   await expectCount(page, '#section-picker-modal .section-picker-note', 1, label);
   const pickerLabels = await page.locator('#section-picker-modal .section-picker-label').allTextContents();
-  assert(pickerLabels.some((text) => text.includes('Chambers')), `${label}: share picker should include visible Chambers section`);
+  assert(pickerLabels.some((text) => text.includes('Choose a topic')), `${label}: share picker should include the visible Explore Tezos section`);
   assert(!pickerLabels.includes('⛓️'), `${label}: share picker should not show emoji-only section names`);
   assert(!pickerLabels.includes('🧩 Embed Builder'), `${label}: share picker should not include hidden utility sections`);
   await page.locator('#section-picker-modal .share-modal-close').click();
@@ -11811,7 +11811,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
     { selector: '#top-continuity-history', label: 'mainnet history step', snippets: ['Start with mainnet history', 'chain-age counter', 'Protocol Anthology'] },
     { selector: '#block-ticker-button', label: 'block ticker step', snippets: ['Read the latest head', 'Network Health Chamber'] },
     { selector: '#hero-search-form', label: 'command bar step', snippets: ['Find anything', 'Press /', 'Chamber'] },
-    { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Chambers explain the chain', 'Protocol Anthology'] },
+    { selector: '#chambers-section .section-header', label: 'chambers step', snippets: ['Explore Tezos by question', 'People & Accounts'] },
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
     { selector: '#recruit-section .site-handoff-head', label: 'Handoff step', snippets: ['Follow the lifeline', 'complete map stays folded'] },
     { selector: '#features-gear', label: 'explore step', snippets: ['Explore without the wall of choices', 'Network Pulse', 'folded by category'] },
@@ -13433,9 +13433,170 @@ async function smokeInfoModals(browser, baseUrl) {
 
   const page = await context.newPage();
   attachIssueCollectors(page, 'info modals', issues);
-  const response = await page.goto(`${baseUrl}/?theme=matrix#section=consensus`, { waitUntil: 'domcontentloaded' });
+  let response = await page.goto(`${baseUrl}/?theme=matrix#section=consensus`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `info modals: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#hot-today-island .hot-today-strip').waitFor({ state: 'visible', timeout: 15000 });
+  const liveClockPresentation = await page.locator('#hot-today-island .hot-today-clock').evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      fontSize: Number.parseFloat(style.fontSize),
+      decoration: style.textDecorationLine,
+      display: style.display,
+      clock: node.textContent?.trim() || ''
+    };
+  });
+  assert(
+    liveClockPresentation.display === 'flex'
+      && liveClockPresentation.decoration === 'none'
+      && liveClockPresentation.fontSize <= 12
+      && /^\d{2}:\d{2}:\d{2} UTC$/.test(liveClockPresentation.clock),
+    `Live Pulse clock presentation drifted ${JSON.stringify(liveClockPresentation)}`
+  );
+
+  const sectionHelpContracts = [
+    {
+      button: '#hot-today-info-btn',
+      panel: '#hot-today-info-btn-panel',
+      section: '#hot-today-island',
+      title: 'The signals most worth noticing now',
+      href: '/pulse/'
+    },
+    {
+      button: '#chambers-info-btn',
+      panel: '#chambers-info-btn-panel',
+      section: '#chambers-section',
+      title: 'Focused views, organized by question',
+      href: '/chambers/'
+    }
+  ];
+
+  for (const contract of sectionHelpContracts) {
+    await page.locator(contract.button).scrollIntoViewIfNeeded();
+    const sectionTopBefore = await page.locator(contract.section).evaluate((node) => node.getBoundingClientRect().top);
+    await page.locator(contract.button).click();
+    await page.locator(`${contract.panel}.is-visible`).waitFor({ state: 'visible', timeout: 5000 });
+    const helpState = await page.evaluate(({ button, panel, section, title, href, beforeTop }) => {
+      const trigger = document.querySelector(button);
+      const popover = document.querySelector(panel);
+      const sectionNode = document.querySelector(section);
+      const link = popover?.querySelector('a');
+      const rect = popover?.getBoundingClientRect();
+      return {
+        active: trigger?.classList.contains('is-explaining') || false,
+        ariaControls: trigger?.getAttribute('aria-controls') || '',
+        ariaExpanded: trigger?.getAttribute('aria-expanded') || '',
+        ariaHidden: popover?.getAttribute('aria-hidden') || '',
+        titlePresent: (popover?.textContent || '').includes(title),
+        href: link ? new URL(link.href).pathname : '',
+        parentHeader: popover?.parentElement?.classList.contains('section-header') || false,
+        compact: Boolean(rect && rect.width <= 390),
+        viewportContained: Boolean(rect && rect.left >= -1 && rect.right <= innerWidth + 1),
+        sectionShift: Math.abs((sectionNode?.getBoundingClientRect().top || 0) - beforeTop)
+      };
+    }, { ...contract, beforeTop: sectionTopBefore });
+    assert(
+      helpState.active
+        && helpState.ariaControls === contract.panel.slice(1)
+        && helpState.ariaExpanded === 'true'
+        && helpState.ariaHidden === 'false',
+      `section help disclosure state mismatch ${JSON.stringify(helpState)}`
+    );
+    assert(
+      helpState.titlePresent
+        && helpState.href === contract.href
+        && helpState.parentHeader
+        && helpState.compact
+        && helpState.viewportContained
+        && helpState.sectionShift <= 1,
+      `section help content or geometry mismatch ${JSON.stringify(helpState)}`
+    );
+    await page.keyboard.press('Escape');
+    await page.waitForFunction((panel) => {
+      const popover = document.querySelector(panel);
+      return popover
+        && !popover.classList.contains('is-visible')
+        && popover.getAttribute('aria-hidden') === 'true';
+    }, contract.panel, { timeout: 5000 });
+  }
+
+  const collapsibleSections = [
+    { section: '#hot-today-island', content: '#hot-today-content', label: 'Live Pulse' },
+    { section: '#chambers-section', content: '#chambers-grid', label: 'Explore Tezos' }
+  ];
+  for (const contract of collapsibleSections) {
+    await page.evaluate(({ section, content, label }) => {
+      const sectionNode = document.querySelector(section);
+      const contentNode = document.querySelector(content);
+      window[`__sectionHelp${label.replace(/\s+/g, '')}`] = { sectionNode, contentNode };
+    }, contract);
+    const toggle = page.locator(`${contract.section} [data-section-collapse]`);
+    await toggle.click();
+    await page.waitForFunction((selector) => document.querySelector(selector)?.classList.contains('collapsed'), contract.section, { timeout: 5000 });
+    await page.waitForFunction((selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return false;
+      const style = getComputedStyle(node);
+      return Number.parseFloat(style.maxHeight) <= 0.5 && Number.parseFloat(style.opacity) <= 0.01;
+    }, contract.content, { timeout: 5000 });
+    const collapsed = await page.evaluate(({ section, content, label }) => {
+      const sectionNode = document.querySelector(section);
+      const contentNode = document.querySelector(content);
+      const saved = window[`__sectionHelp${label.replace(/\s+/g, '')}`];
+      return {
+        sameSection: saved?.sectionNode === sectionNode,
+        sameContent: saved?.contentNode === contentNode,
+        expanded: sectionNode?.querySelector('[data-section-collapse]')?.getAttribute('aria-expanded') || '',
+        maxHeight: Number.parseFloat(getComputedStyle(contentNode).maxHeight),
+        opacity: Number.parseFloat(getComputedStyle(contentNode).opacity)
+      };
+    }, contract);
+    assert(
+      collapsed.sameSection
+        && collapsed.sameContent
+        && collapsed.expanded === 'false'
+        && collapsed.maxHeight <= 0.5
+        && collapsed.opacity <= 0.01,
+      `${contract.label} collapse contract failed ${JSON.stringify(collapsed)}`
+    );
+    await toggle.click();
+    await page.waitForFunction((selector) => !document.querySelector(selector)?.classList.contains('collapsed'), contract.section, { timeout: 5000 });
+    await page.waitForFunction((selector) => {
+      const node = document.querySelector(selector);
+      return node && Number.parseFloat(getComputedStyle(node).opacity) >= 0.99;
+    }, contract.content, { timeout: 5000 });
+    const expanded = await page.evaluate(({ section, content, label }) => {
+      const sectionNode = document.querySelector(section);
+      const contentNode = document.querySelector(content);
+      const saved = window[`__sectionHelp${label.replace(/\s+/g, '')}`];
+      return {
+        sameSection: saved?.sectionNode === sectionNode,
+        sameContent: saved?.contentNode === contentNode,
+        expanded: sectionNode?.querySelector('[data-section-collapse]')?.getAttribute('aria-expanded') || ''
+      };
+    }, contract);
+    assert(expanded.sameSection && expanded.sameContent && expanded.expanded === 'true', `${contract.label} expand contract failed ${JSON.stringify(expanded)}`);
+  }
+
+  const sectionHeaderState = await page.evaluate(() => ({
+    liveTitle: document.querySelector('#hot-today-island .section-title')?.textContent?.trim() || '',
+    exploreKicker: document.querySelector('#chambers-section .feature-kicker')?.textContent?.trim() || '',
+    exploreTitle: document.querySelector('#chambers-section .section-title')?.textContent?.trim() || '',
+    buildingEmoji: /🏛️/.test(document.querySelector('#chambers-section .section-header')?.textContent || ''),
+    liveCopy: document.querySelector('#hot-today-island .section-copy-link')?.dataset.copyHash || '',
+    exploreCopy: document.querySelector('#chambers-section .section-copy-link')?.dataset.copyHash || '',
+    staleModal: Boolean(document.getElementById('chambers-modal'))
+  }));
+  assert(
+    sectionHeaderState.liveTitle === "What's hot today"
+      && sectionHeaderState.exploreKicker === 'Explore Tezos'
+      && sectionHeaderState.exploreTitle === 'Choose a topic'
+      && !sectionHeaderState.buildingEmoji
+      && sectionHeaderState.liveCopy === '#pulse'
+      && sectionHeaderState.exploreCopy === '#chambers'
+      && !sectionHeaderState.staleModal,
+    `descriptive section header contract failed ${JSON.stringify(sectionHeaderState)}`
+  );
 
   const modalPairs = [
     ['#consensus-info-btn', '#consensus-modal', '#consensus-modal-close'],
@@ -13465,6 +13626,25 @@ async function smokeInfoModals(browser, baseUrl) {
   assert(!/June 30, 2018|June 2018/i.test(aboutText), 'about modal should not contain stale June 2018 launch wording');
   await page.locator('#about-tezos-modal-close').click();
   await page.locator('#about-tezos-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
+
+  response = await page.goto(`${baseUrl}/chambers/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Explore Tezos pretty route failed with HTTP ${response?.status()}`);
+  await page.waitForFunction(() => document.querySelectorAll('#chambers-grid > .chamber-category').length === 6, null, { timeout: 15000 });
+  const prettyRoute = await page.evaluate(() => ({
+    pathname: window.location.pathname,
+    routeIdentity: document.documentElement.dataset.chamberRoute || '',
+    title: document.querySelector('#chambers-section .section-title')?.textContent?.trim() || '',
+    visible: !document.getElementById('chambers-section')?.hidden,
+    modalOpen: Boolean(document.querySelector('.chamber-overlay.active, .modal-overlay.active'))
+  }));
+  assert(
+    prettyRoute.pathname === '/chambers/'
+      && prettyRoute.routeIdentity === 'chambers'
+      && prettyRoute.title === 'Choose a topic'
+      && prettyRoute.visible
+      && !prettyRoute.modalOpen,
+    `Explore Tezos pretty route identity failed ${JSON.stringify(prettyRoute)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `info modals browser issues:\n${issues.join('\n')}`);

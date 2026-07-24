@@ -1,5 +1,14 @@
 export const CHAMBER_ROUTES = [
   {
+    slug: 'chambers',
+    hash: '#chambers',
+    title: 'Explore Tezos - Live Rooms by Topic',
+    shortTitle: 'Explore Tezos',
+    description: 'Choose a question-led topic and browse focused Tezos rooms for live network signals, capital, bakers, governance, people, accounts, and history.',
+    eyebrow: 'Topic Directory',
+    accent: '#45e0c8'
+  },
+  {
     slug: 'my',
     hash: '#my-tezos',
     title: 'My Tezos - Personal Wallet and Baker Dashboard',

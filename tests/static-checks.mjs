@@ -1292,6 +1292,8 @@ async function checkSelectorContracts() {
     'chambers-toggle',
     'chambers-section',
     'chambers-grid',
+    'hot-today-info-btn',
+    'hot-today-content',
     'block-ticker-strip',
     'block-ticker-line',
     'header-activity-button',
@@ -1617,7 +1619,11 @@ async function checkSelectorContracts() {
     ['Chambers launcher copy link', 'data-copy-hash="#chambers"', index],
     ['Network Pulse launcher copy link', 'data-copy-hash="#pulse"', index],
     ['Chambers section info button', 'id="chambers-info-btn"', index],
-    ['Chambers info modal wiring', "setupModal('chambers-info-btn', 'chambers-modal', 'chambers-modal-close')", app],
+    ['Live Pulse section info button', 'id="hot-today-info-btn"', index],
+    ['Shared section explainer wiring', 'function initSectionExplainers()', app],
+    ['Explore Tezos section explainer route', "href: '/chambers/'", app],
+    ['Live Pulse section explainer route', "href: '/pulse/'", app],
+    ['Dedicated section collapse button support', "header.querySelector('[data-section-collapse]')", app],
     ['Collapsed header inline spacing reset', "header.style.marginBottom = '0'", app],
     ['Chambers visibility storage', 'tezos-systems-chambers-visible', app],
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
@@ -2134,6 +2140,8 @@ async function checkSelectorContracts() {
     ['top continuity dedicated runtime font role', 'font-family: var(--font-runtime);', heroSearchCss],
     ['Handoff display font role', 'font-family: var(--font-display, Orbitron', siteMapCss],
     ['hot-today display font role', 'font-family: var(--font-display, Orbitron', shellExtrasCss],
+    ['Live Pulse clock explicit presentation', '.hot-today-clock:is(:link, :visited)', shellExtrasCss],
+    ['Live Pulse clock suppresses visited-link decoration', 'text-decoration: none;', shellExtrasCss],
     ['Maxis display font role', "font-family: var(--font-display, 'Orbitron'", maxisCss],
     ['top continuity runtime readability scale', 'font-size: 1.08em;', heroSearchCss],
     ['top continuity runtime real font weight', 'font-weight: 700;', heroSearchCss],
@@ -2652,7 +2660,7 @@ async function checkUxAuditContracts() {
   }
 
   const staticDialogs = [...index.matchAll(/<div class="modal-overlay[^"]*" id="([^"]+)"[^>]*>\s*<div class="[^"]*\bmodal-content\b[^"]*"([^>]*)>/g)];
-  if (staticDialogs.length < 18) fail(`expected at least 18 static modal dialogs, found ${staticDialogs.length}`);
+  if (staticDialogs.length < 17) fail(`expected at least 17 static modal dialogs, found ${staticDialogs.length}`);
   for (const [, modalId, attributes] of staticDialogs) {
     const labelId = attributes.match(/aria-labelledby="([^"]+)"/)?.[1] || '';
     if (!/role="dialog"/.test(attributes)
@@ -3764,7 +3772,7 @@ async function checkTourAndShareCaptureContracts() {
     'Network Context',
     'Follow the lifeline',
     'complete map stays folded',
-    'Explore leads with Chambers, Network Pulse, Staking, and Maxis',
+    'Explore leads with all topics, Network Pulse, Staking, and Maxis',
     'Help is available when you want it',
     'Show help',
     'Not now'
@@ -5796,7 +5804,7 @@ async function checkQuietRefreshContracts() {
   if (/hotTodayRotateTimer|advanceHotTodayLead|HOT_TODAY_ROTATE_MS/.test(daily)) {
     fail('What is hot today must not auto-rotate or auto-scroll on a timer');
   }
-  if (!daily.includes('quietlySyncHtml(island, islandHtml)')) fail('What is hot today background signals must reconcile without replacing the rail');
+  if (!daily.includes('quietlySyncHtml(content, islandHtml)')) fail('What is hot today background signals must reconcile inside the stable rail');
   if (!daily.includes('quietlySyncHtml(container, html)')) fail('My Tezos network context must reconcile in place after its first render');
   if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
     fail('headline and heavy dashboard timers must both defer while the tab is hidden');
@@ -6123,7 +6131,11 @@ async function checkChamberCategoryContracts() {
   for (const obsolete of ['CHAMBER_CARD_PAIRS', 'data-chamber-pair', 'dataset.chamberPair']) {
     assert(!app.includes(obsolete), `legacy Chamber pair configuration remains: ${obsolete}`);
   }
-  assert(!siteMapSource.includes("href: '/chambers/'"), 'Chambers must remain on the dashboard');
+  assert(siteMapSource.includes("href: '/chambers/'"), 'Explore Tezos must expose the canonical /chambers/ route');
+  assert(
+    CHAMBER_ROUTES.some((route) => route.slug === 'chambers' && route.hash === '#chambers'),
+    'generated Chamber routes must include the Explore Tezos dashboard directory'
+  );
 
   for (const contract of [
     "document.createElement('details')",

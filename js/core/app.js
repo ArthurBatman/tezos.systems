@@ -115,8 +115,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=479';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=479';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=480';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=480';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -397,6 +397,7 @@ async function init() {
     safe('tezosStatsToggle', initTezosStatsToggle);
     safe('networkHealth', initNetworkHealth);
     safe('chambersOrder', orderChambersSurface);
+    safe('sectionExplainers', initSectionExplainers);
     // Setup event listeners
     setupEventListeners();
     
@@ -3520,7 +3521,6 @@ function setupEventListeners() {
     setupModal('network-info-btn', 'network-modal', 'network-modal-close');
     setupModal('ecosystem-info-btn', 'ecosystem-modal', 'ecosystem-modal-close');
     setupModal('comparison-info-btn', 'comparison-modal', 'comparison-modal-close');
-    setupModal('chambers-info-btn', 'chambers-modal', 'chambers-modal-close');
     setupModal('my-baker-info-btn', 'my-baker-modal', 'my-baker-modal-close');
     setupModal('calc-info-btn', 'calc-modal', 'calc-modal-close');
     setupModal('leaderboard-info-btn', 'leaderboard-modal', 'leaderboard-modal-close');
@@ -3531,6 +3531,121 @@ function setupEventListeners() {
 
     // Handle visibility change
     document.addEventListener('visibilitychange', handleVisibilityChange);
+}
+
+const SECTION_EXPLAINERS = Object.freeze({
+    'hot-today-info-btn': {
+        kicker: 'About Live Pulse',
+        title: 'The signals most worth noticing now',
+        body: 'Live Pulse ranks current network, market, governance, staking, and milestone signals without moving the strip while you read.',
+        href: '/pulse/',
+        link: 'More information'
+    },
+    'chambers-info-btn': {
+        kicker: 'About Explore Tezos',
+        title: 'Focused views, organized by question',
+        body: 'Choose a topic to find the live data, history, governance, people, and account tools that answer that kind of question.',
+        href: '/chambers/',
+        link: 'More information'
+    }
+});
+
+function initSectionExplainers() {
+    const disclosures = [];
+
+    function setInteractive(panel, interactive) {
+        panel.inert = !interactive;
+        panel.querySelectorAll('a, button').forEach((control) => {
+            control.tabIndex = interactive ? 0 : -1;
+        });
+    }
+
+    function closeDisclosure(disclosure, { restoreFocus = false } = {}) {
+        if (!disclosure) return;
+        const { button, panel } = disclosure;
+        panel.classList.remove('is-visible');
+        panel.setAttribute('aria-hidden', 'true');
+        setInteractive(panel, false);
+        button.classList.remove('is-explaining');
+        button.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) button.focus({ preventScroll: true });
+    }
+
+    function closeOthers(current) {
+        disclosures.forEach((disclosure) => {
+            if (disclosure !== current) closeDisclosure(disclosure);
+        });
+    }
+
+    for (const [buttonId, copy] of Object.entries(SECTION_EXPLAINERS)) {
+        const button = document.getElementById(buttonId);
+        const header = button?.closest('.section-header');
+        if (!button || !header || button.dataset.sectionExplainerWired === 'true') continue;
+
+        button.dataset.sectionExplainerWired = 'true';
+        button.setAttribute('aria-expanded', 'false');
+
+        const panel = document.createElement('div');
+        panel.id = `${buttonId}-panel`;
+        panel.className = 'top-continuity-explain section-explain';
+        panel.setAttribute('role', 'region');
+        panel.setAttribute('aria-labelledby', `${buttonId}-panel-title`);
+        panel.setAttribute('aria-hidden', 'true');
+        panel.innerHTML = `
+            <button type="button" class="top-continuity-explain-close" data-close-section-explain aria-label="Dismiss explanation">&times;</button>
+            <div class="top-continuity-explain-copy">
+                <span class="feature-kicker">${escapeHtml(copy.kicker)}</span>
+                <strong id="${buttonId}-panel-title">${escapeHtml(copy.title)}</strong>
+                <p>${escapeHtml(copy.body)}</p>
+            </div>
+            <div class="top-continuity-explain-actions">
+                <a class="top-continuity-explain-chart section-explain-link" href="${escapeHtml(copy.href)}">${escapeHtml(copy.link)}</a>
+            </div>
+        `;
+        setInteractive(panel, false);
+        header.appendChild(panel);
+        button.setAttribute('aria-controls', panel.id);
+
+        const disclosure = { button, panel };
+        disclosures.push(disclosure);
+
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const shouldOpen = !panel.classList.contains('is-visible');
+            closeOthers(disclosure);
+            if (!shouldOpen) {
+                closeDisclosure(disclosure);
+                return;
+            }
+            panel.classList.add('is-visible');
+            panel.setAttribute('aria-hidden', 'false');
+            setInteractive(panel, true);
+            button.classList.add('is-explaining');
+            button.setAttribute('aria-expanded', 'true');
+        });
+
+        panel.querySelector('[data-close-section-explain]')?.addEventListener('click', (event) => {
+            event.preventDefault();
+            closeDisclosure(disclosure, { restoreFocus: true });
+        });
+    }
+
+    if (!disclosures.length) return;
+
+    document.addEventListener('click', (event) => {
+        disclosures.forEach((disclosure) => {
+            if (!disclosure.panel.classList.contains('is-visible')) return;
+            if (disclosure.panel.contains(event.target) || disclosure.button.contains(event.target)) return;
+            closeDisclosure(disclosure);
+        });
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        const active = disclosures.find(({ panel }) => panel.classList.contains('is-visible'));
+        if (active) closeDisclosure(active, { restoreFocus: true });
+    });
 }
 
 function getFocusableElements(root) {
@@ -4717,16 +4832,36 @@ function initCollapsibleSections() {
         // Generic: everything in the section after the .section-header
         const sectionId = section.id || '';
         const storageKey = sectionId ? `tezos-systems-collapsed-${sectionId}` : null;
+        const dedicatedToggle = header.querySelector('[data-section-collapse]');
+        const sectionLabel = header.querySelector('.feature-kicker')?.textContent?.trim()
+            || title.textContent.trim()
+            || 'section';
 
         title.style.cursor = 'pointer';
         title.style.userSelect = 'none';
 
-        // Add chevron
-        const chevron = document.createElement('span');
-        chevron.className = 'section-chevron';
-        chevron.textContent = '▾';
-        chevron.style.cssText = 'margin-left: 8px; font-size: 0.7em; opacity: 0.5; transition: transform 0.3s ease, opacity 0.3s ease; display: inline-block;';
-        title.appendChild(chevron);
+        // New feature headers provide a real button. Legacy section headers
+        // retain their inline chevron while gaining keyboard semantics.
+        let chevron = dedicatedToggle?.querySelector('.section-chevron');
+        if (!chevron) {
+            chevron = document.createElement('span');
+            chevron.className = 'section-chevron';
+            chevron.textContent = '▾';
+            chevron.style.cssText = 'margin-left: 8px; font-size: 0.7em; opacity: 0.5; transition: transform 0.3s ease, opacity 0.3s ease; display: inline-block;';
+            title.appendChild(chevron);
+            title.setAttribute('role', 'button');
+            title.setAttribute('tabindex', '0');
+        }
+
+        function updateToggleSemantics(isCollapsed) {
+            const expanded = !isCollapsed;
+            if (dedicatedToggle) {
+                dedicatedToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                dedicatedToggle.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${sectionLabel}`);
+            } else {
+                title.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            }
+        }
 
         // Gather all collapsible siblings (everything after the section-header)
         function getCollapsibleElements() {
@@ -4755,6 +4890,7 @@ function initCollapsibleSections() {
             });
             chevron.style.transform = 'rotate(-90deg)';
             chevron.style.opacity = '0.7';
+            updateToggleSemantics(true);
             if (storageKey) localStorage.setItem(storageKey, '1');
         }
 
@@ -4771,6 +4907,7 @@ function initCollapsibleSections() {
             });
             chevron.style.transform = 'rotate(0deg)';
             chevron.style.opacity = '0.5';
+            updateToggleSemantics(false);
             if (storageKey) localStorage.removeItem(storageKey);
         }
 
@@ -4778,13 +4915,21 @@ function initCollapsibleSections() {
         title.addEventListener('mouseleave', () => { chevron.style.opacity = section.classList.contains('collapsed') ? '0.7' : '0.5'; });
 
         title.addEventListener('click', (e) => {
-            // Don't collapse if clicking info button
-            if (e.target.closest('.info-button')) return;
             if (section.classList.contains('collapsed')) {
                 expand();
             } else {
                 collapse();
             }
+        });
+        title.addEventListener('keydown', (event) => {
+            if (dedicatedToggle || !['Enter', ' '].includes(event.key)) return;
+            event.preventDefault();
+            title.click();
+        });
+        dedicatedToggle?.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (section.classList.contains('collapsed')) expand();
+            else collapse();
         });
 
         // Restore saved state
@@ -4801,6 +4946,9 @@ function initCollapsibleSections() {
             });
             chevron.style.transform = 'rotate(-90deg)';
             chevron.style.opacity = '0.7';
+            updateToggleSemantics(true);
+        } else {
+            updateToggleSemantics(false);
         }
     });
 }
@@ -4937,8 +5085,8 @@ function initDeepLinkAffordances() {
         { selector: '#calculator-section .section-header', hash: '#calculator', label: 'rewards calculator' },
         { selector: '#price-intelligence .section-header', hash: '#price', label: 'price intelligence' },
         { selector: '#widgets-gallery .section-header', hash: '#widgets', label: 'embed builder' },
-        { selector: '#hot-today-island .hot-today-titleline', hash: '#hot-today', label: 'live pulse' },
-        { selector: '#chambers-section .section-header', hash: '#chambers', label: 'chambers' },
+        { selector: '#hot-today-island .section-header', hash: '#pulse', label: 'Live Pulse' },
+        { selector: '#chambers-section .section-header', hash: '#chambers', label: 'Explore Tezos' },
         { selector: '#consensus-section .section-header', hash: '#section=consensus', label: 'consensus stats' },
         { selector: '#economy-section .section-header', hash: '#section=economy', label: 'economy stats' },
         { selector: '#governance-section .section-header', hash: '#section=governance', label: 'governance stats' },
@@ -4993,7 +5141,7 @@ function initDeepLinkAffordances() {
             button.setAttribute('aria-label', `Copy ${label} link`);
             button.title = `Copy ${label} link`;
             button.textContent = '🔗';
-            header.appendChild(button);
+            (header.querySelector('[data-section-actions]') || header).appendChild(button);
         });
     }
 
@@ -5180,6 +5328,7 @@ function initOfflineIndicator() {
 //   #theme=dark        → switch to theme
 //   #section=consensus → scroll to section
 // Pretty chamber routes:
+//   /chambers/         → reveal the complete Explore Tezos topic directory
 //   /my/               → open My Tezos without requiring an address
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
