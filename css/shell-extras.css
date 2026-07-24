@@ -334,35 +334,33 @@
 }
 
 .top-continuity-milestone-info {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    align-self: flex-start;
-    flex: 0 1 8.4em;
-    gap: 0.3rem;
-    width: 8.4em;
-    max-width: 8.4em;
-    min-height: 1.52em;
-    margin-top: -0.08em;
-    padding: 0.12em 0.46em;
-    overflow: hidden;
+    align-self: center;
+    flex: 0 0 1.55rem;
+    width: 1.55rem;
+    max-width: 1.55rem;
+    min-height: 1.55rem;
+    margin-top: 0;
+    padding: 0;
+    overflow: visible;
     border: 1px solid color-mix(in srgb, var(--milestone-blue, #2c7df7) 64%, var(--glass-border));
-    border-radius: 4px;
+    border-radius: 50%;
     background:
         linear-gradient(90deg, color-mix(in srgb, var(--milestone-blue, #2c7df7) 18%, transparent), color-mix(in srgb, var(--milestone-cyan, #20c8d7) 8%, transparent));
-    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--milestone-blue, #2c7df7) 82%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--milestone-blue, #2c7df7) 18%, transparent);
     color: color-mix(in srgb, var(--text-primary) 74%, var(--milestone-blue, #2c7df7));
-    font-family: 'JetBrains Mono', monospace;
-    font-size: clamp(1.035rem, 1.484vw, 1.38rem);
-    font-weight: 950;
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.78rem;
+    font-weight: 900;
     letter-spacing: 0;
-    line-height: 1.2;
-    text-overflow: ellipsis;
+    line-height: 1;
     text-decoration: none;
-    text-transform: uppercase;
-    white-space: nowrap;
     visibility: visible;
     transition: color 220ms ease, border-color 220ms ease, background 220ms ease, opacity 180ms ease;
+    z-index: 4;
 }
 
 .top-continuity-milestone-info:is(:hover, :focus-visible) {
@@ -370,8 +368,7 @@
     color: color-mix(in srgb, var(--text-primary) 82%, var(--milestone-cyan, #20c8d7));
     outline: none;
     box-shadow:
-        inset 3px 0 0 var(--milestone-blue, #2c7df7),
-        inset -2px 0 0 color-mix(in srgb, var(--milestone-pink, #d96cc6) 72%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--milestone-cyan, #20c8d7) 42%, transparent),
         0 0 0 2px color-mix(in srgb, var(--milestone-cyan, #20c8d7) 24%, transparent);
 }
 
@@ -381,28 +378,43 @@
     opacity: 0;
 }
 
-.top-continuity-milestone-info::before {
-    content: '';
-    flex: 0 0 auto;
-    width: 0.38rem;
-    height: 0.38rem;
-    background: var(--milestone-blue, #2c7df7);
-    box-shadow: 0 0 7px color-mix(in srgb, var(--milestone-blue, #2c7df7) 42%, transparent);
-    transform: rotate(45deg);
+.top-continuity-milestone-info::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 0.48rem);
+    left: 50%;
+    width: max-content;
+    max-width: min(18rem, calc(100vw - 2rem));
+    padding: 0.42rem 0.56rem;
+    border: 1px solid color-mix(in srgb, var(--milestone-cyan, #20c8d7) 42%, var(--glass-border));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bg-primary, #07101d) 94%, transparent);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+    color: var(--text-primary);
+    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -0.2rem);
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.top-continuity-milestone-info:is(:hover, :focus-visible)::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
 }
 
 .top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-info {
     border-color: color-mix(in srgb, var(--milestone-cyan) 82%, var(--glass-border));
     background: linear-gradient(90deg, color-mix(in srgb, var(--milestone-blue) 24%, transparent), color-mix(in srgb, var(--milestone-cyan) 15%, transparent));
     box-shadow:
-        inset 3px 0 0 var(--milestone-blue),
-        inset -2px 0 0 color-mix(in srgb, var(--milestone-pink) 72%, transparent);
+        inset 0 0 0 1px color-mix(in srgb, var(--milestone-cyan) 46%, transparent),
+        0 0 12px color-mix(in srgb, var(--milestone-blue) 22%, transparent);
     color: color-mix(in srgb, var(--text-primary) 78%, var(--milestone-cyan));
-}
-
-.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-info::before {
-    background: linear-gradient(135deg, var(--milestone-blue), var(--milestone-cyan) 62%, var(--milestone-pink));
-    animation: uptimeMilestoneDiamondHold 4.8s ease-in-out infinite;
 }
 
 .top-uptime-cluster.is-milestone-arriving .top-continuity-milestone-info {
@@ -439,11 +451,6 @@
     0% { opacity: 0.48; transform: translateY(1px); }
     52% { opacity: 1; color: color-mix(in srgb, white 62%, var(--milestone-cyan)); transform: translateY(-1px); }
     100% { opacity: 1; transform: none; }
-}
-
-@keyframes uptimeMilestoneDiamondHold {
-    0%, 100% { opacity: 0.76; transform: rotate(45deg) scale(0.86); }
-    50% { opacity: 1; transform: rotate(45deg) scale(1); }
 }
 
 .hot-today-head {
@@ -1489,8 +1496,7 @@
     .top-uptime-cluster .top-continuity-time-segment,
     .top-uptime-cluster .top-continuity-claim,
     .top-uptime-cluster .top-continuity-origin,
-    .top-uptime-cluster .top-continuity-milestone-info,
-    .top-uptime-cluster .top-continuity-milestone-info::before {
+    .top-uptime-cluster .top-continuity-milestone-info {
         animation: none !important;
     }
 
@@ -1760,17 +1766,14 @@
     }
 
     .top-continuity-milestone-info {
-        width: 7.65em;
-        max-width: 7.65em;
-        min-height: 1.66em;
-        gap: 0.18rem;
-        padding: 0.1em 0.16em;
-        font-size: clamp(0.863rem, 3.864vw, 1.07rem);
+        width: 1.55rem;
+        max-width: 1.55rem;
+        min-height: 1.55rem;
+        font-size: 0.78rem;
     }
 
-    .top-continuity-milestone-info::before {
-        width: 0.32rem;
-        height: 0.32rem;
+    .top-continuity-milestone-info::after {
+        max-width: min(17rem, calc(100vw - 2rem));
     }
 
     .hot-today-card {

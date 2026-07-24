@@ -102,6 +102,7 @@ const formattingViewports = [
 const SAMPLE_ADDRESS = 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9';
 const SAMPLE_ADDRESS_2 = 'tz1hThMBD8jQjFt78heuCnKxJnJtQo9Ao25X';
 const SAMPLE_ADDRESS_3 = 'tz1PendingBaker1111111111111111111111';
+const SAMPLE_IDLE_ADDRESS = 'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb';
 const SAMPLE_ETHERLINK_ADDRESS = '0x1111111111111111111111111111111111111111';
 const SAMPLE_LEDGER_ORIGIN = 'tz1LedgerOrigin1111111111111111111111';
 const SAMPLE_LEDGER_MARKET = 'tz1LedgerMarket1111111111111111111111';
@@ -2705,6 +2706,19 @@ async function installFeatureMocks(context, options = {}) {
           firstActivityTime: '2019-05-30T00:00:00Z'
         });
       }
+      if (url.includes(`/accounts/${SAMPLE_IDLE_ADDRESS}`) && !url.includes('/operations?')) {
+        return fulfillJson(route, {
+          address: SAMPLE_IDLE_ADDRESS,
+          type: 'user',
+          alias: 'Idle Account',
+          active: true,
+          balance: 1100000,
+          stakedBalance: 0,
+          delegate: null,
+          firstActivity: 12000000,
+          firstActivityTime: '2026-06-01T00:00:00Z'
+        });
+      }
       if (url.includes(`/accounts/${SAMPLE_DELEGATOR_ADDRESS}`) && !url.includes('/operations?')) {
         return fulfillJson(route, {
           address: SAMPLE_DELEGATOR_ADDRESS,
@@ -2914,6 +2928,11 @@ async function installFeatureMocks(context, options = {}) {
             }
           }
         ]);
+      }
+      if (url.includes(`/rewards/delegators/${SAMPLE_IDLE_ADDRESS}`)
+          || url.includes(`/rewards/stakers/${SAMPLE_IDLE_ADDRESS}`)
+          || url.includes(`/rewards/bakers/${SAMPLE_IDLE_ADDRESS}`)) {
+        return fulfillJson(route, []);
       }
       if (url.includes('/rewards/delegators/') || url.includes('/rewards/bakers/')) {
         return fulfillJson(route, [
@@ -5082,7 +5101,24 @@ async function smokeCycleMilestone(browser, baseUrl) {
       href: card?.getAttribute('href') || '',
       active: card?.classList.contains('is-hot-active') || false,
       status: card?.dataset.milestoneStatus || '',
-      earlier: document.querySelector('.hot-today-earlier')?.textContent?.trim() || ''
+      earlier: document.querySelector('.hot-today-earlier')?.textContent?.trim() || '',
+      markerText: document.querySelector('.top-continuity-milestone-info')?.textContent?.trim() || '',
+      markerTooltip: document.querySelector('.top-continuity-milestone-info')?.dataset.tooltip || '',
+      markerAria: document.querySelector('.top-continuity-milestone-info')?.getAttribute('aria-label') || '',
+      markerWidth: document.querySelector('.top-continuity-milestone-info')?.getBoundingClientRect().width || 0
+    };
+  });
+  await page.locator('.top-continuity-milestone-info').hover();
+  await page.waitForFunction(() => {
+    const marker = document.querySelector('.top-continuity-milestone-info');
+    return marker && Number.parseFloat(getComputedStyle(marker, '::after').opacity) >= 0.98;
+  }, null, { timeout: 1500 });
+  const markerHover = await page.evaluate(() => {
+    const marker = document.querySelector('.top-continuity-milestone-info');
+    const tooltipStyle = marker ? getComputedStyle(marker, '::after') : null;
+    return {
+      opacity: tooltipStyle?.opacity || '',
+      content: tooltipStyle?.content || ''
     };
   });
   await page.waitForTimeout(1400);
@@ -5102,6 +5138,13 @@ async function smokeCycleMilestone(browser, baseUrl) {
 
   assert(before.title === '1,300 cycles', `cycle milestone: expected full cycle title, saw ${JSON.stringify(before)}`);
   assert(/1,300 cycles crossed/.test(before.text) && /3d left/.test(before.text), `cycle milestone: exact crossed copy or expiry missing ${JSON.stringify(before)}`);
+  assert(before.markerText === 'i'
+    && /1,300 cycles/.test(before.markerTooltip)
+    && /1,300 cycles/.test(before.markerAria)
+    && before.markerWidth > 0
+    && before.markerWidth <= 32,
+  `cycle milestone: header should retain only a compact labeled info control ${JSON.stringify(before)}`);
+  assert(Number.parseFloat(markerHover.opacity) >= 0.98 && /1,300 cycles/.test(markerHover.content), `cycle milestone: info tooltip did not reveal cycle context on hover ${JSON.stringify(markerHover)}`);
   assert(before.href === '#health' && before.active && before.status === 'crossed', `cycle milestone: route, arrival lead, or status mismatch ${JSON.stringify(before)}`);
   assert(!before.earlier && !after.earlier, `cycle milestone: dead Earlier today breadcrumb survived ${JSON.stringify({ before, after })}`);
   assert(after.sameCard && after.focused && after.selected === '1,300 cycles', `cycle milestone: quiet reconciliation replaced or disturbed the active card ${JSON.stringify(after)}`);
@@ -6001,6 +6044,7 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
       bakerColumn: document.querySelector('#drawer-baker')?.parentElement?.className || '',
       primaryJourneyGap: gap('drawer-baker-activity', 'drawer-more-section'),
       secondaryJourneyGap: gap('drawer-network', 'drawer-more-section-secondary'),
+      reportCards: document.querySelectorAll('#drawer-baker .report-card-btn').length,
       accountError: document.querySelector('#my-baker-results .my-baker-error')?.textContent || ''
     };
   });
@@ -6011,13 +6055,149 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
       && settledLayout.primaryJourneyGap <= 24
       && settledLayout.secondaryJourneyGap >= 0
       && settledLayout.secondaryJourneyGap <= 24
+      && settledLayout.reportCards === 1
       && !settledLayout.accountError,
     `my tezos baker activity: independent drawer stacks left a row-coupled hole ${JSON.stringify(settledLayout)}`
   );
 
+  await page.locator('#my-baker-input').fill(SAMPLE_IDLE_ADDRESS);
+  await page.locator('#my-baker-save').click();
+  await page.waitForFunction((address) => {
+    return window._myTezosData?.fullAddress === address
+      && window._myTezosData?.bakerAddr == null
+      && document.querySelector('#drawer-connected')?.classList.contains('is-without-baker')
+      && document.querySelectorAll('#drawer-baker .report-card-btn').length === 0;
+  }, SAMPLE_IDLE_ADDRESS, { timeout: 15000 });
+
   await context.close();
   assert(issues.length === 0, `my tezos baker activity browser issues:\n${issues.join('\n')}`);
   log('ok - my tezos baker activity smoke');
+}
+
+async function smokeMyTezosIdleAccount(browser, baseUrl) {
+  for (const { label, viewport } of [
+    { label: 'desktop', viewport: { width: 1280, height: 900 } },
+    { label: 'mobile', viewport: { width: 390, height: 844 } }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({
+      viewport,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'aurora');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+      localStorage.removeItem('tezos-systems-my-baker-address');
+    });
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `my tezos idle account ${label}`, issues);
+    const response = await page.goto(`${baseUrl}/my/`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `my tezos idle account ${label}: /my/ failed with HTTP ${response?.status()}`);
+    await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 15000 });
+    await page.locator('#drawer-address-input').fill(SAMPLE_IDLE_ADDRESS);
+    await page.locator('#drawer-connect-btn').click();
+    try {
+      await page.waitForFunction((address) => {
+        return window._myTezosData?.fullAddress === address
+          && window._myTezosData?.bakerAddr == null
+          && window._myTezosData?.loading !== true
+          && document.querySelector('#drawer-connected')?.classList.contains('is-without-baker')
+          && document.querySelector('#drawer-brief')?.classList.contains('is-without-baker')
+          && (
+            document.querySelector('#drawer-baker .drawer-no-baker')
+            || document.querySelectorAll('#my-baker-results .my-baker-stat').length >= 3
+          );
+      }, SAMPLE_IDLE_ADDRESS, { timeout: 15000 });
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => ({
+        data: window._myTezosData || null,
+        connectedClass: document.querySelector('#drawer-connected')?.className || '',
+        briefClass: document.querySelector('#drawer-brief')?.className || '',
+        briefText: document.querySelector('#drawer-brief')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        bakerText: document.querySelector('#my-baker-results')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        bakerStats: document.querySelectorAll('#my-baker-results .my-baker-stat').length
+      }));
+      throw new Error(`my tezos idle account ${label}: did not settle ${JSON.stringify(diagnostic)}\n${error.message}`);
+    }
+    await page.waitForTimeout(120);
+
+    const state = await page.evaluate(() => {
+      const drawer = document.querySelector('#my-tezos-drawer');
+      const connected = document.querySelector('#drawer-connected');
+      const columns = document.querySelector('.drawer-live-columns');
+      const brief = document.querySelector('#drawer-brief');
+      const briefCards = Array.from(brief?.querySelectorAll('.brief-section') || []);
+      const columnRect = columns?.getBoundingClientRect();
+      const rewardsRect = document.querySelector('#drawer-rewards')?.getBoundingClientRect();
+      const bakerRect = document.querySelector('#drawer-baker')?.getBoundingClientRect();
+      const networkRect = document.querySelector('#drawer-network')?.getBoundingClientRect();
+      const fullWidth = (rect) => Boolean(
+        rect
+        && columnRect
+        && Math.abs(rect.left - columnRect.left) <= 1
+        && Math.abs(rect.right - columnRect.right) <= 1
+      );
+      return {
+        connectedClass: connected?.className || '',
+        briefClass: brief?.className || '',
+        briefTitles: briefCards.map((card) => card.querySelector('.brief-section-title')?.textContent?.replace(/\s+/g, ' ').trim() || ''),
+        briefFullWidth: briefCards.every((card) => {
+          const rect = card.getBoundingClientRect();
+          const parent = brief.getBoundingClientRect();
+          return Math.abs(rect.left - parent.left) <= 1 && Math.abs(rect.right - parent.right) <= 1;
+        }),
+        liveColumns: getComputedStyle(columns).gridTemplateColumns,
+        rewardsFullWidth: fullWidth(rewardsRect),
+        bakerFullWidth: fullWidth(bakerRect),
+        networkFullWidth: fullWidth(networkRect),
+        liveOrder: Boolean(rewardsRect && bakerRect && networkRect && bakerRect.top >= rewardsRect.bottom && networkRect.top >= bakerRect.bottom),
+        reportCards: document.querySelectorAll('#drawer-baker .report-card-btn').length,
+        noBakerCopy: document.querySelector('#drawer-baker .drawer-no-baker')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        accountStats: document.querySelector('#my-baker-results')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        operatorHidden: Boolean(document.querySelector('#drawer-operator-status')?.hidden),
+        activityHidden: Boolean(document.querySelector('#drawer-baker-activity')?.hidden),
+        drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+      };
+    });
+
+    assert(
+      state.connectedClass.includes('is-without-baker')
+        && state.briefClass.includes('is-without-baker')
+        && state.briefTitles.length === 2
+        && state.briefTitles.some((title) => /Your Tezos Story/.test(title))
+        && !state.briefTitles.some((title) => /Baker Status/.test(title))
+        && state.briefFullWidth,
+      `my tezos idle account ${label}: redundant baker brief or split-card geometry remained ${JSON.stringify(state)}`
+    );
+    assert(
+      state.rewardsFullWidth
+        && state.bakerFullWidth
+        && state.networkFullWidth
+        && state.liveOrder,
+      `my tezos idle account ${label}: live sections did not collapse into one readable column ${JSON.stringify(state)}`
+    );
+    assert(
+      state.reportCards === 0
+        && (
+          /isn't delegated or staking/.test(state.noBakerCopy)
+          || (/Delegate\s*None/.test(state.accountStats) && /Reward Status\s*Not active/.test(state.accountStats))
+        )
+        && state.operatorHidden
+        && state.activityHidden,
+      `my tezos idle account ${label}: baker-only controls survived the idle state ${JSON.stringify(state)}`
+    );
+    assert(!state.drawerOverflow && !state.pageOverflow, `my tezos idle account ${label}: layout overflowed ${JSON.stringify(state)}`);
+
+    await context.close();
+    assert(issues.length === 0, `my tezos idle account ${label} browser issues:\n${issues.join('\n')}`);
+  }
+
+  log('ok - my tezos idle account layout');
 }
 
 async function smokeMyTezosBakerLiveSignal(browser, baseUrl) {
@@ -8225,7 +8405,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.headerActivityTag === 'BUTTON' && healthState.headerActivityType === 'button' && healthState.headerActivityWired === '1', `network health chamber: trailing-hour activity launcher semantics missing: ${healthState.headerActivityTag}/${healthState.headerActivityType}/${healthState.headerActivityWired}`);
   assert(healthState.headerActivityBusy === 'false' && !healthState.headerActivityLoading, `network health chamber: trailing-hour activity did not leave its first-paint loading state ${JSON.stringify({ busy: healthState.headerActivityBusy, loading: healthState.headerActivityLoading })}`);
   assert(healthState.headerActivityOutsideTicker && healthState.headerActivityFullyVisible, `network health chamber: trailing-hour activity must be a separate unclipped header line: ${JSON.stringify({ outsideTicker: healthState.headerActivityOutsideTicker, fullyVisible: healthState.headerActivityFullyVisible })}`);
-  assert(/\b1H\b/.test(healthState.headerActivityText) && /\bTX\b/.test(healthState.headerActivityText) && /Moved/.test(healthState.headerActivityText) && /NFT/.test(healthState.headerActivityText), `network health chamber: trailing-hour TX, moved, and NFT text missing: ${healthState.headerActivityText}`);
+  assert(/1H Activity/.test(healthState.headerActivityText) && /\bTX\b/.test(healthState.headerActivityText) && /Moved/.test(healthState.headerActivityText) && /NFT/.test(healthState.headerActivityText), `network health chamber: trailing-hour label, TX, moved, and NFT text missing: ${healthState.headerActivityText}`);
   assert(['TX', 'Moved', 'NFT'].every((label) => healthState.headerActivityLabels.includes(label)), `network health chamber: trailing-hour activity labels are hidden: ${healthState.headerActivityLabels.join(', ')}`);
   assert(healthState.systemLinks >= healthState.attesterRows, `network health chamber: baker profile links missing, saw ${healthState.systemLinks}`);
   assert(healthState.tzktLinks >= healthState.attesterRows, `network health chamber: TzKT links missing, saw ${healthState.tzktLinks}`);
@@ -13919,17 +14099,19 @@ async function smokeThemeSelection(browser, baseUrl) {
       const title = document.querySelector('.title');
       if (!cluster || !uptime || !marker || !title) return { centerDelta: 999, markerBelow: false };
       marker.hidden = false;
-      marker.textContent = '14M blocks';
+      marker.textContent = 'i';
+      marker.dataset.tooltip = 'Tezos has crossed 14M blocks.';
       cluster.classList.add('has-milestone-signal', 'is-milestone-crossed');
       const titleRect = title.getBoundingClientRect();
       const uptimeRect = uptime.getBoundingClientRect();
       const markerRect = marker.getBoundingClientRect();
       return {
         centerDelta: Math.abs((titleRect.left + titleRect.width / 2) - (uptimeRect.left + uptimeRect.width / 2)),
-        markerBelow: markerRect.top >= uptimeRect.bottom - 1
+        markerBelow: markerRect.top >= uptimeRect.bottom - 1,
+        markerCompact: markerRect.width <= 32 && marker.textContent.trim() === 'i'
       };
     });
-    assert(milestoneState.centerDelta <= 2 && milestoneState.markerBelow, `theme ${theme} mobile: active milestone should stack below a centered uptime line ${JSON.stringify(milestoneState)}`);
+    assert(milestoneState.centerDelta <= 2 && milestoneState.markerBelow && milestoneState.markerCompact, `theme ${theme} mobile: active milestone should keep a compact info control below a centered uptime line ${JSON.stringify(milestoneState)}`);
   }
 
   await mobileContext.close();
@@ -15117,6 +15299,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
+    { name: 'my-tezos-idle-account', description: 'My Tezos removes baker-only controls and keeps an undelegated account readable in one column', run: () => smokeMyTezosIdleAccount(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
     { name: 'my-tezos-drawer-live-refresh', description: 'My Tezos opening drawer refreshes stale brief, header, and baker-grid stats together', run: () => smokeMyTezosDrawerLiveRefresh(browser, baseUrl) },
     { name: 'my-tezos-wallet-connect', description: 'My Tezos drawer connects through Octez.Connect and keeps the saved profile after wallet disconnect', run: () => smokeMyTezosWalletConnect(browser, baseUrl) },

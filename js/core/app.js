@@ -115,8 +115,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=481';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=481';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=482';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=482';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -2869,17 +2869,20 @@ function initUptimeClock() {
             const target = cleanUptimeMilestoneText(signal.shortLabel || signal.icon || signal.title || 'Milestone');
             const destination = uptimeMilestoneDestination(signal);
             const destinationLabel = uptimeMilestoneDestinationLabel(destination, signal);
-            topContinuityMilestoneInfo.textContent = target;
+            const tooltip = `${crossed ? 'Tezos has crossed' : 'Tezos is approaching'} ${target}.`;
+            topContinuityMilestoneInfo.textContent = 'i';
             topContinuityMilestoneInfo.href = destination;
             topContinuityMilestoneInfo.dataset.networkRoute = destination;
             topContinuityMilestoneInfo.dataset.milestoneStatus = status;
+            topContinuityMilestoneInfo.dataset.tooltip = tooltip;
             topContinuityMilestoneInfo.setAttribute('aria-label', `${crossed ? 'Confirmed on-chain' : 'Approaching'}: ${target}. ${destinationLabel}`);
             topContinuityMilestoneInfo.title = `${crossed ? 'Confirmed on-chain' : 'Approaching'}: ${describeUptimeMilestone(signal)}. ${destinationLabel}`;
         } else {
-            topContinuityMilestoneInfo.textContent = 'Milestone';
+            topContinuityMilestoneInfo.textContent = 'i';
             topContinuityMilestoneInfo.href = '#pulse';
             delete topContinuityMilestoneInfo.dataset.networkRoute;
             delete topContinuityMilestoneInfo.dataset.milestoneStatus;
+            delete topContinuityMilestoneInfo.dataset.tooltip;
             topContinuityMilestoneInfo.removeAttribute('aria-label');
             topContinuityMilestoneInfo.removeAttribute('title');
         }

@@ -1507,12 +1507,14 @@ function buildMorningBrief(data) {
             voteText += `<br><span class="brief-sub" style="font-size:0.85em;color:${qColor}">${escapeHtml(quorumCopy)}${supermajority}</span>`;
         }
     }
-    cards.push({
-        icon: '🍞',
-        title: 'Baker Status',
-        body: `${streakText}${streakText ? '<br>' : ''}${healthText}${voteText}`,
-        accent: 'baker',
-    });
+    if (data.bakerAddr) {
+        cards.push({
+            icon: '🍞',
+            title: 'Baker Status',
+            body: `${streakText}${streakText ? '<br>' : ''}${healthText}${voteText}`,
+            accent: 'baker',
+        });
+    }
 
     cards.push({
         icon: '📜',
@@ -2241,6 +2243,16 @@ function getActiveMyTezosContext(address) {
 function renderBriefTabs(cards, data) {
     const container = document.getElementById('drawer-brief');
     if (!container) return;
+    const connected = container.closest('.drawer-connected');
+    const withoutBaker = !data?.bakerAddr;
+    quietlyMutate(container, () => {
+        container.classList.toggle('is-without-baker', withoutBaker);
+    });
+    if (connected) {
+        quietlyMutate(connected, () => {
+            connected.classList.toggle('is-without-baker', withoutBaker);
+        });
+    }
     
     const sectionsHtml = cards.map(card => {
         const accent = safeTone(card.accent);

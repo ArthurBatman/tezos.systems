@@ -395,61 +395,71 @@ export function initBakerReportCard() {
         const section = document.getElementById('drawer-baker') || document.getElementById('my-baker-section');
         if (!section) return;
 
-        // Check if baker data is loaded and button doesn't exist yet
+        // Keep the control synchronized when the saved account changes roles.
         const grid = section.querySelector('.my-baker-grid');
         const existingBtn = section.querySelector('.report-card-btn');
-        if (grid && !existingBtn) {
-            const address = localStorage.getItem('tezos-systems-my-baker-address');
-            if (!address) return;
+        if (!grid) {
+            existingBtn?.remove();
+            return;
+        }
 
-            // Check if this is a baker (look for "Staking Power" stat which only bakers have)
-            const stats = grid.querySelectorAll('.my-baker-stat-label');
-            let isBaker = false;
-            stats.forEach(s => { if (s.textContent === 'Staking Power') isBaker = true; });
+        const address = localStorage.getItem('tezos-systems-my-baker-address');
+        if (!address) {
+            existingBtn?.remove();
+            return;
+        }
 
-            // Also check delegate address for non-baker users
-            let bakerAddr = address;
-            const delegateEl = grid.querySelector('.my-baker-stat-value[title]');
-            if (!isBaker && delegateEl?.title) {
-                bakerAddr = delegateEl.title;
-                isBaker = true; // the delegate IS a baker
+        // Check if this is a baker (look for "Staking Power" stat which only bakers have)
+        const stats = grid.querySelectorAll('.my-baker-stat-label');
+        let isBaker = false;
+        stats.forEach(s => { if (s.textContent === 'Staking Power') isBaker = true; });
+
+        // Also check delegate address for non-baker users
+        let bakerAddr = null;
+        const delegateEl = grid.querySelector('.my-baker-stat-value[title]');
+        if (isBaker) {
+            bakerAddr = address;
+        } else if (delegateEl?.title) {
+            bakerAddr = delegateEl.title;
+        }
+
+        if (!bakerAddr) {
+            existingBtn?.remove();
+            return;
+        }
+        if (existingBtn) return;
+
+        const btn = document.createElement('button');
+        btn.className = 'report-card-btn glass-button';
+        btn.innerHTML = '📋 <span class="dropdown-label">Baker Report Card</span>';
+        btn.title = 'Generate shareable baker report card';
+        btn.style.cssText = 'margin-top:8px;width:auto;padding:10px 20px;gap:8px;display:inline-flex;align-items:center;font-size:0.85rem;';
+        btn.addEventListener('click', () => {
+            // Derive baker address fresh from DOM to avoid stale closure
+            const curGrid = section.querySelector('.my-baker-grid');
+            const curLabels = curGrid ? curGrid.querySelectorAll('.my-baker-stat-label') : [];
+            let curIsBaker = false;
+            curLabels.forEach(s => { if (s.textContent === 'Staking Power') curIsBaker = true; });
+            let addr = curIsBaker
+                ? localStorage.getItem('tezos-systems-my-baker-address')
+                : null;
+            if (!addr && curGrid) {
+                const del = curGrid.querySelector('.my-baker-stat-value[title]');
+                if (del?.title) addr = del.title;
             }
+            if (addr) showBakerReportCard(addr);
+        });
 
-            if (isBaker || bakerAddr) {
-                const btn = document.createElement('button');
-                btn.className = 'report-card-btn glass-button';
-                btn.innerHTML = '📋 <span class="dropdown-label">Baker Report Card</span>';
-                btn.title = 'Generate shareable baker report card';
-                btn.style.cssText = 'margin-top:8px;width:auto;padding:10px 20px;gap:8px;display:inline-flex;align-items:center;font-size:0.85rem;';
-                btn.addEventListener('click', () => {
-                    // Derive baker address fresh from DOM to avoid stale closure
-                    const curGrid = section.querySelector('.my-baker-grid');
-                    const curLabels = curGrid ? curGrid.querySelectorAll('.my-baker-stat-label') : [];
-                    let curIsBaker = false;
-                    curLabels.forEach(s => { if (s.textContent === 'Staking Power') curIsBaker = true; });
-                    let addr = localStorage.getItem('tezos-systems-my-baker-address');
-                    if (!curIsBaker && curGrid) {
-                        const del = curGrid.querySelector('.my-baker-stat-value[title]');
-                        if (del?.title) addr = del.title;
-                    }
-                    if (addr) showBakerReportCard(addr);
-                });
-
-                // Insert into drawer-baker before the results grid
-                const results = section.querySelector('#my-baker-results');
-                if (results) {
-                    results.parentNode.insertBefore(btn, results);
-                } else {
-                    const controls = section.querySelector('.my-baker-controls');
-                    if (controls) {
-                        controls.after(btn);
-                    } else {
-                        grid.after(btn);
-                    }
-                }
-
-                // Found the target — stop observing to prevent further callbacks
-                observer.disconnect();
+        // Insert into drawer-baker before the results grid
+        const results = section.querySelector('#my-baker-results');
+        if (results) {
+            results.parentNode.insertBefore(btn, results);
+        } else {
+            const controls = section.querySelector('.my-baker-controls');
+            if (controls) {
+                controls.after(btn);
+            } else {
+                grid.after(btn);
             }
         }
     });

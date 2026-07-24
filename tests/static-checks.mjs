@@ -314,7 +314,7 @@ async function checkMyTezosPortfolioContracts() {
   assert.deepEqual(await Promise.all([firstBrokerRequest, secondBrokerRequest]), [{ ok: true }, { ok: true }]);
   assert.equal(brokerCalls, 1);
 
-  const [portfolio, myTezos, tabs, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, collection, tezosx, rewards, sw] = await Promise.all([
+  const [portfolio, myTezos, tabs, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, collection, tezosx, bakerReportCard, rewards, sw] = await Promise.all([
     readText('js/features/my-tezos-portfolio.js'),
     readText('js/features/my-tezos.js'),
     readText('js/features/my-tezos-tabs.mjs'),
@@ -329,6 +329,7 @@ async function checkMyTezosPortfolioContracts() {
     readText('js/features/my-tezos-memory.mjs'),
     readText('js/features/my-tezos-collection.mjs'),
     readText('js/features/my-tezos-tezosx.mjs'),
+    readText('js/features/baker-report-card.js'),
     readText('js/features/rewards-tracker.js'),
     readText('sw.js')
   ]);
@@ -350,6 +351,9 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['activateMyTezosPortfolio', "import('./my-tezos-collection.mjs')", "import('./my-tezos-tezosx.mjs')"]) {
     if (!myTezos.includes(snippet)) fail(`My Tezos lazy feature registration missing: ${snippet}`);
   }
+  for (const snippet of ["if (data.bakerAddr)", "classList.toggle('is-without-baker', withoutBaker)"]) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos idle-account rendering contract missing: ${snippet}`);
+  }
   for (const snippet of ['normalizeSavedMyTezosEntries', 'MAX_SAVED_MY_TEZOS_ADDRESSES = 10', "included: item?.included !== false"]) {
     if (!savedEntries.includes(snippet)) fail(`My Tezos saved-entry schema contract missing: ${snippet}`);
   }
@@ -363,6 +367,13 @@ async function checkMyTezosPortfolioContracts() {
   }
   for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
+  }
+  for (const snippet of ['#drawer-brief.is-without-baker', '.drawer-connected.is-without-baker .drawer-live-columns']) {
+    if (!styles.includes(snippet)) fail(`My Tezos idle-account layout CSS missing: ${snippet}`);
+  }
+  if (!bakerReportCard.includes('let bakerAddr = null;')
+      || bakerReportCard.includes('if (isBaker || bakerAddr)')) {
+    fail('Baker Report Card must not treat every saved My Tezos address as a baker');
   }
   for (const snippet of ['tezos-systems-my-tezos', "'activityByAccount'", "'syncState'", 'commitMyTezosPage', 'pruneMyTezosActivityRecords']) {
     if (!db.includes(snippet)) fail(`My Tezos IndexedDB contract missing: ${snippet}`);
@@ -387,6 +398,7 @@ async function checkMyTezosPortfolioContracts() {
   }
   if (!smoke.includes("name: 'my-tezos-portfolio'")) fail('focused My Tezos Portfolio browser smoke is missing');
   if (!smoke.includes("name: 'my-tezos-cold-start'")) fail('focused My Tezos cold-start browser smoke is missing');
+  if (!smoke.includes("name: 'my-tezos-idle-account'")) fail('focused My Tezos idle-account browser smoke is missing');
   for (const suite of ['my-tezos-storage', 'my-tezos-memory', 'my-tezos-collection', 'my-tezos-tezosx']) {
     if (!smoke.includes(`name: '${suite}'`)) fail(`focused ${suite} browser smoke is missing`);
   }
@@ -1274,6 +1286,7 @@ async function checkSitemapCoverage() {
 async function checkSelectorContracts() {
   const index = await readText('index.html');
   const themePreload = await readText('js/core/theme-preload.js');
+  const networkHealth = await readText('js/features/network-health.js');
   const siteMapSource = await readText('js/core/site-map.js');
   const siteHandoffSource = await readText('js/core/site-handoff.js');
   const siteMapModuleUrl = `data:text/javascript;base64,${Buffer.from(siteMapSource).toString('base64')}`;
@@ -1404,8 +1417,12 @@ async function checkSelectorContracts() {
   const initialActivityEnd = index.indexOf('</button>', activityButtonIndex);
   const initialActivityMarkup = index.slice(activityButtonIndex, initialActivityEnd);
   if (!initialActivityMarkup.includes('header-activity-cluster is-loading')
+      || !initialActivityMarkup.includes('>1H Activity</span>')
       || !['tx', 'moved', 'nft', 'whale'].every((slot) => initialActivityMarkup.includes(`data-usage-slot="${slot}"`))) {
     fail('header first paint must reserve the final one-hour metric cluster before JavaScript runs');
+  }
+  if (!networkHealth.includes('>1H Activity</span>${segments}')) {
+    fail('live Network Health refresh must preserve the descriptive 1H Activity header label');
   }
 
   const chambersLauncherIndex = index.indexOf('id="chambers-toggle"');

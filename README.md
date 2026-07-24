@@ -299,7 +299,7 @@ inline modal styles in `js/core/app.js`.
   mainnet age on desktop, shows transaction count, XTZ moved, and NFT transfers,
   and opens Network Health; it stacks below mainnet age on narrow screens rather
   than crowding the stat pills or the live block ticker. Its first paint reserves
-  the final `1H / TX / Moved / NFT` metric shape instead of flashing loading prose.
+  the final `1H Activity / TX / Moved / NFT` metric shape instead of flashing loading prose.
   On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   Imminent or newly crossed network milestones make the runtime glow and add a
@@ -1050,7 +1050,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v476`, including hero search, theme
+- Current aligned shell cache stamp: `v482`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v320`.

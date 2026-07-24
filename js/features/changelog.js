@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-24',
         entries: [
+            { type: '🎨', text: 'Cycle milestones now keep the mainnet-age highlight compact behind an info control, the header names 1H Activity explicitly, and undelegated My Tezos accounts drop baker-only cards for a clear single-column overview' },
             { type: '🔧', text: 'Footer credits now contact Primate by email and link Baking Benjamins directly to its X profile' },
             { type: '🔧', text: 'Shared Chamber links now open their exact room, use clean channel attribution, and reach the restored privacy-friendly analytics collector without duplicate pageviews' }
         ]
