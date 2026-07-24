@@ -7341,7 +7341,12 @@ async function smokeMyTezosCollection(browser, baseUrl) {
   attachIssueCollectors(page, 'my tezos collection', issues);
   await openMyTezosSmokeView(page, baseUrl, 'collection');
   await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#collection-status')?.dataset.state), null, { timeout: 30000 });
-  await page.waitForFunction(() => Number(document.querySelector('[data-collection-total="assets"] strong')?.textContent) >= 1, null, { timeout: 10000 });
+  await page.waitForFunction(() => {
+    const assets = Number(document.querySelector('[data-collection-total="assets"] strong')?.textContent);
+    const editions = Number(document.querySelector('[data-collection-total="editions"] strong')?.textContent);
+    const cards = document.querySelectorAll('#collection-grid .collection-asset-card').length;
+    return assets === 1 && editions === 3 && cards === 1;
+  }, null, { timeout: 10000 });
   const collected = await page.evaluate(() => ({
     assets: document.querySelector('[data-collection-total="assets"] strong')?.textContent || '',
     editions: document.querySelector('[data-collection-total="editions"] strong')?.textContent || '',
