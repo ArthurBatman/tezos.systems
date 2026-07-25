@@ -7131,6 +7131,9 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     const stage = document.querySelector('.portfolio-history-stage')?.getBoundingClientRect();
     const canvas = document.querySelector('#portfolio-history-chart')?.getBoundingClientRect();
     const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+    const walletLabel = document.querySelector('.portfolio-history-wallet-label > span');
+    const walletLabelRect = walletLabel?.getBoundingClientRect();
+    const walletLabelStyle = walletLabel ? getComputedStyle(walletLabel) : null;
     const rangeTops = Array.from(document.querySelectorAll('.portfolio-history-ranges button'))
       .map((button) => Math.round(button.getBoundingClientRect().top));
     return {
@@ -7138,6 +7141,9 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       canvasHeight: Math.round(canvas?.height || 0),
       plotHeight: Math.round((chart?.chartArea?.bottom || 0) - (chart?.chartArea?.top || 0)),
       legendPosition: chart?.options?.plugins?.legend?.position || '',
+      walletLabelWhiteSpace: walletLabelStyle?.whiteSpace || '',
+      walletLabelWidth: Math.round(walletLabelRect?.width || 0),
+      walletLabelHeight: Math.round(walletLabelRect?.height || 0),
       rangeTops
     };
   });
@@ -7146,8 +7152,11 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       && historyGeometry.canvasHeight >= 340
       && historyGeometry.plotHeight >= 240
       && historyGeometry.legendPosition === 'bottom'
+      && historyGeometry.walletLabelWhiteSpace === 'nowrap'
+      && historyGeometry.walletLabelWidth >= 55
+      && historyGeometry.walletLabelHeight <= 18
       && new Set(historyGeometry.rangeTops).size === 1,
-    `my tezos address switch: Portfolio history geometry is compressed or wraps its ranges ${JSON.stringify(historyGeometry)}`
+    `my tezos address switch: Portfolio history geometry is compressed or wraps its controls ${JSON.stringify(historyGeometry)}`
   );
   await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).focus();
   await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).fill('Second Vault');

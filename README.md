@@ -1069,7 +1069,10 @@ Current smoke suites:
   totals from TzKT full-balance partitioning, inclusion, active-address
   handoffs, last-complete failure behavior,
   quiet chart/list reconciliation, `/my/?view=portfolio`, and responsive room
-  geometry)
+  geometry, including the one-line desktop history selector label)
+- `my-tezos-balance-history` (covers exact daily and lifetime schedules,
+  immutable cache reuse, archive fallback and throttling, portfolio completeness,
+  visibility-gated resume, and quiet chart/range/wallet reconciliation)
 - `my-tezos-ledger-flow-handoff`
 - `my-tezos-subdomain-input`
 - `my-tezos-proposal-attribution`
@@ -1122,7 +1125,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v488`, including hero search, theme
+- Current aligned shell cache stamp: `v490`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
