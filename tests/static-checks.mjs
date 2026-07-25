@@ -590,7 +590,7 @@ async function checkRequiredFiles() {
     'LICENSE',
     'NOTICE',
     'SECURITY.md',
-    '.nojekyll',
+    '_config.yml',
     '.well-known/ai-plugin.json',
     '.well-known/openapi.json',
     '.well-known/security.txt',
@@ -3008,6 +3008,7 @@ function openApiPathPattern(dataPath) {
 }
 
 async function checkPublicDataDiscoveryContracts() {
+  const pagesConfig = await readText('_config.yml');
   const openApi = JSON.parse(await readText('.well-known/openapi.json'));
   const aiPlugin = JSON.parse(await readText('.well-known/ai-plugin.json'));
   const maxisManifest = JSON.parse(await readText('data/maxis/manifest.json'));
@@ -3038,6 +3039,9 @@ async function checkPublicDataDiscoveryContracts() {
   if (openApi.openapi !== '3.0.3'
     || openApi.servers?.[0]?.url !== 'https://tezos.systems') {
     fail('OpenAPI public data catalogue must be a site-owned OpenAPI 3.0 document');
+  }
+  if (!/^include:\s*\n\s*-\s*\.well-known\s*$/m.test(pagesConfig)) {
+    fail('GitHub Pages Jekyll config must include the public .well-known directory');
   }
 
   const passportShardParameter = openApi.components?.parameters?.PassportShard;

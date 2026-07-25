@@ -101,7 +101,7 @@ tezos.systems/
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
 ├── llms.txt                           # Generated canonical routes and public-data catalogue
-├── .nojekyll                          # Preserve dot-prefixed public paths on GitHub Pages
+├── _config.yml                        # Include dot-prefixed public paths in GitHub Pages
 ├── supabase/
 │   └── migrations/                    # SQL contract for historical capture
 ├── tests/
@@ -1197,8 +1197,8 @@ and heartbeat affordance from the dashboard polish pass.
   artifact family with refresh cadence and license boundaries. Generated
   `llms.txt` combines that catalogue with the exact canonical destination graph
   used by `sitemap.xml`; other tracked data files are explicitly internal.
-  The tracked `.nojekyll` marker keeps these `.well-known` documents available
-  from the branch-backed GitHub Pages deployment.
+  The tracked `_config.yml` explicitly includes `.well-known` in the
+  branch-backed GitHub Pages/Jekyll artifact.
 - GoatCounter is used for privacy-friendly analytics: `tezsys.goatcounter.com`.
   The shared initializer also exposes loop events for share actions,
   governance-alert actions, and widget-builder copy events. Embeddable raw
