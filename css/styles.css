@@ -23008,9 +23008,13 @@ body[data-theme="nerv"]::after {
 .portfolio-history-ranges,
 .portfolio-file-actions {
     display: flex;
-    flex-wrap: wrap;
     gap: 0.4rem;
 }
+.portfolio-history-ranges {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+}
+.portfolio-file-actions { flex-wrap: wrap; }
 .portfolio-history-ranges button,
 .portfolio-wallet-actions button {
     min-width: 38px;
@@ -23033,12 +23037,16 @@ body[data-theme="nerv"]::after {
     background: rgba(69,224,200,0.075);
 }
 .portfolio-history-stage {
+    --portfolio-history-height: clamp(300px, 38vh, 360px);
     position: relative;
-    min-height: 238px;
+    min-height: var(--portfolio-history-height);
 }
 .portfolio-history-stage canvas {
     width: 100% !important;
-    height: 238px !important;
+    height: var(--portfolio-history-height) !important;
+}
+.portfolio-history-stage .portfolio-history-empty {
+    min-height: var(--portfolio-history-height);
 }
 .portfolio-history-empty {
     min-height: 238px;
@@ -23431,6 +23439,52 @@ body[data-theme="nerv"]::after {
     width: auto;
     height: auto;
     white-space: nowrap;
+}
+.my-tezos-feature-shell .my-tezos-action {
+    min-width: 0;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.42rem;
+    padding: 0.55rem 0.95rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.my-tezos-feature-shell .my-tezos-action[hidden] { display: none; }
+.my-tezos-feature-shell .my-tezos-action:disabled {
+    opacity: 0.68;
+    cursor: not-allowed;
+    transform: none;
+}
+.my-tezos-action-icon {
+    flex: 0 0 auto;
+    font-size: 1rem;
+    line-height: 1;
+}
+.my-tezos-scope-select {
+    flex: 0 1 17rem;
+    width: min(100%, 17rem);
+    min-width: min(100%, 17rem);
+    max-width: 100%;
+    min-height: 42px;
+    padding: 0.58rem 2.65rem 0.58rem 0.9rem;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.25 6 6.25 11 1.25' stroke='%23AEB9E3' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+    background-size: 0.75rem 0.5rem;
+    font-family: var(--font-ui, system-ui, sans-serif);
+    font-size: 0.76rem;
+    font-weight: 750;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.my-tezos-scope-select:disabled {
+    opacity: 0.62;
+    cursor: not-allowed;
 }
 .my-tezos-feature-footer > span {
     min-width: 0;
@@ -23839,6 +23893,11 @@ body[data-theme="nerv"]::after {
     }
     .portfolio-heading-row,
     .portfolio-section-heading { flex-direction: column; }
+    .my-tezos-scope-select {
+        flex: 0 0 auto;
+        align-self: stretch;
+        width: 100%;
+    }
     .portfolio-refresh { align-self: stretch; }
     .portfolio-summary-card { min-height: 104px; padding: 0.68rem; }
     .portfolio-add-form { grid-template-columns: minmax(0, 1fr); }

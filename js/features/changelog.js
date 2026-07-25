@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-25',
+        entries: [
+            { type: '🎨', text: 'My Tezos now gives wallet selectors and Tezos X actions complete labels, deliberate spacing, reliable hidden states, and a taller Portfolio history chart with one-row range controls' }
+        ]
+    },
+    {
         date: '2026-07-24',
         entries: [
             { type: '🎨', text: 'My Tezos now gives the account dossier and browser-local recent chapter a dedicated Your Story tab, leaving Overview focused on live signals' },

@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=486">
-    <link rel="stylesheet" href="/css/loading.css?v=486">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=486">
-    <link rel="stylesheet" href="/css/site-map.css?v=486">
+    <link rel="stylesheet" href="/css/styles.min.css?v=487">
+    <link rel="stylesheet" href="/css/loading.css?v=487">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=487">
+    <link rel="stylesheet" href="/css/site-map.css?v=487">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=486">
+    <link rel="modulepreload" href="/js/core/app.js?v=487">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/data-assets.js">
@@ -156,7 +156,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=486"></script>
+    <script src="/js/core/theme-preload.js?v=487"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -2323,7 +2323,7 @@
                 <h3>Your collection</h3>
                 <p>Collector and creator identity across included Wallet Stack addresses. Active asks are references, never a realizable portfolio value.</p>
               </div>
-              <select id="collection-wallet-scope" class="my-baker-input" aria-label="Collection wallet scope"></select>
+              <select id="collection-wallet-scope" class="my-baker-input my-tezos-scope-select" aria-label="Collection wallet scope"></select>
             </div>
             <div id="collection-summary" class="my-tezos-feature-summary" aria-label="Collection summary">
               <article data-collection-total="assets"><span>Assets</span><strong>0</strong></article>
@@ -2391,7 +2391,7 @@
                 <h3>Tezos X accounts</h3>
                 <p><strong>Linked on this device.</strong> A manual association is not an ownership proof and never infers an L1-to-0x identity.</p>
               </div>
-              <button id="tezosx-refresh" class="glass-button" type="button" disabled>↻ Refresh</button>
+              <button id="tezosx-refresh" class="glass-button my-tezos-action" type="button" disabled><span class="my-tezos-action-icon" aria-hidden="true">↻</span><span>Refresh</span></button>
             </div>
             <div id="tezosx-summary" class="my-tezos-feature-summary" aria-label="Tezos X summary">
               <article data-tezosx-total="native"><span>Native XTZ</span><strong>0 ꜩ</strong></article>
@@ -2403,7 +2403,7 @@
             <section class="my-tezos-feature-panel" aria-labelledby="tezosx-link-title">
               <div class="portfolio-section-heading">
                 <div><h4 id="tezosx-link-title">Device-local links</h4><p>Each 0x account starts linked to the active saved L1 address. L2 inclusion remains independent.</p></div>
-                <select id="tezosx-account-scope" class="my-baker-input" aria-label="Selected Etherlink account" disabled></select>
+                <select id="tezosx-account-scope" class="my-baker-input my-tezos-scope-select" aria-label="Selected Etherlink account" disabled></select>
               </div>
               <form id="tezosx-add-form" class="portfolio-add-form" aria-busy="true">
                 <label><span>Etherlink address</span><input id="tezosx-add-address" class="my-baker-input" type="text" placeholder="0x…" spellcheck="false" autocomplete="off"></label>
@@ -2415,7 +2415,7 @@
             </section>
             <div id="tezosx-details"></div>
             <div class="my-tezos-feature-footer">
-              <button id="tezosx-load-more" class="glass-button" type="button" hidden>Load more activity</button>
+              <button id="tezosx-load-more" class="glass-button my-tezos-action" type="button" hidden>Load more activity</button>
               <span id="tezosx-status" aria-live="polite">Tezos X loads only when this tab opens.</span>
             </div>
           </div>
@@ -2429,7 +2429,7 @@
 
     <!-- Load app as module -->
     <script defer src="/js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="/js/core/app.js?v=486"></script>
+    <script type="module" src="/js/core/app.js?v=487"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

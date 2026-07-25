@@ -366,7 +366,7 @@ async function checkMyTezosPortfolioContracts() {
       || !index.includes('class="glass-button my-baker-btn" type="submit" disabled')) {
     fail('My Tezos Tezos X form must remain disabled until its lazy validation module is ready');
   }
-  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item']) {
+  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item', '--portfolio-history-height: clamp(300px, 38vh, 360px)', '.my-tezos-feature-shell .my-tezos-action[hidden]', '.my-tezos-scope-select']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
   }
   for (const snippet of ['#drawer-brief.is-without-baker', '.drawer-connected.is-without-baker .drawer-live-columns']) {
@@ -6941,7 +6941,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=486'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=487'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

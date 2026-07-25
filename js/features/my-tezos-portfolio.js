@@ -490,7 +490,16 @@ function renderHistory(composition) {
             plugins: {
                 legend: {
                     display: true,
-                    labels: { color: getComputedStyle(document.body).getPropertyValue('--text-secondary') || '#9aa5b1', boxWidth: 10 }
+                    position: 'bottom',
+                    align: 'start',
+                    labels: {
+                        color: getComputedStyle(document.body).getPropertyValue('--text-secondary') || '#9aa5b1',
+                        boxWidth: 10,
+                        boxHeight: 3,
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'line'
+                    }
                 },
                 tooltip: {
                     callbacks: { label: (context) => `${context.dataset.label}: ${Number(context.raw).toLocaleString('en-US', { maximumFractionDigits: 2 })} ꜩ` }

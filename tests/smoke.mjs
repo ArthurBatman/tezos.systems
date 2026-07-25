@@ -6986,6 +6986,28 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   }, SAMPLE_ADDRESS_2);
   await page.locator('[data-portfolio-range="24h"]').click();
   await page.waitForFunction(() => Boolean(window.Chart?.getChart(document.querySelector('#portfolio-history-chart'))), null, { timeout: 5000 });
+  const historyGeometry = await page.evaluate(() => {
+    const stage = document.querySelector('.portfolio-history-stage')?.getBoundingClientRect();
+    const canvas = document.querySelector('#portfolio-history-chart')?.getBoundingClientRect();
+    const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+    const rangeTops = Array.from(document.querySelectorAll('.portfolio-history-ranges button'))
+      .map((button) => Math.round(button.getBoundingClientRect().top));
+    return {
+      stageHeight: Math.round(stage?.height || 0),
+      canvasHeight: Math.round(canvas?.height || 0),
+      plotHeight: Math.round((chart?.chartArea?.bottom || 0) - (chart?.chartArea?.top || 0)),
+      legendPosition: chart?.options?.plugins?.legend?.position || '',
+      rangeTops
+    };
+  });
+  assert(
+    historyGeometry.stageHeight >= 340
+      && historyGeometry.canvasHeight >= 340
+      && historyGeometry.plotHeight >= 240
+      && historyGeometry.legendPosition === 'bottom'
+      && new Set(historyGeometry.rangeTops).size === 1,
+    `my tezos address switch: Portfolio history geometry is compressed or wraps its ranges ${JSON.stringify(historyGeometry)}`
+  );
   await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).focus();
   await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).fill('Second Vault');
   await page.locator(`[data-portfolio-label="${SAMPLE_ADDRESS_2}"]`).evaluate((input) => input.setSelectionRange(1, 6));
@@ -7477,6 +7499,20 @@ async function smokeMyTezosCollection(browser, baseUrl) {
     flaggedHidden: document.querySelector('#collection-spam-toggle')?.hidden === false,
     loadMoreVisible: document.querySelector('#collection-load-more')?.hidden === false,
     overflow: document.querySelector('#my-tezos-panel-collection')?.scrollWidth - document.querySelector('#my-tezos-panel-collection')?.clientWidth,
+    scope: (() => {
+      const select = document.querySelector('#collection-wallet-scope');
+      const heading = select?.closest('.portfolio-heading-row');
+      const style = select ? getComputedStyle(select) : null;
+      const rect = select?.getBoundingClientRect();
+      return {
+        height: rect?.height || 0,
+        width: rect?.width || 0,
+        headingWidth: heading?.getBoundingClientRect().width || 0,
+        overflow: select ? select.scrollWidth - select.clientWidth : Infinity,
+        paddingRight: Number.parseFloat(style?.paddingRight || '0'),
+        fontFamily: style?.fontFamily || ''
+      };
+    })(),
     pills: Array.from(document.querySelectorAll('#my-tezos-panel-collection .my-tezos-pill')).filter((button) => !button.hidden).map((button) => {
       const style = getComputedStyle(button);
       const rect = button.getBoundingClientRect();
@@ -7488,6 +7524,15 @@ async function smokeMyTezosCollection(browser, baseUrl) {
       };
     })
   }));
+  assert(
+    collected.scope.height >= 40
+      && collected.scope.height <= 48
+      && collected.scope.width <= collected.scope.headingWidth + 1
+      && collected.scope.overflow <= 1
+      && collected.scope.paddingRight >= 36
+      && !/mono/i.test(collected.scope.fontFamily),
+    `my tezos collection: wallet scope selector is clipped or still styled like an address field ${JSON.stringify(collected.scope)}`
+  );
   assert(Number(collected.assets) === 137 && Number(collected.editions) === 139 && collected.cards === 100, `my tezos collection: complete multi-wallet holdings did not aggregate beyond the first page ${JSON.stringify(collected)}`);
   assert(collected.images === 100 && collected.imageFallbacks === 0, `my tezos collection: HEN/Objkt media fallback path did not keep thumbnails available ${JSON.stringify(collected)}`);
   assert(collected.firstCard === 'Shared Smoke Artifact', `my tezos collection: multi-page aggregation did not keep the newest holding first ${JSON.stringify(collected)}`);
@@ -7575,6 +7620,16 @@ async function smokeMyTezosTezosX(browser, baseUrl) {
       detail: document.querySelector('#tezosx-details')?.textContent || '',
       overflow: (panel?.scrollWidth || 0) - (panel?.clientWidth || 0),
       refreshClips: (refresh?.scrollWidth || 0) - (refresh?.clientWidth || 0),
+      refreshGeometry: (() => {
+        const style = refresh ? getComputedStyle(refresh) : null;
+        const rect = refresh?.getBoundingClientRect();
+        return {
+          height: rect?.height || 0,
+          paddingLeft: Number.parseFloat(style?.paddingLeft || '0'),
+          paddingRight: Number.parseFloat(style?.paddingRight || '0')
+        };
+      })(),
+      hiddenLoadMoreDisplay: getComputedStyle(document.querySelector('#tezosx-load-more')).display,
       selectedTabVisible: Boolean(
         tablistRect
           && selectedTabRect
@@ -7588,6 +7643,13 @@ async function smokeMyTezosTezosX(browser, baseUrl) {
   assert(/2\.5/.test(state.native) && state.erc20 === '1' && state.nfts === '1' && state.transactions === '42', `my tezos tezos x: account summary incorrect ${JSON.stringify(state)}`);
   assert(/Linked on this device/i.test(state.copy) && /not an ownership proof/i.test(state.copy) && /error/i.test(state.detail) && /Blockscout receipt/i.test(state.detail), `my tezos tezos x: L2 provenance or revert state missing ${JSON.stringify(state)}`);
   assert(state.overflow <= 1 && state.refreshClips <= 1 && state.selectedTabVisible, `my tezos tezos x: mobile controls overflow ${JSON.stringify(state)}`);
+  assert(
+    state.refreshGeometry.height >= 40
+      && state.refreshGeometry.paddingLeft >= 12
+      && state.refreshGeometry.paddingRight >= 12
+      && state.hiddenLoadMoreDisplay === 'none',
+    `my tezos tezos x: actions are cramped or hidden load-more leaked into the layout ${JSON.stringify(state)}`
+  );
 
   const include = page.locator(`[data-tezosx-include="${SAMPLE_ETHERLINK_ADDRESS}"]`);
   await include.uncheck();
