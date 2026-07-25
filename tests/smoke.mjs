@@ -15150,6 +15150,13 @@ async function smokeRouteFormatting(browser, baseUrl) {
       assert((response?.status() || 0) < 500, `route formatting ${label}: route returned ${response?.status()}: ${route}`);
       await page.locator('body').waitFor({ state: 'attached', timeout: 5000 });
       await page.waitForTimeout(300);
+      if (route === '/my/') {
+        await page.waitForFunction(() => {
+          const drawer = document.querySelector('#my-tezos-drawer.open');
+          const rect = drawer?.getBoundingClientRect();
+          return Boolean(rect) && Math.abs(rect.right - window.innerWidth) <= 1;
+        }, null, { timeout: 3000 });
+      }
 
       if (['/staking/', '/governance/', '/bakers/'].includes(route)) {
         const navState = await page.evaluate(() => {
