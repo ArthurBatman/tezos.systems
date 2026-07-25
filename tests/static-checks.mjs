@@ -590,6 +590,7 @@ async function checkRequiredFiles() {
     'LICENSE',
     'NOTICE',
     'SECURITY.md',
+    '.nojekyll',
     '.well-known/ai-plugin.json',
     '.well-known/openapi.json',
     '.well-known/security.txt',
