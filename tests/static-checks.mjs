@@ -102,7 +102,6 @@ import {
 import {
   MY_TEZOS_PORTFOLIO_SCHEMA,
   appendPortfolioSnapshot,
-  buildReconstructedPortfolioSeries,
   calculatePortfolioTotals,
   compactPortfolioHistory,
   mergePortfolioEntries,
@@ -110,6 +109,13 @@ import {
   portfolioCompositionKey,
   portfolioRowFromAccount
 } from '../js/features/my-tezos-portfolio-model.mjs';
+import {
+  PARIS_ACTIVATION_LEVEL,
+  buildExactBalanceHistoryView,
+  buildHistoricalBalanceSchedule,
+  historicalBalanceSource,
+  resolveHistoricalScheduleTimestamps
+} from '../js/features/my-tezos-balance-history-model.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -247,15 +253,94 @@ async function checkMyTezosPortfolioContracts() {
   assert.equal(selfActivity[0].kind, 'self-transfer');
   assert.equal(selfActivity[0].summary, 'Moved between your included wallets');
 
-  const reconstructed = buildReconstructedPortfolioSeries(
-    [{ address: addressA }, { address: addressB }],
-    [
-      { address: addressA, timestamp: now, liquid: 1, sourceType: 'reconstructed' },
-      { address: addressB, timestamp: now, liquid: 2, sourceType: 'reconstructed' }
-    ]
+  const schedule = buildHistoricalBalanceSchedule({
+    protocols: [
+      { name: 'Before', block: 1, blockTime: 60 },
+      { name: 'Paris', block: 20_000, blockTime: 10 },
+      { name: 'Quebec', block: 100_000, blockTime: 8 }
+    ],
+    accountCreationLevels: [1_000, 110_000],
+    oneYearLevel: 70_000,
+    finalizedLevel: 130_000
+  });
+  assert(schedule.some((point) => point.level === 1_000 && point.anchors.includes('account-creation')));
+  assert(schedule.some((point) => point.level === 110_000 && point.anchors.includes('account-creation')));
+  assert(schedule.some((point) => point.level === 70_000 && point.anchors.includes('one-year-boundary')));
+  assert(schedule.some((point) => point.level === 130_000 && point.anchors.includes('latest-finalized')));
+  assert(schedule.some((point) => point.level === 20_000 && point.anchors.includes('protocol-boundary')));
+  assert(schedule.some((point) => point.level === 100_000 && point.anchors.includes('protocol-boundary')));
+  assert(schedule.some((point) => point.cadence === 'weekly'));
+  assert(schedule.some((point) => point.cadence === 'daily'));
+  assert.equal(new Set(schedule.map((point) => point.level)).size, schedule.length);
+  assert(schedule.filter((point) => point.sampleStep).every((point) => point.level % point.sampleStep === 0));
+  const fullYearSchedule = buildHistoricalBalanceSchedule({
+    protocols: [{ name: 'Minute blocks', block: 1, blockTime: 60 }],
+    accountCreationLevels: [1],
+    oneYearLevel: 525_601,
+    finalizedLevel: 1_051_201
+  });
+  assert(fullYearSchedule.filter((point) => point.cadence === 'daily').length >= 365);
+  assert(fullYearSchedule.filter((point) => point.cadence === 'weekly').length >= 52);
+  const recentAccountSchedule = buildHistoricalBalanceSchedule({
+    protocols: [{ name: 'Minute blocks', block: 1, blockTime: 60 }],
+    accountCreationLevels: [900_000],
+    oneYearLevel: 525_601,
+    finalizedLevel: 1_051_201
+  });
+  assert(recentAccountSchedule.some((point) => point.level === 525_601 && point.anchors.includes('one-year-boundary')));
+  assert(recentAccountSchedule.some((point) => point.level < 900_000 && point.cadence === 'daily'));
+
+  const timestampedSchedule = resolveHistoricalScheduleTimestamps(
+    schedule,
+    schedule.map((point, index) => ({
+      level: point.level,
+      timestamp: new Date(now + index * 1000).toISOString()
+    }))
   );
-  assert.equal(reconstructed[0].liquid, 3);
-  assert.match(reconstructed[0].limitation, /staked tez/i);
+  assert(timestampedSchedule.every((point) => Number.isFinite(point.timestamp)));
+  assert.equal(historicalBalanceSource({ address: addressA, type: 'user', stakingOpsCount: 2 }, PARIS_ACTIVATION_LEVEL - 1), 'tzkt');
+  assert.equal(historicalBalanceSource({ address: addressA, type: 'delegate', stakingOpsCount: null }, PARIS_ACTIVATION_LEVEL), 'tzkt');
+  assert.equal(historicalBalanceSource({ address: 'KT1ExactHistory11111111111111111111111', type: 'contract' }, PARIS_ACTIVATION_LEVEL), 'tzkt');
+  assert.equal(historicalBalanceSource({ address: addressA, type: 'user', stakingOpsCount: 0 }, PARIS_ACTIVATION_LEVEL), 'tzkt');
+  assert.equal(historicalBalanceSource({ address: addressA, type: 'user', stakingOpsCount: 1 }, PARIS_ACTIVATION_LEVEL), 'archive');
+  assert.equal(historicalBalanceSource({ address: addressA, type: 'user', stakingOpsCount: null }, PARIS_ACTIVATION_LEVEL), 'archive');
+
+  const exactSchedule = [
+    { level: 100, timestamp: now - 2000, cadence: 'weekly', protocol: 'Test' },
+    { level: 200, timestamp: now - 1000, cadence: 'daily', protocol: 'Test' },
+    { level: 300, timestamp: now, cadence: 'daily', protocol: 'Test' }
+  ];
+  const exactView = buildExactBalanceHistoryView({
+    entries: [{ address: addressA }, { address: addressB }],
+    accounts: [
+      { address: addressA, firstActivity: 100 },
+      { address: addressB, firstActivity: 200 }
+    ],
+    schedule: exactSchedule,
+    recordsByAddress: {
+      [addressA]: exactSchedule.map((point, index) => ({
+        ...point,
+        address: addressA,
+        totalMutez: (index + 1) * 1_000_000,
+        confidence: 'exact',
+        source: 'tzkt-stepped-balance-history'
+      })),
+      [addressB]: [{
+        ...exactSchedule[1],
+        address: addressB,
+        totalMutez: 4_000_000,
+        confidence: 'exact',
+        source: 'octez-archive'
+      }]
+    }
+  });
+  assert.equal(exactView.seriesByAddress[addressB][0].totalMutez, 0);
+  assert.equal(exactView.seriesByAddress[addressB][0].source, 'pre-creation-zero');
+  assert.deepEqual(exactView.aggregate.map((point) => point.totalMutez), [1_000_000, 6_000_000]);
+  assert.deepEqual(exactView.aggregate.map((point) => point.level), [100, 200]);
+  assert.equal(exactView.aggregateCoverage.completed, 2);
+  assert.equal(exactView.aggregateCoverage.target, 3);
+  assert.deepEqual(exactView.aggregateCoverage.missing, [300]);
 
   const holdingA = normalizeObjktHolding({
     quantity: 2,
@@ -315,7 +400,45 @@ async function checkMyTezosPortfolioContracts() {
   assert.deepEqual(await Promise.all([firstBrokerRequest, secondBrokerRequest]), [{ ok: true }, { ok: true }]);
   assert.equal(brokerCalls, 1);
 
-  const [portfolio, myTezos, tabs, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, collection, tezosx, bakerReportCard, rewards, sw] = await Promise.all([
+  let archiveActive = 0;
+  let archiveMaxActive = 0;
+  let releaseArchive;
+  const archiveGate = new Promise((resolve) => { releaseArchive = resolve; });
+  const boundedArchiveBroker = new MyTezosRequestBroker({
+    fetchImpl: async () => {
+      archiveActive += 1;
+      archiveMaxActive = Math.max(archiveMaxActive, archiveActive);
+      await archiveGate;
+      archiveActive -= 1;
+      return new Response('1', { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+  });
+  const archiveRequests = Array.from({ length: 12 }, (_, index) => (
+    boundedArchiveBroker.request(`/archive/${index}`, { provider: 'octezArchive' })
+  ));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(archiveMaxActive, 6);
+  releaseArchive();
+  await Promise.all(archiveRequests);
+
+  let rateLimitCalls = 0;
+  const rateLimitedBroker = new MyTezosRequestBroker({
+    fetchImpl: async () => {
+      rateLimitCalls += 1;
+      if (rateLimitCalls === 1) {
+        return new Response('{}', { status: 429, headers: { 'retry-after': '0' } });
+      }
+      return new Response('1', { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+  });
+  assert.equal(await rateLimitedBroker.request('/rate-limit', {
+    provider: 'octezArchive',
+    retries: 1
+  }), 1);
+  assert.equal(rateLimitedBroker.getProviderLimit('octezArchive'), 3);
+  assert.equal(rateLimitCalls, 2);
+
+  const [portfolio, myTezos, tabs, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, balanceHistory, balanceHistoryModel, config, collection, tezosx, bakerReportCard, rewards, sw] = await Promise.all([
     readText('js/features/my-tezos-portfolio.js'),
     readText('js/features/my-tezos.js'),
     readText('js/features/my-tezos-tabs.mjs'),
@@ -328,6 +451,9 @@ async function checkMyTezosPortfolioContracts() {
     readText('js/core/my-tezos-db.mjs'),
     readText('js/core/my-tezos-request-broker.mjs'),
     readText('js/features/my-tezos-memory.mjs'),
+    readText('js/features/my-tezos-balance-history.mjs'),
+    readText('js/features/my-tezos-balance-history-model.mjs'),
+    readText('js/core/config.js'),
     readText('js/features/my-tezos-collection.mjs'),
     readText('js/features/my-tezos-tezosx.mjs'),
     readText('js/features/baker-report-card.js'),
@@ -338,12 +464,15 @@ async function checkMyTezosPortfolioContracts() {
     'saveCompleteSnapshot(composition, totals, model.timestamp)',
     "document.visibilityState === 'visible'",
     'portfolioChart.update(\'none\')',
+    "label: 'Total XTZ'",
+    "portfolioRange = '1y'",
+    "portfolioHistoryScope = 'portfolio'",
     'quietlySyncHtml(container, header + body)',
     'showing last complete read'
   ]) {
     if (!portfolio.includes(snippet)) fail(`My Tezos Portfolio data/quiet contract missing: ${snippet}`);
   }
-  for (const snippet of ["'address.in': addresses.join(',')", '/accounts/activity?', 'lastId', 'Portfolio coverage incomplete']) {
+  for (const snippet of ["'address.in': addresses.join(',')", 'firstActivity', 'stakingOpsCount', '/accounts/activity?', 'lastId', 'Portfolio coverage incomplete']) {
     if (!adapter.includes(snippet)) fail(`My Tezos TzKT adapter contract missing: ${snippet}`);
   }
   for (const snippet of ['setMyTezosView', 'sessionStorage.setItem(VIEW_SESSION_KEY', "event.key === 'ArrowRight'", "event.key === 'Home'", "routeMode: 'push'", "window.addEventListener('popstate'"]) {
@@ -359,7 +488,7 @@ async function checkMyTezosPortfolioContracts() {
     if (!savedEntries.includes(snippet)) fail(`My Tezos saved-entry schema contract missing: ${snippet}`);
   }
   if (!wallet.includes('my-tezos-portfolio-changed')) fail('My Tezos shared wallet mutation event is missing');
-  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-transactions', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-activity-filter="transfers"', 'data-activity-filter="nft"', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'Linked on this device', 'not an ownership proof']) {
+  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-transactions', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-activity-filter="transfers"', 'data-activity-filter="nft"', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'portfolio-history-wallet', 'data-portfolio-range="1y"', 'Exact total XTZ:', 'Linked on this device', 'not an ownership proof']) {
     if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
   }
   for (const snippet of [
@@ -376,7 +505,7 @@ async function checkMyTezosPortfolioContracts() {
       || !index.includes('class="glass-button my-baker-btn" type="submit" disabled')) {
     fail('My Tezos Tezos X form must remain disabled until its lazy validation module is ready');
   }
-  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item', '--portfolio-history-height: clamp(300px, 38vh, 360px)', '.my-tezos-feature-shell .my-tezos-action[hidden]', '.my-tezos-scope-select']) {
+  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.portfolio-history-controls', '.portfolio-history-status', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item', '--portfolio-history-height: clamp(300px, 38vh, 360px)', '.my-tezos-feature-shell .my-tezos-action[hidden]', '.my-tezos-scope-select']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
   }
   for (const snippet of ['.my-tezos-start-grid', '.my-tezos-start-card', '.my-tezos-feature-map', '.my-tezos-onboarding-routes']) {
@@ -392,11 +521,28 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['tezos-systems-my-tezos', "'activityByAccount'", "'syncState'", 'commitMyTezosPage', 'pruneMyTezosActivityRecords']) {
     if (!db.includes(snippet)) fail(`My Tezos IndexedDB contract missing: ${snippet}`);
   }
-  for (const snippet of ['this.inFlight', 'RETRYABLE', 'retry-after', 'this.paused', 'callerRace']) {
+  for (const snippet of ['this.inFlight', 'RETRYABLE', 'retry-after', 'this.paused', 'callerRace', 'octezArchive: 6', 'reduceProviderLimit', 'my-tezos-drawer-opened', 'my-tezos-drawer-closed']) {
     if (!broker.includes(snippet)) fail(`My Tezos request broker contract missing: ${snippet}`);
   }
-  for (const snippet of ['buildReconstructedPortfolioSeries', 'Historical account balance can exclude staked tez', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed']) {
+  for (const snippet of ['syncExactBalanceHistory', 'seriesByAddress', 'aggregateCoverage', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed']) {
     if (!memory.includes(snippet)) fail(`My Tezos Memory contract missing: ${snippet}`);
+  }
+  if (!styles.includes('.portfolio-history-empty[hidden]')) {
+    fail('Completed exact-history charts must remove the hidden loading placeholder from layout');
+  }
+  for (const snippet of ['full_balance', 'config/history_mode', 'fetchArchiveFullBalance', 'fetchSteppedHistory', 'exactBalanceHistoryScopeId', 'dailyCoverage', 'lifetimeCoverage', 'sourceReceipt', "stage: 'daily'", "name: 'lifetime'"]) {
+    if (!balanceHistory.includes(snippet)) fail(`My Tezos exact balance history source/cache contract missing: ${snippet}`);
+  }
+  for (const snippet of ['PARIS_ACTIVATION_LEVEL = 5_726_209', 'buildHistoricalBalanceSchedule', 'protocol-boundary', 'account-creation', 'one-year-boundary', 'latest-finalized', 'pre-creation-zero', 'mixed-exact-sources']) {
+    if (!balanceHistoryModel.includes(snippet)) fail(`My Tezos exact balance history model contract missing: ${snippet}`);
+  }
+  for (const snippet of ["octezArchive: 'https://octez-mainnet-archive.octez.io'", "tzktArchive: 'https://rpc.tzkt.io/mainnet'"]) {
+    if (!config.includes(snippet)) fail(`My Tezos archive endpoint config missing: ${snippet}`);
+  }
+  for (const retired of ['Reconstructed liquid*', 'buildReconstructedPortfolioSeries', 'Historical account balance can exclude staked tez']) {
+    if (portfolio.includes(retired) || memory.includes(retired) || index.includes(retired)) {
+      fail(`My Tezos retired liquid-history presentation remains: ${retired}`);
+    }
   }
   for (const snippet of ['MY_TEZOS_COLLECTION_PAGE_SIZE', 'Syncing complete Objkt coverage', 'mediaCandidates', 'showing last saved holdings', 'not a portfolio value', 'sourceReceipt']) {
     if (!collection.includes(snippet) && !index.includes(snippet)) fail(`My Tezos Collection contract missing: ${snippet}`);
@@ -410,7 +556,7 @@ async function checkMyTezosPortfolioContracts() {
   if (rewards.includes('tezos-systems-rewards-v4-') || rewards.includes('localStorage.setItem(cacheKey')) {
     fail('My Tezos rewards still writes the retired raw localStorage payload');
   }
-  for (const host of ['explorer.etherlink.com', 'node.mainnet.etherlink.com']) {
+  for (const host of ['explorer.etherlink.com', 'node.mainnet.etherlink.com', 'octez-mainnet-archive.octez.io', 'rpc.tzkt.io']) {
     if (!sw.includes(`'${host}'`)) fail(`Service worker API no-cache host missing: ${host}`);
   }
   if (!smoke.includes("name: 'my-tezos-portfolio'")) fail('focused My Tezos Portfolio browser smoke is missing');
@@ -420,6 +566,7 @@ async function checkMyTezosPortfolioContracts() {
   for (const suite of ['my-tezos-storage', 'my-tezos-memory', 'my-tezos-collection', 'my-tezos-tezosx']) {
     if (!smoke.includes(`name: '${suite}'`)) fail(`focused ${suite} browser smoke is missing`);
   }
+  if (!smoke.includes("name: 'my-tezos-balance-history'")) fail('focused My Tezos exact balance-history browser smoke is missing');
   pass('My Tezos storage, Portfolio Memory, Collection, Tezos X, routing, provenance, and quiet-refresh contracts checked');
 }
 
@@ -6955,7 +7102,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=488'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=489'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

@@ -693,11 +693,28 @@ inline modal styles in `js/core/app.js`.
   `{ network, address, label, included, addedAt }` shape. The v2 JSON
   import/export path carries only user-authored L1 configuration, device-local
   L2 links, exact browser-observed snapshots, and seen watermarks; it never
-  carries keys, permissions, current balances, holdings, reconstructed caches,
+  carries keys, permissions, current balances, holdings, historical cache points,
   or estimates.
-  Complete browser-observed snapshots remain visually separate from the
-  reconstructed TzKT liquid-balance track and its documented historical-stake
-  limitation. Transactions gives human-readable applied receipts their own
+  Portfolio history is an exact L1 total-XTZ track rather than a visit-based
+  chart or liquid-balance reconstruction. It loads daily samples for the latest
+  365 days first, then weekly samples back to the earliest included account's
+  first activity, restarting the level schedule at protocol boundaries. The
+  default line is the complete included-address total, with a selector for each
+  address and 30D, 90D, 1Y, and All ranges. TzKT stepped balance history supplies
+  pre-Paris points, bakers/delegates, KT1 accounts, and tz accounts confirmed
+  never to have staked. From Paris level 5,726,209, other tz accounts use
+  historical contract `full_balance` from the verified
+  `octez-mainnet-archive.octez.io` archive, with
+  `rpc.tzkt.io/mainnet` as a verified archive fallback. Pre-creation points are
+  exact zero; a missing post-creation wallet point omits that portfolio point
+  instead of substituting liquid balance, carrying a prior value, or showing a
+  partial sum. Normalized immutable points, per-address daily/lifetime coverage,
+  gaps, retry state, schedule version, and source receipts remain in IndexedDB
+  and are reused across portfolio compositions. Backfill pauses when My Tezos
+  or the browser tab is hidden, resumes on the next visible visit, keeps
+  last-good points through provider failures, and updates the retained Chart.js
+  canvas without resetting range, wallet selection, focus, or scroll.
+  Transactions gives human-readable applied receipts their own
   view, separating transfers and account calls from NFT interactions with
   selectable lanes and distinct quiet color treatments. Resumable 365-day
   activity and While You Were Away share one provenance-aware Memory store. Large

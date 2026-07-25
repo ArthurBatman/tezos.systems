@@ -4,6 +4,7 @@
 
 const DEFAULT_LIMITS = Object.freeze({
     tzkt: 2,
+    octezArchive: 6,
     objkt: 1,
     blockscout: 2,
     etherlinkRpc: 1,
@@ -55,8 +56,11 @@ function callerRace(promise, signal) {
 }
 
 function retryDelay(response, attempt) {
-    const retryAfter = Number(response?.headers?.get?.('retry-after'));
-    if (Number.isFinite(retryAfter) && retryAfter >= 0) return Math.min(15_000, retryAfter * 1000);
+    const rawRetryAfter = response?.headers?.get?.('retry-after');
+    const retryAfterSeconds = Number(rawRetryAfter);
+    if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) return retryAfterSeconds * 1000;
+    const retryAfterDate = Date.parse(rawRetryAfter || '');
+    if (Number.isFinite(retryAfterDate)) return Math.max(0, retryAfterDate - Date.now());
     const base = Math.min(15_000, 1000 * (2 ** attempt));
     return Math.round(Math.random() * base);
 }
@@ -84,6 +88,16 @@ export class MyTezosRequestBroker {
         if (!this.paused) {
             for (const provider of this.queues.keys()) this.#drain(provider);
         }
+    }
+
+    getProviderLimit(provider) {
+        return this.limits[provider] || this.limits.default;
+    }
+
+    reduceProviderLimit(provider) {
+        const current = this.getProviderLimit(provider);
+        this.limits[provider] = Math.max(1, Math.floor(current / 2));
+        return this.limits[provider];
     }
 
     request(url, {
@@ -158,6 +172,7 @@ export class MyTezosRequestBroker {
                 const error = new Error(`Request failed: ${response.status}`);
                 error.status = response.status;
                 lastError = error;
+                if (response.status === 429) this.reduceProviderLimit(job.provider);
                 if (!RETRYABLE.has(response.status) || attempt >= job.retries) throw error;
                 await wait(retryDelay(response, attempt));
             } catch (error) {
@@ -176,8 +191,15 @@ let visibilityBound = false;
 export function initMyTezosRequestBrokerVisibility() {
     if (visibilityBound || typeof document === 'undefined') return;
     visibilityBound = true;
-    myTezosRequestBroker.setPaused(document.visibilityState !== 'visible');
-    document.addEventListener('visibilitychange', () => {
-        myTezosRequestBroker.setPaused(document.visibilityState !== 'visible');
-    });
+    const syncPauseState = () => {
+        const drawer = document.getElementById('my-tezos-drawer');
+        const myTezosVisible = !drawer || drawer.classList.contains('open');
+        myTezosRequestBroker.setPaused(
+            document.visibilityState !== 'visible' || !myTezosVisible
+        );
+    };
+    syncPauseState();
+    document.addEventListener('visibilitychange', syncPauseState);
+    window.addEventListener('my-tezos-drawer-opened', syncPauseState);
+    window.addEventListener('my-tezos-drawer-closed', syncPauseState);
 }

@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-25',
         entries: [
+            { type: '✨', text: 'My Tezos Portfolio history now loads exact daily total-XTZ balances for the latest year, then weekly history to each included account’s first activity, with portfolio and per-address views' },
+            { type: '⚡', text: 'Exact history now reuses immutable per-address IndexedDB points, pauses off-screen, resumes missing gaps, and falls back between verified archive providers without showing liquid or partial totals' },
             { type: '🎨', text: 'My Tezos now explains its complete six-view personal room before setup and clearly separates Octez.Connect wallet pairing from watch-only address tracking' },
             { type: '🎨', text: 'My Tezos now gives wallet selectors and Tezos X actions complete labels, deliberate spacing, reliable hidden states, and a taller Portfolio history chart with one-row range controls' }
         ]

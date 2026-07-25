@@ -61,13 +61,26 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 
 let lastCompletePortfolio = null;
 let portfolioChart = null;
-let portfolioRange = '24h';
+let portfolioRange = '1y';
+let portfolioHistoryScope = 'portfolio';
 let portfolioRefreshInFlight = null;
 let portfolioRefreshController = null;
 let portfolioGeneration = 0;
 let portfolioTimer = null;
 let portfolioInitialized = false;
-let reconstructedHistoryPoints = [];
+let exactHistoryState = {
+    seriesByAddress: {},
+    aggregate: [],
+    coverageByAddress: {},
+    aggregateCoverage: {
+        completed: 0,
+        target: 0,
+        dailyCompleted: 0,
+        dailyTarget: 0,
+        complete: false
+    },
+    sourceStatus: { stage: 'cached' }
+};
 
 function getPortfolioPanel() {
     return document.getElementById('my-tezos-panel-portfolio');
@@ -389,92 +402,133 @@ function wireWalletList(entries) {
 }
 
 function historyPointsForRange(points, range, now = Date.now()) {
-    const duration = range === '24h' ? 24 * 60 * 60 * 1000
-        : range === '7d' ? 7 * 24 * 60 * 60 * 1000
-            : range === '30d' ? 30 * 24 * 60 * 60 * 1000
+    const duration = range === '30d' ? 30 * 24 * 60 * 60 * 1000
+        : range === '90d' ? 90 * 24 * 60 * 60 * 1000
+            : range === '1y' ? 365 * 24 * 60 * 60 * 1000
                 : Infinity;
     return duration === Infinity ? points : points.filter((point) => point.timestamp >= now - duration);
 }
 
 function chartLabel(timestamp, range) {
     const date = new Date(timestamp);
-    if (range === '24h') return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (range === 'all') return date.toLocaleDateString([], { month: 'short', year: 'numeric' });
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function renderHistory(composition) {
+function renderHistoryScopeOptions(entries = includedEntries()) {
+    const select = document.getElementById('portfolio-history-wallet');
+    if (!select) return;
+    const signature = entries.map((entry) => `${entry.address}:${entry.label || ''}`).join('|');
+    const validScopes = new Set(['portfolio', ...entries.map((entry) => entry.address)]);
+    if (!validScopes.has(portfolioHistoryScope)) portfolioHistoryScope = 'portfolio';
+    if (select.dataset.signature !== signature) {
+        const options = [
+            new Option('Portfolio total', 'portfolio'),
+            ...entries.map((entry) => new Option(entry.label || shortAddress(entry.address), entry.address))
+        ];
+        select.replaceChildren(...options);
+        select.dataset.signature = signature;
+    }
+    select.value = portfolioHistoryScope;
+}
+
+function historySourceLabel(point) {
+    const sources = point?.sources?.length ? point.sources : [point?.source];
+    return [...new Set(sources.filter(Boolean).map((source) => ({
+        'tzkt-stepped-balance-history': 'TzKT stepped history',
+        'tzkt-balance-history': 'TzKT point history',
+        'octez-archive': 'Octez archive',
+        'tzkt-rpc-archive': 'TzKT archive RPC',
+        'pre-creation-zero': 'account lifecycle',
+        'mixed-exact-sources': 'mixed exact sources'
+    }[source] || source)))].join(' + ') || 'exact source pending';
+}
+
+function selectedHistory() {
+    if (portfolioHistoryScope === 'portfolio') {
+        return {
+            points: exactHistoryState.aggregate || [],
+            coverage: exactHistoryState.aggregateCoverage || {}
+        };
+    }
+    return {
+        points: exactHistoryState.seriesByAddress?.[portfolioHistoryScope] || [],
+        coverage: exactHistoryState.coverageByAddress?.[portfolioHistoryScope] || {}
+    };
+}
+
+function renderHistoryStatus(points, coverage) {
+    const status = document.getElementById('portfolio-history-status');
+    if (!status) return;
+    const completed = Number(coverage?.completed) || 0;
+    const target = Number(coverage?.target) || 0;
+    const earliest = points[0]?.timestamp
+        ? new Date(points[0].timestamp).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+        : 'pending';
+    const latestLevel = points.at(-1)?.level || coverage?.latestLevel;
+    const sources = [...new Set(points.flatMap((point) => historySourceLabel(point).split(' + ')))].join(' + ');
+    const stage = exactHistoryState.sourceStatus?.stage || 'cached';
+    status.textContent = target
+        ? `${completed}/${target} exact points · earliest ${earliest} · daily latest year, weekly earlier${latestLevel ? ` · block ${Number(latestLevel).toLocaleString()}` : ''}${sources ? ` · ${sources}` : ''}`
+        : 'Preparing the exact one-year schedule…';
+    status.dataset.state = !target
+        ? 'empty'
+        : coverage?.complete
+        ? 'complete'
+        : stage === 'daily' || stage === 'lifetime'
+            ? 'loading'
+            : completed > 0
+                ? 'partial'
+                : 'empty';
+}
+
+function renderHistory() {
     const canvas = document.getElementById('portfolio-history-chart');
     const empty = document.getElementById('portfolio-history-empty');
     if (!canvas || !empty) return;
-    const store = readHistoryStore();
-    const observed = historyPointsForRange(
-        compactPortfolioHistory(store.series?.[composition] || []),
-        portfolioRange
-    );
-    const reconstructed = historyPointsForRange(reconstructedHistoryPoints, portfolioRange);
-    const allTimestamps = Array.from(new Set([
-        ...observed.map((point) => point.timestamp),
-        ...reconstructed.map((point) => point.timestamp)
-    ])).sort((left, right) => left - right);
+    renderHistoryScopeOptions();
+    const selected = selectedHistory();
+    const points = historyPointsForRange(selected.points, portfolioRange);
+    renderHistoryStatus(selected.points, selected.coverage);
 
-    if (allTimestamps.length < 2 || !window.Chart) {
+    if (points.length < 2 || !window.Chart) {
         canvas.hidden = true;
         empty.hidden = false;
-        const first = observed[0] || reconstructed[0];
+        const first = points[0];
         empty.textContent = first
-            ? `History evidence begins ${new Date(first.timestamp).toLocaleString()}. Another point is needed to draw this range.`
-            : 'History begins with a reconstructed TzKT check or the first complete browser observation.';
+            ? `Exact history begins ${new Date(first.timestamp).toLocaleString()}. Another point is needed to draw this range.`
+            : selected.coverage?.target
+                ? 'Loading missing exact points. Saved points remain on this device and resume when My Tezos is visible.'
+                : 'Building the exact daily one-year schedule…';
         if (portfolioChart) {
-            portfolioChart.destroy();
-            portfolioChart = null;
+            portfolioChart.data.labels = [];
+            portfolioChart.data.datasets[0].data = [];
+            portfolioChart.$exactHistoryPoints = [];
+            portfolioChart.update('none');
         }
         return;
     }
 
     canvas.hidden = false;
     empty.hidden = true;
-    const labels = allTimestamps.map((timestamp) => chartLabel(timestamp, portfolioRange));
-    const observedByTimestamp = new Map(observed.map((point) => [point.timestamp, point]));
-    const reconstructedByTimestamp = new Map(reconstructed.map((point) => [point.timestamp, point]));
+    const labels = points.map((point) => chartLabel(point.timestamp, portfolioRange));
     const datasets = [{
-        label: 'Reconstructed liquid*',
-        data: allTimestamps.map((timestamp) => {
-            const point = reconstructedByTimestamp.get(timestamp);
-            return point ? point.liquid / 1e6 : null;
-        }),
-        borderColor: '#f5b84b',
-        backgroundColor: '#f5b84b18',
-        borderWidth: 1.5,
-        borderDash: [5, 4],
-        pointRadius: reconstructed.length > 48 ? 0 : 2,
+        label: 'Total XTZ',
+        data: points.map((point) => point.totalMutez / 1e6),
+        borderColor: '#4dd4ff',
+        backgroundColor: '#4dd4ff18',
+        borderWidth: 2.5,
+        pointRadius: points.length > 48 ? 0 : 2,
         pointHoverRadius: 3,
         tension: 0.2,
         fill: false,
         spanGaps: false
-    }, ...[
-        ['Total', 'total', '#4dd4ff', 2.5],
-        ['Spendable', 'spendable', '#45e0c8', 1.5],
-        ['Staked', 'staked', '#8f91ff', 1.5],
-        ['Unstaking', 'unstaking', '#f5b84b', 1.5]
-    ].map(([label, key, color, width]) => ({
-        label,
-        data: allTimestamps.map((timestamp) => {
-            const point = observedByTimestamp.get(timestamp);
-            return point ? point[key] / 1e6 : null;
-        }),
-        borderColor: color,
-        backgroundColor: `${color}18`,
-        borderWidth: width,
-        pointRadius: observed.length > 48 ? 0 : 2,
-        pointHoverRadius: 3,
-        tension: 0.2,
-        fill: false,
-        spanGaps: false
-    }))];
+    }];
 
     if (portfolioChart) {
         portfolioChart.data.labels = labels;
         portfolioChart.data.datasets = datasets;
+        portfolioChart.$exactHistoryPoints = points;
         portfolioChart.update('none');
         return;
     }
@@ -502,7 +556,17 @@ function renderHistory(composition) {
                     }
                 },
                 tooltip: {
-                    callbacks: { label: (context) => `${context.dataset.label}: ${Number(context.raw).toLocaleString('en-US', { maximumFractionDigits: 2 })} ꜩ` }
+                    callbacks: {
+                        label: (context) => `${context.dataset.label}: ${Number(context.raw).toLocaleString('en-US', { maximumFractionDigits: 2 })} ꜩ`,
+                        afterLabel: (context) => {
+                            const point = context.chart.$exactHistoryPoints?.[context.dataIndex];
+                            if (!point) return [];
+                            return [
+                                `Block ${Number(point.level).toLocaleString()}`,
+                                `${point.cadence === 'daily' ? 'Daily' : 'Weekly'} sample · ${historySourceLabel(point)}`
+                            ];
+                        }
+                    }
                 }
             },
             scales: {
@@ -515,6 +579,7 @@ function renderHistory(composition) {
             }
         }
     });
+    portfolioChart.$exactHistoryPoints = points;
 }
 
 async function fetchPortfolioAccounts(entries, signal) {
@@ -541,7 +606,7 @@ export async function refreshMyTezosPortfolio({ force = false } = {}) {
     if (!included.length) {
         lastCompletePortfolio = null;
         renderEmptySummary();
-        renderHistory(composition);
+        renderHistory();
         setFreshness('No addresses are currently included.', 'empty');
         return null;
     }
@@ -580,7 +645,7 @@ export async function refreshMyTezosPortfolio({ force = false } = {}) {
             setMyTezosMeta(`portfolio-last-good:${composition}`, model).catch(() => {});
             renderSummary(model);
             renderWalletList(currentEntries(), model);
-            renderHistory(composition);
+            renderHistory();
             setFreshness(`Complete · ${included.length}/${included.length} included addresses · ${formatFreshnessStamp(new Date(model.timestamp), { source: 'Portfolio' })}`, 'complete');
             window.dispatchEvent(new CustomEvent('my-tezos-portfolio-ready', { detail: { composition, totals, count: included.length } }));
             return model;
@@ -590,7 +655,7 @@ export async function refreshMyTezosPortfolio({ force = false } = {}) {
             if (sameComposition) {
                 renderSummary(lastCompletePortfolio);
                 renderWalletList(currentEntries(), lastCompletePortfolio);
-                renderHistory(composition);
+                renderHistory();
             } else {
                 renderEmptySummary('Current portfolio unavailable. No partial total is shown.');
             }
@@ -740,9 +805,15 @@ function wirePortfolioControls() {
                 candidate.classList.toggle('active', active);
                 candidate.setAttribute('aria-pressed', String(active));
             });
-            renderHistory(portfolioCompositionKey(includedEntries()));
+            renderHistory();
         };
     });
+
+    const historyWallet = document.getElementById('portfolio-history-wallet');
+    if (historyWallet) historyWallet.onchange = () => {
+        portfolioHistoryScope = historyWallet.value || 'portfolio';
+        renderHistory();
+    };
 
     const form = document.getElementById('portfolio-add-form');
     if (form) form.onsubmit = async (event) => {
@@ -803,7 +874,7 @@ export async function activateMyTezosPortfolio({ force = false } = {}) {
     } else if (!includedEntries(entries).length) {
         renderEmptySummary();
     }
-    renderHistory(composition);
+    renderHistory();
     activateMyTezosMemory().catch(() => {});
     return refreshMyTezosPortfolio({ force: force || !lastCompletePortfolio || lastCompletePortfolio.composition !== composition });
 }
@@ -816,7 +887,7 @@ export function initMyTezosPortfolio() {
     initMyTezosMemory();
     wirePortfolioControls();
     renderWalletList(currentEntries());
-    renderHistory(portfolioCompositionKey(includedEntries()));
+    renderHistory();
 
     window.addEventListener('my-tezos-portfolio-changed', () => {
         const entries = currentEntries();
@@ -825,7 +896,7 @@ export function initMyTezosPortfolio() {
         if (lastCompletePortfolio?.composition !== composition) {
             renderEmptySummary('Portfolio composition changed. Waiting for a complete current read.');
         }
-        renderHistory(composition);
+        renderHistory();
         if (isPortfolioVisible()) refreshMyTezosPortfolio({ force: true }).catch(() => {});
     });
     window.addEventListener('my-baker-updated', () => renderWalletList(currentEntries()));
@@ -842,10 +913,20 @@ export function initMyTezosPortfolio() {
         const expected = includedEntries().map((entry) => entry.address).sort().join('|');
         const received = (event.detail?.compositionAddresses || []).slice().sort().join('|');
         if (expected !== received) return;
-        reconstructedHistoryPoints = Array.isArray(event.detail?.reconstructed)
-            ? event.detail.reconstructed
-            : [];
-        renderHistory(portfolioCompositionKey(includedEntries()));
+        exactHistoryState = {
+            seriesByAddress: event.detail?.seriesByAddress || {},
+            aggregate: Array.isArray(event.detail?.aggregate) ? event.detail.aggregate : [],
+            coverageByAddress: event.detail?.coverageByAddress || {},
+            aggregateCoverage: event.detail?.aggregateCoverage || {
+                completed: 0,
+                target: 0,
+                dailyCompleted: 0,
+                dailyTarget: 0,
+                complete: false
+            },
+            sourceStatus: event.detail?.sourceStatus || { stage: event.detail?.status || 'cached' }
+        };
+        renderHistory();
     });
 
     portfolioTimer = setInterval(() => {
@@ -862,5 +943,20 @@ export function destroyMyTezosPortfolioForTests() {
     portfolioRefreshController?.abort();
     portfolioRefreshController = null;
     portfolioRefreshInFlight = null;
+    portfolioRange = '1y';
+    portfolioHistoryScope = 'portfolio';
+    exactHistoryState = {
+        seriesByAddress: {},
+        aggregate: [],
+        coverageByAddress: {},
+        aggregateCoverage: {
+            completed: 0,
+            target: 0,
+            dailyCompleted: 0,
+            dailyTarget: 0,
+            complete: false
+        },
+        sourceStatus: { stage: 'cached' }
+    };
     portfolioInitialized = false;
 }

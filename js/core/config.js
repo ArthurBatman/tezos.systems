@@ -12,6 +12,8 @@ export const API_URLS = {
   tzkt: 'https://api.tzkt.io/v1',
   octez: 'https://eu.rpc.tez.capital',
   octezMainnet: 'https://tezos-mainnet.octez.io',
+  octezArchive: 'https://octez-mainnet-archive.octez.io',
+  tzktArchive: 'https://rpc.tzkt.io/mainnet',
   teztale: 'https://teztale-server-mainnet-ro-prd.octez.tech',
   coingecko: 'https://api.coingecko.com/api/v3',
   defillama: 'https://api.llama.fi',

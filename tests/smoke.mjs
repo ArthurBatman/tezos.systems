@@ -1336,6 +1336,8 @@ async function installFeatureMocks(context, options = {}) {
   const governanceAdoptionPeriod = Boolean(options.governanceAdoptionPeriod);
   const leaderboardSignals = Boolean(options.leaderboardSignals);
   const bakerDirectoryPaged = Boolean(options.bakerDirectoryPaged);
+  const historyStakerAddresses = new Set(options.historyStakerAddresses || []);
+  const archivePrimaryFailure = Boolean(options.archivePrimaryFailure);
   const whaleChamberMocks = Boolean(options.whaleChamberMocks);
   const bakerPageOffsets = [];
   let whaleLiveRequests = 0;
@@ -1976,6 +1978,18 @@ async function installFeatureMocks(context, options = {}) {
       return fulfillJson(route, { jsonrpc: '2.0', id: 1, result: null });
     }
 
+    if (url.includes('octez-mainnet-archive.octez.io') || url.includes('rpc.tzkt.io/mainnet')) {
+      if (url.endsWith('/config/history_mode')) return fulfillJson(route, { history_mode: 'archive' });
+      if (url.includes('/context/contracts/') && url.endsWith('/full_balance')) {
+        if (archivePrimaryFailure && url.includes('octez-mainnet-archive.octez.io')) {
+          return fulfillJson(route, { error: 'primary archive unavailable in smoke' });
+        }
+        const address = decodeURIComponent(url.split('/context/contracts/')[1]?.split('/')[0] || SAMPLE_ADDRESS);
+        const offset = address === SAMPLE_ADDRESS ? 0 : 100000000;
+        return fulfillJson(route, String(500000000000 + offset));
+      }
+    }
+
     if (url.includes('eu.rpc.tez.capital')) {
       if (url.includes('/context/issuance/current_yearly_rate')) return fulfillText(route, '4.5');
       if (url.includes('/context/total_supply')) return fulfillText(route, '1050000000000000');
@@ -2117,6 +2131,11 @@ async function installFeatureMocks(context, options = {}) {
           }
         ]);
       }
+      if (/\/balance_history\/\d+$/.test(parsedUrl.pathname)) {
+        const address = decodeURIComponent(parsedUrl.pathname.split('/accounts/')[1]?.split('/')[0] || SAMPLE_ADDRESS);
+        const offset = address === SAMPLE_ADDRESS ? 0 : 100000000;
+        return fulfillJson(route, 500000000000 + offset);
+      }
       if (url.includes('/contracts/KT1GWnsoFZVHGh7roXEER3qeCcgJgrXT3de2/storage')) {
         return fulfillJson(route, {
           drift: '0',
@@ -2187,6 +2206,15 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/blocks?')) {
         if (networkHealthBlocksDelayMs > 0) await sleep(networkHealthBlocksDelayMs);
         const params = new URL(url).searchParams;
+        const requestedLevels = (params.get('level.in') || '').split(',').filter(Boolean).map(Number).filter(Number.isFinite);
+        if (requestedLevels.length) {
+          const now = Date.now();
+          return fulfillJson(route, requestedLevels.map((level) => ({
+            level,
+            timestamp: new Date(now - Math.max(0, 12345678 - level) * 6000).toISOString(),
+            protocol: null
+          })));
+        }
         const requestedLimit = Number(params.get('limit')) || 4;
         const count = Math.max(1, Math.min(requestedLimit, 20));
         const now = Date.now() - blockHeadLagMs;
@@ -2509,6 +2537,9 @@ async function installFeatureMocks(context, options = {}) {
           address: baker.address,
           alias: baker.alias,
           type: 'delegate',
+          firstActivity: 12000000,
+          firstActivityTime: new Date(Date.now() - 240 * 86400000).toISOString(),
+          stakingOpsCount: 1,
           balance: baker.balance,
           stakedBalance: baker.stakedBalance,
           unstakedBalance: 0,
@@ -2518,8 +2549,11 @@ async function installFeatureMocks(context, options = {}) {
           address,
           alias: null,
           type: 'user',
-          balance: 0,
-          stakedBalance: 0,
+          firstActivity: 12000000,
+          firstActivityTime: new Date(Date.now() - 240 * 86400000).toISOString(),
+          stakingOpsCount: historyStakerAddresses.has(address) ? 1 : 0,
+          balance: historyStakerAddresses.has(address) ? 700000000000 : 0,
+          stakedBalance: historyStakerAddresses.has(address) ? 200000000000 : 0,
           unstakedBalance: 0,
           delegate: null
         }));
@@ -7087,8 +7121,12 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       row: document.querySelector(`.portfolio-wallet-row[data-address="${activeAddress}"]`)
     };
   }, SAMPLE_ADDRESS_2);
-  await page.locator('[data-portfolio-range="24h"]').click();
-  await page.waitForFunction(() => Boolean(window.Chart?.getChart(document.querySelector('#portfolio-history-chart'))), null, { timeout: 5000 });
+  await page.locator('[data-portfolio-range="30d"]').click();
+  await page.waitForFunction(() => {
+    const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+    return chart?.data?.datasets?.[0]?.label === 'Total XTZ'
+      && chart.data.datasets[0].data.length >= 2;
+  }, null, { timeout: 30000 });
   const historyGeometry = await page.evaluate(() => {
     const stage = document.querySelector('.portfolio-history-stage')?.getBoundingClientRect();
     const canvas = document.querySelector('#portfolio-history-chart')?.getBoundingClientRect();
@@ -7436,6 +7474,260 @@ async function smokeMyTezosStorage(browser, baseUrl) {
   log('ok - my tezos storage smoke');
 }
 
+async function smokeMyTezosBalanceHistory(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context, {
+    historyStakerAddresses: [SAMPLE_DELEGATOR_ADDRESS],
+    archivePrimaryFailure: true
+  });
+  await context.addInitScript((address) => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', address);
+    localStorage.setItem('tezos-systems-saved-addresses', JSON.stringify([
+      { network: 'tezos-l1', address, label: 'Historical staker', included: true, addedAt: Date.now() }
+    ]));
+  }, SAMPLE_DELEGATOR_ADDRESS);
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'my tezos exact balance history', issues);
+  const fullBalanceRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/full_balance')) fullBalanceRequests.push(request.url());
+  });
+
+  await openMyTezosSmokeView(page, baseUrl, 'portfolio');
+  try {
+    await page.waitForFunction(() => {
+      const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+      return document.querySelector('#portfolio-history-status')?.dataset.state === 'complete'
+        && chart?.data?.datasets?.length === 1
+        && chart.data.datasets[0].label === 'Total XTZ'
+        && chart.data.datasets[0].data.length >= 2;
+    }, null, { timeout: 30000 });
+  } catch (error) {
+    const debug = await page.evaluate(async () => {
+      const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+      const finalized = await fetch('https://api.tzkt.io/v1/blocks?sort.desc=level&offset=2&limit=1&select=level%2Ctimestamp%2Cprotocol').then((response) => response.json()).catch((failure) => ({ error: failure.message }));
+      return {
+        memory: document.querySelector('#portfolio-memory-status')?.textContent || '',
+        memoryState: document.querySelector('#portfolio-memory-status')?.dataset.state || '',
+        history: document.querySelector('#portfolio-history-status')?.textContent || '',
+        historyState: document.querySelector('#portfolio-history-status')?.dataset.state || '',
+        empty: document.querySelector('#portfolio-history-empty')?.textContent || '',
+        labels: chart?.data?.datasets?.map((dataset) => dataset.label) || [],
+        points: chart?.data?.datasets?.[0]?.data?.length || 0,
+        finalized
+      };
+    });
+    throw new Error(`${error.message} · ${JSON.stringify(debug)} · issues ${JSON.stringify(issues)}`);
+  }
+
+  const initial = await page.evaluate(async (address) => {
+    const chart = window.Chart.getChart(document.querySelector('#portfolio-history-chart'));
+    const request = indexedDB.open('tezos-systems-my-tezos');
+    const db = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction(['snapshots', 'syncState'], 'readonly');
+    const snapshotsRequest = tx.objectStore('snapshots').getAll();
+    const syncRequest = tx.objectStore('syncState').getAll();
+    const stored = await new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve({
+        snapshots: snapshotsRequest.result,
+        sync: syncRequest.result
+      });
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    const historical = stored.snapshots.filter((row) => row.sourceType === 'historical-total' && row.address === address);
+    return {
+      datasetLabels: chart.data.datasets.map((dataset) => dataset.label),
+      pointSources: chart.$exactHistoryPoints.map((point) => point.source),
+      activeRange: document.querySelector('[data-portfolio-range].active')?.dataset.portfolioRange,
+      scope: document.querySelector('#portfolio-history-wallet')?.value,
+      status: document.querySelector('#portfolio-history-status')?.textContent || '',
+      historical,
+      sync: stored.sync.filter((state) => state.stream === 'balance-history')
+    };
+  }, SAMPLE_DELEGATOR_ADDRESS);
+  const initialRequests = [...fullBalanceRequests];
+  assert(JSON.stringify(initial.datasetLabels) === JSON.stringify(['Total XTZ']), `my tezos exact history: chart rendered non-total evidence ${JSON.stringify(initial)}`);
+  assert(initial.activeRange === '1y' && initial.scope === 'portfolio', `my tezos exact history: default range or scope drifted ${JSON.stringify(initial)}`);
+  assert(initial.pointSources.every((source) => source === 'tzkt-rpc-archive'), `my tezos exact history: fallback archive source was not retained ${JSON.stringify(initial)}`);
+  assert(/exact points/i.test(initial.status) && /TzKT archive RPC/i.test(initial.status), `my tezos exact history: progress/source status missing ${JSON.stringify(initial)}`);
+  assert(
+    initial.historical.length >= 4
+      && initial.historical.every((row) => (
+        row.confidence === 'exact'
+          && Number.isFinite(row.level)
+          && Number.isFinite(row.timestamp)
+          && Number.isFinite(row.totalMutez)
+          && row.scheduleVersion === 'exact-total-xtz-v1'
+          && row.sourceReceipt?.historyModeUrl?.includes('rpc.tzkt.io/mainnet/config/history_mode')
+      )),
+    `my tezos exact history: normalized immutable fallback receipts missing ${JSON.stringify(initial)}`
+  );
+  assert(
+    initial.sync.length === 1
+      && initial.sync[0].dailyCoverage.completed === initial.sync[0].dailyCoverage.target
+      && initial.sync[0].lifetimeCoverage.completed === initial.sync[0].lifetimeCoverage.target
+      && initial.sync[0].gaps.length === 0,
+    `my tezos exact history: completed daily/lifetime coverage was not persisted ${JSON.stringify(initial.sync)}`
+  );
+  assert(
+    initialRequests.some((url) => url.includes('octez-mainnet-archive.octez.io'))
+      && initialRequests.some((url) => url.includes('rpc.tzkt.io/mainnet'))
+      && new Set(initialRequests).size === initialRequests.length,
+    `my tezos exact history: provider fallback or request dedupe failed ${JSON.stringify(initialRequests)}`
+  );
+
+  await page.selectOption('#portfolio-history-wallet', SAMPLE_DELEGATOR_ADDRESS);
+  await page.locator('[data-portfolio-range="all"]').click();
+  const label = page.locator(`[data-portfolio-label="${SAMPLE_DELEGATOR_ADDRESS}"]`);
+  await label.focus();
+  await label.fill('Historical vault');
+  await label.evaluate((input) => input.setSelectionRange(1, 7));
+  await page.evaluate(() => { document.querySelector('#drawer-body').scrollTop = 240; });
+  const quietBefore = await page.evaluate(() => {
+    window.__exactHistoryChartBefore = window.Chart.getChart(document.querySelector('#portfolio-history-chart'));
+    window.__exactHistoryCanvasBefore = document.querySelector('#portfolio-history-chart');
+    return { scroll: document.querySelector('#drawer-body').scrollTop };
+  });
+  await page.evaluate((address) => {
+    const chart = window.Chart.getChart(document.querySelector('#portfolio-history-chart'));
+    const points = chart.$exactHistoryPoints.map((point) => ({ ...point }));
+    const coverage = {
+      completed: points.length,
+      target: points.length,
+      dailyCompleted: points.filter((point) => point.cadence === 'daily').length,
+      dailyTarget: points.filter((point) => point.cadence === 'daily').length,
+      lifetimeCompleted: points.length,
+      lifetimeTarget: points.length,
+      complete: true
+    };
+    window.dispatchEvent(new CustomEvent('my-tezos-memory-ready', {
+      detail: {
+        compositionAddresses: [address],
+        seriesByAddress: { [address]: points },
+        aggregate: points,
+        coverageByAddress: { [address]: coverage },
+        aggregateCoverage: coverage,
+        sourceStatus: { stage: 'complete' },
+        status: 'complete'
+      }
+    }));
+  }, SAMPLE_DELEGATOR_ADDRESS);
+  await page.waitForTimeout(150);
+  const quietAfter = await page.evaluate((address) => {
+    const input = document.querySelector(`[data-portfolio-label="${address}"]`);
+    return {
+      sameChart: window.__exactHistoryChartBefore === window.Chart.getChart(document.querySelector('#portfolio-history-chart')),
+      sameCanvas: window.__exactHistoryCanvasBefore === document.querySelector('#portfolio-history-chart'),
+      range: document.querySelector('[data-portfolio-range].active')?.dataset.portfolioRange,
+      scope: document.querySelector('#portfolio-history-wallet')?.value,
+      focused: document.activeElement === input,
+      selectionStart: input?.selectionStart,
+      selectionEnd: input?.selectionEnd,
+      scroll: document.querySelector('#drawer-body').scrollTop
+    };
+  }, SAMPLE_DELEGATOR_ADDRESS);
+  assert(
+    quietAfter.sameChart
+      && quietAfter.sameCanvas
+      && quietAfter.range === 'all'
+      && quietAfter.scope === SAMPLE_DELEGATOR_ADDRESS
+      && quietAfter.focused
+      && quietAfter.selectionStart === 1
+      && quietAfter.selectionEnd === 7
+      && Math.abs(quietAfter.scroll - quietBefore.scroll) <= 1,
+    `my tezos exact history: quiet reconciliation moved or reset the reader ${JSON.stringify({ quietBefore, quietAfter })}`
+  );
+
+  await page.waitForFunction(() => document.querySelector('#portfolio-memory-status')?.dataset.state === 'complete', null, { timeout: 20000 });
+  await page.evaluate(async (address) => {
+    window.__historyVisibility = 'hidden';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => window.__historyVisibility
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    const request = indexedDB.open('tezos-systems-my-tezos');
+    const db = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const read = db.transaction('snapshots', 'readonly').objectStore('snapshots').getAll();
+    const rows = await new Promise((resolve, reject) => {
+      read.onsuccess = () => resolve(read.result);
+      read.onerror = () => reject(read.error);
+    });
+    const latest = rows
+      .filter((row) => row.sourceType === 'historical-total' && row.address === address)
+      .sort((left, right) => right.level - left.level)[0];
+    if (latest) {
+      const tx = db.transaction('snapshots', 'readwrite');
+      tx.objectStore('snapshots').delete(latest.id);
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+    db.close();
+    window.dispatchEvent(new CustomEvent('my-tezos-portfolio-changed', { detail: { source: 'hidden-history-smoke' } }));
+  }, SAMPLE_DELEGATOR_ADDRESS);
+  const beforeHiddenWake = fullBalanceRequests.length;
+  await page.waitForTimeout(500);
+  assert(fullBalanceRequests.length === beforeHiddenWake, `my tezos exact history: hidden tab started archive work ${JSON.stringify(fullBalanceRequests.slice(beforeHiddenWake))}`);
+  await page.evaluate(() => {
+    window.__historyVisibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction(() => (
+    document.querySelector('#portfolio-memory-status')?.dataset.state === 'loading'
+  ), null, { timeout: 5000 });
+  await page.waitForFunction(() => (
+    document.querySelector('#portfolio-memory-status')?.dataset.state !== 'loading'
+  ), null, { timeout: 30000 });
+  if (fullBalanceRequests.length <= beforeHiddenWake) {
+    const debug = await page.evaluate(() => ({
+      visibility: document.visibilityState,
+      drawerOpen: document.querySelector('#my-tezos-drawer')?.classList.contains('open'),
+      portfolioHidden: document.querySelector('#my-tezos-panel-portfolio')?.hidden,
+      memory: document.querySelector('#portfolio-memory-status')?.textContent || '',
+      memoryState: document.querySelector('#portfolio-memory-status')?.dataset.state || '',
+      history: document.querySelector('#portfolio-history-status')?.textContent || ''
+    }));
+    throw new Error(`my tezos exact history: missing immutable point did not resume when visible · ${JSON.stringify(debug)}`);
+  }
+
+  await page.route('**/context/contracts/**/full_balance', (route) => route.abort());
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#my-tezos-btn').click();
+  await page.locator('#my-tezos-tab-portfolio').click();
+  await page.waitForFunction(() => {
+    const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
+    return chart?.data?.datasets?.[0]?.label === 'Total XTZ'
+      && chart.data.datasets[0].data.length >= 2;
+  }, null, { timeout: 10000 });
+  const cached = await page.evaluate(() => ({
+    status: document.querySelector('#portfolio-history-status')?.textContent || '',
+    points: window.Chart.getChart(document.querySelector('#portfolio-history-chart')).data.datasets[0].data.length
+  }));
+  assert(cached.points >= 2 && /exact points/i.test(cached.status), `my tezos exact history: cached first paint failed under provider outage ${JSON.stringify(cached)}`);
+
+  await context.close();
+  assert(issues.length === 0, `my tezos exact balance history browser issues:\n${issues.join('\n')}`);
+  log('ok - my tezos exact balance history smoke');
+}
+
 async function smokeMyTezosMemory(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -7462,7 +7754,9 @@ async function smokeMyTezosMemory(browser, baseUrl) {
   await page.locator('[data-portfolio-range="all"]').click();
   await page.waitForFunction(() => {
     const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
-    return chart?.data?.datasets?.some((dataset) => dataset.label === 'Reconstructed liquid*');
+    return chart?.data?.datasets?.length === 1
+      && chart.data.datasets[0].label === 'Total XTZ'
+      && chart.data.datasets[0].data.length >= 2;
   }, null, { timeout: 10000 });
   await page.locator('#my-tezos-tab-story').click();
   await page.waitForFunction(() => (
@@ -7538,19 +7832,41 @@ async function smokeMyTezosMemory(browser, baseUrl) {
       boundary: document.querySelector('.portfolio-history-boundary')?.textContent || '',
       whileAway: document.querySelector('#portfolio-while-away')?.textContent || '',
       activity: document.querySelector('#portfolio-activity-list')?.textContent || '',
+      historyStatus: document.querySelector('#portfolio-history-status')?.textContent || '',
+      historyScope: document.querySelector('#portfolio-history-wallet')?.value || '',
+      historyOptions: Array.from(document.querySelectorAll('#portfolio-history-wallet option')).map((option) => option.value),
+      chartPoints: chart?.$exactHistoryPoints || [],
       lastSeen: Number(localStorage.getItem('tezos-systems-my-tezos-memory-last-seen-v1')) || 0,
-      reconstructed: stored.snapshots.filter((row) => row.sourceType === 'reconstructed').length,
+      historical: stored.snapshots.filter((row) => row.sourceType === 'historical-total').length,
       observed: stored.snapshots.filter((row) => row.sourceType === 'observed').length,
       activityRows: stored.activity.length,
       sync: stored.sync
     };
   });
-  assert(memoryState.labels.includes('Reconstructed liquid*') && memoryState.labels.includes('Total'), `my tezos memory: evidence tracks were not kept separate ${JSON.stringify(memoryState)}`);
-  assert(/exclude staked tez/i.test(memoryState.boundary) && !/P&L/i.test(memoryState.activity), `my tezos memory: historical limitation boundary missing ${JSON.stringify(memoryState)}`);
+  assert(JSON.stringify(memoryState.labels) === JSON.stringify(['Total XTZ']), `my tezos memory: exact chart must render one total line ${JSON.stringify(memoryState)}`);
+  assert(/full_balance/i.test(memoryState.boundary) && /never replaced/i.test(memoryState.boundary) && !/P&L/i.test(memoryState.activity), `my tezos memory: exact-source boundary missing ${JSON.stringify(memoryState)}`);
   assert(/Memory is ready|No new indexed activity/i.test(memoryState.whileAway) && memoryState.lastSeen > 0, `my tezos memory: initial reconstruction was mislabeled as unseen ${JSON.stringify(memoryState)}`);
   assert(/Moved XTZ|Staked XTZ|Delegate changed/i.test(memoryState.activity), `my tezos memory: human activity classification missing ${memoryState.activity}`);
-  assert(memoryState.reconstructed === 6 && memoryState.observed >= 1 && memoryState.activityRows >= 4, `my tezos memory: normalized records were not persisted ${JSON.stringify(memoryState)}`);
+  assert(memoryState.historical >= 8 && memoryState.observed >= 1 && memoryState.activityRows >= 4, `my tezos memory: normalized records were not persisted ${JSON.stringify(memoryState)}`);
+  assert(
+    memoryState.historyScope === 'portfolio'
+      && memoryState.historyOptions.includes(SAMPLE_ADDRESS)
+      && memoryState.historyOptions.includes(SAMPLE_ADDRESS_2)
+      && /exact points/i.test(memoryState.historyStatus)
+      && memoryState.chartPoints.every((point) => point.confidence === 'exact' && Number.isFinite(point.level)),
+    `my tezos memory: portfolio/address selector or exact point receipt missing ${JSON.stringify(memoryState)}`
+  );
   assert(memoryState.sync.some((state) => state.stream === 'activity' && state.windowComplete === true), `my tezos memory: resumable activity state missing ${JSON.stringify(memoryState.sync)}`);
+  assert(
+    memoryState.sync.filter((state) => state.stream === 'balance-history').length === 2
+      && memoryState.sync.filter((state) => state.stream === 'balance-history').every((state) => (
+        state.scheduleVersion === 'exact-total-xtz-v1'
+          && Number.isFinite(state.dailyCoverage?.target)
+          && Number.isFinite(state.lifetimeCoverage?.target)
+          && Array.isArray(state.gaps)
+      )),
+    `my tezos memory: independent exact coverage state missing ${JSON.stringify(memoryState.sync)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `my tezos memory browser issues:\n${issues.join('\n')}`);
@@ -16085,7 +16401,8 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-historical-rewards', description: 'My Tezos keeps historical rewards out of the Current Cycle value and shows an inactive reward role honestly', run: () => smokeMyTezosHistoricalRewards(browser, baseUrl) },
     { name: 'my-tezos-storage', description: 'My Tezos migrates legacy browser data into normalized IndexedDB without reordering duplicates or losing labels', run: () => smokeMyTezosStorage(browser, baseUrl) },
     { name: 'my-tezos-portfolio', description: 'My Tezos adaptive tabs, exact multi-address totals, unified account journeys, complete-only failure state, quiet refresh, and desktop geometry', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
-    { name: 'my-tezos-memory', description: 'Your Story Memory keeps reconstructed and observed evidence separate while handing human-readable receipts to Transactions', run: () => smokeMyTezosMemory(browser, baseUrl) },
+    { name: 'my-tezos-balance-history', description: 'My Tezos exact total-XTZ history verifies archive fallback, immutable caching, hidden-tab resume, and quiet chart state', run: () => smokeMyTezosBalanceHistory(browser, baseUrl) },
+    { name: 'my-tezos-memory', description: 'My Tezos persists exact per-address balance points while handing human-readable receipts to Transactions and Your Story', run: () => smokeMyTezosMemory(browser, baseUrl) },
     { name: 'my-tezos-collection', description: 'Collection aggregates included L1 NFT holdings without presenting marketplace asks as portfolio value', run: () => smokeMyTezosCollection(browser, baseUrl) },
     { name: 'my-tezos-tezosx', description: 'Tezos X links device-local Etherlink accounts with explicit L2 provenance, assets, activity, and independent inclusion', run: () => smokeMyTezosTezosX(browser, baseUrl) },
     { name: 'my-tezos-ledger-flow-handoff', description: 'My Tezos closes its mobile drawer before opening the address-scoped Ledger Flow Chamber', run: () => smokeMyTezosLedgerFlowHandoff(browser, baseUrl) },

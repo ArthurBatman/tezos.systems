@@ -6,34 +6,6 @@ import { normalizeLinkedL2Accounts } from '../core/my-tezos-models.mjs';
 
 export const MY_TEZOS_PORTFOLIO_SCHEMA = 'tezos-systems-my-tezos/v2';
 
-function portfolioDayKey(timestamp) {
-    return new Date(timestamp).toISOString().slice(0, 10);
-}
-
-export function buildReconstructedPortfolioSeries(entries, snapshots) {
-    const addresses = entries.map((entry) => entry.address);
-    if (!addresses.length) return [];
-    const byAddress = new Map(addresses.map((address) => [address, new Map()]));
-    for (const point of Array.isArray(snapshots) ? snapshots : []) {
-        if (point?.sourceType !== 'reconstructed' || !byAddress.has(point.address)) continue;
-        const timestamp = Number(point.timestamp);
-        if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
-        byAddress.get(point.address).set(portfolioDayKey(timestamp), point);
-    }
-    const sharedDays = [...(byAddress.get(addresses[0])?.keys() || [])]
-        .filter((day) => addresses.every((address) => byAddress.get(address)?.has(day)))
-        .sort();
-    return sharedDays.map((day) => {
-        const points = addresses.map((address) => byAddress.get(address).get(day));
-        return {
-            timestamp: Date.parse(`${day}T00:00:00Z`),
-            liquid: points.reduce((sum, point) => sum + (Number(point.liquid) || 0), 0),
-            sourceType: 'reconstructed',
-            confidence: 'exact',
-            limitation: 'TzKT historical balance; staked tez can be excluded for non-bakers.'
-        };
-    });
-}
 export const MY_TEZOS_PORTFOLIO_LEGACY_SCHEMA = 'tezos-systems-portfolio/v1';
 export const MY_TEZOS_PORTFOLIO_HISTORY_SCHEMA = 1;
 export { MY_TEZOS_PORTFOLIO_NETWORK };

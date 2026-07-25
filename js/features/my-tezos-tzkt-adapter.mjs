@@ -10,7 +10,6 @@ import {
 } from '../core/my-tezos-request-broker.mjs';
 import { normalizeTzktAccountOperation } from './my-tezos-activity-model.mjs';
 
-const DAILY_LEVEL_STEP = 14_400;
 const ACTIVITY_PAGE_SIZE = 100;
 const ACTIVITY_TYPES = [
     'transaction',
@@ -36,7 +35,7 @@ export async function fetchMyTezosAccounts(entries, { signal, priority = 'intera
     const addresses = entries.map((entry) => entry.address);
     const query = new URLSearchParams({
         'address.in': addresses.join(','),
-        select: 'address,alias,type,delegate,balance,stakedBalance,unstakedBalance',
+        select: 'address,alias,type,delegate,balance,stakedBalance,unstakedBalance,firstActivity,firstActivityTime,stakingOpsCount',
         limit: String(addresses.length)
     });
     const url = `${API_URLS.tzkt}/accounts?${query}`;
@@ -52,45 +51,6 @@ export async function fetchMyTezosAccounts(entries, { signal, priority = 'intera
             sourceUrl: url,
             coverage: { state: 'complete', pages: 1, items: rows.length },
             confidence: 'exact'
-        })
-    };
-}
-
-export async function fetchMyTezosBalanceHistory(address, {
-    signal,
-    days = 365,
-    priority = 'background'
-} = {}) {
-    const query = new URLSearchParams({
-        step: String(DAILY_LEVEL_STEP),
-        'sort.desc': 'level',
-        limit: String(Math.min(400, Math.max(2, days + 2)))
-    });
-    const url = `${API_URLS.tzkt}/accounts/${encodeURIComponent(address)}/balance_history?${query}`;
-    const payload = await requestJson(url, { signal, priority });
-    const rows = (Array.isArray(payload) ? payload : [])
-        .map((row) => ({
-            address,
-            timestamp: Date.parse(row?.timestamp || '') || Number(row?.timestamp) || 0,
-            level: Number(row?.level) || null,
-            liquid: Number(row?.balance ?? row?.value) || 0
-        }))
-        .filter((row) => row.timestamp > 0)
-        .sort((left, right) => left.timestamp - right.timestamp);
-    return {
-        rows,
-        receipt: createSourceReceipt({
-            provider: 'TzKT',
-            sourceUrl: url,
-            coverage: {
-                state: 'partial',
-                from: rows[0]?.timestamp ? new Date(rows[0].timestamp).toISOString() : null,
-                to: rows.at(-1)?.timestamp ? new Date(rows.at(-1).timestamp).toISOString() : null,
-                pages: 1,
-                items: rows.length
-            },
-            confidence: 'exact',
-            warnings: ['Historical account balance can exclude staked tez for non-bakers.']
         })
     };
 }

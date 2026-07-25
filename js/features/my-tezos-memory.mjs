@@ -1,5 +1,5 @@
 /**
- * My Tezos Memory — reconstructed L1 history plus human-readable activity.
+ * My Tezos Memory — exact L1 total history plus human-readable activity.
  */
 
 import {
@@ -8,7 +8,6 @@ import {
     initMyTezosDb,
     commitMyTezosPage,
     pruneMyTezosActivityRecords,
-    putMyTezosRecords,
     setMyTezosMeta
 } from '../core/my-tezos-db.mjs';
 import { myTezosAccountKey } from '../core/my-tezos-models.mjs';
@@ -20,10 +19,12 @@ import {
     aggregateMyTezosActivities
 } from './my-tezos-activity-model.mjs';
 import {
-    fetchMyTezosActivityPage,
-    fetchMyTezosBalanceHistory
+    fetchMyTezosActivityPage
 } from './my-tezos-tzkt-adapter.mjs';
-import { buildReconstructedPortfolioSeries } from './my-tezos-portfolio-model.mjs';
+import {
+    readCachedExactBalanceHistory,
+    syncExactBalanceHistory
+} from './my-tezos-balance-history.mjs';
 
 const INITIAL_DAYS = 365;
 const INITIAL_PAGE_LIMIT = 3;
@@ -37,7 +38,7 @@ let syncInFlight = null;
 let syncController = null;
 let successfulVisibleRender = false;
 let currentActivities = [];
-let currentSeries = [];
+let currentHistory = null;
 let activityFilter = 'transfers';
 let unseenOnly = false;
 
@@ -52,10 +53,6 @@ function panelVisible() {
             || document.getElementById('my-tezos-panel-transactions')?.hidden === false
         )
         && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
-}
-
-function scopeId(address) {
-    return `reconstructed:l1:${address}`;
 }
 
 function setStorageNotice(message = '') {
@@ -80,7 +77,7 @@ function renderWhileAway(activities, { baselineCreated = false } = {}) {
         quietlySyncHtml(target, `
             <div class="portfolio-memory-empty">
                 <strong>Memory is ready</strong>
-                <span>Future on-chain changes will appear here after you return. Historical reconstruction is not marked as unseen.</span>
+                <span>Future on-chain changes will appear here after you return. Historical backfill is not marked as unseen.</span>
             </div>
         `);
         return;
@@ -90,7 +87,7 @@ function renderWhileAway(activities, { baselineCreated = false } = {}) {
         quietlySyncHtml(target, `
             <div class="portfolio-memory-empty">
                 <strong>No new indexed activity</strong>
-                <span>Nothing in the reconstructed receipts changed since ${escapeHtml(new Date(lastSeen).toLocaleString())}.</span>
+                <span>Nothing in the indexed receipts changed since ${escapeHtml(new Date(lastSeen).toLocaleString())}.</span>
             </div>
         `);
         return;
@@ -166,15 +163,26 @@ function setActivityFilter(filter, { onlyUnseen = false } = {}) {
     renderActivity(currentActivities);
 }
 
-function renderMemory(entries, snapshots, activities, { status = 'cached', baselineCreated = false } = {}) {
-    currentSeries = buildReconstructedPortfolioSeries(entries, snapshots);
+function renderMemory(entries, history, activities, { status = 'cached', baselineCreated = false } = {}) {
+    currentHistory = history;
     currentActivities = aggregateMyTezosActivities(activities, entries.map((entry) => entry.address));
     renderWhileAway(currentActivities, { baselineCreated });
     renderActivity(currentActivities);
     window.dispatchEvent(new CustomEvent('my-tezos-memory-ready', {
         detail: {
             compositionAddresses: entries.map((entry) => entry.address),
-            reconstructed: currentSeries,
+            scheduleVersion: history?.scheduleVersion || null,
+            seriesByAddress: history?.seriesByAddress || {},
+            aggregate: history?.aggregate || [],
+            coverageByAddress: history?.coverageByAddress || {},
+            aggregateCoverage: history?.aggregateCoverage || {
+                completed: 0,
+                target: 0,
+                dailyCompleted: 0,
+                dailyTarget: 0,
+                complete: false
+            },
+            sourceStatus: history?.sourceStatus || { stage: status },
             activities: currentActivities,
             status
         }
@@ -182,15 +190,9 @@ function renderMemory(entries, snapshots, activities, { status = 'cached', basel
 }
 
 async function readCachedMemory(entries) {
-    const snapshots = [];
+    const history = await readCachedExactBalanceHistory(entries);
     const activities = [];
     for (const entry of entries) {
-        const accountSnapshots = await getAllMyTezosRecords('snapshots', {
-            index: 'scopeId',
-            query: IDBKeyRange.only(scopeId(entry.address)),
-            limit: 10_000
-        });
-        snapshots.push(...accountSnapshots);
         const accountActivities = await getAllMyTezosRecords('activityByAccount', {
             index: 'accountKey',
             query: IDBKeyRange.only(myTezosAccountKey('l1', entry.address)),
@@ -199,24 +201,7 @@ async function readCachedMemory(entries) {
         });
         activities.push(...accountActivities);
     }
-    return { snapshots, activities };
-}
-
-async function persistBalanceHistory(address, result) {
-    const records = result.rows.slice(-10_000).map((point) => ({
-        id: `reconstructed:l1:${address}:${point.timestamp}`,
-        scopeId: scopeId(address),
-        address,
-        timestamp: point.timestamp,
-        level: point.level,
-        sourceType: 'reconstructed',
-        liquid: point.liquid,
-        confidence: 'exact',
-        limitation: 'Historical account balance can exclude staked tez for non-bakers.',
-        sourceReceipt: result.receipt
-    }));
-    await putMyTezosRecords('snapshots', records);
-    return records;
+    return { history, activities };
 }
 
 async function syncActivity(entries, ownedAddresses, { loadEarlier = false, signal } = {}) {
@@ -268,46 +253,59 @@ async function syncMemory({ loadEarlier = false, force = false } = {}) {
     const entries = includedEntries();
     const generation = ++activeGeneration;
     if (!entries.length) {
-        renderMemory([], [], [], { status: 'empty' });
-        setStatus('Include an L1 address to reconstruct Memory.', 'empty');
+        const cached = await readCachedMemory([]);
+        renderMemory([], cached.history, [], { status: 'empty' });
+        setStatus('Include an L1 address to load Memory.', 'empty');
         return null;
     }
-    setStatus(loadEarlier ? 'Loading earlier TzKT receipts…' : 'Reconstructing history in the background…', 'loading');
+    setStatus(loadEarlier ? 'Loading earlier TzKT receipts…' : 'Syncing account receipts while exact balance history fills…', 'loading');
     const controller = new AbortController();
     syncController = controller;
     const ownedAddresses = entries.map((entry) => entry.address);
 
     const pending = (async () => {
-        let successCount = 0;
-        const balanceResults = loadEarlier ? [] : await Promise.allSettled(entries.map(async (entry) => {
-            const result = await fetchMyTezosBalanceHistory(entry.address, { signal: controller.signal });
-            const records = await persistBalanceHistory(entry.address, result);
-            successCount += 1;
-            return records;
-        }));
-        const activityResults = await Promise.allSettled([syncActivity(entries, ownedAddresses, {
-            loadEarlier,
-            signal: controller.signal
-        }).then((records) => {
-            successCount += 1;
-            return records;
-        })]);
+        const before = await readCachedMemory(entries);
+        let latestHistory = before.history;
+        const historyPromise = loadEarlier
+            ? Promise.resolve(latestHistory)
+            : syncExactBalanceHistory(entries, {
+                signal: controller.signal,
+                onProgress: async (history) => {
+                    latestHistory = history;
+                    if (generation !== activeGeneration || !panelVisible()) return;
+                    renderMemory(entries, history, before.activities, { status: 'loading' });
+                }
+            });
+        const [historyResult, activityResult] = await Promise.allSettled([
+            historyPromise,
+            syncActivity(entries, ownedAddresses, {
+                loadEarlier,
+                signal: controller.signal
+            })
+        ]);
         if (generation !== activeGeneration || !panelVisible()) return null;
         const cached = await readCachedMemory(entries);
+        if (historyResult.status === 'fulfilled') latestHistory = historyResult.value;
         let baselineCreated = false;
+        const successCount = [historyResult, activityResult].filter((result) => result.status === 'fulfilled').length;
         if (successCount > 0 && !Number(localStorage.getItem(LAST_SEEN_KEY))) {
             localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
             baselineCreated = true;
         }
-        renderMemory(entries, cached.snapshots, cached.activities, {
-            status: successCount === (loadEarlier ? 1 : entries.length + 1) ? 'complete' : 'partial',
+        renderMemory(entries, cached.history?.aggregate?.length ? cached.history : latestHistory, cached.activities, {
+            status: successCount === 2 ? 'complete' : 'partial',
             baselineCreated
         });
         successfulVisibleRender = successCount > 0;
-        const failures = [...balanceResults, ...activityResults].filter((result) => result.status === 'rejected').length;
+        const failedResults = [historyResult, activityResult].filter((result) => result.status === 'rejected');
+        const failures = failedResults.length;
+        const failureSummary = failedResults
+            .map((result) => result.reason?.message || String(result.reason || 'source unavailable'))
+            .filter(Boolean)
+            .join(' · ');
         setStatus(
             failures
-                ? `Memory updated with partial source coverage · ${failures} request${failures === 1 ? '' : 's'} unavailable`
+                ? `Memory updated with partial source coverage · ${failureSummary || `${failures} request${failures === 1 ? '' : 's'} unavailable`}`
                 : `${loadEarlier ? 'Earlier receipts loaded' : 'Memory current'} · ${formatFreshnessStamp(new Date(), { source: 'TzKT' })}`,
             failures ? 'partial' : 'complete'
         );
@@ -344,7 +342,7 @@ export async function activateMyTezosMemory({ force = false } = {}) {
         await initMyTezosDb();
         setStorageNotice('');
         const cached = await readCachedMemory(entries);
-        renderMemory(entries, cached.snapshots, cached.activities, { status: 'cached' });
+        renderMemory(entries, cached.history, cached.activities, { status: 'cached' });
         scheduleSync({ force });
     } catch (error) {
         setStorageNotice('History cannot be saved on this device. Current data remains available for this visit.');
@@ -388,7 +386,7 @@ export function destroyMyTezosMemoryForTests() {
     syncInFlight = null;
     successfulVisibleRender = false;
     currentActivities = [];
-    currentSeries = [];
+    currentHistory = null;
     activityFilter = 'transfers';
     unseenOnly = false;
     initialized = false;

@@ -23279,6 +23279,30 @@ body[data-theme="nerv"]::after {
     display: flex;
     gap: 0.4rem;
 }
+.portfolio-history-controls {
+    flex: 0 0 auto;
+    display: grid;
+    justify-items: end;
+    gap: 0.45rem;
+}
+.portfolio-history-wallet-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--text-secondary);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.portfolio-history-wallet-label .my-tezos-scope-select {
+    width: min(220px, 32vw);
+    min-height: 34px;
+    padding: 0.35rem 1.8rem 0.35rem 0.55rem;
+    font-size: 0.7rem;
+    letter-spacing: 0;
+    text-transform: none;
+}
 .portfolio-history-ranges {
     flex: 0 0 auto;
     flex-wrap: nowrap;
@@ -23317,6 +23341,16 @@ body[data-theme="nerv"]::after {
 .portfolio-history-stage .portfolio-history-empty {
     min-height: var(--portfolio-history-height);
 }
+.portfolio-history-status {
+    min-height: 1.2rem;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    line-height: 1.45;
+}
+.portfolio-history-status[data-state="complete"] { color: #45e0c8; }
+.portfolio-history-status[data-state="loading"] { color: #4dd4ff; }
+.portfolio-history-status[data-state="partial"] { color: #f5b84b; }
 .portfolio-history-empty {
     min-height: 238px;
     display: grid;
@@ -23330,6 +23364,7 @@ body[data-theme="nerv"]::after {
     font-size: 0.78rem;
     line-height: 1.45;
 }
+.portfolio-history-empty[hidden] { display: none; }
 .portfolio-add-form {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) auto;
@@ -24162,6 +24197,17 @@ body[data-theme="nerv"]::after {
     }
     .portfolio-heading-row,
     .portfolio-section-heading { flex-direction: column; }
+    .portfolio-history-controls {
+        width: 100%;
+        justify-items: stretch;
+    }
+    .portfolio-history-wallet-label {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .portfolio-history-wallet-label .my-tezos-scope-select { width: 100%; }
+    .portfolio-history-ranges { justify-content: space-between; }
+    .portfolio-history-ranges button { flex: 1 1 0; }
     .my-tezos-scope-select {
         flex: 0 0 auto;
         align-self: stretch;
