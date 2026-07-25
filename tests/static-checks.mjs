@@ -2081,9 +2081,15 @@ async function checkSelectorContracts() {
     ['HEN allows WalletConnect modal roots', '[id*="walletconnect" i]', henModeCss],
     ['My Tezos wallet connect control', 'id="drawer-wallet-connect-btn"', index],
     ['My Tezos connected wallet control', 'id="my-tezos-wallet-connect"', index],
+    ['My Tezos Your Story tab', 'data-my-tezos-view="story"', index],
+    ['My Tezos Your Story panel', 'data-my-tezos-panel="story"', index],
+    ['My Tezos Story renderer', 'function renderStoryPanel(card, data)', myTezos],
+    ['My Tezos Story Memory handoff', "registerMyTezosView('story', () => activateMyTezosMemory())", myTezos],
     ['My Tezos Ledger Flow link control', 'id="my-tezos-ledger-flow-link"', index],
     ['My Tezos Ledger Flow explain card', 'drawer-ledger-flow-card', index],
-    ['My Tezos Ledger Flow explain copy', "Map this account's transfer paths", index],
+    ['My Tezos Ledger Flow explain copy', 'Trace sent, received, and first-funding paths around this account.', index],
+    ['My Tezos unified account journeys', 'Explore this account', index],
+    ['My Tezos shared account journey card', '.drawer-account-journey-card', styles],
     ['My Tezos Ledger Flow address route', '#ledger-flow=${encodeURIComponent(addr)}', myBaker],
     ['My Tezos Ledger Flow card display mode', "ledgerFlowLink.style.display = 'grid'", myBaker],
     ['My Tezos shared drawer state controller', 'setMyTezosDrawerOpenState = setDrawerOpen', app],
@@ -6131,6 +6137,9 @@ async function checkMaxisContracts() {
   for (const [label, snippet, source] of contracts) {
     if (!source.includes(snippet)) fail(`missing ${label}`);
   }
+  if (maxisCss.includes('.drawer-maxi-passport-card')) {
+    fail('My Tezos Maxi Passport styling must not depend on the lazy Maxis room stylesheet');
+  }
   if (!/domain\(name:\s*\$name\)\s*\{\s*address\s+owner\s*\}/s.test(tezosDomainsCore)) {
     fail('shared Tezos Domains resolver must request both address and owner');
   }
@@ -6932,7 +6941,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=485'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=486'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

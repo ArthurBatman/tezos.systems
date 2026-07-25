@@ -6201,8 +6201,8 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
     assert(
       state.connectedClass.includes('is-without-baker')
         && state.briefClass.includes('is-without-baker')
-        && state.briefTitles.length === 2
-        && state.briefTitles.some((title) => /Your Tezos Story/.test(title))
+        && state.briefTitles.length === 1
+        && !state.briefTitles.some((title) => /Your Tezos Story/.test(title))
         && !state.briefTitles.some((title) => /Baker Status/.test(title))
         && state.briefFullWidth,
       `my tezos idle account ${label}: redundant baker brief or split-card geometry remained ${JSON.stringify(state)}`
@@ -7045,6 +7045,10 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') === 'true', null, { timeout: 3000 });
   await page.locator('#my-tezos-tab-portfolio').press('End');
   await page.waitForFunction(() => document.querySelector('#my-tezos-tab-tezos-x')?.getAttribute('aria-selected') === 'true' && document.activeElement?.id === 'my-tezos-tab-tezos-x', null, { timeout: 3000 });
+  await page.locator('#my-tezos-tab-tezos-x').press('ArrowLeft');
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-story')?.getAttribute('aria-selected') === 'true' && document.activeElement?.id === 'my-tezos-tab-story', null, { timeout: 3000 });
+  await page.locator('#my-tezos-tab-story').press('End');
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-tezos-x')?.getAttribute('aria-selected') === 'true' && document.activeElement?.id === 'my-tezos-tab-tezos-x', null, { timeout: 3000 });
   await page.locator('#my-tezos-tab-tezos-x').press('Home');
   await page.waitForFunction(() => document.querySelector('#my-tezos-tab-overview')?.getAttribute('aria-selected') === 'true' && document.activeElement?.id === 'my-tezos-tab-overview', null, { timeout: 3000 });
   await page.locator('#my-tezos-tab-overview').press('ArrowRight');
@@ -7069,6 +7073,26 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     header: document.querySelector('#my-tezos-btn .nav-label')?.textContent || '',
     heroCount: document.querySelectorAll('#my-tezos-hero').length
   }));
+  const journeyGeometry = await page.evaluate(() => {
+    const section = document.querySelector('#drawer-more-section');
+    const actions = document.querySelector('#drawer-more-actions');
+    const cards = Array.from(actions?.querySelectorAll('.drawer-account-journey-card') || []).map((card) => {
+      const rect = card.getBoundingClientRect();
+      const description = card.querySelector('small');
+      return {
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        descriptionVisible: Boolean(description && getComputedStyle(description).display !== 'none')
+      };
+    });
+    return {
+      cards,
+      sectionDirect: section?.parentElement?.id === 'drawer-connected',
+      afterColumns: section?.previousElementSibling?.classList.contains('drawer-live-columns') === true,
+      secondaryContainers: document.querySelectorAll('#drawer-more-section-secondary').length
+    };
+  });
 
   assert(state.stored === SAMPLE_ADDRESS_2, `my tezos address switch: localStorage kept stale address ${state.stored}`);
   assert(state.connectedWallet === null, `my tezos address switch: manually saved wallets should not require a connected wallet ${JSON.stringify(state)}`);
@@ -7080,6 +7104,17 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   assert(!state.maxiPassportHidden && state.maxiPassportHref === `/maxis/?view=passport&address=${encodeURIComponent(SAMPLE_ADDRESS_2)}`, `my tezos address switch: Maxi Passport link not scoped to active address ${JSON.stringify(state)}`);
   assert(!state.header.includes(SAMPLE_ADDRESS.slice(0, 6)), `my tezos address switch: header still points at old baker: ${state.header}`);
   assert(state.heroCount === 0, `my tezos address switch: homepage address tracker should not render ${JSON.stringify(state)}`);
+  assert(
+    journeyGeometry.cards.length === 2
+      && journeyGeometry.cards[0].top === journeyGeometry.cards[1].top
+      && Math.abs(journeyGeometry.cards[0].width - journeyGeometry.cards[1].width) <= 1
+      && Math.abs(journeyGeometry.cards[0].height - journeyGeometry.cards[1].height) <= 1
+      && journeyGeometry.cards.every((card) => card.descriptionVisible)
+      && journeyGeometry.sectionDirect
+      && journeyGeometry.afterColumns
+      && journeyGeometry.secondaryContainers === 0,
+    `my tezos address switch: account journeys are not one equal desktop row ${JSON.stringify(journeyGeometry)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `my tezos address switch browser issues:\n${issues.join('\n')}`);
@@ -7304,7 +7339,17 @@ async function smokeMyTezosMemory(browser, baseUrl) {
     const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
     return chart?.data?.datasets?.some((dataset) => dataset.label === 'Reconstructed liquid*');
   }, null, { timeout: 10000 });
-  await page.locator('#my-tezos-tab-transactions').click();
+  await page.locator('#my-tezos-tab-story').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#my-tezos-tab-story')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-panel-story')?.hidden === false
+      && /Memory is ready|No new indexed activity/i.test(document.querySelector('#portfolio-while-away')?.textContent || '')
+  ), null, { timeout: 10000 });
+  assert(
+    await page.locator('#my-tezos-panel-portfolio #portfolio-while-away').count() === 0,
+    'my tezos memory: browser-local recent chapter remained in Portfolio'
+  );
+  await page.locator('#my-tezos-story-transactions').click();
   await page.waitForFunction(() => (
     document.querySelector('#my-tezos-tab-transactions')?.getAttribute('aria-selected') === 'true'
       && document.querySelector('#my-tezos-panel-transactions')?.hidden === false
@@ -7579,10 +7624,38 @@ async function smokeMyTezosLedgerFlowHandoff(browser, baseUrl) {
 
   const ledgerLink = page.locator('#my-tezos-ledger-flow-link');
   await ledgerLink.waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#my-tezos-maxi-passport-link').waitFor({ state: 'visible', timeout: 5000 });
   const expectedHash = `#ledger-flow=${encodeURIComponent(SAMPLE_ADDRESS)}`;
   assert(
     await ledgerLink.getAttribute('href') === expectedHash,
     `my tezos Ledger Flow handoff: link lost its address scope ${await ledgerLink.getAttribute('href')}`
+  );
+  const mobileJourneyGeometry = await page.evaluate(() => {
+    const section = document.querySelector('#drawer-more-section');
+    const actions = document.querySelector('#drawer-more-actions');
+    const cards = Array.from(actions?.querySelectorAll('.drawer-account-journey-card') || []).map((card) => {
+      const rect = card.getBoundingClientRect();
+      const description = card.querySelector('small');
+      return {
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        descriptionVisible: Boolean(description && getComputedStyle(description).display !== 'none')
+      };
+    });
+    return {
+      cards,
+      sectionDirect: section?.parentElement?.id === 'drawer-connected',
+      secondaryContainers: document.querySelectorAll('#drawer-more-section-secondary').length
+    };
+  });
+  assert(
+    mobileJourneyGeometry.cards.length === 2
+      && mobileJourneyGeometry.cards[0].top < mobileJourneyGeometry.cards[1].top
+      && Math.abs(mobileJourneyGeometry.cards[0].width - mobileJourneyGeometry.cards[1].width) <= 1
+      && mobileJourneyGeometry.cards.every((card) => card.descriptionVisible)
+      && mobileJourneyGeometry.sectionDirect
+      && mobileJourneyGeometry.secondaryContainers === 0,
+    `my tezos Ledger Flow handoff: account journeys are not one readable mobile stack ${JSON.stringify(mobileJourneyGeometry)}`
   );
 
   await ledgerLink.click();
@@ -7733,11 +7806,14 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
     throw new Error(`${error.message}\nmy tezos proposal attribution snapshot: ${JSON.stringify(snapshot)}`);
   }
 
-  const storyText = await page.evaluate(() => {
-    const sections = Array.from(document.querySelectorAll('#drawer-brief .brief-section'));
-    const story = sections.find((section) => section.textContent.includes('Your Tezos Story'));
-    return story?.textContent?.replace(/\s+/g, ' ').trim() || '';
-  });
+  await page.locator('#my-tezos-tab-story').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#my-tezos-tab-story')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-story-content .tezos-story-dossier')
+  ), null, { timeout: 10000 });
+  const storyText = await page.evaluate(() => (
+    document.querySelector('#my-tezos-story-content')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  ));
 
   assert(storyText.includes('Baker injected 1 accepted proposal'), `my tezos proposal attribution: missing baker attribution: ${storyText}`);
   assert(!storyText.includes('📜 Injected 1 accepted proposal'), `my tezos proposal attribution: delegator was credited as initiator: ${storyText}`);
@@ -7746,13 +7822,15 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(storyText.includes('Created 501 NFTs') && storyText.includes('2.50 XTZ sales'), `my tezos proposal attribution: creator stats missing: ${storyText}`);
   assert(storyText.includes('Known as qa-baker.tez'), `my tezos proposal attribution: domain alias missing: ${storyText}`);
 
-  await page.waitForFunction(() => document.querySelectorAll('#drawer-brief .tezos-story-dossier .tezos-story-metric').length >= 4, null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-metric').length >= 4, null, { timeout: 10000 });
   await page.waitForFunction(() => document.querySelectorAll('#drawer-network .network-signal').length >= 4, null, { timeout: 15000 });
   const storySurface = await page.evaluate(() => ({
-    metrics: document.querySelectorAll('#drawer-brief .tezos-story-dossier .tezos-story-metric').length,
-    badges: document.querySelectorAll('#drawer-brief .tezos-story-dossier .tezos-story-badge').length,
-    eras: document.querySelectorAll('#drawer-brief .tezos-story-dossier .tezos-story-era-dot.witnessed, #drawer-brief .tezos-story-dossier .tezos-story-era-dot.joined, #drawer-brief .tezos-story-dossier .tezos-story-era-dot.current').length,
-    next: document.querySelector('#drawer-brief .tezos-story-dossier .tezos-story-next')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    metrics: document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-metric').length,
+    badges: document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-badge').length,
+    eras: document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-era-dot.witnessed, #my-tezos-story-content .tezos-story-dossier .tezos-story-era-dot.joined, #my-tezos-story-content .tezos-story-dossier .tezos-story-era-dot.current').length,
+    next: document.querySelector('#my-tezos-story-content .tezos-story-dossier .tezos-story-next')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    overviewStoryCards: document.querySelectorAll('#drawer-brief .brief-section-story').length,
+    recentChapter: document.querySelector('#my-tezos-panel-story .my-tezos-recent-chapter')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     signals: document.querySelectorAll('#drawer-network .network-signal').length,
     focus: document.querySelector('#drawer-network .network-context-focus')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     networkText: document.querySelector('#drawer-network')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -7762,6 +7840,7 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(storySurface.badges >= 5, `my tezos proposal attribution: story badges too thin: ${JSON.stringify(storySurface)}`);
   assert(storySurface.eras >= 3, `my tezos proposal attribution: protocol era rail missing: ${JSON.stringify(storySurface)}`);
   assert(storySurface.next.includes('Now watching') || storySurface.next.includes('Now compounding'), `my tezos proposal attribution: next signal missing: ${storySurface.next}`);
+  assert(storySurface.overviewStoryCards === 0 && storySurface.recentChapter.includes('While you were away'), `my tezos proposal attribution: Story was not isolated in its own view ${JSON.stringify(storySurface)}`);
   assert(storySurface.signals >= 4, `my tezos proposal attribution: network context signals missing: ${JSON.stringify(storySurface)}`);
   assert(/Baker|Governance|Collector|Creator|Portfolio|Network/.test(storySurface.focus), `my tezos proposal attribution: network context focus chips missing: ${storySurface.focus}`);
   assert(storySurface.networkText.includes('Network Context') && storySurface.networkText.includes('Cycle'), `my tezos proposal attribution: network context header missing: ${storySurface.networkText}`);
@@ -7796,7 +7875,7 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(networkRoutes.focus.baker?.tag === 'A' && networkRoutes.focus.baker.route === '#my-baker', `my tezos proposal attribution: baker chip route mismatch: ${JSON.stringify(networkRoutes.focus)}`);
   assert(networkRoutes.signals.length >= 4 && networkRoutes.signals.every((signal) => signal.tag === 'A' && isFirstPartyRoute(signal.href) && isFirstPartyRoute(signal.route) && /Open|Enter/.test(signal.aria)), `my tezos proposal attribution: network signal routes missing: ${JSON.stringify(networkRoutes.signals)}`);
 
-  await page.locator('#drawer-brief .story-share-btn').click();
+  await page.locator('#my-tezos-story-content .story-share-btn').click();
   await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
   const shareState = await page.evaluate(() => ({
     picker: document.querySelector('#share-modal .tweet-picker')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -7811,6 +7890,7 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(!shareState.captured.includes('Lived through'), `my tezos proposal attribution: share card still includes governance cycles: ${shareState.captured}`);
   await expectShareModal(page, 'my tezos proposal attribution share', issues);
 
+  await page.locator('#my-tezos-tab-overview').click();
   await page.locator('#drawer-network .network-context-cycle').click();
   await page.waitForFunction(() => window.location.hash === '#history' && !document.querySelector('#my-tezos-drawer')?.classList.contains('open'), null, { timeout: 5000 });
   await page.locator('#history-modal[aria-hidden="false"]').waitFor({ state: 'attached', timeout: 10000 });
@@ -7939,6 +8019,7 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
     { label: 'portfolio mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
     { label: 'transactions mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=transactions', expectedView: 'transactions' },
     { label: 'collection mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=collection', expectedView: 'collection' },
+    { label: 'story mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=story', expectedView: 'story' },
     { label: 'tezos x mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=tezos-x', expectedView: 'tezos-x' }
   ]) {
     const issues = [];
@@ -15837,8 +15918,8 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-delegator-rewards', description: 'My Tezos connected drawer uses delegator estimate rows for zero-stake delegated accounts', run: () => smokeMyTezosDelegatorRewards(browser, baseUrl) },
     { name: 'my-tezos-historical-rewards', description: 'My Tezos keeps historical rewards out of the Current Cycle value and shows an inactive reward role honestly', run: () => smokeMyTezosHistoricalRewards(browser, baseUrl) },
     { name: 'my-tezos-storage', description: 'My Tezos migrates legacy browser data into normalized IndexedDB without reordering duplicates or losing labels', run: () => smokeMyTezosStorage(browser, baseUrl) },
-    { name: 'my-tezos-portfolio', description: 'My Tezos adaptive tabs, exact multi-address totals, activation links, complete-only failure state, quiet refresh, and desktop geometry', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
-    { name: 'my-tezos-memory', description: 'Portfolio Memory keeps reconstructed and observed evidence separate while persisting human-readable activity and resumable coverage', run: () => smokeMyTezosMemory(browser, baseUrl) },
+    { name: 'my-tezos-portfolio', description: 'My Tezos adaptive tabs, exact multi-address totals, unified account journeys, complete-only failure state, quiet refresh, and desktop geometry', run: () => smokeMyTezosAddressSwitch(browser, baseUrl) },
+    { name: 'my-tezos-memory', description: 'Your Story Memory keeps reconstructed and observed evidence separate while handing human-readable receipts to Transactions', run: () => smokeMyTezosMemory(browser, baseUrl) },
     { name: 'my-tezos-collection', description: 'Collection aggregates included L1 NFT holdings without presenting marketplace asks as portfolio value', run: () => smokeMyTezosCollection(browser, baseUrl) },
     { name: 'my-tezos-tezosx', description: 'Tezos X links device-local Etherlink accounts with explicit L2 provenance, assets, activity, and independent inclusion', run: () => smokeMyTezosTezosX(browser, baseUrl) },
     { name: 'my-tezos-ledger-flow-handoff', description: 'My Tezos closes its mobile drawer before opening the address-scoped Ledger Flow Chamber', run: () => smokeMyTezosLedgerFlowHandoff(browser, baseUrl) },

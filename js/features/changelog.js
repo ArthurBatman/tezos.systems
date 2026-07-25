@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-24',
         entries: [
+            { type: '🎨', text: 'My Tezos now gives the account dossier and browser-local recent chapter a dedicated Your Story tab, leaving Overview focused on live signals' },
+            { type: '🎨', text: 'Ledger Flow and Maxi Passport now share one organized Explore this account section with equal readable cards on desktop and a clean mobile stack' },
             { type: '🔧', text: 'My Tezos Collection now completes Objkt pagination beyond the first 50 holdings, keeps newest activity first across pages, progressively reveals cards, and retries images through the HEN feed’s Objkt-CDN-first media path' },
             { type: '✨', text: 'My Tezos Transactions now gives What changed its own view with selectable transfer and NFT-interaction lanes, subtle receipt colors, and consistently padded controls' },
             { type: '⚡', text: 'Capital and Maxis launchers now hydrate from compact integrity-checked summaries, while Baker Directory governance ledgers and all full reviewed room datasets wait for an explicit Chamber open' },

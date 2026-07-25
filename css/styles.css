@@ -22033,9 +22033,106 @@ body[data-theme="nerv"]::after {
     min-width: 0;
 }
 .drawer-live-column > .drawer-section { min-width: 0; }
-.drawer-more-actions {
+.drawer-more-section {
     display: grid;
     gap: 0.65rem;
+    padding: 0.95rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+}
+.drawer-more-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+.drawer-more-label {
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.drawer-more-copy {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    line-height: 1.4;
+    text-align: right;
+}
+.drawer-more-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+}
+.drawer-account-journey-card {
+    --journey-accent: var(--accent-cyan, #45e0c8);
+    --journey-accent-rgb: 69, 224, 200;
+    min-width: 0;
+    min-height: 132px;
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem;
+    overflow: hidden;
+    border: 1px solid rgba(var(--journey-accent-rgb), 0.26);
+    border-radius: 9px;
+    color: var(--text-primary);
+    background:
+        radial-gradient(circle at 7% 50%, rgba(var(--journey-accent-rgb), 0.12), transparent 34%),
+        rgba(255,255,255,0.025);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    text-decoration: none;
+    transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+.drawer-account-journey-card:is(:hover, :focus-visible) {
+    border-color: rgba(var(--journey-accent-rgb), 0.52);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.055), 0 10px 26px rgba(0,0,0,0.14);
+    outline: none;
+    transform: translateY(-1px);
+}
+.drawer-account-journey-passport {
+    --journey-accent: #f3c969;
+    --journey-accent-rgb: 243, 201, 105;
+}
+.drawer-account-journey-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(var(--journey-accent-rgb), 0.38);
+    border-radius: 50%;
+    color: var(--journey-accent);
+    background: rgba(var(--journey-accent-rgb), 0.08);
+    box-shadow: 0 0 18px rgba(var(--journey-accent-rgb), 0.1);
+    font-size: 1rem;
+}
+.drawer-account-journey-copy {
+    min-width: 0;
+    display: grid;
+    gap: 0.2rem;
+}
+.drawer-account-journey-kicker {
+    color: var(--journey-accent);
+    font-size: 0.6rem;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+.drawer-account-journey-copy strong {
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    line-height: 1.25;
+}
+.drawer-account-journey-copy small {
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    line-height: 1.42;
+}
+.drawer-account-journey-arrow {
+    color: var(--journey-accent);
+    font-size: 0.9rem;
 }
 #drawer-brief {
     display: grid;
@@ -22067,8 +22164,6 @@ body[data-theme="nerv"]::after {
 .drawer-connected.is-without-baker .drawer-live-columns > .drawer-live-column > #drawer-baker { order: 2; }
 .drawer-connected.is-without-baker .drawer-live-columns > .drawer-live-column > #drawer-baker-activity { order: 3; }
 .drawer-connected.is-without-baker .drawer-live-columns > .drawer-live-column > #drawer-network { order: 4; }
-.drawer-connected.is-without-baker .drawer-live-columns > .drawer-live-column > #drawer-more-section { order: 5; }
-.drawer-connected.is-without-baker .drawer-live-columns > .drawer-live-column > #drawer-more-section-secondary { order: 6; }
 .drawer-loading-card {
     min-width: 0;
     min-height: 156px;
@@ -22164,6 +22259,34 @@ body[data-theme="nerv"]::after {
 @media (prefers-reduced-motion: reduce) {
     .drawer-loading-line,
     .my-baker-loading-stat { animation: none; }
+}
+.my-tezos-story-shell {
+    gap: 1rem;
+}
+.my-tezos-story-shell .portfolio-heading-row > div,
+.my-tezos-story-content {
+    min-width: 0;
+}
+.my-tezos-story-card {
+    min-width: 0;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid rgba(69,224,200,0.18);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+}
+.my-tezos-story-shell p,
+.my-tezos-story-shell .tezos-story-name,
+.my-tezos-story-shell .tezos-story-summary,
+.my-tezos-story-shell .tezos-story-metric strong,
+.my-tezos-story-shell .tezos-story-badge strong,
+.my-tezos-story-shell .tezos-story-badge span,
+.my-tezos-story-shell .tezos-story-next strong {
+    overflow-wrap: anywhere;
+}
+.my-tezos-story-card .story-share-btn {
+    width: 100%;
+    margin-top: 0.85rem;
 }
 /* MY_TEZOS_LAZY_END */
 .drawer-empty-state {
@@ -23617,8 +23740,7 @@ body[data-theme="nerv"]::after {
     .drawer-live-columns > .drawer-live-column > #drawer-baker { order: 2; }
     .drawer-live-columns > .drawer-live-column > #drawer-baker-activity { order: 3; }
     .drawer-live-columns > .drawer-live-column > #drawer-network { order: 4; }
-    .drawer-live-columns > .drawer-live-column > #drawer-more-section { order: 5; }
-    .drawer-live-columns > .drawer-live-column > #drawer-more-section-secondary { order: 6; }
+    .drawer-more-actions { grid-template-columns: minmax(0, 1fr); }
     #drawer-brief { grid-template-columns: minmax(0, 1fr); }
     #drawer-brief .brief-section-story { grid-column: auto; }
     .drawer-loading-card-story { grid-column: auto; }
@@ -23668,6 +23790,12 @@ body[data-theme="nerv"]::after {
     .drawer-operator-header {
         flex-direction: column;
     }
+    .drawer-more-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .drawer-more-copy { text-align: left; }
     .drawer-operator-header p {
         text-align: left;
     }

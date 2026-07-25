@@ -3478,52 +3478,6 @@
 .chamber-pending-context strong { color: var(--accent-cyan); }
 .chamber-pending-context b { opacity: 0.45; }
 
-.drawer-more-section {
-    display: grid;
-    gap: 0.55rem;
-}
-
-.drawer-more-label {
-    color: var(--text-tertiary);
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.drawer-more-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
-}
-
-.drawer-more-actions .drawer-ledger-flow-card,
-.drawer-more-actions .drawer-maxi-passport-card {
-    min-height: 86px !important;
-    margin-top: 0 !important;
-    padding: 0.68rem !important;
-}
-
-.drawer-more-actions .drawer-ledger-flow-card {
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-areas: 'copy' !important;
-}
-
-.drawer-more-actions .drawer-ledger-flow-visual,
-.drawer-more-actions .drawer-ledger-flow-legend,
-.drawer-more-actions .drawer-maxi-passport-copy small {
-    display: none !important;
-}
-
-.drawer-more-actions .drawer-maxi-passport-card {
-    grid-template-columns: 2rem minmax(0, 1fr) auto;
-}
-
-.drawer-more-actions .drawer-maxi-passport-seal {
-    width: 2rem;
-    height: 2rem;
-}
-
 .chamber-table-search {
     display: flex;
     align-items: center;

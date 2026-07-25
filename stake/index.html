@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=485">
-    <link rel="stylesheet" href="/css/loading.css?v=485">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=485">
-    <link rel="stylesheet" href="/css/site-map.css?v=485">
+    <link rel="stylesheet" href="/css/styles.min.css?v=486">
+    <link rel="stylesheet" href="/css/loading.css?v=486">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=486">
+    <link rel="stylesheet" href="/css/site-map.css?v=486">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=485">
+    <link rel="modulepreload" href="/js/core/app.js?v=486">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/data-assets.js">
@@ -156,7 +156,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=485"></script>
+    <script src="/js/core/theme-preload.js?v=486"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -2114,6 +2114,7 @@
         <button id="my-tezos-tab-portfolio" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-portfolio" tabindex="-1" data-my-tezos-view="portfolio">Portfolio</button>
         <button id="my-tezos-tab-transactions" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-transactions" tabindex="-1" data-my-tezos-view="transactions">Transactions</button>
         <button id="my-tezos-tab-collection" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-collection" tabindex="-1" data-my-tezos-view="collection">Collection</button>
+        <button id="my-tezos-tab-story" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-story" tabindex="-1" data-my-tezos-view="story">Your Story</button>
         <button id="my-tezos-tab-tezos-x" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-tezos-x" tabindex="-1" data-my-tezos-view="tezos-x">Tezos X</button>
       </div>
       <div class="drawer-body" id="drawer-body">
@@ -2151,37 +2152,23 @@
               <button id="my-baker-clear" class="glass-button my-baker-btn">Clear</button>
               <button id="my-baker-share-link" class="glass-button my-baker-btn" style="display:none;">🔗</button>
             </div>
-            <a id="my-tezos-ledger-flow-link" class="drawer-ledger-flow-card" href="#ledger-flow" hidden style="grid-template-columns:minmax(92px,0.34fr) minmax(0,1fr);grid-template-areas:'visual copy' 'legend legend';gap:0.6rem 0.75rem;align-items:center;width:100%;min-height:126px;margin-top:0.8rem;padding:0.78rem;color:var(--text-primary);text-decoration:none;border:1px solid rgba(77,212,255,0.18);border-radius:8px;background:linear-gradient(135deg,rgba(77,212,255,0.085),rgba(255,94,156,0.045)),rgba(255,255,255,0.025);box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);">
-              <span class="drawer-ledger-flow-visual" aria-hidden="true" style="grid-area:visual;min-width:0;">
-                <svg viewBox="0 0 360 118" focusable="false" style="display:block;width:100%;min-height:74px;overflow:visible;">
-                  <path d="M26 30 C105 14, 116 55, 178 56" fill="none" stroke="#4dd4ff" stroke-width="5" stroke-linecap="round" opacity="0.68"></path>
-                  <path d="M180 62 C238 54, 260 92, 332 82" fill="none" stroke="#ff5e9c" stroke-width="8" stroke-linecap="round" opacity="0.74"></path>
-                  <path d="M52 92 C112 82, 128 66, 178 64" fill="none" stroke="#f5d65b" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 8" opacity="0.88"></path>
-                  <circle cx="180" cy="60" r="18" fill="rgba(10, 14, 26, 0.72)" stroke="rgba(255, 255, 255, 0.28)" stroke-width="2"></circle>
-                  <circle cx="26" cy="30" r="7" fill="#4dd4ff" stroke="rgba(10, 14, 26, 0.78)" stroke-width="2"></circle>
-                  <circle cx="332" cy="82" r="7" fill="#ff5e9c" stroke="rgba(10, 14, 26, 0.78)" stroke-width="2"></circle>
-                  <circle cx="52" cy="92" r="7" fill="#f5d65b" stroke="rgba(10, 14, 26, 0.78)" stroke-width="2"></circle>
-                </svg>
+            <a id="my-tezos-ledger-flow-link" class="drawer-account-journey-card drawer-account-journey-ledger drawer-ledger-flow-card" href="#ledger-flow" hidden>
+              <span class="drawer-account-journey-icon" aria-hidden="true">⇄</span>
+              <span class="drawer-account-journey-copy">
+                <span class="drawer-account-journey-kicker">Transfer paths</span>
+                <strong>Ledger Flow</strong>
+                <small>Trace sent, received, and first-funding paths around this account.</small>
               </span>
-              <span class="drawer-ledger-flow-copy" style="grid-area:copy;min-width:0;display:grid;gap:0.26rem;">
-                <span class="drawer-ledger-flow-kicker" style="color:var(--accent-cyan,#45e0c8);font-size:0.68rem;font-weight:800;letter-spacing:0.08em;line-height:1.1;text-transform:uppercase;">Ledger Flow</span>
-                <strong style="color:var(--text-primary);font-size:1rem;line-height:1.2;overflow-wrap:anywhere;">Map this account's transfer paths</strong>
-                <span style="color:var(--text-secondary);font-size:0.78rem;line-height:1.38;">Sent, received, and first-funding trails, with heavier lines for larger XTZ flows.</span>
-              </span>
-              <span class="drawer-ledger-flow-legend" aria-hidden="true" style="grid-area:legend;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0.38rem;">
-                <span style="min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:0.34rem;min-height:30px;padding:0.28rem 0.4rem;color:var(--text-secondary);font-size:0.68rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;border:1px solid rgba(255,255,255,0.075);border-radius:7px;background:rgba(0,0,0,0.13);"><i style="width:0.52rem;height:0.52rem;flex:0 0 auto;border-radius:50%;background:#4dd4ff;"></i>In</span>
-                <span style="min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:0.34rem;min-height:30px;padding:0.28rem 0.4rem;color:var(--text-secondary);font-size:0.68rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;border:1px solid rgba(255,255,255,0.075);border-radius:7px;background:rgba(0,0,0,0.13);"><i style="width:0.52rem;height:0.52rem;flex:0 0 auto;border-radius:50%;background:#ff5e9c;"></i>Out</span>
-                <span style="min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:0.34rem;min-height:30px;padding:0.28rem 0.4rem;color:var(--text-secondary);font-size:0.68rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;border:1px solid rgba(255,255,255,0.075);border-radius:7px;background:rgba(0,0,0,0.13);"><i style="width:0.52rem;height:0.52rem;flex:0 0 auto;border-radius:50%;background:#f5d65b;"></i>First</span>
-              </span>
+              <span class="drawer-account-journey-arrow" aria-hidden="true">↗</span>
             </a>
-            <a id="my-tezos-maxi-passport-link" class="drawer-maxi-passport-card" href="/maxis/?view=passport" hidden>
-              <span class="drawer-maxi-passport-seal" aria-hidden="true">✺</span>
-              <span class="drawer-maxi-passport-copy">
-                <span>Maxi Passport</span>
-                <strong>See this wallet's career and current season</strong>
-                <small>Enduring badges and crown records, plus live lane progress, near-misses, streaks, and the path to Season Unicorn.</small>
+            <a id="my-tezos-maxi-passport-link" class="drawer-account-journey-card drawer-account-journey-passport drawer-maxi-passport-card" href="/maxis/?view=passport" hidden>
+              <span class="drawer-account-journey-icon" aria-hidden="true">✺</span>
+              <span class="drawer-account-journey-copy">
+                <span class="drawer-account-journey-kicker">Career &amp; seasons</span>
+                <strong>Maxi Passport</strong>
+                <small>See earned badges, crown records, and current-season progress.</small>
               </span>
-              <span class="drawer-maxi-passport-arrow" aria-hidden="true">↗</span>
+              <span class="drawer-account-journey-arrow" aria-hidden="true">↗</span>
             </a>
             <div class="wallet-connect-row wallet-connect-row-compact">
               <button id="my-tezos-wallet-connect" class="glass-button wallet-connect-btn" type="button">Use wallet</button>
@@ -2213,7 +2200,10 @@
 
           <!-- Secondary journeys stay available after the wallet's live signal -->
           <div class="drawer-section drawer-more-section" id="drawer-more-section">
-            <span class="drawer-more-label">Do more with this address</span>
+            <div class="drawer-more-header">
+              <span class="drawer-more-label">Explore this account</span>
+              <span class="drawer-more-copy">Open focused Tezos Systems rooms for this saved address.</span>
+            </div>
             <div id="drawer-more-actions" class="drawer-more-actions"></div>
           </div>
 
@@ -2247,20 +2237,6 @@
               <article class="portfolio-summary-card portfolio-summary-unstaking" data-portfolio-total="unstaking"><span>Unstaking</span><strong>—</strong><small>Not finalized</small></article>
             </div>
             <div id="portfolio-rates" class="portfolio-rates" aria-live="polite">Current fiat equivalents appear when the shared XTZ price is available.</div>
-            <div id="my-tezos-memory-storage-notice" class="portfolio-storage-notice" role="status" hidden></div>
-
-            <section class="portfolio-memory-panel" aria-labelledby="portfolio-memory-title">
-              <div class="portfolio-section-heading">
-                <div>
-                  <span class="portfolio-kicker">Memory</span>
-                  <h4 id="portfolio-memory-title">While you were away</h4>
-                  <p>Only activity indexed after your saved last-seen boundary is counted as new.</p>
-                </div>
-              </div>
-              <div id="portfolio-while-away" class="portfolio-while-away">
-                <div class="portfolio-memory-empty"><strong>Preparing Memory</strong><span>Saved receipts will appear before the background reconstruction starts.</span></div>
-              </div>
-            </section>
 
             <section class="portfolio-history-panel" aria-labelledby="portfolio-history-title">
               <div class="portfolio-section-heading">
@@ -2378,6 +2354,35 @@
           </div>
         </section>
 
+        <section id="my-tezos-panel-story" class="my-tezos-view-panel" role="tabpanel" aria-labelledby="my-tezos-tab-story" data-my-tezos-panel="story" hidden>
+          <div class="my-tezos-feature-shell my-tezos-story-shell">
+            <div class="portfolio-heading-row">
+              <div>
+                <span class="portfolio-kicker">Tezos L1 · on-chain record</span>
+                <h3>Your Story</h3>
+                <p>A curated account history, with browser-local memory kept distinct from public on-chain receipts.</p>
+              </div>
+            </div>
+            <section id="my-tezos-story-content" class="my-tezos-story-content" aria-label="Your Tezos Story">
+              <div class="portfolio-memory-empty"><strong>Add an address in Overview</strong><span>Your Tezos era, milestones, and on-chain identity will appear here.</span></div>
+            </section>
+            <div id="my-tezos-memory-storage-notice" class="portfolio-storage-notice" role="status" hidden></div>
+            <section class="portfolio-memory-panel my-tezos-recent-chapter" aria-labelledby="portfolio-memory-title">
+              <div class="portfolio-section-heading">
+                <div>
+                  <span class="portfolio-kicker">Recent chapter</span>
+                  <h4 id="portfolio-memory-title">While you were away</h4>
+                  <p>Only activity indexed after your saved last-seen boundary is counted as new.</p>
+                </div>
+                <button id="my-tezos-story-transactions" class="glass-button portfolio-refresh" type="button">Show changes</button>
+              </div>
+              <div id="portfolio-while-away" class="portfolio-while-away">
+                <div class="portfolio-memory-empty"><strong>Preparing Memory</strong><span>Saved receipts will appear before the background reconstruction starts.</span></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section id="my-tezos-panel-tezos-x" class="my-tezos-view-panel" role="tabpanel" aria-labelledby="my-tezos-tab-tezos-x" data-my-tezos-panel="tezos-x" hidden>
           <div class="my-tezos-feature-shell tezosx-shell">
             <div class="portfolio-heading-row">
@@ -2424,7 +2429,7 @@
 
     <!-- Load app as module -->
     <script defer src="/js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="/js/core/app.js?v=485"></script>
+    <script type="module" src="/js/core/app.js?v=486"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

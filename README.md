@@ -671,12 +671,17 @@ inline modal styles in `js/core/app.js`.
   `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
   migration path while new multisig setups move toward protocol-native accounts.
 - My Tezos adaptive personal room with Overview, Portfolio, Transactions,
-  Collection, and Tezos X tabs. Overview keeps the active L1 address synchronized with Ledger Flow, Maxi
-  Passport, HEN, and the existing baker/reward lifecycle, while its baker
+  Collection, Your Story, and Tezos X tabs. Your Story separates the account's
+  on-chain identity, protocol-era milestones, share surface, and browser-local
+  recent chapter from the live Overview. Overview keeps the active L1 address
+  synchronized with Ledger Flow, Maxi Passport, HEN, and the existing
+  baker/reward lifecycle, while its baker
   signal uses one full-width next-round band plus four equal Octez, working,
   attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
   frame while live sections settle into independent desktop columns, and later
-  refreshes reconcile in place. Portfolio aggregates up to ten locally saved,
+  refreshes reconcile in place. Ledger Flow and Maxi Passport share one
+  full-width account-journey section after those live columns, using equal
+  desktop cards and a single mobile stack. Portfolio aggregates up to ten locally saved,
   independently includable Tezos L1 addresses through one bounded TzKT read and
   shows total, spendable, staked, and unstaking XTZ with current USD/EUR context
   when available. Saved entries use the versioned

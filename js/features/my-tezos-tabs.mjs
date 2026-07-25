@@ -1,5 +1,5 @@
 const VIEW_SESSION_KEY = 'tezos-systems-my-tezos-view';
-export const MY_TEZOS_VIEWS = Object.freeze(['overview', 'portfolio', 'transactions', 'collection', 'tezos-x']);
+export const MY_TEZOS_VIEWS = Object.freeze(['overview', 'portfolio', 'transactions', 'collection', 'story', 'tezos-x']);
 
 const activators = new Map();
 let initialized = false;

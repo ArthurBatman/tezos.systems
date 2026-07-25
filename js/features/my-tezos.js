@@ -2244,6 +2244,8 @@ function getActiveMyTezosContext(address) {
 function renderBriefTabs(cards, data) {
     const container = document.getElementById('drawer-brief');
     if (!container) return;
+    const storyCard = cards.find(card => card.accent === 'story') || null;
+    const briefCards = cards.filter(card => card.accent !== 'story');
     const connected = container.closest('.drawer-connected');
     const withoutBaker = !data?.bakerAddr;
     quietlyMutate(container, () => {
@@ -2255,17 +2257,32 @@ function renderBriefTabs(cards, data) {
         });
     }
     
-    const sectionsHtml = cards.map(card => {
+    const sectionsHtml = briefCards.map(card => {
         const accent = safeTone(card.accent);
         return `<div class="brief-section brief-section-${accent}" data-brief-accent="${accent}">
             <h4 class="brief-section-title">${card.icon} ${card.title}</h4>
             <div class="brief-body">${card.body}</div>
-            ${card.shareBtn ? `<button class="glass-button drawer-share-btn story-share-btn" style="margin-top:12px;width:100%;">📸 Share Your Story</button>` : ''}
         </div>`;
     }).join('');
     
     if (container.children.length) quietlySyncHtml(container, sectionsHtml);
     else container.innerHTML = sectionsHtml;
+
+    renderStoryPanel(storyCard, data);
+}
+
+function renderStoryPanel(card, data) {
+    const container = document.getElementById('my-tezos-story-content');
+    if (!container) return;
+    const html = card
+        ? `<div class="brief-section brief-section-story my-tezos-story-card" data-brief-accent="story">
+            <h4 class="brief-section-title">${card.icon} ${card.title}</h4>
+            <div class="brief-body">${card.body}</div>
+            ${card.shareBtn ? '<button class="glass-button drawer-share-btn story-share-btn">📸 Share Your Story</button>' : ''}
+        </div>`
+        : '<div class="portfolio-memory-empty"><strong>No on-chain story yet</strong><span>This address does not have enough public history to build a story.</span></div>';
+    if (container.children.length) quietlySyncHtml(container, html);
+    else container.innerHTML = html;
 
     container.querySelectorAll('.story-share-btn').forEach(btn => {
         btn.onclick = () => {
@@ -2575,6 +2592,17 @@ async function renderMorningBrief(address, force = false) {
                 document.getElementById('brief-retry')?.addEventListener('click', () => renderMorningBrief(address, true));
             }
         }
+        const storyContainer = document.getElementById('my-tezos-story-content');
+        if (storyContainer && !storyContainer.querySelector('.tezos-story-dossier')) {
+            const storyErrorHtml = `
+                <div class="my-baker-load-state my-baker-load-state-error">
+                    <strong>Your Story is unavailable</strong>
+                    <span>The saved address is intact. Retry the account read from Overview.</span>
+                </div>
+            `;
+            if (storyContainer.children.length) quietlySyncHtml(storyContainer, storyErrorHtml);
+            else storyContainer.innerHTML = storyErrorHtml;
+        }
         renderBakerOperatorStatus(null, false);
         renderBakerActivity(null);
         finishBriefRender(address, requestSeq);
@@ -2751,9 +2779,13 @@ function seedDrawerLoadingState() {
     if (brief && !brief.children.length) {
         brief.innerHTML = [
             drawerLoadingCard('Reading your account'),
-            drawerLoadingCard('Checking baker signal'),
-            drawerLoadingCard('Building your Tezos story', 'story')
+            drawerLoadingCard('Checking baker signal')
         ].join('');
+    }
+
+    const story = document.getElementById('my-tezos-story-content');
+    if (story && !story.querySelector('.tezos-story-dossier')) {
+        story.innerHTML = drawerLoadingCard('Building your Tezos story', 'story');
     }
 
     const rewards = document.getElementById('drawer-rewards');
@@ -2784,28 +2816,24 @@ function organizeDrawerJourneys() {
         columns.className = 'drawer-live-columns';
         columns.innerHTML = `
             <div class="drawer-live-column drawer-live-column-primary"></div>
-            <div class="drawer-live-column drawer-live-column-secondary">
-                <div class="drawer-section drawer-more-section drawer-more-section-secondary" id="drawer-more-section-secondary">
-                    <div class="drawer-more-actions" id="drawer-more-actions-secondary"></div>
-                </div>
-            </div>
+            <div class="drawer-live-column drawer-live-column-secondary"></div>
         `;
-        connected.insertBefore(columns, share);
+        connected.insertBefore(columns, more);
     }
 
     const primary = columns.querySelector('.drawer-live-column-primary');
     const secondary = columns.querySelector('.drawer-live-column-secondary');
-    const secondaryMore = document.getElementById('drawer-more-section-secondary');
-    const secondaryActions = document.getElementById('drawer-more-actions-secondary');
-    if (!primary || !secondary || !secondaryMore || !secondaryActions) return;
+    if (!primary || !secondary) return;
 
-    [rewards, activity, more].forEach((section) => primary.appendChild(section));
-    [baker, network, secondaryMore].forEach((section) => secondary.appendChild(section));
+    [rewards, activity].forEach((section) => primary.appendChild(section));
+    [baker, network].forEach((section) => secondary.appendChild(section));
+    if (more.parentElement !== connected) connected.insertBefore(more, share);
+    connected.querySelector('#drawer-more-section-secondary')?.remove();
 
     const ledger = document.getElementById('my-tezos-ledger-flow-link');
     const passport = document.getElementById('my-tezos-maxi-passport-link');
     if (ledger && ledger.parentElement !== actions) actions.appendChild(ledger);
-    if (passport && passport.parentElement !== secondaryActions) secondaryActions.appendChild(passport);
+    if (passport && passport.parentElement !== actions) actions.appendChild(passport);
 }
 
 export { setMyTezosView };
@@ -2817,9 +2845,13 @@ export function initMyTezos() {
     registerMyTezosView('transactions', () => activateMyTezosMemory());
     registerMyTezosView('collection', () => import('./my-tezos-collection.mjs')
         .then((module) => module.activateMyTezosCollection()));
+    registerMyTezosView('story', () => activateMyTezosMemory());
     registerMyTezosView('tezos-x', () => import('./my-tezos-tezosx.mjs')
         .then((module) => module.activateMyTezosTezosX()));
     initMyTezosTabs();
+    document.getElementById('my-tezos-story-transactions')?.addEventListener('click', () => {
+        setMyTezosView('transactions', { routeMode: 'push' });
+    });
     // Create minibar under price bar
     createMinibar();
     initDrawerLiveRefresh();
