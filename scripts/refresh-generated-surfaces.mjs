@@ -27,6 +27,7 @@ const CSS_TARGETS = [
 const ROUTE_TARGETS = CHAMBER_ROUTES.map((route) => `${route.slug}/index.html`);
 const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`);
 const SITEMAP_TARGETS = ['sitemap.xml'];
+const LLMS_TARGETS = ['llms.txt'];
 const ROOT_OG_TARGETS = ['og-image.png'];
 const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
 const NAKAMOTO_TARGETS = ['data/nakamoto-sources.json'];
@@ -34,6 +35,7 @@ const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
 const CAPITAL_TARGETS = ['data/capital-snapshot.json'];
+const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json'];
 const WHALE_WATCH_TARGETS = ['data/whale-watch.json'];
 const TEZOSCRP_TARGETS = ['data/tezoscrp-awards.json', 'data/tezoscrp-summary.json'];
 
@@ -44,6 +46,7 @@ const GENERATED_TARGETS = unique([
   ...CHAMBER_OG_TARGETS,
   ...COMPARE_PAGES,
   ...SITEMAP_TARGETS,
+  ...LLMS_TARGETS,
   ...ROOT_OG_TARGETS,
   ...MILESTONE_TARGETS,
   ...NAKAMOTO_TARGETS,
@@ -51,6 +54,7 @@ const GENERATED_TARGETS = unique([
   ...MAXIS_CAREER_TARGETS,
   ...MAXIS_L2_GOVERNANCE_TARGETS,
   ...CAPITAL_TARGETS,
+  ...LAUNCHER_PROJECTION_TARGETS,
   ...WHALE_WATCH_TARGETS,
   ...TEZOSCRP_TARGETS
 ]);
@@ -181,6 +185,10 @@ async function main() {
     await writeSitemap();
     return;
   }
+  if (hasFlag('--llms-only')) {
+    nodeScript('scripts/generate-llms-txt.mjs');
+    return;
+  }
 
   const modeName = mode();
   const shouldStage = hasFlag('--stage');
@@ -212,6 +220,9 @@ async function main() {
     ran.push('nakamoto-check');
     nodeScript('scripts/refresh-capital-data.mjs', ['--check']);
     ran.push('capital-check');
+    nodeScript('scripts/generate-launcher-projections.mjs', ['--check']);
+    ran.push('launcher-projections-check');
+    if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS);
     nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check']);
     ran.push('whale-watch-check');
   } else if (modeName === 'all' || modeName === 'scheduled') {
@@ -230,6 +241,9 @@ async function main() {
     nodeScript('scripts/refresh-capital-data.mjs');
     ran.push('capital');
     if (shouldStage) stageTargets(CAPITAL_TARGETS);
+    nodeScript('scripts/generate-launcher-projections.mjs');
+    ran.push('launcher-projections');
+    if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS);
     nodeScript('scripts/refresh-whale-watch-data.mjs');
     ran.push('whale-watch');
     if (shouldStage) stageTargets(WHALE_WATCH_TARGETS);
@@ -274,6 +288,18 @@ async function main() {
     ran.push('sitemap');
     await writeSitemap();
     if (shouldStage) stageTargets(SITEMAP_TARGETS);
+  }
+
+  if (shouldRun(modeName, touched, [
+    /^scripts\/generate-llms-txt\.mjs$/,
+    /^scripts\/refresh-generated-surfaces\.mjs$/,
+    /^js\/core\/site-map\.js$/,
+    /^\.well-known\/openapi\.json$/,
+    /^llms\.txt$/
+  ])) {
+    ran.push('llms');
+    nodeScript('scripts/generate-llms-txt.mjs');
+    if (shouldStage) stageTargets(LLMS_TARGETS);
   }
 
   if (shouldRun(modeName, touched, [

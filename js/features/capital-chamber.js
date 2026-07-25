@@ -16,6 +16,7 @@ import {
 
 const CAPITAL_CSS_URL = '/css/capital.css?v=455';
 const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
+const CAPITAL_ENTRY_SUMMARY_URL = '/data/capital-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
@@ -46,12 +47,15 @@ const AVAILABLE_RANGES = Object.freeze({
 let currentView = 'system';
 let currentRange = '30D';
 let lastSnapshot = null;
+let lastEntrySummary = null;
 let lastRefreshError = '';
 let activeFetch = null;
+let activeEntryFetch = null;
 let capitalCssReady = null;
 let chamberTimer = null;
 let visibilityReady = false;
 let refreshDeferred = false;
+let entryRefreshDeferred = false;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 
@@ -59,6 +63,19 @@ function numeric(value) {
     if (value === null || value === undefined || value === '') return null;
     const number = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(number) ? number : null;
+}
+
+function stableJsonValue(value) {
+    if (Array.isArray(value)) return value.map(stableJsonValue);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]));
+}
+
+async function sha256Text(value) {
+    if (!globalThis.crypto?.subtle) throw new Error('SHA-256 verification is unavailable.');
+    const bytes = new TextEncoder().encode(value);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function finiteValues(values) {
@@ -205,14 +222,81 @@ function ensureCapitalCss() {
     return capitalCssReady;
 }
 
-function validateSnapshot(snapshot) {
+async function validateSnapshot(snapshot) {
     if (!snapshot || typeof snapshot !== 'object' || snapshot.schemaVersion !== 1) {
         throw new Error('Capital snapshot schemaVersion 1 is required.');
     }
-    if (!snapshot.generatedAt || !Array.isArray(snapshot.defi?.chains) || !snapshot.markets?.xtz) {
+    if (!snapshot.generatedAt
+        || !Number.isFinite(Date.parse(snapshot.generatedAt))
+        || !/^[0-9a-f]{64}$/.test(snapshot.contentHash || '')
+        || !snapshot.sources
+        || !Array.isArray(snapshot.defi?.chains)
+        || !snapshot.network?.tezos
+        || !snapshot.network?.etherlink
+        || !snapshot.markets?.xtz
+        || !snapshot.rwa
+        || !snapshot.art
+        || !snapshot.development) {
         throw new Error('Capital snapshot is missing required generated sections.');
     }
+    const { contentHash, ...unsigned } = snapshot;
+    const actualHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
+    if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
+        throw new Error('Capital snapshot failed its SHA-256 integrity receipt.');
+    }
+    if (lastEntrySummary?.source?.contentHash
+        && lastEntrySummary.source.contentHash.toLowerCase() !== contentHash.toLowerCase()) {
+        const projectionTime = Date.parse(lastEntrySummary.source.generatedAt || lastEntrySummary.generatedAt || '');
+        const snapshotTime = Date.parse(snapshot.generatedAt);
+        if (!Number.isFinite(projectionTime) || snapshotTime <= projectionTime) {
+            throw new Error('Capital snapshot is older than the launcher projection source receipt.');
+        }
+        // A long-lived tab can span a generated-data deployment. The complete
+        // snapshot has its own verified receipt, so a newer one supersedes the
+        // in-memory launcher projection instead of leaving the Chamber pinned
+        // to the older deploy until reload.
+        lastEntrySummary = null;
+    }
     return snapshot;
+}
+
+async function validateEntrySummary(summary) {
+    if (!summary || typeof summary !== 'object' || summary.schemaVersion !== 1) {
+        throw new Error('Capital entry summary schemaVersion 1 is required.');
+    }
+    if (!summary.generatedAt
+        || !Number.isFinite(Date.parse(summary.generatedAt))
+        || !/^[0-9a-f]{64}$/.test(summary.contentHash || '')
+        || summary.source?.path !== 'data/capital-snapshot.json'
+        || !/^[0-9a-f]{64}$/.test(summary.source?.contentHash || '')
+        || !/^[0-9a-f]{64}$/.test(summary.source?.fileSha256 || '')
+        || !Array.isArray(summary.defi?.chains)
+        || !summary.markets?.xtz?.coin
+        || !Array.isArray(summary.markets?.xtz?.priceHistory?.usd)
+        || summary.source?.schemaVersion !== 1
+        || summary.source?.generatedAt !== summary.generatedAt) {
+        throw new Error('Capital entry summary is missing its projection receipt or launcher fields.');
+    }
+    const chains = new Map(summary.defi.chains.map((row) => [row?.id, row]));
+    for (const id of ['tezos', 'etherlink']) {
+        const row = chains.get(id);
+        if (numeric(row?.tvl?.currentUsd) === null || numeric(row?.stablecoins?.currentUsd) === null) {
+            throw new Error(`Capital entry summary is missing ${id} launcher values.`);
+        }
+    }
+    const history = summary.markets.xtz.priceHistory.usd;
+    if (numeric(summary.markets.xtz.coin.currentPriceUsd) === null
+        || numeric(summary.markets.xtz.coin.change24hPct) === null
+        || history.length < 2
+        || history.some((row) => !Number.isFinite(Date.parse(row?.date)) || numeric(row?.value) === null)) {
+        throw new Error('Capital entry summary has invalid XTZ launcher history.');
+    }
+    const { contentHash, ...unsigned } = summary;
+    const actualHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
+    if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
+        throw new Error('Capital entry summary failed its SHA-256 integrity receipt.');
+    }
+    return summary;
 }
 
 function fetchCapitalSnapshot() {
@@ -230,6 +314,23 @@ function fetchCapitalSnapshot() {
             activeFetch = null;
         });
     return activeFetch;
+}
+
+function fetchCapitalEntrySummary() {
+    if (activeEntryFetch) return activeEntryFetch;
+    activeEntryFetch = fetch(CAPITAL_ENTRY_SUMMARY_URL, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+    })
+        .then((response) => {
+            if (!response.ok) throw new Error(`Capital entry summary HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(validateEntrySummary)
+        .finally(() => {
+            activeEntryFetch = null;
+        });
+    return activeEntryFetch;
 }
 
 function chain(snapshot, id) {
@@ -1146,11 +1247,33 @@ function bindVisibilityRefresh() {
     visibilityReady = true;
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') return;
+        if (entryRefreshDeferred) {
+            entryRefreshDeferred = false;
+            refreshCapitalEntry({ quiet: false });
+        }
         const overlayOpen = document.getElementById('capital-modal')?.classList.contains('active');
         if (!refreshDeferred && !overlayOpen) return;
         refreshDeferred = false;
         refreshCapitalChamber({ quiet: true });
     });
+}
+
+async function refreshCapitalEntry({ quiet = true } = {}) {
+    if (document.visibilityState !== 'visible') {
+        entryRefreshDeferred = true;
+        return lastSnapshot || lastEntrySummary;
+    }
+    try {
+        const summary = await fetchCapitalEntrySummary();
+        lastEntrySummary = summary;
+        entryRefreshDeferred = false;
+        if (lastSnapshot) return lastSnapshot;
+        updateEntry(summary, { quiet });
+        return summary;
+    } catch (error) {
+        console.warn('Capital Chamber entry summary failed; loading the complete snapshot:', error);
+        return refreshCapitalChamber({ quiet });
+    }
 }
 
 async function refreshCapitalChamber({ quiet = true } = {}) {
@@ -1254,6 +1377,7 @@ export function initCapitalChamber() {
     const card = ensureEntryCard();
     wireEntry(card);
     if (lastSnapshot) updateEntry(lastSnapshot);
-    else if (document.visibilityState === 'visible') refreshCapitalChamber({ quiet: false });
-    else refreshDeferred = true;
+    else if (lastEntrySummary) updateEntry(lastEntrySummary);
+    else if (document.visibilityState === 'visible') refreshCapitalEntry({ quiet: false });
+    else entryRefreshDeferred = true;
 }

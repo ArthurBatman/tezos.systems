@@ -74,6 +74,7 @@ tezos.systems/
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
 │   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
 │   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
+│   ├── capital-entry-summary.json     # Compact integrity-checked Capital launcher projection
 │   ├── whale-watch.json               # Complete 24h whale/dormancy snapshot and receipts
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
@@ -83,6 +84,7 @@ tezos.systems/
 │   ├── tezoscrp-identity-aliases.json    # Evidence-backed identity continuity registry
 │   ├── tezoscrp-summary.json            # Compact launcher/latest-winners projection
 │   ├── maxis/
+│   │   ├── entry-summary.json          # Compact integrity-checked Maxis launcher projection
 │   │   ├── manifest.json               # Protocol-season index and active season
 │   │   └── seasons/<season-id>/
 │   │       ├── summary.json            # Season lanes, standings, deltas, and Honors
@@ -98,6 +100,7 @@ tezos.systems/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
+├── llms.txt                           # Generated canonical routes and public-data catalogue
 ├── supabase/
 │   └── migrations/                    # SQL contract for historical capture
 ├── tests/
@@ -462,7 +465,9 @@ inline modal styles in `js/core/app.js`.
   deliberately distinct; repeatable achievements carry season-scoped IDs so
   later protocol seasons do not overwrite earlier receipts. My Tezos exposes a
   direct Passport handoff for the active saved address.
-- The canonical Maxis room reads the generated `data/maxis-leaders.json`
+- The launcher first reads the compact, integrity-checked
+  `data/maxis/entry-summary.json` projection. The canonical Maxis room reads
+  the full generated `data/maxis-leaders.json`
   lane-native-clock snapshot plus the independently integrity-checked
   `data/maxis-l2-governance.json` crown. Champions reads finalized protocol-season
   archives and preserves past winners, exposing the champion address and score,
@@ -765,7 +770,9 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; and Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
 | Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
+| `data/capital-entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed Capital snapshot; full room data waits for an explicit Chamber open |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
+| `data/maxis/entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed ongoing, L2 Governance, manifest, and active-season Maxis artifacts; full Maxis and Baker Directory governance ledgers wait for an explicit room open |
 | Tezos Commons rewards page and official Medium publication | TezosCRP category definitions, official icons, monthly winner announcements, and source receipts |
 | `data/tezoscrp-awards.json` | Same-origin full TezosCRP recognition archive, with human-identity aliases, monthly/category coverage, and known published amounts kept separate from award counts |
 | `data/tezoscrp-identity-aliases.json` | Auditable high-confidence handle, spelling, and cross-platform continuity; uncertain lookalikes remain explicitly pending instead of being guessed |
@@ -794,8 +801,9 @@ Generated distribution surfaces now have one orchestration path:
 `npm run refresh:generated` refreshes governance vote/report/feed artifacts,
 pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
-the Maxis artifact family plus `data/capital-snapshot.json` and
-`data/whale-watch.json`; manual full runs
+the Maxis artifact family plus its launcher projection,
+`data/capital-snapshot.json` plus its launcher projection,
+`data/whale-watch.json`, and the canonical `llms.txt` discovery document; manual full runs
 also check the official Tezos Commons feed for a new TezosCRP period. It also refreshes
 the reproducible Chainspect and
 Edinburgh EDI rows in `data/nakamoto-sources.json`; normal pre-commit runs only
@@ -918,6 +926,28 @@ callers use `scripts/lib/playwright-browser.cjs`, which tries Playwright's
 bundled Chromium first and falls back to a local Chrome/Chromium-family browser.
 Set `BROWSER_EXECUTABLE_PATH` only when you need to force a specific executable.
 
+`npm run measure:load -- --base-url http://127.0.0.1:9000 --runs 5` records a
+repeatable clean-profile initial-load row with request and decoded-byte totals,
+eager JavaScript size, DOM and navigation timing, layout shift, long tasks, and
+largest resources. Add `--mode installed-worker` to audit the installed service
+worker separately. `npm run measure:load:stable -- --base-url
+http://127.0.0.1:9000 --runs 5` first records one explicit, unscored
+browser-process warm-up navigation for the plan's stated warm-CPU profile, then
+exits non-zero unless every adjacent pair of the five measured clean-profile
+runs stays within the plan's 5% decoded-byte and 15% responsiveness limits.
+Responsiveness stability uses Total Blocking Time—the sum of each long task's
+milliseconds beyond the browser's 50ms budget—so a task that merely crosses
+the reporting threshold by 1ms does not masquerade as 50ms of new blocking.
+The report still preserves raw long-task total, longest task, and worst raw
+variance as diagnostics. Each measured run uses an isolated HTTP cache,
+storage, and service-worker context, and the report retains the warm-up timing
+rather than silently discarding it. Set `--warmup-runs 0` when the first
+navigation in a new browser process is itself the subject of the audit. The
+dated comparison fixture in
+`tests/fixtures/initial-load-baseline.json` preserves the actual historical
+result—including its diagnostic stability flags—rather than silently moving
+the budget.
+
 The README guard reads staged files. If package/tooling, hook, handoff docs,
 smoke-test, config, theme, app-shell, service-worker, SEO, widget, or
 standalone-page contracts change without `README.md` staged, pre-commit fails
@@ -931,6 +961,8 @@ npm run build:css
 npm run refresh:generated
 npm run refresh:capital
 npm run check:capital
+npm run refresh:launcher-projections
+npm run check:launcher-projections
 npm run refresh:whales
 npm run check:whales
 npm run refresh:milestones
@@ -958,6 +990,7 @@ npm run test:smoke:list
 npm run test:smoke:headed
 npm run test:smoke:strict
 npm run test:smoke:live
+npm run measure:load -- --base-url http://127.0.0.1:9000 --runs 5
 node tests/smoke.mjs --only app-shell,route-crawl
 node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
 ```
@@ -1017,6 +1050,11 @@ Current smoke suites:
   fallback, canonical resolved routes, unresolved names, KT1 rejection, and
   unchanged My Tezos state)
 - `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
+- `launcher-projections` (proves Capital and Maxis request only their compact
+  summaries at first render, defers the Baker Directory governance ledger and
+  reviewed full artifacts until room open, preserves launcher parity, accepts
+  a newer verified Capital deploy over a stale in-memory receipt, and falls
+  back safely when a projection is unavailable)
 - `tezoscrp` (covers the human-identity Recognition Hall, award/month count
   separation, source-complete person history, tied category and annual records,
   official category icons, latest winners, archive filters, `/tezoscrp/`, and
@@ -1050,10 +1088,10 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v482`, including hero search, theme
+- Current aligned shell cache stamp: `v484`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
-- Current Tezos Domains lazy CSS stamp: `v320`.
+- Current Tezos Domains lazy CSS stamp: `v321`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated
   surfaces, runs focused README contract checks, then stamps version metadata.
@@ -1154,6 +1192,10 @@ and heartbeat affordance from the dashboard polish pass.
   using the canonical September 17, 2018 mainnet date and avoids stale
   two-minute refresh claims. It points to the site-owned read-only OpenAPI
   document; `.well-known/security.txt` publishes private reporting routes.
+- `.well-known/openapi.json` catalogues every intentionally public JSON
+  artifact family with refresh cadence and license boundaries. Generated
+  `llms.txt` combines that catalogue with the exact canonical destination graph
+  used by `sitemap.xml`; other tracked data files are explicitly internal.
 - GoatCounter is used for privacy-friendly analytics: `tezsys.goatcounter.com`.
   The shared initializer also exposes loop events for share actions,
   governance-alert actions, and widget-builder copy events. Embeddable raw

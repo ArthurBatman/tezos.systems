@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=482">
-    <link rel="stylesheet" href="css/loading.css?v=482">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=482">
-    <link rel="stylesheet" href="css/site-map.css?v=482">
+    <link rel="stylesheet" href="css/styles.min.css?v=484">
+    <link rel="stylesheet" href="css/loading.css?v=484">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=484">
+    <link rel="stylesheet" href="css/site-map.css?v=484">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=482">
+    <link rel="modulepreload" href="js/core/app.js?v=484">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
@@ -278,7 +278,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=482"></script>
+    <script src="js/core/theme-preload.js?v=484"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -2432,7 +2432,7 @@
                 <div class="portfolio-file-actions">
                   <button id="portfolio-export" class="glass-button" type="button">Export</button>
                   <button id="portfolio-import" class="glass-button" type="button">Import</button>
-                  <input id="portfolio-import-file" type="file" accept="application/json,.json" hidden>
+                  <input id="portfolio-import-file" type="file" accept="application/json,.json" aria-label="Import My Tezos portfolio JSON file" hidden>
                 </div>
               </div>
 
@@ -2535,8 +2535,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
     <!-- Load app as module -->
-    <script src="js/features/hen-mode.js?v=94"></script>
-    <script type="module" src="js/core/app.js?v=482"></script>
+    <script defer src="js/features/hen-mode.js?v=94"></script>
+    <script type="module" src="js/core/app.js?v=484"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">
@@ -2759,13 +2759,13 @@
         </div>
         <div class="hen-cli">
             <span class="hen-cli-prompt">></span>
-            <input id="hen-cli-input" class="hen-cli-input" type="text" placeholder="type help for commands" autocomplete="off" spellcheck="false">
+            <input id="hen-cli-input" class="hen-cli-input" type="text" aria-label="HEN command input" placeholder="type help for commands" autocomplete="off" spellcheck="false">
         </div>
         <div id="hen-expanded" class="hen-expanded">
             <button type="button" class="hen-expanded-close" aria-label="Close artwork detail">×</button>
             <div class="hen-expanded-inner"></div>
         </div>
     </div>
-    <script src="js/features/tooltip-tour.js?v=351" defer></script>
+    <script src="js/features/tooltip-tour.js?v=352" defer></script>
 </body>
 </html>

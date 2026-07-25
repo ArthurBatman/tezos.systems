@@ -96,6 +96,10 @@
 
     function syncNudgeToastOffset() {
         if (!nudge) return;
+        if (nudge.closest('#hero-slot') || window.getComputedStyle(nudge).position === 'static') {
+            releaseToastSpace();
+            return;
+        }
         var rect = nudge.getBoundingClientRect();
         var bottom = Math.ceil(window.innerHeight - rect.top + 12);
         reserveToastSpace(bottom);
@@ -144,6 +148,10 @@
     function watchActiveSurfaces() {
         if (surfaceObserver) return;
         surfaceObserver = new MutationObserver(suspendNudgeForSurface);
+        surfaceObserver.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
         document.querySelectorAll(
             '.my-tezos-drawer, .modal-overlay, .chamber-overlay, .share-modal-overlay, .settings-dropdown'
         ).forEach(function (surface) {
@@ -392,18 +400,22 @@
         }
         nudge = document.createElement('div');
         nudge.className = 'tour-nudge';
-        nudge.setAttribute('role', 'dialog');
-        nudge.setAttribute('aria-label', 'Tezos Systems help');
+        nudge.setAttribute('role', 'group');
+        nudge.setAttribute('aria-label', 'Optional Tezos Systems tour');
         nudge.innerHTML =
-            '<div>' +
-                '<strong>Need a hand?</strong>' +
-                '<span>Start with the live mainnet counter, then use / search for wallet addresses, .tez names, bakers, KT1 contracts, blocks, operations, protocols, Chambers, and tools. Help is available when you want it.</span>' +
-            '</div>' +
+            '<strong>Quick tour?</strong>' +
             '<div class="tour-nudge-actions">' +
-                '<button class="tour-dismiss" type="button">Not now</button>' +
-                '<button class="tour-start" type="button">Show help</button>' +
+                '<button class="tour-start" type="button">Show</button>' +
+                '<button class="tour-dismiss" type="button" aria-label="Dismiss tour offer">×</button>' +
             '</div>';
-        document.body.appendChild(nudge);
+        const heroSlot = document.getElementById('hero-slot');
+        const chips = document.getElementById('hero-search-chips');
+        const commandDeck = document.getElementById('upgrade-clock');
+        if (heroSlot && chips) {
+            heroSlot.insertBefore(nudge, chips);
+        } else {
+            (heroSlot || commandDeck || document.body).appendChild(nudge);
+        }
         setNudgeVisibleState();
         nudge.querySelector('.tour-start').addEventListener('click', startTour);
         nudge.querySelector('.tour-dismiss').addEventListener('click', end);

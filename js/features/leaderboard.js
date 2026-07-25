@@ -21,7 +21,7 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=482';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=484';
 const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
 const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -59,6 +59,7 @@ let bakerDirectoryState = {
 };
 let bakerDirectoryTimer = null;
 let bakerDirectoryRefreshInFlight = null;
+let bakerDirectoryRefreshIncludesGovernance = false;
 let bakerDirectoryRefreshDeferred = false;
 let bakerDirectoryVisibilityWired = false;
 let bakerDirectoryLastError = '';
@@ -1734,7 +1735,8 @@ function bindBakerDirectoryVisibility() {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible' || !bakerDirectoryRefreshDeferred) return;
         bakerDirectoryRefreshDeferred = false;
-        refreshBakerDirectoryChamber({ quiet: true });
+        const overlayOpen = document.getElementById('baker-directory-modal')?.classList.contains('active');
+        refreshBakerDirectoryChamber({ quiet: true, includeGovernance: overlayOpen });
     });
 }
 
@@ -1753,7 +1755,7 @@ function updateBakerDirectoryEntryCard({ quiet = false } = {}) {
         <div class="baker-directory-entry-metrics">
             <span><strong>${summary.open.toLocaleString('en-US')}</strong> open ovens</span>
             <span><strong>${summary.tz4.toLocaleString('en-US')}</strong> tz4</span>
-            <span><strong>${summary.voting.toLocaleString('en-US')}</strong> voting streaks</span>
+            <span><strong>${summary.tenure.toLocaleString('en-US')}</strong> long-running</span>
         </div>
         <div class="baker-directory-entry-rails" aria-hidden="true"><span>Discover</span><span>Directory</span><span>Signals</span></div>
         ${footerMarkup}
@@ -1796,18 +1798,26 @@ export function wireBakerDirectoryEntryCard(card = document.getElementById('bake
     });
 }
 
-export async function refreshBakerDirectoryChamber({ quiet = true } = {}) {
+export async function refreshBakerDirectoryChamber({ quiet = true, includeGovernance = true } = {}) {
     if (document.visibilityState !== 'visible') {
         bakerDirectoryRefreshDeferred = true;
         return bakersData;
     }
-    if (bakerDirectoryRefreshInFlight) return bakerDirectoryRefreshInFlight;
+    if (bakerDirectoryRefreshInFlight) {
+        const pendingRefresh = bakerDirectoryRefreshInFlight;
+        if (!includeGovernance || bakerDirectoryRefreshIncludesGovernance) return pendingRefresh;
+        await pendingRefresh;
+        return refreshBakerDirectoryChamber({ quiet, includeGovernance: true });
+    }
 
-    bakerDirectoryRefreshInFlight = Promise.all([
+    bakerDirectoryRefreshIncludesGovernance = includeGovernance;
+    const requests = [
         fetchBakers(),
-        fetchDelegationLimit(),
-        fetchGovernanceSignals()
-    ]).then(([raw, limit]) => {
+        fetchDelegationLimit()
+    ];
+    if (includeGovernance) requests.push(fetchGovernanceSignals());
+
+    bakerDirectoryRefreshInFlight = Promise.all(requests).then(([raw, limit]) => {
         const enriched = raw.map((baker) => enrichBaker(baker, limit));
         bakersData = enriched;
         rememberStakeSnapshot(raw);
@@ -1833,6 +1843,7 @@ export async function refreshBakerDirectoryChamber({ quiet = true } = {}) {
         return [];
     }).finally(() => {
         bakerDirectoryRefreshInFlight = null;
+        bakerDirectoryRefreshIncludesGovernance = false;
     });
 
     return bakerDirectoryRefreshInFlight;
@@ -1907,6 +1918,8 @@ export function initBakerDirectoryChamber() {
     const card = ensureBakerDirectoryEntryCard();
     wireBakerDirectoryEntryCard(card);
     if (bakersData.length) updateBakerDirectoryEntryCard({ quiet: false });
-    else if (document.visibilityState === 'visible') refreshBakerDirectoryChamber({ quiet: false });
+    else if (document.visibilityState === 'visible') {
+        refreshBakerDirectoryChamber({ quiet: false, includeGovernance: false });
+    }
     else bakerDirectoryRefreshDeferred = true;
 }

@@ -100,7 +100,7 @@ function categoryDefinition(category) {
 function categoryMark(category, className = '') {
     const definition = categoryDefinition(category);
     if (definition?.icon) {
-        return `<img class="tezoscrp-category-icon ${escapeHtml(className)}" src="${escapeHtml(definition.icon)}" alt="" width="42" height="50">`;
+        return `<img class="tezoscrp-category-icon ${escapeHtml(className)}" src="${escapeHtml(definition.icon)}" alt="" width="42" height="50" loading="lazy" decoding="async">`;
     }
     return `<span class="tezoscrp-archive-mark ${escapeHtml(className)}" aria-hidden="true">◇</span>`;
 }
@@ -193,7 +193,7 @@ function renderEntryCard(summary) {
         ? `${latestYearRecord.leaders[0].display_name} · ${formatNumber(latestYearRecord.record)}`
         : latestYearRecord ? `${formatNumber(latestYearRecord.leaders?.length)}-way tie · ${formatNumber(latestYearRecord.record)} each` : 'October 2020';
     const icons = summary.current_categories?.map((category) => (
-        `<img src="${escapeHtml(category.icon)}" alt="" width="30" height="35" title="${escapeHtml(category.category)}">`
+        `<img src="${escapeHtml(category.icon)}" alt="" width="30" height="35" title="${escapeHtml(category.category)}" loading="lazy" decoding="async">`
     )).join('') || '';
     const front = card.querySelector('.tezoscrp-entry-front');
     if (front) {
@@ -346,7 +346,7 @@ function syncRoute() {
 
 function roomHeader() {
     const categoryIcons = (summaryData?.current_categories || []).map((category) => (
-        `<img src="${escapeHtml(category.icon)}" alt="" width="34" height="40" title="${escapeHtml(category.category)}">`
+        `<img src="${escapeHtml(category.icon)}" alt="" width="34" height="40" title="${escapeHtml(category.category)}" loading="lazy" decoding="async">`
     )).join('');
     return `
         <header class="tezoscrp-header">

@@ -708,6 +708,11 @@
 }
 
 .site-map-shell .site-map-sublink {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 24px;
+    padding-block: 3px;
     color: var(--site-map-dim);
     font-size: 0.65rem;
     line-height: 1.35;
@@ -724,6 +729,9 @@
 .site-map-shell .site-map-links .site-map-link {
     display: inline-flex;
     align-items: center;
+    box-sizing: border-box;
+    min-height: 24px;
+    padding-block: 3px;
     gap: 5px;
     color: var(--site-map-text);
     font-size: 0.75rem;

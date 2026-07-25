@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import net from 'node:net';
 import path from 'node:path';
@@ -22,6 +23,16 @@ const STRICT_EXTERNAL = cli.strictExternal || process.env.STRICT_EXTERNAL === '1
 const BROWSER_EXECUTABLE_PATH = cli.browserExecutablePath || process.env.BROWSER_EXECUTABLE_PATH || '';
 const ONLY_SUITES = cli.onlySuites;
 
+function stableTestValue(value) {
+  if (Array.isArray(value)) return value.map(stableTestValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableTestValue(value[key])]));
+}
+
+function stableTestHash(value) {
+  return createHash('sha256').update(JSON.stringify(stableTestValue(value))).digest('hex');
+}
+
 const allowedWarningPatterns = [
   /goatcounter/i,
   /Price fetch failed/i,
@@ -39,6 +50,7 @@ const allowedWarningPatterns = [
   /api\.tzkt\.io/i,
   /teztale-server-mainnet-ro-prd\.octez\.tech/i,
   /api\.llama\.fi/i,
+  /fonts\.gstatic\.com/i,
   /explorer\.etherlink\.com/i,
   /node\.mainnet\.etherlink\.com/i,
   /api\.github\.com/i,
@@ -4118,6 +4130,9 @@ async function smokeAppShell(browser, baseUrl) {
     const robots = await fetchText('/robots.txt');
     const sitemap = await fetchText('/sitemap.xml');
     const license = await fetchText('/LICENSE');
+    const aiPlugin = await fetchJson('/.well-known/ai-plugin.json');
+    const openApi = await fetchJson('/.well-known/openapi.json');
+    const llms = await fetchText('/llms.txt');
     const shellAssets = Array.from(new Set(
       Array.from(sw.text.matchAll(/['"]((?:\/|\.\.?\/)[^'"]+)['"]/g))
         .map((match) => match[1])
@@ -4179,6 +4194,7 @@ async function smokeAppShell(browser, baseUrl) {
       appPreloadVersion,
       appScript,
       appScriptVersion,
+      aiPlugin,
       assetResults,
       buildVersionText,
       buildVersionTitle,
@@ -4224,6 +4240,8 @@ async function smokeAppShell(browser, baseUrl) {
       licenseMetaHref: document.querySelector('link[rel="license"]')?.getAttribute('href') || '',
       manifest,
       manifestHref: document.querySelector('link[rel="manifest"]')?.getAttribute('href') || '',
+      llms,
+      openApi,
       robots,
       sitemap,
       stylesheet,
@@ -4258,6 +4276,22 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.faviconHrefs.every((href) => href.startsWith('/')), `app shell: favicon links must survive route rewrites: ${shell.faviconHrefs.join(', ')}`);
   assert(shell.canonical === 'https://tezos.systems/', `app shell: canonical URL mismatch: ${shell.canonical}`);
   assert(shell.license.ok && shell.license.text.startsWith('Mozilla Public License Version 2.0'), `app shell: /LICENSE missing or invalid (${shell.license.status})`);
+  assert(shell.aiPlugin.ok
+    && !shell.aiPlugin.parseError
+    && shell.aiPlugin.json?.api?.url === 'https://tezos.systems/.well-known/openapi.json',
+  `app shell: AI plugin discovery metadata is missing or invalid (${shell.aiPlugin.status} ${shell.aiPlugin.parseError})`);
+  assert(shell.openApi.ok
+    && !shell.openApi.parseError
+    && /application\/json/i.test(shell.openApi.contentType)
+    && shell.openApi.json?.openapi === '3.0.3'
+    && Object.keys(shell.openApi.json?.paths || {}).length >= 20,
+  `app shell: OpenAPI public-data catalogue is missing or invalid (${shell.openApi.status} ${shell.openApi.parseError})`);
+  assert(shell.llms.ok
+    && /text\/plain/i.test(shell.llms.contentType)
+    && /## Canonical destinations/.test(shell.llms.text)
+    && /## Public JSON data/.test(shell.llms.text)
+    && !/%7B|%7D/.test(shell.llms.text),
+  `app shell: llms.txt discovery surface is missing or publishes broken template links (${shell.llms.status})`);
   assert(shell.licenseMetaHref === '/LICENSE' && shell.footerLicenseHref === '/LICENSE', `app shell: MPL-2.0 metadata/footer links missing (${shell.licenseMetaHref}, ${shell.footerLicenseHref})`);
   assert(shell.footerSourceHref === 'https://github.com/Primate411/tezos.systems', `app shell: public source link mismatch: ${shell.footerSourceHref}`);
   assert(shell.footerBuilderHref === 'https://x.com/BakingBenjamins'
@@ -10232,6 +10266,360 @@ async function smokeTezosDomainsChamber(browser, baseUrl) {
   log('ok - tezos domains chamber smoke');
 }
 
+async function smokeLauncherProjections(browser, baseUrl) {
+  const issues = [];
+  const initialPaths = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'launcher projections', issues);
+  page.on('request', (request) => {
+    try {
+      initialPaths.push(new URL(request.url()).pathname);
+    } catch {
+      // Ignore malformed third-party diagnostics.
+    }
+  });
+  const hasPath = (path) => initialPaths.includes(path);
+  const hasSeasonSummary = () => initialPaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path));
+  const waitForRequests = async (predicate, label, timeoutMs = 20000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (!predicate() && Date.now() < deadline) {
+      await page.waitForTimeout(50);
+    }
+    assert(predicate(), `${label}; observed ${initialPaths.join(', ')}`);
+  };
+  const entryMarkup = () => page.evaluate(() => ({
+    capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
+    maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || ''
+  }));
+
+  const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `launcher projections: dashboard failed with HTTP ${response?.status()}`);
+  await page.waitForFunction(() => {
+    const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
+    const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
+    return capitalPath.length > 80 && maxisIdentities === 10;
+  }, null, { timeout: 25000 });
+  await page.waitForTimeout(250);
+
+  assert(hasPath('/data/capital-entry-summary.json'), `Capital launcher projection was not requested: ${initialPaths.join(', ')}`);
+  assert(hasPath('/data/maxis/entry-summary.json'), `Maxis launcher projection was not requested: ${initialPaths.join(', ')}`);
+  assert(!hasPath('/data/capital-snapshot.json'), `full Capital data loaded before its Chamber opened: ${initialPaths.join(', ')}`);
+  assert(!hasPath('/data/maxis-leaders.json')
+    && !hasPath('/data/maxis-careers.json')
+    && !hasPath('/data/maxis-l2-governance.json')
+    && !hasPath('/data/maxis/manifest.json')
+    && !hasSeasonSummary(), `full Maxis data loaded before its Chamber opened: ${initialPaths.join(', ')}`);
+
+  const beforeOpen = await entryMarkup();
+  await page.locator('#capital-entry-front').click();
+  await page.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 20000 });
+  await waitForRequests(() => hasPath('/data/capital-snapshot.json'), 'Capital Chamber did not request its reviewed full snapshot');
+  await page.locator('#capital-modal.active .chamber-close').click();
+  await page.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
+  await page.locator('#maxis-entry-card .maxis-entry-front').click();
+  await page.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
+  await waitForRequests(() => hasPath('/data/maxis-leaders.json')
+    && hasPath('/data/maxis-careers.json')
+    && hasPath('/data/maxis-l2-governance.json')
+    && hasPath('/data/maxis/manifest.json')
+    && hasSeasonSummary(), 'Maxis Chamber did not request all reviewed full artifacts', 30000);
+  await page.locator('#maxis-modal.active .chamber-close').click();
+  await page.waitForFunction(() => !document.querySelector('#maxis-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const afterOpen = await entryMarkup();
+  assert(afterOpen.capital === beforeOpen.capital, 'Capital launcher markup drifted after replacing its projection with reviewed full data');
+  assert(afterOpen.maxis === beforeOpen.maxis, 'Maxis launcher markup drifted after replacing its projection with reviewed full data');
+  await context.close();
+
+  const raceIssues = [];
+  const racePaths = [];
+  let releaseDelayedMaxisProjection;
+  let delayedMaxisProjectionFulfilled = false;
+  const delayedMaxisProjectionGate = new Promise((resolve) => {
+    releaseDelayedMaxisProjection = resolve;
+  });
+  const raceContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(raceContext);
+  await raceContext.route('**/data/maxis/entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.payload.legacy.rankedWalletCount = 777;
+    const { integrity: ignoredIntegrity, ...unsigned } = body;
+    body.integrity.contentHash = stableTestHash(unsigned);
+    await delayedMaxisProjectionGate;
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+    delayedMaxisProjectionFulfilled = true;
+  });
+  await raceContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const racePage = await raceContext.newPage();
+  attachIssueCollectors(racePage, 'Maxis delayed launcher projection', raceIssues);
+  racePage.on('request', (request) => {
+    try {
+      racePaths.push(new URL(request.url()).pathname);
+    } catch {
+      // Ignore malformed third-party diagnostics.
+    }
+  });
+  const raceResponse = await racePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(raceResponse?.ok(), `Maxis delayed launcher projection: dashboard failed with HTTP ${raceResponse?.status()}`);
+  await racePage.waitForFunction(() => typeof window.openMaxisChamber === 'function', null, { timeout: 15000 });
+  const raceRequestDeadline = Date.now() + 15000;
+  while (!racePaths.includes('/data/maxis/entry-summary.json') && Date.now() < raceRequestDeadline) {
+    await racePage.waitForTimeout(50);
+  }
+  assert(racePaths.includes('/data/maxis/entry-summary.json'), `Maxis delayed launcher projection request did not start: ${racePaths.join(', ')}`);
+  await racePage.evaluate(() => window.openMaxisChamber());
+  await racePage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
+  await racePage.waitForFunction(() => {
+    const cardText = document.querySelector('#maxis-entry-card .maxis-entry-front')?.textContent || '';
+    return /Passports/i.test(cardText) && !/loading/i.test(cardText);
+  }, null, { timeout: 30000 });
+  const fullRaceMarkup = await racePage.locator('#maxis-entry-card .maxis-entry-front').evaluate((node) => node.innerHTML.replace(/\s+/g, ' ').trim());
+  assert(!/777 ranked wallets/i.test(fullRaceMarkup), `Maxis full launcher unexpectedly used delayed projection data before release: ${fullRaceMarkup}`);
+  releaseDelayedMaxisProjection();
+  const raceFulfillDeadline = Date.now() + 10000;
+  while (!delayedMaxisProjectionFulfilled && Date.now() < raceFulfillDeadline) {
+    await racePage.waitForTimeout(50);
+  }
+  assert(delayedMaxisProjectionFulfilled, 'Maxis delayed launcher projection fixture did not finish');
+  await racePage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const settledRaceMarkup = await racePage.locator('#maxis-entry-card .maxis-entry-front').evaluate((node) => node.innerHTML.replace(/\s+/g, ' ').trim());
+  assert(settledRaceMarkup === fullRaceMarkup && !/777 ranked wallets/i.test(settledRaceMarkup),
+    `delayed Maxis projection overwrote full launcher data: ${settledRaceMarkup}`);
+  await raceContext.close();
+
+  const fallbackRaceIssues = [];
+  const fallbackRacePaths = [];
+  const fallbackRaceRequestCounts = new Map();
+  const delayedFallbackRequests = new Set();
+  let delayedFallbackFulfilled = 0;
+  let releaseDelayedFallback;
+  const delayedFallbackGate = new Promise((resolve) => {
+    releaseDelayedFallback = resolve;
+  });
+  const fallbackRaceContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(fallbackRaceContext);
+  await fallbackRaceContext.route('**/data/maxis/entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.integrity.contentHash = '0'.repeat(64);
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  const delayFirstFallbackArtifact = async (route, key, mutate = () => {}) => {
+    const count = (fallbackRaceRequestCounts.get(key) || 0) + 1;
+    fallbackRaceRequestCounts.set(key, count);
+    const response = await route.fetch();
+    const body = await response.json();
+    if (count === 1) {
+      mutate(body);
+      delayedFallbackRequests.add(key);
+      await delayedFallbackGate;
+      delayedFallbackFulfilled += 1;
+    }
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  };
+  await fallbackRaceContext.route('**/data/maxis-leaders.json*', (route) => delayFirstFallbackArtifact(route, 'legacy', (body) => {
+    body.rankedWalletCount = 777;
+  }));
+  await fallbackRaceContext.route('**/data/maxis-l2-governance.json*', (route) => delayFirstFallbackArtifact(route, 'l2Governance'));
+  await fallbackRaceContext.route('**/data/maxis/manifest.json*', (route) => delayFirstFallbackArtifact(route, 'manifest', (body) => {
+    if (body.current) body.current.displayLabel = 'Stale Fallback Season';
+  }));
+  await fallbackRaceContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const fallbackRacePage = await fallbackRaceContext.newPage();
+  attachIssueCollectors(fallbackRacePage, 'Maxis immediate-open fallback race', fallbackRaceIssues);
+  fallbackRacePage.on('request', (request) => {
+    try {
+      fallbackRacePaths.push(new URL(request.url()).pathname);
+    } catch {
+      // Ignore malformed third-party diagnostics.
+    }
+  });
+  const fallbackRaceResponse = await fallbackRacePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(fallbackRaceResponse?.ok(), `Maxis immediate-open fallback race: dashboard failed with HTTP ${fallbackRaceResponse?.status()}`);
+  await fallbackRacePage.waitForFunction(() => typeof window.openMaxisChamber === 'function', null, { timeout: 15000 });
+  const fallbackRaceStartDeadline = Date.now() + 15000;
+  while (delayedFallbackRequests.size < 3 && Date.now() < fallbackRaceStartDeadline) {
+    await fallbackRacePage.waitForTimeout(50);
+  }
+  assert(delayedFallbackRequests.size === 3,
+    `Maxis corrupt projection did not start every delayed fallback artifact: ${Array.from(delayedFallbackRequests).join(', ')}; observed ${fallbackRacePaths.join(', ')}`);
+  await fallbackRacePage.evaluate(() => window.openMaxisChamber());
+  await fallbackRacePage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
+  assert(['legacy', 'l2Governance', 'manifest'].every((key) => (fallbackRaceRequestCounts.get(key) || 0) >= 2),
+    `Maxis explicit open did not supersede all in-flight fallback requests: ${JSON.stringify(Object.fromEntries(fallbackRaceRequestCounts))}`);
+  const fallbackRaceFullMarkup = await fallbackRacePage.locator('#maxis-entry-card .maxis-entry-front').evaluate((node) => node.innerHTML.replace(/\s+/g, ' ').trim());
+  assert(!/777 ranked wallets|Stale Fallback Season/i.test(fallbackRaceFullMarkup),
+    `Maxis explicit open rendered delayed fallback data before release: ${fallbackRaceFullMarkup}`);
+  releaseDelayedFallback();
+  const fallbackRaceFulfillDeadline = Date.now() + 10000;
+  while (delayedFallbackFulfilled < 3 && Date.now() < fallbackRaceFulfillDeadline) {
+    await fallbackRacePage.waitForTimeout(50);
+  }
+  assert(delayedFallbackFulfilled === 3, `Maxis delayed fallback fixtures did not all finish: ${delayedFallbackFulfilled}/3`);
+  await fallbackRacePage.waitForTimeout(100);
+  await fallbackRacePage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const settledFallbackRaceMarkup = await fallbackRacePage.locator('#maxis-entry-card .maxis-entry-front').evaluate((node) => node.innerHTML.replace(/\s+/g, ' ').trim());
+  assert(settledFallbackRaceMarkup === fallbackRaceFullMarkup
+    && !/777 ranked wallets|Stale Fallback Season/i.test(settledFallbackRaceMarkup),
+  `delayed Maxis fallback overwrote explicit full-room launcher data: ${settledFallbackRaceMarkup}`);
+  await fallbackRaceContext.close();
+
+  const fallbackIssues = [];
+  const fallbackPaths = [];
+  const fallbackContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(fallbackContext);
+  await fallbackContext.route('**/data/capital-entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.contentHash = '0'.repeat(64);
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await fallbackContext.route('**/data/maxis/entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.integrity.contentHash = '0'.repeat(64);
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await fallbackContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const fallbackPage = await fallbackContext.newPage();
+  attachIssueCollectors(fallbackPage, 'launcher projection fallback', fallbackIssues);
+  fallbackPage.on('request', (request) => {
+    try {
+      fallbackPaths.push(new URL(request.url()).pathname);
+    } catch {
+      // Ignore malformed third-party diagnostics.
+    }
+  });
+  const waitForFallbackRequests = async (predicate, label, timeoutMs = 30000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (!predicate() && Date.now() < deadline) {
+      await fallbackPage.waitForTimeout(50);
+    }
+    assert(predicate(), `${label}; observed ${fallbackPaths.join(', ')}`);
+  };
+  const fallbackResponse = await fallbackPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(fallbackResponse?.ok(), `launcher projection fallback: dashboard failed with HTTP ${fallbackResponse?.status()}`);
+  await fallbackPage.waitForFunction(() => {
+    const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
+    const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
+    return capitalPath.length > 80 && maxisIdentities === 10;
+  }, null, { timeout: 30000 });
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/capital-entry-summary.json')
+    && fallbackPaths.includes('/data/capital-snapshot.json'), 'Capital projection failure did not fall back to the reviewed snapshot');
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/maxis/entry-summary.json')
+    && fallbackPaths.includes('/data/maxis-leaders.json')
+    && fallbackPaths.includes('/data/maxis-l2-governance.json')
+    && fallbackPaths.includes('/data/maxis/manifest.json')
+    && fallbackPaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path)),
+  'Maxis projection failure did not fall back to the reviewed launcher artifacts');
+  assert(!fallbackPaths.includes('/data/maxis-careers.json'), `Maxis career data loaded before the fallback launcher was explicitly opened: ${fallbackPaths.join(', ')}`);
+  await fallbackPage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const fallbackMarkup = await fallbackPage.evaluate(() => ({
+    capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
+    maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(fallbackMarkup.capital === beforeOpen.capital, 'Capital reviewed-data fallback did not preserve launcher markup parity');
+  assert(fallbackMarkup.maxis === beforeOpen.maxis, 'Maxis reviewed-data fallback did not preserve launcher markup parity');
+  await fallbackPage.locator('#maxis-entry-card .maxis-entry-front').click();
+  await fallbackPage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/maxis-careers.json'),
+    'Maxis reviewed-data fallback did not load the career ledger after explicit room open');
+  await fallbackContext.close();
+
+  const deploySkewIssues = [];
+  const deploySkewPaths = [];
+  const deploySkewContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(deploySkewContext);
+  await deploySkewContext.route('**/data/capital-entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const olderGeneratedAt = new Date(Date.parse(body.generatedAt) - 60_000).toISOString();
+    body.generatedAt = olderGeneratedAt;
+    body.source.generatedAt = olderGeneratedAt;
+    body.source.contentHash = '1'.repeat(64);
+    const { contentHash: ignored, ...unsigned } = body;
+    body.contentHash = stableTestHash(unsigned);
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await deploySkewContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const deploySkewPage = await deploySkewContext.newPage();
+  attachIssueCollectors(deploySkewPage, 'Capital launcher deploy skew', deploySkewIssues);
+  deploySkewPage.on('request', (request) => {
+    try {
+      deploySkewPaths.push(new URL(request.url()).pathname);
+    } catch {
+      // Ignore malformed third-party diagnostics.
+    }
+  });
+  const deploySkewResponse = await deploySkewPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(deploySkewResponse?.ok(), `Capital launcher deploy skew: dashboard failed with HTTP ${deploySkewResponse?.status()}`);
+  await deploySkewPage.locator('#capital-entry-card .capital-entry-price-line').waitFor({ state: 'attached', timeout: 20000 });
+  assert(!deploySkewPaths.includes('/data/capital-snapshot.json'), `Capital deploy-skew fixture loaded full data before open: ${deploySkewPaths.join(', ')}`);
+  await deploySkewPage.locator('#capital-entry-front').click();
+  await deploySkewPage.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 20000 });
+  await deploySkewPage.waitForFunction(() => {
+    const body = document.querySelector('#capital-modal.active #capital-chamber-body');
+    return Boolean(body?.querySelector('.capital-tabs')) && !/Capital snapshot unavailable/i.test(body?.textContent || '');
+  }, null, { timeout: 20000 });
+  assert(deploySkewPaths.includes('/data/capital-snapshot.json'), `Capital deploy-skew fixture did not request the newer reviewed snapshot: ${deploySkewPaths.join(', ')}`);
+  await deploySkewContext.close();
+
+  assert(issues.length === 0, `launcher projection browser issues:\n${issues.join('\n')}`);
+  const unexpectedFallbackIssues = fallbackIssues.filter((issue) => (
+    !/Capital Chamber entry summary failed; loading the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+  ));
+  assert(unexpectedFallbackIssues.length === 0, `launcher projection fallback browser issues:\n${unexpectedFallbackIssues.join('\n')}`);
+  assert(deploySkewIssues.length === 0, `Capital launcher deploy-skew browser issues:\n${deploySkewIssues.join('\n')}`);
+  assert(raceIssues.length === 0, `Maxis delayed launcher projection browser issues:\n${raceIssues.join('\n')}`);
+  assert(fallbackRaceIssues.length === 0, `Maxis immediate-open fallback race browser issues:\n${fallbackRaceIssues.join('\n')}`);
+  log('ok - launcher projections defer full data, preserve parity, and fall back safely');
+}
+
 async function smokeCapitalChamber(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -12063,6 +12451,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
       const tooltip = document.querySelector('.tour-tooltip');
       const targetRect = target?.getBoundingClientRect();
       const tooltipRect = tooltip?.getBoundingClientRect();
+      const tooltipOpacity = tooltip ? Number(window.getComputedStyle(tooltip).opacity) : 0;
       const verticalOverlap = targetRect && tooltipRect
         ? Math.max(0, Math.min(targetRect.bottom, tooltipRect.bottom) - Math.max(targetRect.top, tooltipRect.top))
         : 0;
@@ -12091,6 +12480,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
           width: tooltipRect.width,
           height: tooltipRect.height
         } : null,
+        tooltipOpacity,
         overlap: verticalOverlap > 1 && horizontalOverlap > 1
       };
     }, selector);
@@ -12162,7 +12552,41 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await page.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 12000 });
   await assertLocatorCount(page.locator('.visit-streak-toast.visible'), 0, 'first visit welcome and help nudge overlap');
   const nudgeText = await page.locator('.tour-nudge').innerText();
-  assert(/Need a hand/i.test(nudgeText) && /Help is available/i.test(nudgeText) && /Show help/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
+  assert(/Quick tour/i.test(nudgeText) && /Show/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
+  const desktopNudgeGeometry = await page.locator('.tour-nudge').evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const chips = document.querySelector('#hero-search-chips');
+    const chipsRect = chips?.getBoundingClientRect();
+    const deckRect = document.querySelector('#upgrade-clock')?.getBoundingClientRect();
+    const overlapsChip = Array.from(chips?.querySelectorAll('.hero-search-chip') || []).some((chip) => {
+      const chipRect = chip.getBoundingClientRect();
+      return rect.left < chipRect.right
+        && rect.right > chipRect.left
+        && rect.top < chipRect.bottom
+        && rect.bottom > chipRect.top;
+    });
+    return {
+      parentId: node.parentElement?.id || '',
+      width: rect.width,
+      height: rect.height,
+      top: rect.top,
+      bottom: rect.bottom,
+      chipsTop: chipsRect?.top || 0,
+      chipsBottom: chipsRect?.bottom || 0,
+      overlapsChip,
+      deckHeight: deckRect?.height || 0
+    };
+  });
+  assert(desktopNudgeGeometry.parentId === 'hero-slot'
+    && desktopNudgeGeometry.width <= 220
+    && desktopNudgeGeometry.height <= 32
+    && desktopNudgeGeometry.top >= desktopNudgeGeometry.chipsTop - 8
+    && desktopNudgeGeometry.bottom <= desktopNudgeGeometry.chipsBottom + 1
+    && desktopNudgeGeometry.overlapsChip === false
+    && desktopNudgeGeometry.deckHeight <= 180,
+  `first visit tour: desktop nudge interrupts the page instead of staying in the search row: ${JSON.stringify(desktopNudgeGeometry)}`);
+  await page.waitForTimeout(1800);
+  assert(await page.locator('.tour-nudge').isVisible(), 'first visit tour: search chip refresh removed the desktop nudge');
   await assertLocatorCount(page.locator('.tour-nudge .tour-start'), 1, 'first visit tour start');
   await page.locator('#features-gear').click();
   await page.locator('#features-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
@@ -12216,6 +12640,29 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await mobilePage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
   await mobilePage.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 12000 });
   await assertLocatorCount(mobilePage.locator('.visit-streak-toast.visible'), 0, 'mobile first visit welcome and help nudge overlap');
+  const mobileNudgeGeometry = await mobilePage.locator('.tour-nudge').evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return {
+      parentId: node.parentElement?.id || '',
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth
+    };
+  });
+  assert(mobileNudgeGeometry.parentId === 'hero-slot'
+    && mobileNudgeGeometry.width <= 220
+    && mobileNudgeGeometry.height <= 42
+    && mobileNudgeGeometry.left >= 0
+    && mobileNudgeGeometry.right <= mobileNudgeGeometry.viewportWidth,
+  `first visit tour: mobile nudge is not a compact visible search-row control: ${JSON.stringify(mobileNudgeGeometry)}`);
+  await mobilePage.locator('#hero-search-input').focus();
+  await mobilePage.waitForFunction(() => document.body.classList.contains('hero-search-mode'), null, { timeout: 5000 });
+  await mobilePage.locator('.tour-nudge').waitFor({ state: 'detached', timeout: 3000 });
+  await mobilePage.locator('#hero-search-close').click();
+  await mobilePage.waitForFunction(() => !document.body.classList.contains('hero-search-mode'), null, { timeout: 5000 });
+  await mobilePage.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 5000 });
   await mobilePage.locator('#features-gear').click();
   await mobilePage.locator('#features-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
   await mobilePage.locator('.tour-nudge').waitFor({ state: 'detached', timeout: 3000 });
@@ -13402,7 +13849,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await expectShareModal(page, 'feature workflows historical data share', issues);
   await page.keyboard.press('Escape');
   await page.locator('#history-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
-  await page.waitForTimeout(250);
+  await page.waitForFunction(() => document.activeElement === window.__featureWorkflowCycleOpenCue, null, { timeout: 2000 });
   const historyFocusState = await page.evaluate(() => {
     const active = document.activeElement;
     const rect = active?.getBoundingClientRect?.();
@@ -15300,6 +15747,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
     { name: 'chamber-categories', description: 'Six responsive Chamber disclosures, exact membership, reusable organization, direct-route reveal, and risk-only attention', run: () => smokeChamberCategories(browser, baseUrl) },
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
+    { name: 'launcher-projections', description: 'Capital and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },

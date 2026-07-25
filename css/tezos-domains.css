@@ -748,14 +748,15 @@
     flex: 1 1 auto;
     max-width: 100%;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
+    overflow-wrap: anywhere;
     color: var(--text-primary);
     font-size: 0.77rem;
     font-weight: 950;
     line-height: 1.12;
     text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-overflow: clip;
+    white-space: normal;
 }
 
 .td-type-chip {

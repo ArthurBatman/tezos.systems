@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tezos Systems Public Data",
-    "version": "1.0.0",
-    "description": "Read-only, generated Tezos Systems metadata and research artifacts. Each document carries its own source and freshness fields where applicable."
+    "version": "1.1.0",
+    "description": "Read-only Tezos Systems metadata, generated research artifacts, and public browser datasets. Artifact fields disclose their own sources and observation times where applicable."
   },
   "servers": [
     {
@@ -15,16 +15,12 @@
       "get": {
         "operationId": "getBuildMetadata",
         "summary": "Get served build metadata",
+        "description": "Current committed build stamp used by the site footer.",
+        "x-refresh-cadence": "Every normal commit",
+        "x-license-boundary": "Repository-authored metadata is covered by MPL-2.0.",
         "responses": {
           "200": {
-            "description": "Current committed build stamp",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonDocument"
-                }
-              }
-            }
+            "$ref": "#/components/responses/JsonDocument"
           }
         }
       }
@@ -33,6 +29,23 @@
       "get": {
         "operationId": "getProtocolHistory",
         "summary": "Get the curated Tezos protocol history",
+        "description": "Protocol chronology, upgrade changes, debates, and source links.",
+        "x-refresh-cadence": "When an accepted protocol or curated history changes",
+        "x-license-boundary": "Original selection, arrangement, and commentary are CC BY 4.0 where owned; underlying facts and linked sources retain their source terms.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/protocol-debates.json": {
+      "get": {
+        "operationId": "getProtocolDebates",
+        "summary": "Get sourced protocol debate records",
+        "description": "Curated proposal debate, rejection, and contention narratives.",
+        "x-refresh-cadence": "When protocol debate research is curated",
+        "x-license-boundary": "Original selection, arrangement, and commentary are CC BY 4.0 where owned; quotations and linked sources retain their source terms.",
         "responses": {
           "200": {
             "$ref": "#/components/responses/JsonDocument"
@@ -44,6 +57,23 @@
       "get": {
         "operationId": "getGovernanceVotes",
         "summary": "Get generated Tezos governance voting history",
+        "description": "Voting-period and ballot receipts reconstructed from public chain data.",
+        "x-refresh-cadence": "Every normal commit and scheduled generated refresh",
+        "x-license-boundary": "Underlying chain facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/governance-refresh-report.json": {
+      "get": {
+        "operationId": "getGovernanceRefreshReport",
+        "summary": "Get the governance freshness audit",
+        "description": "Current protocol, voting-period, lore coverage, and stale-data blockers.",
+        "x-refresh-cadence": "Every normal commit and scheduled generated refresh",
+        "x-license-boundary": "Repository-authored audit structure and commentary are covered by MPL-2.0; underlying public facts retain their source terms.",
         "responses": {
           "200": {
             "$ref": "#/components/responses/JsonDocument"
@@ -55,6 +85,51 @@
       "get": {
         "operationId": "getNakamotoSources",
         "summary": "Get dated Nakamoto-coefficient source reports",
+        "description": "Reproducible and manually curated concentration reports with provenance.",
+        "x-refresh-cadence": "Scheduled generated refresh with last-known-good retention",
+        "x-license-boundary": "Original selection and commentary are CC BY 4.0 where owned; third-party reports and measurements retain their source terms.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/whale-watch.json": {
+      "get": {
+        "operationId": "getWhaleWatch",
+        "summary": "Get the complete trailing-24-hour Whale Watch archive",
+        "description": "Large-transfer receipts, grouped flows, dormant accounts, and awakenings.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying TzKT facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/capital-snapshot.json": {
+      "get": {
+        "operationId": "getCapitalSnapshot",
+        "summary": "Get the complete Capital Chamber snapshot",
+        "description": "Cross-layer activity, markets, assets, real-world assets, and art-economy receipts.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying API and chain facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/capital-entry-summary.json": {
+      "get": {
+        "operationId": "getCapitalEntrySummary",
+        "summary": "Get the compact Capital launcher projection",
+        "description": "The exact subset of the reviewed Capital snapshot rendered by the closed dashboard card.",
+        "x-refresh-cadence": "After every Capital snapshot refresh",
+        "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
         "responses": {
           "200": {
             "$ref": "#/components/responses/JsonDocument"
@@ -66,6 +141,181 @@
       "get": {
         "operationId": "getMaxisLeaders",
         "summary": "Get the canonical mixed-clock Tezos Maxis snapshot",
+        "description": "Ongoing lane leaders and rankings on their honestly labeled natural clocks.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying chain and API facts retain their source terms; original scoring presentation and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis-careers.json": {
+      "get": {
+        "operationId": "getMaxisCareers",
+        "summary": "Get mutable Tezos Maxis career records",
+        "description": "All-history governance careers, voting-period receipts, streaks, and active-delegate ranks.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying chain facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis-l2-governance.json": {
+      "get": {
+        "operationId": "getMaxisL2Governance",
+        "summary": "Get the Etherlink governance career reconstruction",
+        "description": "Completed FAST, SLOW, and Sequencer windows with participant receipts.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying Etherlink and TzKT facts retain their source terms; original reconstruction and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis/manifest.json": {
+      "get": {
+        "operationId": "getMaxisManifest",
+        "summary": "Get the Tezos Maxis season manifest",
+        "description": "Active, settling, and finalized protocol-season catalogue.",
+        "x-refresh-cadence": "Scheduled generated refresh and protocol lifecycle transitions",
+        "x-license-boundary": "Underlying chain facts retain their source terms; original season catalogue structure and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis/entry-summary.json": {
+      "get": {
+        "operationId": "getMaxisEntrySummary",
+        "summary": "Get the compact Tezos Maxis launcher projection",
+        "description": "The exact subset of reviewed ongoing and current-season artifacts rendered by the closed dashboard card.",
+        "x-refresh-cadence": "After every Maxis, Maxis career, L2 governance, or season refresh",
+        "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis/seasons/{seasonId}/summary.json": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SeasonId"
+        }
+      ],
+      "get": {
+        "operationId": "getMaxisSeasonSummary",
+        "summary": "Get a protocol-season Maxis summary",
+        "description": "Frozen or live category standings, honors, coverage, and integrity receipts.",
+        "x-refresh-cadence": "Active and settling seasons refresh on the generated schedule; finalized seasons are immutable",
+        "x-license-boundary": "Underlying chain and API facts retain their source terms; original scoring presentation and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis/seasons/{seasonId}/rules.json": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SeasonId"
+        }
+      ],
+      "get": {
+        "operationId": "getMaxisSeasonRules",
+        "summary": "Get a protocol-season Maxis rules receipt",
+        "description": "Versioned evaluator, lane catalogue, boundaries, and immutable scoring terms.",
+        "x-refresh-cadence": "Written when a season opens and frozen when finalized",
+        "x-license-boundary": "Repository-authored rules and schema are covered by MPL-2.0; underlying public facts retain their source terms.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/maxis/seasons/{seasonId}/passports/{shard}.json": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SeasonId"
+        },
+        {
+          "$ref": "#/components/parameters/PassportShard"
+        }
+      ],
+      "get": {
+        "operationId": "getMaxisPassportShard",
+        "summary": "Get a sharded protocol-season Passport ledger",
+        "description": "Address-indexed season progress and badge receipts for one hexadecimal shard.",
+        "x-refresh-cadence": "Active and settling seasons refresh on the generated schedule; finalized seasons are immutable",
+        "x-license-boundary": "Underlying chain and API facts retain their source terms; original selection and arrangement are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/tezoscrp-summary.json": {
+      "get": {
+        "operationId": "getTezosCrpSummary",
+        "summary": "Get the compact TezosCRP recognition summary",
+        "description": "Latest official winners and totals reconciled to the complete recognition archive.",
+        "x-refresh-cadence": "Twice-monthly source check; changes only for a new official award period",
+        "x-license-boundary": "Official names, categories, and announcements retain their source terms; original selection and arrangement are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/tezoscrp-awards.json": {
+      "get": {
+        "operationId": "getTezosCrpAwards",
+        "summary": "Get the complete sourced TezosCRP archive",
+        "description": "Published recipients, categories, periods, identity evidence, and official source receipts.",
+        "x-refresh-cadence": "Twice-monthly source check; changes only for a new official award period",
+        "x-license-boundary": "Official names, categories, icons, and announcements retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/milestone-catalog.json": {
+      "get": {
+        "operationId": "getMilestoneCatalog",
+        "summary": "Get shared Tezos milestone receipts",
+        "description": "Network thresholds, exact crossings, and bounded recent celebration windows.",
+        "x-refresh-cadence": "After 14 days or 100 commits, with forced scheduled refresh support",
+        "x-license-boundary": "Underlying chain and TzKT facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/my-tezos-contracts.json": {
+      "get": {
+        "operationId": "getMyTezosContractRegistry",
+        "summary": "Get the reviewed My Tezos contract registry",
+        "description": "Address classification rules used to label personal activity without inferring ownership.",
+        "x-refresh-cadence": "When reviewed contract classifications change",
+        "x-license-boundary": "Repository-authored classifications and schema are covered by MPL-2.0; third-party contract facts retain their source terms.",
         "responses": {
           "200": {
             "$ref": "#/components/responses/JsonDocument"
@@ -75,6 +325,27 @@
     }
   },
   "components": {
+    "parameters": {
+      "SeasonId": {
+        "name": "seasonId",
+        "in": "path",
+        "required": true,
+        "description": "Manifest season identifier.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "PassportShard": {
+        "name": "shard",
+        "in": "path",
+        "required": true,
+        "description": "Two-character lowercase hexadecimal Passport shard in the current 64-shard range 00..3f.",
+        "schema": {
+          "type": "string",
+          "pattern": "^(?:[0-3][0-9a-f])$"
+        }
+      }
+    },
     "schemas": {
       "JsonDocument": {
         "type": "object",

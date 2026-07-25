@@ -7,6 +7,12 @@ const CHANGELOG = [
     {
         date: '2026-07-24',
         entries: [
+            { type: '⚡', text: 'Capital and Maxis launchers now hydrate from compact integrity-checked summaries, while Baker Directory governance ledgers and all full reviewed room datasets wait for an explicit Chamber open' },
+            { type: '🔧', text: 'A newer verified Capital snapshot can now supersede an older in-memory launcher receipt when a tab stays open across a data deployment' },
+            { type: '🔧', text: 'Delayed Maxis launcher summaries and fallback requests can no longer overwrite reviewed full data after the room has already opened' },
+            { type: '✨', text: 'The public data catalogue and generated llms.txt now expose canonical destinations, refresh cadence, provenance, license boundaries, and the exact available Passport shard range' },
+            { type: '🎨', text: 'First-visit help now stays compact inside the search suggestion row and leaves while search or another surface is open; the head-block syncing state no longer clips, compact controls meet a 24px target height, and off-screen TezosCRP icons defer loading and decoding' },
+            { type: '🎨', text: 'Long .tez names now wrap inside their clickable Domains rows instead of clipping at live-data column widths' },
             { type: '🎨', text: 'Cycle milestones now keep the mainnet-age highlight compact behind an info control, the header names 1H Activity explicitly, and undelegated My Tezos accounts drop baker-only cards for a clear single-column overview' },
             { type: '🔧', text: 'Footer credits now contact Primate by email and link Baking Benjamins directly to its X profile' },
             { type: '🔧', text: 'Shared Chamber links now open their exact room, use clean channel attribution, and reach the restored privacy-friendly analytics collector without duplicate pageviews' }

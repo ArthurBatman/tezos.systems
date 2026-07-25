@@ -957,6 +957,7 @@ body::before {
     display: flex;
     align-items: center;
     gap: 6px;
+    min-height: 24px;
     text-decoration: none;
     color: inherit;
     transition: color 0.2s;
@@ -1277,7 +1278,7 @@ body::before {
     align-items: center;
     column-gap: 0.8rem;
     width: 100%;
-    min-height: 58px;
+    min-height: 62px;
     overflow: hidden;
     isolation: isolate;
     padding: 0.58rem 0.8rem;
@@ -14545,6 +14546,7 @@ body {
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+    min-height: 24px;
     min-width: 0;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
@@ -14704,52 +14706,48 @@ body {
 }
 
 .tour-nudge {
-    position: fixed;
-    right: 20px;
-    bottom: 20px;
-    width: min(420px, calc(100vw - 32px));
-    z-index: 99997;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px 12px;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    min-height: 24px;
+    box-sizing: border-box;
+    z-index: 1;
+    display: inline-flex;
+    gap: 6px;
     align-items: center;
-    padding: 12px;
+    padding: 2px 3px 2px 9px;
     border: 1px solid color-mix(in srgb, var(--accent-cyan) 18%, var(--glass-border));
-    border-radius: 8px;
-    background: rgba(10, 14, 26, 0.88);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-cyan) 7%, rgba(10, 14, 26, 0.82));
     color: var(--text-primary);
-    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.26);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
 }
 
 .tour-nudge strong {
-    display: block;
-    font-size: 0.82rem;
-    margin-bottom: 2px;
-}
-
-.tour-nudge span {
-    display: block;
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-    line-height: 1.35;
+    font-size: 0.68rem;
+    white-space: nowrap;
 }
 
 .tour-nudge-actions {
     display: flex;
-    gap: 8px;
+    gap: 3px;
 }
 
 .tour-nudge button {
+    min-height: 24px;
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.04);
     color: var(--text-secondary);
-    padding: 7px 10px;
-    font-size: 0.74rem;
+    padding: 0 8px;
+    font-size: 0.66rem;
     cursor: pointer;
-    transition: var(--transition);
+}
+
+.tour-nudge .tour-dismiss {
+    width: 24px;
+    padding: 0;
+    font-size: 0.86rem;
 }
 
 .tour-nudge .tour-start {
@@ -14770,7 +14768,6 @@ body {
     box-shadow: 0 12px 34px rgba(15, 23, 42, 0.14);
 }
 
-[data-theme="clean"] .tour-nudge span,
 [data-theme="clean"] .tour-nudge button {
     color: #64748B;
 }
@@ -14781,12 +14778,20 @@ body {
     background: rgba(37, 99, 235, 0.08);
 }
 
+@media (max-width: 768px) {
+    .tour-nudge {
+        position: static;
+        margin: 8px 0 0;
+    }
+}
+
 @media (max-width: 560px) {
     .tour-nudge {
-        left: 16px;
-        right: 16px;
-        bottom: 16px;
-        grid-template-columns: 1fr;
+        min-height: 40px;
+    }
+
+    .tour-nudge button {
+        min-height: 32px;
     }
 }
 
@@ -17282,7 +17287,7 @@ body {
     justify-content: center;
     gap: 4px;
     min-width: 22px;
-    height: 21px;
+    height: 24px;
     padding: 0 6px;
     border: 1px solid color-mix(in srgb, var(--accent-cyan) 36%, transparent);
     border-radius: 999px;

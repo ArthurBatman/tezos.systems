@@ -11,7 +11,8 @@ const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const L2_GOVERNANCE_DATA_URL = '/data/maxis-l2-governance.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=482';
+const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json';
+const MAXIS_CSS_URL = '/css/maxis.css?v=484';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -98,6 +99,8 @@ let legacyPromise = null;
 let careerPromise = null;
 let l2GovernancePromise = null;
 let manifestPromise = null;
+let entrySummaryPromise = null;
+let entryHydrationSerial = 0;
 let lastLegacyBase = null;
 let lastLegacy = null;
 let lastCareer = null;
@@ -114,7 +117,10 @@ let initComplete = false;
 let requestSerial = 0;
 let summaryRequestSerial = 0;
 let archiveRequestSerial = 0;
+let legacyRequestSerial = 0;
+let manifestRequestSerial = 0;
 let l2GovernanceRequestSerial = 0;
+const seasonSummaryRequestSerials = new Map();
 
 const chamberState = {
     view: 'maxis',
@@ -527,14 +533,23 @@ function applyL2GovernanceToLegacy() {
 async function loadLegacy({ force = false } = {}) {
     if (lastLegacy && !force) return lastLegacy;
     if (legacyPromise && !force) return legacyPromise;
-    legacyPromise = fetchJson(LEGACY_DATA_URL, { force })
+    const serial = ++legacyRequestSerial;
+    const request = fetchJson(LEGACY_DATA_URL, { force })
         .then((snapshot) => {
+            if (serial !== legacyRequestSerial) return lastLegacy;
             if (!Array.isArray(snapshot?.leaders)) throw new Error('The ongoing Maxis snapshot has an unsupported schema.');
             lastLegacyBase = snapshot;
             return applyL2GovernanceToLegacy();
         })
-        .finally(() => { legacyPromise = null; });
-    return legacyPromise;
+        .catch((error) => {
+            if (serial !== legacyRequestSerial) return lastLegacy;
+            throw error;
+        })
+        .finally(() => {
+            if (serial === legacyRequestSerial) legacyPromise = null;
+        });
+    legacyPromise = request;
+    return request;
 }
 
 async function loadL2GovernanceData({ force = false } = {}) {
@@ -608,9 +623,11 @@ async function loadManifest({ force = false } = {}) {
         return lastManifest;
     }
     if (manifestPromise && !force) return manifestPromise;
+    const serial = ++manifestRequestSerial;
     chamberState.manifestLoading = true;
-    manifestPromise = fetchJson(MANIFEST_URL, { force })
+    const request = fetchJson(MANIFEST_URL, { force })
         .then((manifest) => {
+            if (serial !== manifestRequestSerial) return lastManifest;
             if (!manifest || typeof manifest !== 'object') {
                 throw new Error('The Maxis season manifest has an unsupported schema.');
             }
@@ -629,15 +646,18 @@ async function loadManifest({ force = false } = {}) {
             return manifest;
         })
         .catch((error) => {
+            if (serial !== manifestRequestSerial) return lastManifest;
             chamberState.manifestError = textValue(error?.message, 'The Maxis season manifest is temporarily unavailable.');
             console.warn('Maxis season manifest unavailable', error);
             return null;
         })
         .finally(() => {
+            if (serial !== manifestRequestSerial) return;
             manifestPromise = null;
             chamberState.manifestLoading = false;
         });
-    return manifestPromise;
+    manifestPromise = request;
+    return request;
 }
 
 function resolveDataUrl(value, base = MANIFEST_URL) {
@@ -769,10 +789,15 @@ async function loadSeasonSummary(seasonId, { force = false } = {}) {
     if (!seasonId) return null;
     const season = seasonById(seasonId);
     if (!force && summaryCache.has(seasonId)) return assertSeasonSummaryIdentity(summaryCache.get(seasonId), season);
+    const previousSerial = seasonSummaryRequestSerials.get(seasonId) || 0;
+    const serial = force ? previousSerial + 1 : previousSerial;
+    if (force) seasonSummaryRequestSerials.set(seasonId, serial);
     const inline = inlineSummaryFor(chamberState.manifest, season);
     if (inline) {
         const verified = assertSeasonSummaryIdentity(inline, season);
-        summaryCache.set(seasonId, verified);
+        if (serial === (seasonSummaryRequestSerials.get(seasonId) || 0)) {
+            summaryCache.set(seasonId, verified);
+        }
         return verified;
     }
     const url = summaryUrlFor(chamberState.manifest, season);
@@ -782,7 +807,9 @@ async function loadSeasonSummary(seasonId, { force = false } = {}) {
         throw new Error(`The declared ${season?.displayLabel || 'Maxis season'} summary did not contain a valid result sheet.`);
     }
     const verified = assertSeasonSummaryIdentity(summary, season);
-    summaryCache.set(seasonId, verified);
+    if (serial === (seasonSummaryRequestSerials.get(seasonId) || 0)) {
+        summaryCache.set(seasonId, verified);
+    }
     return verified;
 }
 
@@ -880,6 +907,8 @@ function normalizedRanking(data, category) {
 }
 
 function uniqueRankedWallets(data) {
+    const projectedCount = numberValue(data?.rankedWalletCount);
+    if (Number.isInteger(projectedCount) && projectedCount >= 0) return projectedCount;
     const addresses = new Set();
     categoriesFor(data).forEach((category) => {
         normalizedRanking(data, category).forEach((entry) => {
@@ -3533,6 +3562,7 @@ async function refreshChamber({ force = false } = {}) {
     const overlay = document.getElementById('maxis-modal');
     const body = overlay?.querySelector('.maxis-body');
     if (!overlay?.classList.contains('active') || !body) return;
+    entryHydrationSerial += 1;
     requestSerial += 1;
     const refreshSerial = ++summaryRequestSerial;
     body.innerHTML = `
@@ -3695,17 +3725,23 @@ export function closeMaxisChamber() {
     focusedBeforeOpen = null;
 }
 
-async function progressiveEntryLoad() {
+async function progressiveEntryLoad(serial) {
+    const isCurrent = () => serial === entryHydrationSerial;
+    if (!isCurrent()) return;
     const manifestTask = loadManifest();
     const l2GovernanceTask = loadL2GovernanceData();
     try {
         const legacy = await loadLegacy();
+        if (!isCurrent()) return;
         updateEntryCard(legacy, null, null);
     } catch (error) {
+        if (!isCurrent()) return;
         console.debug('Tezos Maxis ongoing snapshot unavailable', error);
     }
     await l2GovernanceTask;
+    if (!isCurrent()) return;
     const manifest = await manifestTask;
+    if (!isCurrent()) return;
     if (!manifest) {
         chamberState.entrySummaryLoading = false;
         chamberState.entrySummaryError = chamberState.manifestError;
@@ -3719,15 +3755,91 @@ async function progressiveEntryLoad() {
     updateEntryCard(lastLegacy, manifest, null);
     try {
         const summary = await loadSeasonSummary(id);
+        if (!isCurrent()) return;
         chamberState.entrySummaryError = '';
         updateEntryCard(lastLegacy, manifest, summary);
     } catch (error) {
+        if (!isCurrent()) return;
         chamberState.entrySummaryError = textValue(error?.message, 'The current Maxis season sheet is temporarily unavailable.');
         updateEntryCard(lastLegacy, manifest, null);
-    } finally {
-        chamberState.entrySummaryLoading = false;
-        updateEntryCard(lastLegacy, manifest, summaryCache.get(id) || null);
     }
+    if (!isCurrent()) return;
+    chamberState.entrySummaryLoading = false;
+    updateEntryCard(lastLegacy, manifest, summaryCache.get(id) || null);
+}
+
+async function assertEntrySummaryProjection(document) {
+    if (Number(document?.schema) !== 1
+        || document?.kind !== 'maxis-entry-summary'
+        || !Array.isArray(document?.payload?.legacy?.leaders)
+        || !Number.isInteger(document?.payload?.legacy?.rankedWalletCount)
+        || document.payload.legacy.rankedWalletCount < 0
+        || !Array.isArray(document?.payload?.manifest?.seasons)
+        || !Array.isArray(document?.payload?.summary?.leaders)) {
+        throw new Error('The Maxis launcher projection has an unsupported schema.');
+    }
+    const receipts = document?.sourceReceipts;
+    const requiredReceipts = ['legacy', 'l2Governance', 'manifest', 'currentSeasonSummary'];
+    const requiredPaths = {
+        legacy: '/data/maxis-leaders.json',
+        l2Governance: '/data/maxis-l2-governance.json',
+        manifest: '/data/maxis/manifest.json'
+    };
+    if (requiredReceipts.some((key) => {
+        const receipt = receipts?.[key];
+        return !receipt?.path
+            || !Number.isInteger(receipt?.bytes)
+            || receipt.bytes <= 0
+            || !/^[a-f0-9]{64}$/.test(String(receipt?.sha256 || ''))
+            || (requiredPaths[key] && receipt.path !== requiredPaths[key])
+            || (key === 'currentSeasonSummary' && !/^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(receipt.path));
+    })) {
+        throw new Error('The Maxis launcher projection is missing a reviewed source receipt.');
+    }
+    const expectedCategories = ['transaction', 'collector', 'artist', 'minter', 'defi', 'gaming', 'governance', 'l2_governance', 'staking', 'unicorn'];
+    const projectedCategories = new Set(document.payload.legacy.leaders.map((leader) => canonicalCategory(leader?.category || leader?.lane)));
+    if (expectedCategories.some((category) => !projectedCategories.has(category))) {
+        throw new Error('The Maxis launcher projection is missing a canonical identity.');
+    }
+    const activeSeasonId = textValue(document.payload.manifest.activeSeasonId, document.payload.manifest.current?.id, document.payload.manifest.current?.seasonId);
+    const summarySeasonId = textValue(document.payload.summary.season?.id, document.payload.summary.season?.seasonId);
+    if (!activeSeasonId || summarySeasonId !== activeSeasonId
+        || !receipts.currentSeasonSummary.path.includes(`/seasons/${activeSeasonId}/`)) {
+        throw new Error('The Maxis launcher projection season does not match its manifest and source receipt.');
+    }
+    const { integrity, ...unsigned } = document;
+    if (integrity?.algorithm !== 'sha256-stable-json-v1' || !integrity?.contentHash) {
+        throw new Error('The Maxis launcher projection has no integrity receipt.');
+    }
+    const actualHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
+    if (actualHash.toLowerCase() !== String(integrity.contentHash).toLowerCase()) {
+        throw new Error('The Maxis launcher projection failed its SHA-256 integrity receipt.');
+    }
+    return document.payload;
+}
+
+async function loadEntrySummaryProjection() {
+    if (entrySummaryPromise) return entrySummaryPromise;
+    entrySummaryPromise = fetchJson(ENTRY_SUMMARY_URL)
+        .then(assertEntrySummaryProjection)
+        .finally(() => { entrySummaryPromise = null; });
+    return entrySummaryPromise;
+}
+
+async function hydrateEntryCard() {
+    const serial = ++entryHydrationSerial;
+    try {
+        const projection = await loadEntrySummaryProjection();
+        if (serial !== entryHydrationSerial || lastLegacy || chamberState.legacy) return;
+        chamberState.entrySummaryLoading = false;
+        chamberState.entrySummaryError = '';
+        updateEntryCard(projection.legacy, projection.manifest, projection.summary);
+        return;
+    } catch (error) {
+        if (serial !== entryHydrationSerial) return;
+        console.debug('Tezos Maxis launcher projection unavailable; loading reviewed full artifacts', error);
+    }
+    await progressiveEntryLoad(serial);
 }
 
 function handleMyTezosUpdate(event) {
@@ -3761,7 +3873,7 @@ export function initMaxisChamber() {
         window.addEventListener('my-baker-updated', handleMyTezosUpdate);
         initComplete = true;
     }
-    progressiveEntryLoad().catch((error) => {
+    hydrateEntryCard().catch((error) => {
         console.debug('Tezos Maxis entry data unavailable', error);
         const card = document.getElementById('maxis-entry-card');
         if (card) {

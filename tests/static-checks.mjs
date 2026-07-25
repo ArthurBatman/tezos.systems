@@ -78,6 +78,7 @@ import {
 } from '../scripts/lib/maxis-l2-governance.mjs';
 import { maxisImplementationHash } from '../scripts/refresh-maxis-data.mjs';
 import { validateTezosCrpDataset, validateTezosCrpIdentityAliases } from '../scripts/lib/tezoscrp-awards.mjs';
+import { renderLlmsTxt } from '../scripts/generate-llms-txt.mjs';
 import { normalizeSavedMyTezosEntries } from '../js/core/my-tezos-entries.mjs';
 import {
   createActivity,
@@ -592,12 +593,19 @@ async function checkRequiredFiles() {
     '.well-known/ai-plugin.json',
     '.well-known/openapi.json',
     '.well-known/security.txt',
+    'llms.txt',
     'widgets/runtime.js',
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
+    'scripts/generate-llms-txt.mjs',
+    'scripts/measure-initial-load.mjs',
+    'tests/fixtures/initial-load-baseline.json',
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-capital-data.mjs',
+    'scripts/generate-capital-entry-summary.mjs',
+    'scripts/generate-maxis-entry-summary.mjs',
+    'scripts/generate-launcher-projections.mjs',
     'scripts/refresh-whale-watch-data.mjs',
     'scripts/refresh-tezoscrp-awards.mjs',
     'scripts/refresh-maxis-data.mjs',
@@ -620,12 +628,14 @@ async function checkRequiredFiles() {
     'data/nakamoto-sources.json',
     'data/governance-refresh-report.json',
     'data/capital-snapshot.json',
+    'data/capital-entry-summary.json',
     'data/whale-watch.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-careers.json',
     'data/maxis-l2-governance.json',
     'data/maxis-leaders.json',
+    'data/maxis/entry-summary.json',
     'data/maxis/manifest.json',
     'data/tezoscrp-awards.json',
     'data/tezoscrp-identity-aliases.json',
@@ -1086,6 +1096,7 @@ async function checkCacheBustAlignment() {
   const themePreload = await readText('js/core/theme-preload.js');
   const themeUi = await readText('js/ui/theme.js');
   const cssMatch = index.match(/css\/styles\.min\.css\?v=(\d+)/);
+  const loadingCssLinkMatch = index.match(/css\/loading\.css\?v=(\d+)/);
   const heroCssLinkMatch = index.match(/css\/hero-search\.css\?v=(\d+)/);
   const siteMapCssLinkMatch = index.match(/css\/site-map\.css\?v=(\d+)/);
   const appPreloadMatch = index.match(/js\/core\/app\.js\?v=(\d+)/);
@@ -1105,6 +1116,7 @@ async function checkCacheBustAlignment() {
   const themeUiMatch = themeUi.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
 
   if (!cssMatch) fail('index.html must serve css/styles.min.css with a ?v= cache stamp');
+  if (!loadingCssLinkMatch) fail('index.html must serve css/loading.css with a ?v= cache stamp');
   if (!heroCssLinkMatch) fail('index.html must serve css/hero-search.css with a ?v= cache stamp');
   if (!siteMapCssLinkMatch) fail('index.html must serve css/site-map.css with a ?v= cache stamp');
   if (!appPreloadMatch) fail('index.html modulepreload for js/core/app.js must carry a ?v= cache stamp');
@@ -1125,6 +1137,7 @@ async function checkCacheBustAlignment() {
 
   const versions = [
     cssMatch?.[1],
+    loadingCssLinkMatch?.[1],
     heroCssLinkMatch?.[1],
     siteMapCssLinkMatch?.[1],
     appPreloadMatch?.[1],
@@ -1143,8 +1156,31 @@ async function checkCacheBustAlignment() {
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 16) {
+  } else if (versions.length === 17) {
     pass(`cache stamps aligned at v${versions[0]}`);
+  }
+
+  const generatedRouteCacheRefs = [
+    ['styles', /<link rel="stylesheet" href="\/css\/styles\.min\.css\?v=(\d+)">/],
+    ['loading', /<link rel="stylesheet" href="\/css\/loading\.css\?v=(\d+)">/],
+    ['hero search', /<link id="hero-search-css" rel="stylesheet" href="\/css\/hero-search\.css\?v=(\d+)">/],
+    ['site map', /<link rel="stylesheet" href="\/css\/site-map\.css\?v=(\d+)">/],
+    ['app module preload', /<link rel="modulepreload" href="\/js\/core\/app\.js\?v=(\d+)">/],
+    ['theme preload', /<script src="\/js\/core\/theme-preload\.js\?v=(\d+)"><\/script>/],
+    ['app module script', /<script type="module" src="\/js\/core\/app\.js\?v=(\d+)"><\/script>/]
+  ];
+  const generatedRouteCacheVersion = cacheMatch?.[1];
+  if (generatedRouteCacheVersion) {
+    for (const route of CHAMBER_ROUTES) {
+      const routeShell = await readText(`${route.slug}/index.html`);
+      for (const [label, pattern] of generatedRouteCacheRefs) {
+        const routeVersion = routeShell.match(pattern)?.[1];
+        if (routeVersion !== generatedRouteCacheVersion) {
+          fail(`${route.slug}/index.html ${label} cache stamp must match v${generatedRouteCacheVersion}, saw ${routeVersion || 'missing'}`);
+        }
+      }
+    }
+    pass(`${CHAMBER_ROUTES.length} generated Chamber shells align seven cache-stamped shell references at v${generatedRouteCacheVersion}`);
   }
 
   const themeVersions = [themePreloadMatch?.[1], themeUiMatch?.[1], cssMatch?.[1]].filter(Boolean);
@@ -2646,6 +2682,10 @@ async function checkUxAuditContracts() {
   const calculator = await readText('js/features/calculator.js');
   const stateOfTezos = await readText('js/features/state-of-tezos.js');
   const tooltipTour = await readText('js/features/tooltip-tour.js');
+  const styles = await readText('css/styles.css');
+  const heroSearchCss = await readText('css/hero-search.css');
+  const shellExtrasCss = await readText('css/shell-extras.css');
+  const historyCss = await readText('css/history-chamber.css');
   const siteMapCss = await readText('css/site-map.css');
   const siteHandoff = await readText('js/core/site-handoff.js');
   const landingCss = await readText('css/landing.css');
@@ -2653,6 +2693,7 @@ async function checkUxAuditContracts() {
   const liveData = await readText('js/landing/live-data.js');
   const henCss = await readText('css/hen-mode.css');
   const henPage = await readText('hen/index.html');
+  const tezosCrp = await readText('js/features/tezoscrp.js');
   const changelog = await readText('js/features/changelog.js');
   const skipPages = [
     ['index.html', index],
@@ -2750,6 +2791,34 @@ async function checkUxAuditContracts() {
   }
   if (!app.includes("document.addEventListener('visibilitychange', pollBlockWhenVisible)") || !tooltipTour.includes('.visit-streak-toast.visible')) {
     fail('RPC polling and first-visit surfaces must respect document visibility and toast occupancy');
+  }
+  if (!index.includes('<script defer src="js/features/hen-mode.js?v=94"></script>')
+    || !index.includes('<link rel="stylesheet" href="css/hen-mode.css?v=98">')) {
+    fail('HEN JavaScript may defer, but its first-paint overlay stylesheet must remain eager');
+  }
+  if (!index.includes('id="portfolio-import-file" type="file" accept="application/json,.json" aria-label="Import My Tezos portfolio JSON file"')
+    || !index.includes('id="hen-cli-input" class="hen-cli-input" type="text" aria-label="HEN command input"')) {
+    fail('file import and HEN command inputs must retain explicit accessible names');
+  }
+  if ((tezosCrp.match(/loading="lazy" decoding="async"/g) || []).length < 3) {
+    fail('TezosCRP category icon templates must defer off-screen loading and decoding');
+  }
+  if (!tooltipTour.includes("document.getElementById('hero-slot')")
+    || !tooltipTour.includes('heroSlot.insertBefore(nudge, chips)')
+    || !/\(heroSlot \|\| commandDeck \|\| document\.body\)\.appendChild\(nudge\)/.test(tooltipTour)
+    || !/\.tour-nudge\s*\{[\s\S]*?position:\s*absolute[\s\S]*?right:\s*0[\s\S]*?bottom:\s*0[\s\S]*?display:\s*inline-flex/.test(styles)
+    || !/\.tour-nudge\s*\{[\s\S]*?width:\s*auto[\s\S]*?min-height:\s*24px/.test(styles)) {
+    fail('first-visit guidance must stay compact beside the stable search suggestion row');
+  }
+  if (!/\.site-map-shell \.site-map-sublink\s*\{[\s\S]*?min-height:\s*24px/.test(siteMapCss)
+    || !/\.site-map-shell \.site-map-links \.site-map-link\s*\{[\s\S]*?min-height:\s*24px/.test(siteMapCss)
+    || !/\.price-link\s*\{[\s\S]*?min-height:\s*24px/.test(styles)
+    || !/\.cycle-chip\s*\{[\s\S]*?min-height:\s*24px/.test(styles)
+    || !/\.chamber-expand-cue\s*\{[\s\S]*?height:\s*24px/.test(styles)
+    || !/\.hero-search-chip\s*\{[\s\S]*?min-height:\s*24px/.test(heroSearchCss)
+    || !/\.hot-today-clock\s*\{[\s\S]*?min-height:\s*24px/.test(shellExtrasCss)
+    || !/\.cycle-history-entry-route\s*\{[\s\S]*?min-height:\s*24px/.test(historyCss)) {
+    fail('compact actionable header, launcher, history, and directory targets must retain a 24px minimum height');
   }
   if (await pathExists('js/features/objkt-ui.js')) fail('orphaned OBJKT UI module must stay retired');
   if (!changelog.includes('Keyboard visitors now get a sitewide skip link')) {
@@ -2926,6 +2995,389 @@ async function checkMainnetLaunchCopy() {
   }
 
   pass('mainnet launch copy uses Sep 17, 2018 in user-facing surfaces');
+}
+
+function openApiPathPattern(dataPath) {
+  const escaped = dataPath
+    .replace(/^\//, '')
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\\\{seasonId\\\}/g, '[^/]+')
+    .replace(/\\\{shard\\\}/g, '[0-9a-f]{2}');
+  return new RegExp(`^${escaped}$`);
+}
+
+async function checkPublicDataDiscoveryContracts() {
+  const openApi = JSON.parse(await readText('.well-known/openapi.json'));
+  const aiPlugin = JSON.parse(await readText('.well-known/ai-plugin.json'));
+  const maxisManifest = JSON.parse(await readText('data/maxis/manifest.json'));
+  const llms = await readText('llms.txt');
+  const sitemap = await readText('sitemap.xml');
+  const generator = await readText('scripts/generate-llms-txt.mjs');
+  const orchestrator = await readText('scripts/refresh-generated-surfaces.mjs');
+  const dataFiles = await walk('data', (file) => file.endsWith('.json'));
+  const publicPathPatterns = [];
+  const operationIds = new Set();
+  const resolveLocalRef = (ref) => {
+    if (!String(ref || '').startsWith('#/')) return undefined;
+    return ref.slice(2).split('/').reduce((value, part) => value?.[part.replace(/~1/g, '/').replace(/~0/g, '~')], openApi);
+  };
+  const inspectRefs = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(inspectRefs);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    if ('$ref' in value && (!String(value.$ref).startsWith('#/') || resolveLocalRef(value.$ref) === undefined)) {
+      fail(`OpenAPI catalogue has an unresolved or non-local reference: ${value.$ref}`);
+    }
+    Object.values(value).forEach(inspectRefs);
+  };
+
+  inspectRefs(openApi);
+  if (openApi.openapi !== '3.0.3'
+    || openApi.servers?.[0]?.url !== 'https://tezos.systems') {
+    fail('OpenAPI public data catalogue must be a site-owned OpenAPI 3.0 document');
+  }
+
+  const passportShardParameter = openApi.components?.parameters?.PassportShard;
+  const passportSharding = maxisManifest.passportSharding;
+  const passportShardCount = Number(passportSharding?.shardCount);
+  if (!Number.isInteger(passportShardCount) || passportShardCount < 1 || passportShardCount > 256) {
+    fail(`Maxis manifest Passport shard count must be an integer from 1 to 256, saw ${passportSharding?.shardCount}`);
+  } else {
+    const expectedPassportShards = Array.from(
+      { length: passportShardCount },
+      (_, index) => index.toString(16).padStart(2, '0')
+    );
+    const passportShardRange = `${expectedPassportShards[0]}..${expectedPassportShards.at(-1)}`;
+    const manifestOutput = String(passportSharding?.output || '');
+    const parameterDescription = String(passportShardParameter?.description || '');
+    const parameterPatternSource = String(passportShardParameter?.schema?.pattern || '');
+    let passportShardPattern = null;
+    try {
+      passportShardPattern = new RegExp(parameterPatternSource);
+    } catch {
+      fail(`OpenAPI PassportShard pattern is invalid: ${parameterPatternSource}`);
+    }
+    if (!manifestOutput.includes(passportShardRange)) {
+      fail(`Maxis manifest Passport shard output must disclose its derived ${passportShardRange} range`);
+    }
+    if (!parameterDescription.includes(String(passportShardCount))
+      || !parameterDescription.includes(passportShardRange)) {
+      fail(`OpenAPI PassportShard description must disclose the manifest's ${passportShardCount}-shard ${passportShardRange} range`);
+    }
+    if (passportShardPattern) {
+      const documentedPassportShards = Array.from(
+        { length: 256 },
+        (_, index) => index.toString(16).padStart(2, '0')
+      ).filter((shard) => passportShardPattern.test(shard));
+      assert.deepEqual(
+        documentedPassportShards,
+        expectedPassportShards,
+        'OpenAPI PassportShard pattern must match exactly the manifest-derived shard range'
+      );
+      const invalidPassportShardExamples = ['', '0', '000', '0A', '3F', '40', 'ff', 'gg', ' 00', '00 '];
+      if (!parameterPatternSource.startsWith('^')
+        || !parameterPatternSource.endsWith('$')
+        || invalidPassportShardExamples.some((shard) => passportShardPattern.test(shard))) {
+        fail('OpenAPI PassportShard pattern must reject values outside the exact two-character lowercase manifest range');
+      }
+    }
+    for (const season of maxisManifest.seasons || []) {
+      assert.deepEqual(
+        season.availableShards,
+        expectedPassportShards,
+        `${season.id} availableShards must match the manifest Passport sharding contract`
+      );
+    }
+  }
+
+  for (const [publicPath, pathItem] of Object.entries(openApi.paths || {})) {
+    const operation = pathItem.get;
+    if (!operation) continue;
+    if (!operation.operationId || operationIds.has(operation.operationId)) {
+      fail(`OpenAPI public data operation ${publicPath} has a missing or duplicate operationId`);
+    }
+    operationIds.add(operation.operationId);
+    if (!operation.responses?.['200'] || operation.requestBody) {
+      fail(`OpenAPI public data operation ${publicPath} must be read-only with a documented 200 response`);
+    }
+    const declaredParameters = [...(pathItem.parameters || []), ...(operation.parameters || [])]
+      .map((parameter) => parameter?.$ref ? resolveLocalRef(parameter.$ref) : parameter)
+      .filter(Boolean);
+    const templateParameters = Array.from(publicPath.matchAll(/\{([^}]+)\}/g), (match) => match[1]).sort();
+    const documentedPathParameters = declaredParameters
+      .filter((parameter) => parameter.in === 'path' && parameter.required === true)
+      .map((parameter) => parameter.name)
+      .sort();
+    if (JSON.stringify(templateParameters) !== JSON.stringify(documentedPathParameters)) {
+      fail(`OpenAPI path parameters do not match ${publicPath}: ${documentedPathParameters.join(', ')}`);
+    }
+    for (const field of ['summary', 'description', 'x-refresh-cadence', 'x-license-boundary']) {
+      if (!String(operation[field] || '').trim()) {
+        fail(`OpenAPI public data operation ${publicPath} is missing ${field}`);
+      }
+    }
+    if (publicPath.startsWith('/data/')) {
+      const pattern = openApiPathPattern(publicPath);
+      publicPathPatterns.push(pattern);
+      if (!dataFiles.some((file) => pattern.test(file))) {
+        fail(`OpenAPI public data path family has no matching artifact: ${publicPath}`);
+      }
+    }
+  }
+
+  const internalArtifactPatterns = [
+    /^data\/maxis-contracts\.json$/,
+    /^data\/maxis\/seasons\/[^/]+\/transaction-state(?:\.building)?\.json$/,
+    /^data\/tezoscrp-identity-aliases\.json$/,
+    /^data\/tweets\.json$/
+  ];
+  for (const file of dataFiles) {
+    if (!publicPathPatterns.some((pattern) => pattern.test(file))
+      && !internalArtifactPatterns.some((pattern) => pattern.test(file))) {
+      fail(`tracked data artifact is neither catalogued nor explicitly internal: ${file}`);
+    }
+  }
+
+  const sitemapUrls = Array.from(sitemap.matchAll(/<loc>(https:\/\/tezos\.systems\/[^<]*)<\/loc>/g), (match) => match[1]).sort();
+  const destinationBlock = llms.split('## Canonical destinations\n\n')[1]?.split('\n\n## Public JSON data')[0] || '';
+  const llmsDestinationUrls = Array.from(destinationBlock.matchAll(/\]\((https:\/\/tezos\.systems\/[^)]*)\)/g), (match) => match[1]).sort();
+  assert.deepEqual(llmsDestinationUrls, sitemapUrls, 'llms.txt canonical destinations must match sitemap.xml exactly');
+
+  for (const [publicPath, pathItem] of Object.entries(openApi.paths || {})) {
+    const summary = pathItem.get?.summary;
+    const expectedSummary = publicPath.includes('{')
+      ? `${summary} — path template: \`${publicPath}\``
+      : `[${summary}](`;
+    if (summary && !llms.includes(expectedSummary)) {
+      fail(`llms.txt is missing OpenAPI dataset summary: ${summary}`);
+    }
+  }
+  assert.equal(llms, await renderLlmsTxt(), 'llms.txt must match its canonical generator byte-for-byte');
+  if (/%7B|%7D/.test(llms)) fail('llms.txt must not publish encoded path-template placeholders as broken links');
+  if (!generator.includes("js/core/site-map.js") || !generator.includes(".well-known', 'openapi.json")) {
+    fail('llms.txt generator must derive from the canonical site map and OpenAPI catalogue');
+  }
+  if (!orchestrator.includes("nodeScript('scripts/generate-llms-txt.mjs')") || !orchestrator.includes("const LLMS_TARGETS = ['llms.txt']")) {
+    fail('generated-surface orchestration must refresh and track llms.txt');
+  }
+  if (!aiPlugin.description_for_model.includes('/llms.txt')
+    || !aiPlugin.description_for_model.includes('OpenAPI document catalogues intentionally public JSON artifacts')) {
+    fail('AI plugin metadata must direct models to the complete public data catalogue and llms.txt');
+  }
+
+  pass(`public data discovery covers ${dataFiles.length} JSON artifacts across ${publicPathPatterns.length} public path families and explicit internal families`);
+}
+
+async function checkInitialLoadMeasurementContracts() {
+  const measurement = await readText('scripts/measure-initial-load.mjs');
+  const baseline = JSON.parse(await readText('tests/fixtures/initial-load-baseline.json'));
+  const packageJson = JSON.parse(await readText('package.json'));
+  const requiredMeasurementContracts = [
+    "require('./lib/playwright-browser.cjs')",
+    "serviceWorkers: options.mode === 'installed-worker' ? 'allow' : 'block'",
+    "document.visibilityState",
+    "type: 'layout-shift'",
+    "type: 'longtask'",
+    'eagerJsDecodedBytes',
+    'sameOriginDecodedBytes',
+    'domInteractiveMs',
+    'domContentLoadedMs',
+    'longestTaskMs',
+    'totalBlockingTimeMs',
+    'serviceWorkerResponseCount',
+    'readiness',
+    'launcherResources',
+    'forbiddenHeavyResources',
+    "page.on('pageerror'",
+    'decodedBytesWithinFivePct',
+    'rawLongTasksWithinFifteenPct',
+    'totalBlockingTimeMaxAdjacentDeltaPct',
+    'totalBlockingTimeWithinFifteenPct',
+    'warmupRuns',
+    'warmupDiagnostics',
+    '--warmup-runs',
+    '--require-stable',
+    'stability acceptance failed'
+  ];
+  for (const contract of requiredMeasurementContracts) {
+    if (!measurement.includes(contract)) fail(`initial-load measurement harness is missing contract: ${contract}`);
+  }
+  if (packageJson.scripts?.['measure:load'] !== 'node scripts/measure-initial-load.mjs') {
+    fail('package scripts must expose the repeatable initial-load measurement harness');
+  }
+  if (packageJson.scripts?.['measure:load:stable'] !== 'node scripts/measure-initial-load.mjs --require-stable') {
+    fail('package scripts must expose the threshold-enforcing initial-load measurement mode');
+  }
+  if (baseline.schemaVersion !== 1
+    || !/^[0-9a-f]{40}$/.test(baseline.commit || '')
+    || baseline.profile?.serviceWorkers !== 'blocked'
+    || baseline.profile?.runs !== 5
+    || baseline.medians?.sameOriginDecodedBytes < 1_000_000
+    || typeof baseline.stability?.decodedBytesWithinFivePct !== 'boolean'
+    || typeof baseline.stability?.longTasksWithinFifteenPct !== 'boolean'
+    || !Array.isArray(baseline.largestResources)
+    || baseline.largestResources.length < 20
+    || baseline.largestResources.some((resource) => !Number.isFinite(resource.medianDecodedBytes) || resource.observedRuns !== 5)) {
+    fail('initial-load baseline must retain the dated five-run clean-profile reference row');
+  }
+
+  pass(`initial-load measurement harness and ${baseline.measuredAt.slice(0, 10)} baseline checked`);
+}
+
+async function checkLauncherProjectionContracts() {
+  const [
+    capitalProjectionText,
+    capitalSourceText,
+    maxisProjectionText,
+    capitalGenerator,
+    maxisGenerator,
+    aggregateGenerator,
+    capitalFeature,
+    maxisFeature,
+    leaderboardFeature,
+    measurement,
+    packageText,
+    orchestrator,
+    readmeGuard,
+    smoke
+  ] = await Promise.all([
+    readText('data/capital-entry-summary.json'),
+    readText('data/capital-snapshot.json'),
+    readText('data/maxis/entry-summary.json'),
+    readText('scripts/generate-capital-entry-summary.mjs'),
+    readText('scripts/generate-maxis-entry-summary.mjs'),
+    readText('scripts/generate-launcher-projections.mjs'),
+    readText('js/features/capital-chamber.js'),
+    readText('js/features/maxis.js'),
+    readText('js/features/leaderboard.js'),
+    readText('scripts/measure-initial-load.mjs'),
+    readText('package.json'),
+    readText('scripts/refresh-generated-surfaces.mjs'),
+    readText('scripts/guard-readme-sync.mjs'),
+    readText('tests/smoke.mjs')
+  ]);
+  const capitalProjection = JSON.parse(capitalProjectionText);
+  const capitalSource = JSON.parse(capitalSourceText);
+  const maxisProjection = JSON.parse(maxisProjectionText);
+  const packageJson = JSON.parse(packageText);
+
+  if (Buffer.byteLength(capitalProjectionText) > 16 * 1024) {
+    fail(`Capital launcher projection exceeds its 16 KiB budget: ${Buffer.byteLength(capitalProjectionText)} bytes`);
+  }
+  const { contentHash: capitalProjectionHash, ...capitalUnsigned } = capitalProjection;
+  if (capitalProjection.schemaVersion !== 1
+    || stableJsonHash(capitalUnsigned) !== capitalProjectionHash
+    || capitalProjection.source?.path !== 'data/capital-snapshot.json'
+    || capitalProjection.source?.generatedAt !== capitalSource.generatedAt
+    || capitalProjection.source?.contentHash !== capitalSource.contentHash
+    || capitalProjection.source?.fileSha256 !== createHash('sha256').update(capitalSourceText).digest('hex')) {
+    fail('Capital launcher projection must match its stable payload and exact reviewed source receipt');
+  }
+
+  if (Buffer.byteLength(maxisProjectionText) > 24 * 1024) {
+    fail(`Maxis launcher projection exceeds its 24 KiB budget: ${Buffer.byteLength(maxisProjectionText)} bytes`);
+  }
+  const { integrity: maxisIntegrity, ...maxisUnsigned } = maxisProjection;
+  if (maxisProjection.schema !== 1
+    || maxisProjection.kind !== 'maxis-entry-summary'
+    || maxisIntegrity?.algorithm !== 'sha256-stable-json-v1'
+    || maxisIntegrity?.contentHash !== stableJsonHash(maxisUnsigned)) {
+    fail('Maxis launcher projection must retain its stable integrity receipt');
+  }
+  for (const [key, receipt] of Object.entries(maxisProjection.sourceReceipts || {})) {
+    const sourcePath = String(receipt?.path || '').replace(/^\/+/, '');
+    if (!sourcePath.startsWith('data/')) {
+      fail(`Maxis launcher projection ${key} receipt must name a first-party data artifact`);
+      continue;
+    }
+    const sourceText = await readText(sourcePath);
+    if (receipt.bytes !== Buffer.byteLength(sourceText)
+      || receipt.sha256 !== createHash('sha256').update(sourceText).digest('hex')) {
+      fail(`Maxis launcher projection ${key} receipt has drifted from ${sourcePath}`);
+    }
+  }
+
+  if (packageJson.scripts?.['refresh:launcher-projections'] !== 'node scripts/generate-launcher-projections.mjs'
+    || packageJson.scripts?.['check:launcher-projections'] !== 'node scripts/generate-launcher-projections.mjs --check'
+    || !aggregateGenerator.includes('generate-capital-entry-summary.mjs')
+    || !aggregateGenerator.includes('generate-maxis-entry-summary.mjs')) {
+    fail('package scripts must expose one deterministic launcher-projection refresh and check path');
+  }
+  const projectionCheckIndex = orchestrator.indexOf("nodeScript('scripts/generate-launcher-projections.mjs', ['--check'])");
+  const projectionPrecommitStageIndex = orchestrator.indexOf('if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS)', projectionCheckIndex);
+  const whaleCheckIndex = orchestrator.indexOf("nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check'])", projectionCheckIndex);
+  if (!capitalGenerator.includes('MAX_OUTPUT_BYTES = 16 * 1024')
+    || !maxisGenerator.includes('MAX_OUTPUT_BYTES = 24 * 1024')
+    || !maxisGenerator.includes("integrity: {\n      algorithm: 'sha256-stable-json-v1'")
+    || !orchestrator.includes("const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json']")
+    || projectionCheckIndex < 0
+    || projectionPrecommitStageIndex < projectionCheckIndex
+    || projectionPrecommitStageIndex > whaleCheckIndex
+    || !orchestrator.includes("nodeScript('scripts/generate-launcher-projections.mjs')")
+    || !orchestrator.includes('stageTargets(LAUNCHER_PROJECTION_TARGETS)')) {
+    fail('generated-surface orchestration must validate, refresh, budget, and optionally stage both launcher projections');
+  }
+  for (const guardedPath of [
+    'generate-capital-entry-summary',
+    'generate-maxis-entry-summary',
+    'generate-launcher-projections',
+    'generate-llms-txt',
+    'measure-initial-load',
+    'openapi'
+  ]) {
+    if (!readmeGuard.includes(guardedPath)) {
+      fail(`README guard must cover the documented ${guardedPath} contract`);
+    }
+  }
+
+  for (const [label, feature, snippets] of [
+    ['Capital', capitalFeature, [
+      "const CAPITAL_ENTRY_SUMMARY_URL = '/data/capital-entry-summary.json'",
+      'fetchCapitalEntrySummary',
+      'fetchCapitalSnapshot',
+      'Capital snapshot failed its SHA-256 integrity receipt',
+      'Capital snapshot is older than the launcher projection source receipt',
+      'in-memory launcher projection instead of leaving the Chamber pinned'
+    ]],
+    ['Maxis', maxisFeature, [
+      "const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json'",
+      'loadEntrySummaryProjection',
+      'progressiveEntryLoad',
+      'entryHydrationSerial',
+      'failed its SHA-256 integrity receipt',
+      'missing a canonical identity',
+      'season does not match its manifest and source receipt'
+    ]]
+  ]) {
+    for (const snippet of snippets) {
+      if (!feature.includes(snippet)) fail(`${label} launcher projection contract is missing: ${snippet}`);
+    }
+  }
+  for (const snippet of [
+    "name: 'launcher-projections'",
+    '/data/capital-entry-summary.json',
+    '/data/maxis/entry-summary.json',
+    'full Capital data loaded before its Chamber opened',
+    'full Maxis data loaded before its Chamber opened',
+    'projection failure did not fall back',
+    'delayed Maxis projection overwrote full launcher data'
+  ]) {
+    if (!smoke.includes(snippet)) fail(`launcher-projection browser regression contract is missing: ${snippet}`);
+  }
+  if (!leaderboardFeature.includes('refreshBakerDirectoryChamber({ quiet: false, includeGovernance: false })')
+    || !leaderboardFeature.includes('if (includeGovernance) requests.push(fetchGovernanceSignals())')
+    || !measurement.includes("'/data/maxis-careers.json'")
+    || !smoke.includes("!hasPath('/data/maxis-careers.json')")
+    || !smoke.includes("hasPath('/data/maxis-careers.json')")) {
+    fail('initial-load QA must defer the Baker Directory Maxis career ledger until an explicit room open');
+  }
+
+  const sourceBytes = Buffer.byteLength(capitalSourceText)
+    + Object.values(maxisProjection.sourceReceipts || {}).reduce((total, receipt) => total + Number(receipt?.bytes || 0), 0);
+  const projectionBytes = Buffer.byteLength(capitalProjectionText) + Buffer.byteLength(maxisProjectionText);
+  pass(`launcher projections retain exact source receipts within ${projectionBytes} bytes versus ${sourceBytes} reviewed source bytes`);
 }
 
 async function checkModuleImportVersions() {
@@ -3818,7 +4270,7 @@ async function checkTourAndShareCaptureContracts() {
   }
   for (const snippet of [
     'Find anything',
-    'Need a hand?',
+    'Quick tour?',
     'Start with mainnet history',
     'Read the latest head',
     'Protocol Anthology',
@@ -3826,9 +4278,9 @@ async function checkTourAndShareCaptureContracts() {
     'Follow the lifeline',
     'complete map stays folded',
     'Explore leads with all topics, Network Pulse, Staking, and Maxis',
-    'Help is available when you want it',
-    'Show help',
-    'Not now'
+    'Optional Tezos Systems tour',
+    '<button class="tour-start" type="button">Show</button>',
+    'Dismiss tour offer'
   ]) {
     if (!tour.includes(snippet)) fail(`tooltip tour must retain passive search-help copy: ${snippet}`);
   }
@@ -6471,7 +6923,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=476'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=484'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -6560,6 +7012,9 @@ async function main() {
   await checkUxAuditContracts();
   await checkWidgetRuntimeContracts();
   await checkMainnetLaunchCopy();
+  await checkPublicDataDiscoveryContracts();
+  await checkInitialLoadMeasurementContracts();
+  await checkLauncherProjectionContracts();
   await checkModuleImportVersions();
   await checkHistoricalPagination();
   await checkLiquidityBakingIssuanceState();
