@@ -32,6 +32,8 @@ let currentRecords = [];
 let currentProfiles = [];
 let refreshController = null;
 let collectionSyncId = '';
+let renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+let renderedAssetSignature = '';
 
 function includedEntries() {
     return readSavedMyTezosEntries().filter((entry) => entry.included !== false);
@@ -49,10 +51,56 @@ function isVisible() {
         && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
 }
 
-function resolveMedia(uri) {
-    const value = String(uri || '');
-    if (value.startsWith('ipfs://')) return `https://dweb.link/ipfs/${value.slice(7)}`;
-    return value;
+function collectionMediaCandidates(asset) {
+    const rawUri = String(asset?.thumbnail || '');
+    const options = {
+        contract: asset?.contract,
+        tokenId: asset?.tokenId,
+        variant: 'thumb400'
+    };
+    const sharedCandidates = globalThis.HenMode?.mediaCandidates?.(rawUri, options);
+    if (Array.isArray(sharedCandidates) && sharedCandidates.length) return sharedCandidates;
+    const candidates = [
+        asset?.contract && asset?.tokenId
+            ? `https://assets.objkt.media/file/assets-003/${encodeURIComponent(asset.contract)}/${encodeURIComponent(asset.tokenId)}/thumb400`
+            : '',
+        ...(rawUri.startsWith('ipfs://')
+            ? [
+                `https://dweb.link/ipfs/${rawUri.slice(7)}`,
+                `https://nftstorage.link/ipfs/${rawUri.slice(7)}`,
+                `https://gateway.pinata.cloud/ipfs/${rawUri.slice(7)}`,
+                `https://ipfs.io/ipfs/${rawUri.slice(7)}`
+            ]
+            : [rawUri])
+    ];
+    return candidates.filter((candidate, index) => candidate && candidates.indexOf(candidate) === index);
+}
+
+function wireCollectionImages(grid) {
+    grid.querySelectorAll('img[data-collection-media]').forEach((image) => {
+        if (image.dataset.collectionMediaWired === 'true') return;
+        image.dataset.collectionMediaWired = 'true';
+        const candidates = collectionMediaCandidates({
+            thumbnail: image.dataset.collectionMedia || '',
+            contract: image.dataset.collectionContract || '',
+            tokenId: image.dataset.collectionTokenId || ''
+        });
+        let candidateIndex = Math.max(0, candidates.indexOf(image.currentSrc || image.src));
+        image.addEventListener('load', () => {
+            image.closest('.collection-asset-media')?.classList.add('loaded');
+        });
+        image.addEventListener('error', () => {
+            candidateIndex += 1;
+            if (candidateIndex < candidates.length) {
+                image.src = candidates[candidateIndex];
+                return;
+            }
+            image.replaceWith(Object.assign(document.createElement('span'), {
+                textContent: 'Image unavailable',
+                className: 'collection-image-fallback'
+            }));
+        });
+    });
 }
 
 function setStatus(message, state = '') {
@@ -78,17 +126,26 @@ function renderProfiles() {
     const target = document.getElementById('collection-profiles');
     if (!target) return;
     const profiles = currentProfiles.filter((profile) => selectedScope === 'all' || profile.address === selectedScope);
+    const relevantRecords = currentRecords.filter((record) => selectedScope === 'all' || record.ownerAddress === selectedScope);
     if (!profiles.length) {
         quietlySyncHtml(target, '<span>Objkt collector and creator profiles appear when the selected addresses have public profile data.</span>');
         return;
     }
-    quietlySyncHtml(target, profiles.map((profile) => `
-        <article>
-            <strong>${escapeHtml(profile.alias || shortAddress(profile.address))}</strong>
-            <span>${escapeHtml(profile.description || 'Collector / creator profile')}</span>
-            <small>${profile.collectedLoaded} collected loaded · ${profile.createdLoaded} created loaded</small>
-        </article>
-    `).join(''));
+    quietlySyncHtml(target, profiles.map((profile) => {
+        const collectedLoaded = relevantRecords.filter((record) => (
+            record.ownerAddress === profile.address && record.kind === 'collected'
+        )).length;
+        const createdLoaded = relevantRecords.filter((record) => (
+            record.ownerAddress === profile.address && record.kind === 'created'
+        )).length;
+        return `
+            <article>
+                <strong>${escapeHtml(profile.alias || shortAddress(profile.address))}</strong>
+                <span>${escapeHtml(profile.description || 'Collector / creator profile')}</span>
+                <small>${collectedLoaded.toLocaleString()} collected loaded · ${createdLoaded.toLocaleString()} created loaded</small>
+            </article>
+        `;
+    }).join(''));
 }
 
 function renderCollection() {
@@ -124,25 +181,30 @@ function renderCollection() {
     const grid = document.getElementById('collection-grid');
     const empty = document.getElementById('collection-empty');
     if (!grid || !empty) return;
-    const assets = summary.holdings.filter((record) => record.kind === collectionMode && (showSpam || !record.spam));
-    empty.hidden = assets.length > 0;
-    if (!assets.length) {
+    const allAssets = summary.holdings.filter((record) => record.kind === collectionMode && (showSpam || !record.spam));
+    const assets = allAssets.slice(0, renderedAssetLimit);
+    empty.hidden = allAssets.length > 0;
+    if (!allAssets.length) {
         quietlySyncHtml(grid, '');
+        renderedAssetSignature = '';
         empty.textContent = includedEntries().length
             ? collectionMode === 'created'
                 ? 'No created assets are available in the loaded Objkt coverage.'
                 : 'No collected assets are available in the loaded Objkt coverage.'
             : 'Include an L1 address in Portfolio to load its collection.';
     } else {
-        quietlySyncHtml(grid, assets.map((asset) => {
-            const image = resolveMedia(asset.thumbnail);
+        const signature = `${collectionMode}:${showSpam}:${assets.map((asset) => asset.id).join('|')}`;
+        if (signature !== renderedAssetSignature) {
+            quietlySyncHtml(grid, assets.map((asset) => {
+            const mediaCandidates = collectionMediaCandidates(asset);
+            const image = mediaCandidates[0] || '';
             const ownerCount = asset.ownerAddresses?.length || 1;
             const ownerCopy = ownerCount > 1 ? `${ownerCount} included wallets` : shortAddress(asset.ownerAddresses?.[0] || asset.ownerAddress);
             return `
-                <article class="collection-asset-card${asset.spam ? ' flagged' : ''}" data-collection-asset="${escapeHtml(`${asset.contract}:${asset.tokenId}`)}">
+                <article class="collection-asset-card${asset.spam ? ' flagged' : ''}" data-quiet-key="${escapeHtml(asset.id)}" data-collection-asset="${escapeHtml(`${asset.contract}:${asset.tokenId}`)}">
                     <div class="collection-asset-media">
                         ${image
-                            ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`
+                            ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(asset.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-collection-media="${escapeHtml(asset.thumbnail)}" data-collection-contract="${escapeHtml(asset.contract)}" data-collection-token-id="${escapeHtml(asset.tokenId)}">`
                             : '<span aria-hidden="true">◫</span>'}
                     </div>
                     <div>
@@ -155,20 +217,19 @@ function renderCollection() {
                     <a href="https://objkt.com/tokens/${encodeURIComponent(asset.contract)}/${encodeURIComponent(asset.tokenId)}" target="_blank" rel="noopener" aria-label="Open asset on Objkt">↗</a>
                 </article>
             `;
-        }).join(''));
-        grid.querySelectorAll('img').forEach((image) => {
-            image.addEventListener('error', () => {
-                image.replaceWith(Object.assign(document.createElement('span'), {
-                    textContent: 'Image unavailable',
-                    className: 'collection-image-fallback'
-                }));
-            }, { once: true });
-        });
+            }).join(''));
+            renderedAssetSignature = signature;
+            wireCollectionImages(grid);
+        }
     }
     const loadMore = document.getElementById('collection-load-more');
     if (loadMore) {
-        loadMore.hidden = complete;
-        loadMore.disabled = Boolean(refreshInFlight);
+        const remaining = Math.max(0, allAssets.length - assets.length);
+        loadMore.hidden = !complete || remaining === 0;
+        loadMore.disabled = false;
+        loadMore.textContent = remaining
+            ? `Show ${Math.min(MY_TEZOS_COLLECTION_PAGE_SIZE, remaining).toLocaleString()} more`
+            : 'Show more';
     }
 }
 
@@ -258,7 +319,7 @@ async function persistCollectionPage(entries, result, offset) {
     });
 }
 
-async function refreshCollection({ loadMore = false, force = false } = {}) {
+async function refreshCollection({ force = false } = {}) {
     if (!isVisible()) return null;
     if (refreshInFlight && !force) return refreshInFlight;
     if (refreshInFlight && force) refreshController?.abort();
@@ -271,41 +332,70 @@ async function refreshCollection({ loadMore = false, force = false } = {}) {
         setStatus('No included L1 addresses.', 'empty');
         return null;
     }
-    const offset = loadMore ? nextOffset : 0;
-    if (offset === 0) collectionSyncId = `objkt:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-    setStatus(loadMore ? 'Loading another Objkt page…' : 'Reading Objkt summary and first holdings page…', 'loading');
+    const previous = {
+        records: currentRecords,
+        profiles: currentProfiles,
+        complete,
+        nextOffset
+    };
+    collectionSyncId = `objkt:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+    setStatus('Reading Objkt holdings and completing collection coverage…', 'loading');
     const controller = new AbortController();
     refreshController = controller;
     const pending = (async () => {
         try {
-            const result = await fetchObjktCollectionPage(entries.map((entry) => entry.address), {
-                offset,
-                limit: MY_TEZOS_COLLECTION_PAGE_SIZE,
-                signal: controller.signal
-            });
-            if (requestGeneration !== generation || !isVisible()) return null;
+            let offset = 0;
+            let pageCount = 0;
+            let loadedRows = 0;
             let saved = true;
-            try {
-                await persistCollectionPage(entries, result, offset);
-                currentRecords = await readCachedRecords(selectedEntries());
-                currentProfiles = (await getMyTezosMeta('collection-profiles')) || [];
-            } catch {
-                saved = false;
-                const incomingIds = new Set(result.holdings.map((holding) => holding.id));
-                currentRecords = offset === 0
-                    ? result.holdings
-                    : [...currentRecords.filter((holding) => !incomingIds.has(holding.id)), ...result.holdings];
-                currentProfiles = result.profiles;
-            }
-            nextOffset = result.nextOffset || 0;
-            complete = result.complete;
-            renderCollection();
-            setStatus(
-                `${result.complete ? 'Complete loaded coverage' : 'Partial loaded coverage'} · ${result.holdings.length} rows this page · ${saved ? 'saved on this device' : 'temporary view; storage unavailable'} · ${formatFreshnessStamp(new Date(), { source: 'Objkt' })}`,
-                saved ? (result.complete ? 'complete' : 'partial') : 'error'
-            );
-            return result;
+            let latestResult = null;
+            complete = false;
+            do {
+                const result = await fetchObjktCollectionPage(entries.map((entry) => entry.address), {
+                    offset,
+                    limit: MY_TEZOS_COLLECTION_PAGE_SIZE,
+                    signal: controller.signal
+                });
+                latestResult = result;
+                pageCount += 1;
+                loadedRows += result.holdings.length;
+                if (requestGeneration !== generation || !isVisible()) return null;
+                try {
+                    await persistCollectionPage(entries, result, offset);
+                    currentRecords = (await readCachedRecords(selectedEntries()))
+                        .filter((holding) => holding.syncId === collectionSyncId);
+                    currentProfiles = (await getMyTezosMeta('collection-profiles')) || [];
+                } catch {
+                    saved = false;
+                    const incomingIds = new Set(result.holdings.map((holding) => holding.id));
+                    currentRecords = offset === 0
+                        ? result.holdings
+                        : [...currentRecords.filter((holding) => !incomingIds.has(holding.id)), ...result.holdings];
+                    const profilesByAddress = new Map(currentProfiles.map((profile) => [profile.address, profile]));
+                    result.profiles.forEach((profile) => profilesByAddress.set(profile.address, profile));
+                    currentProfiles = [...profilesByAddress.values()];
+                }
+                nextOffset = result.nextOffset || 0;
+                complete = result.complete;
+                renderCollection();
+                const summary = collectionSummary(currentRecords.filter((record) => showSpam || !record.spam));
+                setStatus(
+                    result.complete
+                        ? `Complete Objkt coverage · ${summary.assets.toLocaleString()} collected assets · ${summary.createdAssets.toLocaleString()} created · ${saved ? 'saved on this device' : 'temporary view; storage unavailable'} · ${formatFreshnessStamp(new Date(), { source: 'Objkt' })}`
+                        : `Syncing complete Objkt coverage · ${summary.assets.toLocaleString()} collected assets loaded across ${pageCount.toLocaleString()} page${pageCount === 1 ? '' : 's'}…`,
+                    saved ? (result.complete ? 'complete' : 'partial') : 'error'
+                );
+                offset = result.nextOffset || 0;
+            } while (!complete && offset > 0 && requestGeneration === generation && isVisible());
+            return latestResult ? { ...latestResult, loadedRows, pageCount, complete } : null;
         } catch (error) {
+            if (previous.records.length) {
+                currentRecords = previous.records;
+                currentProfiles = previous.profiles;
+                complete = previous.complete;
+                nextOffset = previous.nextOffset;
+            }
             renderCollection();
             setStatus(`${error.message || 'Objkt unavailable'} · showing last saved holdings`, 'error');
             return null;
@@ -327,11 +417,15 @@ function wireCollectionControls() {
         selectedScope = event.currentTarget.value || 'all';
         nextOffset = 0;
         complete = true;
+        renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+        renderedAssetSignature = '';
         activateMyTezosCollection({ force: true }).catch(() => {});
     });
     document.querySelectorAll('[data-collection-mode]').forEach((button) => {
         button.addEventListener('click', () => {
             collectionMode = button.dataset.collectionMode === 'created' ? 'created' : 'collected';
+            renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+            renderedAssetSignature = '';
             document.querySelectorAll('[data-collection-mode]').forEach((candidate) => {
                 const active = candidate === button;
                 candidate.classList.toggle('active', active);
@@ -342,15 +436,14 @@ function wireCollectionControls() {
     });
     document.getElementById('collection-spam-toggle')?.addEventListener('click', () => {
         showSpam = !showSpam;
+        renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+        renderedAssetSignature = '';
         renderCollection();
     });
     document.getElementById('collection-load-more')?.addEventListener('click', (event) => {
-        event.currentTarget.disabled = true;
-        refreshCollection({ loadMore: true }).catch(() => {});
-    });
-    document.getElementById('collection-activity-link')?.addEventListener('click', () => {
-        window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'portfolio' } }));
-        window.dispatchEvent(new CustomEvent('my-tezos-activity-filter', { detail: { filter: 'nft' } }));
+        renderedAssetLimit += MY_TEZOS_COLLECTION_PAGE_SIZE;
+        renderedAssetSignature = '';
+        renderCollection();
     });
 }
 
@@ -388,4 +481,6 @@ export function destroyMyTezosCollectionForTests() {
     initialized = false;
     currentRecords = [];
     currentProfiles = [];
+    renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+    renderedAssetSignature = '';
 }

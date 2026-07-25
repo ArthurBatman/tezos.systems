@@ -150,6 +150,23 @@ const HenMode = (() => {
         return token ? objktMediaUrl(token.fa_contract, token.token_id, variant) : '';
     }
 
+    function mediaCandidates(uri, options) {
+        options = options || {};
+        var candidates = [];
+        var cdnUrl = options.cdnUrl || objktMediaUrl(options.contract, options.tokenId, options.variant || 'thumb400');
+        if (cdnUrl) candidates.push(cdnUrl);
+        if (uri && uri.startsWith('ipfs://')) {
+            IPFS_GATEWAYS.forEach(function(gateway) {
+                candidates.push(gateway + uri.slice(7));
+            });
+        } else if (uri) {
+            candidates.push(uri);
+        }
+        return candidates.filter(function(candidate, index) {
+            return candidate && candidates.indexOf(candidate) === index;
+        });
+    }
+
     function resolveUri(uri, attempt) {
         if (!uri) return '';
         if (uri.startsWith('ipfs://')) {
@@ -2959,7 +2976,13 @@ const HenMode = (() => {
 
     }
 
-    return { init: init, activate: activate, deactivate: deactivate, isActive: function() { return isActive; } };
+    return {
+        init: init,
+        activate: activate,
+        deactivate: deactivate,
+        isActive: function() { return isActive; },
+        mediaCandidates: mediaCandidates
+    };
 })();
 
 window.HenMode = HenMode;

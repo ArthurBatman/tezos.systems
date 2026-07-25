@@ -76,7 +76,7 @@ export async function fetchObjktCollectionPage(addresses, {
     if (!unique.length) return { profiles: [], holdings: [], complete: true, receipt: null };
     const variables = {
         addresses: unique,
-        rowLimit: Math.max(1, Math.min(250, Math.ceil((Number(limit) || MY_TEZOS_COLLECTION_PAGE_SIZE) / 2))),
+        rowLimit: Math.max(1, Math.min(250, Number(limit) || MY_TEZOS_COLLECTION_PAGE_SIZE)),
         offset: Math.max(0, Number(offset) || 0)
     };
     let data;

@@ -99,7 +99,8 @@ export function aggregateCollectionHoldings(records) {
         byAsset.set(key, existing);
     }
     return [...byAsset.values()].sort((left, right) => (
-        Number(right.updatedAt) - Number(left.updatedAt)
+        Number(right.lastChangedAt || 0) - Number(left.lastChangedAt || 0)
+        || Number(right.updatedAt) - Number(left.updatedAt)
         || left.name.localeCompare(right.name)
     ));
 }

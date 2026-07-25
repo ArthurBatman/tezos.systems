@@ -32,7 +32,7 @@
     <meta name="referrer" content="strict-origin-when-cross-origin">
     
     <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net https://esm.sh gc.zgo.at; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' api.coingecko.com *.tzkt.io tzkt.io api.tezos.domains tezos.domains *.rpc.tez.capital *.supabase.co data.objkt.com *.goatcounter.com https://*.gke.papers.tech https://*.papers.tech wss://*.papers.tech api.github.com cdn.jsdelivr.net https://esm.sh fonts.googleapis.com fonts.gstatic.com *.octez.io https://*.octez.io teztale-server-mainnet-ro-prd.octez.tech https://teztale-server-mainnet-ro-prd.octez.tech wss://*.octez.io wss://relay.walletconnect.com https://relay.walletconnect.com api.llama.fi explorer.etherlink.com node.mainnet.etherlink.com; img-src 'self' data: *.objkt.com assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; media-src 'self' blob: data: assets.objkt.media dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' unpkg.com cdn.jsdelivr.net https://esm.sh gc.zgo.at; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; connect-src 'self' api.coingecko.com *.tzkt.io tzkt.io api.tezos.domains tezos.domains *.rpc.tez.capital *.supabase.co data.objkt.com *.goatcounter.com https://*.gke.papers.tech https://*.papers.tech wss://*.papers.tech api.github.com cdn.jsdelivr.net https://esm.sh fonts.googleapis.com fonts.gstatic.com *.octez.io https://*.octez.io teztale-server-mainnet-ro-prd.octez.tech https://teztale-server-mainnet-ro-prd.octez.tech wss://*.octez.io wss://relay.walletconnect.com https://relay.walletconnect.com api.llama.fi explorer.etherlink.com node.mainnet.etherlink.com; img-src 'self' data: *.objkt.com assets.objkt.media dweb.link *.dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; media-src 'self' blob: data: assets.objkt.media dweb.link *.dweb.link nftstorage.link ipfs.io gateway.pinata.cloud; object-src 'none'; base-uri 'self'; form-action 'self';">
     
     <!-- Google Fonts - Techy font for title -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=484">
-    <link rel="stylesheet" href="css/loading.css?v=484">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=484">
-    <link rel="stylesheet" href="css/site-map.css?v=484">
+    <link rel="stylesheet" href="css/styles.min.css?v=485">
+    <link rel="stylesheet" href="css/loading.css?v=485">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=485">
+    <link rel="stylesheet" href="css/site-map.css?v=485">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=484">
+    <link rel="modulepreload" href="js/core/app.js?v=485">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
@@ -278,7 +278,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=484"></script>
+    <script src="js/core/theme-preload.js?v=485"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -2234,6 +2234,7 @@
       <div id="my-tezos-tabs" class="my-tezos-tabs" role="tablist" aria-label="My Tezos views">
         <button id="my-tezos-tab-overview" class="my-tezos-tab active" type="button" role="tab" aria-selected="true" aria-controls="my-tezos-panel-overview" tabindex="0" data-my-tezos-view="overview">Overview</button>
         <button id="my-tezos-tab-portfolio" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-portfolio" tabindex="-1" data-my-tezos-view="portfolio">Portfolio</button>
+        <button id="my-tezos-tab-transactions" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-transactions" tabindex="-1" data-my-tezos-view="transactions">Transactions</button>
         <button id="my-tezos-tab-collection" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-collection" tabindex="-1" data-my-tezos-view="collection">Collection</button>
         <button id="my-tezos-tab-tezos-x" class="my-tezos-tab" type="button" role="tab" aria-selected="false" aria-controls="my-tezos-panel-tezos-x" tabindex="-1" data-my-tezos-view="tezos-x">Tezos X</button>
       </div>
@@ -2403,26 +2404,6 @@
               <p class="portfolio-history-boundary"><strong>* Reconstructed liquid:</strong> historical TzKT account balance can exclude staked tez for non-bakers. It is never presented as historical total or P&amp;L.</p>
             </section>
 
-            <section class="portfolio-activity-panel" aria-labelledby="portfolio-activity-title">
-              <div class="portfolio-section-heading">
-                <div>
-                  <h4 id="portfolio-activity-title">What changed</h4>
-                  <p>Human-readable applied receipts with source and confidence labels.</p>
-                </div>
-                <div class="portfolio-activity-filters" role="group" aria-label="Activity filter">
-                  <button type="button" class="active" data-activity-filter="all" aria-pressed="true">All</button>
-                  <button type="button" data-activity-filter="unseen" aria-pressed="false">Unseen</button>
-                  <button type="button" data-activity-filter="nft" aria-pressed="false">NFTs</button>
-                </div>
-              </div>
-              <div id="portfolio-activity-list" class="portfolio-activity-list"></div>
-              <p id="portfolio-activity-empty" class="portfolio-history-empty">No applied account activity is loaded yet.</p>
-              <div class="portfolio-activity-footer">
-                <button id="portfolio-load-earlier" class="glass-button" type="button">Load earlier</button>
-                <span id="portfolio-memory-status" aria-live="polite">Memory loads after the current balance summary.</span>
-              </div>
-            </section>
-
             <section class="portfolio-wallets-panel" aria-labelledby="portfolio-wallets-title">
               <div class="portfolio-section-heading portfolio-wallets-heading">
                 <div>
@@ -2450,6 +2431,36 @@
           </div>
         </section>
 
+        <section id="my-tezos-panel-transactions" class="my-tezos-view-panel" role="tabpanel" aria-labelledby="my-tezos-tab-transactions" data-my-tezos-panel="transactions" hidden>
+          <div class="my-tezos-feature-shell transactions-shell">
+            <div class="portfolio-heading-row">
+              <div>
+                <span class="portfolio-kicker">Tezos L1 · applied on-chain receipts</span>
+                <h3>Transactions</h3>
+                <p>Separate account transfers and calls from NFT interactions across included Wallet Stack addresses.</p>
+              </div>
+            </div>
+            <div class="my-tezos-pill-group transactions-mode-pills" role="group" aria-label="Transaction type">
+              <button type="button" class="my-tezos-pill active" data-activity-filter="transfers" aria-pressed="true">Transfers</button>
+              <button type="button" class="my-tezos-pill" data-activity-filter="nft" aria-pressed="false">NFT interactions</button>
+            </div>
+            <section class="portfolio-activity-panel" aria-labelledby="portfolio-activity-title">
+              <div class="portfolio-section-heading">
+                <div>
+                  <h4 id="portfolio-activity-title">What changed</h4>
+                  <p>Human-readable applied receipts with source and confidence labels.</p>
+                </div>
+              </div>
+              <div id="portfolio-activity-list" class="portfolio-activity-list"></div>
+              <p id="portfolio-activity-empty" class="portfolio-history-empty">No applied account activity is loaded yet.</p>
+              <div class="portfolio-activity-footer">
+                <button id="portfolio-load-earlier" class="glass-button my-tezos-pill" type="button">Load earlier</button>
+                <span id="portfolio-memory-status" aria-live="polite">Transactions load when Portfolio or Transactions opens.</span>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <section id="my-tezos-panel-collection" class="my-tezos-view-panel" role="tabpanel" aria-labelledby="my-tezos-tab-collection" data-my-tezos-panel="collection" hidden>
           <div class="my-tezos-feature-shell collection-shell">
             <div class="portfolio-heading-row">
@@ -2470,21 +2481,20 @@
             <section class="my-tezos-feature-panel" aria-labelledby="collection-profiles-title">
               <div class="portfolio-section-heading">
                 <div><h4 id="collection-profiles-title">Collector and creator profiles</h4><p>Public Objkt profile context for the selected included addresses.</p></div>
-                <button id="collection-activity-link" class="glass-button" type="button">NFT activity</button>
               </div>
               <div id="collection-profiles" class="collection-profiles"></div>
             </section>
             <div class="collection-toolbar">
-              <div role="group" aria-label="Collection view">
-                <button type="button" class="active" data-collection-mode="collected" aria-pressed="true">Collected</button>
-                <button type="button" data-collection-mode="created" aria-pressed="false">Created</button>
+              <div class="my-tezos-pill-group" role="group" aria-label="Collection view">
+                <button type="button" class="my-tezos-pill active" data-collection-mode="collected" aria-pressed="true">Collected</button>
+                <button type="button" class="my-tezos-pill" data-collection-mode="created" aria-pressed="false">Created</button>
               </div>
-              <button id="collection-spam-toggle" type="button" aria-pressed="false" hidden>Flagged 0</button>
+              <button id="collection-spam-toggle" class="my-tezos-pill" type="button" aria-pressed="false" hidden>Flagged 0</button>
             </div>
             <div id="collection-grid" class="collection-grid"></div>
             <p id="collection-empty" class="portfolio-history-empty">Include an L1 address in Portfolio to load its collection.</p>
             <div class="my-tezos-feature-footer">
-              <button id="collection-load-more" class="glass-button" type="button" hidden>Load more</button>
+              <button id="collection-load-more" class="glass-button my-tezos-pill" type="button" hidden>Show more</button>
               <span id="collection-status" aria-live="polite">Collection loads only when this tab opens.</span>
             </div>
           </div>
@@ -2535,8 +2545,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
     <!-- Load app as module -->
-    <script defer src="js/features/hen-mode.js?v=94"></script>
-    <script type="module" src="js/core/app.js?v=484"></script>
+    <script defer src="js/features/hen-mode.js?v=95"></script>
+    <script type="module" src="js/core/app.js?v=485"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

@@ -23253,6 +23253,54 @@ body[data-theme="nerv"]::after {
     font-weight: 800;
     cursor: pointer;
 }
+.my-tezos-pill-group {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+.my-tezos-feature-shell .my-tezos-pill,
+.portfolio-activity-panel .my-tezos-pill {
+    width: auto;
+    min-width: 92px;
+    height: auto;
+    min-height: 38px;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.my-tezos-feature-shell .my-tezos-pill:hover,
+.my-tezos-feature-shell .my-tezos-pill:focus-visible,
+.portfolio-activity-panel .my-tezos-pill:hover,
+.portfolio-activity-panel .my-tezos-pill:focus-visible {
+    border-color: rgba(69,224,200,0.38);
+    color: var(--text-primary);
+}
+.my-tezos-feature-shell .my-tezos-pill.active,
+.my-tezos-feature-shell .my-tezos-pill[aria-pressed="true"],
+.portfolio-activity-panel .my-tezos-pill.active,
+.portfolio-activity-panel .my-tezos-pill[aria-pressed="true"] {
+    border-color: rgba(69,224,200,0.42);
+    background: rgba(69,224,200,0.09);
+    color: var(--accent-cyan, #45e0c8);
+}
+.my-tezos-feature-shell .my-tezos-pill[hidden],
+.portfolio-activity-panel .my-tezos-pill[hidden] { display: none; }
+.transactions-mode-pills { justify-content: flex-start; }
 .my-tezos-feature-shell .portfolio-heading-row > .glass-button,
 .my-tezos-feature-panel .portfolio-section-heading > .glass-button,
 .my-tezos-feature-footer > .glass-button {
@@ -23299,6 +23347,27 @@ body[data-theme="nerv"]::after {
     background: rgba(0,0,0,0.1);
     color: var(--text-primary);
     text-decoration: none;
+}
+.portfolio-activity-item.activity-item-transfer {
+    background: rgba(77,212,255,0.035);
+}
+.portfolio-activity-item.activity-item-nft {
+    border-color: rgba(183,148,246,0.16);
+    background: rgba(183,148,246,0.065);
+}
+.portfolio-activity-direction {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(77,212,255,0.09);
+    color: #4dd4ff;
+    font-weight: 900;
+}
+.activity-item-nft .portfolio-activity-direction {
+    background: rgba(183,148,246,0.12);
+    color: #c5a7ff;
 }
 .portfolio-activity-item > div,
 .tezosx-transaction-list > a > div { min-width: 0; display: grid; gap: 0.2rem; }

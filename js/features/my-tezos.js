@@ -20,6 +20,7 @@ import {
     initMyTezosPortfolio,
     refreshMyTezosPortfolio
 } from './my-tezos-portfolio.js';
+import { activateMyTezosMemory } from './my-tezos-memory.mjs';
 import {
     initMyTezosTabs,
     registerMyTezosView,
@@ -2813,6 +2814,7 @@ export function initMyTezos() {
     organizeDrawerJourneys();
     initMyTezosPortfolio();
     registerMyTezosView('portfolio', () => activateMyTezosPortfolio());
+    registerMyTezosView('transactions', () => activateMyTezosMemory());
     registerMyTezosView('collection', () => import('./my-tezos-collection.mjs')
         .then((module) => module.activateMyTezosCollection()));
     registerMyTezosView('tezos-x', () => import('./my-tezos-tezosx.mjs')

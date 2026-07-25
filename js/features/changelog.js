@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-24',
         entries: [
+            { type: '🔧', text: 'My Tezos Collection now completes Objkt pagination beyond the first 50 holdings, keeps newest activity first across pages, progressively reveals cards, and retries images through the HEN feed’s Objkt-CDN-first media path' },
+            { type: '✨', text: 'My Tezos Transactions now gives What changed its own view with selectable transfer and NFT-interaction lanes, subtle receipt colors, and consistently padded controls' },
             { type: '⚡', text: 'Capital and Maxis launchers now hydrate from compact integrity-checked summaries, while Baker Directory governance ledgers and all full reviewed room datasets wait for an explicit Chamber open' },
             { type: '🔧', text: 'A newer verified Capital snapshot can now supersede an older in-memory launcher receipt when a tab stays open across a data deployment' },
             { type: '🔧', text: 'Delayed Maxis launcher summaries and fallback requests can no longer overwrite reviewed full data after the room has already opened' },

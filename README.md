@@ -670,8 +670,8 @@ inline modal styles in `js/core/app.js`.
   Explore's collapsed Recovery tools group, linking to
   `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
   migration path while new multisig setups move toward protocol-native accounts.
-- My Tezos adaptive personal room with Overview, Portfolio, Collection, and
-  Tezos X tabs. Overview keeps the active L1 address synchronized with Ledger Flow, Maxi
+- My Tezos adaptive personal room with Overview, Portfolio, Transactions,
+  Collection, and Tezos X tabs. Overview keeps the active L1 address synchronized with Ledger Flow, Maxi
   Passport, HEN, and the existing baker/reward lifecycle, while its baker
   signal uses one full-width next-round band plus four equal Octez, working,
   attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
@@ -687,14 +687,18 @@ inline modal styles in `js/core/app.js`.
   or estimates.
   Complete browser-observed snapshots remain visually separate from the
   reconstructed TzKT liquid-balance track and its documented historical-stake
-  limitation. Human-readable applied receipts, resumable 365-day activity, and
-  While You Were Away all share one provenance-aware Memory store. Large
+  limitation. Transactions gives human-readable applied receipts their own
+  view, separating transfers and account calls from NFT interactions with
+  selectable lanes and distinct quiet color treatments. Resumable 365-day
+  activity and While You Were Away share one provenance-aware Memory store. Large
   histories, compact rewards, current holdings, and sync cursors live in
   bounded IndexedDB rather than localStorage; last-good current totals survive
   reloads and incomplete source reads never replace them.
-  Collection summarizes included L1 accounts before lazily paging current Objkt
-  holdings, separates Collected from Created, hides flagged metadata by default,
-  and exposes active asks only as reference—not portfolio value. Tezos X accepts
+  Collection completes current Objkt coverage in the background while keeping
+  card rendering progressively disclosed, separates Collected from Created,
+  hides flagged metadata by default, reuses the HEN feed's Objkt-CDN-first media
+  fallback path, and exposes active asks only as reference—not portfolio value.
+  Tezos X accepts
   up to ten manually linked Etherlink `0x` accounts, keeps L1 associations and
   L2 inclusion independently editable, and permanently labels every link
   `Linked on this device` and not an ownership proof. Versioned v2 export carries
@@ -712,8 +716,8 @@ inline modal styles in `js/core/app.js`.
 Useful deep links include:
 
 - `#my-baker=...`
-- `/my/`, `/my/?view=portfolio`, `/my/?view=collection`, or
-  `/my/?view=tezos-x` for the four My Tezos views
+- `/my/`, `/my/?view=portfolio`, `/my/?view=transactions`,
+  `/my/?view=collection`, or `/my/?view=tezos-x` for the five My Tezos views
 - `/tz1...`, `/name.tez`, or `/sub.name.tez` to resolve directly into My Tezos
 - `#baker=...`
 - `#calculator`
@@ -1089,7 +1093,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v484`, including hero search, theme
+- Current aligned shell cache stamp: `v485`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

@@ -38,7 +38,8 @@ let syncController = null;
 let successfulVisibleRender = false;
 let currentActivities = [];
 let currentSeries = [];
-let activityFilter = 'all';
+let activityFilter = 'transfers';
+let unseenOnly = false;
 
 function includedEntries() {
     return readSavedMyTezosEntries().filter((entry) => entry.included !== false);
@@ -46,7 +47,10 @@ function includedEntries() {
 
 function panelVisible() {
     return document.visibilityState === 'visible'
-        && document.getElementById('my-tezos-panel-portfolio')?.hidden === false
+        && (
+            document.getElementById('my-tezos-panel-portfolio')?.hidden === false
+            || document.getElementById('my-tezos-panel-transactions')?.hidden === false
+        )
         && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
 }
 
@@ -104,9 +108,12 @@ function renderWhileAway(activities, { baselineCreated = false } = {}) {
         </div>
     `);
     target.querySelector('[data-memory-show-unseen]')?.addEventListener('click', () => {
-        activityFilter = 'unseen';
-        renderActivity(currentActivities);
-        document.getElementById('portfolio-activity-title')?.scrollIntoView({ block: 'nearest' });
+        const nextFilter = unseen.some((activity) => activity.kind.startsWith('nft-')) ? 'nft' : 'transfers';
+        setActivityFilter(nextFilter, { onlyUnseen: true });
+        window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'transactions' } }));
+        requestAnimationFrame(() => {
+            document.getElementById('portfolio-activity-title')?.scrollIntoView({ block: 'nearest' });
+        });
     });
 }
 
@@ -116,25 +123,26 @@ function renderActivity(activities) {
     if (!target || !empty) return;
     const lastSeen = Number(localStorage.getItem(LAST_SEEN_KEY)) || 0;
     const filtered = activities.filter((activity) => {
-        if (activityFilter === 'unseen') return activity.timestamp > lastSeen;
-        if (activityFilter === 'nft') return activity.kind.startsWith('nft-');
-        return true;
+        const isNft = activity.kind.startsWith('nft-');
+        if (activityFilter === 'nft' ? !isNft : isNft) return false;
+        return !unseenOnly || activity.timestamp > lastSeen;
     }).slice(0, 80);
     empty.hidden = filtered.length > 0;
     if (!filtered.length) {
         quietlySyncHtml(target, '');
-        empty.textContent = activityFilter === 'nft'
-            ? 'No NFT receipts are classified in the loaded activity window.'
-            : activityFilter === 'unseen'
-                ? 'No unseen activity remains in the loaded window.'
-                : 'No applied account activity is loaded yet.';
+        empty.textContent = unseenOnly
+            ? `No new ${activityFilter === 'nft' ? 'NFT interactions' : 'transfers'} remain in the loaded window.`
+            : activityFilter === 'nft'
+                ? 'No NFT interactions are classified in the loaded activity window.'
+                : 'No transfer or account receipts are loaded yet.';
         return;
     }
     quietlySyncHtml(target, filtered.map((activity) => {
         const display = activityDisplay(activity);
         const direction = activity.direction === 'in' ? '↓' : activity.direction === 'out' ? '↑' : activity.direction === 'self' ? '↔' : '•';
+        const interactionType = activity.kind.startsWith('nft-') ? 'nft' : 'transfer';
         return `
-            <article class="portfolio-activity-item" data-activity-id="${escapeHtml(activity.id)}">
+            <article class="portfolio-activity-item activity-item-${interactionType}" data-quiet-key="${escapeHtml(activity.id)}" data-activity-id="${escapeHtml(activity.id)}" data-activity-type="${interactionType}">
                 <span class="portfolio-activity-direction" data-direction="${escapeHtml(activity.direction)}" aria-hidden="true">${direction}</span>
                 <div>
                     <strong>${escapeHtml(display.title)}</strong>
@@ -145,6 +153,17 @@ function renderActivity(activities) {
             </article>
         `;
     }).join(''));
+}
+
+function setActivityFilter(filter, { onlyUnseen = false } = {}) {
+    activityFilter = filter === 'nft' ? 'nft' : 'transfers';
+    unseenOnly = onlyUnseen;
+    document.querySelectorAll('[data-activity-filter]').forEach((button) => {
+        const active = button.dataset.activityFilter === activityFilter;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+    });
+    renderActivity(currentActivities);
 }
 
 function renderMemory(entries, snapshots, activities, { status = 'cached', baselineCreated = false } = {}) {
@@ -341,18 +360,12 @@ export function initMyTezosMemory() {
     });
     document.querySelectorAll('[data-activity-filter]').forEach((button) => {
         button.addEventListener('click', () => {
-            activityFilter = button.dataset.activityFilter || 'all';
-            document.querySelectorAll('[data-activity-filter]').forEach((candidate) => {
-                const active = candidate === button;
-                candidate.classList.toggle('active', active);
-                candidate.setAttribute('aria-pressed', String(active));
-            });
-            renderActivity(currentActivities);
+            setActivityFilter(button.dataset.activityFilter || 'transfers');
         });
     });
     window.addEventListener('my-tezos-activity-filter', (event) => {
-        activityFilter = event.detail?.filter || 'all';
-        renderActivity(currentActivities);
+        const filter = event.detail?.filter || 'transfers';
+        setActivityFilter(filter, { onlyUnseen: filter === 'unseen' });
     });
     window.addEventListener('my-tezos-drawer-closed', () => {
         if (!successfulVisibleRender) return;
@@ -376,5 +389,7 @@ export function destroyMyTezosMemoryForTests() {
     successfulVisibleRender = false;
     currentActivities = [];
     currentSeries = [];
+    activityFilter = 'transfers';
+    unseenOnly = false;
     initialized = false;
 }

@@ -1631,59 +1631,52 @@ async function installFeatureMocks(context, options = {}) {
         const vars = body.variables || {};
         const addresses = Array.isArray(vars.addresses) ? vars.addresses : [];
         const offset = Number(vars.offset) || 0;
-        const collected = offset > 0 ? [] : addresses.flatMap((address, index) => ([
-          {
-            holder_address: address,
-            last_incremented_at: new Date(Date.now() - index * 3600000).toISOString(),
-            quantity: index === 0 ? '2' : '1',
+        const rowLimit = Number(vars.rowLimit) || 100;
+        const primaryRows = addresses[0] ? Array.from({ length: 138 }, (_, index) => {
+          const flagged = index === 137;
+          const shared = index === 0;
+          const tokenId = shared ? '42' : flagged ? '99' : String(1000 + index);
+          const contract = flagged
+            ? 'KT1SmokeFlaggedCollection11111111111111'
+            : 'KT1SmokeCollection1111111111111111111';
+          return {
+            holder_address: addresses[0],
+            last_incremented_at: new Date(Date.now() - index * 60000).toISOString(),
+            quantity: shared ? '2' : '1',
             token: {
-              token_id: '42',
-              fa_contract: 'KT1SmokeCollection1111111111111111111',
-              name: 'Shared Smoke Artifact',
-              thumbnail_uri: 'ipfs://smoke-collection-image',
-              pk: 4200,
-              supply: '10',
-              lowest_ask: '1250000',
-              flag: false,
-              metadata_status: 'processed',
-              content_rating: 'safe',
+              token_id: tokenId,
+              fa_contract: contract,
+              name: shared ? 'Shared Smoke Artifact' : flagged ? 'Flagged Smoke Asset' : `Collected Smoke Artifact ${index + 1}`,
+              thumbnail_uri: flagged ? null : `ipfs://smoke-collection-image-${tokenId}`,
+              pk: 4200 + index,
+              supply: flagged ? '1' : '10',
+              lowest_ask: shared ? '1250000' : null,
+              flag: flagged,
+              metadata_status: flagged ? 'failed' : 'processed',
+              content_rating: flagged ? 'unsafe' : 'safe',
               fa: {
-                name: 'Smoke Collection',
-                contract: 'KT1SmokeCollection1111111111111111111',
-                collection_id: 'smoke-collection',
+                name: flagged ? 'Flagged Collection' : 'Smoke Collection',
+                contract,
+                collection_id: flagged ? 'flagged-smoke' : 'smoke-collection',
                 logo: null
               },
-              creators: [{
+              creators: flagged ? [] : [{
                 creator_address: SAMPLE_ADDRESS,
                 holder: { address: SAMPLE_ADDRESS, alias: 'QA Artist', tzdomain: 'qa-artist.tez' }
               }]
             }
-          },
-          ...(index === 0 ? [{
-            holder_address: address,
-            last_incremented_at: new Date(Date.now() - 7200000).toISOString(),
-            quantity: '1',
-            token: {
-              token_id: '99',
-              fa_contract: 'KT1SmokeFlaggedCollection11111111111111',
-              name: 'Flagged Smoke Asset',
-              thumbnail_uri: null,
-              pk: 9900,
-              supply: '1',
-              lowest_ask: null,
-              flag: true,
-              metadata_status: 'failed',
-              content_rating: 'unsafe',
-              fa: {
-                name: 'Flagged Collection',
-                contract: 'KT1SmokeFlaggedCollection11111111111111',
-                collection_id: 'flagged-smoke',
-                logo: null
-              },
-              creators: []
-            }
-          }] : [])
-        ]));
+          };
+        }) : [];
+        const sharedSecond = addresses[1] ? {
+          ...primaryRows[0],
+          holder_address: addresses[1],
+          last_incremented_at: new Date(Date.now() - 30000).toISOString(),
+          quantity: '1'
+        } : null;
+        const allCollected = primaryRows.length
+          ? [primaryRows[0], ...(sharedSecond ? [sharedSecond] : []), ...primaryRows.slice(1)]
+          : [];
+        const collected = pageRows(allCollected.length, offset, rowLimit, (index) => allCollected[index]);
         const created = offset > 0 || !addresses.includes(SAMPLE_ADDRESS) ? [] : [{
           creator_address: SAMPLE_ADDRESS,
           token_pk: 4201,
@@ -2063,7 +2056,7 @@ async function installFeatureMocks(context, options = {}) {
               contract: { address: 'KT1SmokeCollection1111111111111111111', alias: 'Smoke Collection' },
               tokenId: '42',
               standard: 'fa2',
-              metadata: { symbol: 'NFT', name: 'Shared Smoke Artifact', decimals: '0' }
+              metadata: { symbol: 'NFT', name: 'Shared Smoke Artifact', decimals: '0', is_boolean_amount: true }
             },
             amount: '1'
           },
@@ -7311,6 +7304,45 @@ async function smokeMyTezosMemory(browser, baseUrl) {
     const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
     return chart?.data?.datasets?.some((dataset) => dataset.label === 'Reconstructed liquid*');
   }, null, { timeout: 10000 });
+  await page.locator('#my-tezos-tab-transactions').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#my-tezos-tab-transactions')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-panel-transactions')?.hidden === false
+      && document.querySelectorAll('#portfolio-activity-list .activity-item-transfer').length >= 3
+  ), null, { timeout: 10000 });
+  const transferLane = await page.evaluate(() => ({
+    body: document.querySelector('#portfolio-activity-list')?.textContent || '',
+    transferCount: document.querySelectorAll('#portfolio-activity-list .activity-item-transfer').length,
+    nftCount: document.querySelectorAll('#portfolio-activity-list .activity-item-nft').length,
+    background: getComputedStyle(document.querySelector('#portfolio-activity-list .activity-item-transfer')).backgroundColor,
+    pills: Array.from(document.querySelectorAll('.transactions-mode-pills .my-tezos-pill')).map((button) => {
+      const style = getComputedStyle(button);
+      const rect = button.getBoundingClientRect();
+      return {
+        text: button.textContent.trim(),
+        pressed: button.getAttribute('aria-pressed'),
+        height: rect.height,
+        paddingLeft: parseFloat(style.paddingLeft),
+        paddingRight: parseFloat(style.paddingRight)
+      };
+    })
+  }));
+  assert(transferLane.transferCount >= 3 && transferLane.nftCount === 0 && !/Shared Smoke Artifact/.test(transferLane.body), `my tezos transactions: transfer lane mixed in NFT interactions ${JSON.stringify(transferLane)}`);
+  assert(transferLane.pills.every((pill) => pill.height >= 36 && pill.paddingLeft >= 10 && pill.paddingRight >= 10), `my tezos transactions: mode pill geometry collapsed ${JSON.stringify(transferLane.pills)}`);
+  await page.locator('[data-activity-filter="nft"]').click();
+  await page.waitForFunction(() => (
+    document.querySelectorAll('#portfolio-activity-list .activity-item-nft').length >= 1
+      && document.querySelectorAll('#portfolio-activity-list .activity-item-transfer').length === 0
+  ), null, { timeout: 5000 });
+  const nftLane = await page.evaluate(() => ({
+    body: document.querySelector('#portfolio-activity-list')?.textContent || '',
+    background: getComputedStyle(document.querySelector('#portfolio-activity-list .activity-item-nft')).backgroundColor,
+    selected: document.querySelector('[data-activity-filter="nft"]')?.getAttribute('aria-pressed')
+  }));
+  assert(/Shared Smoke Artifact/.test(nftLane.body) && nftLane.selected === 'true', `my tezos transactions: NFT interactions lane did not isolate NFT receipts ${JSON.stringify(nftLane)}`);
+  assert(nftLane.background !== transferLane.background, `my tezos transactions: NFT and transfer rows need distinct subtle backgrounds ${JSON.stringify({ transfer: transferLane.background, nft: nftLane.background })}`);
+  await page.locator('[data-activity-filter="transfers"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#portfolio-activity-list .activity-item-transfer').length >= 3, null, { timeout: 5000 });
   const memoryState = await page.evaluate(async () => {
     const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
     const request = indexedDB.open('tezos-systems-my-tezos');
@@ -7345,7 +7377,7 @@ async function smokeMyTezosMemory(browser, baseUrl) {
   });
   assert(memoryState.labels.includes('Reconstructed liquid*') && memoryState.labels.includes('Total'), `my tezos memory: evidence tracks were not kept separate ${JSON.stringify(memoryState)}`);
   assert(/exclude staked tez/i.test(memoryState.boundary) && !/P&L/i.test(memoryState.activity), `my tezos memory: historical limitation boundary missing ${JSON.stringify(memoryState)}`);
-  assert(/Memory is ready/i.test(memoryState.whileAway) && memoryState.lastSeen > 0, `my tezos memory: initial reconstruction was mislabeled as unseen ${JSON.stringify(memoryState)}`);
+  assert(/Memory is ready|No new indexed activity/i.test(memoryState.whileAway) && memoryState.lastSeen > 0, `my tezos memory: initial reconstruction was mislabeled as unseen ${JSON.stringify(memoryState)}`);
   assert(/Moved XTZ|Staked XTZ|Delegate changed/i.test(memoryState.activity), `my tezos memory: human activity classification missing ${memoryState.activity}`);
   assert(memoryState.reconstructed === 6 && memoryState.observed >= 1 && memoryState.activityRows >= 4, `my tezos memory: normalized records were not persisted ${JSON.stringify(memoryState)}`);
   assert(memoryState.sync.some((state) => state.stream === 'activity' && state.windowComplete === true), `my tezos memory: resumable activity state missing ${JSON.stringify(memoryState.sync)}`);
@@ -7380,32 +7412,57 @@ async function smokeMyTezosCollection(browser, baseUrl) {
   const page = await context.newPage();
   attachIssueCollectors(page, 'my tezos collection', issues);
   await openMyTezosSmokeView(page, baseUrl, 'collection');
-  await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#collection-status')?.dataset.state), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'complete', null, { timeout: 30000 });
   await page.waitForFunction(() => {
     const assets = Number(document.querySelector('[data-collection-total="assets"] strong')?.textContent);
     const editions = Number(document.querySelector('[data-collection-total="editions"] strong')?.textContent);
     const cards = document.querySelectorAll('#collection-grid .collection-asset-card').length;
-    return assets === 1 && editions === 3 && cards === 1;
+    const image = document.querySelector('#collection-grid .collection-asset-card img');
+    return assets === 137 && editions === 139 && cards === 100 && image?.complete && image.naturalWidth > 0;
   }, null, { timeout: 10000 });
   const collected = await page.evaluate(() => ({
     assets: document.querySelector('[data-collection-total="assets"] strong')?.textContent || '',
     editions: document.querySelector('[data-collection-total="editions"] strong')?.textContent || '',
     cards: document.querySelectorAll('#collection-grid .collection-asset-card').length,
+    images: document.querySelectorAll('#collection-grid .collection-asset-card img').length,
+    imageFallbacks: document.querySelectorAll('#collection-grid .collection-image-fallback').length,
+    firstCard: document.querySelector('#collection-grid .collection-asset-card strong')?.textContent || '',
     profile: document.querySelector('#collection-profiles')?.textContent || '',
     body: document.querySelector('#my-tezos-panel-collection')?.textContent || '',
     flaggedHidden: document.querySelector('#collection-spam-toggle')?.hidden === false,
-    overflow: document.querySelector('#my-tezos-panel-collection')?.scrollWidth - document.querySelector('#my-tezos-panel-collection')?.clientWidth
+    loadMoreVisible: document.querySelector('#collection-load-more')?.hidden === false,
+    overflow: document.querySelector('#my-tezos-panel-collection')?.scrollWidth - document.querySelector('#my-tezos-panel-collection')?.clientWidth,
+    pills: Array.from(document.querySelectorAll('#my-tezos-panel-collection .my-tezos-pill')).filter((button) => !button.hidden).map((button) => {
+      const style = getComputedStyle(button);
+      const rect = button.getBoundingClientRect();
+      return {
+        text: button.textContent.trim(),
+        height: rect.height,
+        paddingLeft: parseFloat(style.paddingLeft),
+        paddingRight: parseFloat(style.paddingRight)
+      };
+    })
   }));
-  assert(Number(collected.assets) === 1 && Number(collected.editions) === 3 && collected.cards === 1, `my tezos collection: multi-wallet holdings did not aggregate by token ${JSON.stringify(collected)}`);
-  assert(/QA Artist/.test(collected.profile) && /not a portfolio value/i.test(collected.body) && !/\bCollection value\b/i.test(collected.body), `my tezos collection: profile or valuation boundary missing ${JSON.stringify(collected)}`);
-  assert(collected.flaggedHidden && collected.overflow <= 1, `my tezos collection: flagged or mobile geometry state failed ${JSON.stringify(collected)}`);
-  assert(objktRequests === 1, `my tezos collection: summary-first load exceeded one Objkt request (${objktRequests})`);
+  assert(Number(collected.assets) === 137 && Number(collected.editions) === 139 && collected.cards === 100, `my tezos collection: complete multi-wallet holdings did not aggregate beyond the first page ${JSON.stringify(collected)}`);
+  assert(collected.images === 100 && collected.imageFallbacks === 0, `my tezos collection: HEN/Objkt media fallback path did not keep thumbnails available ${JSON.stringify(collected)}`);
+  assert(collected.firstCard === 'Shared Smoke Artifact', `my tezos collection: multi-page aggregation did not keep the newest holding first ${JSON.stringify(collected)}`);
+  assert(/QA Artist/.test(collected.profile) && /never a realizable portfolio value/i.test(collected.body) && !/\bCollection value\b/i.test(collected.body), `my tezos collection: profile or valuation boundary missing ${JSON.stringify(collected)}`);
+  assert(collected.flaggedHidden && collected.loadMoreVisible && collected.overflow <= 1, `my tezos collection: flagged, progressive grid, or mobile geometry state failed ${JSON.stringify(collected)}`);
+  assert(collected.pills.every((pill) => pill.height >= 36 && pill.paddingLeft >= 10 && pill.paddingRight >= 10), `my tezos collection: control pill geometry collapsed ${JSON.stringify(collected.pills)}`);
+  assert(objktRequests === 2, `my tezos collection: complete 139-row coverage should use two Objkt pages (${objktRequests})`);
+
+  await page.locator('#collection-load-more').click();
+  await page.waitForFunction(() => document.querySelectorAll('#collection-grid .collection-asset-card').length === 137, null, { timeout: 5000 });
 
   await page.locator('[data-collection-mode="created"]').click();
   await page.waitForFunction(() => /Created Smoke Artifact/.test(document.querySelector('#collection-grid')?.textContent || ''), null, { timeout: 5000 });
   await page.locator('#collection-spam-toggle').click();
   await page.locator('[data-collection-mode="collected"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('#collection-grid .collection-asset-card').length === 2, null, { timeout: 5000 });
+  await page.locator('#collection-load-more').click();
+  await page.waitForFunction(() => (
+    document.querySelectorAll('#collection-grid .collection-asset-card').length === 138
+      && /Flagged Smoke Asset/.test(document.querySelector('#collection-grid')?.textContent || '')
+  ), null, { timeout: 5000 });
 
   await context.close();
   assert(issues.length === 0, `my tezos collection browser issues:\n${issues.join('\n')}`);
@@ -7880,6 +7937,7 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
     { label: 'mobile', viewport: { width: 390, height: 844 } },
     { label: 'portfolio tablet', viewport: { width: 760, height: 900 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
     { label: 'portfolio mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
+    { label: 'transactions mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=transactions', expectedView: 'transactions' },
     { label: 'collection mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=collection', expectedView: 'collection' },
     { label: 'tezos x mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=tezos-x', expectedView: 'tezos-x' }
   ]) {

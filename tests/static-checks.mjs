@@ -349,7 +349,7 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['setMyTezosView', 'sessionStorage.setItem(VIEW_SESSION_KEY', "event.key === 'ArrowRight'", "event.key === 'Home'", "routeMode: 'push'", "window.addEventListener('popstate'"]) {
     if (!tabs.includes(snippet)) fail(`My Tezos tab contract missing: ${snippet}`);
   }
-  for (const snippet of ['activateMyTezosPortfolio', "import('./my-tezos-collection.mjs')", "import('./my-tezos-tezosx.mjs')"]) {
+  for (const snippet of ['activateMyTezosPortfolio', "registerMyTezosView('transactions'", "import('./my-tezos-collection.mjs')", "import('./my-tezos-tezosx.mjs')"]) {
     if (!myTezos.includes(snippet)) fail(`My Tezos lazy feature registration missing: ${snippet}`);
   }
   for (const snippet of ["if (data.bakerAddr)", "classList.toggle('is-without-baker', withoutBaker)"]) {
@@ -359,7 +359,7 @@ async function checkMyTezosPortfolioContracts() {
     if (!savedEntries.includes(snippet)) fail(`My Tezos saved-entry schema contract missing: ${snippet}`);
   }
   if (!wallet.includes('my-tezos-portfolio-changed')) fail('My Tezos shared wallet mutation event is missing');
-  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'Linked on this device', 'not an ownership proof']) {
+  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-transactions', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-activity-filter="transfers"', 'data-activity-filter="nft"', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'Linked on this device', 'not an ownership proof']) {
     if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
   }
   if (!index.includes('id="tezosx-add-form" class="portfolio-add-form" aria-busy="true"')
@@ -385,8 +385,11 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['buildReconstructedPortfolioSeries', 'Historical account balance can exclude staked tez', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed']) {
     if (!memory.includes(snippet)) fail(`My Tezos Memory contract missing: ${snippet}`);
   }
-  for (const snippet of ['MY_TEZOS_COLLECTION_PAGE_SIZE', 'showing last saved holdings', 'not a portfolio value', 'sourceReceipt']) {
+  for (const snippet of ['MY_TEZOS_COLLECTION_PAGE_SIZE', 'Syncing complete Objkt coverage', 'mediaCandidates', 'showing last saved holdings', 'not a portfolio value', 'sourceReceipt']) {
     if (!collection.includes(snippet) && !index.includes(snippet)) fail(`My Tezos Collection contract missing: ${snippet}`);
+  }
+  for (const snippet of ["activityFilter = 'transfers'", 'activity-item-${interactionType}', "my-tezos-panel-transactions"]) {
+    if (!memory.includes(snippet)) fail(`My Tezos Transactions contract missing: ${snippet}`);
   }
   for (const snippet of ['normalizeLinkedL2Accounts', 'linkedL1Addresses', 'data-tezosx-l1-link', 'nativeAvailable', 'Blockscout receipt', 'submitButton.disabled = false', "form?.setAttribute('aria-busy', 'false')"]) {
     if (!tezosx.includes(snippet)) fail(`My Tezos Tezos X contract missing: ${snippet}`);
@@ -1913,9 +1916,9 @@ async function checkSelectorContracts() {
     ['HEN source OBJKT tab', 'data-hen-mode="objkt"', index],
     ['HEN standalone canonical URL', '<link rel="canonical" href="https://tezos.systems/hen/">', henPage],
     ['HEN standalone live overlay', 'id="hen-overlay"', henPage],
-    ['HEN standalone auto activator', '/js/features/hen-mode.js?v=94', henPage],
+    ['HEN standalone auto activator', '/js/features/hen-mode.js?v=95', henPage],
     ['HEN CSS cache stamp', 'css/hen-mode.css?v=98', index],
-    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=94', index],
+    ['HEN JS cache stamp', 'js/features/hen-mode.js?v=95', index],
     ['HEN setup status strip', 'id="hen-status-strip"', index],
     ['HEN permanent now line', 'id="hen-now-line"', index],
     ['HEN mobile filter toggle', 'id="hen-mobile-filter-toggle"', index],
@@ -1970,10 +1973,11 @@ async function checkSelectorContracts() {
     ['HEN retryable image handler', 'function setupImageRetry', henMode],
     ['HEN OBJKT CDN media base', "const OBJKT_ASSETS_BASE = 'https://assets.objkt.media/file/assets-003/'", henMode],
     ['HEN OBJKT CDN media helper', 'function mediaCdnUrl', henMode],
+    ['HEN Collection media candidate reuse', 'mediaCandidates: mediaCandidates', henMode],
     ['HEN share meta prefers OBJKT CDN image', "var image = mediaCdnUrl(token, 'thumb400') || resolveUri(token.display_uri || token.thumbnail_uri || '');", henMode],
     ['HEN primary live IPFS gateway', "const IPFS_GW = 'https://dweb.link/ipfs/'", henMode],
     ['HEN nftstorage fallback gateway', "'https://nftstorage.link/ipfs/'", henMode],
-    ['HEN CSP allows dweb fallback images', 'dweb.link nftstorage.link ipfs.io gateway.pinata.cloud', index],
+    ['HEN CSP allows dweb fallback images', 'dweb.link *.dweb.link nftstorage.link ipfs.io gateway.pinata.cloud', index],
     ['HEN direct-load blackout cleanup', 'function clearInitialBlackout', henMode],
     ['HEN blackout style removal', "document.getElementById('hen-initial-blackout')", henMode],
     ['HEN wallet connect bridge', 'async function connectWalletFromHen', henMode],
@@ -2793,7 +2797,7 @@ async function checkUxAuditContracts() {
   if (!app.includes("document.addEventListener('visibilitychange', pollBlockWhenVisible)") || !tooltipTour.includes('.visit-streak-toast.visible')) {
     fail('RPC polling and first-visit surfaces must respect document visibility and toast occupancy');
   }
-  if (!index.includes('<script defer src="js/features/hen-mode.js?v=94"></script>')
+  if (!index.includes('<script defer src="js/features/hen-mode.js?v=95"></script>')
     || !index.includes('<link rel="stylesheet" href="css/hen-mode.css?v=98">')) {
     fail('HEN JavaScript may defer, but its first-paint overlay stylesheet must remain eager');
   }
@@ -6928,7 +6932,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=484'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=485'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
