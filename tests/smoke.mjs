@@ -48,6 +48,8 @@ const allowedWarningPatterns = [
   /HTTP 503/i,
   /api\.coingecko\.com/i,
   /api\.tzkt\.io/i,
+  /eu\.rpc\.tez\.capital/i,
+  /tezos-mainnet\.octez\.io/i,
   /teztale-server-mainnet-ro-prd\.octez\.tech/i,
   /api\.llama\.fi/i,
   /fonts\.gstatic\.com/i,
@@ -3896,7 +3898,7 @@ function attachIssueCollectors(page, label, issues) {
     const url = request.url();
     const failureText = request.failure()?.errorText || 'failed';
     if (failureText === 'net::ERR_ABORTED' && !STRICT_EXTERNAL) return;
-    if (/api\.tzkt\.io|api\.coingecko\.com|api\.llama\.fi|explorer\.etherlink\.com|node\.mainnet\.etherlink\.com|gc\.zgo\.at|goatcounter|fonts\.googleapis|fonts\.gstatic/.test(url) && !STRICT_EXTERNAL) {
+    if (/api\.tzkt\.io|eu\.rpc\.tez\.capital|tezos-mainnet\.octez\.io|api\.coingecko\.com|api\.llama\.fi|explorer\.etherlink\.com|node\.mainnet\.etherlink\.com|gc\.zgo\.at|goatcounter|fonts\.googleapis|fonts\.gstatic/.test(url) && !STRICT_EXTERNAL) {
       return;
     }
     issues.push(`${label} request failed: ${failureText} ${url}`);
@@ -4334,18 +4336,22 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.assetResults.length >= 12 && shell.assetResults.length <= 24, `app shell: expected a compact core shell, saw ${shell.assetResults.length} discovered assets`);
 
   await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller), null, { timeout: 10000 });
+  await page.close();
+  const offlinePage = await context.newPage();
+  attachIssueCollectors(offlinePage, 'app shell offline navigation', issues);
   let offlineResponse = null;
   let offlineHeading = '';
   try {
     await context.setOffline(true);
-    offlineResponse = await page.goto(`${baseUrl}/offline-navigation-smoke`, { waitUntil: 'domcontentloaded' });
-    offlineHeading = await page.locator('h1').innerText();
+    offlineResponse = await offlinePage.goto(`${baseUrl}/offline-navigation-smoke`, { waitUntil: 'domcontentloaded' });
+    offlineHeading = await offlinePage.locator('h1').innerText();
   } finally {
     await context.setOffline(false);
   }
   assert(offlineResponse?.ok(), `app shell: offline navigation did not return the cached explanation (${offlineResponse?.status()})`);
   assert(/offline/i.test(offlineHeading), `app shell: offline navigation should render the self-contained offline page, saw ${offlineHeading}`);
 
+  await offlinePage.close();
   await context.close();
 
   const fallbackContext = await browser.newContext({
@@ -10550,6 +10556,10 @@ async function smokeLauncherProjections(browser, baseUrl) {
     && fallbackPaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path)),
   'Maxis projection failure did not fall back to the reviewed launcher artifacts');
   assert(!fallbackPaths.includes('/data/maxis-careers.json'), `Maxis career data loaded before the fallback launcher was explicitly opened: ${fallbackPaths.join(', ')}`);
+  await fallbackPage.waitForFunction(() => {
+    const text = document.querySelector('#maxis-entry-card .maxis-entry-front')?.textContent || '';
+    return /Passports/i.test(text) && !/loading/i.test(text);
+  }, null, { timeout: 30000 });
   await fallbackPage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const fallbackMarkup = await fallbackPage.evaluate(() => ({
     capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
