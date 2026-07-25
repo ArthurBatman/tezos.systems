@@ -35,7 +35,8 @@ const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
 const CAPITAL_TARGETS = ['data/capital-snapshot.json'];
-const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json'];
+const ECOSYSTEM_TARGETS = ['data/ecosystem-stats.json'];
+const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json', 'data/ecosystem-entry-summary.json'];
 const WHALE_WATCH_TARGETS = ['data/whale-watch.json'];
 const TEZOSCRP_TARGETS = ['data/tezoscrp-awards.json', 'data/tezoscrp-summary.json'];
 
@@ -54,6 +55,7 @@ const GENERATED_TARGETS = unique([
   ...MAXIS_CAREER_TARGETS,
   ...MAXIS_L2_GOVERNANCE_TARGETS,
   ...CAPITAL_TARGETS,
+  ...ECOSYSTEM_TARGETS,
   ...LAUNCHER_PROJECTION_TARGETS,
   ...WHALE_WATCH_TARGETS,
   ...TEZOSCRP_TARGETS
@@ -220,6 +222,8 @@ async function main() {
     ran.push('nakamoto-check');
     nodeScript('scripts/refresh-capital-data.mjs', ['--check']);
     ran.push('capital-check');
+    nodeScript('scripts/refresh-ecosystem-stats.mjs', ['--check']);
+    ran.push('ecosystem-check');
     nodeScript('scripts/generate-launcher-projections.mjs', ['--check']);
     ran.push('launcher-projections-check');
     if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS);
@@ -241,6 +245,9 @@ async function main() {
     nodeScript('scripts/refresh-capital-data.mjs');
     ran.push('capital');
     if (shouldStage) stageTargets(CAPITAL_TARGETS);
+    nodeScript('scripts/refresh-ecosystem-stats.mjs');
+    ran.push('ecosystem');
+    if (shouldStage) stageTargets(ECOSYSTEM_TARGETS);
     nodeScript('scripts/generate-launcher-projections.mjs');
     ran.push('launcher-projections');
     if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS);

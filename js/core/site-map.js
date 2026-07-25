@@ -92,6 +92,23 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.9' }
     },
     {
+        id: 'ecosystem',
+        title: 'Ecosystem Activity',
+        href: '/ecosystem/',
+        hash: '#ecosystem',
+        group: 'Live Rooms',
+        chamberCategory: 'ecosystem',
+        detail: 'Weekly active-wallet rankings and complete on-chain history for reviewed Tezos L1 and Etherlink dapps',
+        keywords: ['ecosystem activity', 'tezos dapps', 'etherlink dapps', 'top dapps', 'popular dapps', 'active users', 'active wallets', 'weekly active wallets', 'dapp rankings', 'dapp history', 'ecosystem stats', 'yoy'],
+        searchIntents: [
+            { id: 'ecosystem-l1', title: 'Tezos L1 Dapp Activity', href: '/ecosystem/?layer=tezos', detail: 'Rank reviewed Tezos L1 apps by last-completed-week active wallet addresses', keywords: ['tezos l1 apps', 'l1 dapps', 'tezos active wallets'], directory: true },
+            { id: 'ecosystem-l2', title: 'Etherlink Dapp Activity', href: '/ecosystem/?layer=etherlink', detail: 'Inspect Etherlink app active wallets, interactions, and complete tracked history', keywords: ['etherlink apps', 'etherlink active wallets', 'l2 dapps'], directory: true },
+            { id: 'ecosystem-history', title: 'Dapp Activity History', href: '/ecosystem/?range=all', detail: 'Chart the complete disclosed weekly history with WoW, YoY, retention, and partial-week context', keywords: ['dapp history', 'historical active users', 'active wallet history', 'year over year dapps'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'daily', priority: '0.9' }
+    },
+    {
         id: 'staking-chamber',
         title: 'Staking Chamber',
         href: '/stake/',
@@ -456,6 +473,12 @@ export const CHAMBER_CATEGORY_META = Object.freeze([
         entryIds: Object.freeze(['capital', 'whales', 'staking-chamber'])
     }),
     Object.freeze({
+        key: 'ecosystem',
+        label: 'Ecosystem',
+        question: 'Which apps are seeing on-chain activity?',
+        entryIds: Object.freeze(['ecosystem'])
+    }),
+    Object.freeze({
         key: 'bakers',
         label: 'Bakers',
         question: 'Who is securing Tezos and upgrading its keys?',
@@ -493,13 +516,14 @@ export const SITE_MAP_NAV_GROUPS = [
 ];
 
 export const SITE_MAP_RELATIONS = {
-    home: ['chambers', 'pulse', 'capital', 'my-tezos'],
-    chambers: ['pulse', 'staking-chamber', 'leaderboard', 'whales'],
+    home: ['chambers', 'pulse', 'ecosystem', 'my-tezos'],
+    chambers: ['pulse', 'ecosystem', 'staking-chamber', 'leaderboard'],
     'my-tezos': ['domains', 'ledger-flow', 'maxis', 'calculator'],
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
-    pulse: ['capital', 'health', 'hot-today', 'staking-chamber'],
-    capital: ['tezosx', 'price', 'ledger-flow', 'hen'],
+    pulse: ['ecosystem', 'capital', 'health', 'hot-today'],
+    capital: ['ecosystem', 'tezosx', 'price', 'ledger-flow'],
+    ecosystem: ['capital', 'tezosx', 'history', 'maxis'],
     'staking-chamber': ['leaderboard', 'ledger-flow', 'staking', 'calculator'],
     maxis: ['tezoscrp', 'ledger-flow', 'domains', 'hen'],
     tezoscrp: ['maxis', 'anthology', 'hen', 'feed'],

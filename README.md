@@ -45,6 +45,7 @@ tezos.systems/
 │   ├── loading.css                    # Critical first-paint skeleton states
 │   ├── network-health.css             # Lazy Network Health detail-panel styles
 │   ├── capital.css                    # Lazy Capital Chamber styles
+│   ├── ecosystem.css                  # Lazy Ecosystem Activity Chamber styles
 │   ├── leaderboard.css                # Lazy Baker Directory Chamber styles
 │   ├── whale-chamber.css              # Lazy Whale Watch Chamber styles
 │   ├── history-chamber.css            # Lazy Cycle History Chamber styles
@@ -75,6 +76,9 @@ tezos.systems/
 │   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
 │   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
 │   ├── capital-entry-summary.json     # Compact integrity-checked Capital launcher projection
+│   ├── ecosystem-apps.json            # Reviewed L1/L2 app and contract-discovery manifest
+│   ├── ecosystem-stats.json           # Complete generated weekly dapp activity ledger
+│   ├── ecosystem-entry-summary.json   # Compact integrity-checked Ecosystem launcher projection
 │   ├── whale-watch.json               # Complete 24h whale/dormancy snapshot and receipts
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
@@ -96,7 +100,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ capital/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -114,6 +118,8 @@ tezos.systems/
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
+│   ├── refresh-ecosystem-stats.mjs    # Complete weekly L1/L2 dapp history generator/checker
+│   ├── generate-ecosystem-entry-summary.mjs # Compact Ecosystem launcher projection
 │   ├── refresh-whale-watch-data.mjs   # Complete large-transfer/dormancy snapshot generator
 │   ├── refresh-tezoscrp-awards.mjs    # Official Medium RSS award refresh/checker
 │   ├── lib/maxis-l2-governance.mjs     # Etherlink career scoring and validation
@@ -276,9 +282,9 @@ inline modal styles in `js/core/app.js`.
   and recovery open only when requested. Its mobile corner gift launcher owns a
   dedicated in-flow slot beside the top price rail and scrolls away with that
   rail instead of painting over telemetry or the centered wordmark.
-- Explore Tezos is visible by default and organizes all 17 room launchers into
-  six question-led topics: Network, Capital, Bakers, Governance, People &
-  Accounts, and History. ctez Oven Exit and KT1 Multisig Recovery stay off the
+- Explore Tezos is visible by default and organizes all 18 room launchers into
+  seven question-led topics: Network, Capital, Ecosystem, Bakers, Governance,
+  People & Accounts, and History. ctez Oven Exit and KT1 Multisig Recovery stay off the
   default topic grid and open from Explore's collapsed Recovery tools drawer or
   the corner gift tray launcher.
   Each Chamber row is wrapped responsively so wide cards keep their companion
@@ -380,6 +386,25 @@ inline modal styles in `js/core/app.js`.
   Comprehensive community/X/podcast composites remain explicitly unavailable
   until licensed coverage and a versioned deduplication/sentiment methodology
   exist.
+- Ecosystem Activity with direct `#ecosystem` and `/ecosystem/` access. It
+  ranks the disclosed Tezos L1 and Etherlink app universe by distinct
+  source-native wallet addresses in the last completed Monday-to-Monday UTC
+  week, keeps the in-progress week visibly partial and out of the ranking, and
+  exposes interactions, calls per wallet, returning-wallet rate, WoW, YoY, and
+  selectable 12W/1Y/3Y/all history. The reviewed Etherlink exchange slice
+  includes every exchange in Etherlink's
+  [current official directory](https://docs.etherlink.com/tools/exchanges/):
+  Curve, Hanji, Oku Trade, and IguanaDEX, using their first-party deployment
+  registries. Layer and category filters lead to a
+  complete app directory; selecting an app opens its weekly ledger, generated
+  contract set, identity proofs, and source receipts. L1 and L2 addresses are
+  counted as separate wallet-layer identities because ownership is never
+  inferred across layers. Weeks before a layer's first tracked app are marked
+  `not-active`, never plotted as measured zero activity. Addresses are
+  aggregate inputs only and are not published in the browser artifact. The
+  homepage fetches a compact projection;
+  the complete history waits for an explicit room open and then follows the
+  quiet-refresh contract.
 - Staking Chamber with direct `#staking` and `/stake/` access, while the existing
   `/staking/` guide remains the explanatory staking page. Its narrow launcher
   keeps one latest applied stake and one latest applied unstake strictly over
@@ -762,6 +787,7 @@ Useful deep links include:
 - `#chambers`
 - `#pulse`
 - `#capital`
+- `#ecosystem`
 - `#staking`
 - `#maxis`
 - `#tezoscrp` or `#community-rewards`
@@ -777,7 +803,7 @@ Useful deep links include:
 - `#ctez`
 
 Public share routes are also available at `/chambers/`, `/my/`, `/chamber/`, `/pulse/`,
-`/capital/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
+`/capital/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
 `/tezoscrp/`, `/health/`, `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`,
 `/ledger-flow/`, `/domains/`, and `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -790,7 +816,7 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 
 | Source | Purpose |
 |--------|---------|
-| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Etherlink governance contract discovery/storage/bigmaps, ctez oven discovery, and Capital's Tezos counters, 30-day transaction-operation series, and completed-day L1 block-fee pools |
+| TzKT `https://api.tzkt.io/v1` | Chain stats, delegates, baker Octez software/version telemetry, blocks, operations, account transfer flow, governance, accounts, Maxis account/delegate ranks and recognized app calls, Ecosystem Activity's frozen L1 contract catalog and complete applied top-level transaction backfill, Etherlink governance contract discovery/storage/bigmaps, ctez oven discovery, and Capital's Tezos counters, 30-day transaction-operation series, and completed-day L1 block-fee pools |
 | Octez RPC `https://eu.rpc.tez.capital` | Issuance, supply, constants, cycle/head metadata |
 | Official Octez mainnet RPC `https://tezos-mainnet.octez.io` | Current-cycle baking-power distribution used for Network Health's live one-third and two-thirds address coefficients |
 | Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including earliest-observer, endorsing-power-weighted reception distributions, exact two-thirds and 90% arrival thresholds, validation-to-quorum phases, and observer count; Teztale is by Nomadic Labs |
@@ -800,11 +826,14 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | OBJKT APIs | HEN mode's live Teia + OBJKT feed, My Tezos summary-first Collection holdings and profiles, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
 | DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories; DefiLlama currently indexes Tezos X as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api/v2` and stats service | My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; and Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
+| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; and Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
 | Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed Capital snapshot; full room data waits for an explicit Chamber open |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
+| `data/ecosystem-apps.json` | Reviewed app identity, layer, start-time, contract-discovery, and proof manifest for the disclosed ranking universe |
+| `data/ecosystem-stats.json` | Same-origin generated weekly active-wallet and interaction history with stable content hash, frozen contract receipts, last-completed-week rankings, and a separate partial current-week pulse |
+| `data/ecosystem-entry-summary.json` | Compact, integrity-checked Ecosystem launcher projection; the complete weekly and per-app history waits for an explicit room open |
 | `data/maxis/entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed ongoing, L2 Governance, manifest, and active-season Maxis artifacts; full Maxis and Baker Directory governance ledgers wait for an explicit room open |
 | Tezos Commons rewards page and official Medium publication | TezosCRP category definitions, official icons, monthly winner announcements, and source receipts |
 | `data/tezoscrp-awards.json` | Same-origin full TezosCRP recognition archive, with human-identity aliases, monthly/category coverage, and known published amounts kept separate from award counts |
@@ -836,6 +865,7 @@ pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
 the Maxis artifact family plus its launcher projection,
 `data/capital-snapshot.json` plus its launcher projection,
+`data/ecosystem-stats.json` plus its launcher projection,
 `data/whale-watch.json`, and the canonical `llms.txt` discovery document; manual full runs
 also check the official Tezos Commons feed for a new TezosCRP period. It also refreshes
 the reproducible Chainspect and
@@ -884,6 +914,21 @@ exist. Scheduled/full generated runs refresh and optionally stage the snapshot;
 normal pre-commit runs validate the committed artifact without contacting every
 provider. The browser consumes that artifact and never silently upgrades stale
 or partial coverage into a current, comprehensive claim.
+`npm run refresh:ecosystem -- --backfill` exhaustively pages the aliased TzKT
+smart-contract and asset catalogs, resolves and freezes the reviewed contract
+universe, reconstructs every completed UTC week from the earliest declared app
+start, and writes a separate explicitly partial current-week pulse. Full
+Etherlink backfills use Blockscout's complete per-address transaction CSV
+export once per reviewed contract; routine incremental refreshes use bounded
+JSON ranges with explicit rate-limit pacing. A normal
+refresh re-fetches a warm-up cohort plus the latest three completed weeks so
+returning-wallet rates remain reproducible; newly resolved contracts are
+append-only and move that rebuild boundary back to their first eligible week.
+`npm run check:ecosystem` is network-free and validates the manifest receipt,
+stable content and contract-universe hashes, app and contract coverage, top-10
+availability, and 4 MiB browser payload budget. Scheduled/full generated runs
+refresh and optionally stage the ledger; pre-commit validates it without
+rescanning chain history.
 `npm run refresh:whales` rebuilds the Whale Watch snapshot from complete,
 paginated TzKT large-account and applied-transfer ledgers. The artifact retains
 last-activity time and level separately, operation IDs separately from group
@@ -994,6 +1039,9 @@ npm run build:css
 npm run refresh:generated
 npm run refresh:capital
 npm run check:capital
+npm run refresh:ecosystem -- --backfill
+npm run check:ecosystem
+npm run test:ecosystem
 npm run refresh:launcher-projections
 npm run check:launcher-projections
 npm run refresh:whales
@@ -1087,7 +1135,11 @@ Current smoke suites:
   fallback, canonical resolved routes, unresolved names, KT1 rejection, and
   unchanged My Tezos state)
 - `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
-- `launcher-projections` (proves Capital and Maxis request only their compact
+- `ecosystem-activity` (covers last-completed-week ranking, the explicitly
+  partial current-week pulse, L1/L2 and category filters, complete app
+  directory, historical range controls, app proofbooks, quiet refresh, direct
+  `/ecosystem/` routing, and desktop/mobile containment)
+- `launcher-projections` (proves Capital, Ecosystem Activity, and Maxis request only their compact
   summaries at first render, defers the Baker Directory governance ledger and
   reviewed full artifacts until room open, preserves launcher parity, accepts
   a newer verified Capital deploy over a stale in-memory receipt, and falls
@@ -1125,9 +1177,9 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v490`, including hero search, theme
+- Current aligned shell cache stamp: `v492`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
-  Network Pulse, and Staking Chamber lazy CSS loaders.
+  Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated

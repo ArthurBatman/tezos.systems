@@ -18,6 +18,7 @@ const OBJKT_MINTS_MAX_PAGES = 40;
 const OBJKT_MIN_DISPATCH_INTERVAL_MS = 550;
 const GITLAB_PAGE_SIZE = 100;
 const GITLAB_MAX_PAGES = 10;
+const COINGECKO_TICKER_PAGE_SIZE = 100;
 
 const TZKT = 'https://api.tzkt.io/v1';
 const ETHERLINK_EXPLORER = 'https://explorer.etherlink.com';
@@ -751,6 +752,11 @@ async function buildMarkets() {
     .sort((left, right) => (right.convertedVolumeUsd || 0) - (left.convertedVolumeUsd || 0)
       || compareText(left.market, right.market)
       || compareText(`${left.base}/${left.target}`, `${right.base}/${right.target}`));
+  if (tickers.length !== COINGECKO_TICKER_PAGE_SIZE) {
+    throw new Error(
+      `CoinGecko returned ${tickers.length} usable ticker rows; expected the complete first page of ${COINGECKO_TICKER_PAGE_SIZE}`
+    );
+  }
   return {
     data: {
       coin: {
@@ -776,9 +782,9 @@ async function buildMarkets() {
       coverage: {
         historyDays: 365,
         tickerPage: 1,
-        tickerHardCap: 100,
+        tickerHardCap: COINGECKO_TICKER_PAGE_SIZE,
         tickerRows: tickers.length,
-        tickerTruncated: tickers.length >= 100,
+        tickerTruncated: tickers.length >= COINGECKO_TICKER_PAGE_SIZE,
         depthDefinition: 'CoinGecko-reported USD cost to move the order book by plus or minus 2%.',
         filtersApplied: 'None; stale, anomaly, and trust fields are retained for client-side quality controls.'
       }
@@ -790,7 +796,7 @@ async function buildMarkets() {
         eth: normalizePriceHistory(eth.prices, 12).length
       },
       tickerRows: tickers.length,
-      tickerTruncated: tickers.length >= 100
+      tickerTruncated: tickers.length >= COINGECKO_TICKER_PAGE_SIZE
     }
   };
 }

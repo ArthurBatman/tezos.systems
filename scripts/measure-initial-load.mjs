@@ -213,12 +213,14 @@ async function measureRun(browser, options, runNumber) {
   await page.waitForFunction(() => {
     const main = document.querySelector('main');
     const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
+    const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
     const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
     const chamberCards = document.querySelectorAll('#chambers-grid .stat-card').length;
     return Boolean(main && getComputedStyle(main).display !== 'none')
       && capitalPath.length > 80
+      && ecosystemPoints.length > 40
       && maxisIdentities === 10
-      && chamberCards >= 17;
+      && chamberCards >= 18;
   }, null, { timeout: 30000 });
   await page.waitForTimeout(options.settleMs);
 
@@ -243,10 +245,12 @@ async function measureRun(browser, options, runNumber) {
     const resourcePath = (entry) => entry.path.split('?')[0];
     const launcherProjectionPaths = new Set([
       '/data/capital-entry-summary.json',
+      '/data/ecosystem-entry-summary.json',
       '/data/maxis/entry-summary.json'
     ]);
     const forbiddenInitialPaths = new Set([
       '/data/capital-snapshot.json',
+      '/data/ecosystem-stats.json',
       '/data/maxis-leaders.json',
       '/data/maxis-careers.json',
       '/data/maxis-l2-governance.json',
@@ -259,6 +263,7 @@ async function measureRun(browser, options, runNumber) {
       readiness: {
         mainVisible: Boolean(document.querySelector('main') && getComputedStyle(document.querySelector('main')).display !== 'none'),
         capitalChartPathLength: document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d')?.length || 0,
+        ecosystemPointLength: document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points')?.length || 0,
         maxisIdentityCount: document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length,
         chamberCardCount: document.querySelectorAll('#chambers-grid .stat-card').length
       },
@@ -301,14 +306,16 @@ async function measureRun(browser, options, runNumber) {
   }
   if (!result.readiness.mainVisible
     || result.readiness.capitalChartPathLength <= 80
+    || result.readiness.ecosystemPointLength <= 40
     || result.readiness.maxisIdentityCount !== 10
-    || result.readiness.chamberCardCount < 17) {
+    || result.readiness.chamberCardCount < 18) {
     throw new Error(`measurement page did not reach launcher readiness: ${JSON.stringify(result.readiness)}`);
   }
   const measuredLauncherPaths = new Set(result.launcherResources.map((resource) => resource.path.split('?')[0]));
   if (!measuredLauncherPaths.has('/data/capital-entry-summary.json')
+    || !measuredLauncherPaths.has('/data/ecosystem-entry-summary.json')
     || !measuredLauncherPaths.has('/data/maxis/entry-summary.json')) {
-    throw new Error(`measurement did not observe both launcher projections: ${Array.from(measuredLauncherPaths).join(', ')}`);
+    throw new Error(`measurement did not observe all launcher projections: ${Array.from(measuredLauncherPaths).join(', ')}`);
   }
   if (result.forbiddenHeavyResources.length) {
     throw new Error(`measurement observed deferred heavy launcher data: ${result.forbiddenHeavyResources.map((resource) => resource.path).join(', ')}`);

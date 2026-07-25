@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tezos Systems Public Data",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Read-only Tezos Systems metadata, generated research artifacts, and public browser datasets. Artifact fields disclose their own sources and observation times where applicable."
   },
   "servers": [
@@ -129,6 +129,48 @@
         "summary": "Get the compact Capital launcher projection",
         "description": "The exact subset of the reviewed Capital snapshot rendered by the closed dashboard card.",
         "x-refresh-cadence": "After every Capital snapshot refresh",
+        "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/ecosystem-apps.json": {
+      "get": {
+        "operationId": "getEcosystemAppManifest",
+        "summary": "Get the reviewed Ecosystem Activity app manifest",
+        "description": "Disclosed app identities, layers, start times, contract-discovery rules, explicit addresses, and proof URLs.",
+        "x-refresh-cadence": "When the reviewed tracked-app universe changes",
+        "x-license-boundary": "Contract and chain facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/ecosystem-stats.json": {
+      "get": {
+        "operationId": "getEcosystemStats",
+        "summary": "Get the complete Ecosystem Activity weekly ledger",
+        "description": "Last-completed-week active-wallet rankings, a separate partial current-week pulse, full weekly app and cross-layer aggregates, methodology, and frozen contract receipts.",
+        "x-refresh-cadence": "Scheduled generated refresh; recent completed weeks are deterministically rebuilt",
+        "x-license-boundary": "Underlying TzKT and Blockscout facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/ecosystem-entry-summary.json": {
+      "get": {
+        "operationId": "getEcosystemEntrySummary",
+        "summary": "Get the compact Ecosystem Activity launcher projection",
+        "description": "The integrity-checked trailing history, leaders, and headline aggregates rendered before the full Ecosystem room opens.",
+        "x-refresh-cadence": "After every Ecosystem Activity ledger refresh",
         "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
         "responses": {
           "200": {

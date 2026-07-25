@@ -7,6 +7,9 @@ const CHANGELOG = [
     {
         date: '2026-07-25',
         entries: [
+            { type: '✨', text: 'Ecosystem Activity now ranks reviewed Tezos L1 and Etherlink dapps by last-completed-week active wallet addresses, with full weekly history, YoY change, partial-week context, and contract receipts' },
+            { type: '⚡', text: 'The Ecosystem launcher loads a compact integrity-checked projection while complete app histories remain deferred until the room opens' },
+            { type: '🔧', text: 'Capital refreshes now retain the complete last-good exchange page when CoinGecko returns an incomplete ticker payload instead of publishing a partial market table' },
             { type: '🎨', text: 'Portfolio history now keeps its wallet selector label readable on one line instead of squeezing it into a vertical stack' },
             { type: '✨', text: 'My Tezos Portfolio history now loads exact daily total-XTZ balances for the latest year, then weekly history to each included account’s first activity, with portfolio and per-address views' },
             { type: '⚡', text: 'Exact history now reuses immutable per-address IndexedDB points, pauses off-screen, resumes missing gaps, and falls back between verified archive providers without showing liquid or partial totals' },

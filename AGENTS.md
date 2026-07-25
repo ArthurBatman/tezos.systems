@@ -86,6 +86,15 @@ the highest-risk gotchas.
 ## Data Sources
 
 - TzKT: `https://api.tzkt.io/v1`
+  - Ecosystem Activity exhaustively pages the aliased smart-contract and asset
+    catalogs, resolves its disclosed Tezos app families server-side, freezes
+    the resolved addresses, and reconstructs applied top-level transaction
+    senders into Monday-to-Monday UTC aggregates.
+- Etherlink Blockscout: `https://explorer.etherlink.com/api`
+  - Ecosystem Activity reconstructs successful inbound transactions for
+    reviewed Etherlink contracts; raw wallet cohorts remain generator-only.
+    The reviewed exchange slice follows Etherlink's official directory and
+    freezes first-party Curve, Hanji, Oku, and IguanaDEX deployment receipts.
 - Octez RPC: `https://eu.rpc.tez.capital`
 - Official Octez mainnet RPC: `https://tezos-mainnet.octez.io`
   - current-cycle baking-power distribution for live one-third and two-thirds
@@ -217,7 +226,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v473`
+- Service worker cache name: `tezos-systems-v492`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -332,6 +341,11 @@ Stamping gotchas:
   retain the complete last-good charts and route; a valid empty ledger is an
   empty range, not a source failure. Protocol Anthology remains a separate
   app-shell surface in `js/core/app.js`.
+- Ecosystem Activity: `js/features/ecosystem-chamber.js`; `/ecosystem/` ranks
+  reviewed Tezos L1 and Etherlink apps by distinct active wallet addresses in
+  the last completed UTC week. Keep the current week explicitly partial and
+  unranked, never infer cross-layer ownership, and load only
+  `data/ecosystem-entry-summary.json` before the room opens.
 - Baker tools: `leaderboard.js`, `my-baker.js`, `my-tezos.js`,
   `rewards-tracker.js`, `baker-report-card.js`. `leaderboard.js` also owns the
   `/leaderboard/` Baker Directory Chamber: Discover uses disclosed strict
@@ -407,6 +421,14 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   from group hashes, last-activity timestamps distinct from block levels, and
   awakening moved amounts limited to applied transfers or actual processed
   stake/unstake amounts. Coverage and receipt semantics are validated offline.
+- `data/ecosystem-apps.json`: reviewed L1/L2 app identity, start, contract
+  discovery, and proof manifest.
+- `data/ecosystem-stats.json`: generated complete weekly app and ecosystem
+  aggregates, completed-week rankings, partial current-week pulse, frozen
+  contract receipts, and stable content hash. Raw wallet sets are never
+  published.
+- `data/ecosystem-entry-summary.json`: compact integrity-checked launcher
+  projection generated from the complete Ecosystem artifact.
 - `data/maxis-leaders.json`: canonical lane-native-clock Maxis snapshot. It
   intentionally mixes explicitly labeled all-time, all-time-active, live,
   rolling, and cross-lane clocks rather than pretending every crown shares one
@@ -514,6 +536,17 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   receipt-to-receipt awakening intervals. `npm run check:whales` validates the
   committed artifact without network access; scheduled/full generated runs
   refresh it, while normal pre-commit checks it.
+- `scripts/refresh-ecosystem-stats.mjs`: exhaustively pages aliased TzKT
+  contracts, resolves and freezes the reviewed contract universe, reconstructs
+  complete weekly Tezos/Etherlink active-wallet and interaction history, and
+  uses one complete Blockscout transaction CSV export per reviewed Etherlink
+  contract for full backfills. Incremental runs use paced bounded JSON ranges
+  and rebuild a warm-up week plus the latest three completed weeks. Newly
+  discovered alias contracts remain append-only and move the rebuild boundary
+  to their first eligible week. `npm run check:ecosystem`
+  validates the manifest, content, and exact contract-universe receipts without
+  network access; scheduled/full generated runs refresh it before launcher
+  projections.
 - `scripts/refresh-maxis-l2-governance.mjs`: rebuilds the independent L2
   Governance career artifact from all three official Etherlink canonical-period
   ledgers and complete TzKT big-map key receipts. The command

@@ -73,6 +73,7 @@ const browserRoutes = [
   '/chamber/',
   '/pulse/',
   '/capital/',
+  '/ecosystem/',
   '/whales/',
   '/leaderboard/',
   '/history/',
@@ -190,6 +191,13 @@ const EXPECTED_CHAMBER_CATEGORIES = [
     question: 'Where is value sitting and moving?',
     cards: ['capital-entry-card', 'whale-watch-entry-card', 'staking-entry-card'],
     layouts: ['featured', 'wide', 'compact']
+  },
+  {
+    key: 'ecosystem',
+    label: 'Ecosystem',
+    question: 'Which apps are seeing on-chain activity?',
+    cards: ['ecosystem-entry-card'],
+    layouts: ['featured']
   },
   {
     key: 'bakers',
@@ -3196,7 +3204,7 @@ async function assertChamberOrder(page, label) {
   );
   assert(
     chamberState.categories.length === EXPECTED_CHAMBER_CATEGORIES.length,
-    `${label}: expected six Chamber categories, saw ${JSON.stringify(chamberState.categories)}`
+    `${label}: expected seven Chamber categories, saw ${JSON.stringify(chamberState.categories)}`
   );
   EXPECTED_CHAMBER_CATEGORIES.forEach((expected, index) => {
     const actual = chamberState.categories[index];
@@ -6038,7 +6046,7 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   await page.locator('#drawer-address-input').fill(SAMPLE_ADDRESS);
   await page.locator('#drawer-connect-btn').click();
   await page.waitForFunction(() => {
-    return document.querySelectorAll('#drawer-brief .drawer-loading-card').length === 3
+    return document.querySelectorAll('#drawer-brief .drawer-loading-card').length === 2
       && document.querySelectorAll('#my-baker-results .my-baker-loading-stat').length === 8;
   }, null, { timeout: 5000 });
   const loadingLayout = await page.evaluate(() => {
@@ -6056,7 +6064,7 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   });
   assert(
     loadingLayout.columns === 2
-      && loadingLayout.briefHeight >= 400
+      && loadingLayout.briefHeight >= 150
       && loadingLayout.rewardsHeight >= 300
       && loadingLayout.bakerHeight >= 480
       && loadingLayout.loadingCards >= 4
@@ -6101,16 +6109,15 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   assert(operatorText.includes('dal') && operatorText.includes('14/14 dal slots'), 'my tezos baker activity: should show prominent DAL participation');
 
   const settledLayout = await page.evaluate(() => {
-    const gap = (beforeId, afterId) => {
-      const before = document.getElementById(beforeId)?.getBoundingClientRect();
-      const after = document.getElementById(afterId)?.getBoundingClientRect();
-      return before && after ? Math.round(after.top - before.bottom) : null;
-    };
+    const columns = document.querySelector('.drawer-live-columns')?.getBoundingClientRect();
+    const more = document.getElementById('drawer-more-section')?.getBoundingClientRect();
     return {
       rewardsColumn: document.querySelector('#drawer-rewards')?.parentElement?.className || '',
       bakerColumn: document.querySelector('#drawer-baker')?.parentElement?.className || '',
-      primaryJourneyGap: gap('drawer-baker-activity', 'drawer-more-section'),
-      secondaryJourneyGap: gap('drawer-network', 'drawer-more-section-secondary'),
+      journeyGap: columns && more ? Math.round(more.top - columns.bottom) : null,
+      moreDirect: document.getElementById('drawer-more-section')?.parentElement?.id === 'drawer-connected',
+      journeyCards: document.querySelectorAll('#drawer-more-actions .drawer-account-journey-card').length,
+      secondaryContainers: document.querySelectorAll('#drawer-more-section-secondary').length,
       reportCards: document.querySelectorAll('#drawer-baker .report-card-btn').length,
       accountError: document.querySelector('#my-baker-results .my-baker-error')?.textContent || ''
     };
@@ -6118,13 +6125,14 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   assert(
     settledLayout.rewardsColumn.includes('drawer-live-column-primary')
       && settledLayout.bakerColumn.includes('drawer-live-column-secondary')
-      && settledLayout.primaryJourneyGap >= 0
-      && settledLayout.primaryJourneyGap <= 24
-      && settledLayout.secondaryJourneyGap >= 0
-      && settledLayout.secondaryJourneyGap <= 24
+      && settledLayout.journeyGap >= 0
+      && settledLayout.journeyGap <= 24
+      && settledLayout.moreDirect
+      && settledLayout.journeyCards === 2
+      && settledLayout.secondaryContainers === 0
       && settledLayout.reportCards === 1
       && !settledLayout.accountError,
-    `my tezos baker activity: independent drawer stacks left a row-coupled hole ${JSON.stringify(settledLayout)}`
+    `my tezos baker activity: full-width account journeys or independent stacks regressed ${JSON.stringify(settledLayout)}`
   );
 
   await page.locator('#my-baker-input').fill(SAMPLE_IDLE_ADDRESS);
@@ -10935,6 +10943,7 @@ async function smokeLauncherProjections(browser, baseUrl) {
   };
   const entryMarkup = () => page.evaluate(() => ({
     capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
+    ecosystem: document.querySelector('#ecosystem-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
     maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || ''
   }));
 
@@ -10942,14 +10951,17 @@ async function smokeLauncherProjections(browser, baseUrl) {
   assert(response?.ok(), `launcher projections: dashboard failed with HTTP ${response?.status()}`);
   await page.waitForFunction(() => {
     const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
+    const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
     const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
-    return capitalPath.length > 80 && maxisIdentities === 10;
+    return capitalPath.length > 80 && ecosystemPoints.length > 40 && maxisIdentities === 10;
   }, null, { timeout: 25000 });
   await page.waitForTimeout(250);
 
   assert(hasPath('/data/capital-entry-summary.json'), `Capital launcher projection was not requested: ${initialPaths.join(', ')}`);
+  assert(hasPath('/data/ecosystem-entry-summary.json'), `Ecosystem launcher projection was not requested: ${initialPaths.join(', ')}`);
   assert(hasPath('/data/maxis/entry-summary.json'), `Maxis launcher projection was not requested: ${initialPaths.join(', ')}`);
   assert(!hasPath('/data/capital-snapshot.json'), `full Capital data loaded before its Chamber opened: ${initialPaths.join(', ')}`);
+  assert(!hasPath('/data/ecosystem-stats.json'), `full Ecosystem data loaded before its Chamber opened: ${initialPaths.join(', ')}`);
   assert(!hasPath('/data/maxis-leaders.json')
     && !hasPath('/data/maxis-careers.json')
     && !hasPath('/data/maxis-l2-governance.json')
@@ -10963,6 +10975,12 @@ async function smokeLauncherProjections(browser, baseUrl) {
   await page.locator('#capital-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
 
+  await page.locator('#ecosystem-entry-front').click();
+  await page.locator('#ecosystem-activity-modal.active .ecosystem-content').waitFor({ state: 'visible', timeout: 20000 });
+  await waitForRequests(() => hasPath('/data/ecosystem-stats.json'), 'Ecosystem Activity did not request its reviewed full snapshot');
+  await page.locator('#ecosystem-activity-modal.active .chamber-close').click();
+  await page.waitForFunction(() => !document.querySelector('#ecosystem-activity-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
   await page.locator('#maxis-entry-card .maxis-entry-front').click();
   await page.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
   await waitForRequests(() => hasPath('/data/maxis-leaders.json')
@@ -10975,6 +10993,7 @@ async function smokeLauncherProjections(browser, baseUrl) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const afterOpen = await entryMarkup();
   assert(afterOpen.capital === beforeOpen.capital, 'Capital launcher markup drifted after replacing its projection with reviewed full data');
+  assert(afterOpen.ecosystem === beforeOpen.ecosystem, 'Ecosystem launcher markup drifted after replacing its projection with reviewed full data');
   assert(afterOpen.maxis === beforeOpen.maxis, 'Maxis launcher markup drifted after replacing its projection with reviewed full data');
   await context.close();
 
@@ -11141,6 +11160,12 @@ async function smokeLauncherProjections(browser, baseUrl) {
     body.contentHash = '0'.repeat(64);
     await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
   });
+  await fallbackContext.route('**/data/ecosystem-entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.contentHash = '0'.repeat(64);
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  });
   await fallbackContext.route('**/data/maxis/entry-summary.json*', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -11173,11 +11198,14 @@ async function smokeLauncherProjections(browser, baseUrl) {
   assert(fallbackResponse?.ok(), `launcher projection fallback: dashboard failed with HTTP ${fallbackResponse?.status()}`);
   await fallbackPage.waitForFunction(() => {
     const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
+    const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
     const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
-    return capitalPath.length > 80 && maxisIdentities === 10;
+    return capitalPath.length > 80 && ecosystemPoints.length > 40 && maxisIdentities === 10;
   }, null, { timeout: 30000 });
   await waitForFallbackRequests(() => fallbackPaths.includes('/data/capital-entry-summary.json')
     && fallbackPaths.includes('/data/capital-snapshot.json'), 'Capital projection failure did not fall back to the reviewed snapshot');
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/ecosystem-entry-summary.json')
+    && fallbackPaths.includes('/data/ecosystem-stats.json'), 'Ecosystem projection failure did not fall back to the reviewed snapshot');
   await waitForFallbackRequests(() => fallbackPaths.includes('/data/maxis/entry-summary.json')
     && fallbackPaths.includes('/data/maxis-leaders.json')
     && fallbackPaths.includes('/data/maxis-l2-governance.json')
@@ -11192,9 +11220,11 @@ async function smokeLauncherProjections(browser, baseUrl) {
   await fallbackPage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const fallbackMarkup = await fallbackPage.evaluate(() => ({
     capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
+    ecosystem: document.querySelector('#ecosystem-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
     maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || ''
   }));
   assert(fallbackMarkup.capital === beforeOpen.capital, 'Capital reviewed-data fallback did not preserve launcher markup parity');
+  assert(fallbackMarkup.ecosystem === beforeOpen.ecosystem, 'Ecosystem reviewed-data fallback did not preserve launcher markup parity');
   assert(fallbackMarkup.maxis === beforeOpen.maxis, 'Maxis reviewed-data fallback did not preserve launcher markup parity');
   await fallbackPage.locator('#maxis-entry-card .maxis-entry-front').click();
   await fallbackPage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
@@ -11251,6 +11281,7 @@ async function smokeLauncherProjections(browser, baseUrl) {
   assert(issues.length === 0, `launcher projection browser issues:\n${issues.join('\n')}`);
   const unexpectedFallbackIssues = fallbackIssues.filter((issue) => (
     !/Capital Chamber entry summary failed; loading the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+    && !/Ecosystem Activity launcher projection failed; loading the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
   ));
   assert(unexpectedFallbackIssues.length === 0, `launcher projection fallback browser issues:\n${unexpectedFallbackIssues.join('\n')}`);
   assert(deploySkewIssues.length === 0, `Capital launcher deploy-skew browser issues:\n${deploySkewIssues.join('\n')}`);
@@ -11601,6 +11632,194 @@ async function smokeCapitalChamber(browser, baseUrl) {
   await context.close();
   assert(issues.length === 0, `capital chamber browser issues:\n${issues.join('\n')}`);
   log('ok - Capital Chamber source, views, quality, quiet refresh, and direct-route smoke');
+}
+
+async function smokeEcosystemActivity(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    window.__ECOSYSTEM_CHAMBER_REFRESH_MS__ = 1000;
+  });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'ecosystem activity', issues);
+
+  const response = await page.goto(`${baseUrl}/ecosystem/?layer=tezos&range=all`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `ecosystem activity: pretty route failed with HTTP ${response?.status()}`);
+  await page.locator('#ecosystem-activity-modal.active .ecosystem-content').waitFor({ state: 'visible', timeout: 20000 });
+  await page.waitForFunction(() => (
+    document.querySelector('#ecosystem-chamber-body')?.dataset.ecosystemRendered === '1'
+    && document.querySelectorAll('#ecosystem-activity-modal [data-ecosystem-app]').length >= 10
+  ), null, { timeout: 20000 });
+
+  const initial = await page.evaluate(() => ({
+    pathname: location.pathname,
+    layer: new URL(location.href).searchParams.get('layer'),
+    range: new URL(location.href).searchParams.get('range'),
+    selectedLayer: document.querySelector('#ecosystem-activity-modal [data-ecosystem-layer][aria-selected="true"]')?.dataset.ecosystemLayer || '',
+    topRows: document.querySelectorAll('#ecosystem-activity-modal [data-quiet-key="ecosystem-top-ten"] tbody tr').length,
+    directoryCards: document.querySelectorAll('#ecosystem-activity-modal .ecosystem-directory-card').length,
+    charts: document.querySelectorAll('#ecosystem-activity-modal .ecosystem-chart svg').length,
+    partialText: document.querySelector('#ecosystem-activity-modal .ecosystem-kpis .is-partial')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    methodology: document.querySelector('#ecosystem-activity-modal .ecosystem-methodology')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    sourceLinks: document.querySelectorAll('#ecosystem-activity-modal .ecosystem-footer a[href^="https://"]').length,
+    rawWalletRows: document.querySelectorAll('#ecosystem-activity-modal [data-wallet], #ecosystem-activity-modal [data-address]').length
+  }));
+  assert(initial.pathname === '/ecosystem/' && initial.layer === 'tezos' && initial.range === 'all' && initial.selectedLayer === 'tezos',
+    `ecosystem activity: direct route state drifted ${JSON.stringify(initial)}`);
+  assert(initial.topRows === 10 && initial.directoryCards >= 10 && initial.charts >= 4
+    && /partial through/i.test(initial.partialText)
+    && /pseudonymous addresses, not people/i.test(initial.methodology)
+    && /TzKT catalog:.*id\.gt keyset/i.test(initial.methodology)
+    && /Contract-universe SHA-256: [0-9a-f]{64}/i.test(initial.methodology)
+    && initial.sourceLinks >= 2 && initial.rawWalletRows === 0,
+  `ecosystem activity: ranking, directory, source, or privacy presentation failed ${JSON.stringify(initial)}`);
+
+  await page.locator('#ecosystem-activity-modal [data-ecosystem-layer="etherlink"]').click();
+  await page.waitForFunction(() => new URL(location.href).searchParams.get('layer') === 'etherlink'
+    && document.querySelector('#ecosystem-activity-modal [data-ecosystem-layer="etherlink"]')?.getAttribute('aria-selected') === 'true');
+  const l2State = await page.evaluate(() => ({
+    rows: document.querySelectorAll('#ecosystem-activity-modal [data-quiet-key="ecosystem-top-ten"] tbody tr').length,
+    cards: document.querySelectorAll('#ecosystem-activity-modal .ecosystem-directory-card').length,
+    labels: Array.from(document.querySelectorAll('#ecosystem-activity-modal .ecosystem-layer-chip')).map((node) => node.textContent?.trim())
+  }));
+  assert(l2State.rows === 7 && l2State.cards === 7 && l2State.labels.every((label) => label === 'L2'),
+    `ecosystem activity: Etherlink filter did not isolate the disclosed L2 universe ${JSON.stringify(l2State)}`);
+
+  await page.locator('#ecosystem-activity-modal [data-ecosystem-app="morpho-blue"]').first().click();
+  await page.waitForFunction(() => new URL(location.href).searchParams.get('app') === 'morpho-blue'
+    && /Morpho Blue/i.test(document.querySelector('#ecosystem-history-detail')?.textContent || ''));
+  const appState = await page.evaluate(() => ({
+    proofCards: document.querySelectorAll('#ecosystem-history-detail .ecosystem-proof-card').length,
+    contracts: document.querySelectorAll('#ecosystem-history-detail .ecosystem-contract-list a').length,
+    proofLinks: document.querySelectorAll('#ecosystem-history-detail .ecosystem-proof-links a').length,
+    ledgerSummary: document.querySelector('#ecosystem-history-detail .ecosystem-history-ledger summary')?.textContent?.trim() || '',
+    website: document.querySelector('#ecosystem-history-detail .ecosystem-detail-actions a')?.href || ''
+  }));
+  assert(appState.proofCards === 1 && appState.contracts === 1 && appState.proofLinks >= 1
+    && /weekly rows/i.test(appState.ledgerSummary) && /^https:/.test(appState.website),
+  `ecosystem activity: app history or proofbook failed ${JSON.stringify(appState)}`);
+
+  await page.locator('#ecosystem-activity-modal [data-ecosystem-range="12w"]').click();
+  await page.waitForFunction(() => new URL(location.href).searchParams.get('range') === '12w'
+    && /Inspect 12 weekly rows/i.test(document.querySelector('#ecosystem-history-detail .ecosystem-history-ledger summary')?.textContent || ''));
+  await page.locator('#ecosystem-activity-modal [data-ecosystem-layer="all"]').click();
+  await page.waitForFunction(() => !new URL(location.href).searchParams.has('layer'));
+
+  await page.evaluate(() => {
+    const body = document.querySelector('#ecosystem-chamber-body');
+    const detail = document.querySelector('#ecosystem-history-detail');
+    const focus = document.querySelector('#ecosystem-activity-modal [data-ecosystem-range="12w"]');
+    const intro = document.querySelector('#ecosystem-activity-modal .ecosystem-intro')?.firstChild;
+    body.scrollTop = Math.min(640, body.scrollHeight - body.clientHeight);
+    focus.focus({ preventScroll: true });
+    if (intro?.nodeType === Node.TEXT_NODE && intro.length > 12) {
+      const selection = getSelection();
+      const range = document.createRange();
+      range.setStart(intro, 0);
+      range.setEnd(intro, Math.min(12, intro.length));
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    window.__ecosystemQuietFixture = {
+      body,
+      detail,
+      scrollTop: body.scrollTop,
+      selectedText: getSelection()?.toString() || ''
+    };
+  });
+  await page.waitForFunction(() => document.querySelector('#ecosystem-chamber-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 7000 });
+  const quiet = await page.evaluate(() => {
+    const fixture = window.__ecosystemQuietFixture;
+    const body = document.querySelector('#ecosystem-chamber-body');
+    return {
+      sameBody: fixture.body === body,
+      sameDetail: fixture.detail === document.querySelector('#ecosystem-history-detail'),
+      scrollDelta: Math.abs(body.scrollTop - fixture.scrollTop),
+      focusRange: document.activeElement?.dataset?.ecosystemRange || '',
+      selectedText: getSelection()?.toString() || '',
+      expectedSelection: fixture.selectedText,
+      rangePressed: document.querySelector('[data-ecosystem-range="12w"]')?.getAttribute('aria-pressed'),
+      refreshing: body.dataset.quietRefreshing || '',
+      settled: body.dataset.quietRefreshSettled || ''
+    };
+  });
+  assert(quiet.sameBody && quiet.sameDetail && quiet.scrollDelta <= 1 && quiet.focusRange === '12w'
+    && quiet.selectedText === quiet.expectedSelection && quiet.selectedText.length > 0
+    && quiet.rangePressed === 'true' && quiet.refreshing === '' && quiet.settled === 'true',
+  `ecosystem activity: quiet refresh moved or reset the reader ${JSON.stringify(quiet)}`);
+
+  await page.evaluate(() => {
+    const body = document.querySelector('#ecosystem-chamber-body');
+    body.scrollTop = Math.max(0, body.scrollTop - 111);
+    window.__ecosystemReaderScroll = body.scrollTop;
+  });
+  await page.waitForTimeout(150);
+  const readerScrollPreserved = await page.evaluate(() => (
+    Math.abs(document.querySelector('#ecosystem-chamber-body').scrollTop - window.__ecosystemReaderScroll) <= 1
+  ));
+  assert(readerScrollPreserved, 'ecosystem activity: delayed quiet restore overwrote an immediate reader scroll');
+  await context.close();
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(mobileContext);
+  await mobileContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const mobilePage = await mobileContext.newPage();
+  attachIssueCollectors(mobilePage, 'ecosystem activity mobile', issues);
+  const mobileResponse = await mobilePage.goto(`${baseUrl}/ecosystem/?layer=etherlink&range=3y&app=curve`, { waitUntil: 'domcontentloaded' });
+  assert(mobileResponse?.ok(), `ecosystem activity mobile: direct route failed with HTTP ${mobileResponse?.status()}`);
+  await mobilePage.locator('#ecosystem-activity-modal.active .ecosystem-content').waitFor({ state: 'visible', timeout: 20000 });
+  await mobilePage.waitForFunction(() => /Curve/i.test(document.querySelector('#ecosystem-history-detail')?.textContent || ''), null, { timeout: 15000 });
+  await mobilePage.waitForTimeout(250);
+  const mobile = await mobilePage.evaluate(() => {
+    const modal = document.querySelector('#ecosystem-activity-modal .ecosystem-content');
+    const body = document.querySelector('#ecosystem-chamber-body');
+    const rect = modal?.getBoundingClientRect();
+    return {
+      rect: rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null,
+      nestedScroll: Boolean(body && body.scrollHeight > body.clientHeight),
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      headerPosition: getComputedStyle(document.querySelector('#ecosystem-activity-modal .ecosystem-header')).position,
+      toolbarContained: Array.from(document.querySelectorAll('#ecosystem-activity-modal .ecosystem-toolbar button')).every((button) => {
+        const box = button.getBoundingClientRect();
+        return box.left >= -1 && box.right <= innerWidth + 1;
+      }),
+      layer: new URL(location.href).searchParams.get('layer'),
+      range: new URL(location.href).searchParams.get('range'),
+      app: new URL(location.href).searchParams.get('app'),
+      proofCards: document.querySelectorAll('#ecosystem-history-detail .ecosystem-proof-card').length,
+      visibleContracts: document.querySelectorAll('#ecosystem-history-detail .ecosystem-contract-list a').length,
+      proofLinks: document.querySelectorAll('#ecosystem-history-detail .ecosystem-proof-links a').length,
+      moreContracts: document.querySelector('#ecosystem-history-detail .ecosystem-proof-note')?.textContent?.trim() || ''
+    };
+  });
+  assert(mobile.rect && mobile.rect.left <= 1 && mobile.rect.right >= 389
+    && mobile.rect.top <= 1 && mobile.rect.bottom >= 843
+    && mobile.nestedScroll && mobile.pageOverflow <= 1 && mobile.toolbarContained
+    && mobile.headerPosition !== 'sticky' && mobile.headerPosition !== 'fixed'
+    && mobile.layer === 'etherlink' && mobile.range === '3y' && mobile.app === 'curve'
+    && mobile.proofCards === 1 && mobile.visibleContracts === 24 && mobile.proofLinks === 4
+    && /3 more frozen addresses/i.test(mobile.moreContracts),
+  `ecosystem activity mobile: route or containment failed ${JSON.stringify(mobile)}`);
+  await mobileContext.close();
+
+  assert(issues.length === 0, `ecosystem activity browser issues:\n${issues.join('\n')}`);
+  log('ok - Ecosystem Activity ranking, history, proofbook, quiet refresh, direct route, and mobile smoke');
 }
 
 async function smokeTezlinkChamber(browser, baseUrl) {
@@ -14991,7 +15210,7 @@ async function smokeInfoModals(browser, baseUrl) {
 
   response = await page.goto(`${baseUrl}/chambers/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `Explore Tezos pretty route failed with HTTP ${response?.status()}`);
-  await page.waitForFunction(() => document.querySelectorAll('#chambers-grid > .chamber-category').length === 6, null, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll('#chambers-grid > .chamber-category').length === 7, null, { timeout: 15000 });
   const prettyRoute = await page.evaluate(() => ({
     pathname: window.location.pathname,
     routeIdentity: document.documentElement.dataset.chamberRoute || '',
@@ -16165,7 +16384,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   assert(response?.ok(), `Chamber categories direct hash failed with HTTP ${response?.status()}`);
   await page.locator('#tezos-domains-modal.active').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForFunction((expectedCount) => (
-    document.querySelectorAll('#chambers-grid > .chamber-category').length === 6
+    document.querySelectorAll('#chambers-grid > .chamber-category').length === 7
     && document.querySelectorAll('#chambers-grid .stat-card').length === expectedCount
   ), EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
   await assertChamberOrder(page, 'Chamber categories direct hash');
@@ -16245,7 +16464,7 @@ async function smokeChamberCategories(browser, baseUrl) {
     });
     await page.waitForFunction(() => (
       document.getElementById('staking-entry-card')?.closest('.chamber-category')?.dataset.chamberCategory === 'capital'
-      && document.querySelectorAll('#chambers-grid > .chamber-category').length === 6
+      && document.querySelectorAll('#chambers-grid > .chamber-category').length === 7
     ), null, { timeout: 5000 });
   }
 
@@ -16275,7 +16494,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   assert(refreshState.selection === refreshState.expectedSelection && refreshState.selection.length > 0, `Chamber organization lost reader selection: ${JSON.stringify(refreshState)}`);
   assert(refreshState.scrollDelta <= 1, `Chamber organization moved page scroll: ${JSON.stringify(refreshState)}`);
   assert(refreshState.openCategories.join(',') === 'network,capital,people', `background refresh reset disclosure state: ${JSON.stringify(refreshState)}`);
-  assert(refreshState.categoryCount === 6 && refreshState.cardCount === 17, `late card organization duplicated categories or entries: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.categoryCount === 7 && refreshState.cardCount === 18, `late card organization duplicated categories or entries: ${JSON.stringify(refreshState)}`);
   assert(refreshState.passiveAnimations.length === 0, `ordinary freshness/live cards still animate their perimeter: ${JSON.stringify(refreshState.passiveAnimations)}`);
 
   response = await page.goto(`${baseUrl}/history/?theme=matrix`, { waitUntil: 'domcontentloaded' });
@@ -16315,7 +16534,7 @@ async function smokeChamberCategories(browser, baseUrl) {
     const layoutResponse = await layoutPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
     assert(layoutResponse?.ok(), `Chamber categories ${label} failed with HTTP ${layoutResponse?.status()}`);
     await layoutPage.waitForFunction((expectedCount) => (
-      document.querySelectorAll('#chambers-grid > .chamber-category').length === 6
+      document.querySelectorAll('#chambers-grid > .chamber-category').length === 7
       && document.querySelectorAll('#chambers-grid .stat-card').length === expectedCount
     ), EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
     await layoutPage.waitForFunction(() => (
@@ -16356,6 +16575,7 @@ async function smokeChamberCategories(browser, baseUrl) {
       const fullRowIds = [
         'network-pulse-entry-card',
         'capital-entry-card',
+        'ecosystem-entry-card',
         'lb-entry-card',
         'ledger-flow-entry-card',
         'tezos-domains-entry-card',
@@ -16391,10 +16611,11 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
-    { name: 'chamber-categories', description: 'Six responsive Chamber disclosures, exact membership, reusable organization, direct-route reveal, and risk-only attention', run: () => smokeChamberCategories(browser, baseUrl) },
+    { name: 'chamber-categories', description: 'Seven responsive Chamber disclosures, exact membership, reusable organization, direct-route reveal, and risk-only attention', run: () => smokeChamberCategories(browser, baseUrl) },
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
-    { name: 'launcher-projections', description: 'Capital and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
+    { name: 'launcher-projections', description: 'Capital, Ecosystem Activity, and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
+    { name: 'ecosystem-activity', description: 'Completed-week dapp rankings, partial pulse, full history, app proofbooks, direct routing, responsive layout, and quiet refresh', run: () => smokeEcosystemActivity(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-empty-state', description: 'My Tezos clearly separates Octez.Connect wallet pairing from watch-only tracking and explains all six responsive views', run: () => smokeMyTezosEmptyState(browser, baseUrl) },

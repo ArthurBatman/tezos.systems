@@ -1,0 +1,520 @@
+{
+  "schemaVersion": 1,
+  "weekStartsOn": "monday",
+  "rankingMetric": "active_wallets",
+  "apps": [
+    {
+      "id": "3route",
+      "name": "3Route",
+      "category": "defi",
+      "website": "https://3route.io/",
+      "description": "Tezos DEX routing and aggregation.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2022-12-21T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^3Route v[0-9]+$"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT"]
+        }
+      ]
+    },
+    {
+      "id": "quipuswap",
+      "name": "QuipuSwap",
+      "category": "defi",
+      "website": "https://quipuswap.com/",
+      "description": "Automated-market-maker and liquidity contracts.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-03-01T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^QuipuSwap v2 Vault ", "^QuipuSwap Dex Core", "^QuipuSwap .+ DEX$", "^Quipuswap v3 DEX", "^Quipu[Ss]wap .+ Stableswap"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1JNNMMGyNNy36Zo6pcgRTMLUZyqRrttMZ4"]
+        }
+      ]
+    },
+    {
+      "id": "plenty",
+      "name": "Plenty",
+      "category": "defi",
+      "website": "https://plenty.network/",
+      "description": "Tezos swaps, liquidity, and DeFi markets.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-05-01T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^Plenty v2 .+ DEX$", " Plenty Network (?:Tez|Volatile|Stable) Swap$", "^PLENTY / .+ Swap$", "^Plenty swap router"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1CAYNQGvYSF5UvHK21grMrKpe2563w9UcX"]
+        }
+      ]
+    },
+    {
+      "id": "youves",
+      "name": "youves",
+      "category": "defi",
+      "website": "https://youves.com/",
+      "description": "Synthetic assets, vaults, and swaps.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-07-01T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^[Yy]ouves .+ Engine", " FlatYouves(?: legacy)?$", "^XTZ/.+ youves$", "^[Yy]ouves (?:Vault Creator|Stakes Registry|.+ Reward Pool)$"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1DHndgk8ah1MLfciDnCV2zPJrVbnnAH9fd"]
+        }
+      ]
+    },
+    {
+      "id": "kolibri",
+      "name": "Kolibri",
+      "category": "defi",
+      "website": "https://kolibri.finance/",
+      "description": "Collateralized stablecoin vaults.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-02-04T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^ ?Kolibri (?:Minter|Oven Proxy|Oven Factory)$"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1JdufSdfg3WyxWJcCRNsBFV9V3x9TQBkJ2"]
+        }
+      ]
+    },
+    {
+      "id": "spicyswap",
+      "name": "SpicySwap",
+      "category": "defi",
+      "website": "https://spicyswap.xyz/",
+      "description": "Router-based Tezos token swaps.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-10-10T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^SpicySwap Router"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1PwoZxyv4XkPEGnTqWYvjA1UYiPTgAGyqL"]
+        }
+      ]
+    },
+    {
+      "id": "vortex",
+      "name": "Vortex",
+      "category": "defi",
+      "website": "https://app.crunchy.network/",
+      "description": "Tezos DEX markets in the Crunchy ecosystem.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-09-28T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^Vortex .+ DEX"]
+          },
+          "proofUrls": ["https://tzkt.io/KT19HdcBJw8XJkDYKLr6ez9KkhhuS8MYUdcs"]
+        }
+      ]
+    },
+    {
+      "id": "sirius",
+      "name": "Sirius DEX",
+      "category": "defi",
+      "website": "https://liquidity-baking.com/",
+      "description": "The Tezos Liquidity Baking market.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-05-05T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^Sirius DEX"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1TxqZ8QtKvLu3V3JH7Gx58n7Co8pgtpQU5"]
+        }
+      ]
+    },
+    {
+      "id": "tezotopia",
+      "name": "Tezotopia",
+      "category": "gaming",
+      "website": "https://tezotopia.com/",
+      "description": "On-chain strategy game and marketplace.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-08-08T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^Tezotopia "]
+          },
+          "proofUrls": ["https://tzkt.io/KT1R5dHqnpeKVFow9mErfN763RFfe51vmiB8"]
+        }
+      ]
+    },
+    {
+      "id": "chainborn",
+      "name": "ChainBorn",
+      "category": "gaming",
+      "website": "https://chainborn.xyz/",
+      "description": "On-chain Tezos role-playing game.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2022-08-16T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^ChainBorn "]
+          },
+          "proofUrls": ["https://tzkt.io/KT1NfTMP9QSD5oH4LjXQ8Fuz89iTP1e8VWfB"]
+        }
+      ]
+    },
+    {
+      "id": "matter",
+      "name": "Matter",
+      "category": "gaming",
+      "website": "https://matterdefi.xyz/",
+      "description": "SalsaDAO game and DeFi applications.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-12-16T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^Matter (?:Live|Calc)$"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1FYct7DUK1mUkk9BPJEg7AeH7Fq3hQ9ah3"]
+        }
+      ]
+    },
+    {
+      "id": "coinflip",
+      "name": "CoinFlip",
+      "category": "gaming",
+      "website": "https://tezosdegenclub.com/",
+      "description": "Tezos Degen Club on-chain game.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2022-11-12T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^CoinFlip Game"]
+          },
+          "proofUrls": ["https://tzkt.io/KT1HXnqZgHRG5PUtLNGByvdk4cdLN9PiRyaJ"]
+        }
+      ]
+    },
+    {
+      "id": "objkt",
+      "name": "Objkt",
+      "category": "nft",
+      "website": "https://objkt.com/",
+      "description": "Tezos NFT marketplace, auctions, and minting.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-06-30T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^objkt\\.com (?:Marketplace|Minting Factory|English Auctions|Dutch Auctions|Collection Factory)"]
+          },
+          "proofUrls": [
+            "https://tzkt.io/KT1CePTyk6fk4cFr6fasY5YXPGks6ttjSLp4",
+            "https://tzkt.io/KT1FvqJwEDWb1Gwc55Jd1jjTHRVWbYKUUpyq"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fxhash",
+      "name": "fxhash",
+      "category": "nft",
+      "website": "https://www.fxhash.xyz/",
+      "description": "Generative-art minting and secondary markets on Tezos.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-11-01T00:00:00Z",
+          "contractSource": {
+            "type": "tzkt_alias_catalog",
+            "kinds": ["smart_contract", "asset"],
+            "aliasPatterns": ["^FXHASH (?:Marketplace|Generative Tokens|GENTK)"]
+          },
+          "proofUrls": [
+            "https://docs.fxhash.xyz/quickstart-guide",
+            "https://tzkt.io/KT1GbyoDi7H1sfXmimXpptZJuCdHMh66WS9u"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "teia",
+      "name": "Teia",
+      "category": "nft",
+      "website": "https://teia.art/",
+      "description": "Community-owned Tezos art marketplace.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2022-01-27T11:56:18Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": ["KT1PHubm9HtyQEJ4BBpMTVomq6mhbfNZ9z5w"]
+          },
+          "proofUrls": [
+            "https://blog.teia.art/blog/marketplace-contract-launch",
+            "https://tzkt.io/KT1PHubm9HtyQEJ4BBpMTVomq6mhbfNZ9z5w"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tezos-domains",
+      "name": "Tezos Domains",
+      "category": "identity",
+      "website": "https://app.tezos.domains/",
+      "description": "On-chain .tez names, registration, renewal, and records.",
+      "layers": [
+        {
+          "id": "tezos",
+          "since": "2021-04-01T00:00:00Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": [
+              "KT1F7JKNqwaoLzRsMio1MQC7zv3jG9dHcDdJ",
+              "KT1QHLk1EMUA8BPH3FvRUeUmbTspmAhb7kpd",
+              "KT1H1MqmUM4aK9i1833EBmYCCEfkbt6ZdSBc",
+              "KT1TnTr6b2YxSx2xUQ8Vz3MoWy771ta66yGx",
+              "KT1J9VpjiH5cmcsskNb8gEXpBtjD4zrAx4Vo",
+              "KT191reDVKrLxU9rjTSxg53wRqj6zh8pnHgr",
+              "KT1EVYBj3f1rZHNeUtq4ZvVxPTs77wuHwARU",
+              "KT1P8n2qzJjwMPbHJfi4o8xu6Pe3gaU3u2A3",
+              "KT1CaSP4dn8wasbMsfdtGiCPgYFW7bvnPRRT",
+              "KT1CfuAbJQbAGYcjKfvEvbtNUx45LY5hfTVR",
+              "KT1MeFfi4TzSCc8CF9j3qq5mecTPdc6YVUPp",
+              "KT1Hg3ymQBL5nfAbb1JZ8G8AGPZ4cpcko2H2"
+            ]
+          },
+          "proofUrls": ["https://developers.tezos.domains/deployed-contracts/mainnet"]
+        }
+      ]
+    },
+    {
+      "id": "morpho-blue",
+      "name": "Morpho Blue",
+      "category": "defi",
+      "website": "https://app.morpho.org/",
+      "description": "Permissionless lending markets on Etherlink.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2025-08-13T00:00:00Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": ["0xbCE7364E63C3B13C73E9977a83c9704E2aCa876e"]
+          },
+          "proofUrls": ["https://docs.morpho.org/developers/contracts/addresses/"]
+        }
+      ]
+    },
+    {
+      "id": "oku-uniswap-v3",
+      "name": "Oku / Uniswap v3",
+      "category": "defi",
+      "website": "https://oku.trade/app/etherlink/swap",
+      "description": "Concentrated-liquidity swaps and positions on Etherlink.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2025-05-16T02:35:11Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": [
+              "0xdD489C75be1039ec7d843A6aC2Fd658350B067Cf",
+              "0x9db70E29712Cc8Af10c2B597BaDA6784544FF407",
+              "0x743E03cceB4af2efA3CC76838f6E8B50B63F184c",
+              "0x447B8E40B0CdA8e55F405C86bC635D02d0540aB8"
+            ]
+          },
+          "proofUrls": [
+            "https://docs.oku.trade/home/extra-information/deployed-contracts",
+            "https://explorer.etherlink.com/address/0xdD489C75be1039ec7d843A6aC2Fd658350B067Cf"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "curve",
+      "name": "Curve",
+      "category": "defi",
+      "website": "https://www.curve.finance/dex/etherlink/pools",
+      "description": "Stable and crypto liquidity markets on Etherlink.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2025-07-29T10:52:19Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": [
+              "0xFF5Cb29241F002fFeD2eAa224e3e996D24A6E8d1",
+              "0xB2Be7692B07b640C9f2ee1187cee2fAec741F872",
+              "0x016C64b91a30Bb3aB90E1587cC607630eeC526c7",
+              "0x0714027E44802b2Ff76389daF5371990CC3a4C24",
+              "0x0Eac4526321866178c6444f0a211A21DB4a0Ed4C",
+              "0x1E8D78e9b3f0152D54d32904B7933f1cFE439Df1",
+              "0x1beA4EbC4Bab2dECB5948DD81E390dBd17572BEa",
+              "0x269b47978f4348C96f521658eF452fF85906fcfe",
+              "0x2D84D79C852f6842AbE0304b70bBaA1506AdD457",
+              "0x3183f5956A7B8cBaAcEa34401e227af1c6Df6d34",
+              "0x3Bcf2E8D954d5FB7E99B02bB84075b43d689B85F",
+              "0x4f630a7a596f8bd725DC52924ba39e26f8C846F9",
+              "0x5D37F9B272ca7cdA2A05245b9a503746EefAC88f",
+              "0x625294C6163782D5b004e0231B681c0915183764",
+              "0x7427969F795e2f53B0FbeB12b0C3EA8EE7ce29B0",
+              "0x74d80eE400D3026FDd2520265cC98300710b25D4",
+              "0x78051FBf40581619ffaaDb6cD7E5856d4A327a6D",
+              "0x86d2CFea16b19F72bD3295781dC55994EA386CEc",
+              "0x8dA8ff81F983063De6addB65dc8CB4CC8fa48FC5",
+              "0x8e3da27b6496Ca4373Ad8261835f56d0107c8E25",
+              "0x942644106B073E30D72c2C5D7529D5C296ea91ab",
+              "0x95aF759ec2f4385EdBbBA959A8a1CDc65610D080",
+              "0xB3C9Ae6688fF412534C1863cE264C4AF534d5FE6",
+              "0xB5C0d71976E81646Ec8C1CEB91A6C3B53728a165",
+              "0xD59AAECDC89C30438377f00CA62cE45f28628cbd",
+              "0xE080D14bF6eceC4C48eBe11055d4DeA5DbC30e41",
+              "0xd5E41fCFBCF3A9Cc4CC88fD4176106A24899d188"
+            ]
+          },
+          "proofUrls": [
+            "https://api-core.curve.finance/v1/getDeployment/etherlink",
+            "https://api-core.curve.finance/v1/getPools/etherlink/factory-twocrypto",
+            "https://api-core.curve.finance/v1/getPools/etherlink/factory-stable-ng",
+            "https://news.curve.finance/curve-now-live-on-etherlink/"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hanji",
+      "name": "Hanji",
+      "category": "defi",
+      "website": "https://app.hanji.io/",
+      "description": "On-chain order-book markets on Etherlink.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2026-01-06T12:47:48Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": [
+              "0xa3ca091e28f6fac217c8618d1d3e449d8d62fe8e",
+              "0x24917fdc91f7bc9a50d4775900ac22d316fff0b7",
+              "0x2a38ca97d670e0151820366015830d001babd310",
+              "0xc0ba6913a5703e0c8ce0338cf952accfeebcecf9",
+              "0x0521767cdd2517b3133f0b102ee7d9988413a86a",
+              "0x51f8a714a08f3a2061ea902b12afe3bdfd0ab967",
+              "0xf768698c89c88490a4698ba69dfcebdd013bf9a3",
+              "0x88318fd8bd9e8d80ca4a00a5c103aa8efd39a817"
+            ]
+          },
+          "proofUrls": [
+            "https://docs.hanji.io/for-developers/deployed-contracts",
+            "https://api.hanji.io/aggregators/markets"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "iguanadex",
+      "name": "IguanaDEX",
+      "category": "defi",
+      "website": "https://www.iguanadex.com/",
+      "description": "AMM swaps, routing, and liquidity positions on Etherlink.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2024-08-16T11:24:57Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": [
+              "0xE67B7D039b78DE25367EF5E69596075Bbd852BA9",
+              "0x459a7DD845E6B9Abe572Df8cE1Bfc6525B9286e8",
+              "0x34f957BCD46A9B0f8fCCdcc945004cE03ac6bDb5",
+              "0xbfe9C246A5EdB4F021C8910155EC93e7CfDaB7a0",
+              "0xe394b05d9476280621398733783d0edb7cfebdc0",
+              "0xC00c41492e243ec24Bf0B3038b74d7Bd48411e63"
+            ]
+          },
+          "proofUrls": [
+            "https://docs.iguanadex.com/iguanadex-on-mainnet/contract-addresses",
+            "https://docs.etherlink.com/tools/exchanges/"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "uranium",
+      "name": "Uranium.io",
+      "category": "rwa",
+      "website": "https://uranium.io/",
+      "description": "Tokenized uranium market on Etherlink.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2025-04-10T00:00:00Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": ["0xF02B8aE0D525157797414953103F67D9d4Ee6F0a"]
+          },
+          "proofUrls": ["https://explorer.etherlink.com/address/0xF02B8aE0D525157797414953103F67D9d4Ee6F0a"]
+        }
+      ]
+    },
+    {
+      "id": "etherlink-bridge",
+      "name": "Etherlink EVM Bridge",
+      "category": "bridge",
+      "website": "https://bridge.etherlink.com/evm",
+      "description": "LayerZero-powered bridge between Etherlink and EVM networks.",
+      "layers": [
+        {
+          "id": "etherlink",
+          "since": "2025-01-01T00:00:00Z",
+          "contractSource": {
+            "type": "addresses",
+            "addresses": ["0x1f8E735f424B7A49A885571A2fA104E8C13C26c7"]
+          },
+          "proofUrls": ["https://docs.etherlink.com/bridging/bridging-evm/"]
+        }
+      ]
+    }
+  ]
+}

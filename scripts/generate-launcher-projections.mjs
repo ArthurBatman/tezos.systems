@@ -8,7 +8,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const checkArgs = process.argv.includes('--check') ? ['--check'] : [];
 const generators = [
   'scripts/generate-maxis-entry-summary.mjs',
-  'scripts/generate-capital-entry-summary.mjs'
+  'scripts/generate-capital-entry-summary.mjs',
+  'scripts/generate-ecosystem-entry-summary.mjs'
 ];
 
 for (const generator of generators) {

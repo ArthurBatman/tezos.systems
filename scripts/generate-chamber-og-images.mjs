@@ -73,6 +73,12 @@ function routeDetails(route, report) {
       chips: ['Tezos + Etherlink', 'markets + RWA', 'art economy'],
       body: 'Read cross-layer capital, XTZ market structure, ecosystem assets, real-world proofbooks, and Tezos art activity with visible source and coverage boundaries.'
     },
+    ecosystem: {
+      kicker: 'Dapp Intelligence',
+      value: 'Weekly activity, through history',
+      chips: ['Tezos L1 + Etherlink', 'active wallets + YoY', 'contract receipts'],
+      body: 'Rank reviewed apps by last-completed-week active wallet addresses, separate the partial current week, and trace every published weekly aggregate to its disclosed contract universe.'
+    },
     history: {
       kicker: 'Measured History',
       value: '15 captured signals',

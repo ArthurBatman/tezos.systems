@@ -55,6 +55,7 @@ import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
 import { initNetworkPulseChamber } from '../features/network-pulse.js';
 import { initCapitalChamber } from '../features/capital-chamber.js';
+import { initEcosystemChamber } from '../features/ecosystem-chamber.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
 import { initTezosCrpChamber } from '../features/tezoscrp.js';
@@ -115,8 +116,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=490';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=490';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=492';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=492';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -316,6 +317,7 @@ async function init() {
     safe('tz4AdoptionChamber', initTz4AdoptionChamber);
     safe('networkPulseChamber', initNetworkPulseChamber);
     safe('capitalChamber', initCapitalChamber);
+    safe('ecosystemChamber', initEcosystemChamber);
     safe('stakingChamber', initStakingChamber);
     safe('ctezChamber', initCtezChamber);
     safe('ledgerFlowChamber', initLedgerFlowChamber);
@@ -1516,6 +1518,7 @@ const CHAMBER_CARD_TARGETS = Object.freeze({
     capital: { selector: '#capital-entry-card', layout: 'featured' },
     whales: { selector: '#whale-watch-entry-card', layout: 'wide' },
     'staking-chamber': { selector: '#staking-entry-card', layout: 'compact' },
+    ecosystem: { selector: '#ecosystem-entry-card', layout: 'featured' },
     leaderboard: { selector: '#baker-directory-entry-card', layout: 'wide' },
     tz4: { selector: '[data-stat="tz4-adoption"]', layout: 'compact' },
     chamber: { selector: '#chamber-entry-card', layout: 'standard' },
@@ -1544,6 +1547,12 @@ const CHAMBER_INFO_COPY = {
         body: 'Cross-layer Tezos and Etherlink intelligence for network activity, markets, ecosystem assets, real-world assets, and the art economy.',
         href: '/capital/',
         link: 'Open Capital Chamber ->'
+    },
+    'ecosystem-entry-card': {
+        title: 'Ecosystem Activity',
+        body: 'Tezos L1 and Etherlink dapps ranked by last-completed-week active wallet addresses, with full weekly history, partial current-week telemetry, and contract receipts.',
+        href: '/ecosystem/',
+        link: 'Open Ecosystem Activity ->'
     },
     'whale-watch-entry-card': {
         title: 'Whale Watch',
@@ -5315,6 +5324,7 @@ function initOfflineIndicator() {
 //   #chamber           → open Tezos L1 Governance modal
 //   #pulse             -> open Network Pulse Chamber
 //   #capital           -> open Capital Chamber
+//   #ecosystem         -> open Ecosystem Activity Chamber
 //   #staking           -> open Staking Chamber
 //   #tezosx           -> open Tezos X Chamber
 //   #tezlink          -> legacy alias for Tezos X Chamber
@@ -5336,6 +5346,7 @@ function initOfflineIndicator() {
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
 //   /capital/          -> open Capital Chamber
+//   /ecosystem/        -> open Ecosystem Activity Chamber
 //   /whales/           -> open Whale Watch Chamber
 //   /stake/            -> open Staking Chamber
 //   /leaderboard/      -> open Baker Directory Chamber
@@ -5618,6 +5629,7 @@ function applyDeepLink() {
             import('../features/network-health.js').then((module) => module.closeNetworkHealthChamber?.()),
             import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
             import('../features/capital-chamber.js').then((module) => module.closeCapitalChamber?.()),
+            import('../features/ecosystem-chamber.js').then((module) => module.closeEcosystemChamber?.()),
             import('../features/staking-chamber.js').then((module) => module.closeStakingChamber?.()),
             import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
             import('../features/tz4-adoption.js').then((module) => module.closeTz4AdoptionChamber?.()),
@@ -5666,6 +5678,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
                     'Failed to open Capital Chamber'
+                );
+                break;
+            case 'ecosystem':
+                openHashModal(
+                    () => import('../features/ecosystem-chamber.js').then(({ openEcosystemChamber }) => openEcosystemChamber()),
+                    'Failed to open Ecosystem Activity'
                 );
                 break;
             case 'whales':
@@ -5857,6 +5875,14 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
             'Failed to open Capital Chamber'
+        );
+    }
+
+    // #ecosystem
+    if (params.has('ecosystem') || hash === 'ecosystem') {
+        openHashModal(
+            () => import('../features/ecosystem-chamber.js').then(({ openEcosystemChamber }) => openEcosystemChamber()),
+            'Failed to open Ecosystem Activity'
         );
     }
 
@@ -6098,6 +6124,7 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'protocol-history-chamber-modal': { entryIds: ['anthology'], hashes: ['protocol-history', 'protocol'] },
     'network-pulse-modal': { entryIds: ['pulse'], hashes: ['pulse', 'network-pulse'] },
     'capital-modal': { entryIds: ['capital'], hashes: ['capital'] },
+    'ecosystem-activity-modal': { entryIds: ['ecosystem'], hashes: ['ecosystem'] },
     'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants'] },
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },
     'baker-directory-modal': { entryIds: ['leaderboard'], hashes: ['leaderboard'] },

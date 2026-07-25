@@ -4,7 +4,7 @@ export const CHAMBER_ROUTES = [
     hash: '#chambers',
     title: 'Explore Tezos - Live Rooms by Topic',
     shortTitle: 'Explore Tezos',
-    description: 'Choose a question-led topic and browse focused Tezos rooms for live network signals, capital, bakers, governance, people, accounts, and history.',
+    description: 'Choose a question-led topic and browse focused Tezos rooms for live network signals, dapp activity, capital, bakers, governance, people, accounts, and history.',
     eyebrow: 'Topic Directory',
     accent: '#45e0c8'
   },
@@ -62,6 +62,15 @@ export const CHAMBER_ROUTES = [
     description: 'Inspect cross-layer Tezos and Etherlink activity, markets, ecosystem assets, real-world assets, and art-economy intelligence with sourced receipts.',
     eyebrow: 'Cross-Layer Economy',
     accent: '#f49ad1'
+  },
+  {
+    slug: 'ecosystem',
+    hash: '#ecosystem',
+    title: 'Ecosystem Activity - Tezos and Etherlink Dapp Stats',
+    shortTitle: 'Ecosystem Activity',
+    description: 'Rank reviewed Tezos L1 and Etherlink dapps by weekly active wallet addresses, then inspect complete history, YoY change, retention, interactions, and contract receipts.',
+    eyebrow: 'Dapp Intelligence',
+    accent: '#55e2c3'
   },
   {
     slug: 'whales',

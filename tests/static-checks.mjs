@@ -722,6 +722,7 @@ async function checkRequiredFiles() {
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
+    'js/features/ecosystem-chamber.js',
     'js/features/whale-chamber.js',
     'js/features/tezoscrp.js',
     'js/features/milestone-catalog.mjs',
@@ -744,6 +745,8 @@ async function checkRequiredFiles() {
     'og/stake.png',
     'capital/index.html',
     'og/capital.png',
+    'ecosystem/index.html',
+    'og/ecosystem.png',
     'history/index.html',
     'og/history.png',
     'leaderboard/index.html',
@@ -769,6 +772,9 @@ async function checkRequiredFiles() {
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-capital-data.mjs',
     'scripts/generate-capital-entry-summary.mjs',
+    'scripts/refresh-ecosystem-stats.mjs',
+    'scripts/generate-ecosystem-entry-summary.mjs',
+    'scripts/lib/ecosystem-stats.mjs',
     'scripts/generate-maxis-entry-summary.mjs',
     'scripts/generate-launcher-projections.mjs',
     'scripts/refresh-whale-watch-data.mjs',
@@ -794,6 +800,9 @@ async function checkRequiredFiles() {
     'data/governance-refresh-report.json',
     'data/capital-snapshot.json',
     'data/capital-entry-summary.json',
+    'data/ecosystem-apps.json',
+    'data/ecosystem-stats.json',
+    'data/ecosystem-entry-summary.json',
     'data/whale-watch.json',
     'data/milestone-catalog.json',
     'data/maxis-contracts.json',
@@ -811,6 +820,7 @@ async function checkRequiredFiles() {
     'og/tezoscrp.png',
     '.github/workflows/refresh-tezoscrp.yml',
     'tests/tezoscrp-check.mjs',
+    'tests/ecosystem-stats-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -3406,11 +3416,15 @@ async function checkLauncherProjectionContracts() {
   const [
     capitalProjectionText,
     capitalSourceText,
+    ecosystemProjectionText,
+    ecosystemSourceText,
     maxisProjectionText,
     capitalGenerator,
+    ecosystemGenerator,
     maxisGenerator,
     aggregateGenerator,
     capitalFeature,
+    ecosystemFeature,
     maxisFeature,
     leaderboardFeature,
     measurement,
@@ -3421,11 +3435,15 @@ async function checkLauncherProjectionContracts() {
   ] = await Promise.all([
     readText('data/capital-entry-summary.json'),
     readText('data/capital-snapshot.json'),
+    readText('data/ecosystem-entry-summary.json'),
+    readText('data/ecosystem-stats.json'),
     readText('data/maxis/entry-summary.json'),
     readText('scripts/generate-capital-entry-summary.mjs'),
+    readText('scripts/generate-ecosystem-entry-summary.mjs'),
     readText('scripts/generate-maxis-entry-summary.mjs'),
     readText('scripts/generate-launcher-projections.mjs'),
     readText('js/features/capital-chamber.js'),
+    readText('js/features/ecosystem-chamber.js'),
     readText('js/features/maxis.js'),
     readText('js/features/leaderboard.js'),
     readText('scripts/measure-initial-load.mjs'),
@@ -3436,6 +3454,8 @@ async function checkLauncherProjectionContracts() {
   ]);
   const capitalProjection = JSON.parse(capitalProjectionText);
   const capitalSource = JSON.parse(capitalSourceText);
+  const ecosystemProjection = JSON.parse(ecosystemProjectionText);
+  const ecosystemSource = JSON.parse(ecosystemSourceText);
   const maxisProjection = JSON.parse(maxisProjectionText);
   const packageJson = JSON.parse(packageText);
 
@@ -3454,6 +3474,19 @@ async function checkLauncherProjectionContracts() {
 
   if (Buffer.byteLength(maxisProjectionText) > 24 * 1024) {
     fail(`Maxis launcher projection exceeds its 24 KiB budget: ${Buffer.byteLength(maxisProjectionText)} bytes`);
+  }
+
+  if (Buffer.byteLength(ecosystemProjectionText) > 16 * 1024) {
+    fail(`Ecosystem launcher projection exceeds its 16 KiB budget: ${Buffer.byteLength(ecosystemProjectionText)} bytes`);
+  }
+  const { contentHash: ecosystemProjectionHash, ...ecosystemUnsigned } = ecosystemProjection;
+  if (ecosystemProjection.schemaVersion !== 1
+    || stableJsonHash(ecosystemUnsigned) !== ecosystemProjectionHash
+    || ecosystemProjection.source?.path !== 'data/ecosystem-stats.json'
+    || ecosystemProjection.source?.generatedAt !== ecosystemSource.generatedAt
+    || ecosystemProjection.source?.contentHash !== ecosystemSource.contentHash
+    || ecosystemProjection.source?.fileSha256 !== createHash('sha256').update(ecosystemSourceText).digest('hex')) {
+    fail('Ecosystem launcher projection must match its stable payload and exact reviewed source receipt');
   }
   const { integrity: maxisIntegrity, ...maxisUnsigned } = maxisProjection;
   if (maxisProjection.schema !== 1
@@ -3478,6 +3511,7 @@ async function checkLauncherProjectionContracts() {
   if (packageJson.scripts?.['refresh:launcher-projections'] !== 'node scripts/generate-launcher-projections.mjs'
     || packageJson.scripts?.['check:launcher-projections'] !== 'node scripts/generate-launcher-projections.mjs --check'
     || !aggregateGenerator.includes('generate-capital-entry-summary.mjs')
+    || !aggregateGenerator.includes('generate-ecosystem-entry-summary.mjs')
     || !aggregateGenerator.includes('generate-maxis-entry-summary.mjs')) {
     fail('package scripts must expose one deterministic launcher-projection refresh and check path');
   }
@@ -3485,18 +3519,20 @@ async function checkLauncherProjectionContracts() {
   const projectionPrecommitStageIndex = orchestrator.indexOf('if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS)', projectionCheckIndex);
   const whaleCheckIndex = orchestrator.indexOf("nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check'])", projectionCheckIndex);
   if (!capitalGenerator.includes('MAX_OUTPUT_BYTES = 16 * 1024')
+    || !ecosystemGenerator.includes('MAX_OUTPUT_BYTES = 16 * 1024')
     || !maxisGenerator.includes('MAX_OUTPUT_BYTES = 24 * 1024')
     || !maxisGenerator.includes("integrity: {\n      algorithm: 'sha256-stable-json-v1'")
-    || !orchestrator.includes("const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json']")
+    || !orchestrator.includes("const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json', 'data/ecosystem-entry-summary.json']")
     || projectionCheckIndex < 0
     || projectionPrecommitStageIndex < projectionCheckIndex
     || projectionPrecommitStageIndex > whaleCheckIndex
     || !orchestrator.includes("nodeScript('scripts/generate-launcher-projections.mjs')")
     || !orchestrator.includes('stageTargets(LAUNCHER_PROJECTION_TARGETS)')) {
-    fail('generated-surface orchestration must validate, refresh, budget, and optionally stage both launcher projections');
+    fail('generated-surface orchestration must validate, refresh, budget, and optionally stage all launcher projections');
   }
   for (const guardedPath of [
     'generate-capital-entry-summary',
+    'generate-ecosystem-entry-summary',
     'generate-maxis-entry-summary',
     'generate-launcher-projections',
     'generate-llms-txt',
@@ -3517,6 +3553,14 @@ async function checkLauncherProjectionContracts() {
       'Capital snapshot is older than the launcher projection source receipt',
       'in-memory launcher projection instead of leaving the Chamber pinned'
     ]],
+    ['Ecosystem', ecosystemFeature, [
+      "const ECOSYSTEM_ENTRY_SUMMARY_URL = '/data/ecosystem-entry-summary.json'",
+      'fetchEntrySummary',
+      'fetchSnapshot',
+      'Ecosystem snapshot failed its SHA-256 integrity receipt',
+      'Ecosystem snapshot does not match the launcher projection source receipt',
+      'lastEntrySummary = null'
+    ]],
     ['Maxis', maxisFeature, [
       "const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json'",
       'loadEntrySummaryProjection',
@@ -3534,8 +3578,10 @@ async function checkLauncherProjectionContracts() {
   for (const snippet of [
     "name: 'launcher-projections'",
     '/data/capital-entry-summary.json',
+    '/data/ecosystem-entry-summary.json',
     '/data/maxis/entry-summary.json',
     'full Capital data loaded before its Chamber opened',
+    'full Ecosystem data loaded before its Chamber opened',
     'full Maxis data loaded before its Chamber opened',
     'projection failure did not fall back',
     'delayed Maxis projection overwrote full launcher data'
@@ -3544,6 +3590,8 @@ async function checkLauncherProjectionContracts() {
   }
   if (!leaderboardFeature.includes('refreshBakerDirectoryChamber({ quiet: false, includeGovernance: false })')
     || !leaderboardFeature.includes('if (includeGovernance) requests.push(fetchGovernanceSignals())')
+    || !measurement.includes("'/data/ecosystem-entry-summary.json'")
+    || !measurement.includes("'/data/ecosystem-stats.json'")
     || !measurement.includes("'/data/maxis-careers.json'")
     || !smoke.includes("!hasPath('/data/maxis-careers.json')")
     || !smoke.includes("hasPath('/data/maxis-careers.json')")) {
@@ -3551,8 +3599,11 @@ async function checkLauncherProjectionContracts() {
   }
 
   const sourceBytes = Buffer.byteLength(capitalSourceText)
+    + Buffer.byteLength(ecosystemSourceText)
     + Object.values(maxisProjection.sourceReceipts || {}).reduce((total, receipt) => total + Number(receipt?.bytes || 0), 0);
-  const projectionBytes = Buffer.byteLength(capitalProjectionText) + Buffer.byteLength(maxisProjectionText);
+  const projectionBytes = Buffer.byteLength(capitalProjectionText)
+    + Buffer.byteLength(ecosystemProjectionText)
+    + Buffer.byteLength(maxisProjectionText);
   pass(`launcher projections retain exact source receipts within ${projectionBytes} bytes versus ${sourceBytes} reviewed source bytes`);
 }
 
@@ -6461,7 +6512,7 @@ async function checkTezosCrpContracts() {
 }
 
 async function checkQuietRefreshContracts() {
-  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
+  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, ecosystem, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
     readText('js/core/quiet-refresh.js'),
     readText('js/core/app.js'),
     readText('js/features/daily-briefing.js'),
@@ -6469,6 +6520,7 @@ async function checkQuietRefreshContracts() {
     readText('js/features/my-baker.js'),
     readText('js/features/tezlink.js'),
     readText('js/features/capital-chamber.js'),
+    readText('js/features/ecosystem-chamber.js'),
     readText('js/features/etherlink-governance.js'),
     readText('js/features/tezos-domains.js'),
     readText('js/features/tz4-adoption.js'),
@@ -6493,7 +6545,7 @@ async function checkQuietRefreshContracts() {
   if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
     fail('headline and heavy dashboard timers must both defer while the tab is hidden');
   }
-  const quietSurfaces = [myTezos, myBaker, tezlink, capital, etherlink, domains, tz4, whales, giants, health, lb];
+  const quietSurfaces = [myTezos, myBaker, tezlink, capital, ecosystem, etherlink, domains, tz4, whales, giants, health, lb];
   if (quietSurfaces.some((source) => !source.includes('quiet-refresh.js'))) {
     fail('every audited live surface must import the shared quiet refresh contract');
   }
@@ -6518,7 +6570,7 @@ async function checkQuietRefreshContracts() {
     fail('My Baker first-load geometry and recoverable error state are missing');
   }
   if (!smoke.includes('first account read did not hold a shape-correct two-column frame')
-    || !smoke.includes('independent drawer stacks left a row-coupled hole')) {
+    || !smoke.includes('full-width account journeys or independent stacks regressed')) {
     fail('My Tezos loading geometry regression coverage is missing');
   }
   if (!smoke.includes("name: 'quiet-refresh'")) fail('smoke catalog must include the quiet-refresh browsing-state suite');
@@ -6588,6 +6640,10 @@ async function checkCapitalContracts() {
   }
   if (snapshot.markets?.xtz?.tickers?.length !== 100 || snapshot.markets?.xtz?.coverage?.tickerHardCap !== 100) {
     fail('Capital snapshot must retain the complete disclosed first page of 100 CoinGecko ticker rows');
+  }
+  if (!capitalGenerator.includes('tickers.length !== COINGECKO_TICKER_PAGE_SIZE')
+    || !capitalGenerator.includes('expected the complete first page of ${COINGECKO_TICKER_PAGE_SIZE}')) {
+    fail('Capital generator must reject incomplete CoinGecko ticker pages so the last-known-good section survives');
   }
   const xu3o8 = (snapshot.rwa?.assets || []).find((asset) => asset.id === 'xu3o8');
   if (xu3o8?.contract?.toLowerCase() !== '0x79052ab3c166d4899a1e0dd033ac3b379af0b1fd'
@@ -6695,6 +6751,243 @@ async function checkCapitalContracts() {
   pass(`Capital Chamber snapshot, source, route, quality, and quiet-refresh contracts checked (${snapshot.markets.xtz.tickers.length} venue rows)`);
 }
 
+async function checkEcosystemActivityContracts() {
+  const [
+    manifestText,
+    snapshotText,
+    feature,
+    css,
+    generator,
+    library,
+    packageText,
+    generatedSurfaces,
+    chamberRoutes,
+    siteMap,
+    app,
+    smoke
+  ] = await Promise.all([
+    readText('data/ecosystem-apps.json'),
+    readText('data/ecosystem-stats.json'),
+    readText('js/features/ecosystem-chamber.js'),
+    readText('css/ecosystem.css'),
+    readText('scripts/refresh-ecosystem-stats.mjs'),
+    readText('scripts/lib/ecosystem-stats.mjs'),
+    readText('package.json'),
+    readText('scripts/refresh-generated-surfaces.mjs'),
+    readText('scripts/lib/chamber-routes.mjs'),
+    readText('js/core/site-map.js'),
+    readText('js/core/app.js'),
+    readText('tests/smoke.mjs')
+  ]);
+  const manifest = JSON.parse(manifestText);
+  const snapshot = JSON.parse(snapshotText);
+  const packageJson = JSON.parse(packageText);
+  const { contentHash, ...unsigned } = snapshot;
+
+  if (manifest.schemaVersion !== 1
+    || manifest.weekStartsOn !== 'monday'
+    || manifest.rankingMetric !== 'active_wallets'
+    || manifest.apps?.length < 10) {
+    fail('Ecosystem manifest must disclose a Monday-based active-wallet universe with at least 10 apps');
+  }
+  if (snapshot.schemaVersion !== 1
+    || !Number.isFinite(Date.parse(snapshot.generatedAt || ''))
+    || stableJsonHash(unsigned) !== contentHash
+    || snapshot.manifestHash !== stableJsonHash(manifest)
+    || !/^[0-9a-f]{64}$/.test(snapshot.contractUniverseHash || '')) {
+    fail('Ecosystem snapshot must retain valid generatedAt, manifest, contract-universe, and stable content-hash receipts');
+  }
+  if (Buffer.byteLength(snapshotText) > 4 * 1024 * 1024) {
+    fail(`Ecosystem snapshot exceeds the 4 MiB browser payload budget: ${Buffer.byteLength(snapshotText)} bytes`);
+  }
+  if (snapshotText.includes('"wallets":')) {
+    fail('Ecosystem browser artifact must publish aggregate counts, never raw wallet cohorts');
+  }
+  const catalogReceipts = snapshot.sourceReceipts?.tzkt?.catalog || [];
+  if (!['asset', 'smart_contract'].every((kind) => catalogReceipts.some((receipt) => (
+    receipt.kind === kind
+    && receipt.aliasedContracts > 0
+    && receipt.pagination === 'id.gt keyset'
+    && receipt.pageSize > 0
+  )))) {
+    fail('Ecosystem snapshot must publish exhaustive TzKT asset and smart-contract catalog pagination receipts');
+  }
+  if (!Array.isArray(snapshot.weeks) || snapshot.weeks.length < 52
+    || !Array.isArray(snapshot.apps) || snapshot.apps.length !== manifest.apps.length
+    || !Array.isArray(snapshot.rankings?.all) || snapshot.rankings.all.length < 10) {
+    fail('Ecosystem snapshot must retain at least one year, every manifested app, and an all-layer top 10');
+  }
+  if (snapshot.completeWeek?.weekEnd !== snapshot.partialWeek?.weekStart
+    || snapshot.partialWeek?.status !== 'partial'
+    || Date.parse(snapshot.partialWeek?.observedAt) < Date.parse(snapshot.partialWeek?.weekStart)) {
+    fail('Ecosystem completed-week ranking boundary and partial current-week pulse must remain distinct');
+  }
+  if (!['all', 'tezos', 'etherlink'].every((layer) => {
+    const metric = layer === 'all' ? snapshot.partialWeek?.all : snapshot.partialWeek?.layers?.[layer];
+    return metric?.status === 'partial'
+      && Number.isSafeInteger(metric.activeWallets)
+      && metric.activeWallets >= 0
+      && Number.isSafeInteger(metric.interactions)
+      && metric.interactions >= 0;
+  })) {
+    fail('Ecosystem current-week aggregate and layer metrics must remain explicitly partial');
+  }
+  const firstLayerActivity = Object.fromEntries(['tezos', 'etherlink'].map((layer) => [
+    layer,
+    Math.min(...manifest.apps.flatMap((app) => app.layers
+      .filter((item) => item.id === layer)
+      .map((item) => Date.parse(item.since))))
+  ]));
+  for (const [index, week] of snapshot.weeks.entries()) {
+    for (const layer of ['tezos', 'etherlink']) {
+      const metric = week.layers?.[layer];
+      const active = Date.parse(week.weekEnd) > firstLayerActivity[layer];
+      if (active && (metric?.status !== 'complete'
+        || !Number.isSafeInteger(metric.activeWallets)
+        || metric.activeWallets < 0
+        || !Number.isSafeInteger(metric.interactions)
+        || metric.interactions < 0)) {
+        fail(`Ecosystem week ${index} must retain complete ${layer} coverage after its first tracked contract`);
+      }
+      if (!active && (metric?.status !== 'not-active'
+        || metric.activeWallets !== null
+        || metric.interactions !== null
+        || metric.callsPerWallet !== null
+        || metric.returningWalletRate !== null)) {
+        fail(`Ecosystem week ${index} must label pre-${layer} coverage as not-active, never as zero`);
+      }
+    }
+  }
+  for (const layer of ['all', 'tezos', 'etherlink']) {
+    const ranking = snapshot.rankings?.[layer] || [];
+    if (ranking.some((row, index) => row.rank !== index + 1
+      || (index > 0 && row.activeWallets > ranking[index - 1].activeWallets))) {
+      fail(`Ecosystem ${layer} ranking must be dense and descending by active wallets`);
+    }
+  }
+  for (const tracked of snapshot.apps) {
+    if (!tracked.id
+      || tracked.weekly?.length !== snapshot.weeks.length
+      || !tracked.layers?.length
+      || tracked.layers.some((layer) => layer.contractCount < 1 || layer.contracts?.length !== layer.contractCount)) {
+      fail(`Ecosystem app ${tracked.id || '<unknown>'} is missing complete weekly or frozen-contract coverage`);
+    }
+  }
+
+  if (packageJson.scripts?.['refresh:ecosystem'] !== 'node scripts/refresh-ecosystem-stats.mjs'
+    || packageJson.scripts?.['check:ecosystem'] !== 'node scripts/refresh-ecosystem-stats.mjs --check'
+    || packageJson.scripts?.['test:ecosystem'] !== 'node tests/ecosystem-stats-check.mjs') {
+    fail('package scripts must expose Ecosystem refresh, offline check, and deterministic unit contracts');
+  }
+  for (const snippet of [
+    "const ECOSYSTEM_TARGETS = ['data/ecosystem-stats.json']",
+    "nodeScript('scripts/refresh-ecosystem-stats.mjs', ['--check'])",
+    "nodeScript('scripts/refresh-ecosystem-stats.mjs')",
+    'stageTargets(ECOSYSTEM_TARGETS)'
+  ]) {
+    if (!generatedSurfaces.includes(snippet)) fail(`Ecosystem generated-surface orchestration is missing: ${snippet}`);
+  }
+  for (const snippet of [
+    "'target.in'",
+    "'timestamp.ge'",
+    "status: 'applied'",
+    "select: 'id,nonce,sender,target,timestamp'",
+    "'alias.null': 'false'",
+    "'sort.asc': 'id'",
+    'catalog keyset did not advance',
+    "filter_by: 'to'",
+    "row?.isError === '0'",
+    'blockscoutRateLimited',
+    'extendBlockscoutCooldown',
+    'BLOCKSCOUT_REQUEST_GAP_MS',
+    'prepareBlockscoutHistory',
+    '/transactions/csv',
+    'from_period',
+    'complete CSV exports',
+    "execFileAsync('curl'",
+    'RECENT_WEEKS_TO_REBUILD = 3',
+    'private warm-up row',
+    'earliestNewContract',
+    'normalizeEcosystemCoverage',
+    'contractUniverseHash',
+    'Raw wallet sets are aggregate-only'
+  ]) {
+    if (!generator.includes(snippet)) fail(`Ecosystem source/continuity contract is missing: ${snippet}`);
+  }
+  for (const snippet of ['contractUniverseHash', 'retentionRate', 'summarizeApp', 'rankApps', 'snapshotContentHash', 'validateManifest', 'validateSnapshot']) {
+    if (!library.includes(snippet)) fail(`Ecosystem deterministic library contract is missing: ${snippet}`);
+  }
+
+  const routeContracts = [
+    ['route metadata', "slug: 'ecosystem'", chamberRoutes],
+    ['site-map destination', "href: '/ecosystem/'", siteMap],
+    ['site-map L1 intent', "href: '/ecosystem/?layer=tezos'", siteMap],
+    ['site-map all-history intent', "href: '/ecosystem/?range=all'", siteMap],
+    ['feature initializer', 'initEcosystemChamber', app],
+    ['pretty route opener', "case 'ecosystem':", app],
+    ['hash route', "hash === 'ecosystem'", app],
+    ['close cleanup', 'closeEcosystemChamber', app],
+    ['routed overlay', "'ecosystem-activity-modal': { entryIds: ['ecosystem']", app],
+    ['category target', "ecosystem: { selector: '#ecosystem-entry-card', layout: 'featured' }", app]
+  ];
+  for (const [label, needle, source] of routeContracts) {
+    if (!source.includes(needle)) fail(`Ecosystem ${label} contract is missing`);
+  }
+  for (const snippet of [
+    "const ECOSYSTEM_SNAPSHOT_URL = '/data/ecosystem-stats.json'",
+    'last completed Monday-to-Monday UTC week',
+    'partial, not ranked',
+    "const RANGES = Object.freeze([",
+    'data-ecosystem-category',
+    'data-ecosystem-app',
+    'Download full JSON',
+    'Contract-universe SHA-256',
+    'quietlySyncHtml(body, markup)',
+    "document.visibilityState !== 'visible'",
+    "document.addEventListener('visibilitychange'",
+    '__ECOSYSTEM_CHAMBER_REFRESH_MS__',
+    'Last good'
+  ]) {
+    if (!feature.includes(snippet)) fail(`Ecosystem browser truth/quiet contract is missing: ${snippet}`);
+  }
+  for (const selector of [
+    '.ecosystem-entry-card',
+    '.ecosystem-overlay',
+    '.ecosystem-overlay.active .ecosystem-content',
+    '.ecosystem-tabs',
+    '.ecosystem-kpis',
+    '.ecosystem-chart-grid',
+    '.ecosystem-table',
+    '.ecosystem-directory',
+    '.ecosystem-proof-grid',
+    '.ecosystem-methodology'
+  ]) {
+    if (!css.includes(selector)) fail(`Ecosystem CSS is missing ${selector}`);
+  }
+  if (!css.includes('@media (max-width: 720px)')
+    || !css.includes('animation: none;')
+    || !css.includes('position: relative;')) {
+    fail('Ecosystem mobile shell must suppress entrance geometry and let the header scroll with the room');
+  }
+  if (!smoke.includes("name: 'ecosystem-activity'")
+    || !smoke.includes('window.__ECOSYSTEM_CHAMBER_REFRESH_MS__ = 1000')) {
+    fail('smoke catalog must include the focused Ecosystem Activity quiet-refresh suite');
+  }
+
+  if (!(await pathExists('ecosystem/index.html')) || !(await pathExists('og/ecosystem.png'))) {
+    fail('Ecosystem generated pretty route and OG image must exist');
+  } else {
+    const route = await readText('ecosystem/index.html');
+    if (!route.includes('<link rel="canonical" href="https://tezos.systems/ecosystem/">')
+      || !route.includes('/og/ecosystem.png')
+      || !route.includes('data-chamber-route="ecosystem"')) {
+      fail('Ecosystem generated route must retain its route identity, canonical URL, and dedicated OG image');
+    }
+  }
+
+  pass(`Ecosystem Activity manifest, ${snapshot.weeks.length}-week history, rankings, source receipts, route, and quiet-refresh contracts checked`);
+}
+
 async function checkChamberCategoryContracts() {
   const [siteMapSource, app, styles] = await Promise.all([
     readText('js/core/site-map.js'),
@@ -6713,6 +7006,12 @@ async function checkChamberCategoryContracts() {
       label: 'Capital',
       question: 'Where is value sitting and moving?',
       entryIds: ['capital', 'whales', 'staking-chamber']
+    },
+    {
+      key: 'ecosystem',
+      label: 'Ecosystem',
+      question: 'Which apps are seeing on-chain activity?',
+      entryIds: ['ecosystem']
     },
     {
       key: 'bakers',
@@ -6747,6 +7046,7 @@ async function checkChamberCategoryContracts() {
     health: 'standard',
     tezosx: 'standard',
     capital: 'featured',
+    ecosystem: 'featured',
     whales: 'wide',
     'staking-chamber': 'compact',
     leaderboard: 'wide',
@@ -6772,9 +7072,9 @@ async function checkChamberCategoryContracts() {
   assert.deepEqual(
     categorizedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
     expectedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
-    'site-map Chamber facets must define exactly one category for each of the 17 entry points'
+    'site-map Chamber facets must define exactly one category for each of the 18 entry points'
   );
-  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 17);
+  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 18);
 
   const metadataSource = siteMapSource
     .split('export const CHAMBER_CATEGORY_META = Object.freeze([')[1]
@@ -6858,7 +7158,7 @@ async function checkChamberCategoryContracts() {
     'infinite Chamber perimeter animation must be reserved for explicit risk/watch state'
   );
 
-  pass('six responsive Chamber categories, 17 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
+  pass('seven responsive Chamber categories, 18 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
 }
 
 async function checkPromotedChamberContracts() {
@@ -7102,7 +7402,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=490'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=492'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -7210,6 +7510,7 @@ async function main() {
   await checkPromotedChamberContracts();
   await checkMyTezosPortfolioContracts();
   await checkCapitalContracts();
+  await checkEcosystemActivityContracts();
   await checkQuietRefreshContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();

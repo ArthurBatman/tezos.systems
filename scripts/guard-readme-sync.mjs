@@ -27,7 +27,7 @@ const relevantRules = [
   [/^\.gitignore$/, 'tracked/ignored setup contract'],
   [/^\.githooks\//, 'shared hook behavior'],
   [/^AGENTS\.md$/, 'agent handoff docs must agree with README'],
-  [/^scripts\/(?:refresh-generated-surfaces\.mjs|refresh-governance-data\.mjs|refresh-maxis-data\.mjs|refresh-maxis-careers\.mjs|refresh-nakamoto-sources\.mjs|update-governance-votes\.mjs|stamp-version\.sh|guard-readme-sync\.mjs|generate-og-image\.js|generate-chamber-routes\.mjs|generate-chamber-og-images\.mjs|generate-milestone-catalog\.mjs|generate-capital-entry-summary\.mjs|generate-maxis-entry-summary\.mjs|generate-launcher-projections\.mjs|generate-llms-txt\.mjs|measure-initial-load\.mjs|bake-compare-pages\.mjs|build-css\.mjs|generate-favicons\.mjs)$/, 'documented automation scripts'],
+  [/^scripts\/(?:refresh-generated-surfaces\.mjs|refresh-governance-data\.mjs|refresh-maxis-data\.mjs|refresh-maxis-careers\.mjs|refresh-nakamoto-sources\.mjs|refresh-ecosystem-stats\.mjs|update-governance-votes\.mjs|stamp-version\.sh|guard-readme-sync\.mjs|generate-og-image\.js|generate-chamber-routes\.mjs|generate-chamber-og-images\.mjs|generate-milestone-catalog\.mjs|generate-capital-entry-summary\.mjs|generate-ecosystem-entry-summary\.mjs|generate-maxis-entry-summary\.mjs|generate-launcher-projections\.mjs|generate-llms-txt\.mjs|measure-initial-load\.mjs|bake-compare-pages\.mjs|build-css\.mjs|generate-favicons\.mjs)$/, 'documented automation scripts'],
   [/^scripts\/lib\/maxis-[^/]+\.mjs$/, 'documented Maxis ranking and protocol-season contracts'],
   [/^tests\/(?:static-checks|smoke)\.mjs$/, 'documented QA and smoke-test behavior'],
   [/^QA\.md$/, 'QA docs must agree with README'],
@@ -42,7 +42,7 @@ const relevantRules = [
   [/^sw\.js$/, 'documented service-worker and cache behavior'],
   [/^(?:site\.webmanifest|robots\.txt|sitemap\.xml|llms\.txt|\.well-known\/(?:ai-plugin|openapi)\.json)$/, 'documented PWA/SEO and public-data discovery metadata'],
   [/^widgets\//, 'documented widget inventory'],
-  [/^(?:staking|governance|bakers|hen|compare)\//, 'documented standalone page inventory']
+  [/^(?:staking|governance|bakers|hen|compare|ecosystem)\//, 'documented standalone page inventory']
 ];
 
 function readmeRelevant(file) {
