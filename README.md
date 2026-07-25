@@ -671,7 +671,12 @@ inline modal styles in `js/core/app.js`.
   `https://tzsafe.tez.page/` for the community fork and legacy KT1 multisig
   migration path while new multisig setups move toward protocol-native accounts.
 - My Tezos adaptive personal room with Overview, Portfolio, Transactions,
-  Collection, Your Story, and Tezos X tabs. Your Story separates the account's
+  Collection, Your Story, and Tezos X tabs. Its empty state separates two
+  read-only setup paths: Octez.Connect opens the compatible Temple/Kukai wallet
+  chooser and requests the selected public account, while watch-only setup
+  accepts a public Tezos address or `.tez` name without an extension, pairing,
+  or signature. Both paths keep data in this browser and explain the six views
+  plus the Ledger Flow and Maxi Passport handoffs before setup. Your Story separates the account's
   on-chain identity, protocol-era milestones, share surface, and browser-local
   recent chapter from the live Overview. Overview keeps the active L1 address
   synchronized with Ledger Flow, Maxi Passport, HEN, and the existing
@@ -722,7 +727,8 @@ Useful deep links include:
 
 - `#my-baker=...`
 - `/my/`, `/my/?view=portfolio`, `/my/?view=transactions`,
-  `/my/?view=collection`, or `/my/?view=tezos-x` for the five My Tezos views
+  `/my/?view=collection`, `/my/?view=story`, or `/my/?view=tezos-x` for the six
+  My Tezos views
 - `/tz1...`, `/name.tez`, or `/sub.name.tez` to resolve directly into My Tezos
 - `#baker=...`
 - `#calculator`
@@ -1036,6 +1042,7 @@ Current smoke suites:
   independent no-gap desktop stacks, and recent delegator/staker rows)
 - `my-tezos-live-signal`
 - `my-tezos-drawer-live-refresh`
+- `my-tezos-empty-state`
 - `my-tezos-wallet-connect`
 - `octez-connect-sdk-loader`
 - `my-tezos-baker-capacity`
@@ -1098,7 +1105,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v487`, including hero search, theme
+- Current aligned shell cache stamp: `v488`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

@@ -115,8 +115,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=487';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=487';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=488';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=488';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -1250,7 +1250,7 @@ function initMyTezosButton() {
     }
 
     function updateWalletDrawerState(address = getStoredWalletAddress(), status = '') {
-        const label = address ? `Wallet ${shortAddress(address)}` : (status || 'No wallet connected');
+        const label = address ? `Wallet ${shortAddress(address)}` : (status || 'Octez.Connect · Not connected');
         const emptyStatus = document.getElementById('drawer-wallet-status');
         const connectedStatus = document.getElementById('my-tezos-wallet-status');
         const disconnectBtn = document.getElementById('my-tezos-wallet-disconnect');
@@ -1283,7 +1283,7 @@ function initMyTezosButton() {
         } finally {
             buttons.forEach((btn) => {
                 btn.disabled = false;
-                btn.textContent = 'Use wallet';
+                btn.textContent = btn.dataset.walletIdleLabel || 'Connect wallet';
             });
         }
     }

@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-25',
         entries: [
+            { type: '🎨', text: 'My Tezos now explains its complete six-view personal room before setup and clearly separates Octez.Connect wallet pairing from watch-only address tracking' },
             { type: '🎨', text: 'My Tezos now gives wallet selectors and Tezos X actions complete labels, deliberate spacing, reliable hidden states, and a taller Portfolio history chart with one-row range controls' }
         ]
     },

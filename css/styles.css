@@ -22288,23 +22288,292 @@ body[data-theme="nerv"]::after {
     width: 100%;
     margin-top: 0.85rem;
 }
-/* MY_TEZOS_LAZY_END */
 .drawer-empty-state {
-    text-align: center;
-    padding: 2rem 1rem;
-    opacity: 0.6;
-}
-.empty-features {
-    list-style: none;
-    padding: 0;
-    margin: 1rem 0;
+    padding: 0.15rem 0 1.25rem;
+    opacity: 1;
     text-align: left;
-    display: inline-block;
 }
-.empty-features li {
-    padding: 0.35rem 0;
-    font-size: 0.95rem;
+.my-tezos-onboarding {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
 }
+.my-tezos-onboarding-hero {
+    display: grid;
+    gap: 0.45rem;
+    padding: 1.15rem;
+    overflow: hidden;
+    border: 1px solid rgba(69,224,200,0.2);
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 92% 12%, rgba(155,140,255,0.14), transparent 34%),
+        linear-gradient(135deg, rgba(69,224,200,0.08), rgba(255,255,255,0.025) 62%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.045);
+}
+.my-tezos-onboarding-hero h3,
+.my-tezos-onboarding-heading h4,
+.my-tezos-start-card h4 {
+    margin: 0;
+    color: var(--text-primary);
+    line-height: 1.24;
+}
+.my-tezos-onboarding-hero h3 {
+    font-size: clamp(1.3rem, 2.7vw, 1.8rem);
+}
+.my-tezos-onboarding-hero > p {
+    max-width: 47rem;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    line-height: 1.55;
+}
+.my-tezos-onboarding-kicker,
+.my-tezos-start-kicker {
+    color: var(--accent-cyan, #45e0c8);
+    font-size: 0.64rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.my-tezos-onboarding-boundaries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+}
+.my-tezos-onboarding-boundaries span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 999px;
+    background: rgba(0,0,0,0.14);
+    color: var(--text-secondary);
+    font-size: 0.64rem;
+    font-weight: 750;
+}
+.my-tezos-onboarding-boundaries span::before {
+    content: '✓';
+    margin-right: 0.3rem;
+    color: var(--accent-cyan, #45e0c8);
+    font-weight: 900;
+}
+.my-tezos-start-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.8rem;
+}
+.my-tezos-start-card {
+    min-width: 0;
+    min-height: 238px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 11px;
+    background: rgba(255,255,255,0.028);
+}
+.my-tezos-start-wallet {
+    border-color: rgba(69,224,200,0.27);
+    background:
+        linear-gradient(160deg, rgba(69,224,200,0.075), transparent 58%),
+        rgba(255,255,255,0.028);
+}
+.my-tezos-start-watch {
+    border-color: rgba(91,168,255,0.2);
+}
+.my-tezos-start-card h4 {
+    font-size: 0.98rem;
+}
+.my-tezos-start-card > p {
+    flex: 1 1 auto;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    line-height: 1.52;
+}
+.my-tezos-start-card .wallet-connect-row {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0.25rem 0 0;
+}
+.my-tezos-start-card .wallet-connect-btn,
+.my-tezos-start-card .my-baker-btn {
+    min-height: 42px;
+}
+.my-tezos-start-card .wallet-connect-status {
+    font-size: 0.68rem;
+}
+.my-tezos-start-card .drawer-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    margin-top: 0.25rem;
+}
+.my-tezos-start-card .my-baker-input {
+    width: 100%;
+    min-width: 0;
+}
+.my-tezos-start-card .my-baker-error {
+    min-height: 1.2em;
+    margin-top: 0;
+}
+.my-tezos-onboarding-features {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 11px;
+    background: rgba(255,255,255,0.02);
+}
+.my-tezos-onboarding-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.my-tezos-onboarding-heading > div {
+    min-width: 0;
+}
+.my-tezos-onboarding-heading h4 {
+    margin-top: 0.12rem;
+    font-size: 1rem;
+}
+.my-tezos-onboarding-heading > p {
+    max-width: 22rem;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    line-height: 1.4;
+    text-align: right;
+}
+.my-tezos-feature-map {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.my-tezos-feature-map article {
+    min-width: 0;
+    min-height: 96px;
+    display: grid;
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+    align-items: start;
+    gap: 0.6rem;
+    padding: 0.72rem;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.12);
+}
+.my-tezos-feature-mark {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 1px solid rgba(69,224,200,0.24);
+    border-radius: 50%;
+    color: var(--accent-cyan, #45e0c8);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 900;
+}
+.my-tezos-feature-map article > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.22rem;
+}
+.my-tezos-feature-map strong {
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+.my-tezos-feature-map article > div > span {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    line-height: 1.4;
+}
+.my-tezos-onboarding-routes {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.8rem 0.95rem;
+    border: 1px solid rgba(243,201,105,0.19);
+    border-radius: 9px;
+    background: rgba(243,201,105,0.045);
+}
+.my-tezos-onboarding-routes .my-tezos-onboarding-kicker {
+    color: #f3c969;
+}
+.my-tezos-onboarding-routes > div {
+    min-width: 0;
+}
+.my-tezos-onboarding-routes strong {
+    color: var(--text-primary);
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+.my-tezos-onboarding-routes p {
+    margin: 0.16rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    line-height: 1.4;
+}
+@media (max-width: 760px) {
+    .my-tezos-start-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .my-tezos-start-card {
+        min-height: 0;
+    }
+    .my-tezos-feature-map {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 520px) {
+    .drawer-empty-state {
+        padding-top: 0;
+    }
+    .my-tezos-onboarding {
+        gap: 0.75rem;
+    }
+    .my-tezos-onboarding-hero,
+    .my-tezos-onboarding-features,
+    .my-tezos-start-card {
+        padding: 0.85rem;
+    }
+    .my-tezos-onboarding-hero h3 {
+        font-size: 1.24rem;
+    }
+    .my-tezos-onboarding-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .my-tezos-onboarding-heading > p {
+        max-width: none;
+        text-align: left;
+    }
+    .my-tezos-start-card .drawer-controls,
+    .my-tezos-start-card .wallet-connect-row,
+    .my-tezos-feature-map,
+    .my-tezos-onboarding-routes {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .my-tezos-start-card .wallet-connect-btn,
+    .my-tezos-start-card .my-baker-btn {
+        width: 100% !important;
+    }
+    .my-tezos-onboarding-routes {
+        align-items: start;
+        gap: 0.3rem;
+    }
+}
+/* MY_TEZOS_LAZY_END */
 .brief-section {
     margin-bottom: 1rem;
     padding-bottom: 1rem;

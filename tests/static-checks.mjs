@@ -362,12 +362,25 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-transactions', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-activity-filter="transfers"', 'data-activity-filter="nft"', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'Linked on this device', 'not an ownership proof']) {
     if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
   }
+  for (const snippet of [
+    'Connect Temple, Kukai, or another Tezos wallet',
+    'Octez.Connect opens the compatible-wallet chooser',
+    'Track a public address or .tez name',
+    'No wallet extension, pairing, or signature is needed',
+    'Six views, one saved L1 identity',
+    'Follow the same account into Ledger Flow and Maxi Passport'
+  ]) {
+    if (!index.includes(snippet)) fail(`My Tezos empty-state onboarding contract missing: ${snippet}`);
+  }
   if (!index.includes('id="tezosx-add-form" class="portfolio-add-form" aria-busy="true"')
       || !index.includes('class="glass-button my-baker-btn" type="submit" disabled')) {
     fail('My Tezos Tezos X form must remain disabled until its lazy validation module is ready');
   }
   for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item', '--portfolio-history-height: clamp(300px, 38vh, 360px)', '.my-tezos-feature-shell .my-tezos-action[hidden]', '.my-tezos-scope-select']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
+  }
+  for (const snippet of ['.my-tezos-start-grid', '.my-tezos-start-card', '.my-tezos-feature-map', '.my-tezos-onboarding-routes']) {
+    if (!styles.includes(snippet)) fail(`My Tezos empty-state onboarding CSS missing: ${snippet}`);
   }
   for (const snippet of ['#drawer-brief.is-without-baker', '.drawer-connected.is-without-baker .drawer-live-columns']) {
     if (!styles.includes(snippet)) fail(`My Tezos idle-account layout CSS missing: ${snippet}`);
@@ -402,6 +415,7 @@ async function checkMyTezosPortfolioContracts() {
   }
   if (!smoke.includes("name: 'my-tezos-portfolio'")) fail('focused My Tezos Portfolio browser smoke is missing');
   if (!smoke.includes("name: 'my-tezos-cold-start'")) fail('focused My Tezos cold-start browser smoke is missing');
+  if (!smoke.includes("name: 'my-tezos-empty-state'")) fail('focused My Tezos empty-state browser smoke is missing');
   if (!smoke.includes("name: 'my-tezos-idle-account'")) fail('focused My Tezos idle-account browser smoke is missing');
   for (const suite of ['my-tezos-storage', 'my-tezos-memory', 'my-tezos-collection', 'my-tezos-tezosx']) {
     if (!smoke.includes(`name: '${suite}'`)) fail(`focused ${suite} browser smoke is missing`);
@@ -6941,7 +6955,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=487'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=488'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

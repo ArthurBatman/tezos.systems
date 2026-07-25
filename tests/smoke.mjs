@@ -6430,6 +6430,109 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
   log('ok - my tezos drawer live refresh smoke');
 }
 
+async function smokeMyTezosEmptyState(browser, baseUrl) {
+  for (const { label, viewport } of [
+    { label: 'desktop', viewport: { width: 1280, height: 900 } },
+    { label: 'mobile', viewport: { width: 390, height: 844 } }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'matrix');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+      localStorage.removeItem('tezos-systems-my-baker-address');
+      localStorage.removeItem('tezos-systems-octez-wallet-address');
+    });
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `my tezos empty state ${label}`, issues);
+    const response = await page.goto(`${baseUrl}/my/`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `my tezos empty state ${label}: /my/ failed with HTTP ${response?.status()}`);
+    await page.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 15000 });
+    await page.waitForFunction(() => Boolean(document.querySelector('#my-tezos-css')?.sheet), null, { timeout: 15000 });
+
+    const state = await page.evaluate(() => {
+      const drawer = document.querySelector('#my-tezos-drawer');
+      const body = document.querySelector('#drawer-body');
+      const empty = document.querySelector('#drawer-empty-state');
+      const startCards = Array.from(document.querySelectorAll('.my-tezos-start-card'));
+      const featureCards = Array.from(document.querySelectorAll('.my-tezos-feature-map article'));
+      const walletButton = document.querySelector('#drawer-wallet-connect-btn');
+      const trackButton = document.querySelector('#drawer-connect-btn');
+      const input = document.querySelector('#drawer-address-input');
+      const bodyRect = body.getBoundingClientRect();
+      const insideBody = (element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.left >= bodyRect.left - 1 && rect.right <= bodyRect.right + 1;
+      };
+      return {
+        text: empty.innerText,
+        featureTitles: featureCards.map((card) => card.querySelector('strong')?.textContent?.trim() || ''),
+        startRows: new Set(startCards.map((card) => Math.round(card.getBoundingClientRect().top))).size,
+        featureRows: new Set(featureCards.map((card) => Math.round(card.getBoundingClientRect().top))).size,
+        startCardCount: startCards.length,
+        featureCardCount: featureCards.length,
+        cardsInside: [...startCards, ...featureCards].every(insideBody),
+        walletLabel: walletButton?.textContent?.trim() || '',
+        walletStatus: document.querySelector('#drawer-wallet-status')?.textContent?.trim() || '',
+        trackLabel: trackButton?.textContent?.trim() || '',
+        inputPlaceholder: input?.getAttribute('placeholder') || '',
+        actionsReadable: [walletButton, trackButton].every((button) => (
+          button
+          && button.getBoundingClientRect().height >= 38
+          && button.scrollWidth <= button.clientWidth + 1
+        )),
+        emptyOverflow: empty.scrollWidth > empty.clientWidth + 1,
+        drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+      };
+    });
+
+    for (const phrase of [
+      'Connect Temple, Kukai, or another Tezos wallet',
+      'Octez.Connect',
+      'does not create or submit an operation',
+      'Track a public address or .tez name',
+      'No wallet extension, pairing, or signature is needed',
+      'Six views, one saved L1 identity',
+      'Ledger Flow and Maxi Passport'
+    ]) {
+      assert(state.text.includes(phrase), `my tezos empty state ${label}: missing "${phrase}" ${JSON.stringify(state)}`);
+    }
+    assert(
+      JSON.stringify(state.featureTitles) === JSON.stringify(['Overview', 'Portfolio', 'Transactions', 'Collection', 'Your Story', 'Tezos X']),
+      `my tezos empty state ${label}: feature map drifted ${JSON.stringify(state)}`
+    );
+    assert(
+      state.startCardCount === 2
+        && state.featureCardCount === 6
+        && state.cardsInside
+        && state.actionsReadable,
+      `my tezos empty state ${label}: onboarding geometry or controls regressed ${JSON.stringify(state)}`
+    );
+    assert(
+      state.walletLabel === 'Connect Tezos wallet'
+        && state.walletStatus === 'Octez.Connect · Not connected'
+        && state.trackLabel === 'Track address'
+        && state.inputPlaceholder === 'tz1… or wallet.tez',
+      `my tezos empty state ${label}: setup paths are unclear ${JSON.stringify(state)}`
+    );
+    if (label === 'desktop') {
+      assert(state.startRows === 1 && state.featureRows === 2, `my tezos empty state desktop: expected paired setup and 3x2 feature map ${JSON.stringify(state)}`);
+    } else {
+      assert(state.startRows === 2 && state.featureRows === 6, `my tezos empty state mobile: expected readable single-column setup and feature map ${JSON.stringify(state)}`);
+    }
+    assert(!state.emptyOverflow && !state.drawerOverflow && !state.pageOverflow, `my tezos empty state ${label}: horizontal overflow ${JSON.stringify(state)}`);
+
+    await context.close();
+    assert(issues.length === 0, `my tezos empty state ${label} browser issues:\n${issues.join('\n')}`);
+  }
+  log('ok - my tezos empty state');
+}
+
 async function smokeMyTezosWalletConnect(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -15969,6 +16072,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
+    { name: 'my-tezos-empty-state', description: 'My Tezos clearly separates Octez.Connect wallet pairing from watch-only tracking and explains all six responsive views', run: () => smokeMyTezosEmptyState(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
     { name: 'my-tezos-idle-account', description: 'My Tezos removes baker-only controls and keeps an undelegated account readable in one column', run: () => smokeMyTezosIdleAccount(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
