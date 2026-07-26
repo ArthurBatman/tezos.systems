@@ -4,10 +4,10 @@
  */
 
 const THEME_KEY = 'tezos-systems-theme';
-export const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
+export const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'valley', 'warzone'];
 // Aurora — bespoke animated default; striking but legible.
 export const DEFAULT_THEME = 'aurora';
-const THEME_CSS_VERSION = '499';
+const THEME_CSS_VERSION = '500';
 const THEME_FONT_FAMILIES = {
     aurora: ['Chakra+Petch:wght@400;600;700'],
     matrix: ['Share+Tech+Mono'],
@@ -19,6 +19,7 @@ const THEME_FONT_FAMILIES = {
     bubblegum: ['Nunito:wght@400;500;600;700;800;900'],
     abyss: ['Exo+2:wght@300;400;600', 'IBM+Plex+Mono:wght@400;500;600;700'],
     moss: ['Major+Mono+Display', 'Nunito:wght@400;500;600;700;800;900'],
+    valley: ['Nunito:wght@400;500;600;700;800;900'],
     warzone: ['Chakra+Petch:wght@400;600;700', 'IBM+Plex+Mono:wght@400;500;600;700', 'Silkscreen:wght@400;700']
 };
 
@@ -37,6 +38,7 @@ export const THEME_COLORS = {
     'bubblegum': { bg: '#1F0E18', accent: '#FF69B4', text: '#F5E0EE' },
     'abyss': { bg: '#020A1E', accent: '#00E5FF', text: '#A8D8FF' },
     'moss': { bg: '#040C02', accent: '#50E850', text: '#D0E8B8' },
+    'valley': { bg: '#171A12', accent: '#E7B66C', text: '#FFF4D6' },
     'warzone': { bg: '#080A02', accent: '#FFC000', text: '#E0D8A0' }
 };
 
@@ -139,6 +141,7 @@ const THEME_VIBES = {
     'bubblegum': { tagline: 'Sweet Simplicity', icon: '🫧' },
     'abyss': { tagline: 'Deep Signal', icon: '🌊' },
     'moss': { tagline: 'Living Network', icon: '🌿' },
+    'valley': { tagline: 'Painted Horizon', icon: '🏞️' },
     'warzone': { tagline: 'Command & Control', icon: '⚔️' }
 };
 
@@ -166,7 +169,7 @@ export function openThemePicker() {
         : document.getElementById('theme-toggle');
 
     // Theme categories for organized picker
-    const ANIMATED_THEMES = ['aurora', 'matrix', 'hen', 'void', 'ember', 'signal', 'abyss', 'moss', 'warzone', 'nerv', 'bubblegum'];
+    const ANIMATED_THEMES = ['aurora', 'matrix', 'hen', 'void', 'ember', 'signal', 'abyss', 'moss', 'valley', 'warzone', 'nerv', 'bubblegum'];
     const CLASSIC_THEMES = ['default', 'dark', 'clean'];
 
     function renderThemeRow(theme) {
@@ -203,6 +206,12 @@ export function openThemePicker() {
     if (window.innerWidth < 768) {
         // Mobile: bottom sheet
         pickerEl.classList.add('mobile-bottom-sheet');
+        // Keep the full theme catalogue reachable on short and landscape screens.
+        pickerEl.style.maxHeight = '88vh';
+        pickerEl.style.setProperty('max-height', '88dvh');
+        pickerEl.style.overflowY = 'auto';
+        pickerEl.style.overscrollBehavior = 'contain';
+        pickerEl.style.webkitOverflowScrolling = 'touch';
     } else {
         // Desktop: position fixed, anchored to the settings gear button
         const settingsBtn = document.getElementById('settings-gear');
@@ -212,6 +221,9 @@ export function openThemePicker() {
             pickerEl.style.top = (rect.bottom + 8) + 'px';
             pickerEl.style.right = (window.innerWidth - rect.right) + 'px';
             pickerEl.style.left = 'auto';
+            pickerEl.style.maxHeight = `${Math.max(160, window.innerHeight - rect.bottom - 16)}px`;
+            pickerEl.style.overflowY = 'auto';
+            pickerEl.style.overscrollBehavior = 'contain';
         }
     }
 
@@ -379,6 +391,7 @@ function updateThemeIcon(theme) {
             'bubblegum': '🫧',
             'abyss': '🌊',
             'moss': '🌿',
+            'valley': '🏞️',
             'warzone': '⚔️'
         };
 

@@ -116,8 +116,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=499';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=499';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=500';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=500';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -4369,11 +4369,11 @@ async function initRichTooltips(protocols) {
     /** Apply theme-aware styles to the tooltip (called on each show) */
     function applyTooltipTheme(el) {
         const t = document.body.getAttribute('data-theme');
-        const isMatrix = t === 'matrix', isClean = t === 'clean', isDark = t === 'dark', isBubblegum = t === 'bubblegum';
-        el.style.background = isClean ? 'rgba(255, 255, 255, 0.98)' : isDark ? 'rgba(26, 26, 26, 0.98)' : isMatrix ? 'rgba(0, 10, 0, 0.98)' : isBubblegum ? 'rgba(26, 15, 34, 0.98)' : 'rgba(10, 10, 15, 0.98)';
-        el.style.border = `1px solid ${isClean ? 'rgba(0, 0, 0, 0.1)' : isDark ? '#333333' : isMatrix ? 'rgba(0, 255, 0, 0.5)' : isBubblegum ? 'rgba(255, 105, 180, 0.4)' : 'rgba(0, 212, 255, 0.4)'}`;
+        const isMatrix = t === 'matrix', isClean = t === 'clean', isDark = t === 'dark', isBubblegum = t === 'bubblegum', isValley = t === 'valley';
+        el.style.background = isClean ? 'rgba(255, 255, 255, 0.98)' : isDark ? 'rgba(26, 26, 26, 0.98)' : isMatrix ? 'rgba(0, 10, 0, 0.98)' : isBubblegum ? 'rgba(26, 15, 34, 0.98)' : isValley ? 'rgba(29, 33, 22, 0.98)' : 'rgba(10, 10, 15, 0.98)';
+        el.style.border = `1px solid ${isClean ? 'rgba(0, 0, 0, 0.1)' : isDark ? '#333333' : isMatrix ? 'rgba(0, 255, 0, 0.5)' : isBubblegum ? 'rgba(255, 105, 180, 0.4)' : isValley ? 'rgba(231, 182, 108, 0.4)' : 'rgba(0, 212, 255, 0.4)'}`;
         el.style.boxShadow = isClean ? '0 8px 32px rgba(0,0,0,0.12)' : '0 8px 32px rgba(0,0,0,0.6)';
-        el.style.color = isClean ? '#1A1A2E' : isDark ? '#E8E8E8' : isMatrix ? '#00ff00' : isBubblegum ? '#F0E0F6' : 'var(--text-primary)';
+        el.style.color = isClean ? '#1A1A2E' : isDark ? '#E8E8E8' : isMatrix ? '#00ff00' : isBubblegum ? '#F0E0F6' : isValley ? '#FFF4D6' : 'var(--text-primary)';
     }
 
     const items = document.querySelectorAll('.timeline-item');
@@ -4395,8 +4395,8 @@ async function initRichTooltips(protocols) {
             cancelTooltipHide();
             applyTooltipTheme(tooltipEl);
             const _theme = document.body.getAttribute('data-theme');
-            const accent = _theme === 'clean' ? '#2563EB' : _theme === 'dark' ? '#C8C8C8' : _theme === 'matrix' ? '#00ff00' : '#00d4ff';
-            const accentDim = _theme === 'clean' ? 'rgba(37,99,235,0.6)' : _theme === 'dark' ? 'rgba(200,200,200,0.6)' : _theme === 'matrix' ? 'rgba(0,255,0,0.6)' : 'rgba(0,212,255,0.6)';
+            const accent = _theme === 'clean' ? '#2563EB' : _theme === 'dark' ? '#C8C8C8' : _theme === 'matrix' ? '#00ff00' : _theme === 'valley' ? '#E7B66C' : '#00d4ff';
+            const accentDim = _theme === 'clean' ? 'rgba(37,99,235,0.6)' : _theme === 'dark' ? 'rgba(200,200,200,0.6)' : _theme === 'matrix' ? 'rgba(0,255,0,0.6)' : _theme === 'valley' ? 'rgba(231,182,108,0.68)' : 'rgba(0,212,255,0.6)';
             
             let html = '';
             // Title line
@@ -4465,10 +4465,11 @@ function showProtocolHistoryModal(history, protocolName) {
     const isClean = _modalTheme === 'clean';
     const isDark = _modalTheme === 'dark';
     const isBubblegum = _modalTheme === 'bubblegum';
-    const accent = isClean ? '#2563EB' : isDark ? '#C8C8C8' : isMatrix ? '#00ff00' : isBubblegum ? '#FF69B4' : '#00d4ff';
-    const accentRgb = isClean ? '37,99,235' : isDark ? '200,200,200' : isMatrix ? '0,255,0' : isBubblegum ? '255,105,180' : '0,212,255';
-    const bg = isClean ? 'rgba(255, 255, 255, 0.98)' : isDark ? 'rgba(26, 26, 26, 0.98)' : isMatrix ? 'rgba(0, 8, 0, 0.98)' : isBubblegum ? 'rgba(26, 15, 34, 0.98)' : 'rgba(8, 8, 16, 0.98)';
-    const borderColor = isClean ? 'rgba(0,0,0,0.1)' : isDark ? '#333333' : isMatrix ? 'rgba(0,255,0,0.3)' : isBubblegum ? 'rgba(255,105,180,0.3)' : 'rgba(0,212,255,0.3)';
+    const isValley = _modalTheme === 'valley';
+    const accent = isClean ? '#2563EB' : isDark ? '#C8C8C8' : isMatrix ? '#00ff00' : isBubblegum ? '#FF69B4' : isValley ? '#E7B66C' : '#00d4ff';
+    const accentRgb = isClean ? '37,99,235' : isDark ? '200,200,200' : isMatrix ? '0,255,0' : isBubblegum ? '255,105,180' : isValley ? '231,182,108' : '0,212,255';
+    const bg = isClean ? 'rgba(255, 255, 255, 0.98)' : isDark ? 'rgba(26, 26, 26, 0.98)' : isMatrix ? 'rgba(0, 8, 0, 0.98)' : isBubblegum ? 'rgba(26, 15, 34, 0.98)' : isValley ? 'rgba(29, 33, 22, 0.98)' : 'rgba(8, 8, 16, 0.98)';
+    const borderColor = isClean ? 'rgba(0,0,0,0.1)' : isDark ? '#333333' : isMatrix ? 'rgba(0,255,0,0.3)' : isBubblegum ? 'rgba(255,105,180,0.3)' : isValley ? 'rgba(231,182,108,0.34)' : 'rgba(0,212,255,0.3)';
 
     let sectionsHtml = '';
     for (const section of history.sections) {

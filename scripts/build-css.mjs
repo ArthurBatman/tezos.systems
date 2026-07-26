@@ -13,7 +13,7 @@ const SOURCE = path.join(ROOT, 'css', 'styles.css');
 const BASE_MIN = path.join(ROOT, 'css', 'styles.min.css');
 const MY_TEZOS_MIN = path.join(ROOT, 'css', 'my-tezos.min.css');
 const THEME_DIR = path.join(ROOT, 'css', 'themes');
-const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
+const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'valley', 'warzone'];
 
 function emptyBuckets() {
   return Object.fromEntries(THEMES.map((theme) => [theme, '']));

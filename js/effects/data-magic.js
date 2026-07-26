@@ -62,6 +62,7 @@ const THEME_PERSONALITIES = {
     signal:    { mode: 'sweep', sweepMs: 620, tweenMs: 900 },
     abyss:     { mode: 'sonar', sonarMs: 900, tweenMs: 1100 },
     moss:      { mode: 'growth', growthMs: 780, tweenMs: 1000 },
+    valley:    { mode: 'growth', growthMs: 920, tweenMs: 1050 },
     warzone:   { mode: 'lock', lockMs: 600, tweenMs: 1100 },
     void:      { mode: 'focus', focusMs: 900, tweenMs: 1000 },
     // ── Understated — no heavy glyph noise, quiet confidence ──

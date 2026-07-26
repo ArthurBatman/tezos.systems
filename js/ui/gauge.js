@@ -85,6 +85,17 @@ function getThemeColors() {
                 glowEnabled: true,
                 font: "'Orbitron', monospace",
             };
+        case 'valley':
+            return {
+                textColor: '#F3C47A',
+                subColor: 'rgba(225,204,163,0.68)',
+                bgArc: 'rgba(255,244,214,0.09)',
+                tickColor: 'rgba(231,182,108,0.2)',
+                lowColor: { r: 240, g: 140, b: 114 },
+                highColor: { r: 231, g: 182, b: 108 },
+                glowEnabled: true,
+                font: "'Nunito', sans-serif",
+            };
         case 'aurora':
             return {
                 textColor: '#8FE9DC',

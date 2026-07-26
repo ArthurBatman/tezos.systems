@@ -5947,7 +5947,7 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await openDropdown(page, '#settings-gear', '#settings-dropdown');
   await page.locator('#theme-toggle').click();
   await page.locator('#theme-picker-dropdown').waitFor({ state: 'visible', timeout: 5000 });
-  await expectCount(page, '#theme-picker-dropdown .theme-row', 14, label);
+  await expectCount(page, '#theme-picker-dropdown .theme-row', 15, label);
   await page.keyboard.press('Escape');
 
   await openDropdown(page, '#features-gear', '#features-dropdown');
@@ -13585,7 +13585,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
     { selector: '#recruit-section .site-handoff-head', label: 'Handoff step', snippets: ['Follow the lifeline', 'complete map stays folded'] },
     { selector: '#features-gear', label: 'explore step', snippets: ['Explore without the wall of choices', 'Network Pulse', 'folded by category'] },
-    { selector: '#settings-gear', label: 'settings step', snippets: ['Tune and export', '14 themes'] }
+    { selector: '#settings-gear', label: 'settings step', snippets: ['Tune and export', '15 themes'] }
   ];
 
   async function readTourGeometry(currentPage, selector) {
@@ -15523,6 +15523,550 @@ async function smokeInfoModals(browser, baseUrl) {
   log('ok - info modals smoke');
 }
 
+async function smokeValleyTheme(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1366, height: 900 },
+    deviceScaleFactor: 3,
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-systems-stats-visible', 'true');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'Valley theme', issues);
+
+  const valleyModulePattern = '**/js/effects/valley-effects.js*';
+  let releaseValleyImport;
+  let resolveValleyImportSeen;
+  let resolveValleyImportDelivered;
+  const valleyImportSeen = new Promise((resolve) => { resolveValleyImportSeen = resolve; });
+  const valleyImportDelivered = new Promise((resolve) => { resolveValleyImportDelivered = resolve; });
+  await page.route(valleyModulePattern, async (route) => {
+    resolveValleyImportSeen();
+    await new Promise((resolve) => { releaseValleyImport = resolve; });
+    await route.continue();
+    resolveValleyImportDelivered();
+  });
+
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `Valley theme: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+
+  await page.evaluate(async () => {
+    const { setTheme } = await import('/js/ui/theme.js');
+    setTheme('valley');
+  });
+  await Promise.race([
+    valleyImportSeen,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Valley renderer was not dynamically requested')), 5000))
+  ]);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('stats-updated', {
+      detail: {
+        source: 'valley-buffer-smoke',
+        stats: {
+          stakingRatio: 33.4,
+          cycleProgress: 71,
+          contractCalls24h: 123456
+        }
+      }
+    }));
+  });
+  await page.evaluate(async () => {
+    const { setTheme } = await import('/js/ui/theme.js');
+    setTheme('matrix');
+  });
+  releaseValleyImport();
+  await valleyImportDelivered;
+  await page.waitForTimeout(200);
+  const staleImportState = await page.evaluate(() => ({
+    theme: document.body.dataset.theme || '',
+    canvases: document.querySelectorAll('#valley-background-canvas').length
+  }));
+  assert(
+    staleImportState.theme === 'matrix' && staleImportState.canvases === 0,
+    `late Valley import mounted after the theme changed: ${JSON.stringify(staleImportState)}`
+  );
+  await page.unroute(valleyModulePattern);
+
+  await page.evaluate(async () => {
+    const { setTheme } = await import('/js/ui/theme.js');
+    setTheme('valley');
+  });
+  await page.waitForFunction(() => {
+    const canvas = document.getElementById('valley-background-canvas');
+    return canvas && Number(canvas.dataset.valleyFrame) > 0;
+  }, null, { timeout: 10000 });
+  await assertLocatorCount(page.locator('#valley-background-canvas'), 1, 'Valley animated canvas');
+  const bufferedDataRevision = await page.locator('#valley-background-canvas').getAttribute('data-valley-stats-revision');
+  assert(
+    Number(bufferedDataRevision) > 0,
+    `Valley did not replay the latest stats event after its delayed renderer mounted: ${bufferedDataRevision}`
+  );
+
+  const canvasSignature = () => page.evaluate(() => {
+    const canvas = document.getElementById('valley-background-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) return null;
+    const sample = document.createElement('canvas');
+    sample.width = 64;
+    sample.height = 36;
+    const context2d = sample.getContext('2d', { willReadFrequently: true });
+    context2d.drawImage(canvas, 0, 0, sample.width, sample.height);
+    const pixels = context2d.getImageData(0, 0, sample.width, sample.height).data;
+    let hash = 2166136261;
+    let paintedPixels = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      hash ^= pixels[index];
+      hash = Math.imul(hash, 16777619);
+      hash ^= pixels[index + 1];
+      hash = Math.imul(hash, 16777619);
+      hash ^= pixels[index + 2];
+      hash = Math.imul(hash, 16777619);
+      hash ^= pixels[index + 3];
+      hash = Math.imul(hash, 16777619);
+      if (pixels[index + 3] > 0) paintedPixels += 1;
+    }
+    return {
+      frame: Number(canvas.dataset.valleyFrame) || 0,
+      hash: hash >>> 0,
+      paintedPixels
+    };
+  });
+  const firstSignature = await canvasSignature();
+  assert(firstSignature?.paintedPixels > 0, `Valley canvas did not paint a visible frame: ${JSON.stringify(firstSignature)}`);
+  await page.waitForFunction((startFrame) => (
+    Number(document.getElementById('valley-background-canvas')?.dataset.valleyFrame) >= startFrame + 8
+  ), firstSignature.frame, { timeout: 5000 });
+  const secondSignature = await canvasSignature();
+  assert(
+    secondSignature.frame > firstSignature.frame && secondSignature.hash !== firstSignature.hash,
+    `Valley renderer did not visibly advance: ${JSON.stringify({ firstSignature, secondSignature })}`
+  );
+
+  const longTaskObservationSupported = await page.evaluate(() => {
+    window.__valleyPerfObserver?.disconnect?.();
+    window.__valleyPerfLongTasks = [];
+    if (
+      typeof PerformanceObserver !== 'function'
+      || !PerformanceObserver.supportedEntryTypes?.includes('longtask')
+    ) {
+      window.__valleyPerfObserver = null;
+      return false;
+    }
+    window.__valleyPerfObserver = new PerformanceObserver((list) => {
+      window.__valleyPerfLongTasks.push(...list.getEntries().map((entry) => entry.duration));
+    });
+    window.__valleyPerfObserver.observe({ type: 'longtask', buffered: false });
+    return true;
+  });
+  const cadenceStart = await page.evaluate(() => ({
+    frame: Number(document.getElementById('valley-background-canvas')?.dataset.valleyFrame) || 0,
+    time: performance.now()
+  }));
+  await page.waitForTimeout(2500);
+  const cadenceEnd = await page.evaluate(() => ({
+    frame: Number(document.getElementById('valley-background-canvas')?.dataset.valleyFrame) || 0,
+    time: performance.now()
+  }));
+  const longTaskSample = await page.evaluate(() => {
+    window.__valleyPerfObserver?.disconnect?.();
+    const durations = Array.isArray(window.__valleyPerfLongTasks)
+      ? window.__valleyPerfLongTasks.filter(Number.isFinite)
+      : [];
+    return {
+      count: durations.length,
+      longestMs: durations.length ? Math.max(...durations) : 0,
+      totalMs: durations.reduce((sum, duration) => sum + duration, 0)
+    };
+  });
+  const measuredFps = (cadenceEnd.frame - cadenceStart.frame) / ((cadenceEnd.time - cadenceStart.time) / 1000);
+  assert(
+    measuredFps >= 24 && measuredFps <= 40,
+    `Valley rendered outside its bounded frame cadence (${measuredFps.toFixed(1)} fps)`
+  );
+  if (longTaskObservationSupported) {
+    assert(
+      longTaskSample.count <= 4
+        && longTaskSample.longestMs <= 150
+        && longTaskSample.totalMs <= 350,
+      `Valley monopolized the main thread during its steady-state sample: ${JSON.stringify(longTaskSample)}`
+    );
+  }
+
+  const readingSetup = await page.evaluate(async () => {
+    const input = document.getElementById('hero-search-input');
+    const section = document.getElementById('chambers-section');
+    const title = section?.querySelector('.section-title');
+    const canvas = document.getElementById('valley-background-canvas');
+    const main = document.querySelector('main');
+    if (!input || !section || !title || !canvas || !main) return null;
+    input.value = 'painted valley';
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(2, 9);
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+    const previousScrollBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo({ top: Math.min(maxScroll, 640), behavior: 'auto' });
+    await new Promise(requestAnimationFrame);
+    document.documentElement.style.scrollBehavior = previousScrollBehavior;
+    window.__valleyReadingState = { input, section, title, canvas, main };
+    return {
+      href: location.href,
+      scrollY,
+      selectedText: input.value.slice(input.selectionStart, input.selectionEnd),
+      inputStart: input.selectionStart,
+      inputEnd: input.selectionEnd
+    };
+  });
+  assert(readingSetup?.selectedText, `Valley reading-state fixture did not establish a document selection: ${JSON.stringify(readingSetup)}`);
+
+  const dataResponse = await page.evaluate(() => {
+    const canvas = document.getElementById('valley-background-canvas');
+    const numericTargets = () => Object.fromEntries(
+      Object.entries(canvas?.dataset || {})
+        .filter(([key]) => /^valley.*(?:Target|Normalized)$/i.test(key))
+        .map(([key, value]) => [key, Number(value)])
+    );
+    const beforeRevision = Number(canvas?.dataset.valleyStatsRevision) || 0;
+    const beforeImpulses = Number(canvas?.dataset.valleyImpulses) || 0;
+    window.dispatchEvent(new CustomEvent('stats-updated', {
+      detail: {
+        source: 'valley-smoke',
+        stats: {
+          activeBakers: 1_000_000_000,
+          blockTime: 1_000_000,
+          contractCalls24h: 1_000_000_000_000,
+          currentIssuanceRate: -10_000,
+          cycleProgress: 5_000,
+          marketCap: 1e30,
+          stakingRatio: -5_000,
+          totalBakers: 1_000_000_000,
+          totalSupply: 1e30,
+          totalTransactions: 1e30,
+          transactions24h: 1e20,
+          transactionVolume24h: 1e30,
+          tvl: 1e30,
+          xtzPrice: 1e12
+        }
+      }
+    }));
+    const afterRevision = Number(canvas?.dataset.valleyStatsRevision) || 0;
+    const targets = numericTargets();
+    for (let index = 0; index < 80; index += 1) {
+      window.dispatchEvent(new Event('block-pulse'));
+    }
+    const afterImpulses = Number(canvas?.dataset.valleyImpulses) || 0;
+    const invalidBeforeRevision = Number(canvas?.dataset.valleyStatsRevision) || 0;
+    const invalidBeforeTargets = numericTargets();
+    window.dispatchEvent(new CustomEvent('stats-updated', {
+      detail: {
+        source: 'valley-smoke-invalid',
+        stats: {
+          activeBakers: Number.NaN,
+          blockTime: Number.POSITIVE_INFINITY,
+          cycleProgress: Number.NEGATIVE_INFINITY,
+          stakingRatio: Number.NaN,
+          transactions24h: Number.POSITIVE_INFINITY
+        }
+      }
+    }));
+    const saved = window.__valleyReadingState;
+    const input = document.getElementById('hero-search-input');
+    return {
+      afterImpulses,
+      afterRevision,
+      beforeImpulses,
+      beforeRevision,
+      invalidAfterRevision: Number(canvas?.dataset.valleyStatsRevision) || 0,
+      invalidAfterTargets: numericTargets(),
+      invalidBeforeRevision,
+      invalidBeforeTargets,
+      targets,
+      reading: {
+        href: location.href,
+        scrollY,
+        activeInput: document.activeElement === input,
+        inputStart: input?.selectionStart,
+        inputEnd: input?.selectionEnd,
+        selectedText: input?.value.slice(input.selectionStart, input.selectionEnd) || '',
+        sameCanvas: saved?.canvas === canvas,
+        sameInput: saved?.input === input,
+        sameMain: saved?.main === document.querySelector('main'),
+        sameSection: saved?.section === document.getElementById('chambers-section'),
+        sameTitle: saved?.title === document.querySelector('#chambers-section .section-title')
+      }
+    };
+  });
+  assert(
+    dataResponse.afterRevision > dataResponse.beforeRevision,
+    `Valley ignored a finite stats-updated payload: ${JSON.stringify(dataResponse)}`
+  );
+  const targetValues = Object.values(dataResponse.targets);
+  assert(
+    targetValues.length > 0 && targetValues.every((value) => Number.isFinite(value) && value >= 0 && value <= 1),
+    `Valley data targets must remain finite and normalized: ${JSON.stringify(dataResponse.targets)}`
+  );
+  assert(
+    dataResponse.invalidAfterRevision === dataResponse.invalidBeforeRevision
+      && JSON.stringify(dataResponse.invalidAfterTargets) === JSON.stringify(dataResponse.invalidBeforeTargets),
+    `invalid Valley stats erased or advanced the last-good data targets: ${JSON.stringify(dataResponse)}`
+  );
+  assert(
+    dataResponse.afterImpulses > dataResponse.beforeImpulses && dataResponse.afterImpulses <= 64,
+    `Valley block-pulse response must be visible and bounded: ${JSON.stringify(dataResponse)}`
+  );
+  assert(
+    dataResponse.reading.href === readingSetup.href
+      && Math.abs(dataResponse.reading.scrollY - readingSetup.scrollY) <= 1
+      && dataResponse.reading.activeInput
+      && dataResponse.reading.inputStart === readingSetup.inputStart
+      && dataResponse.reading.inputEnd === readingSetup.inputEnd
+      && dataResponse.reading.selectedText === readingSetup.selectedText
+      && dataResponse.reading.sameCanvas
+      && dataResponse.reading.sameInput
+      && dataResponse.reading.sameMain
+      && dataResponse.reading.sameSection
+      && dataResponse.reading.sameTitle,
+    `Valley data motion disturbed passive reading state: ${JSON.stringify({ readingSetup, reading: dataResponse.reading })}`
+  );
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => document.getElementById('hero-search-input')?.blur());
+
+  await page.evaluate(() => {
+    window.__valleyVisibility = 'hidden';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => window.__valleyVisibility
+    });
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => window.__valleyVisibility === 'hidden'
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction(() => ['true', '1'].includes(
+    document.getElementById('valley-background-canvas')?.dataset.valleyPaused || ''
+  ), null, { timeout: 5000 });
+  const hiddenFrame = await page.evaluate(() => Number(
+    document.getElementById('valley-background-canvas')?.dataset.valleyFrame
+  ) || 0);
+  await page.waitForTimeout(300);
+  const settledHiddenFrame = await page.evaluate(() => Number(
+    document.getElementById('valley-background-canvas')?.dataset.valleyFrame
+  ) || 0);
+  assert(
+    settledHiddenFrame - hiddenFrame <= 1,
+    `Valley continued animating while hidden (${hiddenFrame} to ${settledHiddenFrame})`
+  );
+  await page.evaluate(() => {
+    window.__valleyVisibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction((previousFrame) => {
+    const canvas = document.getElementById('valley-background-canvas');
+    return canvas
+      && !['true', '1'].includes(canvas.dataset.valleyPaused || '')
+      && Number(canvas.dataset.valleyFrame) > previousFrame;
+  }, settledHiddenFrame, { timeout: 5000 });
+
+  await page.evaluate(async () => {
+    const { setTheme } = await import('/js/ui/theme.js');
+    for (const theme of ['valley', 'matrix', 'valley', 'clean', 'matrix', 'valley']) {
+      setTheme(theme);
+    }
+  });
+  await page.waitForFunction(() => (
+    document.body.dataset.theme === 'valley'
+      && document.querySelectorAll('#valley-background-canvas').length === 1
+      && Number(document.getElementById('valley-background-canvas')?.dataset.valleyFrame) > 0
+  ), null, { timeout: 10000 });
+  await page.waitForTimeout(200);
+  const rapidSwitchState = await page.evaluate(() => ({
+    theme: document.body.dataset.theme || '',
+    canvases: document.querySelectorAll('#valley-background-canvas').length
+  }));
+  assert(
+    rapidSwitchState.theme === 'valley' && rapidSwitchState.canvases === 1,
+    `rapid Valley theme switching left stale canvases: ${JSON.stringify(rapidSwitchState)}`
+  );
+
+  for (const { label, viewport } of [
+    { label: 'desktop', viewport: { width: 1366, height: 900 } },
+    { label: 'mobile', viewport: { width: 390, height: 844 } },
+    { label: 'short landscape', viewport: { width: 844, height: 390 } }
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.waitForFunction(({ width, height }) => {
+      const canvas = document.getElementById('valley-background-canvas');
+      const rect = canvas?.getBoundingClientRect();
+      return rect
+        && Math.abs(rect.width - width) <= 2
+        && Math.abs(rect.height - height) <= 2;
+    }, viewport, { timeout: 5000 });
+    await page.locator('#settings-gear').scrollIntoViewIfNeeded();
+    const geometry = await page.evaluate(() => {
+      const canvas = document.getElementById('valley-background-canvas');
+      const gear = document.getElementById('settings-gear');
+      const canvasRect = canvas?.getBoundingClientRect();
+      const gearRect = gear?.getBoundingClientRect();
+      return {
+        ariaHidden: canvas?.getAttribute('aria-hidden') || '',
+        canvasRect: canvasRect ? {
+          bottom: canvasRect.bottom,
+          height: canvasRect.height,
+          left: canvasRect.left,
+          right: canvasRect.right,
+          top: canvasRect.top,
+          width: canvasRect.width
+        } : null,
+        documentOverflow: document.documentElement.scrollWidth - innerWidth,
+        pointerEvents: canvas ? getComputedStyle(canvas).pointerEvents : '',
+        rasterScaleX: canvasRect?.width ? canvas.width / canvasRect.width : 999,
+        rasterScaleY: canvasRect?.height ? canvas.height / canvasRect.height : 999,
+        viewport: { width: innerWidth, height: innerHeight }
+      };
+    });
+    assert(
+      geometry.ariaHidden === 'true'
+        && geometry.pointerEvents === 'none',
+      `Valley ${label} canvas must stay decorative and pointer-free: ${JSON.stringify(geometry)}`
+    );
+    assert(
+      geometry.canvasRect
+        && Math.abs(geometry.canvasRect.left) <= 1
+        && Math.abs(geometry.canvasRect.top) <= 1
+        && Math.abs(geometry.canvasRect.right - geometry.viewport.width) <= 2
+        && Math.abs(geometry.canvasRect.bottom - geometry.viewport.height) <= 2
+        && geometry.documentOverflow <= 1
+        && geometry.rasterScaleX >= 1
+        && geometry.rasterScaleX <= 1.05
+        && geometry.rasterScaleY >= 1
+        && geometry.rasterScaleY <= 1.05,
+      `Valley ${label} canvas geometry or DPR cap drifted: ${JSON.stringify(geometry)}`
+    );
+
+    // A real click while the canvas is present proves it cannot intercept the UI.
+    await ensureDropdownOpen(page, '#settings-gear', '#settings-dropdown');
+    await page.locator('#theme-toggle').click();
+    await page.locator('#theme-picker-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForFunction(() => {
+      const picker = document.getElementById('theme-picker-dropdown');
+      const rect = picker?.getBoundingClientRect();
+      return rect && rect.top >= -1 && rect.bottom <= innerHeight + 1;
+    }, null, { timeout: 2000 });
+    const valleyRow = page.locator('#theme-picker-dropdown .theme-row[data-theme="valley"]');
+    await assertLocatorCount(valleyRow, 1, `Valley ${label} picker row`);
+    await valleyRow.scrollIntoViewIfNeeded();
+    const pickerGeometry = await page.evaluate(() => {
+      const picker = document.getElementById('theme-picker-dropdown');
+      const row = picker?.querySelector('.theme-row[data-theme="valley"]');
+      const pickerRect = picker?.getBoundingClientRect();
+      const rowRect = row?.getBoundingClientRect();
+      return {
+        picker: pickerRect ? {
+          bottom: pickerRect.bottom,
+          left: pickerRect.left,
+          right: pickerRect.right,
+          top: pickerRect.top
+        } : null,
+        row: rowRect ? {
+          bottom: rowRect.bottom,
+          left: rowRect.left,
+          right: rowRect.right,
+          top: rowRect.top
+        } : null,
+        rowVisible: Boolean(row && getComputedStyle(row).display !== 'none' && rowRect?.width && rowRect?.height),
+        viewport: { width: innerWidth, height: innerHeight }
+      };
+    });
+    assert(
+      pickerGeometry.picker
+        && pickerGeometry.row
+        && pickerGeometry.rowVisible
+        && pickerGeometry.picker.left >= -1
+        && pickerGeometry.picker.right <= pickerGeometry.viewport.width + 1
+        && pickerGeometry.picker.top >= -1
+        && pickerGeometry.picker.bottom <= pickerGeometry.viewport.height + 1
+        && pickerGeometry.row.left >= Math.max(-1, pickerGeometry.picker.left - 1)
+        && pickerGeometry.row.right <= Math.min(pickerGeometry.viewport.width + 1, pickerGeometry.picker.right + 1)
+        && pickerGeometry.row.top >= Math.max(-1, pickerGeometry.picker.top - 1)
+        && pickerGeometry.row.bottom <= Math.min(pickerGeometry.viewport.height + 1, pickerGeometry.picker.bottom + 1),
+      `Valley ${label} picker is clipped or off-screen: ${JSON.stringify(pickerGeometry)}`
+    );
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+  }
+
+  await context.close();
+
+  const reducedMotionContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(reducedMotionContext);
+  await reducedMotionContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'valley');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const reducedMotionPage = await reducedMotionContext.newPage();
+  attachIssueCollectors(reducedMotionPage, 'Valley reduced motion', issues);
+  const reducedResponse = await reducedMotionPage.goto(`${baseUrl}/?theme=valley`, { waitUntil: 'domcontentloaded' });
+  assert(reducedResponse?.ok(), `Valley reduced motion failed with HTTP ${reducedResponse?.status()}`);
+  await reducedMotionPage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await reducedMotionPage.waitForFunction(() => Boolean(document.getElementById('theme-css-valley')?.sheet), null, { timeout: 5000 });
+  const reducedBefore = await reducedMotionPage.evaluate(() => {
+    const canvas = document.getElementById('valley-background-canvas');
+    const fallback = getComputedStyle(document.body, '::before');
+    return {
+      animationName: fallback.animationName,
+      backgroundImage: fallback.backgroundImage,
+      canvas: Boolean(canvas),
+      frame: Number(canvas?.dataset.valleyFrame) || 0,
+      paused: canvas?.dataset.valleyPaused || '',
+      pointerEvents: fallback.pointerEvents,
+      theme: document.body.dataset.theme || ''
+    };
+  });
+  await reducedMotionPage.waitForTimeout(300);
+  const reducedAfter = await reducedMotionPage.evaluate(() => {
+    const canvas = document.getElementById('valley-background-canvas');
+    return {
+      canvas: Boolean(canvas),
+      frame: Number(canvas?.dataset.valleyFrame) || 0,
+      paused: canvas?.dataset.valleyPaused || ''
+    };
+  });
+  assert(
+    reducedBefore.theme === 'valley'
+      && reducedBefore.backgroundImage !== 'none'
+      && reducedBefore.animationName === 'none'
+      && reducedBefore.pointerEvents === 'none'
+      && (
+        (!reducedBefore.canvas && !reducedAfter.canvas)
+        || (
+          ['true', '1'].includes(reducedBefore.paused)
+          && ['true', '1'].includes(reducedAfter.paused)
+          && reducedAfter.frame === reducedBefore.frame
+        )
+      ),
+    `Valley reduced motion must use the static CSS landscape without animation: ${JSON.stringify({ reducedBefore, reducedAfter })}`
+  );
+  await reducedMotionContext.close();
+
+  assert(issues.length === 0, `Valley theme browser issues:\n${issues.join('\n')}`);
+  log('ok - Valley data-reactive background lifecycle, accessibility, and responsive smoke');
+}
+
 async function smokeThemeSelection(browser, baseUrl) {
   const issues = [];
   const fontExpectations = {
@@ -15539,6 +16083,7 @@ async function smokeThemeSelection(browser, baseUrl) {
     bubblegum: { ui: 'Nunito', display: 'Nunito', data: 'Nunito', runtime: 'Nunito' },
     abyss: { ui: 'Exo 2', display: 'Exo 2', data: 'JetBrains Mono', runtime: 'Exo 2' },
     moss: { ui: 'Nunito', display: 'Major Mono Display', data: 'Nunito', runtime: 'Nunito' },
+    valley: { ui: 'Nunito', display: 'Nunito', data: 'Nunito', runtime: 'Nunito' },
     warzone: { ui: 'Chakra Petch', display: 'Silkscreen', data: 'JetBrains Mono', runtime: 'JetBrains Mono' }
   };
   const context = await browser.newContext({
@@ -15568,7 +16113,7 @@ async function smokeThemeSelection(browser, baseUrl) {
   const registeredThemes = await page.evaluate(() => Array.from(document.querySelectorAll('#theme-picker-dropdown .theme-row'))
     .map((row) => row.dataset.theme || '')
     .filter(Boolean));
-  assert(registeredThemes.length === 14 && new Set(registeredThemes).size === 14, `theme picker should expose 14 unique themes: ${registeredThemes.join(', ')}`);
+  assert(registeredThemes.length === 15 && new Set(registeredThemes).size === 15, `theme picker should expose 15 unique themes: ${registeredThemes.join(', ')}`);
   assert(registeredThemes.every((theme) => fontExpectations[theme]), `theme font expectations missing registry entries: ${registeredThemes.filter((theme) => !fontExpectations[theme]).join(', ')}`);
   const pickerSemantics = await page.evaluate(() => ({
     groupRole: document.querySelector('#theme-picker-dropdown')?.getAttribute('role') || '',
@@ -15576,7 +16121,7 @@ async function smokeThemeSelection(browser, baseUrl) {
     checked: Array.from(document.querySelectorAll('#theme-picker-dropdown input.theme-radio:checked')).map((input) => input.value),
     focused: document.activeElement?.classList.contains('theme-radio') || false
   }));
-  assert(pickerSemantics.groupRole === 'radiogroup' && pickerSemantics.radioCount === 14 && pickerSemantics.checked.join(',') === 'matrix' && pickerSemantics.focused, `theme picker native radio semantics mismatch: ${JSON.stringify(pickerSemantics)}`);
+  assert(pickerSemantics.groupRole === 'radiogroup' && pickerSemantics.radioCount === 15 && pickerSemantics.checked.join(',') === 'matrix' && pickerSemantics.focused, `theme picker native radio semantics mismatch: ${JSON.stringify(pickerSemantics)}`);
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(() => document.body.dataset.theme === 'hen' && document.querySelector('#theme-picker-dropdown input.theme-radio[value="hen"]')?.checked, null, { timeout: 5000 });
   await page.keyboard.press('Escape');
@@ -16990,6 +17535,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'feature-workflows', description: 'Baker Directory, calculator modes, price intelligence, comparison, Whale Watch, Cycle History, and share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
     { name: 'share-actions', description: 'Share modal copy, post, download, native share, and mobile photo fallback buttons', run: () => smokeShareActions(browser, baseUrl) },
     { name: 'info-modals', description: 'All section info modals and About Tezos launch-date copy', run: () => smokeInfoModals(browser, baseUrl) },
+    { name: 'valley-theme', description: 'Valley lazy renderer, data motion, lifecycle, reading-state preservation, reduced motion, and responsive geometry', run: () => smokeValleyTheme(browser, baseUrl) },
     { name: 'themes', description: 'Theme picker availability and representative light/dark/colorful theme switching', run: () => smokeThemeSelection(browser, baseUrl) },
     { name: 'widget-builder', description: 'Standalone widget builder type picker, preview sizing, and embed code tabs', run: () => smokeWidgetBuilder(browser, baseUrl) },
     { name: 'hen-mode', description: 'HEN overlay startup and exit path', run: () => smokeHenMode(browser, baseUrl) },

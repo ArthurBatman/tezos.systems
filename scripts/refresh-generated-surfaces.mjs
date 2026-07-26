@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CHAMBER_ROUTES } from './lib/chamber-routes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const THEME_NAMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
+const THEME_NAMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'valley', 'warzone'];
 const COMPARE_PAGES = [
   'compare/index.html',
   'compare/tezos-vs-ethereum.html',

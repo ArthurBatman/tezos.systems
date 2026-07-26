@@ -2058,6 +2058,7 @@ function initPulseViz(strip, data) {
             void: [139, 92, 246],
             ember: [255, 159, 67],
             signal: [0, 255, 200],
+            valley: [231, 182, 108],
         };
         return colors[theme] || colors.matrix;
     }

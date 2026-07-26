@@ -71,6 +71,8 @@ function getColors() {
             return { primary: '#00E5FF', secondary: '#00B8D4', tertiary: '#006080', glow: 'rgba(0,229,255,0.3)', bg: '#030308' };
         case 'moss':
             return { primary: '#50E850', secondary: '#38B838', tertiary: '#207020', glow: 'rgba(80,232,80,0.3)', bg: '#040C02' };
+        case 'valley':
+            return { primary: '#E7B66C', secondary: '#A9D18E', tertiary: '#6E8056', glow: 'rgba(231,182,108,0.24)', bg: '#171A12' };
         case 'warzone':
             return { primary: '#FFB800', secondary: '#FF8C00', tertiary: '#995200', glow: 'rgba(255,184,0,0.3)', bg: '#080a04' };
         default:

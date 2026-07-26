@@ -197,7 +197,7 @@ Current refresh and cache intervals from `js/core/config.js`:
 
 ## Themes
 
-There are 14 visual themes in `js/ui/theme.js`. `aurora` is the default theme.
+There are 15 visual themes in `js/ui/theme.js`. `aurora` is the default theme.
 The theme picker groups animated themes separately from classic data-focused
 themes, and stores the selection in `localStorage` under
 `tezos-systems-theme`.
@@ -219,6 +219,7 @@ wordmark stays as vivid as the wrapped mobile title.
 | `bubblegum` | Pink playful theme |
 | `abyss` | Deep-ocean theme |
 | `moss` | Green organic theme |
+| `valley` | Warm painterly landscape with a data-reactive moving background |
 | `warzone` | Amber command theme |
 
 HEN is both a selectable persisted dashboard theme and a separate live-feed

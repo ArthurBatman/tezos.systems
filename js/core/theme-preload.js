@@ -8,8 +8,8 @@
  */
 (function () {
     var DEFAULT = 'aurora';
-    var THEME_CSS_VERSION = '499';
-    var VALID = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
+    var THEME_CSS_VERSION = '500';
+    var VALID = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'valley', 'warzone'];
     var THEME_FONTS = {
         aurora: ['Chakra+Petch:wght@400;600;700'],
         matrix: ['Share+Tech+Mono'],
@@ -21,6 +21,7 @@
         bubblegum: ['Nunito:wght@400;500;600;700;800;900'],
         abyss: ['Exo+2:wght@300;400;600', 'IBM+Plex+Mono:wght@400;500;600;700'],
         moss: ['Major+Mono+Display', 'Nunito:wght@400;500;600;700;800;900'],
+        valley: ['Nunito:wght@400;500;600;700;800;900'],
         warzone: ['Chakra+Petch:wght@400;600;700', 'IBM+Plex+Mono:wght@400;500;600;700', 'Silkscreen:wght@400;700']
     };
     var t = null;

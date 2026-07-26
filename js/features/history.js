@@ -18,7 +18,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=499';
+const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=500';
 const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all']);
 const DEFAULT_CYCLE_HISTORY_RANGE = 'all';
 
@@ -974,6 +974,8 @@ export function createSparkline(canvasId, data, metric) {
         lineColor = isPositive ? '#00E5FF' : '#FF5277';
     } else if (currentThemeVal === 'moss') {
         lineColor = isPositive ? '#50E850' : '#E05050';
+    } else if (currentThemeVal === 'valley') {
+        lineColor = isPositive ? '#A9D18E' : '#F08C72';
     } else if (currentThemeVal === 'warzone') {
         lineColor = isPositive ? '#FFC000' : '#E0533C';
     } else if (currentThemeVal === 'aurora') {
@@ -1144,6 +1146,7 @@ export function createFullChart(canvasId, data, metric, label, unit = '', option
         nerv:      { primary: '#FF9830',  glow: 'rgba(255, 152, 48, 0.8)', fill: [0.35, 0.12] },
         abyss:     { primary: '#00E5FF',  glow: 'rgba(0, 229, 255, 0.8)',  fill: [0.4, 0.15] },
         moss:      { primary: '#50E850',  glow: 'rgba(80, 232, 80, 0.8)',  fill: [0.35, 0.12] },
+        valley:    { primary: '#E7B66C',  glow: 'rgba(231, 182, 108, 0.7)', fill: [0.32, 0.1] },
         warzone:   { primary: '#FFC000',  glow: 'rgba(255, 192, 0, 0.8)',  fill: [0.35, 0.12] },
         aurora:    { primary: '#45E0C8',  glow: 'rgba(64, 224, 200, 0.8)', fill: [0.4, 0.15] },
         default:   { primary: '#00d4ff',  glow: 'rgba(0, 212, 255, 0.8)', fill: [0.4, 0.15] }

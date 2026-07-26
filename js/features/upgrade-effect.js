@@ -57,6 +57,7 @@ function getColors() {
         void: { bar: '#a855f7', barBg: 'rgba(168,85,247,0.12)', step: 'rgba(168,85,247,0.4)', text: '#d0c0e0', grid: 'rgba(168,85,247,0.05)', highlight: '#7c3aed' },
         ember: { bar: '#f97316', barBg: 'rgba(249,115,22,0.12)', step: 'rgba(249,115,22,0.4)', text: '#fde0c0', grid: 'rgba(249,115,22,0.05)', highlight: '#ea580c' },
         signal: { bar: '#22c55e', barBg: 'rgba(34,197,94,0.12)', step: 'rgba(34,197,94,0.4)', text: '#c0e8d0', grid: 'rgba(34,197,94,0.05)', highlight: '#16a34a' },
+        valley: { bar: '#E7B66C', barBg: 'rgba(231,182,108,0.12)', step: 'rgba(169,209,142,0.4)', text: '#FFF4D6', grid: 'rgba(231,182,108,0.06)', highlight: '#A9D18E' },
     };
     return map[theme] || { bar: '#00d4ff', barBg: 'rgba(0,212,255,0.12)', step: 'rgba(0,212,255,0.4)', text: '#e8e8f0', grid: 'rgba(255,255,255,0.05)', highlight: '#00b8db' };
 }

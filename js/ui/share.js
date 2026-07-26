@@ -2292,6 +2292,7 @@ function getThemeColors() {
         bubblegum: { brand: '#FF69B4', bg: '#1F0E18', brandRgb: '255,105,180' },
         abyss: { brand: '#00E5FF', bg: '#020A1E', brandRgb: '0,229,255' },
         moss: { brand: '#50E850', bg: '#040C02', brandRgb: '80,232,80' },
+        valley: { brand: '#E7B66C', bg: '#171A12', brandRgb: '231,182,108' },
         nerv: { brand: '#FF9830', bg: '#000000', brandRgb: '255,152,48' },
         warzone: { brand: '#FFC000', bg: '#080A02', brandRgb: '255,192,0' },
         default: { brand: '#00d4ff', bg: '#0a0a0f', brandRgb: '0,212,255' }
@@ -2943,7 +2944,7 @@ async function captureHistoricalData() {
         modalTitle = modalContent.querySelector('.modal-title');
         origTitleStyle = modalTitle ? modalTitle.style.cssText : '';
         if (modalTitle) {
-            const accentColors = { aurora: '#45E0C8', matrix: '#00ff41', void: '#8B5CF6', ember: '#FF9F43', signal: '#00FFC8', bubblegum: '#FF69B4', default: '#00d4ff' };
+            const accentColors = { aurora: '#45E0C8', matrix: '#00ff41', void: '#8B5CF6', ember: '#FF9F43', signal: '#00FFC8', bubblegum: '#FF69B4', valley: '#E7B66C', default: '#00d4ff' };
             const titleColor = accentColors[theme] || '#00d4ff';
             modalTitle.style.background = 'none';
             modalTitle.style.webkitBackgroundClip = 'unset';
@@ -2993,7 +2994,7 @@ async function captureHistoricalData() {
 
         const fullHeight = modalContent.scrollHeight;
         const fullWidth = modalContent.scrollWidth;
-        const bgColors = { aurora: '#070B1A', matrix: '#000800', void: '#06060f', ember: '#0f0806', signal: '#060a0f', bubblegum: '#1F0E18', default: '#08081a' };
+        const bgColors = { aurora: '#070B1A', matrix: '#000800', void: '#06060f', ember: '#0f0806', signal: '#060a0f', bubblegum: '#1F0E18', valley: '#171A12', default: '#08081a' };
         restoreSpacing = await fixWordSpacing(modalContent);
         const canvas = await html2canvas(modalContent, {
             backgroundColor: bgColors[theme] || '#08081a',

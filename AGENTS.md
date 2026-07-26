@@ -226,7 +226,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v496`
+- Service worker cache name: `tezos-systems-v500`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -380,6 +380,8 @@ Stamping gotchas:
 - `js/ui/title.js`: dynamic rotating page title.
 - `js/effects/matrix-effects.js`: Matrix rain.
 - `js/effects/bg-effects.js`: animated themed backgrounds.
+- `js/effects/valley-loader.js`: race-guarded lazy loader for the Valley
+  painterly background in `js/effects/valley-effects.js`.
 - `js/effects/arcade-effects.js`, `audio.js`, `vibes.js`: playful effects.
 
 Verified theme list in `theme.js`:
@@ -397,6 +399,7 @@ Verified theme list in `theme.js`:
 - `bubblegum`
 - `abyss`
 - `moss`
+- `valley`
 - `warzone`
 
 Theme support is scattered. When changing themes, check `theme.js`, CSS

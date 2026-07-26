@@ -4288,6 +4288,212 @@ async function checkAuroraDesktopTitleTreatment() {
   pass('desktop aurora title shares the multicolor treatment while respecting reduced motion');
 }
 
+async function checkValleyThemeContracts() {
+  const [
+    themeSource,
+    preloadSource,
+    buildCssSource,
+    generatedSource,
+    indexSource,
+    landingSource,
+    stylesSource,
+    smokeSource
+  ] = await Promise.all([
+    readText('js/ui/theme.js'),
+    readText('js/core/theme-preload.js'),
+    readText('scripts/build-css.mjs'),
+    readText('scripts/refresh-generated-surfaces.mjs'),
+    readText('index.html'),
+    readText('landing.html'),
+    readText('css/styles.css'),
+    readText('tests/smoke.mjs')
+  ]);
+  const loaderSource = await readText('js/effects/valley-loader.js').catch(() => '');
+  const rendererSource = await readText('js/effects/valley-effects.js').catch(() => '');
+  const valleyBundle = await readText('css/themes/valley.css').catch(() => '');
+  const valleyMinBundle = await readText('css/themes/valley.min.css').catch(() => '');
+
+  const parseStringArray = (source, pattern) => {
+    const body = source.match(pattern)?.[1] || '';
+    return Array.from(body.matchAll(/['"]([^'"]+)['"]/g), (match) => match[1]);
+  };
+  const mirroredRegistries = [
+    ['runtime theme registry', parseStringArray(themeSource, /export const THEMES\s*=\s*\[([\s\S]*?)\];/)],
+    ['render-blocking preload registry', parseStringArray(preloadSource, /var VALID\s*=\s*\[([\s\S]*?)\];/)],
+    ['CSS build registry', parseStringArray(buildCssSource, /const THEMES\s*=\s*\[([\s\S]*?)\];/)],
+    ['generated-surface registry', parseStringArray(generatedSource, /const THEME_NAMES\s*=\s*\[([\s\S]*?)\];/)],
+    ['landing-page registry', Array.from(
+      (landingSource.match(/var THEMES\s*=\s*\{([\s\S]*?)\n\s*\};/)?.[1] || '').matchAll(/^\s*([a-z][a-z0-9-]*)\s*:/gim),
+      (match) => match[1]
+    )]
+  ];
+  for (const [label, themes] of mirroredRegistries) {
+    if (themes.filter((theme) => theme === 'valley').length !== 1) {
+      fail(`Valley must appear exactly once in the ${label}`);
+    }
+  }
+  const canonicalThemes = mirroredRegistries[0][1];
+  for (const [label, themes] of mirroredRegistries.slice(1)) {
+    if (themes.join('\n') !== canonicalThemes.join('\n')) {
+      fail(`Valley theme registry drifted between the runtime list and ${label}`);
+    }
+  }
+  for (const [label, source] of [
+    ['theme picker colors', themeSource.match(/export const THEME_COLORS\s*=\s*\{([\s\S]*?)\n\};/)?.[1] || ''],
+    ['theme picker vibe', themeSource.match(/const THEME_VIBES\s*=\s*\{([\s\S]*?)\n\};/)?.[1] || ''],
+    ['runtime font registry', themeSource.match(/const THEME_FONT_FAMILIES\s*=\s*\{([\s\S]*?)\n\};/)?.[1] || ''],
+    ['preload font registry', preloadSource.match(/var THEME_FONTS\s*=\s*\{([\s\S]*?)\n\s*\};/)?.[1] || '']
+  ]) {
+    if (!/['"]?valley['"]?\s*:/.test(source)) fail(`Valley is missing from the ${label}`);
+  }
+
+  if (!loaderSource) {
+    fail('Valley must use a dedicated lazy lifecycle loader');
+  } else {
+    if (!/import\(\s*['"]\.\/valley-effects\.js(?:\?[^'"]*)?['"]\s*\)/.test(loaderSource)) {
+      fail('Valley loader must dynamically import the renderer only when needed');
+    }
+    if (!/generation|token|requestId|loadId/i.test(loaderSource)
+      || !/!==|!=/.test(loaderSource)
+      || !/getAttribute\(\s*['"]data-theme['"]\s*\)|dataset\.theme/.test(loaderSource)
+      || !/['"]valley['"]/.test(loaderSource)) {
+      fail('Valley dynamic import must be guarded against a stale theme or load generation');
+    }
+    if (!/matchMedia\(\s*['"]\(prefers-reduced-motion:\s*reduce\)['"]\s*\)/.test(loaderSource)
+      || !/addEventListener\(\s*['"]change['"]/.test(loaderSource)) {
+      fail('Valley loader must avoid animation under reduced motion and react to preference changes');
+    }
+  }
+  if (!indexSource.includes('js/effects/valley-loader.js')) {
+    fail('Valley lifecycle loader must be reachable from the app shell');
+  }
+  if (indexSource.indexOf('<script type="module" src="js/effects/valley-loader.js')
+    > indexSource.indexOf('<script type="module" src="js/core/app.js')) {
+    fail('Valley lifecycle loader must subscribe before app.js can publish initial cached stats');
+  }
+  if (!loaderSource.includes('lastStatsDetail')
+    || !/addEventListener\(\s*['"]stats-updated['"]\s*,\s*rememberStats/.test(loaderSource)
+    || !/effect\?\.seedStats\?\.\(lastStatsDetail\)/.test(loaderSource)
+    || /dispatchEvent\(new (?:CustomEvent|Event)\(/.test(loaderSource)
+    || !/seedStats\s*\(detail\)/.test(rendererSource)) {
+    fail('Valley loader must privately seed the latest stats without rebroadcasting stale app events');
+  }
+
+  if (!rendererSource) {
+    fail('Valley painterly renderer is missing');
+  } else {
+    for (const primitive of [
+      [/\bfetch\s*\(/, 'fetch'],
+      [/\bXMLHttpRequest\b/, 'XMLHttpRequest'],
+      [/\bWebSocket\b/, 'WebSocket'],
+      [/\bEventSource\b/, 'EventSource']
+    ]) {
+      if (primitive[0].test(rendererSource)) {
+        fail(`Valley renderer must consume app events instead of starting its own ${primitive[1]} network source`);
+      }
+    }
+    for (const eventName of ['stats-updated', 'block-pulse']) {
+      if (!new RegExp(`addEventListener\\(\\s*['"]${eventName}['"]`).test(rendererSource)) {
+        fail(`Valley renderer must listen for ${eventName}`);
+      }
+      if (!new RegExp(`removeEventListener\\(\\s*['"]${eventName}['"]`).test(rendererSource)) {
+        fail(`Valley renderer cleanup must remove its ${eventName} listener`);
+      }
+    }
+    if (!/devicePixelRatio/.test(rendererSource)
+      || !/Math\.min\([\s\S]{0,120}(?:devicePixelRatio|DPR)|Math\.min\([\s\S]{0,120}DPR[\s\S]{0,120}devicePixelRatio/.test(rendererSource)) {
+      fail('Valley renderer must cap device pixel ratio before sizing its canvas');
+    }
+    if (!/const DPR_CAP\s*=\s*1\s*;/.test(rendererSource)) {
+      fail('Valley decorative raster must stay at 1x so high-DPI screens do not multiply full-viewport paint cost');
+    }
+    if (!/requestAnimationFrame/.test(rendererSource)
+      || !/cancelAnimationFrame/.test(rendererSource)
+      || !/(?:FRAME|FPS|frameInterval|lastFrame|lastPaint)/i.test(rendererSource)
+      || !/(?:timestamp|time)\s*-/.test(rendererSource)) {
+      fail('Valley renderer must use a cancellable, cadence-capped animation frame loop');
+    }
+    if (!/addEventListener\(\s*['"]visibilitychange['"]/.test(rendererSource)
+      || !/removeEventListener\(\s*['"]visibilitychange['"]/.test(rendererSource)
+      || !/(?:visibilityState|document\.hidden)/.test(rendererSource)) {
+      fail('Valley renderer must pause while hidden and remove its visibility listener on cleanup');
+    }
+    if (!/valley-background-canvas/.test(rendererSource)
+      || !/(?:setAttribute\(\s*['"]aria-hidden['"]\s*,\s*['"]true['"]|ariaHidden\s*=\s*['"]true['"])/.test(rendererSource)
+      || !/(?:pointerEvents|pointer-events)\s*(?::|=)\s*['"]?none/.test(rendererSource)) {
+      fail('Valley canvas must be decorative, aria-hidden, and click-through');
+    }
+    if (!/(?:function|const)\s+(?:stop|cleanup|destroy)|\bstop\s*\(/.test(rendererSource)
+      || !/\.remove\(\)/.test(rendererSource)) {
+      fail('Valley renderer must expose cleanup that removes its canvas');
+    }
+  }
+
+  const valleyBlock = stylesSource.match(/\[data-theme=["']valley["']\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  const fallbackBlock = stylesSource.match(/body\[data-theme=["']valley["']\]::before\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  for (const token of ['--bg-primary', '--bg-secondary', '--bg-tertiary', '--text-primary', '--text-tertiary', '--text-muted']) {
+    if (!new RegExp(`${token}\\s*:`).test(valleyBlock)) fail(`Valley palette is missing ${token}`);
+  }
+  if (!/background\s*:/.test(fallbackBlock) || !/(?:linear|radial)-gradient/.test(fallbackBlock)) {
+    fail('Valley needs a static CSS landscape fallback when canvas motion is unavailable');
+  }
+  if (!valleyBundle || !valleyMinBundle) {
+    fail('Valley source and minified lazy CSS bundles must both be generated');
+  } else if (!/valley/.test(valleyBundle) || !/valley/.test(valleyMinBundle)
+    || !/::before/.test(valleyBundle) || !/::before/.test(valleyMinBundle)) {
+    fail('Valley lazy CSS bundles must retain the static fallback');
+  }
+  for (const selector of ['[data-theme="valley"] .visit-streak-toast', '[data-theme="valley"] .comparison-col-tezos']) {
+    if (!stylesSource.includes(selector)) fail(`Valley component coverage is missing ${selector}`);
+  }
+  if (!landingSource.includes('15 Themes') || /14 Themes|14 themes/.test(landingSource)
+    || !smokeSource.includes("'15 themes'") || /'14 themes'/.test(smokeSource)
+    || !/theme-row['"]\s*,\s*15/.test(smokeSource)) {
+    fail('Valley must update landing and browser checks from 14 to the canonical 15-theme catalog');
+  }
+
+  const variables = Object.fromEntries(
+    Array.from(valleyBlock.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi), (match) => [match[1], match[2].trim()])
+  );
+  const resolveVariable = (value, depth = 0) => {
+    const variable = String(value || '').match(/^var\((--[a-z0-9-]+)\)$/i)?.[1];
+    if (!variable || depth > 4) return value;
+    return resolveVariable(variables[variable], depth + 1);
+  };
+  const normalizeHex = (value) => /^#[0-9a-f]{3}$/i.test(value || '')
+    ? `#${value.slice(1).split('').map((character) => character.repeat(2)).join('')}`
+    : value;
+  const luminance = (hex) => {
+    const channels = hex.slice(1).match(/.{2}/g).map((value) => Number.parseInt(value, 16) / 255);
+    const linear = channels.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+  };
+  const contrastRatio = (left, right) => {
+    const light = Math.max(luminance(left), luminance(right));
+    const dark = Math.min(luminance(left), luminance(right));
+    return (light + 0.05) / (dark + 0.05);
+  };
+  for (const textToken of ['--text-tertiary', '--text-muted']) {
+    const textColor = normalizeHex(resolveVariable(variables[textToken]));
+    for (const backgroundToken of ['--bg-primary', '--bg-secondary', '--bg-tertiary']) {
+      const backgroundColor = normalizeHex(resolveVariable(variables[backgroundToken]));
+      if (!/^#[0-9a-f]{6}$/i.test(textColor || '') || !/^#[0-9a-f]{6}$/i.test(backgroundColor || '')) {
+        fail(`Valley contrast contract could not resolve ${textToken} on ${backgroundToken}`);
+        continue;
+      }
+      const ratio = contrastRatio(textColor, backgroundColor);
+      if (ratio < 4.5) {
+        fail(`Valley ${textToken} contrast is ${ratio.toFixed(2)}:1 on ${backgroundToken}; small text needs at least 4.5:1`);
+      }
+    }
+  }
+
+  if (!smokeSource.includes("name: 'valley-theme'")) {
+    fail('smoke catalog must include the focused Valley lifecycle suite');
+  }
+  pass('Valley registry, lazy renderer, lifecycle, accessibility, fallback, and contrast contracts checked');
+}
+
 async function checkPortableTooling() {
   const packageJson = JSON.parse(await readText('package.json'));
   const gitignore = await readText('.gitignore');
@@ -7503,7 +7709,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=499'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=500'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -7601,6 +7807,7 @@ async function main() {
   await checkTruthSurfaceContracts();
   await checkStylesheetFreshness();
   await checkAuroraDesktopTitleTreatment();
+  await checkValleyThemeContracts();
   await checkPortableTooling();
   await checkRepositoryLicense();
   await checkSmokeSuiteCatalogContracts();

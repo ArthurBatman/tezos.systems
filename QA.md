@@ -75,7 +75,7 @@ room below. Do not substitute representative sampling for this release pass.
 
 | Axis | Required cases |
 | --- | --- |
-| Themes | `aurora`, `matrix`, `hen`, `default`, `void`, `ember`, `signal`, `nerv`, `clean`, `dark`, `bubblegum`, `abyss`, `moss`, `warzone` |
+| Themes | `aurora`, `matrix`, `hen`, `default`, `void`, `ember`, `signal`, `nerv`, `clean`, `dark`, `bubblegum`, `abyss`, `moss`, `valley`, `warzone` |
 | Desktop viewports | `1440x1000`, `1280x900` |
 | Mobile viewports | `390x844`, `375x812`, `360x720` |
 | Rooms | Maxis, Season, Passport, Champions |

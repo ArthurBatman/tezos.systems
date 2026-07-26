@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-26',
         entries: [
+            { type: '🎨', text: 'Valley adds a warm painterly landscape behind legible data glass, with a moving live-network atmosphere and a calm static scene when reduced motion is preferred' },
             { type: '🔧', text: 'Chain comparisons now refresh monthly from source, require two checks for every published static number, expose the verification receipt, and show Algorand’s current 2.82-second average block finality' },
             { type: '🎨', text: 'Network Health now places current-cycle progress directly below Mainnet Continuity and keeps the mainnet-age counter compact' },
             { type: '✨', text: 'Network Health now shows the live percentage through the current Tezos cycle, with its cycle number, head level, remaining time, and a progress rail sourced from Octez RPC' },
