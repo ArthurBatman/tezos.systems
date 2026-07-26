@@ -1611,6 +1611,8 @@ async function checkSelectorContracts() {
 
   const uptimeClusterStart = index.indexOf('<div class="top-uptime-cluster">');
   const milestonePopoverIndex = index.indexOf('<span class="top-continuity-milestone-popover"', uptimeClusterStart);
+  const milestoneEclipseIndex = index.indexOf('<span class="top-continuity-milestone-eclipse"', uptimeClusterStart);
+  const milestoneCloseIndex = index.indexOf('<button class="top-continuity-milestone-close"', uptimeClusterStart);
   const milestoneLinkIndex = index.indexOf('<a class="top-continuity-milestone-link"', uptimeClusterStart);
   const uptimeYearIndex = index.indexOf('<button class="top-continuity-history"', uptimeClusterStart);
   const uptimeCounterIndex = index.indexOf('id="hero-chain-uptime-counter"', uptimeYearIndex);
@@ -1619,14 +1621,16 @@ async function checkSelectorContracts() {
     uptimeClusterStart < 0
     || uptimeYearIndex < uptimeClusterStart
     || uptimeCounterIndex < uptimeYearIndex
-    || uptimeOriginIndex < uptimeCounterIndex
+    || milestoneEclipseIndex < uptimeCounterIndex
+    || uptimeOriginIndex < milestoneEclipseIndex
     || milestonePopoverIndex < uptimeOriginIndex
+    || milestoneCloseIndex < milestonePopoverIndex
     || milestoneLinkIndex < milestonePopoverIndex
   ) {
-    fail('header milestone inscription must reuse the uptime subline and keep its explicit-action popover anchored after the clock');
+    fail('header milestone eclipse must wrap the uptime counter and keep its closeable explicit-action disclosure anchored after the clock');
   }
   if (index.includes('top-continuity-milestone-orbit')) {
-    fail('header milestone inscription must not restore the retired chronograph');
+    fail('header milestone eclipse must not restore the retired chronograph');
   }
   const brandStackStart = index.indexOf('<div class="header-brand-stack">');
   const titleRowIndex = index.indexOf('<div class="header-title-row"', brandStackStart);
@@ -2355,8 +2359,9 @@ async function checkSelectorContracts() {
     ['top continuity mainnet-age statement claim', 'top-continuity-claim">mainnet age', index],
     ['top continuity statement subline', 'class="top-continuity-subline"', index],
     ['top continuity since-2018 marker', 'top-continuity-origin">since 2018', index],
-    ['top continuity milestone runtime marker', 'class="top-continuity-primary-line"', index],
+    ['top continuity milestone runtime eclipse', 'class="top-continuity-milestone-eclipse"', index],
     ['top continuity milestone anchored disclosure', 'id="top-continuity-milestone-popover" role="group"', index],
+    ['top continuity milestone close action', 'id="top-continuity-milestone-close"', index],
     ['top continuity milestone explicit action', 'id="top-continuity-milestone-link"', index],
     ['header trailing-hour activity launcher', 'id="header-activity-button"', index],
     ['header trailing-hour activity cluster', 'class="header-activity-cluster"', health],
@@ -2425,11 +2430,12 @@ async function checkSelectorContracts() {
     ['top continuity milestone near state', "classList.toggle('is-milestone-near', near)", app],
     ['top continuity milestone crossed state', "classList.toggle('is-milestone-crossed', crossed)", app],
     ['top continuity nullable milestone expiry guard', "if (value == null || value === '') return null;", app],
-    ['top continuity milestone static clock accent', '.top-uptime-cluster.has-milestone-signal .top-continuity-runtime', shellExtrasCss],
-    ['top continuity milestone subline inscription', '.top-uptime-cluster.has-milestone-signal .top-continuity-origin', shellExtrasCss],
+    ['top continuity milestone static eclipse', '.top-continuity-milestone-eclipse-arc', shellExtrasCss],
+    ['top continuity milestone distinct crossed eclipse', 'stroke-dasharray: 78 22;', shellExtrasCss],
     ['top continuity milestone popover styles', '.top-continuity-milestone-popover', shellExtrasCss],
-    ['top continuity mobile centered milestone stack', 'grid-template-columns: minmax(0, 1fr);', shellExtrasCss],
+    ['top continuity mobile fixed milestone sheet', 'bottom: max(0.72rem, env(safe-area-inset-bottom));', shellExtrasCss],
     ['top continuity milestone action styles', '.top-continuity-milestone-link', shellExtrasCss],
+    ['top continuity milestone close wiring', "topContinuityMilestoneClose?.addEventListener('click'", app],
     ['top continuity disclosure state', 'uptimeMilestoneDisclosureLocked', app],
     ['top continuity disclosure-only clock click', 'const shouldOpen = !topContinuityProof?.classList.contains', app],
     ['top continuity explicit destination action', "topContinuityMilestoneLink?.addEventListener('click'", app],
@@ -7419,7 +7425,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=494'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=495'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

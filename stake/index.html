@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=494">
-    <link rel="stylesheet" href="/css/loading.css?v=494">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=494">
-    <link rel="stylesheet" href="/css/site-map.css?v=494">
+    <link rel="stylesheet" href="/css/styles.min.css?v=495">
+    <link rel="stylesheet" href="/css/loading.css?v=495">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=495">
+    <link rel="stylesheet" href="/css/site-map.css?v=495">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=494">
+    <link rel="modulepreload" href="/js/core/app.js?v=495">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/data-assets.js">
@@ -157,7 +157,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=494"></script>
+    <script src="/js/core/theme-preload.js?v=495"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -510,6 +510,12 @@
                                 <span class="top-continuity-statement">
                                     <span class="top-continuity-primary-line">
                                         <strong class="top-continuity-runtime" id="hero-chain-uptime-counter">—</strong>
+                                        <span class="top-continuity-milestone-eclipse" aria-hidden="true" hidden>
+                                            <svg viewBox="0 0 100 44" preserveAspectRatio="none" focusable="false">
+                                                <ellipse class="top-continuity-milestone-eclipse-track" cx="50" cy="22" rx="48" ry="20" pathLength="100"></ellipse>
+                                                <ellipse class="top-continuity-milestone-eclipse-arc" cx="50" cy="22" rx="48" ry="20" pathLength="100"></ellipse>
+                                            </svg>
+                                        </span>
                                     </span>
                                     <span class="top-continuity-subline">
                                         <span class="top-continuity-claim">mainnet age</span>
@@ -520,6 +526,7 @@
                                 </span>
                             </button>
                             <span class="top-continuity-milestone-popover" id="top-continuity-milestone-popover" role="group" aria-labelledby="top-continuity-milestone-title" aria-hidden="true" hidden>
+                                <button class="top-continuity-milestone-close" id="top-continuity-milestone-close" type="button" aria-label="Close milestone details">×</button>
                                 <span class="top-continuity-milestone-kicker">
                                     <span id="top-continuity-milestone-status">On-chain milestone</span>
                                 </span>
@@ -2502,7 +2509,7 @@
 
     <!-- Load app as module -->
     <script defer src="/js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="/js/core/app.js?v=494"></script>
+    <script type="module" src="/js/core/app.js?v=495"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

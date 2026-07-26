@@ -116,8 +116,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=494';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=494';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=495';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=495';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -2717,7 +2717,9 @@ function initUptimeClock() {
     const topContinuityClaim = topContinuityHistory?.querySelector('.top-continuity-claim');
     const topContinuityOrigin = topContinuityHistory?.querySelector('.top-continuity-origin');
     const topContinuityArrow = topContinuityHistory?.querySelector('.top-continuity-arrow');
+    const topContinuityMilestoneEclipse = topContinuityHistory?.querySelector('.top-continuity-milestone-eclipse');
     const topContinuityMilestonePopover = document.getElementById('top-continuity-milestone-popover');
+    const topContinuityMilestoneClose = document.getElementById('top-continuity-milestone-close');
     const topContinuityMilestoneStatus = document.getElementById('top-continuity-milestone-status');
     const topContinuityMilestoneTitle = document.getElementById('top-continuity-milestone-title');
     const topContinuityMilestoneCopy = document.getElementById('top-continuity-milestone-copy');
@@ -2880,9 +2882,8 @@ function initUptimeClock() {
             else delete topContinuityHistory.dataset.milestoneStatus;
         }
         setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
+        if (topContinuityMilestoneEclipse) topContinuityMilestoneEclipse.hidden = !active;
         if (topContinuityMilestonePopover) topContinuityMilestonePopover.hidden = !active;
-        if (topContinuityOrigin) topContinuityOrigin.textContent = active ? 'milestone' : 'since 2018';
-        if (topContinuityArrow) topContinuityArrow.textContent = active ? '⌄' : '↗';
 
         if (active) {
             const target = cleanUptimeMilestoneText(signal.shortLabel || signal.icon || signal.title || 'Milestone');
@@ -3302,6 +3303,10 @@ function initUptimeClock() {
             setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
             openUptimeMilestoneDestination(milestoneSignal);
         });
+        topContinuityMilestoneClose?.addEventListener('click', () => {
+            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
+            topContinuityMilestoneClose.blur();
+        });
         topContinuityPanel.querySelectorAll('.top-continuity-stat[data-card-history]').forEach((pill) => {
             if (pill.dataset.topContinuityHistoryPillWired === '1') return;
             pill.dataset.topContinuityHistoryPillWired = '1';
@@ -3357,12 +3362,10 @@ function initUptimeClock() {
             topContinuityClaim.textContent = active ? anniversary.claimText : 'mainnet age';
         }
         if (topContinuityOrigin) {
-            topContinuityOrigin.textContent = activeMilestone
-                ? 'milestone'
-                : (active ? anniversary.originText : 'since 2018');
+            topContinuityOrigin.textContent = active ? anniversary.originText : 'since 2018';
         }
         if (topContinuityArrow) {
-            topContinuityArrow.textContent = activeMilestone ? '⌄' : '↗';
+            topContinuityArrow.textContent = '↗';
         }
         if (!topContinuityHistory) return;
 

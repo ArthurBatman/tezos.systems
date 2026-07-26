@@ -278,46 +278,66 @@
     isolation: isolate;
 }
 
-.top-uptime-cluster.has-milestone-signal .top-continuity-primary-line {
-    filter: drop-shadow(0 0 7px color-mix(in srgb, var(--milestone-blue) 24%, transparent));
-}
-
-.top-uptime-cluster.has-milestone-signal .top-continuity-runtime {
+.top-continuity-primary-line {
     position: relative;
-    z-index: 1;
-    background: linear-gradient(
-        92deg,
-        color-mix(in srgb, var(--text-primary) 94%, var(--milestone-blue)) 0%,
-        color-mix(in srgb, var(--text-primary) 72%, var(--milestone-cyan)) 46%,
-        color-mix(in srgb, var(--text-primary) 84%, var(--milestone-pink)) 74%,
-        color-mix(in srgb, var(--text-primary) 94%, var(--milestone-blue)) 100%
-    );
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    text-shadow: none;
-    transition: filter 240ms ease;
+    isolation: isolate;
 }
 
-.top-uptime-cluster.has-milestone-signal .top-continuity-subline {
-    color: color-mix(in srgb, var(--uptime-badge-label) 72%, var(--milestone-cyan));
+.top-continuity-milestone-eclipse {
+    position: absolute;
+    top: -0.36rem;
+    left: -0.68rem;
+    display: block;
+    width: calc(100% + 1.36rem);
+    height: calc(100% + 0.66rem);
+    z-index: -1;
+    pointer-events: none;
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--milestone-blue) 26%, transparent));
 }
 
-.top-uptime-cluster.has-milestone-signal .top-continuity-origin {
-    color: color-mix(in srgb, var(--text-primary) 70%, var(--milestone-cyan));
-    font-weight: 900;
-    letter-spacing: 0.16em;
-    text-shadow: 0 0 8px color-mix(in srgb, var(--milestone-blue) 18%, transparent);
+.top-continuity-milestone-eclipse[hidden] {
+    display: none;
 }
 
-.top-uptime-cluster.has-milestone-signal .top-continuity-separator {
-    color: color-mix(in srgb, var(--milestone-blue) 64%, var(--text-secondary));
+.top-continuity-milestone-eclipse svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
 }
 
-.top-uptime-cluster.has-milestone-signal .top-continuity-arrow {
-    color: color-mix(in srgb, var(--milestone-cyan) 68%, var(--text-primary));
-    transform: translateY(-0.04em);
+.top-continuity-milestone-eclipse ellipse {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+}
+
+.top-continuity-milestone-eclipse-track {
+    stroke: color-mix(in srgb, var(--milestone-blue) 20%, transparent);
+    stroke-width: 0.8px;
+}
+
+.top-continuity-milestone-eclipse-arc {
+    stroke: color-mix(in srgb, var(--milestone-cyan) 68%, var(--milestone-blue));
+    stroke-width: 1.45px;
+    stroke-linecap: round;
+    stroke-dasharray: 42 58;
+    stroke-dashoffset: 68;
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse {
+    filter:
+        drop-shadow(0 0 5px color-mix(in srgb, var(--milestone-cyan) 38%, transparent))
+        drop-shadow(0 0 9px color-mix(in srgb, var(--milestone-blue) 18%, transparent));
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse-track {
+    stroke: color-mix(in srgb, var(--milestone-blue) 28%, transparent);
+}
+
+.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse-arc {
+    stroke: color-mix(in srgb, var(--milestone-cyan) 80%, var(--milestone-pink));
+    stroke-width: 1.65px;
+    stroke-dasharray: 78 22;
 }
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-history {
@@ -351,11 +371,38 @@
     z-index: 60;
 }
 
+.top-continuity-milestone-popover[hidden] {
+    display: none;
+}
+
 .top-uptime-cluster.is-milestone-disclosed .top-continuity-milestone-popover {
     pointer-events: auto;
     opacity: 1;
     visibility: visible;
     transform: translateY(0) scale(1);
+}
+
+.top-continuity-milestone-close {
+    position: absolute;
+    top: 0.42rem;
+    right: 0.48rem;
+    display: inline-grid;
+    place-items: center;
+    width: 1.55rem;
+    height: 1.55rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: color-mix(in srgb, var(--text-secondary) 82%, var(--milestone-cyan));
+    font: 700 1.05rem/1 var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    cursor: pointer;
+}
+
+.top-continuity-milestone-close:is(:hover, :focus-visible) {
+    background: color-mix(in srgb, var(--milestone-blue) 12%, transparent);
+    color: var(--text-primary);
+    outline: none;
 }
 
 .top-continuity-milestone-kicker {
@@ -1648,24 +1695,41 @@
     }
 
     .top-continuity-milestone-popover {
-        position: relative;
+        position: fixed;
         top: auto;
-        left: auto;
+        right: auto;
+        bottom: max(0.72rem, env(safe-area-inset-bottom));
+        left: 50%;
         display: none;
-        grid-row: 2;
-        justify-self: center;
-        width: min(19rem, calc(100vw - 2rem));
-        margin-top: 0.12rem;
+        width: min(22rem, calc(100vw - 1.2rem));
+        margin: 0;
+        padding: 0.84rem 0.88rem 0.8rem;
         opacity: 1;
         visibility: visible;
         text-align: left;
-        transform: none;
-        transform-origin: top center;
+        transform: translate(-50%, 0.45rem);
+        transform-origin: bottom center;
+        box-shadow:
+            0 18px 48px rgba(0, 0, 0, 0.52),
+            0 0 22px color-mix(in srgb, var(--milestone-blue) 13%, transparent);
+        z-index: 7200;
     }
 
     .top-uptime-cluster.is-milestone-disclosed .top-continuity-milestone-popover {
         display: grid;
-        transform: none;
+        transform: translate(-50%, 0);
+    }
+
+    .top-continuity-milestone-close {
+        top: 0.12rem;
+        right: 0.12rem;
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .top-continuity-milestone-link {
+        min-height: 2.75rem;
+        padding-top: 0.62rem;
     }
 
     .top-continuity-explain {

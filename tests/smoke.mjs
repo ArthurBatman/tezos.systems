@@ -5180,8 +5180,11 @@ async function smokeCycleMilestone(browser, baseUrl) {
       clockAria: document.querySelector('#top-continuity-history')?.getAttribute('aria-label') || '',
       clockRoute: document.querySelector('#top-continuity-history')?.dataset.milestoneRoute || '',
       clockSubline: document.querySelector('#top-continuity-history .top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-      clockBackground: getComputedStyle(document.querySelector('#hero-chain-uptime-counter')).backgroundImage,
-      clockAnimation: getComputedStyle(document.querySelector('#top-continuity-history .top-continuity-primary-line')).animationName,
+      eclipseVisible: !document.querySelector('.top-continuity-milestone-eclipse')?.hidden
+        && getComputedStyle(document.querySelector('.top-continuity-milestone-eclipse')).display !== 'none',
+      eclipseInsideClock: Boolean(document.querySelector('#top-continuity-history')?.contains(document.querySelector('.top-continuity-milestone-eclipse'))),
+      eclipseDasharray: getComputedStyle(document.querySelector('.top-continuity-milestone-eclipse-arc')).strokeDasharray,
+      eclipseAnimation: getComputedStyle(document.querySelector('.top-continuity-milestone-eclipse-arc')).animationName,
       popoverTitle: document.querySelector('#top-continuity-milestone-title')?.textContent?.trim() || '',
       popoverStatus: document.querySelector('#top-continuity-milestone-status')?.textContent?.trim() || '',
       popoverCopy: document.querySelector('#top-continuity-milestone-copy')?.textContent?.trim() || '',
@@ -5208,6 +5211,18 @@ async function smokeCycleMilestone(browser, baseUrl) {
       expanded: clock?.getAttribute('aria-expanded') || ''
     };
   });
+  const eclipseStateContrast = await page.evaluate(() => {
+    const cluster = document.querySelector('.top-uptime-cluster');
+    const arc = document.querySelector('.top-continuity-milestone-eclipse-arc');
+    if (!cluster || !arc) return { crossed: '', near: '' };
+    const crossed = getComputedStyle(arc).strokeDasharray;
+    cluster.classList.remove('is-milestone-crossed', 'is-milestone-celebrating');
+    cluster.classList.add('is-milestone-near');
+    const near = getComputedStyle(arc).strokeDasharray;
+    cluster.classList.remove('is-milestone-near');
+    cluster.classList.add('is-milestone-crossed', 'is-milestone-celebrating');
+    return { crossed, near };
+  });
   await page.waitForTimeout(1400);
   const after = await page.evaluate(() => {
     const card = document.querySelector('[data-hot-signal-id="milestone-cycle-1300"]');
@@ -5227,9 +5242,11 @@ async function smokeCycleMilestone(browser, baseUrl) {
   assert(/1,300 cycles crossed/.test(before.text) && /3d left/.test(before.text), `cycle milestone: exact crossed copy or expiry missing ${JSON.stringify(before)}`);
   assert(/1,300 cycles/.test(before.clockAria)
     && before.clockRoute === '#health'
-    && /mainnet age.*milestone/i.test(before.clockSubline)
-    && before.clockBackground !== 'none'
-    && before.clockAnimation === 'none'
+    && /mainnet age.*since 2018/i.test(before.clockSubline)
+    && before.eclipseVisible
+    && before.eclipseInsideClock
+    && before.eclipseDasharray.includes('78')
+    && before.eclipseAnimation === 'none'
     && before.popoverTitle === '1,300 cycles'
     && before.popoverStatus === 'Confirmed on-chain'
     && /Cycle 1,300 is confirmed on-chain/.test(before.popoverCopy)
@@ -5237,12 +5254,16 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && before.popoverLinkLabel === 'Open Network Health'
     && before.orbitControls === 0
     && before.detachedInfoControls === 0,
-  `cycle milestone: uptime should carry the quiet MILESTONE inscription without a detached control or animation ${JSON.stringify(before)}`);
+  `cycle milestone: uptime should carry the fuller crossed eclipse without rewriting the clock or adding animation ${JSON.stringify(before)}`);
   assert(Number.parseFloat(clockHover.opacity) >= 0.98
     && clockHover.pointerEvents === 'auto'
     && clockHover.expanded === 'true'
     && /Confirmed on-chain 1,300 cycles.*Open Network Health/.test(clockHover.text),
   `cycle milestone: hovering the uptime clock did not reveal the anchored event card ${JSON.stringify(clockHover)}`);
+  assert(eclipseStateContrast.near.includes('42')
+    && eclipseStateContrast.crossed.includes('78')
+    && eclipseStateContrast.near !== eclipseStateContrast.crossed,
+  `cycle milestone: approaching and crossed events should have visibly different eclipse completion ${JSON.stringify(eclipseStateContrast)}`);
   assert(before.href === '#health' && before.active && before.status === 'crossed', `cycle milestone: route, arrival lead, or status mismatch ${JSON.stringify(before)}`);
   assert(!before.earlier && !after.earlier, `cycle milestone: dead Earlier today breadcrumb survived ${JSON.stringify({ before, after })}`);
   assert(after.sameCard && after.focused && after.selected === '1,300 cycles', `cycle milestone: quiet reconciliation replaced or disturbed the active card ${JSON.stringify(after)}`);
@@ -5281,6 +5302,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
   assert(mobileResponse?.ok(), `mobile cycle milestone: dashboard failed with HTTP ${mobileResponse?.status()}`);
   await mobilePage.locator('[data-hot-signal-id="milestone-cycle-1300"]').waitFor({ state: 'visible', timeout: 10000 });
   const mobileClock = mobilePage.locator('#top-continuity-history');
+  const activityTopBeforeTap = await mobilePage.locator('#header-activity-button').evaluate((element) => element.getBoundingClientRect().top);
   await mobileClock.tap();
   await mobilePage.waitForFunction(() => {
     const popover = document.querySelector('#top-continuity-milestone-popover');
@@ -5292,10 +5314,13 @@ async function smokeCycleMilestone(browser, baseUrl) {
     const clock = document.querySelector('#top-continuity-history');
     const popover = document.querySelector('#top-continuity-milestone-popover');
     const milestoneLink = document.querySelector('#top-continuity-milestone-link');
+    const milestoneClose = document.querySelector('#top-continuity-milestone-close');
+    const eclipse = document.querySelector('.top-continuity-milestone-eclipse');
     const activity = document.querySelector('#header-activity-button');
     const clockRect = clock?.getBoundingClientRect();
     const popoverRect = popover?.getBoundingClientRect();
     const linkRect = milestoneLink?.getBoundingClientRect();
+    const closeRect = milestoneClose?.getBoundingClientRect();
     const activityRect = activity?.getBoundingClientRect();
     return {
       hash: window.location.hash,
@@ -5305,12 +5330,17 @@ async function smokeCycleMilestone(browser, baseUrl) {
       popoverOpacity: popover ? Number.parseFloat(getComputedStyle(popover).opacity) : 0,
       popoverText: popover?.textContent?.replace(/\s+/g, ' ').trim() || '',
       popoverInsideViewport: Boolean(popoverRect && popoverRect.left >= 0 && popoverRect.right <= window.innerWidth),
-      popoverBelowClock: Boolean(popoverRect && clockRect && popoverRect.top >= clockRect.bottom - 1),
-      activityBelowPopover: Boolean(activityRect && popoverRect && activityRect.top >= popoverRect.bottom - 1),
+      popoverPosition: popover ? getComputedStyle(popover).position : '',
+      popoverBottomGap: popoverRect ? window.innerHeight - popoverRect.bottom : -1,
+      activityTop: activityRect?.top ?? -1,
       subline: clock?.querySelector('.top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      eclipseVisible: Boolean(eclipse && !eclipse.hidden && getComputedStyle(eclipse).display !== 'none'),
+      eclipseDasharray: eclipse ? getComputedStyle(eclipse.querySelector('.top-continuity-milestone-eclipse-arc')).strokeDasharray : '',
+      eclipseAnimation: eclipse ? getComputedStyle(eclipse.querySelector('.top-continuity-milestone-eclipse-arc')).animationName : '',
       linkText: milestoneLink?.textContent?.replace(/\s+/g, ' ').trim() || '',
       linkHref: milestoneLink?.getAttribute('href') || '',
       linkVisible: Boolean(linkRect && linkRect.width > 0 && linkRect.height > 0),
+      closeVisible: Boolean(closeRect && closeRect.width > 0 && closeRect.height > 0),
       orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length
     };
   });
@@ -5321,14 +5351,33 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && firstTap.popoverOpacity >= 0.98
     && /Confirmed on-chain.*Open Network Health/.test(firstTap.popoverText)
     && firstTap.popoverInsideViewport
-    && firstTap.popoverBelowClock
-    && firstTap.activityBelowPopover
-    && /mainnet age.*milestone/i.test(firstTap.subline)
+    && firstTap.popoverPosition === 'fixed'
+    && firstTap.popoverBottomGap >= 0
+    && firstTap.popoverBottomGap <= 20
+    && Math.abs(firstTap.activityTop - activityTopBeforeTap) <= 1
+    && /mainnet age.*since 2018/i.test(firstTap.subline)
+    && firstTap.eclipseVisible
+    && firstTap.eclipseDasharray.includes('78')
+    && firstTap.eclipseAnimation === 'none'
     && firstTap.linkText === 'Open Network Health ↗'
     && firstTap.linkHref === '#health'
     && firstTap.linkVisible
+    && firstTap.closeVisible
     && firstTap.orbitControls === 0,
-  `mobile cycle milestone: clock tap should only unfold a labeled event action beneath the inscription ${JSON.stringify(firstTap)}`);
+  `mobile cycle milestone: first clock tap should open a fixed, closeable explanation sheet without navigating or moving header content ${JSON.stringify(firstTap)}`);
+  await mobilePage.locator('#top-continuity-milestone-close').tap();
+  const afterClose = await mobilePage.evaluate(() => ({
+    hash: window.location.hash,
+    chamberOpen: Boolean(document.querySelector('.chamber-overlay.active')),
+    expanded: document.querySelector('#top-continuity-history')?.getAttribute('aria-expanded') || '',
+    popoverAriaHidden: document.querySelector('#top-continuity-milestone-popover')?.getAttribute('aria-hidden') || ''
+  }));
+  assert(!afterClose.hash
+    && !afterClose.chamberOpen
+    && afterClose.expanded === 'false'
+    && afterClose.popoverAriaHidden === 'true',
+  `mobile cycle milestone: close control should dismiss the sheet without opening a chamber ${JSON.stringify(afterClose)}`);
+  await mobileClock.tap();
   await mobilePage.locator('#top-continuity-milestone-link').tap();
   await mobilePage.waitForFunction(() => window.location.hash === '#health' && document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 10000 });
   await mobileContext.close();
@@ -8837,11 +8886,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const topProofHistory = document.querySelector('#top-continuity-history');
     const topProofMilestonePopover = document.querySelector('#top-continuity-milestone-popover');
     const topProofMilestoneOrigin = topProofHistory?.querySelector('.top-continuity-origin');
+    const topProofMilestoneEclipse = topProofHistory?.querySelector('.top-continuity-milestone-eclipse');
+    const topProofMilestoneEclipseArc = topProofMilestoneEclipse?.querySelector('.top-continuity-milestone-eclipse-arc');
     const topProofMilestoneLink = document.querySelector('#top-continuity-milestone-link');
+    const topProofMilestoneClose = document.querySelector('#top-continuity-milestone-close');
     const topProofFirstPill = topProof?.querySelector('.top-continuity-stat');
     const topProofHistoryRect = topProofHistory?.getBoundingClientRect();
     const topProofRuntime = topProofHistory?.querySelector('#hero-chain-uptime-counter');
-    const topProofPrimaryLine = topProofHistory?.querySelector('.top-continuity-primary-line');
     const topProofHistoryZoom = topProofHistory ? (parseFloat(getComputedStyle(topProofHistory).zoom) || 1) : 1;
     const headerActivityButton = document.querySelector('#header-activity-button');
     const headerActivityLine = document.querySelector('#header-activity-line');
@@ -8978,9 +9029,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofHistoryMilestoneRoute: topProofHistory?.dataset.milestoneRoute || '',
       topProofMilestoneOrbitCount: document.querySelectorAll('.top-continuity-milestone-orbit').length,
       topProofMilestoneOrigin: topProofMilestoneOrigin?.textContent?.trim() || '',
-      topProofMilestoneRuntimeBackground: topProofRuntime ? getComputedStyle(topProofRuntime).backgroundImage : '',
-      topProofMilestoneRuntimeAnimation: topProofPrimaryLine ? getComputedStyle(topProofPrimaryLine).animationName : '',
+      topProofMilestoneEclipseInsideClock: Boolean(topProofHistory?.contains(topProofMilestoneEclipse)),
+      topProofMilestoneEclipseHidden: Boolean(topProofMilestoneEclipse?.hidden),
+      topProofMilestoneEclipseDisplay: topProofMilestoneEclipse ? getComputedStyle(topProofMilestoneEclipse).display : '',
+      topProofMilestoneEclipseDasharray: topProofMilestoneEclipseArc ? getComputedStyle(topProofMilestoneEclipseArc).strokeDasharray : '',
+      topProofMilestoneEclipseAnimation: topProofMilestoneEclipseArc ? getComputedStyle(topProofMilestoneEclipseArc).animationName : '',
       topProofMilestoneLinkHref: topProofMilestoneLink?.getAttribute('href') || '',
+      topProofMilestoneCloseExists: Boolean(topProofMilestoneClose),
       topProofMilestonePopoverAfterHistory: Boolean(topProofMilestonePopover && topProofHistory && (topProofHistory.compareDocumentPosition(topProofMilestonePopover) & Node.DOCUMENT_POSITION_FOLLOWING)),
       topProofMilestonePopoverHidden: Boolean(topProofMilestonePopover?.hidden),
       topProofMilestonePopoverDisplay: topProofMilestonePopover ? getComputedStyle(topProofMilestonePopover).display : '',
@@ -9185,23 +9240,33 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   );
   assert(
     healthState.topProofMilestoneOrbitCount === 0
+      && healthState.topProofMilestoneEclipseInsideClock
+      && healthState.topProofMilestoneCloseExists
       && healthState.topProofMilestonePopoverAfterHistory
       && (
         healthState.topProofMilestonePopoverHidden
           ? healthState.topProofMilestonePopoverDisplay === 'none'
+            && healthState.topProofMilestoneEclipseHidden
+            && healthState.topProofMilestoneEclipseDisplay === 'none'
           : healthState.topProofMilestonePopoverDisplay !== 'none'
-            && healthState.topProofMilestoneOrigin.toLowerCase() === 'milestone'
-            && healthState.topProofMilestoneRuntimeBackground !== 'none'
-            && healthState.topProofMilestoneRuntimeAnimation === 'none'
+            && healthState.topProofMilestoneOrigin.toLowerCase() === 'since 2018'
+            && !healthState.topProofMilestoneEclipseHidden
+            && healthState.topProofMilestoneEclipseDisplay !== 'none'
+            && Boolean(healthState.topProofMilestoneEclipseDasharray)
+            && healthState.topProofMilestoneEclipseAnimation === 'none'
             && Boolean(healthState.topProofMilestoneLinkHref)
             && healthState.topProofMilestonePopoverAriaHidden === 'true'
             && !healthState.topProofMilestoneDisclosed
       ),
-    `network health chamber: milestone inscription must stay on the uptime clock and its dormant disclosure must reserve no reading-state space ${JSON.stringify({
+    `network health chamber: milestone eclipse must stay on the uptime clock and its dormant disclosure must reserve no reading-state space ${JSON.stringify({
       orbitCount: healthState.topProofMilestoneOrbitCount,
       origin: healthState.topProofMilestoneOrigin,
-      runtimeBackground: healthState.topProofMilestoneRuntimeBackground,
-      runtimeAnimation: healthState.topProofMilestoneRuntimeAnimation,
+      eclipseInsideClock: healthState.topProofMilestoneEclipseInsideClock,
+      eclipseHidden: healthState.topProofMilestoneEclipseHidden,
+      eclipseDisplay: healthState.topProofMilestoneEclipseDisplay,
+      eclipseDasharray: healthState.topProofMilestoneEclipseDasharray,
+      eclipseAnimation: healthState.topProofMilestoneEclipseAnimation,
+      closeExists: healthState.topProofMilestoneCloseExists,
       linkHref: healthState.topProofMilestoneLinkHref,
       popoverAfter: healthState.topProofMilestonePopoverAfterHistory,
       popoverHidden: healthState.topProofMilestonePopoverHidden,
@@ -15545,53 +15610,62 @@ async function smokeThemeSelection(browser, baseUrl) {
       const cluster = document.querySelector('.top-uptime-cluster');
       const uptime = document.querySelector('#top-continuity-history');
       const popover = document.querySelector('#top-continuity-milestone-popover');
-      const origin = uptime?.querySelector('.top-continuity-origin');
-      const runtime = uptime?.querySelector('#hero-chain-uptime-counter');
-      const primaryLine = uptime?.querySelector('.top-continuity-primary-line');
+      const eclipse = uptime?.querySelector('.top-continuity-milestone-eclipse');
+      const eclipseArc = eclipse?.querySelector('.top-continuity-milestone-eclipse-arc');
       const link = popover?.querySelector('#top-continuity-milestone-link');
+      const close = popover?.querySelector('#top-continuity-milestone-close');
       const activity = document.querySelector('#header-activity-button');
       const title = document.querySelector('.title');
-      if (!cluster || !uptime || !popover || !origin || !runtime || !primaryLine || !link || !title) return { centerDelta: 999 };
+      if (!cluster || !uptime || !popover || !eclipse || !eclipseArc || !link || !close || !title) return { centerDelta: 999 };
+      const activityTopBefore = activity?.getBoundingClientRect().top ?? -1;
       popover.hidden = false;
+      eclipse.hidden = false;
       popover.querySelector('#top-continuity-milestone-status').textContent = 'Confirmed on-chain';
       popover.querySelector('#top-continuity-milestone-title').textContent = '14M blocks';
       popover.querySelector('#top-continuity-milestone-copy').textContent = 'Tezos has crossed 14M blocks.';
       popover.querySelector('#top-continuity-milestone-link-label').textContent = 'Open Network Health';
       link.setAttribute('href', '#health');
-      origin.textContent = 'milestone';
       cluster.classList.add('has-milestone-signal', 'is-milestone-crossed', 'is-milestone-disclosed');
       const titleRect = title.getBoundingClientRect();
       const uptimeRect = uptime.getBoundingClientRect();
       const popoverRect = popover.getBoundingClientRect();
       const linkRect = link.getBoundingClientRect();
+      const closeRect = close.getBoundingClientRect();
       const activityRect = activity?.getBoundingClientRect();
       return {
         centerDelta: Math.abs((titleRect.left + titleRect.width / 2) - (uptimeRect.left + uptimeRect.width / 2)),
-        inscription: uptime.querySelector('.top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-        runtimeBackground: getComputedStyle(runtime).backgroundImage,
-        runtimeAnimation: getComputedStyle(primaryLine).animationName,
-        popoverBelow: popoverRect.top >= uptimeRect.bottom - 1,
+        subline: uptime.querySelector('.top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        eclipseVisible: !eclipse.hidden && getComputedStyle(eclipse).display !== 'none',
+        eclipseDasharray: getComputedStyle(eclipseArc).strokeDasharray,
+        eclipseAnimation: getComputedStyle(eclipseArc).animationName,
+        popoverPosition: getComputedStyle(popover).position,
+        popoverBottomGap: window.innerHeight - popoverRect.bottom,
         popoverInsideViewport: popoverRect.left >= 0 && popoverRect.right <= window.innerWidth,
-        activityBelowPopover: Boolean(activityRect && activityRect.top >= popoverRect.bottom - 1),
+        activityShift: activityRect ? Math.abs(activityRect.top - activityTopBefore) : 999,
         linkVisible: linkRect.width > 0 && linkRect.height > 0,
         linkText: link.textContent?.replace(/\s+/g, ' ').trim() || '',
+        closeVisible: closeRect.width > 0 && closeRect.height > 0,
         orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length,
         detachedInfoControls: document.querySelectorAll('.top-continuity-milestone-info').length
       };
     });
     assert(
       milestoneState.centerDelta <= 2
-        && /mainnet age.*milestone/i.test(milestoneState.inscription)
-        && milestoneState.runtimeBackground !== 'none'
-        && milestoneState.runtimeAnimation === 'none'
-        && milestoneState.popoverBelow
+        && /mainnet age.*since 2018/i.test(milestoneState.subline)
+        && milestoneState.eclipseVisible
+        && milestoneState.eclipseDasharray.includes('78')
+        && milestoneState.eclipseAnimation === 'none'
+        && milestoneState.popoverPosition === 'fixed'
+        && milestoneState.popoverBottomGap >= 0
+        && milestoneState.popoverBottomGap <= 20
         && milestoneState.popoverInsideViewport
-        && milestoneState.activityBelowPopover
+        && milestoneState.activityShift <= 1
         && milestoneState.linkVisible
         && milestoneState.linkText === 'Open Network Health ↗'
+        && milestoneState.closeVisible
         && milestoneState.orbitControls === 0
         && milestoneState.detachedInfoControls === 0,
-      `theme ${theme} mobile: active milestone inscription and explicit action should remain integrated with the centered uptime clock ${JSON.stringify(milestoneState)}`
+      `theme ${theme} mobile: active milestone eclipse and closeable bottom sheet should remain integrated with the centered uptime clock ${JSON.stringify(milestoneState)}`
     );
   }
 

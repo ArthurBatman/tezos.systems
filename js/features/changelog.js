@@ -7,7 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-25',
         entries: [
-            { type: '🎨', text: 'Network milestones now inscribe the running mainnet-age clock with a quiet static accent and a MILESTONE subline; on touch, the clock only explains while a clearly labeled action opens the relevant room' },
+            { type: '🎨', text: 'Network milestones now form a thin eclipse around the running mainnet-age clock—a shorter arc while approaching and a fuller arc once crossed; on touch, the clock opens a compact explanation sheet while a clearly labeled action opens the relevant room' },
             { type: '✨', text: 'Ecosystem Activity now ranks reviewed Tezos L1 and Etherlink dapps by last-completed-week active wallet addresses, with full weekly history, YoY change, partial-week context, and contract receipts' },
             { type: '⚡', text: 'The Ecosystem launcher loads a compact integrity-checked projection while complete app histories remain deferred until the room opens' },
             { type: '🔧', text: 'Capital refreshes now retain the complete last-good exchange page when CoinGecko returns an incomplete ticker payload instead of publishing a partial market table' },
