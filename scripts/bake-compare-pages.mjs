@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG_FILE = path.join(ROOT, 'js', 'core', 'config.js');
-const PROTOCOL_FILE = path.join(ROOT, 'data', 'protocol-data.json');
 const COMPARE_INDEX_FILE = path.join(ROOT, 'compare', 'index.html');
 
 const PAGES = {
@@ -14,26 +13,6 @@ const PAGES = {
   solana: 'compare/tezos-vs-solana.html',
   cardano: 'compare/tezos-vs-cardano.html',
   algorand: 'compare/tezos-vs-algorand.html'
-};
-
-const PEER_REFERENCES = {
-  ethereum: [
-    ['Ethereum PoS and finality', 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/']
-  ],
-  solana: [
-    ['Solana whitepaper', 'https://solana.com/solana-whitepaper.pdf'],
-    ['energy methodology', 'https://solana.com/news/solana-energy-use-report-december-2023']
-  ],
-  cardano: [
-    ['Cardano governance', 'https://docs.cardano.org/about-cardano/governance-overview'],
-    ['eras and phases', 'https://docs.cardano.org/about-cardano/evolution/eras-and-phases']
-  ],
-  algorand: [
-    ['Algorand finality', 'https://developer.algorand.org/solutions/avm-evm-instant-finality/'],
-    ['sustainability', 'https://algorand.co/technology/sustainability'],
-    ['May 2026 supply report', 'https://algorand.co/blog/may-2026-algo-insights-report'],
-    ['staking rewards FAQ', 'https://algorand.co/staking-rewards-faq']
-  ]
 };
 
 const METRICS = [
@@ -49,23 +28,6 @@ const METRICS = [
   { key: 'slashing', label: 'Slashing', icon: '⚔️', context: true }
 ];
 
-function countsAsProtocolUpgrade(protocol) {
-  if (!protocol) return false;
-  if (protocol.countsAsUpgrade === false || protocol.countsAsSelfAmendment === false) return false;
-  const name = String(protocol.name || protocol.alias || protocol.extras?.alias || protocol.metadata?.alias || '').trim().toLowerCase();
-  const hash = String(protocol.hash || protocol.protocol || '');
-  if (name === 'paris c' || hash.startsWith('PsParisC') || hash.startsWith('PsParisc')) return false;
-  const code = Number(protocol.code ?? protocol.number);
-  if (Number.isFinite(code) && code < 4) return false;
-  const firstLevel = Number(protocol.firstLevel);
-  if (Object.prototype.hasOwnProperty.call(protocol, 'firstLevel') && Number.isFinite(firstLevel) && firstLevel <= 0) return false;
-  return true;
-}
-
-function countProtocolUpgrades(protocols) {
-  return Array.isArray(protocols) ? protocols.filter(countsAsProtocolUpgrade).length : 21;
-}
-
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -74,8 +36,8 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;');
 }
 
-function peerReferenceHtml(chainKey) {
-  return (PEER_REFERENCES[chainKey] || [])
+function peerReferenceHtml(chain) {
+  return (chain.references || [])
     .map(([label, url]) => `<a href="${url}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`)
     .join(' · ');
 }
@@ -92,13 +54,10 @@ async function loadComparisonData() {
 }
 
 async function tezosStaticData(comparison) {
-  const protocolData = JSON.parse(await fs.readFile(PROTOCOL_FILE, 'utf8'));
-  const selfAmendments = Number(protocolData.meta?.totalUpgrades) || countProtocolUpgrades(protocolData.protocols);
   return {
     ...comparison.tezosStatic,
     name: 'Tezos',
-    symbol: 'XTZ',
-    selfAmendments
+    symbol: 'XTZ'
   };
 }
 
@@ -177,7 +136,8 @@ function renderBakedContent(chainKey, chain, tezos, comparison) {
 </div>
 <div class="cp-footer">
   <p>Live Tezos values update in-browser from <a href="https://api.tzkt.io" target="_blank" rel="noopener">TzKT</a> and Octez RPC. Current-cycle address-level concentration is calculated in <a href="/health/">Network Health</a>. Peer values are a static snapshot last verified ${escapeHtml(comparison.lastUpdated)}; they are not all live.</p>
-  <p>Peer methodology references: ${peerReferenceHtml(chainKey)}</p>
+  <p><a href="${escapeHtml(comparison.verification.report)}">Open the monthly numeric verification receipt</a> — ${escapeHtml(comparison.verification.numericClaims)} static numbers, each checked against at least ${escapeHtml(comparison.verification.checksPerClaim)} sources.</p>
+  <p>Peer methodology references: ${peerReferenceHtml(chain)}</p>
 </div>
 <!-- baked:end -->`;
 }
@@ -220,6 +180,19 @@ function syncComparisonMetadata(html, chain, comparison) {
     .replace(/<p class="cp-subtitle">[^<]*<\/p>/, `<p class="cp-subtitle">Live Tezos values · ${escapeHtml(chain.name)} peer snapshot verified ${escapeHtml(comparison.lastUpdated)}</p>`);
 }
 
+function syncCompareIndexVerification(html, comparison) {
+  const verified = new Date(`${comparison.lastUpdated}T00:00:00Z`).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+  return html.replace(
+    /<p class="note">Static peer-chain snapshot last verified[\s\S]*?<\/p>/,
+    `<p class="note">Static peer-chain snapshot last verified ${escapeHtml(verified)}. Its ${escapeHtml(comparison.verification.numericClaims)} static numbers each require at least ${escapeHtml(comparison.verification.checksPerClaim)} checks; <a href="${escapeHtml(comparison.verification.report)}">open the monthly verification receipt</a>. Direct numeric rows highlight narrow measurements, not an aggregate winner. Network Health calculates Tezos concentration live at both the &gt;1/3 and &gt;2/3 address-level thresholds.</p>`
+  );
+}
+
 async function main() {
   const comparison = await loadComparisonData();
   const tezos = await tezosStaticData(comparison);
@@ -235,6 +208,9 @@ async function main() {
     await fs.writeFile(target, replaceCompareContent(html, baked));
     console.log(`Baked static comparison content into ${file}`);
   }
+
+  await fs.writeFile(COMPARE_INDEX_FILE, syncCompareIndexVerification(compareIndex, comparison));
+  console.log('Synced comparison verification metadata into compare/index.html');
 }
 
 main().catch((error) => {

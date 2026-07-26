@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-26T15:35:08.997Z",
+  "lastVerified": "2026-07-26",
+  "policy": {
+    "cadence": "monthly",
+    "rule": "Every published static comparison number requires two distinct checks. Source disagreement or an ambiguous protocol transition fails without changing the last-good artifact.",
+    "maxAgeDays": 45
+  },
+  "summary": {
+    "verifiedClaims": 10,
+    "requiredChecksPerClaim": 2,
+    "totalChecks": 20
+  },
+  "claims": [
+    {
+      "id": "tezos.blockTime",
+      "chain": "tezos",
+      "metric": "blockTime",
+      "displayValue": "~6s",
+      "canonicalValue": 6,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Current mainnet protocol constant",
+          "kind": "source-native-rpc",
+          "source": "https://eu.rpc.tez.capital/chains/main/blocks/head/context/constants",
+          "observed": "6 seconds",
+          "contentSha256": "154633affe28b729e76a3c6bf7b11a97ff793639a22f23ecd0930be55a714d10",
+          "status": "verified"
+        },
+        {
+          "label": "Octez consensus parameter",
+          "kind": "official-documentation",
+          "source": "https://octez.tezos.com/docs/alpha/consensus.html",
+          "observed": "6 seconds",
+          "contentSha256": "4f13194f54988f3125e497f683aefd5982373dfb8d7f05b3f7451e7c74101956",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "tezos.finality",
+      "chain": "tezos",
+      "metric": "finality",
+      "displayValue": "~12s",
+      "canonicalValue": 12,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Current block delay used in finality calculation",
+          "kind": "source-native-rpc",
+          "source": "https://eu.rpc.tez.capital/chains/main/blocks/head/context/constants",
+          "observed": "6 seconds per block",
+          "contentSha256": "154633affe28b729e76a3c6bf7b11a97ff793639a22f23ecd0930be55a714d10",
+          "status": "verified"
+        },
+        {
+          "label": "Octez Tenderbake finality rule",
+          "kind": "official-documentation",
+          "source": "https://octez.tezos.com/docs/alpha/consensus.html",
+          "observed": "2 confirmations × 6 seconds",
+          "contentSha256": "4f13194f54988f3125e497f683aefd5982373dfb8d7f05b3f7451e7c74101956",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "tezos.selfAmendments",
+      "chain": "tezos",
+      "metric": "selfAmendments",
+      "displayValue": 21,
+      "canonicalValue": 21,
+      "unit": "named protocol upgrades",
+      "checks": [
+        {
+          "label": "Curated protocol history and declared total",
+          "kind": "curated-repository-dataset",
+          "source": "https://github.com/Primate411/tezos.systems/blob/main/data/protocol-data.json",
+          "observed": "21 named upgrades",
+          "contentSha256": "2dbd870fc09d4ecbabbbeeccd8fcd3c3e657b346b5c7d1ac33475307cf619af8",
+          "status": "verified"
+        },
+        {
+          "label": "Complete TzKT protocol index",
+          "kind": "source-native-indexer",
+          "source": "https://api.tzkt.io/v1/protocols",
+          "observed": "21 named upgrades",
+          "contentSha256": "bf262661b6ced00102045781b053cab7e3b6500edf1d5ffa23ccbbe9096b05ea",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "ethereum.blockTime",
+      "chain": "ethereum",
+      "metric": "blockTime",
+      "displayValue": "~12s",
+      "canonicalValue": 12,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Ethereum block documentation",
+          "kind": "official-documentation",
+          "source": "https://ethereum.org/developers/docs/blocks/",
+          "observed": "12 seconds",
+          "contentSha256": "7f90989a89613eed0744980656af1e6ef976a79c3d479f174404affebc11c76b",
+          "status": "verified"
+        },
+        {
+          "label": "Ethereum proof-of-stake slot documentation",
+          "kind": "official-documentation",
+          "source": "https://ethereum.org/developers/docs/consensus-mechanisms/pos/",
+          "observed": "12 seconds",
+          "contentSha256": "74116dc7ff14fd7fdee8b65786b6e5af52e88329301fa36ab8ac6fd8f34bfc84",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "ethereum.finality",
+      "chain": "ethereum",
+      "metric": "finality",
+      "displayValue": "~15 min",
+      "canonicalValue": 15,
+      "unit": "minutes",
+      "checks": [
+        {
+          "label": "Ethereum finality roadmap",
+          "kind": "official-documentation",
+          "source": "https://ethereum.org/roadmap/single-slot-finality/",
+          "observed": "15 minutes",
+          "contentSha256": "37cac5e45af58dbf705143000aa59261c2973a20ca7b7fc71c488a2f3c38661e",
+          "status": "verified"
+        },
+        {
+          "label": "Ethereum network comparison overview",
+          "kind": "official-documentation",
+          "source": "https://ethereum.org/ethereum-vs-bitcoin/",
+          "observed": "15 minutes",
+          "contentSha256": "6be8709deea4acad8f941e5cf4bf55f084462c9b0ddccd22f5e435ed56e0b29b",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "solana.blockTime",
+      "chain": "solana",
+      "metric": "blockTime",
+      "displayValue": "~0.4s",
+      "canonicalValue": 0.4,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Solana target slot duration",
+          "kind": "official-documentation",
+          "source": "https://solana.com/developers/guides/advanced/confirmation",
+          "observed": "400 milliseconds",
+          "contentSha256": "ae9dcd146e184503346392fc6cdf839644e4b4f407243a056b5e734c7f242fef",
+          "status": "verified"
+        },
+        {
+          "label": "Current TowerBFT status before Alpenglow activation",
+          "kind": "official-documentation",
+          "source": "https://solana.com/upgrades/alpenglow",
+          "observed": "400 milliseconds",
+          "contentSha256": "916470debfef1de018f7040a054243c35b4e63fe5b615b557465aea9aceb516a",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "solana.finality",
+      "chain": "solana",
+      "metric": "finality",
+      "displayValue": "~12.8s",
+      "canonicalValue": 12.8,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Current TowerBFT finality status",
+          "kind": "official-documentation",
+          "source": "https://solana.com/upgrades/alpenglow",
+          "observed": "12.8 seconds",
+          "contentSha256": "916470debfef1de018f7040a054243c35b4e63fe5b615b557465aea9aceb516a",
+          "status": "verified"
+        },
+        {
+          "label": "Finalized lag derived from documented slots",
+          "kind": "official-documentation",
+          "source": "https://solana.com/developers/guides/advanced/confirmation",
+          "observed": "32 slots × 400 milliseconds",
+          "contentSha256": "ae9dcd146e184503346392fc6cdf839644e4b4f407243a056b5e734c7f242fef",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "cardano.blockTime",
+      "chain": "cardano",
+      "metric": "blockTime",
+      "displayValue": "~20s",
+      "canonicalValue": 20,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Cardano network documentation",
+          "kind": "official-documentation",
+          "source": "https://docs.cardano.org/about-cardano/explore-more/cardano-network",
+          "observed": "20 seconds",
+          "contentSha256": "43c27dc0b20266117014e9b76e90424623a4e4e9b61956c8893b08cd7e30aed3",
+          "status": "verified"
+        },
+        {
+          "label": "Cardano time-handling documentation",
+          "kind": "official-documentation",
+          "source": "https://docs.cardano.org/about-cardano/explore-more/time",
+          "observed": "20 seconds",
+          "contentSha256": "2212409143e740a84478962dc72ca7c20b592814001f82d434edfd65cfb2523d",
+          "status": "verified"
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "algorand.blockTime",
+      "chain": "algorand",
+      "metric": "blockTime",
+      "displayValue": "~2.82s",
+      "canonicalValue": 2.82,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Algorand developer documentation",
+          "kind": "official-documentation",
+          "source": "https://dev.algorand.co/concepts/transactions/blocks/",
+          "observed": "2.82 seconds average",
+          "contentSha256": "9e18a89c39556146e127b7c7b2cefdf4e8ae0ad3f663daf2297b101575d1b7f3",
+          "status": "verified"
+        },
+        {
+          "label": "Recent Algorand mainnet timestamp window",
+          "kind": "source-native-on-chain-sample",
+          "source": "https://mainnet-api.algonode.cloud/v2/blocks/63468967",
+          "observed": "2.783 seconds across rounds 63468847–63468967",
+          "contentSha256": "957af697e355b531fa30a92d978706fb465e3e5590cd2b363d3b5706af7c6b50",
+          "status": "verified",
+          "evidenceSources": [
+            "https://mainnet-api.algonode.cloud/v2/status",
+            "https://mainnet-api.algonode.cloud/v2/blocks/63468847",
+            "https://mainnet-api.algonode.cloud/v2/blocks/63468967"
+          ]
+        }
+      ],
+      "status": "verified"
+    },
+    {
+      "id": "algorand.finality",
+      "chain": "algorand",
+      "metric": "finality",
+      "displayValue": "~2.82s",
+      "canonicalValue": 2.82,
+      "unit": "seconds",
+      "checks": [
+        {
+          "label": "Algorand instant block-level finality documentation",
+          "kind": "official-documentation",
+          "source": "https://dev.algorand.co/concepts/transactions/blocks/",
+          "observed": "2.82 seconds average block finality",
+          "contentSha256": "9e18a89c39556146e127b7c7b2cefdf4e8ae0ad3f663daf2297b101575d1b7f3",
+          "status": "verified"
+        },
+        {
+          "label": "Recent finalized mainnet timestamp window",
+          "kind": "source-native-on-chain-sample",
+          "source": "https://mainnet-api.algonode.cloud/v2/blocks/63468967",
+          "observed": "2.783 seconds across rounds 63468847–63468967",
+          "contentSha256": "957af697e355b531fa30a92d978706fb465e3e5590cd2b363d3b5706af7c6b50",
+          "status": "verified",
+          "evidenceSources": [
+            "https://mainnet-api.algonode.cloud/v2/status",
+            "https://mainnet-api.algonode.cloud/v2/blocks/63468847",
+            "https://mainnet-api.algonode.cloud/v2/blocks/63468967"
+          ]
+        }
+      ],
+      "status": "verified"
+    }
+  ]
+}

@@ -74,6 +74,7 @@ tezos.systems/
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
 │   ├── milestone-catalog.json         # Cadence-generated milestone thresholds
 │   ├── nakamoto-sources.json          # Dated external Nakamoto source ledger
+│   ├── chain-comparison-verification.json # Monthly double-check receipts for static comparison numbers
 │   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
 │   ├── capital-entry-summary.json     # Compact integrity-checked Capital launcher projection
 │   ├── ecosystem-apps.json            # Reviewed L1/L2 app and contract-discovery manifest
@@ -825,6 +826,8 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | Official Octez mainnet RPC `https://tezos-mainnet.octez.io` | Current-cycle baking-power distribution used for Network Health's live one-third and two-thirds address coefficients |
 | Teztale `https://teztale-server-mainnet-ro-prd.octez.tech` | Consensus timing lens for Network Health, including earliest-observer, endorsing-power-weighted reception distributions, exact two-thirds and 90% arrival thresholds, validation-to-quorum phases, and observer count; Teztale is by Nomadic Labs |
 | `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
+| Official Tezos, Ethereum, Solana, Cardano, and Algorand documentation plus source-native RPC samples | Monthly chain-comparison refresh; each published static number requires two distinct checks |
+| `data/chain-comparison-verification.json` | Same-origin monthly receipt ledger with the displayed value, observed source values, source hashes, check type, and fail-closed policy for every static comparison number |
 | CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, and public RWA token mappings |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
 | OBJKT APIs | HEN mode's live Teia + OBJKT feed, My Tezos summary-first Collection holdings and profiles, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
@@ -876,7 +879,11 @@ the reproducible Chainspect and
 Edinburgh EDI rows in `data/nakamoto-sources.json`; normal pre-commit runs only
 validate that ledger, while scheduled/full runs preserve last-known-good data
 if a third-party parser is temporarily unavailable. `npm run refresh:nakamoto`
-forces that source refresh directly. `npm run refresh:maxis` forces both the canonical
+forces that source refresh directly. `npm run refresh:comparison` rechecks every
+static chain-comparison number against two sources, updates the dated
+snapshot only when all checks agree, and fails closed during ambiguous protocol
+transitions; `npm run check:comparison` validates the committed receipt offline.
+`npm run refresh:maxis` forces both the canonical
 lane-native-clock Maxis snapshot and the protocol-season manifest, active-season
 summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
 `npm run refresh:maxis-careers` refreshes the separate exact all-history L1
@@ -956,6 +963,9 @@ the same orchestrator in
 commit mode so fast-moving generated outputs update with each normal commit.
 `.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
 and commits only when generated outputs change.
+`.github/workflows/refresh-chain-comparison.yml` runs on the first day of each
+month, refreshes and validates the comparison receipt, rebakes the standalone
+pages, and commits only a fully verified snapshot.
 `.github/workflows/refresh-tezoscrp.yml` checks the official Tezos Commons
 Medium feed on the 10th and 25th of each month. It adds only a newly published
 winner period, rebuilds the full and compact artifacts, validates identity and
@@ -1051,6 +1061,8 @@ npm run check:launcher-projections
 npm run refresh:whales
 npm run check:whales
 npm run refresh:milestones
+npm run refresh:comparison
+npm run check:comparison
 npm run refresh:maxis
 npm run check:maxis
 npm run refresh:maxis-careers

@@ -770,6 +770,7 @@ async function checkRequiredFiles() {
     'tests/fixtures/initial-load-baseline.json',
     'scripts/generate-milestone-catalog.mjs',
     'scripts/refresh-nakamoto-sources.mjs',
+    'scripts/refresh-chain-comparison.mjs',
     'scripts/refresh-capital-data.mjs',
     'scripts/generate-capital-entry-summary.mjs',
     'scripts/refresh-ecosystem-stats.mjs',
@@ -797,6 +798,7 @@ async function checkRequiredFiles() {
     'data/governance-votes.json',
     'data/my-tezos-contracts.json',
     'data/nakamoto-sources.json',
+    'data/chain-comparison-verification.json',
     'data/governance-refresh-report.json',
     'data/capital-snapshot.json',
     'data/capital-entry-summary.json',
@@ -819,6 +821,7 @@ async function checkRequiredFiles() {
     'tezoscrp/index.html',
     'og/tezoscrp.png',
     '.github/workflows/refresh-tezoscrp.yml',
+    '.github/workflows/refresh-chain-comparison.yml',
     'tests/tezoscrp-check.mjs',
     'tests/ecosystem-stats-check.mjs',
     'data/protocol-data.json',
@@ -3855,6 +3858,9 @@ async function checkTruthSurfaceContracts() {
   const comparePage = await readText('js/features/compare-page.js');
   const comparisonConfig = await readText('js/core/config.js');
   const compareIndex = await readText('compare/index.html');
+  const comparisonVerification = JSON.parse(await readText('data/chain-comparison-verification.json'));
+  const comparisonRefresh = await readText('scripts/refresh-chain-comparison.mjs');
+  const comparisonWorkflow = await readText('.github/workflows/refresh-chain-comparison.yml');
   const stakingGuide = await readText('staking/index.html');
   const bakersGuide = await readText('bakers/index.html');
   const tweetTemplates = await readText('data/tweets.json');
@@ -3984,6 +3990,11 @@ async function checkTruthSurfaceContracts() {
   if (/5 chains\. 1 comparison\. Live data|Cardano:\s*~12 min|created Lido|billions in exploits|forks every upgrade/i.test(comparison)) {
     fail('comparison share copy must distinguish live Tezos data from dated peers and avoid obsolete or unreceipted claims');
   }
+  if (/Algorand:\s*~3\.3s|after 31 blocks|0\.658 kJ\/tx/.test(comparison)
+      || !comparison.includes('const algorandFinality = CHAIN_COMPARISON.algorand.finality')
+      || !comparison.includes('const solanaFinalityNote = CHAIN_COMPARISON.solana.finalityNote')) {
+    fail('comparison share copy must use the verified snapshot instead of duplicating stale numeric values');
+  }
   const hardForkMetric = comparison.match(/key:\s*'hardForks',[\s\S]*?\n\s*\},/)?.[0] || '';
   if (!hardForkMetric.includes("label: 'Upgrade Path'") || !hardForkMetric.includes('winner: null')) {
     fail('comparison must treat unlike hard-fork and upgrade mechanisms as contextual');
@@ -3991,11 +4002,56 @@ async function checkTruthSurfaceContracts() {
   if (/of 10|Nakamoto coefficient/i.test(compareIndex)) {
     fail('comparison index must not present an editorial aggregate score or unlike Nakamoto bases as one ranking');
   }
+  const comparisonVerifiedDate = comparisonConfig.match(/lastUpdated:\s*'([^']+)'/)?.[1];
+  const expectedComparisonClaims = [
+    'tezos.blockTime',
+    'tezos.finality',
+    'tezos.selfAmendments',
+    'ethereum.blockTime',
+    'ethereum.finality',
+    'solana.blockTime',
+    'solana.finality',
+    'cardano.blockTime',
+    'algorand.blockTime',
+    'algorand.finality'
+  ];
+  if (comparisonVerification.lastVerified !== comparisonVerifiedDate
+      || comparisonVerification.summary?.verifiedClaims !== expectedComparisonClaims.length
+      || comparisonVerification.summary?.requiredChecksPerClaim !== 2
+      || !comparisonConfig.includes("report: '/data/chain-comparison-verification.json'")
+      || !comparisonConfig.includes('checksPerClaim: 2')) {
+    fail('comparison config and monthly verification summary must reconcile');
+  }
+  const comparisonClaims = new Map((comparisonVerification.claims || []).map((claim) => [claim.id, claim]));
+  for (const id of expectedComparisonClaims) {
+    const claim = comparisonClaims.get(id);
+    const checks = claim?.checks || [];
+    if (claim?.status !== 'verified'
+        || checks.length < 2
+        || new Set(checks.map((check) => check.source)).size < 2
+        || checks.some((check) => check.status !== 'verified' || !/^[a-f0-9]{64}$/.test(check.contentSha256 || ''))) {
+      fail(`comparison numeric claim must retain two hashed source checks: ${id}`);
+    }
+  }
+  if (!comparisonRefresh.includes('MAX_REPORT_AGE_DAYS = 45')
+      || !comparisonRefresh.includes('Under Development')
+      || !comparisonRefresh.includes('source-native-on-chain-sample')
+      || !comparisonWorkflow.includes("cron: '23 8 1 * *'")
+      || !comparisonWorkflow.includes('npm run refresh:comparison')
+      || !comparisonWorkflow.includes('npm run check:comparison')
+      || !comparisonWorkflow.includes('npm run bake:compare')
+      || !comparisonWorkflow.includes('npm run test:static')) {
+    fail('monthly comparison automation must double-check, fail closed, rebake, and validate before commit');
+  }
+  if (!compareIndex.includes('/data/chain-comparison-verification.json')
+      || !compareIndex.includes(`${expectedComparisonClaims.length} static numbers each require at least 2 checks`)) {
+    fail('comparison index must expose the monthly double-check receipt');
+  }
   const peerReferences = {
-    ethereum: 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/',
-    solana: 'https://solana.com/solana-whitepaper.pdf',
-    cardano: 'https://docs.cardano.org/about-cardano/governance-overview',
-    algorand: 'https://developer.algorand.org/solutions/avm-evm-instant-finality/'
+    ethereum: 'https://ethereum.org/developers/docs/blocks/',
+    solana: 'https://solana.com/developers/guides/advanced/confirmation',
+    cardano: 'https://docs.cardano.org/about-cardano/explore-more/cardano-network',
+    algorand: 'https://dev.algorand.co/concepts/transactions/blocks/'
   };
   for (const chain of ['ethereum', 'solana', 'cardano', 'algorand']) {
     const page = await readText(`compare/tezos-vs-${chain}.html`);
@@ -4005,7 +4061,10 @@ async function checkTruthSurfaceContracts() {
     if (/<div class="cp-scoreboard"/.test(page)) {
       fail(`Tezos vs ${chain} must not restore the baked aggregate scoreboard`);
     }
-    if (!page.includes(peerReferences[chain]) || !page.includes('Peer values are a static snapshot') || !page.includes('they are not all live')) {
+    if (!page.includes(peerReferences[chain])
+        || !page.includes('/data/chain-comparison-verification.json')
+        || !page.includes('Peer values are a static snapshot')
+        || !page.includes('they are not all live')) {
       fail(`Tezos vs ${chain} must disclose its static peer snapshot and primary reference`);
     }
   }
@@ -4271,7 +4330,7 @@ async function checkPortableTooling() {
     fail('.githooks/pre-commit must guard README sync and run focused README contract checks');
   }
   const generatedRefresh = await readText('scripts/refresh-generated-surfaces.mjs');
-  for (const expected of ['refresh-governance-data.mjs', 'generate-milestone-catalog.mjs', 'data/milestone-catalog.json', 'refresh-nakamoto-sources.mjs', 'data/nakamoto-sources.json', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
+  for (const expected of ['refresh-governance-data.mjs', 'generate-milestone-catalog.mjs', 'data/milestone-catalog.json', 'refresh-nakamoto-sources.mjs', 'data/nakamoto-sources.json', 'refresh-chain-comparison.mjs', 'data/chain-comparison-verification.json', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
     if (!generatedRefresh.includes(expected)) {
       fail(`scripts/refresh-generated-surfaces.mjs must coordinate ${expected}`);
     }

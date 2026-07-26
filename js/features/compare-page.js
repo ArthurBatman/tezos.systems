@@ -10,19 +10,9 @@ import '../core/tzkt-throttle.js';
 import { CHAIN_COMPARISON, API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
 import { fetchWithDeadline, getTzktTotalStaked } from '../core/api.js';
-import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades } from '../core/protocol-count.js';
 
 const LB_EMA_DISABLE_THRESHOLD = 1_000_000_000;
 const LB_MINUTES_PER_YEAR = 365.25 * 24 * 60;
-
-async function fetchUpgradeCount() {
-    try {
-        const resp = await fetchWithDeadline(API_URLS.tzkt + '/protocols', { cache: 'no-store' });
-        if (!resp.ok) throw new Error(`Protocol history HTTP ${resp.status}`);
-        const protocols = await resp.json();
-        return countProtocolUpgrades(protocols);
-    } catch { return CANONICAL_UPGRADE_COUNT; }
-}
 
 async function fetchRequired(url, type = 'json') {
   const response = await fetchWithDeadline(url, { cache: 'no-store' });
@@ -58,28 +48,8 @@ const METRICS = [
   { key: 'slashing',        label: 'Slashing',          icon: '⚔️', context: true },
 ];
 
-const PEER_REFERENCES = {
-  ethereum: [
-    ['Ethereum PoS and finality', 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/']
-  ],
-  solana: [
-    ['Solana whitepaper', 'https://solana.com/solana-whitepaper.pdf'],
-    ['energy methodology', 'https://solana.com/news/solana-energy-use-report-december-2023']
-  ],
-  cardano: [
-    ['Cardano governance', 'https://docs.cardano.org/about-cardano/governance-overview'],
-    ['eras and phases', 'https://docs.cardano.org/about-cardano/evolution/eras-and-phases']
-  ],
-  algorand: [
-    ['Algorand finality', 'https://developer.algorand.org/solutions/avm-evm-instant-finality/'],
-    ['sustainability', 'https://algorand.co/technology/sustainability'],
-    ['May 2026 supply report', 'https://algorand.co/blog/may-2026-algo-insights-report'],
-    ['staking rewards FAQ', 'https://algorand.co/staking-rewards-faq']
-  ]
-};
-
 function peerReferenceHtml(chainKey) {
-  return (PEER_REFERENCES[chainKey] || [])
+  return (CHAIN_COMPARISON[chainKey]?.references || [])
     .map(function(reference) {
       return '<a href="' + reference[1] + '" target="_blank" rel="noopener">' + escapeHtml(reference[0]) + '</a>';
     })
@@ -116,7 +86,6 @@ async function fetchLiveTezosData() {
           : 'Adaptive + active LB',
       blockTime: '~6s',
       finality: '~12s',
-      selfAmendments: await fetchUpgradeCount(),
       slashing: 'Adaptive',
       slashingNote: 'Scales with offense severity',
     };
@@ -216,6 +185,7 @@ export function initComparePage(chainKey) {
       '</div>' +
       '<div class="cp-footer">' +
         '<p>Live Tezos values update from <a href="https://api.tzkt.io" target="_blank" rel="noopener">TzKT</a> and Octez RPC. Current-cycle address-level concentration is calculated in <a href="/health/">Network Health</a>. Peer values are a static snapshot last verified ' + CHAIN_COMPARISON.lastUpdated + '; they are not all live.</p>' +
+        '<p><a href="' + CHAIN_COMPARISON.verification.report + '">Open the monthly numeric verification receipt</a> — ' + CHAIN_COMPARISON.verification.numericClaims + ' static numbers, each checked against at least ' + CHAIN_COMPARISON.verification.checksPerClaim + ' sources.</p>' +
         '<p>Peer methodology references: ' + peerReferenceHtml(chainKey) + '</p>' +
       '</div>';
   });

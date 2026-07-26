@@ -56,12 +56,24 @@ export const MAINNET_LAUNCH = '2018-09-17T00:00:00Z';
 // History data start date
 export const HISTORY_START = '2024-01-01';
 
-// Static comparison data for other chains (updated periodically)
+// Static comparison data for other chains. Numeric snapshot claims are refreshed
+// from source by scripts/refresh-chain-comparison.mjs and must carry two checks
+// in data/chain-comparison-verification.json before this date can advance.
 export const CHAIN_COMPARISON = {
-    lastUpdated: '2026-07-11',
+    lastUpdated: '2026-07-26',
+    verification: {
+        numericClaims: 10,
+        checksPerClaim: 2,
+        report: '/data/chain-comparison-verification.json',
+    },
     ethereum: {
         name: 'Ethereum',
         symbol: 'ETH',
+        references: [
+            ['Block production', 'https://ethereum.org/developers/docs/blocks/'],
+            ['Proof of stake', 'https://ethereum.org/developers/docs/consensus-mechanisms/pos/'],
+            ['Checkpoint finality', 'https://ethereum.org/roadmap/single-slot-finality/'],
+        ],
         slashing: 'Yes',
         slashingNote: 'Protocol penalties apply',
         blockTime: '~12s',
@@ -84,13 +96,18 @@ export const CHAIN_COMPARISON = {
     solana: {
         name: 'Solana',
         symbol: 'SOL',
+        references: [
+            ['Confirmation and slot timing', 'https://solana.com/developers/guides/advanced/confirmation'],
+            ['Current TowerBFT and Alpenglow status', 'https://solana.com/upgrades/alpenglow'],
+            ['September 2024 energy methodology', 'https://solana.com/news/energy-use-report-september-2024'],
+        ],
         slashing: 'No',
         slashingNote: 'Delinquency only',
         slashingTooltip: 'No slashing implemented. Misbehaving validators become delinquent and stop earning rewards.',
         blockTime: '~0.4s',
         finality: '~12.8s',
-        finalityNote: 'Finalized (31 blocks)',
-        finalityTooltip: 'Confirmed (~0.4s) = 66%+ voted. Finalized (~12.8s) = 31 confirmed blocks. Showing finalized.',
+        finalityNote: 'about 32 slots behind confirmed',
+        finalityTooltip: 'The current TowerBFT comparison uses the official ~0.4s target slot and ~12.8s finalized timing. Alpenglow remains labeled separately until mainnet activation is source-confirmed.',
         validators: 'See live sources',
         validatorsNote: 'stake concentration changes',
         stakingPct: 'Dynamic',
@@ -99,13 +116,18 @@ export const CHAIN_COMPARISON = {
         selfAmendments: 'Client-coordinated releases',
         selfAmendmentsNote: 'not a Tezos-style protocol self-amendment count',
         hardForks: 'Client-coordinated upgrades',
-        energyPerTx: '0.658 kJ/tx',
-        energyPerTxNote: 'December 2023 report',
+        energyPerTx: 'Published study',
+        energyPerTxNote: 'September 2024 methodology; not a live comparable rate',
         avgTxFee: 'Variable',
     },
     cardano: {
         name: 'Cardano',
         symbol: 'ADA',
+        references: [
+            ['Network block timing', 'https://docs.cardano.org/about-cardano/explore-more/cardano-network'],
+            ['Time and finality semantics', 'https://docs.cardano.org/about-cardano/explore-more/time'],
+            ['Governance overview', 'https://docs.cardano.org/about-cardano/governance-overview'],
+        ],
         slashing: 'No',
         slashingNote: 'No penalties',
         blockTime: '~20s',
@@ -126,11 +148,15 @@ export const CHAIN_COMPARISON = {
     algorand: {
         name: 'Algorand',
         symbol: 'ALGO',
+        references: [
+            ['Block timing and finality', 'https://dev.algorand.co/concepts/transactions/blocks/'],
+            ['Sustainability methodology', 'https://algorand.co/technology/sustainability'],
+        ],
         slashing: 'No',
         slashingNote: 'No penalties',
-        blockTime: '~3.3s',
-        blockTimeTooltip: 'Dynamic round times. Can go as low as ~2.8s under ideal conditions.',
-        finality: '~3.3s',
+        blockTime: '~2.82s',
+        blockTimeTooltip: 'Official average round time, independently checked against a recent mainnet timestamp window.',
+        finality: '~2.82s',
         finalityNote: 'Instant finality',
         finalityTooltip: 'Pure Proof of Stake provides immediate deterministic finality when its consensus assumptions hold, rather than a probabilistic confirmation window.',
         validators: 'Permissionless sortition',
@@ -138,7 +164,7 @@ export const CHAIN_COMPARISON = {
         validatorsTooltip: 'Consensus committees are selected through cryptographic sortition; this is not directly comparable to a fixed validator-set count.',
         stakingPct: 'Dynamic',
         annualIssuance: 'Scheduled distribution',
-        annualIssuanceTooltip: 'ALGO has a 10B cap. Circulating supply and supplementary staking incentives are still changing, so “0% issuance” is not a sufficient description.',
+        annualIssuanceTooltip: 'ALGO has a fixed supply cap. Circulating supply and supplementary staking incentives are still changing, so “zero issuance” is not a sufficient description.',
         selfAmendments: 'Foundation-coordinated releases',
         selfAmendmentsNote: 'not a Tezos-style protocol self-amendment count',
         selfAmendmentsTooltip: 'xGov (expert governance) gives community input, but upgrades are Foundation-coordinated.',
@@ -161,6 +187,7 @@ export const CHAIN_COMPARISON = {
         blockTime: '~6s',
         finality: '~12s',
         finalityNote: '2 blocks',
+        selfAmendments: 21,
         hardForks: 'Protocol self-amendment',
         hardForksNote: 'no persistent upgrade-driven community split in tracked history',
         energyPerTx: 'Low-energy proof of stake',

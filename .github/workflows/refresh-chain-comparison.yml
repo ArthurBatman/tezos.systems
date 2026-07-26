@@ -1,0 +1,63 @@
+name: Refresh Chain Comparison
+
+on:
+  schedule:
+    # Re-check every published static comparison number on the first day of each month.
+    - cron: '23 8 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tezos-systems-repository-writer
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Refresh and double-check comparison values
+        run: |
+          npm run refresh:comparison
+          npm run check:comparison
+          npm run bake:compare
+
+      - name: Validate comparison surfaces
+        run: npm run test:static
+
+      - name: Commit a fully verified monthly snapshot
+        run: |
+          if git diff --quiet; then
+            echo "No comparison changes"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./scripts/stamp-version.sh
+          git add -- \
+            js/core/config.js \
+            data/chain-comparison-verification.json \
+            compare/index.html \
+            compare/tezos-vs-ethereum.html \
+            compare/tezos-vs-solana.html \
+            compare/tezos-vs-cardano.html \
+            compare/tezos-vs-algorand.html \
+            version.json
+          git commit -m "Refresh monthly chain comparison"
+          git push

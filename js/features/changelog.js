@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-26',
         entries: [
+            { type: '🔧', text: 'Chain comparisons now refresh monthly from source, require two checks for every published static number, expose the verification receipt, and show Algorand’s current 2.82-second average block finality' },
             { type: '✨', text: 'Network Health now shows the live percentage through the current Tezos cycle, with its cycle number, head level, remaining time, and a progress rail sourced from Octez RPC' },
             { type: '🎨', text: 'The first-visit Quick tour offer now joins the search suggestion rail as one compact action instead of inserting a bulky extra row on mobile and tablet layouts' },
             { type: '🔧', text: 'Mobile mainnet milestones now use a complete clock-hugging orbit and an opaque detail sheet that stays above live dashboard banners with reliably tappable actions' }

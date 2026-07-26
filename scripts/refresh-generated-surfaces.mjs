@@ -9,6 +9,7 @@ import { CHAMBER_ROUTES } from './lib/chamber-routes.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const THEME_NAMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'warzone'];
 const COMPARE_PAGES = [
+  'compare/index.html',
   'compare/tezos-vs-ethereum.html',
   'compare/tezos-vs-solana.html',
   'compare/tezos-vs-cardano.html',
@@ -31,6 +32,7 @@ const LLMS_TARGETS = ['llms.txt'];
 const ROOT_OG_TARGETS = ['og-image.png'];
 const MILESTONE_TARGETS = ['data/milestone-catalog.json'];
 const NAKAMOTO_TARGETS = ['data/nakamoto-sources.json'];
+const CHAIN_COMPARISON_TARGETS = ['data/chain-comparison-verification.json', 'js/core/config.js'];
 const MAXIS_TARGETS = ['data/maxis-leaders.json', 'data/maxis'];
 const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
@@ -51,6 +53,7 @@ const GENERATED_TARGETS = unique([
   ...ROOT_OG_TARGETS,
   ...MILESTONE_TARGETS,
   ...NAKAMOTO_TARGETS,
+  ...CHAIN_COMPARISON_TARGETS,
   ...MAXIS_TARGETS,
   ...MAXIS_CAREER_TARGETS,
   ...MAXIS_L2_GOVERNANCE_TARGETS,
@@ -197,6 +200,15 @@ async function main() {
   const initialStaged = modeName === 'precommit' ? stagedFiles() : [];
   const ran = [];
 
+  if (modeName === 'all') {
+    nodeScript('scripts/refresh-chain-comparison.mjs');
+    ran.push('comparison');
+    if (shouldStage) stageTargets(CHAIN_COMPARISON_TARGETS);
+  } else {
+    nodeScript('scripts/refresh-chain-comparison.mjs', ['--check']);
+    ran.push('comparison-check');
+  }
+
   if (modeName !== 'all') {
     nodeScript('scripts/refresh-tezoscrp-awards.mjs', ['--check']);
     ran.push('tezoscrp-check');
@@ -311,7 +323,9 @@ async function main() {
 
   if (shouldRun(modeName, touched, [
     /^scripts\/bake-compare-pages\.mjs$/,
+    /^scripts\/refresh-chain-comparison\.mjs$/,
     /^js\/core\/config\.js$/,
+    /^data\/chain-comparison-verification\.json$/,
     /^data\/protocol-data\.json$/,
     /^compare\/.*\.html$/
   ])) {

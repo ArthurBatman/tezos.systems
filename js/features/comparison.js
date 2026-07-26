@@ -5,45 +5,29 @@
 
 const COMPARISON_CAPTURE_SCALE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 1 : 2;
 
-import { CHAIN_COMPARISON, API_URLS } from '../core/config.js';
+import { CHAIN_COMPARISON } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
-import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades } from '../core/protocol-count.js';
 
-// Dynamic upgrade count — initialized on first use
-let _upgradeCount = null;
-function displayedUpgradeCount(stats = null) {
-    const fromStats = Number(stats?.protocolCount);
-    if (Number.isFinite(fromStats) && fromStats > 0) return fromStats;
-    if (_upgradeCount) return _upgradeCount;
-    const fromUpgradeCard = Number(document.getElementById('upgrade-count')?.textContent);
-    if (Number.isFinite(fromUpgradeCard) && fromUpgradeCard > 0) return fromUpgradeCard;
-    return CANONICAL_UPGRADE_COUNT;
-}
-
-async function getUpgradeCount() {
-    if (_upgradeCount) return _upgradeCount;
-    try {
-        const resp = await fetch(API_URLS.tzkt + '/protocols');
-        const p = await resp.json();
-        _upgradeCount = countProtocolUpgrades(p);
-        return _upgradeCount;
-    } catch { return CANONICAL_UPGRADE_COUNT; }
+function displayedUpgradeCount() {
+    return CHAIN_COMPARISON.tezosStatic.selfAmendments;
 }
 
 // --- Full comparison tweet options ---
 function getComparisonTweets() {
   const upgradeCount = displayedUpgradeCount();
+  const tezosFinality = CHAIN_COMPARISON.tezosStatic.finality;
+  const ethereumFinality = CHAIN_COMPARISON.ethereum.finality;
   return [
   { label: "Data Drop", text: `Five-chain comparison context:
 
-🔹 Tezos: ${upgradeCount} on-chain upgrades, normal ~12s two-block BFT finality target
-🔹 Ethereum: checkpoint finality normally ~15min
+🔹 Tezos: ${upgradeCount} on-chain upgrades, normal ${tezosFinality} BFT finality target
+🔹 Ethereum: checkpoint finality normally ${ethereumFinality}
 🔹 Solana: fast target blocks; review its published incident history separately
 
 Finality timings depend on each protocol's safety, quorum, and network assumptions.
 
 tezos.systems` },
-  { label: "Flex", text: `${upgradeCount} protocol upgrades through on-chain governance. Tenderbake normally targets two-block finality in ~12s when quorum and network conditions hold.
+  { label: "Flex", text: `${upgradeCount} protocol upgrades through on-chain governance. Tenderbake normally targets finality in ${tezosFinality} when quorum and network conditions hold.
 
 No persistent upgrade-driven Tezos community split is recorded in the tracked history.
 
@@ -55,7 +39,7 @@ Tezos: mainnet since 2018 with an on-chain upgrade record
 Availability is separate from chain age; compare published incident records directly.
 
 tezos.systems` },
-  { label: "Understated", text: `Tezos normally targets ~12s Tenderbake finality under stated BFT assumptions and uses protocol-level self-amendment.
+  { label: "Understated", text: `Tezos normally targets ${tezosFinality} Tenderbake finality under stated BFT assumptions and uses protocol-level self-amendment.
 
 Energy, fees, and throughput need dated, methodology-aligned sources.
 
@@ -77,7 +61,7 @@ tezos.systems` },
 Tezos, Ethereum, Solana, Cardano, and Algorand are all proof-of-stake networks, but their published estimates are not one live apples-to-apples feed.
 
 tezos.systems` },
-  { label: "Flex", text: `Tenderbake normally targets two-block finality in about 12 seconds at today's block time.
+  { label: "Flex", text: `Tenderbake normally targets finality in ${tezosFinality} at today's block time.
 
 Safety, liveness, quorum, and network assumptions still apply.
 
@@ -102,7 +86,7 @@ tezos.systems` },
   { label: "5-Chain", text: `5 chains. Live Tezos context plus a dated peer snapshot.
 
 🔹 Tezos: ${upgradeCount} on-chain upgrades
-🔹 Ethereum: checkpoint finality normally ~15min
+🔹 Ethereum: checkpoint finality normally ${ethereumFinality}
 🔹 Solana: fast target blocks; published incident history is a separate lens
 🔹 Cardano: Stake-pool consensus, Voltaire-era governance
 🔹 Algorand: Immediate finality, foundation-coordinated releases
@@ -190,44 +174,52 @@ tezos.systems` }
 // --- Per-metric tweet options ---
 function getPerMetricTweets() {
   const upgradeCount = displayedUpgradeCount();
+  const tezosBlockTime = CHAIN_COMPARISON.tezosStatic.blockTime;
+  const tezosFinality = CHAIN_COMPARISON.tezosStatic.finality;
+  const ethereumBlockTime = CHAIN_COMPARISON.ethereum.blockTime;
+  const ethereumFinality = CHAIN_COMPARISON.ethereum.finality;
+  const solanaBlockTime = CHAIN_COMPARISON.solana.blockTime;
+  const solanaFinality = CHAIN_COMPARISON.solana.finality;
+  const solanaFinalityNote = CHAIN_COMPARISON.solana.finalityNote;
+  const algorandFinality = CHAIN_COMPARISON.algorand.finality;
   return {
   blockTime: [
     { label: "Honest", text: `Block time:
-🔴 Tezos: ~6s
-🟡 Ethereum: ~12s
-🟢 Solana: ~0.4s
+🔴 Tezos: ${tezosBlockTime}
+🟡 Ethereum: ${ethereumBlockTime}
+🟢 Solana: ${solanaBlockTime}
 
-Solana targets shorter block intervals. Tezos normally targets two-block finality in ~12s when Tenderbake quorum and network conditions hold.` },
-    { label: "Tradeoff", text: `Tezos blocks: ~6 seconds, with normal two-block Tenderbake finality in ~12s under stated BFT assumptions.
-Solana blocks: 0.4 seconds, finalized in ~12.8s.
+Solana targets shorter block intervals. Tezos normally targets finality in ${tezosFinality} when Tenderbake quorum and network conditions hold.` },
+    { label: "Tradeoff", text: `Tezos blocks: ${tezosBlockTime}, with normal Tenderbake finality in ${tezosFinality} under stated BFT assumptions.
+Solana blocks: ${solanaBlockTime}, finalized in ${solanaFinality}.
 
 Block interval and finality are separate measurements.` },
-  { label: "Technical", text: `We're not the fastest at ~6s blocks. Tenderbake normally targets finality after two blocks (~12s), provided its BFT safety, quorum, and network assumptions hold.` },
-    { label: "Competitive", text: `6-second blocks alongside ${upgradeCount} protocol upgrades coordinated through on-chain governance.
+  { label: "Technical", text: `We're not the fastest at ${tezosBlockTime} blocks. Tenderbake normally targets finality in ${tezosFinality}, provided its BFT safety, quorum, and network assumptions hold.` },
+    { label: "Competitive", text: `${tezosBlockTime} blocks alongside ${upgradeCount} protocol upgrades coordinated through on-chain governance.
 
 Stability has its own velocity.` },
-    { label: "Perspective", text: `Solana: 0.4s blocks, ~12.8s to finality
-Tezos: 6s blocks, ~12s to finality
+    { label: "Perspective", text: `Solana: ${solanaBlockTime} blocks, ${solanaFinality} to finality
+Tezos: ${tezosBlockTime} blocks, ${tezosFinality} to finality
 
 The finality targets are close. Availability is a separate question that should be judged from incident records, not chain age.` }
   ],
   finality: [
     { label: "Data Drop", text: `Normal finality targets:
-⚡ Algorand: ~3.3s instant
-🟢 Tezos: ~12s two-block Tenderbake target
-🟡 Solana: ~12.8s finalized
+⚡ Algorand: ${algorandFinality} instant
+🟢 Tezos: ${tezosFinality} Tenderbake target
+🟡 Solana: ${solanaFinality} finalized
 ⏳ Cardano: probabilistic confirmation policy
-🔴 Ethereum: ~15 min checkpoint finality
+🔴 Ethereum: ${ethereumFinality} checkpoint finality
 
 Mechanisms and safety, quorum, and network assumptions differ.` },
-    { label: "Developer", text: `Tenderbake normally targets two-block finality in ~12 seconds today.
+    { label: "Developer", text: `Tenderbake normally targets finality in ${tezosFinality} today.
 
 That BFT safety claim is conditional on the protocol's fault assumptions; liveness also needs quorum and network operation.
 
 This is what serious DeFi needs.` },
-    { label: "Dunk", text: `Ethereum: checkpoint finality normally ~15 min
-Solana: finalized in ~13s after 31 blocks
-Tezos: normal two-block Tenderbake target ~12s
+    { label: "Dunk", text: `Ethereum: checkpoint finality normally ${ethereumFinality}
+Solana: finalized in ${solanaFinality}, ${solanaFinalityNote}
+Tezos: normal Tenderbake target ${tezosFinality}
 
 Compare the mechanisms and assumptions, not just the stopwatch.` },
     { label: "Business", text: `Defined finality matters:
@@ -235,7 +227,7 @@ Compare the mechanisms and assumptions, not just the stopwatch.` },
 • Know its fault and quorum thresholds
 • Monitor the network assumptions
 
-Tezos: normal ~12s Tenderbake target when those conditions hold.` }
+Tezos: normal ${tezosFinality} Tenderbake target when those conditions hold.` }
   ],
   validators: [
     { label: "Honest", text: `Nakamoto Coefficient:
@@ -948,7 +940,11 @@ export function initComparison(stats) {
     const updatedEl = document.getElementById('comparison-last-updated');
     if (updatedEl) {
         const d = new Date(CHAIN_COMPARISON.lastUpdated + 'T00:00:00Z');
-        updatedEl.textContent = 'Comparison data as of ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        updatedEl.textContent = 'Comparison data as of ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) + ' · ';
+        const receipt = document.createElement('a');
+        receipt.href = CHAIN_COMPARISON.verification.report;
+        receipt.textContent = `${CHAIN_COMPARISON.verification.numericClaims} double-checked static numbers`;
+        updatedEl.appendChild(receipt);
     }
 
     // Wire up section-level share button

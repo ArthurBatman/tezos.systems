@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tezos Systems Public Data",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Read-only Tezos Systems metadata, generated research artifacts, and public browser datasets. Artifact fields disclose their own sources and observation times where applicable."
   },
   "servers": [
@@ -88,6 +88,20 @@
         "description": "Reproducible and manually curated concentration reports with provenance.",
         "x-refresh-cadence": "Scheduled generated refresh with last-known-good retention",
         "x-license-boundary": "Original selection and commentary are CC BY 4.0 where owned; third-party reports and measurements retain their source terms.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/chain-comparison-verification.json": {
+      "get": {
+        "operationId": "getChainComparisonVerification",
+        "summary": "Get the monthly chain-comparison verification receipt",
+        "description": "Displayed static comparison numbers with two distinct source checks, observed values, source hashes, and fail-closed status.",
+        "x-refresh-cadence": "Monthly on the first day; the last-good snapshot remains when checks disagree",
+        "x-license-boundary": "Underlying protocol facts and source documents retain their source terms; original verification structure and commentary are CC BY 4.0 where owned.",
         "responses": {
           "200": {
             "$ref": "#/components/responses/JsonDocument"
