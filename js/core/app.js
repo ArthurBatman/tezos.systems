@@ -116,8 +116,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=500';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=500';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=501';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=501';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -5149,6 +5149,7 @@ function initSmartDock() {
 }
 
 function initDeepLinkAffordances() {
+    const copyFeedbackStates = new WeakMap();
     const headerLinks = [
         { selector: '#leaderboard-section .section-header', hash: '#leaderboard', label: 'leaderboard' },
         { selector: '#comparison-section .section-header', hash: '#compare', label: 'chain comparison' },
@@ -5171,13 +5172,36 @@ function initDeepLinkAffordances() {
     }
 
     function markCopied(button) {
-        const original = button.textContent;
+        const priorState = copyFeedbackStates.get(button);
+        if (priorState) {
+            clearTimeout(priorState.timer);
+            button.innerHTML = priorState.html;
+            if (priorState.ariaLabel === null) button.removeAttribute('aria-label');
+            else button.setAttribute('aria-label', priorState.ariaLabel);
+            if (priorState.title === null) button.removeAttribute('title');
+            else button.setAttribute('title', priorState.title);
+        }
+
+        const state = {
+            html: button.innerHTML,
+            ariaLabel: button.getAttribute('aria-label'),
+            title: button.getAttribute('title'),
+            timer: null
+        };
         button.classList.add('copied');
         button.textContent = '✓';
-        setTimeout(() => {
+        button.setAttribute('aria-label', `${state.ariaLabel || 'Direct link'} copied`);
+        button.setAttribute('title', 'Copied');
+        state.timer = setTimeout(() => {
             button.classList.remove('copied');
-            button.textContent = original || '🔗';
+            button.innerHTML = state.html;
+            if (state.ariaLabel === null) button.removeAttribute('aria-label');
+            else button.setAttribute('aria-label', state.ariaLabel);
+            if (state.title === null) button.removeAttribute('title');
+            else button.setAttribute('title', state.title);
+            copyFeedbackStates.delete(button);
         }, 1200);
+        copyFeedbackStates.set(button, state);
     }
 
     async function copyHash(hash, button) {

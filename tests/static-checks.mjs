@@ -1396,6 +1396,9 @@ async function checkCacheBustAlignment() {
   if (!themePreload.includes("window.location.hash.slice(1)") || !themePreload.includes("get('theme')")) {
     fail('theme-preload.js must honor hash theme deep links before first paint');
   }
+  if (!themeUi.includes("window.location.hash.slice(1)") || !themeUi.includes("hashParams.get('theme')")) {
+    fail('theme.js runtime initialization must preserve hash theme precedence over saved preferences');
+  }
   pass('service worker uses a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
 
   if (!index.includes('<meta property="og:image:width" content="1200">') || !index.includes('<meta property="og:image:height" content="630">')) {
@@ -1557,6 +1560,7 @@ async function checkSelectorContracts() {
 
   const requiredSnippets = [
     ['feature launcher grouped menu', 'class="settings-dropdown feature-launcher"'],
+    ['feature launcher decorative map icon', '<span aria-hidden="true">🗺️</span> <span class="nav-label">Explore</span>'],
     ['feature launcher Explore title', 'class="feature-launcher-intro-copy"'],
     ['feature launcher progressive-disclosure copy', 'Start with a live room, then open a category when you need more.'],
     ['feature launcher starter group', '<div class="dropdown-section-label">Start here</div>'],
@@ -2505,6 +2509,9 @@ async function checkSelectorContracts() {
     ['Leaderboard sort focus styles', '.lb-sort-btn:focus-visible', leaderboardCss],
     ['Theme picker native radio controls', 'class="theme-radio" type="radio"', themeUi],
     ['Theme picker radio group label', 'role="radiogroup" aria-label="Choose a site theme"', themeUi],
+    ['Theme picker row-safe copy controls', 'class="theme-link-copy" type="button" data-copy-hash="#theme=${theme}"', themeUi],
+    ['Theme picker copy control accessible label', 'aria-label="Copy ${label} theme link"', themeUi],
+    ['Theme picker copy control focus style', '.theme-link-copy:focus-visible', shellExtrasCss],
     ['Clean dark Chamber surface token', '--chamber-surface-bg: #07101D', styles],
     ['Clean dark Chamber semantic exclusion', '.chamber-content:not(.maxis-content):not(.staking-chamber-content)', styles]
   ];
@@ -7709,7 +7716,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=500'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=501'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

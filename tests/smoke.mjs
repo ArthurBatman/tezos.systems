@@ -5825,6 +5825,14 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
 
   assert((await page.title()).includes('Tezos Systems'), `${label}: title does not include Tezos Systems`);
+  const exploreIcon = await page.locator('#features-gear > span').first().evaluate((node) => ({
+    hidden: node.getAttribute('aria-hidden'),
+    text: node.textContent?.trim() || ''
+  }));
+  assert(
+    exploreIcon.text === '🗺️' && exploreIcon.hidden === 'true',
+    `${label}: Explore should use one decorative map icon: ${JSON.stringify(exploreIcon)}`
+  );
   await expectCount(page, 'header.header', 1, label);
   await expectCount(page, '#price-bar', 1, label);
   await expectCount(page, '#upgrade-clock', 1, label);
@@ -5948,6 +5956,7 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await page.locator('#theme-toggle').click();
   await page.locator('#theme-picker-dropdown').waitFor({ state: 'visible', timeout: 5000 });
   await expectCount(page, '#theme-picker-dropdown .theme-row', 15, label);
+  await expectCount(page, '#theme-picker-dropdown .theme-link-copy', 15, label);
   await page.keyboard.press('Escape');
 
   await openDropdown(page, '#features-gear', '#features-dropdown');
@@ -16090,6 +16099,7 @@ async function smokeThemeSelection(browser, baseUrl) {
     viewport: { width: 1280, height: 900 },
     serviceWorkers: 'block'
   });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
   await installFeatureMocks(context);
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
@@ -16122,6 +16132,42 @@ async function smokeThemeSelection(browser, baseUrl) {
     focused: document.activeElement?.classList.contains('theme-radio') || false
   }));
   assert(pickerSemantics.groupRole === 'radiogroup' && pickerSemantics.radioCount === 15 && pickerSemantics.checked.join(',') === 'matrix' && pickerSemantics.focused, `theme picker native radio semantics mismatch: ${JSON.stringify(pickerSemantics)}`);
+  const copyControls = await page.evaluate(() => Array.from(document.querySelectorAll('#theme-picker-dropdown .theme-link-copy')).map((button) => ({
+    hash: button.getAttribute('data-copy-hash') || '',
+    label: button.getAttribute('aria-label') || '',
+    theme: button.closest('.theme-row-shell')?.getAttribute('data-theme-choice') || ''
+  })));
+  assert(
+    copyControls.length === registeredThemes.length
+      && copyControls.every((control, index) => (
+        control.theme === registeredThemes[index]
+        && control.hash === `#theme=${control.theme}`
+        && control.label === `Copy ${control.theme.charAt(0).toUpperCase()}${control.theme.slice(1)} theme link`
+      )),
+    `theme picker copy controls should map one accessible direct link to every theme: ${JSON.stringify(copyControls)}`
+  );
+  const beforeCopyUrl = page.url();
+  await page.locator('#theme-picker-dropdown .theme-link-copy[data-copy-hash="#theme=valley"]').click();
+  await page.waitForFunction(() => document.querySelector('.theme-link-copy[data-copy-hash="#theme=valley"]')?.classList.contains('copied'), null, { timeout: 3000 });
+  const copiedThemeState = await page.evaluate(async () => ({
+    checked: document.querySelector('#theme-picker-dropdown .theme-radio:checked')?.value || '',
+    clipboard: await navigator.clipboard.readText(),
+    copiedLabel: document.querySelector('.theme-link-copy[data-copy-hash="#theme=valley"]')?.getAttribute('aria-label') || '',
+    focusedHash: document.activeElement?.getAttribute?.('data-copy-hash') || '',
+    pickerOpen: document.querySelector('#theme-picker-dropdown')?.classList.contains('open') || false,
+    theme: document.body.dataset.theme || ''
+  }));
+  assert(
+    copiedThemeState.clipboard === new URL('/#theme=valley', baseUrl).toString()
+      && copiedThemeState.checked === 'matrix'
+      && copiedThemeState.theme === 'matrix'
+      && copiedThemeState.pickerOpen
+      && copiedThemeState.focusedHash === '#theme=valley'
+      && /copied/i.test(copiedThemeState.copiedLabel)
+      && page.url() === beforeCopyUrl,
+    `copying Valley should keep the picker and selected theme stable: ${JSON.stringify({ ...copiedThemeState, beforeCopyUrl, afterCopyUrl: page.url() })}`
+  );
+  await page.locator('#theme-picker-dropdown .theme-radio:checked').focus();
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(() => document.body.dataset.theme === 'hen' && document.querySelector('#theme-picker-dropdown input.theme-radio[value="hen"]')?.checked, null, { timeout: 5000 });
   await page.keyboard.press('Escape');
@@ -16180,10 +16226,49 @@ async function smokeThemeSelection(browser, baseUrl) {
 
   await context.close();
 
+  const hashContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(hashContext);
+  await hashContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    window.__themeChangeTrace = [];
+    window.addEventListener('themechange', (event) => {
+      window.__themeChangeTrace.push(event.detail?.theme || '');
+    });
+  });
+  const hashPage = await hashContext.newPage();
+  attachIssueCollectors(hashPage, 'theme hash direct link', issues);
+  const hashResponse = await hashPage.goto(`${baseUrl}/#theme=valley`, { waitUntil: 'domcontentloaded' });
+  assert(hashResponse?.ok(), `theme hash direct link failed with HTTP ${hashResponse?.status()}`);
+  await hashPage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await hashPage.waitForFunction(() => document.body.dataset.theme === 'valley', null, { timeout: 5000 });
+  const hashThemeState = await hashPage.evaluate(() => ({
+    cssLinks: Array.from(document.querySelectorAll('link[id^="theme-css-"]'), (link) => link.id),
+    saved: localStorage.getItem('tezos-systems-theme') || '',
+    theme: document.body.dataset.theme || '',
+    trace: window.__themeChangeTrace || []
+  }));
+  assert(
+    hashThemeState.theme === 'valley'
+      && hashThemeState.saved === 'valley'
+      && hashThemeState.trace.length > 0
+      && hashThemeState.trace.every((theme) => theme === 'valley')
+      && hashThemeState.cssLinks.includes('theme-css-valley')
+      && !hashThemeState.cssLinks.includes('theme-css-matrix'),
+    `theme hash direct link must override saved Matrix without an intermediate repaint: ${JSON.stringify(hashThemeState)}`
+  );
+  await hashContext.close();
+
   const mobileContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     serviceWorkers: 'block'
   });
+  await mobileContext.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
   await installFeatureMocks(mobileContext);
   await mobileContext.addInitScript(() => {
     localStorage.setItem('tezos-toured', '1');
@@ -16192,6 +16277,54 @@ async function smokeThemeSelection(browser, baseUrl) {
   });
   const mobilePage = await mobileContext.newPage();
   attachIssueCollectors(mobilePage, 'theme typography mobile', issues);
+
+  const mobilePickerResponse = await mobilePage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(mobilePickerResponse?.ok(), `theme picker mobile: dashboard failed with HTTP ${mobilePickerResponse?.status()}`);
+  await mobilePage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await ensureDropdownOpen(mobilePage, '#settings-gear', '#settings-dropdown');
+  await mobilePage.locator('#theme-toggle').click();
+  await mobilePage.locator('#theme-picker-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
+  const mobilePickerState = await mobilePage.evaluate(() => {
+    const picker = document.querySelector('#theme-picker-dropdown');
+    const pickerRect = picker?.getBoundingClientRect();
+    const buttons = Array.from(document.querySelectorAll('#theme-picker-dropdown .theme-link-copy'));
+    const buttonRects = buttons.map((button) => button.getBoundingClientRect());
+    return {
+      buttonCount: buttons.length,
+      buttonsInside: buttonRects.every((rect) => pickerRect && rect.left >= pickerRect.left && rect.right <= pickerRect.right),
+      maxButtonSize: Math.max(0, ...buttonRects.map((rect) => Math.max(rect.width, rect.height))),
+      minButtonSize: Math.min(...buttonRects.map((rect) => Math.min(rect.width, rect.height))),
+      overflow: document.documentElement.scrollWidth - window.innerWidth,
+      pickerInside: Boolean(pickerRect && pickerRect.left >= -1 && pickerRect.right <= window.innerWidth + 1),
+      sheet: picker?.classList.contains('mobile-bottom-sheet') || false
+    };
+  });
+  assert(
+    mobilePickerState.buttonCount === registeredThemes.length
+      && mobilePickerState.buttonsInside
+      && mobilePickerState.minButtonSize >= 28
+      && mobilePickerState.maxButtonSize <= 32
+      && mobilePickerState.overflow <= 1
+      && mobilePickerState.pickerInside
+      && mobilePickerState.sheet,
+    `theme picker mobile copy controls should stay compact and contained: ${JSON.stringify(mobilePickerState)}`
+  );
+  await mobilePage.locator('#theme-picker-dropdown .theme-link-copy[data-copy-hash="#theme=valley"]').click();
+  await mobilePage.waitForFunction(() => document.querySelector('.theme-link-copy[data-copy-hash="#theme=valley"]')?.classList.contains('copied'), null, { timeout: 3000 });
+  const mobileCopyState = await mobilePage.evaluate(async () => ({
+    clipboard: await navigator.clipboard.readText(),
+    open: document.querySelector('#theme-picker-dropdown')?.classList.contains('open') || false,
+    selected: document.querySelector('#theme-picker-dropdown .theme-radio:checked')?.value || '',
+    theme: document.body.dataset.theme || ''
+  }));
+  assert(
+    mobileCopyState.clipboard === new URL('/#theme=valley', baseUrl).toString()
+      && mobileCopyState.open
+      && mobileCopyState.selected === 'matrix'
+      && mobileCopyState.theme === 'matrix',
+    `theme picker mobile copy should preserve selection and stay open: ${JSON.stringify(mobileCopyState)}`
+  );
+  await mobilePage.keyboard.press('Escape');
 
   for (const theme of registeredThemes) {
     const themeResponse = await mobilePage.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });

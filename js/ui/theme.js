@@ -7,7 +7,7 @@ const THEME_KEY = 'tezos-systems-theme';
 export const THEMES = ['aurora', 'matrix', 'hen', 'default', 'void', 'ember', 'signal', 'nerv', 'clean', 'dark', 'bubblegum', 'abyss', 'moss', 'valley', 'warzone'];
 // Aurora — bespoke animated default; striking but legible.
 export const DEFAULT_THEME = 'aurora';
-const THEME_CSS_VERSION = '500';
+const THEME_CSS_VERSION = '501';
 const THEME_FONT_FAMILIES = {
     aurora: ['Chakra+Petch:wght@400;600;700'],
     matrix: ['Share+Tech+Mono'],
@@ -99,9 +99,15 @@ function preloadThemeStylesheets() {
  * Loads theme from localStorage or applies the default theme for new visitors
  */
 export function initTheme() {
-    // Check URL for theme deep link (?theme=matrix, etc.)
+    // Match the render-blocking preload contract: hash links win, then query
+    // links, before any saved preference can repaint the page.
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
     const urlParams = new URLSearchParams(window.location.search);
-    const urlTheme = urlParams.get('theme');
+    const hashTheme = hashParams.get('theme');
+    const queryTheme = urlParams.get('theme');
+    const urlTheme = THEMES.includes(hashTheme)
+        ? hashTheme
+        : queryTheme;
     if (urlTheme && THEMES.includes(urlTheme)) {
         setTheme(urlTheme);
         localStorage.setItem(THEME_KEY, urlTheme);
@@ -176,16 +182,23 @@ export function openThemePicker() {
         const vibe = THEME_VIBES[theme] || {};
         const label = capitalizeTheme(theme);
         return `
-            <label class="theme-row${theme === 'hen' ? ' theme-row-hen' : ''}" data-theme="${theme}">
-                <input class="theme-radio" type="radio" name="tezos-systems-theme" value="${theme}" ${currentTheme === theme ? 'checked' : ''} aria-label="${label}: ${vibe.tagline || 'theme'}">
-                <span class="theme-dots" aria-hidden="true">
-                    <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].bg};"></span>
-                    <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].accent};"></span>
-                    <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].text};"></span>
-                </span>
-                <span class="theme-label">${label}</span>
-                <span class="theme-tagline-hint">${vibe.tagline || ''}</span>
-            </label>`;
+            <div class="theme-row-shell" data-theme-choice="${theme}">
+                <label class="theme-row${theme === 'hen' ? ' theme-row-hen' : ''}" data-theme="${theme}">
+                    <input class="theme-radio" type="radio" name="tezos-systems-theme" value="${theme}" ${currentTheme === theme ? 'checked' : ''} aria-label="${label}: ${vibe.tagline || 'theme'}">
+                    <span class="theme-dots" aria-hidden="true">
+                        <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].bg};"></span>
+                        <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].accent};"></span>
+                        <span class="theme-dot" style="background-color: ${THEME_COLORS[theme].text};"></span>
+                    </span>
+                    <span class="theme-label">${label}</span>
+                    <span class="theme-tagline-hint">${vibe.tagline || ''}</span>
+                </label>
+                <button class="theme-link-copy" type="button" data-copy-hash="#theme=${theme}" aria-label="Copy ${label} theme link" title="Copy ${label} theme link">
+                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                        <path d="M6.25 9.75 9.75 6.25M5.1 11.95l-1.05 1.05a2.12 2.12 0 0 1-3-3L4 7.05a2.12 2.12 0 0 1 3 0M10.9 4.05 11.95 3a2.12 2.12 0 0 1 3 3L12 8.95a2.12 2.12 0 0 1-3 0"></path>
+                    </svg>
+                </button>
+            </div>`;
     }
 
     // Create picker HTML

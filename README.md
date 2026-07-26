@@ -200,7 +200,9 @@ Current refresh and cache intervals from `js/core/config.js`:
 There are 15 visual themes in `js/ui/theme.js`. `aurora` is the default theme.
 The theme picker groups animated themes separately from classic data-focused
 themes, and stores the selection in `localStorage` under
-`tezos-systems-theme`.
+`tezos-systems-theme`. Every picker row includes a compact copy control for its
+canonical `#theme=<name>` direct link, such as `/#theme=valley`; a valid hash
+theme takes precedence over the saved preference from first paint onward.
 Aurora's header title uses a desktop-specific multicolor sweep so the one-line
 wordmark stays as vivid as the wrapped mobile title.
 
