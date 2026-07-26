@@ -5,13 +5,14 @@
 
 import { API_URLS } from '../core/config.js';
 import { fetchHistoricalData, fetchStakingRatio } from '../core/api.js';
-import { siteMapRelated, siteMapRoute } from '../core/site-map.js';
+import { siteMapRoute } from '../core/site-map.js';
+import { siteMapJourneyLinks } from '../core/site-journey.js';
 import { loadStats, loadStatsTimestamp } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, matchesTextQuery, pluralize, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=501';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=502';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
@@ -824,10 +825,10 @@ function renderLatestMoveCard(action, row) {
 }
 
 function renderOtherRooms() {
-    return siteMapRelated('staking-chamber', 4)
+    return siteMapJourneyLinks('staking-chamber', { limit: 4 })
         .map((entry) => `
             <li class="site-wayfinder-item">
-                <a class="site-wayfinder-link" href="${escapeHtml(siteMapRoute(entry))}" data-site-wayfinder-entry="${escapeHtml(entry.id)}">
+                <a class="site-wayfinder-link" href="${escapeHtml(siteMapRoute(entry))}" data-site-wayfinder-entry="${escapeHtml(entry.id)}" data-site-journey data-journey-from="staking-chamber" data-journey-from-entry="staking-chamber" data-journey-to="${escapeHtml(entry.id)}" data-journey-surface="native-wayfinder" data-journey-reason="${escapeHtml(entry.journeyReason || 'related-destination')}">
                     <span class="site-wayfinder-link-title">${escapeHtml(entry.title)}</span>
                     <span class="site-wayfinder-link-detail">${escapeHtml(entry.detail || entry.group || 'Open on Tezos Systems')}</span>
                 </a>

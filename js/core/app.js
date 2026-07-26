@@ -7,12 +7,14 @@ import './tzkt-throttle.js';
 import { fetchAllStats, fetchHeroStats, checkApiHealth, fetchWithDeadline } from './api.js';
 import {
     CHAMBER_CATEGORY_META,
+    findCurrentSiteMapContext,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
     navigateSiteMapEntry,
     siteMapCanonicalRoute
 } from './site-map.js';
 import { renderSiteHandoff } from './site-handoff.js';
+import { initSiteJourneyCapture } from './site-journey.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
 import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
@@ -116,8 +118,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=501';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=501';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=502';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=502';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -389,6 +391,7 @@ async function init() {
         }
     });
     safe('navButtons', initNavButtons);
+    safe('siteJourney', initSiteJourneyCapture);
     safe('siteHandoff', initSiteHandoff);
     safe('siteWayfinder', initSiteWayfinder);
     safe('siteMapRouter', initSiteMapRouter);
@@ -4771,8 +4774,10 @@ function positionTooltip(e, tooltipEl) {
 function initSiteHandoff() {
     const handoff = document.querySelector('[data-site-handoff]');
     if (!handoff) return;
+    const currentContext = findCurrentSiteMapContext();
     renderSiteHandoff(handoff, {
-        currentEntry: findCurrentSiteMapEntry() || findSiteMapEntry('home')
+        currentEntry: currentContext.entry || findCurrentSiteMapEntry() || findSiteMapEntry('home'),
+        currentContext
     });
 }
 

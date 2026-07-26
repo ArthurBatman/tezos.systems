@@ -28,6 +28,11 @@ import {
 } from './my-tezos-tabs.mjs';
 import { enqueueToast } from '../ui/toast-queue.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
+import {
+    buildMyTezosJourneyLinks,
+    hasExplicitLinkedEtherlinkAccount,
+    readMyTezosJourneyOrigin
+} from '../core/site-journey.js';
 
 const TZKT = API_URLS.tzkt;
 const OCTEZ = API_URLS.octez;
@@ -2837,6 +2842,89 @@ function organizeDrawerJourneys() {
     if (passport && passport.parentElement !== actions) actions.appendChild(passport);
 }
 
+function activeMyTezosView() {
+    return document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || 'overview';
+}
+
+function placeJourneySection(view = activeMyTezosView()) {
+    const section = document.getElementById('drawer-more-section');
+    if (!section) return;
+    if (view === 'overview') {
+        const connected = document.getElementById('drawer-connected');
+        const share = connected?.querySelector('.drawer-share-section');
+        if (connected && section.parentElement !== connected) connected.insertBefore(section, share || null);
+        return;
+    }
+    const panel = document.querySelector(`[data-my-tezos-panel="${view}"]`);
+    if (panel && section.parentElement !== panel) panel.appendChild(section);
+}
+
+function updateJourneyCard(link, journey, slot, view) {
+    if (!link) return;
+    if (!journey) {
+        link.hidden = true;
+        link.style.display = 'none';
+        delete link.dataset.journeyTo;
+        return;
+    }
+
+    const from = view === 'overview' ? 'my-tezos' : `my-tezos-${view}`;
+    link.hidden = false;
+    link.style.display = 'grid';
+    link.href = journey.href;
+    link.title = `Open ${journey.title}`;
+    link.setAttribute('aria-label', `Open ${journey.title}`);
+    link.dataset.myTezosJourneySlot = slot;
+    link.dataset.myTezosJourneyDestination = journey.id;
+    link.dataset.siteJourney = 'true';
+    link.dataset.journeyFrom = from;
+    link.dataset.journeyFromEntry = 'my-tezos';
+    if (view === 'overview') delete link.dataset.journeyFromIntent;
+    else link.dataset.journeyFromIntent = from;
+    link.dataset.journeyTo = journey.id;
+    link.dataset.journeySurface = 'my-tezos';
+    link.dataset.journeyReason = journey.reason;
+    if (journey.isReturn) link.dataset.journeyReturn = 'true';
+    else delete link.dataset.journeyReturn;
+    link.classList.toggle('drawer-account-journey-passport', journey.tone === 'passport');
+
+    const icon = link.querySelector('.drawer-account-journey-icon');
+    const kicker = link.querySelector('.drawer-account-journey-kicker');
+    const title = link.querySelector('.drawer-account-journey-copy strong');
+    const detail = link.querySelector('.drawer-account-journey-copy small');
+    if (icon) icon.textContent = journey.icon;
+    if (kicker) kicker.textContent = journey.kicker;
+    if (title) title.textContent = journey.title;
+    if (detail) detail.textContent = journey.detail || 'Continue through Tezos Systems.';
+}
+
+function renderMyTezosJourneys({ place = false } = {}) {
+    const view = activeMyTezosView();
+    if (place) placeJourneySection(view);
+    const address = String(localStorage.getItem(STORAGE_KEY) || '');
+    const journeys = buildMyTezosJourneyLinks({
+        view,
+        data: window._myTezosData,
+        address,
+        hasLinkedL2: hasExplicitLinkedEtherlinkAccount(address),
+        origin: readMyTezosJourneyOrigin()
+    });
+    updateJourneyCard(
+        document.getElementById('my-tezos-ledger-flow-link'),
+        journeys[0],
+        'primary',
+        view
+    );
+    updateJourneyCard(
+        document.getElementById('my-tezos-maxi-passport-link'),
+        journeys[1],
+        'secondary',
+        view
+    );
+    const section = document.getElementById('drawer-more-section');
+    if (section) section.hidden = journeys.length !== 2;
+}
+
 export { setMyTezosView };
 
 export function initMyTezos() {
@@ -2850,6 +2938,11 @@ export function initMyTezos() {
     registerMyTezosView('tezos-x', () => import('./my-tezos-tezosx.mjs')
         .then((module) => module.activateMyTezosTezosX()));
     initMyTezosTabs();
+    renderMyTezosJourneys({ place: true });
+    window.addEventListener('my-tezos-view-changed', () => renderMyTezosJourneys({ place: true }));
+    window.addEventListener('my-tezos-data-ready', () => renderMyTezosJourneys());
+    window.addEventListener('my-tezos-linked-l2-changed', () => renderMyTezosJourneys());
+    window.addEventListener('my-tezos-journeys-request', () => renderMyTezosJourneys());
     document.getElementById('my-tezos-story-transactions')?.addEventListener('click', () => {
         setMyTezosView('transactions', { routeMode: 'push' });
     });
@@ -2888,6 +2981,7 @@ export function initMyTezos() {
                 }
             });
         }
+        renderMyTezosJourneys();
     });
     window.addEventListener('my-tezos-current-account-ready', (event) => {
         const address = String(event.detail?.address || '');

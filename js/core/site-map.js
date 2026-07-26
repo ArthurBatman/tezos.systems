@@ -30,6 +30,13 @@ export const SITE_MAP = [
         group: 'Tools',
         detail: 'Make a wallet or .tez name the center of a personal Tezos dashboard',
         keywords: ['wallet', 'account', 'portfolio', 'rewards', 'rewards tracker', 'baker', 'baker report card', 'operator health', 'personal brief', 'wallet connect', 'identity', 'my baker'],
+        searchIntents: [
+            { id: 'my-tezos-portfolio', title: 'My Tezos Portfolio', href: '/my/?view=portfolio', detail: 'Open the browser-local L1 portfolio and exact balance history', keywords: ['my portfolio', 'wallet balances', 'portfolio history'], journeyOnly: true },
+            { id: 'my-tezos-transactions', title: 'My Tezos Transactions', href: '/my/?view=transactions', detail: 'Open account transfers, NFT interactions, and changes since the last visit', keywords: ['my transactions', 'wallet activity', 'what changed'], journeyOnly: true },
+            { id: 'my-tezos-collection', title: 'My Tezos Collection', href: '/my/?view=collection', detail: 'Open collected and created Tezos art across saved accounts', keywords: ['my collection', 'my nfts', 'created art'], journeyOnly: true },
+            { id: 'my-tezos-story', title: 'My Tezos Story', href: '/my/?view=story', detail: 'Open the account dossier and browser-local recent chapter', keywords: ['my story', 'account history', 'personal timeline'], journeyOnly: true },
+            { id: 'my-tezos-tezos-x', title: 'My Tezos X', href: '/my/?view=tezos-x', detail: 'Open explicitly linked, device-local Etherlink accounts', keywords: ['my etherlink', 'linked l2', 'my tezos x'], journeyOnly: true }
+        ],
         sitemap: { changefreq: 'hourly', priority: '0.9' },
         starter: 1,
         searchChip: { label: 'Wallet or .tez', order: 1 }
@@ -556,6 +563,28 @@ export function findSiteMapEntry(id) {
     return SITE_MAP.find((entry) => entry.id === id) || null;
 }
 
+/**
+ * Resolve either a top-level destination or one of its canonical child views.
+ * Child destinations inherit their parent's group so every journey consumer
+ * can render them without maintaining another navigation catalogue.
+ */
+export function findSiteMapDestination(id) {
+    const entry = findSiteMapEntry(id);
+    if (entry) return entry;
+
+    for (const parent of SITE_MAP) {
+        const intent = (parent.searchIntents || []).find((candidate) => candidate.id === id);
+        if (!intent) continue;
+        return {
+            ...intent,
+            group: intent.group || parent.group,
+            parentId: parent.id,
+            parentTitle: parent.title
+        };
+    }
+    return null;
+}
+
 export function siteMapRoute(entry) {
     return entry?.href || '/';
 }
@@ -691,7 +720,9 @@ export function searchSiteMapIntents(query) {
     const wantsSeason = /\bseason\b/i.test(raw);
     const queryTokens = normalizedSearchValue(raw).split(' ').filter(Boolean);
     return SITE_MAP
-        .flatMap((entry, parentIndex) => (entry.searchIntents || []).map((intent, intentIndex) => {
+        .flatMap((entry, parentIndex) => (entry.searchIntents || [])
+            .filter((intent) => !intent.journeyOnly)
+            .map((intent, intentIndex) => {
             const seasonVariant = wantsSeason && intent.seasonHref;
             return {
                 ...intent,
@@ -817,28 +848,98 @@ export function siteMapRelated(id, limit = 4) {
     return [...explicit, ...fallback].slice(0, Math.max(0, limit));
 }
 
-export function findCurrentSiteMapEntry(locationLike = globalThis.location) {
-    const pathname = String(locationLike?.pathname || '/').replace(/\/index\.html$/, '/');
+function normalizedLocationPath(locationLike) {
+    return String(locationLike?.pathname || '/').replace(/\/index\.html$/, '/');
+}
+
+function intentRouteMatch(intent, pathname, searchParams) {
+    const routes = [{ id: intent.id, href: intent.href }];
+
+    return routes
+        .map((route) => {
+            const url = new URL(route.href, 'https://tezos.systems');
+            if (url.pathname !== pathname) return null;
+            const expected = Array.from(url.searchParams.entries());
+            if (!expected.every(([key, value]) => searchParams.get(key) === value)) return null;
+            return {
+                ...route,
+                specificity: expected.length
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.specificity - a.specificity)[0] || null;
+}
+
+/**
+ * Resolve the exact canonical destination represented by a URL.
+ *
+ * Extra query parameters are intentionally ignored. That keeps address,
+ * search, and filter state out of journey memory while still distinguishing
+ * canonical child views such as Capital Art and Network Fees.
+ */
+export function findCurrentSiteMapContext(locationLike = globalThis.location) {
+    const pathname = normalizedLocationPath(locationLike);
     const search = String(locationLike?.search || '');
+    const searchParams = new URLSearchParams(search);
     const hash = String(locationLike?.hash || '');
 
-    if (pathname.startsWith('/compare/')) return findSiteMapEntry('compare');
-    if ((pathname === '/' || pathname === '/index.html') && new URLSearchParams(search).get('hen') === '1') {
-        return findSiteMapEntry('hen');
+    if ((pathname === '/' || pathname === '/index.html') && searchParams.get('hen') === '1') {
+        const entry = findSiteMapEntry('hen');
+        return { id: entry.id, entry, intent: null, entryId: entry.id, intentId: null, route: entry.href };
     }
     if (pathname === '/' && hash) {
         const hashKey = `#${hash.replace(/^#/, '').split('=')[0]}`;
-        const byHash = SITE_MAP.find((entry) => entry.hash === hashKey || (entry.hashAliases || []).includes(hashKey));
-        if (byHash) return byHash;
+        const entry = SITE_MAP.find((candidate) => (
+            candidate.hash === hashKey || (candidate.hashAliases || []).includes(hashKey)
+        ));
+        if (entry) return { id: entry.id, entry, intent: null, entryId: entry.id, intentId: null, route: entry.href };
     }
-    const byEntryRoute = SITE_MAP.find((entry) => {
-        const href = new URL(entry.href, 'https://tezos.systems');
-        return href.pathname === pathname || (entry.paths || []).includes(pathname);
-    });
-    if (byEntryRoute) return byEntryRoute;
 
-    return SITE_MAP.find((entry) => (entry.searchIntents || []).some((intent) => {
-        const href = new URL(intent.href, 'https://tezos.systems');
-        return href.pathname === pathname;
-    })) || home;
+    const childMatches = [];
+    SITE_MAP.forEach((entry, parentIndex) => {
+        (entry.searchIntents || []).forEach((intent, intentIndex) => {
+            const match = intentRouteMatch(intent, pathname, searchParams);
+            if (!match) return;
+            childMatches.push({
+                entry,
+                intent: {
+                    ...intent,
+                    id: match.id,
+                    href: match.href,
+                    group: intent.group || entry.group,
+                    parentId: entry.id,
+                    parentTitle: entry.title
+                },
+                specificity: match.specificity,
+                parentIndex,
+                intentIndex
+            });
+        });
+    });
+    childMatches.sort((a, b) => (
+        b.specificity - a.specificity
+        || a.parentIndex - b.parentIndex
+        || a.intentIndex - b.intentIndex
+    ));
+    if (childMatches.length) {
+        const { entry, intent } = childMatches[0];
+        return {
+            id: intent.id,
+            entry,
+            intent,
+            entryId: entry.id,
+            intentId: intent.id,
+            route: intent.href
+        };
+    }
+
+    const entry = SITE_MAP.find((candidate) => {
+        const href = new URL(candidate.href, 'https://tezos.systems');
+        return href.pathname === pathname || (candidate.paths || []).includes(pathname);
+    }) || home;
+    return { id: entry.id, entry, intent: null, entryId: entry.id, intentId: null, route: entry.href };
+}
+
+export function findCurrentSiteMapEntry(locationLike = globalThis.location) {
+    return findCurrentSiteMapContext(locationLike).entry;
 }

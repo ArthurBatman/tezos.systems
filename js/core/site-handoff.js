@@ -4,9 +4,9 @@ import {
     findSiteMapEntry,
     siteMapDirectoryChildren,
     siteMapGroup,
-    siteMapRelated,
     siteMapRoute
 } from './site-map.js';
+import { siteMapJourneyLinks } from './site-journey.js';
 
 export const SITE_HANDOFF_STEPS = Object.freeze([
     { id: 'now', label: 'Now', entryId: 'pulse' },
@@ -55,28 +55,30 @@ function phaseIndexForEntry(entry) {
     return index >= 0 ? index : 0;
 }
 
-function relatedEntries(current, limit = 6) {
-    return (current ? siteMapRelated(current.id, limit) : [])
+function relatedEntries(context, limit = 6) {
+    return (context ? siteMapJourneyLinks(context, { limit }) : [])
         .map((entry) => typeof entry === 'string' ? findSiteMapEntry(entry) : entry)
         .filter(Boolean);
 }
 
-function recommendedEntry(current, steps) {
+function recommendedEntry(current, context, steps) {
     if (!current || current.id === 'home') return findSiteMapEntry('pulse') || steps[0]?.entry || null;
     const exactIndex = steps.findIndex((step) => step.entry.id === current.id);
     if (exactIndex >= 0) return steps[(exactIndex + 1) % steps.length]?.entry || null;
-    return relatedEntries(current, 6)[0]
+    return relatedEntries(context, 6)[0]
         || steps[(phaseIndexForEntry(current) + 1) % steps.length]?.entry
         || steps[0]?.entry
         || null;
 }
 
-function supportingEntries(current, primary) {
+function supportingEntries(current, context, primary) {
+    const contextualRelated = relatedEntries(context, 8);
     const personal = primary?.id === 'my-tezos' || current?.id === 'my-tezos'
         ? findSiteMapEntry('pulse')
-        : findSiteMapEntry('my-tezos');
+        : contextualRelated.find((entry) => entry.id === 'my-tezos')
+            || findSiteMapEntry('my-tezos');
     const candidates = [
-        ...relatedEntries(current, 8),
+        ...contextualRelated,
         ...handoffEntries().map((step) => step.entry)
     ].filter((entry, index, entries) => (
         entry
@@ -91,7 +93,20 @@ function supportingEntries(current, primary) {
     };
 }
 
-function lifelineHtml(current, primary, steps) {
+function journeyAttributes(context, destination, surface, reason) {
+    const from = context.intentId || context.entryId;
+    return [
+        'data-site-journey',
+        `data-journey-from="${escapeHtml(from)}"`,
+        `data-journey-from-entry="${escapeHtml(context.entryId)}"`,
+        context.intentId ? `data-journey-from-intent="${escapeHtml(context.intentId)}"` : '',
+        `data-journey-to="${escapeHtml(destination.id)}"`,
+        `data-journey-surface="${escapeHtml(surface)}"`,
+        `data-journey-reason="${escapeHtml(reason)}"`
+    ].filter(Boolean).join(' ');
+}
+
+function lifelineHtml(current, context, primary, steps) {
     const currentPhaseIndex = phaseIndexForEntry(current);
     return steps.map((step, index) => {
         const classes = [
@@ -101,7 +116,7 @@ function lifelineHtml(current, primary, steps) {
         ].filter(Boolean).join(' ');
         const currentPage = step.entry.id === current?.id;
         return `
-            <a class="${classes}" href="${escapeHtml(entryRoute(step.entry))}" data-site-map-entry="${escapeHtml(step.entry.id)}"${currentPage ? ' aria-current="page"' : ''}>
+            <a class="${classes}" href="${escapeHtml(entryRoute(step.entry))}" data-site-map-entry="${escapeHtml(step.entry.id)}" ${journeyAttributes(context, step.entry, 'site-handoff', 'phase-continuation')}${currentPage ? ' aria-current="page"' : ''}>
                 <span class="site-handoff-node" aria-hidden="true"></span>
                 <strong>${escapeHtml(step.label)}</strong>
                 <small>${escapeHtml(step.entry.title)}</small>
@@ -151,18 +166,27 @@ function destinationCount() {
 }
 
 export function renderSiteHandoff(container, {
-    currentEntry = null
+    currentEntry = null,
+    currentContext = null
 } = {}) {
     if (!container) return;
     const sequence = ++handoffSequence;
-    const current = currentEntry || findSiteMapEntry('home') || SITE_MAP[0] || null;
+    const current = currentEntry || currentContext?.entry || findSiteMapEntry('home') || SITE_MAP[0] || null;
+    const context = currentContext || {
+        id: current.id,
+        entry: current,
+        intent: null,
+        entryId: current.id,
+        intentId: null,
+        route: current.href
+    };
     const steps = handoffEntries();
-    const primary = recommendedEntry(current, steps);
-    const supporting = supportingEntries(current, primary);
+    const primary = recommendedEntry(current, context, steps);
+    const supporting = supportingEntries(current, context, primary);
     const totalDestinations = destinationCount();
     const titleId = sequence === 1 ? 'site-handoff-title' : `site-handoff-title-${sequence}`;
     const mapId = sequence === 1 ? 'site-map' : `site-map-${sequence}`;
-    const currentTitle = current?.title || 'this page';
+    const currentTitle = context.intent?.title || current?.title || 'this page';
 
     container.classList.add('site-map-shell', 'site-map-footer', 'site-handoff-shell');
     container.setAttribute('data-site-handoff', 'true');
@@ -175,7 +199,7 @@ export function renderSiteHandoff(container, {
                 <p>You reached the end of ${escapeHtml(currentTitle)}. Follow one line deeper, or open the complete system map.</p>
             </header>
             <nav class="site-handoff-lifeline" aria-label="Tezos Systems lifeline">
-                ${lifelineHtml(current, primary, steps)}
+                ${lifelineHtml(current, context, primary, steps)}
             </nav>
             ${primary ? `
                 <section class="site-handoff-recommendation" aria-labelledby="site-handoff-next-${sequence}">
@@ -184,18 +208,18 @@ export function renderSiteHandoff(container, {
                         <h3 id="site-handoff-next-${sequence}">${escapeHtml(primary.title)}</h3>
                         <p>${escapeHtml(primary.detail || `Continue from ${currentTitle} into the next Tezos Systems destination.`)}</p>
                     </div>
-                    <a class="site-handoff-primary" href="${escapeHtml(entryRoute(primary))}" data-site-map-entry="${escapeHtml(primary.id)}">
+                    <a class="site-handoff-primary" href="${escapeHtml(entryRoute(primary))}" data-site-map-entry="${escapeHtml(primary.id)}" ${journeyAttributes(context, primary, 'site-handoff', primary.journeyReason || 'phase-continuation')}>
                         Continue <span aria-hidden="true">→</span>
                     </a>
                     <nav class="site-handoff-side-actions" aria-label="Other ways forward">
                         ${supporting.personal ? `
-                            <a href="${escapeHtml(entryRoute(supporting.personal))}" data-site-map-entry="${escapeHtml(supporting.personal.id)}">
+                            <a href="${escapeHtml(entryRoute(supporting.personal))}" data-site-map-entry="${escapeHtml(supporting.personal.id)}" ${journeyAttributes(context, supporting.personal, 'site-handoff', supporting.personal.journeyReason || 'supporting-destination')}>
                                 <span>${supporting.personal.id === 'my-tezos' ? 'Follow my wallet' : 'See the network now'}</span>
                                 <small>${escapeHtml(supporting.personal.title)}</small>
                             </a>
                         ` : ''}
                         ${supporting.distress ? `
-                            <a href="${escapeHtml(entryRoute(supporting.distress))}" data-site-map-entry="${escapeHtml(supporting.distress.id)}" aria-label="Choose for me: ${escapeHtml(supporting.distress.title)}">
+                            <a href="${escapeHtml(entryRoute(supporting.distress))}" data-site-map-entry="${escapeHtml(supporting.distress.id)}" ${journeyAttributes(context, supporting.distress, 'site-handoff', supporting.distress.journeyReason || 'supporting-destination')} aria-label="Choose for me: ${escapeHtml(supporting.distress.title)}">
                                 <span>Choose for me</span>
                                 <small>${escapeHtml(supporting.distress.title)}</small>
                             </a>

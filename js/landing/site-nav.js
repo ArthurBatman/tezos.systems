@@ -1,12 +1,13 @@
 import {
     SITE_MAP,
+    findCurrentSiteMapContext,
     findCurrentSiteMapEntry,
     findSiteMapEntry,
-    siteMapRelated,
     siteMapRoute,
     searchSiteMap
 } from '../core/site-map.js';
 import { renderSiteHandoff } from '../core/site-handoff.js';
+import { initSiteJourneyCapture, siteMapJourneyLinks } from '../core/site-journey.js';
 import { initFooterDelegation } from '../core/wallet.js';
 
 const FALLBACK_RELATED_IDS = ['pulse', 'staking-chamber', 'maxis', 'health'];
@@ -147,18 +148,31 @@ function normalizeEntries(entries) {
         .filter(Boolean);
 }
 
-function relatedEntries(current, limit) {
-    const related = current ? normalizeEntries(siteMapRelated(current.id, limit)) : [];
+function currentContext(current) {
+    const routeContext = findCurrentSiteMapContext();
+    if (routeContext.entryId === current?.id) return routeContext;
+    return {
+        id: current?.id || 'home',
+        entry: current || findSiteMapEntry('home'),
+        intent: null,
+        entryId: current?.id || 'home',
+        intentId: null,
+        route: current?.href || '/'
+    };
+}
+
+function relatedEntries(context, limit) {
+    const related = context ? normalizeEntries(siteMapJourneyLinks(context, { limit })) : [];
     if (related.length) return related.slice(0, limit);
     return FALLBACK_RELATED_IDS
         .map((id) => findSiteMapEntry(id))
-        .filter((entry) => entry && entry.id !== current?.id)
+        .filter((entry) => entry && entry.id !== context?.entryId)
         .slice(0, limit);
 }
 
-function relatedCardHtml(entry) {
+function relatedCardHtml(entry, context) {
     return `
-        <a class="site-map-link site-wayfinder-card" href="${escapeHtml(entryRoute(entry))}">
+        <a class="site-map-link site-wayfinder-card" href="${escapeHtml(entryRoute(entry))}" data-site-journey data-journey-from="${escapeHtml(context.intentId || context.entryId)}" data-journey-from-entry="${escapeHtml(context.entryId)}"${context.intentId ? ` data-journey-from-intent="${escapeHtml(context.intentId)}"` : ''} data-journey-to="${escapeHtml(entry.id)}" data-journey-surface="generic-wayfinder" data-journey-reason="${escapeHtml(entry.journeyReason || 'related-destination')}">
             <span>${escapeHtml(entry.group || 'Tezos Systems')}</span>
             <strong>${escapeHtml(entry.title)}</strong>
             <small>${escapeHtml(entry.detail || '')}</small>
@@ -175,9 +189,10 @@ function hasFollowingFooter(container) {
 function renderCirculation() {
     document.querySelectorAll('[data-site-circulation]').forEach((container) => {
         const current = contextEntry(container);
+        const context = currentContext(current);
         const requestedLimit = Number.parseInt(container.getAttribute('data-site-related-limit') || '4', 10);
         const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 2), 6) : 4;
-        const entries = relatedEntries(current, limit);
+        const entries = relatedEntries(context, limit);
         const headingId = `site-circulation-title-${++headingSequence}`;
         const discoveryActions = hasFollowingFooter(container) ? '' : `
             <nav class="site-map-cta site-wayfinder-actions" aria-label="Tezos Systems discovery tools">
@@ -196,7 +211,7 @@ function renderCirculation() {
                 ${discoveryActions}
             </div>
             <div class="site-map-related-grid site-wayfinder-grid">
-                ${entries.map(relatedCardHtml).join('')}
+                ${entries.map((entry) => relatedCardHtml(entry, context)).join('')}
             </div>
         `;
     });
@@ -236,8 +251,10 @@ function renderFooter() {
         if (!handoff.isConnected) footer.before(handoff);
         handoff.setAttribute('data-site-handoff', 'true');
         if (current?.id) handoff.setAttribute('data-site-context', current.id);
+        const context = currentContext(current);
         renderSiteHandoff(handoff, {
-            currentEntry: current
+            currentEntry: current,
+            currentContext: context
         });
         footer.classList.add('site-footer-separate');
         footer.setAttribute('data-site-footer', 'true');
@@ -264,6 +281,7 @@ function renderRelatedMap() {
 
 export function initSiteNav() {
     if (!SITE_MAP.length) return;
+    initSiteJourneyCapture();
     renderNav();
     renderCirculation();
     renderFooter();

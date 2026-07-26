@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CHAMBER_ROUTES, routeUrl } from '../scripts/lib/chamber-routes.mjs';
 import {
   MILESTONE_BASE_THRESHOLDS,
@@ -709,6 +709,7 @@ async function checkRequiredFiles() {
     'js/core/config.js',
     'js/core/quiet-refresh.js',
     'js/core/site-map.js',
+    'js/core/site-journey.js',
     'js/core/etherlink-governance-contracts.mjs',
     'js/core/tzkt-throttle.js',
     'js/core/wallet.js',
@@ -998,6 +999,8 @@ async function checkSiteMapGraphContracts() {
     SITE_MAP,
     SITE_MAP_NAV_GROUPS,
     SITE_MAP_RELATIONS,
+    findCurrentSiteMapContext,
+    findSiteMapDestination,
     searchSiteMap,
     searchSiteMapIntents,
     siteMapBrowseEntries,
@@ -1008,6 +1011,20 @@ async function checkSiteMapGraphContracts() {
     siteMapSitemapEntries,
     siteMapStarters
   } = await import(moduleUrl);
+  const journeySource = (await readText('js/core/site-journey.js'))
+    .replace("'./site-map.js'", JSON.stringify(moduleUrl))
+    .replace(
+      "'./my-tezos-models.mjs'",
+      JSON.stringify(pathToFileURL(path.join(ROOT, 'js/core/my-tezos-models.mjs')).href)
+    );
+  const journeyModuleUrl = `data:text/javascript;base64,${Buffer.from(journeySource).toString('base64')}`;
+  const {
+    MY_TEZOS_JOURNEY_ORIGIN_KEY,
+    buildMyTezosJourneyLinks,
+    journeyAnalyticsDetails,
+    readMyTezosJourneyOrigin,
+    siteMapJourneyLinks
+  } = await import(journeyModuleUrl);
 
   const ids = SITE_MAP.map((entry) => entry.id);
   const hrefs = SITE_MAP.map((entry) => entry.href);
@@ -1082,6 +1099,127 @@ async function checkSiteMapGraphContracts() {
       fail(`site map relation graph is not circular from ${startId}; missing ${ids.filter((id) => !seen.has(id)).join(', ')}`);
     }
   }
+
+  const contextCases = [
+    ['/capital/?view=art', 'capital', 'capital-art'],
+    ['/capital/?view=system&focus=fees', 'capital', 'capital-fees'],
+    ['/ecosystem/?layer=etherlink', 'ecosystem', 'ecosystem-l2'],
+    ['/maxis/?view=passport&address=tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb', 'maxis', 'maxis-passport'],
+    ['/maxis/?view=season&lane=staking', 'maxis', 'maxis-season'],
+    ['/whales/?view=awakenings&search=tz1ignored', 'whales', 'whales-awakenings'],
+    ['/leaderboard/?view=discover', 'leaderboard', 'leaderboard-discover'],
+    ['/compare/tezos-vs-ethereum.html', 'compare', 'compare-ethereum'],
+    ['/capital/?unknown=1', 'capital', null]
+  ];
+  for (const [route, entryId, intentId] of contextCases) {
+    const url = new URL(route, 'https://tezos.systems');
+    const context = findCurrentSiteMapContext(url);
+    if (context.entryId !== entryId || context.intentId !== intentId) {
+      fail(`site map context ${route} should resolve ${entryId}/${intentId || 'parent'}, got ${context.entryId}/${context.intentId || 'parent'}`);
+    }
+  }
+  if (findSiteMapDestination('capital-art')?.parentId !== 'capital') {
+    fail('site map child destination lookup must preserve its canonical parent');
+  }
+
+  for (const contextId of ['pulse', 'staking-chamber', 'ledger-flow', 'capital-art', 'maxis-passport', 'ecosystem-l2']) {
+    const links = siteMapJourneyLinks(contextId, { limit: 4, hasLinkedL2: false });
+    if (
+      links.length !== 4
+      || new Set(links.map((entry) => entry.id)).size !== 4
+      || links.some((entry) => (entry.parentId || entry.id) === (findSiteMapDestination(contextId)?.parentId || contextId))
+    ) {
+      fail(`site journey ${contextId} must expose four unique destinations outside its current family`);
+    }
+  }
+  const pulseJourneyIds = siteMapJourneyLinks('pulse', { limit: 4 }).map((entry) => entry.id);
+  const pulseRelatedIds = siteMapRelated('pulse', 4).map((entry) => entry.id);
+  if (JSON.stringify(pulseJourneyIds) !== JSON.stringify(pulseRelatedIds)) {
+    fail('Network Pulse must retain its established four-link relation order');
+  }
+  const stakingJourney = siteMapJourneyLinks('staking-chamber', { limit: 4 });
+  if (stakingJourney[0]?.id !== 'my-tezos' || stakingJourney[0]?.href !== '/my/?view=portfolio') {
+    fail('Staking Chamber must continue naturally into My Tezos Portfolio');
+  }
+  const unlinkedL2Journey = siteMapJourneyLinks('ecosystem-l2', { limit: 4, hasLinkedL2: false });
+  if (unlinkedL2Journey.some((entry) => entry.id === 'my-tezos')) {
+    fail('L2 contexts must not recommend My Tezos X without an explicit local link');
+  }
+  const linkedL2Journey = siteMapJourneyLinks('ecosystem-l2', { limit: 4, hasLinkedL2: true });
+  if (linkedL2Journey[0]?.href !== '/my/?view=tezos-x') {
+    fail('explicitly linked L2 contexts must continue into My Tezos X');
+  }
+
+  const activeAddress = 'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb';
+  const baseData = { fullAddress: activeAddress, loading: false, story: {} };
+  const recommendationCases = [
+    ['baker overview', { view: 'overview', data: { ...baseData, isBaker: true } }, ['health', 'chamber']],
+    ['staker overview', { view: 'overview', data: { ...baseData, isStaker: true, staked: 1 } }, ['staking-chamber', 'calculator']],
+    ['delegator overview', { view: 'overview', data: { ...baseData, bakerAddr: activeAddress } }, ['leaderboard-discover', 'health']],
+    ['creator overview', { view: 'overview', data: { ...baseData, story: { creatorStats: { totalCreated: 1 } } } }, ['capital-art', 'maxis-artist']],
+    ['collector overview', { view: 'overview', data: { ...baseData, story: { nftAssetsCollected: 2 } } }, ['hen', 'maxis-collector']],
+    ['domain overview', { view: 'overview', data: { ...baseData, story: { domainAlias: 'person.tez' } } }, ['domains', 'ledger-flow']],
+    ['portfolio tab', { view: 'portfolio', data: baseData }, ['ledger-flow', 'price']],
+    ['transactions tab', { view: 'transactions', data: baseData }, ['ledger-flow', 'whales']],
+    ['collection tab', { view: 'collection', data: baseData }, ['hen', 'capital-art']],
+    ['story tab', { view: 'story', data: baseData }, ['maxis-passport', 'anthology']],
+    ['linked Tezos X tab', { view: 'tezos-x', data: baseData, hasLinkedL2: true }, ['tezosx', 'ecosystem-l2']]
+  ];
+  for (const [label, options, expected] of recommendationCases) {
+    const actual = buildMyTezosJourneyLinks({ address: activeAddress, ...options, origin: null }).map((entry) => entry.id);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      fail(`${label} journey cards should be ${expected.join(', ')}, got ${actual.join(', ')}`);
+    }
+  }
+  const unlinkedPersonalIds = buildMyTezosJourneyLinks({
+    view: 'tezos-x',
+    data: baseData,
+    address: activeAddress,
+    hasLinkedL2: false,
+    origin: null
+  }).map((entry) => entry.id);
+  if (unlinkedPersonalIds.some((id) => ['tezosx', 'ecosystem-l2', 'l2-governance'].includes(id))) {
+    fail('My Tezos must not infer an L2 continuation without an explicit active-address link');
+  }
+  const returnCards = buildMyTezosJourneyLinks({
+    view: 'collection',
+    data: baseData,
+    address: activeAddress,
+    origin: { entryId: 'capital', intentId: 'capital-art' }
+  });
+  if (returnCards[0]?.title !== 'Return to Art Economy' || returnCards[0]?.href !== '/capital/?view=art' || !returnCards[0]?.isReturn) {
+    fail('My Tezos must reconstruct a canonical child-view Return card without raw route state');
+  }
+
+  const analytics = journeyAnalyticsDetails({
+    from: 'capital-art',
+    to: 'my-tezos',
+    surface: 'generic-wayfinder',
+    reason: 'account-collection'
+  });
+  if (
+    JSON.stringify(Object.keys(analytics || {})) !== JSON.stringify(['from', 'to', 'surface', 'reason'])
+    || Object.values(analytics || {}).some((value) => /(?:tz[1-4]|KT1|0x[0-9a-f]{40}|\.tez|address=)/i.test(value))
+  ) {
+    fail('journey analytics must contain only the four privacy-safe canonical dimensions');
+  }
+  const originalSessionStorage = globalThis.sessionStorage;
+  const sessionValues = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => sessionValues.get(key) || null,
+    setItem: (key, value) => sessionValues.set(key, value),
+    removeItem: (key) => sessionValues.delete(key)
+  };
+  sessionValues.set(MY_TEZOS_JOURNEY_ORIGIN_KEY, JSON.stringify({
+    entryId: 'capital',
+    intentId: 'capital-art',
+    address: activeAddress
+  }));
+  if (readMyTezosJourneyOrigin() !== null || sessionValues.has(MY_TEZOS_JOURNEY_ORIGIN_KEY)) {
+    fail('journey origin memory must reject and clear records with raw or extra fields');
+  }
+  if (originalSessionStorage === undefined) delete globalThis.sessionStorage;
+  else globalThis.sessionStorage = originalSessionStorage;
 
   const rankedIntent = {
     'my tezos': 'my-tezos',
@@ -1227,7 +1365,7 @@ async function checkSiteMapGraphContracts() {
     || !siteHandoff.includes('SITE_MAP_NAV_GROUPS.map')) {
     fail('dashboard must expose separate manifest-backed Handoff and footer surfaces');
   }
-  if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapRelated')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
+  if (!app.includes('initSiteWayfinder') || !wayfinder.includes('siteMapJourneyLinks')) fail('dashboard Chambers must initialize the shared semantic wayfinder');
   if (!index.includes('data-site-map-complete') || !index.includes('class="feature-launcher-directory-link"') || !index.includes('href="/#site-map"')) {
     fail('Explore must expose one quiet complete-directory utility');
   }
@@ -1238,7 +1376,7 @@ async function checkSiteMapGraphContracts() {
   const nativeStaking = await readText('js/features/staking-chamber.js');
   const nativeWayfinders = [nativePulse, nativeStaking];
   for (const native of nativeWayfinders) {
-    if (!native.includes('data-site-wayfinder-native') || !native.includes('siteMapRelated(') || !native.includes('href="/#chambers"') || !native.includes('href="/#search"')) {
+    if (!native.includes('data-site-wayfinder-native') || !native.includes('siteMapJourneyLinks(') || !native.includes('href="/#chambers"') || !native.includes('href="/#search"')) {
       fail('native Chamber wayfinders must expose four semantic neighbors plus Chambers and search exits');
     }
   }
@@ -1739,6 +1877,7 @@ async function checkSelectorContracts() {
   const leaderboard = await readText('js/features/leaderboard.js');
   const myTezos = await readText('js/features/my-tezos.js');
   const myBaker = await readText('js/features/my-baker.js');
+  const siteJourney = await readText('js/core/site-journey.js');
   const comparison = await readText('js/features/comparison.js');
   const compareIndex = await readText('compare/index.html');
   const chamberRoutes = await readText('scripts/lib/chamber-routes.mjs');
@@ -1907,7 +2046,7 @@ async function checkSelectorContracts() {
     ['Network Pulse Market source cards', "source: 'market'", networkPulse],
     ['Network Pulse sourced freshness label', 'network-pulse-source-age', networkPulse],
     ['Network Pulse card history modal', 'openCardHistoryModal', networkPulse],
-    ['Network Pulse semantic room source', "siteMapRelated('pulse', 4)", networkPulse],
+    ['Network Pulse semantic room source', "siteMapJourneyLinks('pulse', { limit: 4 })", networkPulse],
     ['Network Pulse nav buttons avoid hash pollution', 'data-pulse-target', networkPulse],
     ['Network Pulse scrollspy wiring', 'IntersectionObserver', networkPulse],
     ['Network Pulse delta chip markup', 'network-pulse-delta', networkPulse],
@@ -2285,8 +2424,8 @@ async function checkSelectorContracts() {
     ['My Tezos Ledger Flow explain copy', 'Trace sent, received, and first-funding paths around this account.', index],
     ['My Tezos unified account journeys', 'Explore this account', index],
     ['My Tezos shared account journey card', '.drawer-account-journey-card', styles],
-    ['My Tezos Ledger Flow address route', '#ledger-flow=${encodeURIComponent(addr)}', myBaker],
-    ['My Tezos Ledger Flow card display mode', "ledgerFlowLink.style.display = 'grid'", myBaker],
+    ['My Tezos contextual journey builder', 'buildMyTezosJourneyLinks', myTezos],
+    ['My Tezos active-address scoped journey routes', '/#ledger-flow=${encodeURIComponent(address)}', siteJourney],
     ['My Tezos shared drawer state controller', 'setMyTezosDrawerOpenState = setDrawerOpen', app],
     ['My Tezos Chamber handoff closes drawer without stale focus restore', 'setMyTezosDrawerOpenState?.(false, { restoreFocus: false })', app],
     ['My Tezos Octez operator fetch', '/delegates/${encodeURIComponent(bakerAddr)}', myTezos],
@@ -7716,7 +7855,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=501'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=502'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

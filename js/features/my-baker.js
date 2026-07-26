@@ -850,37 +850,16 @@ export function init() {
     function updateLedgerFlowLink(addr) {
         if (!ledgerFlowLink && !maxiPassportLink) return;
         if (!addr) {
-            if (ledgerFlowLink) {
-                ledgerFlowLink.hidden = true;
-                ledgerFlowLink.style.display = 'none';
-                ledgerFlowLink.href = '#ledger-flow';
-                ledgerFlowLink.removeAttribute('title');
-                ledgerFlowLink.removeAttribute('aria-label');
-            }
-            if (maxiPassportLink) {
-                maxiPassportLink.hidden = true;
-                maxiPassportLink.style.display = 'none';
-                maxiPassportLink.href = '/maxis/?view=passport';
-                maxiPassportLink.removeAttribute('title');
-                maxiPassportLink.removeAttribute('aria-label');
-            }
-            return;
+            [ledgerFlowLink, maxiPassportLink].filter(Boolean).forEach((link) => {
+                link.hidden = true;
+                link.style.display = 'none';
+                link.removeAttribute('title');
+                link.removeAttribute('aria-label');
+            });
         }
-        if (ledgerFlowLink) {
-            ledgerFlowLink.hidden = false;
-            ledgerFlowLink.style.display = 'grid';
-            ledgerFlowLink.href = `#ledger-flow=${encodeURIComponent(addr)}`;
-            ledgerFlowLink.title = `Open Ledger Flow transfer map for ${addr}`;
-            ledgerFlowLink.setAttribute('aria-label', `Open Ledger Flow transfer map for ${addr}`);
-        }
-        if (maxiPassportLink) {
-            const passportUrl = `/maxis/?view=passport&address=${encodeURIComponent(addr)}`;
-            maxiPassportLink.hidden = false;
-            maxiPassportLink.style.display = 'grid';
-            maxiPassportLink.href = passportUrl;
-            maxiPassportLink.title = `Open Maxi Passport for ${addr}`;
-            maxiPassportLink.setAttribute('aria-label', `Open Maxi Passport for ${addr}`);
-        }
+        window.dispatchEvent(new CustomEvent('my-tezos-journeys-request', {
+            detail: { hasAddress: Boolean(addr) }
+        }));
     }
 
     function setDrawerConnectionState(hasAddress) {

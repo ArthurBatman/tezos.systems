@@ -1,4 +1,10 @@
-import { findSiteMapEntry, navigateSiteMapEntry, siteMapRelated, siteMapRoute } from '../core/site-map.js';
+import {
+    findCurrentSiteMapContext,
+    findSiteMapEntry,
+    navigateSiteMapEntry,
+    siteMapRoute
+} from '../core/site-map.js';
+import { siteMapJourneyLinks } from '../core/site-journey.js';
 
 const OVERLAY_ENTRY_IDS = Object.freeze({
     'chamber-modal': 'chamber',
@@ -14,7 +20,12 @@ const OVERLAY_ENTRY_IDS = Object.freeze({
     'ledger-flow-modal': 'ledger-flow',
     'tezos-domains-modal': 'domains',
     'ctez-modal': 'ctez',
-    'history-modal': 'history'
+    'history-modal': 'history',
+    'capital-modal': 'capital',
+    'ecosystem-activity-modal': 'ecosystem',
+    'whale-watch-modal': 'whales',
+    'baker-directory-modal': 'leaderboard',
+    'tezoscrp-modal': 'tezoscrp'
 });
 
 const BUILT_IN_WAYFINDER_SELECTOR = [
@@ -28,7 +39,8 @@ const pendingOverlays = new Set();
 function relatedEntry(value) {
     if (typeof value === 'string') return findSiteMapEntry(value);
     if (!value || typeof value !== 'object') return null;
-    return findSiteMapEntry(value.id) || value;
+    const canonical = findSiteMapEntry(value.id);
+    return canonical ? { ...canonical, ...value } : value;
 }
 
 function fullInternalRoute(entry) {
@@ -55,9 +67,9 @@ function fullInternalRoute(entry) {
     }
 }
 
-function semanticLinks(currentId) {
-    const seen = new Set([currentId]);
-    const values = siteMapRelated(currentId, 6);
+function semanticLinks(context) {
+    const seen = new Set([context.entryId]);
+    const values = siteMapJourneyLinks(context, { limit: 6 });
     const related = Array.isArray(values) ? values : [];
 
     return related
@@ -70,7 +82,7 @@ function semanticLinks(currentId) {
         .slice(0, 4);
 }
 
-function createSemanticLink(entry) {
+function createSemanticLink(entry, context) {
     const item = document.createElement('li');
     item.className = 'site-wayfinder-item';
 
@@ -79,6 +91,13 @@ function createSemanticLink(entry) {
     link.href = fullInternalRoute(entry);
     link.dataset.siteWayfinderEntry = entry.id;
     link.dataset.siteMapEntry = entry.id;
+    link.dataset.siteJourney = 'true';
+    link.dataset.journeyFrom = context.intentId || context.entryId;
+    link.dataset.journeyFromEntry = context.entryId;
+    if (context.intentId) link.dataset.journeyFromIntent = context.intentId;
+    link.dataset.journeyTo = entry.id;
+    link.dataset.journeySurface = 'generic-wayfinder';
+    link.dataset.journeyReason = entry.journeyReason || 'related-destination';
     link.addEventListener('click', (event) => {
         if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -107,11 +126,11 @@ function createUtilityLink(href, label) {
     return link;
 }
 
-function buildWayfinder(overlay, currentId, entries) {
+function buildWayfinder(overlay, context, entries) {
     const nav = document.createElement('nav');
     const labelId = `site-wayfinder-label-${overlay.id}`;
     nav.className = 'site-wayfinder';
-    nav.dataset.siteWayfinder = currentId;
+    nav.dataset.siteWayfinder = context.id;
     nav.setAttribute('aria-labelledby', labelId);
 
     const head = document.createElement('div');
@@ -126,7 +145,7 @@ function buildWayfinder(overlay, currentId, entries) {
 
     const list = document.createElement('ul');
     list.className = 'site-wayfinder-links';
-    entries.forEach((entry) => list.appendChild(createSemanticLink(entry)));
+    entries.forEach((entry) => list.appendChild(createSemanticLink(entry, context)));
     nav.appendChild(list);
 
     const actions = document.createElement('div');
@@ -173,20 +192,30 @@ function mountWayfinder(overlay) {
         return;
     }
 
-    const entries = semanticLinks(currentId);
+    const routeContext = findCurrentSiteMapContext();
+    const context = routeContext.entryId === currentId
+        ? routeContext
+        : {
+            id: currentId,
+            entry: findSiteMapEntry(currentId),
+            intent: null,
+            entryId: currentId,
+            intentId: null
+        };
+    const entries = semanticLinks(context);
     if (!entries.length) {
         existing?.remove();
         return;
     }
 
     const placement = placementFor(overlay);
-    if (existing?.dataset.siteWayfinder === currentId) {
+    if (existing?.dataset.siteWayfinder === context.id) {
         placeWayfinder(existing, placement);
         return;
     }
 
     existing?.remove();
-    placeWayfinder(buildWayfinder(overlay, currentId, entries), placement);
+    placeWayfinder(buildWayfinder(overlay, context, entries), placement);
 }
 
 function queueOverlay(overlay) {

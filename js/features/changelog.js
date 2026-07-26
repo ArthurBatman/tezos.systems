@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-26',
         entries: [
+            { type: '✨', text: 'Tezos Systems journeys now continue through the relevant My Tezos view, adapt the existing two account cards to verified roles and active tabs, and offer a session-only return to the originating room without retaining addresses or raw routes' },
             { type: '✨', text: 'Every theme now has a compact direct-link button in the picker, so a specific look can be copied and shared without changing the selected theme' },
             { type: '🎨', text: 'The header Explore control now uses a map icon that clearly signals navigation across Tezos Systems' },
             { type: '🎨', text: 'Valley adds a warm painterly landscape behind legible data glass, with a moving live-network atmosphere and a calm static scene when reduced motion is preferred' },

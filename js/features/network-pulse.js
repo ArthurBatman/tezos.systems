@@ -11,7 +11,8 @@ import {
     fetchChamberHistoricalData,
     fetchHistoricalData
 } from '../core/api.js';
-import { siteMapCanonicalRoute, siteMapRelated, siteMapRoute } from '../core/site-map.js';
+import { siteMapCanonicalRoute, siteMapRoute } from '../core/site-map.js';
+import { siteMapJourneyLinks } from '../core/site-journey.js';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply, formatUtcDateTime, pluralize } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -19,7 +20,7 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=501';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=502';
 const HISTORY_RANGE = '7d';
 const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1165,7 +1166,7 @@ function roomValue(item) {
 }
 
 function chamberLinks() {
-    return siteMapRelated('pulse', 4)
+    return siteMapJourneyLinks('pulse', { limit: 4 })
         .filter((item) => item.id !== 'pulse' && (item.hash || item.href))
         .map((item) => ({
             id: item.id,
@@ -1188,7 +1189,7 @@ function renderChamberLinks() {
             </div>
             <div class="network-pulse-card-grid network-pulse-room-grid">
                 ${chamberLinks().map((item) => `
-                    <a class="network-pulse-card network-pulse-room-card" href="${escapeHtml(item.route)}" data-network-pulse-room="${escapeHtml(item.id)}">
+                    <a class="network-pulse-card network-pulse-room-card" href="${escapeHtml(item.route)}" data-network-pulse-room="${escapeHtml(item.id)}" data-site-journey data-journey-from="pulse" data-journey-from-entry="pulse" data-journey-to="${escapeHtml(item.id)}" data-journey-surface="native-wayfinder" data-journey-reason="related-destination">
                         <span>${escapeHtml(item.label)}</span>
                         <strong data-pulse-room-value>${escapeHtml(cleanText(item.value()) || 'Open chamber')}</strong>
                         <p>${escapeHtml(item.detail)}</p>

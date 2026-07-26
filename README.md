@@ -718,9 +718,13 @@ inline modal styles in `js/core/app.js`.
   signal uses one full-width next-round band plus four equal Octez, working,
   attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
   frame while live sections settle into independent desktop columns, and later
-  refreshes reconcile in place. Ledger Flow and Maxi Passport share one
-  full-width account-journey section after those live columns, using equal
-  desktop cards and a single mobile stack. Portfolio aggregates up to ten locally saved,
+  refreshes reconcile in place. The existing two-card account-journey section
+  follows the active tab and verified account role, scopes supported routes to
+  the current address, and requires an explicit device-local L1/L2 link before
+  recommending Tezos X. A contextual room can enter the relevant My Tezos view
+  and receive one session-only canonical Return card; the stored origin contains
+  only parent/child destination IDs, never an address or raw URL. The section
+  remains one equal desktop row and a single mobile stack. Portfolio aggregates up to ten locally saved,
   independently includable Tezos L1 addresses through one bounded TzKT read and
   shows total, spendable, staked, and unstaking XTZ with current USD/EUR context
   when available. Saved entries use the versioned
