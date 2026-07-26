@@ -507,7 +507,7 @@ async function _doFetchBakers() {
 /**
  * Fetch cycle info from Octez RPC.
  */
-async function fetchCycleInfo() {
+export async function fetchCycleInfo() {
     const header = await fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/head/header`);
     const headId = encodeURIComponent(header?.hash || 'head');
     const metadata = await fetchWithRetry(`${ENDPOINTS.octez.base}/chains/main/blocks/${headId}/metadata`);

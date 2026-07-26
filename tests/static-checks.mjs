@@ -2308,6 +2308,9 @@ async function checkSelectorContracts() {
     ['health direct footer link', 'Direct: /health/', health],
     ['health incident memory panel', 'id="health-incident-memory"', health],
     ['health cycle timing panel', 'id="health-cycle-timing"', health],
+    ['health current cycle progress value', 'id="health-cycle-progress"', health],
+    ['health current cycle progressbar', 'role="progressbar"', health],
+    ['health current cycle Octez source', 'fetchCurrentCycleProgress', health],
     ['health cycle timing TzKT source', '/statistics/cyclic', health],
     ['health Teztale consensus panel', 'id="health-teztale-consensus"', health],
     ['health Teztale exact quorum target', 'const TEZTALE_QUORUM_TARGET = 2 / 3', health],
@@ -2459,6 +2462,7 @@ async function checkSelectorContracts() {
     ['top continuity arrival hides pending pills only', '.top-continuity-panel.hero-arrival-pending .top-continuity-stat:not(.hero-arrived)', heroSearchCss],
     ['top continuity arrival reveal class', '.top-continuity-stat.hero-arrived', heroSearchCss],
     ['health cycle timing styles', '.health-cycle-panel', styles],
+    ['health current cycle progress styles', '.health-cycle-progress-track', networkHealthCss],
     ['health Teztale consensus styles', '.health-consensus-panel', healthStyles],
     ['health Teztale propagation styles', '.health-consensus-propagation', healthStyles],
     ['health Teztale histogram styles', '.health-consensus-histogram', healthStyles],
@@ -7427,7 +7431,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=497'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=498'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

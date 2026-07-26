@@ -5,7 +5,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
-import { fetchWithRetry } from '../core/api.js';
+import { fetchCycleInfo, fetchWithRetry } from '../core/api.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
@@ -53,7 +53,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=497';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=498';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -87,6 +87,7 @@ let blockTickerAnimationTimer = null;
 let cycleTimingCache = null;
 let cycleTimingCacheAt = 0;
 let cycleTimingInFlight = null;
+let currentCycleCache = null;
 let protocolConstantsCache = null;
 let protocolConstantsCacheAt = 0;
 let octezVersionsCache = null;
@@ -1605,6 +1606,20 @@ async function fetchCycleTiming({ force = false } = {}) {
     return cycleTimingInFlight;
 }
 
+async function fetchCurrentCycleProgress() {
+    try {
+        const cycleInfo = await fetchCycleInfo();
+        if (Number.isFinite(Number(cycleInfo?.cycle)) && Number.isFinite(Number(cycleInfo?.progress))) {
+            currentCycleCache = cycleInfo;
+            return cycleInfo;
+        }
+        return currentCycleCache || cycleInfo || null;
+    } catch (error) {
+        console.warn('Network Health current-cycle progress failed:', error);
+        return currentCycleCache;
+    }
+}
+
 function numericRound(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : 0;
@@ -1962,9 +1977,10 @@ function updateHealthVerdictPanel(data) {
 }
 
 async function fetchNetworkHealthChamberData() {
-    const [blocks, cycleTiming, nakamoto] = await Promise.all([
+    const [blocks, cycleTiming, currentCycle, nakamoto] = await Promise.all([
         fetchRecentBlocks(CHAMBER_BLOCK_LIMIT),
         fetchCycleTiming(),
+        fetchCurrentCycleProgress(),
         fetchNakamotoCoefficients()
     ]);
     const summary = summarizeBlocks(blocks);
@@ -2008,7 +2024,8 @@ async function fetchNetworkHealthChamberData() {
         octezVersions,
         nakamoto,
         periods: cachedData?.periods || [],
-        cycleTiming: cycleTiming || cachedData?.cycleTiming || null
+        cycleTiming: cycleTiming || cachedData?.cycleTiming || null,
+        currentCycle
     };
 }
 
@@ -2060,40 +2077,86 @@ function renderCycleTimingCell(interval) {
     `;
 }
 
-function renderCycleTimingPanel(data) {
-    const timing = data?.cycleTiming;
-    const latest = timing?.latest;
-    if (!latest) {
+function renderCurrentCycleProgress(currentCycle) {
+    const cycle = Number(currentCycle?.cycle);
+    const progress = Number(currentCycle?.progress);
+    const available = Number.isFinite(cycle) && Number.isFinite(progress);
+    if (!available) {
         return `
-            <section class="lb-panel health-panel health-cycle-panel chamber-anim-fade" id="health-cycle-timing" style="animation-delay:120ms">
-                <div class="lb-panel-title">Cycle Timing <span class="lb-live-pill">TzKT cyclic</span></div>
-                <div class="lb-empty-inline">Cycle timing is warming up from TzKT cyclic statistics.</div>
-            </section>
+            <div class="health-cycle-current unavailable" id="health-cycle-current">
+                <div class="health-cycle-progress-head">
+                    <span>Current cycle</span>
+                    <strong id="health-cycle-progress">--</strong>
+                </div>
+                <div class="health-cycle-progress-track" aria-hidden="true"><span></span></div>
+                <div class="health-cycle-progress-meta"><span>Octez cycle progress unavailable</span></div>
+            </div>
         `;
     }
 
-    const cls = cycleTimingClass(latest.driftPct);
-    const average = Number.isFinite(timing.averageSeconds) ? formatDuration(timing.averageSeconds) : '--';
-    const averageDrift = Number.isFinite(timing.averageDriftPct) ? formatSignedPct(timing.averageDriftPct) : '--';
-    const worst = timing.worst;
-    const cells = timing.intervals.slice(0, 6).map(renderCycleTimingCell).join('');
+    const boundedProgress = Math.max(0, Math.min(100, progress));
+    const displayProgress = `${formatPct(boundedProgress)}%`;
+    const headLevel = Number(currentCycle?.blockLevel);
+    const remaining = currentCycle?.timeRemaining && currentCycle.timeRemaining !== '—'
+        ? currentCycle.timeRemaining
+        : 'remaining time unavailable';
+    return `
+        <div class="health-cycle-current" id="health-cycle-current">
+            <div class="health-cycle-progress-head">
+                <span>Current cycle <strong id="health-cycle-number">C${formatCount(cycle)}</strong></span>
+                <strong id="health-cycle-progress">${displayProgress}</strong>
+            </div>
+            <div
+                class="health-cycle-progress-track"
+                role="progressbar"
+                aria-label="Current Tezos cycle progress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="${boundedProgress.toFixed(2)}"
+                aria-valuetext="${displayProgress} through cycle ${formatCount(cycle)}"
+            ><span style="width:${boundedProgress.toFixed(2)}%"></span></div>
+            <div class="health-cycle-progress-meta">
+                <span>${Number.isFinite(headLevel) ? `Head ${formatCount(headLevel)}` : 'Live head'}</span>
+                <span>${escapeHtml(remaining)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderCycleTimingPanel(data) {
+    const timing = data?.cycleTiming;
+    const latest = timing?.latest;
+    const currentCycle = renderCurrentCycleProgress(data?.currentCycle);
+    const cadence = latest
+        ? (() => {
+            const cls = cycleTimingClass(latest.driftPct);
+            const average = Number.isFinite(timing.averageSeconds) ? formatDuration(timing.averageSeconds) : '--';
+            const averageDrift = Number.isFinite(timing.averageDriftPct) ? formatSignedPct(timing.averageDriftPct) : '--';
+            const worst = timing.worst;
+            const cells = timing.intervals.slice(0, 6).map(renderCycleTimingCell).join('');
+            return `
+                <div class="health-cycle-hero ${cls}">
+                    <strong id="health-cycle-duration">${formatDuration(latest.seconds)}</strong>
+                    <span id="health-cycle-status">Last cycle · ${escapeHtml(latest.label)} · ${formatSignedPct(latest.driftPct)} vs target</span>
+                </div>
+                <div class="lb-metric-grid health-metric-grid">
+                    <div><span>Last cycle</span><strong id="health-cycle-last">C${formatCount(latest.cycle)}</strong></div>
+                    <div><span>Target</span><strong id="health-cycle-target">${formatDuration(timing.targetSeconds)}</strong></div>
+                    <div><span>Recent avg</span><strong id="health-cycle-average">${average} · ${averageDrift}</strong></div>
+                </div>
+                <div class="health-cycle-strip" id="health-cycle-strip" aria-label="Recent completed cycle durations">${cells}</div>
+                <div class="health-timing-note" id="health-cycle-note">
+                    Worst recent drift ${worst ? `${formatSignedPct(worst.driftPct)} on C${formatCount(worst.cycle)}` : '--'}; cycle-start deltas catch network-wide slowdowns without scanning every block.
+                </div>
+            `;
+        })()
+        : '<div class="lb-empty-inline">Completed-cycle timing is warming up from TzKT cyclic statistics.</div>';
 
     return `
         <section class="lb-panel health-panel health-cycle-panel chamber-anim-fade" id="health-cycle-timing" style="animation-delay:120ms">
-            <div class="lb-panel-title">Cycle Timing <span class="lb-live-pill">TzKT cyclic</span></div>
-            <div class="health-cycle-hero ${cls}">
-                <strong id="health-cycle-duration">${formatDuration(latest.seconds)}</strong>
-                <span id="health-cycle-status">${escapeHtml(latest.label)} · ${formatSignedPct(latest.driftPct)} vs target</span>
-            </div>
-            <div class="lb-metric-grid health-metric-grid">
-                <div><span>Last cycle</span><strong id="health-cycle-last">C${formatCount(latest.cycle)}</strong></div>
-                <div><span>Target</span><strong id="health-cycle-target">${formatDuration(timing.targetSeconds)}</strong></div>
-                <div><span>Recent avg</span><strong id="health-cycle-average">${average} · ${averageDrift}</strong></div>
-            </div>
-            <div class="health-cycle-strip" id="health-cycle-strip" aria-label="Recent completed cycle durations">${cells}</div>
-            <div class="health-timing-note" id="health-cycle-note">
-                Worst recent drift ${worst ? `${formatSignedPct(worst.driftPct)} on C${formatCount(worst.cycle)}` : '--'}; cycle-start deltas catch network-wide slowdowns without scanning every block.
-            </div>
+            <div class="lb-panel-title">Cycle Progress &amp; Timing <span class="lb-live-pill">Octez RPC + TzKT cyclic</span></div>
+            ${currentCycle}
+            ${cadence}
         </section>
     `;
 }

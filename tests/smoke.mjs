@@ -8997,6 +8997,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       cycleTiming: modal?.querySelector('#health-cycle-timing')?.textContent || '',
       cycleTimingCells: modal?.querySelectorAll('#health-cycle-strip .health-cycle-cell').length || 0,
       cycleTimingStatus: modal?.querySelector('#health-cycle-status')?.textContent || '',
+      cycleProgress: modal?.querySelector('#health-cycle-progress')?.textContent || '',
+      cycleNumber: modal?.querySelector('#health-cycle-number')?.textContent || '',
+      cycleProgressNow: modal?.querySelector('.health-cycle-progress-track[role="progressbar"]')?.getAttribute('aria-valuenow') || '',
+      cycleProgressText: modal?.querySelector('.health-cycle-progress-track[role="progressbar"]')?.getAttribute('aria-valuetext') || '',
+      cycleProgressFill: modal?.querySelector('.health-cycle-progress-track > span')?.style.width || '',
       teztale: modal?.querySelector('#health-teztale-consensus')?.textContent || '',
       teztaleFullWidth: Boolean(
         healthGridRect
@@ -9199,9 +9204,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.activityRows >= 1, `network health chamber: activity tape rows missing, saw ${healthState.activityRows}`);
   assert(/QA Baker|Second Baker|XTZ/.test(healthState.activityText), `network health chamber: activity tape content mismatch: ${healthState.activityText}`);
   assert(/Consensus Anomaly Memory/.test(healthState.incidentMemory) && /missed|round-/i.test(healthState.incidentMemory), `network health chamber: anomaly memory missing: ${healthState.incidentMemory}`);
-  assert(/Cycle Timing/.test(healthState.cycleTiming) && /Last cycle/.test(healthState.cycleTiming) && /Target/.test(healthState.cycleTiming), `network health chamber: cycle timing panel missing: ${healthState.cycleTiming}`);
+  assert(/Cycle Progress & Timing/.test(healthState.cycleTiming) && /Last cycle/.test(healthState.cycleTiming) && /Target/.test(healthState.cycleTiming), `network health chamber: cycle timing panel missing: ${healthState.cycleTiming}`);
   assert(healthState.cycleTimingCells >= 4, `network health chamber: cycle timing strip too sparse: ${healthState.cycleTimingCells}`);
   assert(/Watch|slow|target/i.test(healthState.cycleTimingStatus), `network health chamber: cycle timing status missing drift context: ${healthState.cycleTimingStatus}`);
+  assert(healthState.cycleProgress === '11.4%' && healthState.cycleNumber === 'C1,143', `network health chamber: current cycle progress mismatch: ${healthState.cycleNumber}/${healthState.cycleProgress}`);
+  assert(Math.abs(Number(healthState.cycleProgressNow) - 11.43) < 0.01, `network health chamber: current cycle progressbar value mismatch: ${healthState.cycleProgressNow}`);
+  assert(/11\.4% through cycle 1,143/.test(healthState.cycleProgressText), `network health chamber: current cycle progressbar accessible text missing: ${healthState.cycleProgressText}`);
+  assert(healthState.cycleProgressFill === '11.43%', `network health chamber: current cycle progress rail width mismatch: ${healthState.cycleProgressFill}`);
   assert(/Consensus Lens/.test(healthState.teztale) && /Teztale/.test(healthState.teztale) && /Nomadic Labs/.test(healthState.teztale), `network health chamber: Teztale consensus lens missing credit/context: ${healthState.teztale}`);
   assert(healthState.teztaleFullWidth, 'network health chamber: Teztale Consensus Lens should span the full dashboard width');
   assert(/66(?:⅔|\.7)%/.test(healthState.teztale), `network health chamber: Teztale quorum label must use the exact two-thirds threshold: ${healthState.teztale}`);
@@ -9468,6 +9477,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     window.__healthNcPanelNode = document.querySelector('#network-health-modal #health-nakamoto-coefficient');
     window.__healthNcPrintNode = document.querySelector('#network-health-modal #health-nc-print');
     window.__healthNcShareNode = document.querySelector('#network-health-modal #health-nc-share');
+    window.__healthCyclePanelNode = document.querySelector('#network-health-modal #health-cycle-timing');
     return {
       hasTimer: Boolean(timer?.handler),
       firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
@@ -9497,6 +9507,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     ncPanelSame: window.__healthNcPanelNode === document.querySelector('#network-health-modal #health-nakamoto-coefficient'),
     ncPrintSame: window.__healthNcPrintNode === document.querySelector('#network-health-modal #health-nc-print'),
     ncShareSame: window.__healthNcShareNode === document.querySelector('#network-health-modal #health-nc-share'),
+    cyclePanelSame: window.__healthCyclePanelNode === document.querySelector('#network-health-modal #health-cycle-timing'),
+    cycleProgress: document.querySelector('#network-health-modal #health-cycle-progress')?.textContent || '',
     ncHelpOpen: document.querySelector('#network-health-modal .health-nc-help')?.open || false,
     mode: document.querySelector('#network-health-modal .health-body')?.dataset.healthRefreshMode || '',
     firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
@@ -9510,6 +9522,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(smoothRefreshState.scorePanelSame, 'network health chamber: smooth refresh replaced the score panel instead of updating in place');
   assert(smoothRefreshState.ncPanelSame, 'network health chamber: smooth refresh replaced the Nakamoto panel instead of updating in place');
   assert(smoothRefreshState.ncPrintSame && smoothRefreshState.ncShareSame, 'network health chamber: smooth refresh replaced Nakamoto print/share controls');
+  assert(smoothRefreshState.cyclePanelSame && smoothRefreshState.cycleProgress === '11.4%', `network health chamber: quiet refresh replaced or lost current-cycle progress: ${JSON.stringify(smoothRefreshState)}`);
   assert(smoothRefreshState.ncHelpOpen, 'network health chamber: smooth refresh closed the open Nakamoto info control');
   assert(smoothRefreshState.mode === 'in-place', `network health chamber: refresh mode mismatch: ${smoothRefreshState.mode}`);
   assert(smoothRefreshState.rowCount === beforeSmoothRefresh.rowCount, `network health chamber: passing block row count shifted after smooth refresh: ${smoothRefreshState.rowCount}`);
@@ -9521,17 +9534,31 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.locator('#health-nakamoto-coefficient .health-nc-help .lb-help-popover').scrollIntoViewIfNeeded();
   const nakamotoMobileState = await page.evaluate(() => {
     const panel = document.querySelector('#health-nakamoto-coefficient');
+    const cyclePanel = document.querySelector('#health-cycle-timing');
+    const cycleCurrent = cyclePanel?.querySelector('#health-cycle-current');
+    const cycleHead = cycleCurrent?.querySelector('.health-cycle-progress-head');
+    const cycleTrack = cycleCurrent?.querySelector('.health-cycle-progress-track');
     const help = panel?.querySelector('.health-nc-help .lb-help-popover');
     const intro = panel?.querySelector('.health-nc-intro');
     const trigger = panel?.querySelector('.health-nc-help-trigger, .health-nc-help > summary');
     const actions = panel?.querySelector('.health-nc-actions');
     const actionButtons = [...(actions?.querySelectorAll('button') || [])];
     const panelRect = panel?.getBoundingClientRect();
+    const cyclePanelRect = cyclePanel?.getBoundingClientRect();
+    const cycleCurrentRect = cycleCurrent?.getBoundingClientRect();
+    const cycleHeadRect = cycleHead?.getBoundingClientRect();
+    const cycleTrackRect = cycleTrack?.getBoundingClientRect();
     const helpRect = help?.getBoundingClientRect();
     const introRect = intro?.getBoundingClientRect();
     const actionsRect = actions?.getBoundingClientRect();
     return {
       panelContained: Boolean(panelRect && panelRect.left >= 0 && panelRect.right <= window.innerWidth),
+      cyclePanelContained: Boolean(cyclePanelRect && cyclePanelRect.left >= 0 && cyclePanelRect.right <= window.innerWidth),
+      cycleCurrentContained: Boolean(cyclePanelRect && cycleCurrentRect && cycleCurrentRect.left >= cyclePanelRect.left && cycleCurrentRect.right <= cyclePanelRect.right),
+      cycleHeadContained: Boolean(cycleCurrentRect && cycleHeadRect && cycleHeadRect.left >= cycleCurrentRect.left && cycleHeadRect.right <= cycleCurrentRect.right),
+      cycleTrackContained: Boolean(cycleCurrentRect && cycleTrackRect && cycleTrackRect.left >= cycleCurrentRect.left && cycleTrackRect.right <= cycleCurrentRect.right),
+      cycleProgress: cycleCurrent?.querySelector('#health-cycle-progress')?.textContent || '',
+      cycleOverflow: cyclePanel ? cyclePanel.scrollWidth - cyclePanel.clientWidth : 0,
       helpContained: Boolean(helpRect && helpRect.left >= 0 && helpRect.right <= window.innerWidth && helpRect.top >= 0 && helpRect.bottom <= window.innerHeight),
       actionsContained: Boolean(panelRect && actionsRect && actionsRect.left >= panelRect.left && actionsRect.right <= panelRect.right),
       actionButtonCount: actionButtons.length,
@@ -9545,6 +9572,15 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     };
   });
   assert(nakamotoMobileState.panelContained, 'network health chamber: Nakamoto panel overflows the mobile viewport');
+  assert(
+    nakamotoMobileState.cyclePanelContained
+      && nakamotoMobileState.cycleCurrentContained
+      && nakamotoMobileState.cycleHeadContained
+      && nakamotoMobileState.cycleTrackContained
+      && nakamotoMobileState.cycleProgress === '11.4%'
+      && nakamotoMobileState.cycleOverflow <= 1,
+    `network health chamber: current-cycle progress does not fit the mobile panel: ${JSON.stringify(nakamotoMobileState)}`
+  );
   assert(nakamotoMobileState.helpContained, `network health chamber: Nakamoto info note escapes the mobile viewport: ${JSON.stringify(nakamotoMobileState)}`);
   assert(nakamotoMobileState.actionsContained && nakamotoMobileState.actionButtonCount === 2, `network health chamber: Nakamoto print/share controls escape the mobile panel: ${JSON.stringify(nakamotoMobileState)}`);
   assert(nakamotoMobileState.actionButtonMinSize >= 28, `network health chamber: Nakamoto mobile print/share controls are too small: ${JSON.stringify(nakamotoMobileState)}`);

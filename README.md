@@ -545,8 +545,10 @@ inline modal styles in `js/core/app.js`.
   Deep Sleep inside this room.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
-  cycle-time drift, TzKT-reported Octez baker version distribution by baking
-  power, a full-width Teztale observer-reception histogram plus exact
+  cycle-time drift, exact current-cycle percentage and remaining time from the
+  shared Octez RPC cycle calculation, TzKT-reported Octez baker version
+  distribution by baking power, a full-width Teztale observer-reception
+  histogram plus exact
   two-thirds/90% arrival and validation-to-quorum timing credited to Nomadic
   Labs, live current-cycle address-level Nakamoto coefficients at strict
   one-third and two-thirds thresholds, dated Chainspect/Edinburgh EDI/CoinClear
@@ -556,8 +558,8 @@ inline modal styles in `js/core/app.js`.
   tiles and includes compact block-power bars plus a deduped throttled 1,000+
   XTZ live activity tape; the open chamber refreshes on the block cadence with
   in-place row updates instead of a full rerender, and now adds incident memory,
-  cycle timing, Octez versions, period telemetry, network-load, and Consensus
-  Lens panels.
+  current-cycle progress, completed-cycle timing, Octez versions, period
+  telemetry, network-load, and Consensus Lens panels.
 - Ledger Flow Chamber with direct `#ledger-flow` and `/ledger-flow/` access,
   plus address-scoped hashes such as `#ledger-flow=tz1...`. It resolves tz/KT
   accounts and `.tez` names including subdomains, queries TzKT account
@@ -1179,7 +1181,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v497`, including hero search, theme
+- Current aligned shell cache stamp: `v498`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
