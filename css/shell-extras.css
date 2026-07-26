@@ -279,119 +279,49 @@
 }
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-primary-line {
-    position: relative;
-    --milestone-glow-primary: color-mix(in srgb, var(--milestone-blue) 72%, transparent);
-    --milestone-glow-secondary: color-mix(in srgb, var(--milestone-cyan) 42%, transparent);
-    filter:
-        drop-shadow(0 0 3px var(--milestone-glow-primary))
-        drop-shadow(0 0 8px var(--milestone-glow-secondary));
-    animation: uptimeMilestoneCounterGlow 3.2s ease-in-out infinite;
-    transition: filter 320ms ease;
+    filter: drop-shadow(0 0 7px color-mix(in srgb, var(--milestone-blue) 24%, transparent));
 }
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-runtime {
     position: relative;
     z-index: 1;
-    transition: color 320ms ease, text-shadow 420ms ease, filter 320ms ease;
+    background: linear-gradient(
+        92deg,
+        color-mix(in srgb, var(--text-primary) 94%, var(--milestone-blue)) 0%,
+        color-mix(in srgb, var(--text-primary) 72%, var(--milestone-cyan)) 46%,
+        color-mix(in srgb, var(--text-primary) 84%, var(--milestone-pink)) 74%,
+        color-mix(in srgb, var(--text-primary) 94%, var(--milestone-blue)) 100%
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    transition: filter 240ms ease;
 }
 
-.top-uptime-cluster.is-milestone-near .top-continuity-runtime {
-    color: color-mix(in srgb, var(--text-primary) 76%, var(--milestone-blue));
-    text-shadow: 0 0 10px color-mix(in srgb, var(--milestone-blue) 22%, transparent);
-}
-
-.top-uptime-cluster.is-milestone-crossed .top-continuity-primary-line {
-    --milestone-glow-primary: color-mix(in srgb, var(--milestone-cyan) 78%, transparent);
-    --milestone-glow-secondary: color-mix(in srgb, var(--milestone-pink) 44%, transparent);
-}
-
-.top-uptime-cluster.is-milestone-crossed .top-continuity-runtime {
-    color: var(--milestone-ink);
-    text-shadow:
-        0 0 6px color-mix(in srgb, white 38%, transparent),
-        0 0 14px color-mix(in srgb, var(--milestone-blue) 38%, transparent);
-}
-
-.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment {
-    animation: uptimeMilestoneSegmentLock 780ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
-}
-
-.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment:nth-child(2) {
-    animation-delay: 90ms;
-}
-
-.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment:nth-child(3) {
-    animation-delay: 180ms;
-}
-
-.top-uptime-cluster.is-milestone-arriving .top-continuity-time-segment:nth-child(4) {
-    animation-delay: 270ms;
-}
-
-.top-uptime-cluster.is-milestone-arriving :is(.top-continuity-claim, .top-continuity-origin) {
-    animation: uptimeMilestoneCaptionLock 920ms 320ms cubic-bezier(0.18, 0.88, 0.22, 1) both;
-}
-
-.top-uptime-cluster.is-milestone-crossed .top-continuity-claim,
-.top-uptime-cluster.is-milestone-crossed .top-continuity-origin {
+.top-uptime-cluster.has-milestone-signal .top-continuity-subline {
     color: color-mix(in srgb, var(--uptime-badge-label) 72%, var(--milestone-cyan));
-    text-shadow: 0 0 8px color-mix(in srgb, var(--milestone-blue) 16%, transparent);
 }
 
-.top-continuity-milestone-orbit {
-    position: absolute;
-    right: 0.04em;
-    bottom: -0.37rem;
-    left: 0.04em;
-    display: block;
-    height: 0.28rem;
-    pointer-events: none;
-    opacity: 0.92;
+.top-uptime-cluster.has-milestone-signal .top-continuity-origin {
+    color: color-mix(in srgb, var(--text-primary) 70%, var(--milestone-cyan));
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--milestone-blue) 18%, transparent);
 }
 
-.top-continuity-milestone-orbit::before {
-    content: '';
-    position: absolute;
-    inset: 50% 0 auto;
-    height: 1px;
-    background:
-        linear-gradient(
-            90deg,
-            transparent,
-            color-mix(in srgb, var(--milestone-blue) 76%, transparent) 8%,
-            color-mix(in srgb, var(--milestone-cyan) 92%, white) 54%,
-            color-mix(in srgb, var(--milestone-pink) 72%, transparent) 92%,
-            transparent
-        );
-    box-shadow: 0 0 9px color-mix(in srgb, var(--milestone-cyan) 62%, transparent);
+.top-uptime-cluster.has-milestone-signal .top-continuity-separator {
+    color: color-mix(in srgb, var(--milestone-blue) 64%, var(--text-secondary));
 }
 
-.top-continuity-milestone-orbit::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    width: 0.35rem;
-    height: 0.35rem;
-    border: 1px solid color-mix(in srgb, white 70%, var(--milestone-cyan));
-    background: color-mix(in srgb, var(--milestone-blue) 66%, var(--milestone-cyan));
-    box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--milestone-blue) 18%, transparent),
-        0 0 10px color-mix(in srgb, var(--milestone-cyan) 84%, transparent);
-    transform: translate(-50%, -50%) rotate(45deg);
-    animation: uptimeMilestoneChronographSweep 3.2s cubic-bezier(0.38, 0, 0.62, 1) infinite;
+.top-uptime-cluster.has-milestone-signal .top-continuity-arrow {
+    color: color-mix(in srgb, var(--milestone-cyan) 68%, var(--text-primary));
+    transform: translateY(-0.04em);
 }
 
-.top-continuity-milestone-orbit > span {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    width: 0.24rem;
-    height: 0.24rem;
-    border-radius: 50%;
-    background: var(--milestone-pink);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--milestone-pink) 72%, transparent);
-    transform: translate(50%, -50%);
+.top-uptime-cluster.has-milestone-signal .top-continuity-history {
+    cursor: pointer;
 }
 
 .top-continuity-milestone-popover {
@@ -399,18 +329,16 @@
     top: calc(100% + 0.68rem);
     left: 0;
     display: grid;
-    gap: 0.32rem;
+    gap: 0.34rem;
     width: min(20rem, calc(100vw - 2rem));
-    padding: 0.72rem 0.82rem 0.68rem;
-    border: 1px solid color-mix(in srgb, var(--milestone-cyan) 44%, var(--glass-border));
-    border-radius: 9px;
-    background:
-        linear-gradient(135deg, color-mix(in srgb, var(--milestone-blue) 15%, transparent), color-mix(in srgb, var(--milestone-pink) 7%, transparent)),
-        color-mix(in srgb, var(--bg-primary, #07101d) 96%, transparent);
+    padding: 0.72rem 0.78rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--milestone-cyan) 28%, var(--glass-border));
+    border-left: 2px solid color-mix(in srgb, var(--milestone-blue) 72%, var(--milestone-cyan));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--bg-primary, #07101d) 97%, var(--milestone-blue) 3%);
     box-shadow:
-        inset 3px 0 0 color-mix(in srgb, var(--milestone-blue) 86%, var(--milestone-cyan)),
-        0 14px 36px rgba(0, 0, 0, 0.4),
-        0 0 24px color-mix(in srgb, var(--milestone-blue) 14%, transparent);
+        0 12px 30px rgba(0, 0, 0, 0.36),
+        0 0 18px color-mix(in srgb, var(--milestone-blue) 9%, transparent);
     color: var(--text-primary);
     font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     line-height: 1.35;
@@ -424,6 +352,7 @@
 }
 
 .top-uptime-cluster.is-milestone-disclosed .top-continuity-milestone-popover {
+    pointer-events: auto;
     opacity: 1;
     visibility: visible;
     transform: translateY(0) scale(1);
@@ -432,7 +361,6 @@
 .top-continuity-milestone-kicker {
     display: flex;
     align-items: center;
-    gap: 0.43rem;
     color: color-mix(in srgb, var(--milestone-cyan) 80%, white);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.58rem;
@@ -440,15 +368,6 @@
     letter-spacing: 0.13em;
     line-height: 1;
     text-transform: uppercase;
-}
-
-.top-continuity-milestone-sigil {
-    width: 0.42rem;
-    height: 0.42rem;
-    border: 1px solid currentColor;
-    background: color-mix(in srgb, var(--milestone-blue) 62%, transparent);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--milestone-cyan) 58%, transparent);
-    transform: rotate(45deg);
 }
 
 .top-continuity-milestone-popover > strong {
@@ -465,7 +384,11 @@
     font-weight: 650;
 }
 
-.top-continuity-milestone-action {
+.top-continuity-milestone-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
     margin-top: 0.08rem;
     padding-top: 0.38rem;
     border-top: 1px solid color-mix(in srgb, var(--milestone-cyan) 18%, transparent);
@@ -474,54 +397,17 @@
     font-size: 0.58rem;
     font-weight: 850;
     letter-spacing: 0.035em;
+    text-decoration: none;
     text-transform: uppercase;
 }
 
-.top-continuity-milestone-action-touch {
-    display: none;
+.top-continuity-milestone-link:is(:hover, :focus-visible) {
+    color: color-mix(in srgb, var(--milestone-cyan) 72%, var(--text-primary));
+    outline: none;
 }
 
-@media (hover: none), (pointer: coarse) {
-    .top-continuity-milestone-action-desktop {
-        display: none;
-    }
-
-    .top-continuity-milestone-action-touch {
-        display: inline;
-    }
-}
-
-@keyframes uptimeMilestoneCounterGlow {
-    0%, 100% {
-        filter:
-            drop-shadow(0 0 3px var(--milestone-glow-primary))
-            drop-shadow(0 0 7px var(--milestone-glow-secondary));
-    }
-    50% {
-        filter:
-            drop-shadow(0 0 5px var(--milestone-glow-primary))
-            drop-shadow(0 0 12px var(--milestone-glow-secondary));
-    }
-}
-
-
-@keyframes uptimeMilestoneChronographSweep {
-    0% { left: 0; opacity: 0; }
-    8% { opacity: 1; }
-    88% { left: 100%; opacity: 1; }
-    100% { left: 100%; opacity: 0; }
-}
-
-@keyframes uptimeMilestoneSegmentLock {
-    0% { color: color-mix(in srgb, var(--text-primary) 48%, var(--milestone-blue)); opacity: 0.42; transform: translateY(2px); }
-    46% { color: color-mix(in srgb, white 68%, var(--milestone-cyan)); opacity: 1; transform: translateY(-1px); }
-    100% { color: inherit; opacity: 1; transform: none; }
-}
-
-@keyframes uptimeMilestoneCaptionLock {
-    0% { opacity: 0.48; transform: translateY(1px); }
-    52% { opacity: 1; color: color-mix(in srgb, white 62%, var(--milestone-cyan)); transform: translateY(-1px); }
-    100% { opacity: 1; transform: none; }
+.top-continuity-milestone-link:focus-visible {
+    box-shadow: inset 0 -1px 0 currentColor;
 }
 
 .hot-today-head {
@@ -1566,11 +1452,7 @@
     .hot-today-card-milestone .hot-today-rank,
     .hot-today-card-milestone .hot-today-milestone-status,
     .hot-today-card-milestone .hot-today-milestone-trace > span,
-    .top-uptime-cluster .top-continuity-primary-line,
-    .top-uptime-cluster .top-continuity-time-segment,
-    .top-uptime-cluster .top-continuity-claim,
-    .top-uptime-cluster .top-continuity-origin,
-    .top-uptime-cluster .top-continuity-milestone-orbit::after {
+    .top-uptime-cluster .top-continuity-time-segment {
         animation: none !important;
     }
 
@@ -1580,9 +1462,6 @@
     .hot-today-card-milestone .hot-today-milestone-status,
     .hot-today-card-milestone .hot-today-milestone-trace > span,
     .top-uptime-cluster .top-continuity-runtime,
-    .top-uptime-cluster .top-continuity-primary-line,
-    .top-uptime-cluster .top-continuity-claim,
-    .top-uptime-cluster .top-continuity-origin,
     .top-uptime-cluster .top-continuity-milestone-popover {
         transition: none !important;
     }
@@ -1848,11 +1727,6 @@
     .top-continuity-history.is-anniversary .top-continuity-subline {
         justify-content: center;
         justify-items: center;
-    }
-
-    .top-continuity-milestone-orbit {
-        right: 0.08em;
-        left: 0.08em;
     }
 
     .hot-today-card {

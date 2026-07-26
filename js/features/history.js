@@ -18,7 +18,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=493';
+const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=494';
 const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all']);
 const DEFAULT_CYCLE_HISTORY_RANGE = 'all';
 

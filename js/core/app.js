@@ -116,8 +116,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=493';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=493';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=494';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=494';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -2716,13 +2716,13 @@ function initUptimeClock() {
     const topContinuityProof = topContinuityHistory?.closest('.top-uptime-cluster');
     const topContinuityClaim = topContinuityHistory?.querySelector('.top-continuity-claim');
     const topContinuityOrigin = topContinuityHistory?.querySelector('.top-continuity-origin');
-    const topContinuityMilestoneOrbit = topContinuityHistory?.querySelector('.top-continuity-milestone-orbit');
+    const topContinuityArrow = topContinuityHistory?.querySelector('.top-continuity-arrow');
     const topContinuityMilestonePopover = document.getElementById('top-continuity-milestone-popover');
     const topContinuityMilestoneStatus = document.getElementById('top-continuity-milestone-status');
     const topContinuityMilestoneTitle = document.getElementById('top-continuity-milestone-title');
     const topContinuityMilestoneCopy = document.getElementById('top-continuity-milestone-copy');
-    const topContinuityMilestoneActionDesktop = document.getElementById('top-continuity-milestone-action-desktop');
-    const topContinuityMilestoneActionTouch = document.getElementById('top-continuity-milestone-action-touch');
+    const topContinuityMilestoneLink = document.getElementById('top-continuity-milestone-link');
+    const topContinuityMilestoneLinkLabel = document.getElementById('top-continuity-milestone-link-label');
     const uptimeClock = document.getElementById('uptime-clock');
 
     if (!counterEl) {
@@ -2763,10 +2763,8 @@ function initUptimeClock() {
     let explainActivePill = null;
     let activeUptimeMilestoneSignal = null;
     let uptimeMilestoneTimer = null;
-    let uptimeMilestoneArrivalTimer = null;
     let renderedUptimeMilestoneSignature = '__unset__';
-    let touchUptimeMilestoneDisclosure = false;
-    const UPTIME_MILESTONE_ARRIVAL_MS = 1900;
+    let uptimeMilestoneDisclosureLocked = false;
     const defaultUptimeAriaLabel = topContinuityHistory?.getAttribute('aria-label') || '';
     const defaultUptimeTitle = topContinuityHistory?.getAttribute('title') || '';
     const defaultUptimeAriaControls = topContinuityHistory?.getAttribute('aria-controls') || '';
@@ -2833,11 +2831,11 @@ function initUptimeClock() {
         return labels[destination] || (/^Open\b/i.test(supplied) ? supplied : 'Open milestone details');
     }
 
-    function setUptimeMilestonePopoverVisible(visible, { lockTouch = false, resetTouch = false } = {}) {
+    function setUptimeMilestonePopoverVisible(visible, { lockDisclosure = false, resetDisclosure = false } = {}) {
         if (!topContinuityMilestonePopover || !topContinuityProof) return;
         if (visible && !getActiveUptimeMilestoneSignal()) return;
-        if (lockTouch) touchUptimeMilestoneDisclosure = true;
-        if (resetTouch) touchUptimeMilestoneDisclosure = false;
+        if (lockDisclosure) uptimeMilestoneDisclosureLocked = true;
+        if (resetDisclosure) uptimeMilestoneDisclosureLocked = false;
         topContinuityProof.classList.toggle('is-milestone-disclosed', visible);
         topContinuityMilestonePopover.setAttribute('aria-hidden', visible ? 'false' : 'true');
         topContinuityHistory?.setAttribute('aria-expanded', visible ? 'true' : 'false');
@@ -2854,29 +2852,6 @@ function initUptimeClock() {
         } else {
             window.location.hash = destination;
         }
-    }
-
-    function clearUptimeMilestoneArrival() {
-        if (uptimeMilestoneArrivalTimer) {
-            window.clearTimeout(uptimeMilestoneArrivalTimer);
-            uptimeMilestoneArrivalTimer = null;
-        }
-        topContinuityHistory?.classList.remove('is-milestone-arriving');
-        topContinuityProof?.classList.remove('is-milestone-arriving');
-    }
-
-    function startUptimeMilestoneArrival() {
-        if (!topContinuityHistory) return;
-        clearUptimeMilestoneArrival();
-        // Restart only when a new on-chain crossing becomes the active hot signal.
-        void topContinuityHistory.offsetWidth;
-        topContinuityHistory.classList.add('is-milestone-arriving');
-        topContinuityProof?.classList.add('is-milestone-arriving');
-        uptimeMilestoneArrivalTimer = window.setTimeout(() => {
-            uptimeMilestoneArrivalTimer = null;
-            topContinuityHistory.classList.remove('is-milestone-arriving');
-            topContinuityProof?.classList.remove('is-milestone-arriving');
-        }, UPTIME_MILESTONE_ARRIVAL_MS);
     }
 
     function syncUptimeMilestoneCelebration(signal = getActiveUptimeMilestoneSignal()) {
@@ -2904,9 +2879,10 @@ function initUptimeClock() {
             if (active) topContinuityHistory.dataset.milestoneStatus = status;
             else delete topContinuityHistory.dataset.milestoneStatus;
         }
-        setUptimeMilestonePopoverVisible(false, { resetTouch: true });
-        if (topContinuityMilestoneOrbit) topContinuityMilestoneOrbit.hidden = !active;
+        setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
         if (topContinuityMilestonePopover) topContinuityMilestonePopover.hidden = !active;
+        if (topContinuityOrigin) topContinuityOrigin.textContent = active ? 'milestone' : 'since 2018';
+        if (topContinuityArrow) topContinuityArrow.textContent = active ? '⌄' : '↗';
 
         if (active) {
             const target = cleanUptimeMilestoneText(signal.shortLabel || signal.icon || signal.title || 'Milestone');
@@ -2921,13 +2897,13 @@ function initUptimeClock() {
             topContinuityMilestoneStatus.textContent = milestoneState;
             topContinuityMilestoneTitle.textContent = target;
             topContinuityMilestoneCopy.textContent = milestoneCopy;
-            topContinuityMilestoneActionDesktop.textContent = `Click clock · ${destinationLabel}`;
-            topContinuityMilestoneActionTouch.textContent = `Tap clock again · ${destinationLabel}`;
+            topContinuityMilestoneLink.href = destination;
+            topContinuityMilestoneLinkLabel.textContent = destinationLabel;
             topContinuityHistory.dataset.milestoneRoute = destination;
             topContinuityHistory.setAttribute('aria-describedby', topContinuityMilestonePopover.id);
             topContinuityHistory.setAttribute('aria-expanded', 'false');
-            topContinuityHistory.setAttribute('aria-label', `${milestoneState}: ${target}. Focus or hover for details. ${destinationLabel}.`);
-            topContinuityHistory.removeAttribute('aria-controls');
+            topContinuityHistory.setAttribute('aria-label', `${milestoneState}: ${target}. Activate to show event details.`);
+            topContinuityHistory.setAttribute('aria-controls', topContinuityMilestonePopover.id);
             topContinuityHistory.removeAttribute('title');
         } else {
             delete topContinuityHistory?.dataset.milestoneRoute;
@@ -2949,7 +2925,6 @@ function initUptimeClock() {
         const isMilestone = signal?.tone === 'milestone' || signal?.category === 'milestone';
         if (!signal || !isMilestone || (expiresAt != null && expiresAt <= Date.now())) {
             activeUptimeMilestoneSignal = null;
-            clearUptimeMilestoneArrival();
             syncUptimeMilestoneCelebration(null);
             tickUptime();
             return;
@@ -2968,22 +2943,12 @@ function initUptimeClock() {
             milestoneStatus: uptimeMilestoneStatus(signal),
             expiresAt
         };
-        const previousSignature = activeUptimeMilestoneSignal
-            ? `${activeUptimeMilestoneSignal.id}|${activeUptimeMilestoneSignal.milestoneStatus}|${activeUptimeMilestoneSignal.expiresAt || ''}`
-            : '';
-        const nextSignature = `${nextSignal.id}|${nextSignal.milestoneStatus}|${nextSignal.expiresAt || ''}`;
         activeUptimeMilestoneSignal = nextSignal;
         syncUptimeMilestoneCelebration(activeUptimeMilestoneSignal);
-        if (nextSignal.milestoneStatus === 'crossed' && nextSignature !== previousSignature) {
-            startUptimeMilestoneArrival();
-        } else if (nextSignal.milestoneStatus !== 'crossed') {
-            clearUptimeMilestoneArrival();
-        }
         if (expiresAt != null) {
             uptimeMilestoneTimer = window.setTimeout(() => {
                 uptimeMilestoneTimer = null;
                 activeUptimeMilestoneSignal = null;
-                clearUptimeMilestoneArrival();
                 syncUptimeMilestoneCelebration(null);
                 tickUptime();
             }, Math.max(0, expiresAt - Date.now()) + 80);
@@ -3287,51 +3252,55 @@ function initUptimeClock() {
 
     if (topContinuityPanel && topContinuityHistory && topContinuityPanel.dataset.historyWired !== '1') {
         topContinuityPanel.dataset.historyWired = '1';
-        topContinuityHistory.addEventListener('pointerenter', (event) => {
+        topContinuityProof?.addEventListener('pointerenter', (event) => {
             if (event.pointerType === 'touch') return;
             setUptimeMilestonePopoverVisible(true);
         });
-        topContinuityHistory.addEventListener('pointerleave', (event) => {
-            if (event.pointerType === 'touch' || touchUptimeMilestoneDisclosure) return;
-            if (document.activeElement !== topContinuityHistory) {
+        topContinuityProof?.addEventListener('pointerleave', (event) => {
+            if (event.pointerType === 'touch' || uptimeMilestoneDisclosureLocked) return;
+            if (!topContinuityProof.contains(document.activeElement)) {
                 setUptimeMilestonePopoverVisible(false);
             }
         });
-        topContinuityHistory.addEventListener('focus', () => {
+        topContinuityProof?.addEventListener('focusin', () => {
             setUptimeMilestonePopoverVisible(true);
         });
-        topContinuityHistory.addEventListener('blur', () => {
-            if (!touchUptimeMilestoneDisclosure) {
+        topContinuityProof?.addEventListener('focusout', (event) => {
+            if (!uptimeMilestoneDisclosureLocked && !topContinuityProof.contains(event.relatedTarget)) {
                 setUptimeMilestonePopoverVisible(false);
             }
         });
         topContinuityHistory.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape' || !getActiveUptimeMilestoneSignal()) return;
             event.preventDefault();
-            setUptimeMilestonePopoverVisible(false, { resetTouch: true });
+            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
         });
         document.addEventListener('pointerdown', (event) => {
-            if (!touchUptimeMilestoneDisclosure || topContinuityProof?.contains(event.target)) return;
-            setUptimeMilestonePopoverVisible(false, { resetTouch: true });
+            if (!uptimeMilestoneDisclosureLocked || topContinuityProof?.contains(event.target)) return;
+            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
         });
         topContinuityHistory.addEventListener('click', (event) => {
             const milestoneSignal = getActiveUptimeMilestoneSignal();
             if (milestoneSignal) {
-                const touchDisclosureRequired = typeof window.matchMedia === 'function'
-                    && window.matchMedia('(hover: none), (pointer: coarse)').matches;
-                if (touchDisclosureRequired && !touchUptimeMilestoneDisclosure) {
-                    event.preventDefault();
-                    setUptimeMilestonePopoverVisible(true, { lockTouch: true });
-                    return;
-                }
-                setUptimeMilestonePopoverVisible(false, { resetTouch: true });
-                openUptimeMilestoneDestination(milestoneSignal);
+                event.preventDefault();
+                const shouldOpen = !topContinuityProof?.classList.contains('is-milestone-disclosed')
+                    || !uptimeMilestoneDisclosureLocked;
+                setUptimeMilestonePopoverVisible(shouldOpen, shouldOpen
+                    ? { lockDisclosure: true }
+                    : { resetDisclosure: true });
                 return;
             }
             if (window.location.hash !== '#protocol-history') {
                 window.history.pushState(null, '', '#protocol-history');
             }
             openProtocolHistoryChamber();
+        });
+        topContinuityMilestoneLink?.addEventListener('click', (event) => {
+            const milestoneSignal = getActiveUptimeMilestoneSignal();
+            if (!milestoneSignal) return;
+            event.preventDefault();
+            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
+            openUptimeMilestoneDestination(milestoneSignal);
         });
         topContinuityPanel.querySelectorAll('.top-continuity-stat[data-card-history]').forEach((pill) => {
             if (pill.dataset.topContinuityHistoryPillWired === '1') return;
@@ -3388,7 +3357,12 @@ function initUptimeClock() {
             topContinuityClaim.textContent = active ? anniversary.claimText : 'mainnet age';
         }
         if (topContinuityOrigin) {
-            topContinuityOrigin.textContent = active ? anniversary.originText : 'since 2018';
+            topContinuityOrigin.textContent = activeMilestone
+                ? 'milestone'
+                : (active ? anniversary.originText : 'since 2018');
+        }
+        if (topContinuityArrow) {
+            topContinuityArrow.textContent = activeMilestone ? '⌄' : '↗';
         }
         if (!topContinuityHistory) return;
 
