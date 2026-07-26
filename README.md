@@ -534,6 +534,10 @@ inline modal styles in `js/core/app.js`.
   explains launch-era OG, through-2021 Veteran, accepted-proposal initiator,
   completed-ballot streak, capacity, and tz4 receipts. Selecting a baker keeps
   the full profile, My Tezos, Ledger Flow, and delegation handoffs explicit.
+  Every complete Directory row and selected-baker detail exposes wallet-reviewed
+  Delegate and Stake actions. Delegation is first-time-only; staking requires
+  confirmed delegation to that baker, current external-stake room, an explicit
+  amount and risk acknowledgement, and at least 1 XTZ left liquid for fees.
 - Whale Watch Chamber with direct `#whales` and `/whales/` access unifies the
   large-operation Live Tape, complete applied-transfer Overview for the latest
   24 hours, related operation-group Flow Stories, large accounts inactive for
@@ -718,7 +722,11 @@ inline modal styles in `js/core/app.js`.
   signal uses one full-width next-round band plus four equal Octez, working,
   attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
   frame while live sections settle into independent desktop columns, and later
-  refreshes reconcile in place. The existing two-card account-journey section
+  refreshes reconcile in place. Undelegated accounts link to the factual Baker
+  Directory and show a disclosed Baking Benjamins site-builder recommendation
+  with live delegation room; its connected-wallet action is disabled when the
+  baker is inactive, capacity is insufficient, or that wallet already has a
+  delegate. The existing two-card account-journey section
   follows the active tab and verified account role, scopes supported routes to
   the current address, and requires an explicit device-local L1/L2 link before
   recommending Tezos X. A contextual room can enter the relevant My Tezos view
@@ -855,7 +863,7 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | `data/tezoscrp-identity-aliases.json` | Auditable high-confidence handle, spelling, and cross-platform continuity; uncertain lookalikes remain explicitly pending instead of being guessed |
 | Etherlink JSON-RPC `https://node.mainnet.etherlink.com` | My Tezos linked-account native XTZ balances plus Tezos X chamber RPC head and gas fallback |
 | Etherlink governance `https://governance.etherlink.com/governance` | Official FAST, SLOW, and Sequencer action pages linked from the read-only chamber |
-| Octez.Connect `@tezos-x/octez.connect-sdk` via `https://esm.sh` | Lazy browser wallet pairing and ctez/My Tezos account actions |
+| Octez.Connect `@tezos-x/octez.connect-sdk` via `https://esm.sh` | Lazy browser wallet pairing plus wallet-approved delegation, protocol-native stake self-transactions, ctez, and My Tezos account actions |
 
 Live staking ratio and APY surfaces use TzKT `statistics/current` totals for
 `totalOwnStaked + totalExternalStaked`, paired with TzKT `totalSupply`. Octez

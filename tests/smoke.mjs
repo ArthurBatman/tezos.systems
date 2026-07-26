@@ -303,6 +303,7 @@ const sampleBakers = [
     stakingBalance: 1200000000000,
     externalStakedBalance: 250000000000,
     externalDelegatedBalance: 180000000000,
+    limitOfStakingOverBaking: 1000000,
     edgeOfBakingOverStaking: 100000000,
     numDelegators: 42,
     stakersCount: 12,
@@ -318,6 +319,7 @@ const sampleBakers = [
     stakingBalance: 900000000000,
     externalStakedBalance: 120000000000,
     externalDelegatedBalance: 220000000000,
+    limitOfStakingOverBaking: 1000000,
     edgeOfBakingOverStaking: 150000000,
     numDelegators: 35,
     stakersCount: 9,
@@ -333,6 +335,7 @@ const sampleBakers = [
     stakingBalance: 700000000000,
     externalStakedBalance: 100000000000,
     externalDelegatedBalance: 110000000000,
+    limitOfStakingOverBaking: 1000000,
     edgeOfBakingOverStaking: 0,
     numDelegators: 18,
     stakersCount: 6,
@@ -2282,6 +2285,9 @@ async function installFeatureMocks(context, options = {}) {
         ]);
       }
       if (url.includes('/delegates/count?active=true')) return fulfillJson(route, leaderboardBakers.length);
+      if (/\/operations\/(?:delegations|transactions)\/[^/]+\/status$/.test(parsedUrl.pathname)) {
+        return fulfillJson(route, 'applied');
+      }
       if (url.includes('/delegates?active=true') && url.includes('select=') && url.includes('bakingPower')) {
         const offset = Number(parsedUrl.searchParams.get('offset') || 0);
         const limit = Number(parsedUrl.searchParams.get('limit') || 500);
@@ -3843,7 +3849,7 @@ async function loadPlaywright() {
 }
 
 async function installOctezConnectMock(context, address = SAMPLE_ADDRESS, options = {}) {
-  await context.addInitScript(({ mockAddress, hangPermissions }) => {
+  await context.addInitScript(({ mockAddress, hangPermissions, startConnected }) => {
     const activeAccount = {
       address: mockAddress,
       network: { type: 'mainnet' },
@@ -3851,7 +3857,7 @@ async function installOctezConnectMock(context, address = SAMPLE_ADDRESS, option
       scopes: ['operation_request', 'sign']
     };
     const listeners = {};
-    let currentAccount = null;
+    let currentAccount = startConnected ? activeAccount : null;
     window.__octezConnectRequests = [];
     window.__octezConnectPermissionRequests = 0;
     window.__octezConnectDisconnected = false;
@@ -3903,7 +3909,11 @@ async function installOctezConnectMock(context, address = SAMPLE_ADDRESS, option
       BeaconEvent: { ACTIVE_ACCOUNT_SET: 'ACTIVE_ACCOUNT_SET', PAIR_ABORTED: 'PAIR_ABORTED' },
       Regions: { EUROPE_WEST: 'EUROPE_WEST', NORTH_AMERICA_EAST: 'NORTH_AMERICA_EAST' }
     };
-  }, { mockAddress: address, hangPermissions: Boolean(options.hangPermissions) });
+  }, {
+    mockAddress: address,
+    hangPermissions: Boolean(options.hangPermissions),
+    startConnected: Boolean(options.startConnected)
+  });
 }
 
 async function launchChromium(chromium) {
@@ -6391,6 +6401,16 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
       }));
       throw new Error(`my tezos idle account ${label}: did not settle ${JSON.stringify(diagnostic)}\n${error.message}`);
     }
+    try {
+      await page.waitForFunction(() => document.querySelector('#my-tezos-delegation-guidance .my-tezos-builder-baker strong')?.textContent?.includes('Baking Benjamins'), null, { timeout: 10000 });
+    } catch (error) {
+      const guidanceDiagnostic = await page.locator('#my-tezos-delegation-guidance').evaluate((node) => ({
+        hidden: node.hidden,
+        html: node.innerHTML,
+        requestSeq: window._myTezosData?.fullAddress || ''
+      }));
+      throw new Error(`my tezos idle account ${label}: delegation guidance did not settle ${JSON.stringify(guidanceDiagnostic)}\n${error.message}`);
+    }
     await page.waitForTimeout(120);
 
     const state = await page.evaluate(() => {
@@ -6428,6 +6448,10 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
         accountStats: document.querySelector('#my-baker-results')?.textContent?.replace(/\s+/g, ' ').trim() || '',
         operatorHidden: Boolean(document.querySelector('#drawer-operator-status')?.hidden),
         activityHidden: Boolean(document.querySelector('#drawer-baker-activity')?.hidden),
+        guidance: document.querySelector('#my-tezos-delegation-guidance')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        directoryHref: document.querySelector('#my-tezos-delegation-guidance a[href^="/leaderboard/"]')?.getAttribute('href') || '',
+        bakerReviewHref: document.querySelector('#my-tezos-delegation-guidance a[href*="baker="]')?.getAttribute('href') || '',
+        directDelegationDisabled: Boolean(document.querySelector('[data-my-tezos-bb-delegate]')?.disabled),
         drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
       };
@@ -6458,6 +6482,16 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
         && state.operatorHidden
         && state.activityHidden,
       `my tezos idle account ${label}: baker-only controls survived the idle state ${JSON.stringify(state)}`
+    );
+    assert(
+      state.guidance.includes('Delegate to an active baker you trust')
+        && state.guidance.includes('Built by this site’s baker')
+        && state.guidance.includes('Baking Benjamins')
+        && state.guidance.includes('reported delegation room')
+        && state.directoryHref === '/leaderboard/?view=directory'
+        && state.bakerReviewHref.includes('baker=')
+        && state.directDelegationDisabled,
+      `my tezos idle account ${label}: transparent baker guidance or disconnected-wallet gating is missing ${JSON.stringify(state)}`
     );
     assert(!state.drawerOverflow && !state.pageOverflow, `my tezos idle account ${label}: layout overflowed ${JSON.stringify(state)}`);
 
@@ -14415,6 +14449,87 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
   log('ok - Baker Directory complete-set, factual signals, direct route, quiet refresh, and mobile smoke');
 }
 
+async function smokeBakerWalletActions(browser, baseUrl) {
+  const openDirectory = async (walletAddress, label) => {
+    const issues = [];
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context, { bakerDirectoryPaged: true });
+    await installOctezConnectMock(context, walletAddress, { startConnected: true });
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'aurora');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+      localStorage.removeItem('tezos-systems-leaderboard-cache-v6');
+    });
+    const page = await context.newPage();
+    attachIssueCollectors(page, label, issues);
+    const response = await page.goto(`${baseUrl}/leaderboard/?view=directory`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `${label}: direct route failed with HTTP ${response?.status()}`);
+    await page.waitForFunction(() => document.querySelectorAll('#baker-directory-panel .baker-directory-table tbody tr').length === 502, null, { timeout: 15000 });
+    return { context, issues, page };
+  };
+
+  {
+    const { context, issues, page } = await openDirectory(SAMPLE_IDLE_ADDRESS, 'Baker delegation action');
+    await expectCount(page, '#baker-directory-panel [data-baker-action="delegate"]', 502, 'Baker Directory delegation controls');
+    await expectCount(page, '#baker-directory-panel [data-baker-action="stake"]', 502, 'Baker Directory stake controls');
+    await page.locator(`#baker-directory-panel tr[data-address="${SAMPLE_ADDRESS}"] [data-baker-action="delegate"]`).click();
+    await page.locator('#baker-action-modal.active [data-baker-action-submit="delegate"]:not([disabled])').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#baker-action-modal [data-baker-action-submit="delegate"]').click();
+    await page.waitForFunction(() => window.__octezConnectRequests?.length === 1, null, { timeout: 5000 });
+    const request = await page.evaluate(() => window.__octezConnectRequests[0]);
+    const expectedRequest = {
+      operationDetails: [{
+        kind: 'delegation',
+        delegate: SAMPLE_ADDRESS
+      }]
+    };
+    assert(JSON.stringify(request) === JSON.stringify(expectedRequest), `Baker delegation action: unexpected wallet request ${JSON.stringify(request)}`);
+    await page.locator('#baker-action-modal .baker-action-status').waitFor({ state: 'visible', timeout: 5000 });
+    assert((await page.locator('#baker-action-modal .baker-action-status').innerText()).includes('Submitted'), 'Baker delegation action: submitted state was not shown');
+    await context.close();
+    assert(issues.length === 0, `Baker delegation action browser issues:\n${issues.join('\n')}`);
+  }
+
+  {
+    const { context, issues, page } = await openDirectory(SAMPLE_REGULAR_DELEGATOR_ADDRESS, 'Baker stake action');
+    await page.locator(`#baker-directory-panel tr[data-address="${SAMPLE_ADDRESS}"] [data-baker-action="stake"]`).click();
+    await page.locator('#baker-action-modal.active [data-baker-action-submit="stake"]:not([disabled])').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#baker-action-stake-amount').fill('2.5');
+    await page.locator('#baker-action-risk-confirm').check();
+    await page.locator('#baker-action-modal [data-baker-action-submit="stake"]').click();
+    await page.waitForFunction(() => window.__octezConnectRequests?.length === 1, null, { timeout: 5000 });
+    const request = await page.evaluate(() => window.__octezConnectRequests[0]);
+    const expectedRequest = {
+      operationDetails: [{
+        kind: 'transaction',
+        destination: SAMPLE_REGULAR_DELEGATOR_ADDRESS,
+        amount: '2500000',
+        parameters: {
+          entrypoint: 'stake',
+          value: { prim: 'Unit' }
+        }
+      }]
+    };
+    assert(JSON.stringify(request) === JSON.stringify(expectedRequest), `Baker stake action: unexpected wallet request ${JSON.stringify(request)}`);
+
+    await page.locator('#baker-action-modal .baker-action-close').click();
+    await page.locator(`#baker-directory-panel tr[data-address="${SAMPLE_ADDRESS_2}"] [data-baker-action="delegate"]`).click();
+    await page.locator('#baker-action-modal.active .baker-action-blocked').waitFor({ state: 'visible', timeout: 10000 });
+    const blocked = await page.locator('#baker-action-modal .baker-action-blocked').innerText();
+    assert(blocked.includes('already delegates to QA Baker') && blocked.includes('switching is intentionally not offered'), `Baker delegation action: existing delegation was not safely gated: ${blocked}`);
+    assert(await page.locator('#baker-action-modal [data-baker-action-submit="delegate"]').isDisabled(), 'Baker delegation action: switching control must stay disabled');
+    await context.close();
+    assert(issues.length === 0, `Baker stake action browser issues:\n${issues.join('\n')}`);
+  }
+
+  log('ok - Baker Directory wallet-reviewed delegation and stake actions');
+}
+
 async function smokeWhaleWatchChamber(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -17812,6 +17927,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'ux-regressions', description: 'Clean theme contrast, deep-linked utility sections, share picker contrast, widget utility', run: () => smokeUxChanges(browser, baseUrl) },
     { name: 'quiet-refresh', description: 'Background data reconciliation preserves page, rail, chamber, focus, selection, and animation state', run: () => smokeQuietRefresh(browser, baseUrl) },
     { name: 'baker-directory', description: 'Complete paged active-baker set, search, factual signals, direct route, quiet reading state, and mobile geometry', run: () => smokeLeaderboardSignals(browser, baseUrl) },
+    { name: 'baker-wallet-actions', description: 'Every canonical baker row exposes wallet-reviewed first-time delegation and exact Tezos stake operations', run: () => smokeBakerWalletActions(browser, baseUrl) },
     { name: 'whale-watch-chamber', description: 'Complete-window receipts, grouped flow legs, timestamp dormancy, receipt-backed awakenings, legacy giants alias, prepend anchoring, and mobile geometry', run: () => smokeWhaleWatchChamber(browser, baseUrl) },
     { name: 'cycle-history-chamber', description: 'Direct range and metric routes, focused charts, close lifecycle, restored entry focus, and mobile geometry', run: () => smokeCycleHistoryChamber(browser, baseUrl) },
     { name: 'feature-workflows', description: 'Baker Directory, calculator modes, price intelligence, comparison, Whale Watch, Cycle History, and share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },

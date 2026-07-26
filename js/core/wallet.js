@@ -404,6 +404,38 @@ export async function requestConnectedWalletDelegation(delegateAddress = BAKING_
     return { account, result };
 }
 
+export async function requestConnectedWalletStake(amountMutez) {
+    const amount = String(amountMutez ?? '').trim();
+    if (!/^[1-9]\d*$/.test(amount)) {
+        throw new Error('Stake amount must be a positive whole number of mutez');
+    }
+
+    const beacon = await loadOctezConnect();
+    const client = await getDAppClient();
+    const account = await client.getActiveAccount();
+    if (!account?.address || !isTezosAccountAddress(account.address)) {
+        throw new Error('Connect a Tezos account first');
+    }
+    if (account.network?.type && account.network.type !== (beacon.NetworkType?.MAINNET || 'mainnet')) {
+        throw new Error('Switch the connected wallet to Tezos Mainnet first');
+    }
+    rememberAccount(account, 'ready');
+
+    const transactionKind = beacon.TezosOperationType?.TRANSACTION || 'transaction';
+    const result = await client.requestOperation({
+        operationDetails: [{
+            kind: transactionKind,
+            destination: account.address,
+            amount,
+            parameters: {
+                entrypoint: 'stake',
+                value: { prim: 'Unit' }
+            }
+        }]
+    });
+    return { account, result };
+}
+
 function footerDelegationErrorMessage(error) {
     const message = String(error?.message || error || '');
     if (/Connect your wallet/i.test(message)) return 'Connect a wallet in My Tezos first.';

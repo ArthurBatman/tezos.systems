@@ -1830,3 +1830,200 @@
         width: 100%;
     }
 }
+
+.baker-action-buttons {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.baker-action-buttons button {
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan, #00d4ff) 36%, transparent);
+    border-radius: 7px;
+    color: var(--text-primary, #fff);
+    background: color-mix(in srgb, var(--accent-cyan, #00d4ff) 9%, transparent);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.baker-action-buttons button:is(:hover, :focus-visible) {
+    border-color: var(--accent-cyan, #00d4ff);
+    outline: none;
+}
+
+.baker-action-buttons.compact {
+    flex-wrap: nowrap;
+}
+
+.baker-action-buttons.compact button {
+    min-height: 30px;
+    padding: 5px 8px;
+    font-size: 0.67rem;
+}
+
+.baker-action-overlay {
+    z-index: 6100;
+    padding: 18px;
+}
+
+.baker-action-dialog {
+    position: relative;
+    width: min(560px, calc(100vw - 36px));
+    max-height: calc(100dvh - 36px);
+    padding: 25px;
+    overflow: auto;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan, #00d4ff) 30%, transparent);
+    border-radius: 16px;
+    color: var(--text-primary, #fff);
+    background:
+        radial-gradient(circle at 10% 0, rgba(0,212,255,0.11), transparent 38%),
+        var(--bg-primary, #07101a);
+    box-shadow: 0 28px 90px rgba(0,0,0,0.58);
+}
+
+.baker-action-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    color: var(--text-primary, #fff);
+    background: rgba(255,255,255,0.07);
+    font-size: 1.35rem;
+    cursor: pointer;
+}
+
+.baker-action-dialog h2 {
+    margin: 5px 42px 7px 0;
+    font-size: 1.4rem;
+}
+
+.baker-action-address {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--text-secondary, rgba(255,255,255,0.64));
+    font-size: 0.72rem;
+}
+
+.baker-action-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    margin: 18px 0;
+}
+
+.baker-action-facts div {
+    display: grid;
+    gap: 3px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.025);
+}
+
+.baker-action-facts dt {
+    color: var(--text-secondary, rgba(255,255,255,0.64));
+    font-size: 0.64rem;
+    text-transform: uppercase;
+}
+
+.baker-action-facts dd {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.baker-action-amount,
+.baker-action-confirm {
+    display: grid;
+    gap: 7px;
+    margin: 14px 0;
+    font-size: 0.78rem;
+    font-weight: 750;
+}
+
+.baker-action-amount span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.baker-action-amount input {
+    width: min(240px, 100%);
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    color: var(--text-primary, #fff);
+    background: rgba(0,0,0,0.22);
+    font: inherit;
+}
+
+.baker-action-confirm {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+}
+
+.baker-action-risk,
+.baker-action-warning,
+.baker-action-blocked,
+.baker-action-status {
+    margin: 12px 0;
+    padding: 10px;
+    border-radius: 8px;
+    color: var(--text-secondary, rgba(255,255,255,0.68));
+    background: rgba(255,255,255,0.035);
+    font-size: 0.74rem;
+    line-height: 1.52;
+}
+
+.baker-action-warning,
+.baker-action-blocked {
+    color: #f5c76b;
+    background: rgba(245,199,107,0.08);
+}
+
+.baker-action-status[data-tone="success"] { color: #34d399; }
+.baker-action-status[data-tone="error"] { color: #fb7185; }
+
+.baker-action-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+    margin-top: 17px;
+}
+
+.baker-action-footer button {
+    min-height: 38px;
+    padding: 8px 13px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    color: var(--text-primary, #fff);
+    background: rgba(255,255,255,0.06);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.baker-action-footer button.primary {
+    border-color: color-mix(in srgb, var(--accent-cyan, #00d4ff) 55%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan, #00d4ff) 16%, transparent);
+}
+
+.baker-action-footer button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+    .baker-action-dialog { padding: 22px 16px; }
+    .baker-action-facts { grid-template-columns: 1fr; }
+    .baker-action-footer { align-items: stretch; flex-direction: column; }
+    .baker-action-footer button { width: 100%; }
+}

@@ -89,6 +89,11 @@ import {
   MyTezosRequestBroker,
   fingerprintMyTezosRequest
 } from '../js/core/my-tezos-request-broker.mjs';
+import {
+  buildBakerCapacitySnapshot,
+  normalizeBakerRewardEdge,
+  normalizeBakerStakingLimit
+} from '../js/core/baker-capacity.mjs';
 import { findMyTezosContractRule } from '../js/core/my-tezos-contract-registry.mjs';
 import {
   aggregateCollectionHoldings,
@@ -154,6 +159,34 @@ async function checkMyTezosPortfolioContracts() {
   assert.equal(migrated[1].included, false);
   const uniqueAddresses = '123456789ABC'.split('').map((suffix) => `tz1${'1'.repeat(32)}${suffix}`);
   assert.equal(normalizeSavedMyTezosEntries(uniqueAddresses.map((address) => ({ address }))).length, 10);
+
+  assert.equal(normalizeBakerStakingLimit(2_000_000, 9), 2);
+  assert.equal(normalizeBakerStakingLimit(12_000_000, 9), 9);
+  assert.equal(normalizeBakerRewardEdge(125_000_000), 0.125);
+  assert.deepEqual(buildBakerCapacitySnapshot({
+    active: true,
+    stakedBalance: 100_000_000,
+    externalDelegatedBalance: 500_000_000,
+    externalStakedBalance: 300_000_000,
+    limitOfStakingOverBaking: 2_000_000,
+    edgeOfBakingOverStaking: 100_000_000
+  }, 9), {
+    active: true,
+    ownStake: 100,
+    externalDelegated: 500,
+    externalStaked: 300,
+    globalDelegationLimit: 9,
+    stakingLimit: 2,
+    rewardEdge: 0.1,
+    maxDelegation: 900,
+    maxExternalStake: 200,
+    freeDelegationCapacity: 400,
+    freeStakingCapacity: -100,
+    delegationUsage: 500 / 9,
+    stakingUsage: 150,
+    acceptsExternalStake: false,
+    pendingStakingParameters: null
+  });
 
   const rowA = portfolioRowFromAccount(migrated[0], {
     address: addressA,
@@ -7631,7 +7664,9 @@ async function checkPromotedChamberContracts() {
     chamberRoutes,
     generatedSurfaces,
     packageText,
-    smoke
+    smoke,
+    wallet,
+    myTezos
   ] = await Promise.all([
     readText('data/whale-watch.json'),
     readText('js/features/whale-chamber.js'),
@@ -7648,7 +7683,9 @@ async function checkPromotedChamberContracts() {
     readText('scripts/lib/chamber-routes.mjs'),
     readText('scripts/refresh-generated-surfaces.mjs'),
     readText('package.json'),
-    readText('tests/smoke.mjs')
+    readText('tests/smoke.mjs'),
+    readText('js/core/wallet.js'),
+    readText('js/features/my-tezos.js')
   ]);
   const artifact = JSON.parse(artifactText);
   const packageJson = JSON.parse(packageText);
@@ -7839,6 +7876,33 @@ async function checkPromotedChamberContracts() {
   ]) {
     if (!leaderboard.includes(snippet)) fail(`Baker Directory complete-set/quiet/truth contract missing: ${snippet}`);
   }
+  for (const snippet of [
+    'data-baker-action="delegate"',
+    'data-baker-action="stake"',
+    'Baker switching is intentionally not offered here.',
+    'Leave at least 1 XTZ liquid for fees',
+    'requestConnectedWalletDelegation(baker.address)',
+    'requestConnectedWalletStake(amountMutez.toString())'
+  ]) {
+    if (!leaderboard.includes(snippet)) fail(`Baker Directory wallet-action contract missing: ${snippet}`);
+  }
+  for (const snippet of [
+    "kind: delegationKind",
+    "destination: account.address",
+    "entrypoint: 'stake'",
+    "value: { prim: 'Unit' }"
+  ]) {
+    if (!wallet.includes(snippet)) fail(`Octez.Connect baker-action operation contract missing: ${snippet}`);
+  }
+  for (const snippet of [
+    'Delegate to an active baker you trust',
+    'Built by this site’s baker',
+    'reported delegation room',
+    'data-my-tezos-bb-delegate',
+    '/leaderboard/?view=directory'
+  ]) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos undelegated guidance contract missing: ${snippet}`);
+  }
   if (/computeBakerScores|scoreBakerFit|overallScore|reliabilityScore|fitScore|compositeFitScore/.test(leaderboard)) {
     fail('Baker Directory must not restore a synthetic baker fit, performance, or reliability score');
   }
@@ -7855,7 +7919,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=502'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=503'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -7889,7 +7953,7 @@ async function checkPromotedChamberContracts() {
     }
   }
 
-  for (const suite of ["name: 'baker-directory'", "name: 'whale-watch-chamber'", "name: 'cycle-history-chamber'"]) {
+  for (const suite of ["name: 'baker-directory'", "name: 'baker-wallet-actions'", "name: 'whale-watch-chamber'", "name: 'cycle-history-chamber'"]) {
     if (!smoke.includes(suite)) fail(`smoke catalog must include focused promoted-Chamber suite ${suite}`);
   }
   for (const snippet of [

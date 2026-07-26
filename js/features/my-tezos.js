@@ -7,7 +7,14 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import { countsAsProtocolUpgrade } from '../core/protocol-count.js';
-import { fetchStakingAPY, fetchWithRetry, getExternalStakerApy } from '../core/api.js';
+import { fetchProtocolConstants, fetchStakingAPY, fetchWithRetry, getExternalStakerApy } from '../core/api.js';
+import { buildBakerCapacitySnapshot } from '../core/baker-capacity.mjs';
+import {
+    BAKING_BENJAMINS_DELEGATE_ADDRESS,
+    getWalletAccount,
+    requestConnectedWalletDelegation,
+    shortAddress as shortWalletAddress
+} from '../core/wallet.js';
 import { fetchXTZPrice } from './price.js';
 import { letterGrade } from './baker-report-card.js';
 import { fetchVotingStatus, getVotingPeriodName } from './governance.js';
@@ -51,6 +58,7 @@ const RIGHTS_FETCH_TIMEOUT_MS = 12000;
 const OCTEZ_VERSION_TTL_MS = 10 * 60 * 1000;
 const OPERATOR_SIGNAL_REFRESH_MS = 15000;
 const DRAWER_STATS_REFRESH_MS = 30000;
+const BAKING_BENJAMINS_NAME = 'Baking Benjamins';
 const _octezSoftwareCache = new Map();
 const _tezNameMemoryCache = new Map();
 // Protocol eras — map block levels to protocol names
@@ -2247,6 +2255,166 @@ function getActiveMyTezosContext(address) {
     };
 }
 
+function formatGuidanceXtz(value) {
+    const number = Number(value);
+    return Number.isFinite(number)
+        ? Math.max(0, Math.floor(number)).toLocaleString('en-US')
+        : 'Unavailable';
+}
+
+async function fetchDelegationGuidanceState() {
+    const [baker, constants, wallet] = await Promise.all([
+        fetchJsonWithTimeout(`${TZKT}/delegates/${encodeURIComponent(BAKING_BENJAMINS_DELEGATE_ADDRESS)}`, null, 8000),
+        fetchProtocolConstants().catch(() => null),
+        getWalletAccount({ quiet: true })
+    ]);
+    const globalLimit = Number(constants?.limit_of_delegation_over_baking) || 9;
+    const capacity = buildBakerCapacitySnapshot(baker, globalLimit);
+    const account = wallet?.address
+        ? await fetchJsonWithTimeout(`${TZKT}/accounts/${encodeURIComponent(wallet.address)}`, null, 8000)
+        : null;
+    return { baker, capacity, wallet, account };
+}
+
+function guidanceBlockedReason({ baker, capacity, wallet, account }) {
+    if (!wallet?.address) return 'Connect a wallet above to delegate.';
+    if (wallet.network?.type && wallet.network.type !== 'mainnet') return 'Switch the connected wallet to Tezos Mainnet.';
+    if (account?.type === 'delegate') return 'Registered baker accounts are not handled by this delegator action.';
+    if (account?.delegate?.address === BAKING_BENJAMINS_DELEGATE_ADDRESS) return 'This wallet already delegates to Baking Benjamins.';
+    if (account?.delegate?.address) return `This wallet already delegates to ${account.delegate.alias || shortWalletAddress(account.delegate.address)}. Baker switching is not offered here.`;
+    if (baker?.active === false || !capacity?.active) return 'Baking Benjamins is not currently active.';
+    const walletBalance = Math.max(0, Number(account?.balance || 0) / 1_000_000);
+    if (walletBalance > Math.max(0, Number(capacity?.freeDelegationCapacity || 0))) {
+        return 'This connected wallet is larger than the baker’s reported delegation room.';
+    }
+    return '';
+}
+
+async function pollGuidanceDelegation(operationHash, address) {
+    if (!operationHash) return;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 3000));
+        if (localStorage.getItem(STORAGE_KEY) !== address) return;
+        try {
+            const response = await fetch(`${TZKT}/operations/delegations/${encodeURIComponent(operationHash)}/status`, { cache: 'no-store' });
+            if (!response.ok) continue;
+            const status = String(await response.json()).replaceAll('"', '').toLowerCase();
+            const node = document.querySelector('[data-my-tezos-delegation-status]');
+            if (status === 'applied') {
+                if (node) {
+                    node.textContent = 'Delegation confirmed on-chain.';
+                    node.dataset.tone = 'success';
+                }
+                return;
+            }
+            if (['failed', 'backtracked', 'skipped'].includes(status)) {
+                if (node) {
+                    node.textContent = `Operation ${status}.`;
+                    node.dataset.tone = 'error';
+                }
+                return;
+            }
+        } catch { /* wait for the indexer */ }
+    }
+}
+
+async function renderDelegationGuidance(data, requestSeq) {
+    const container = document.getElementById('my-tezos-delegation-guidance');
+    if (!container) return;
+    if (data?.bakerAddr) {
+        container.hidden = true;
+        container.innerHTML = '';
+        return;
+    }
+
+    container.hidden = false;
+    const loadingHtml = `
+        <section class="my-tezos-delegation-guide" data-quiet-key="my-tezos-delegation-guide">
+            <span class="feature-kicker">Choose your baker</span>
+            <h3>Delegate to an active baker you trust</h3>
+            <p>Compare current capacity and source-backed signals. Verify fees, payout timing, and service policy with the baker.</p>
+            <a class="glass-button" href="/leaderboard/?view=directory">Compare every active baker</a>
+            <div class="my-tezos-builder-baker" role="status">Reading Baking Benjamins capacity…</div>
+        </section>
+    `;
+    if (!container.querySelector('.my-tezos-builder-baker strong')) {
+        if (container.children.length) quietlySyncHtml(container, loadingHtml);
+        else container.innerHTML = loadingHtml;
+    }
+
+    try {
+        const state = await fetchDelegationGuidanceState();
+        if (
+            requestSeq !== _briefRequestSeq
+            || localStorage.getItem(STORAGE_KEY) !== data.fullAddress
+            || window._myTezosData?.bakerAddr
+        ) return;
+        const blocked = guidanceBlockedReason(state);
+        const free = formatGuidanceXtz(state.capacity.freeDelegationCapacity);
+        const html = `
+            <section class="my-tezos-delegation-guide" data-quiet-key="my-tezos-delegation-guide">
+                <span class="feature-kicker">Choose your baker</span>
+                <h3>Delegate to an active baker you trust</h3>
+                <p>Compare current capacity and source-backed signals. Verify fees, payout timing, and service policy with the baker.</p>
+                <a class="glass-button" href="/leaderboard/?view=directory">Compare every active baker</a>
+                <div class="my-tezos-builder-baker">
+                    <span class="my-tezos-builder-disclosure">Built by this site’s baker</span>
+                    <strong>${BAKING_BENJAMINS_NAME}</strong>
+                    <span>${free} XTZ reported delegation room</span>
+                    <div class="my-tezos-builder-actions">
+                        <a href="/leaderboard/?view=directory&baker=${encodeURIComponent(BAKING_BENJAMINS_DELEGATE_ADDRESS)}">Review baker facts</a>
+                        <button type="button" data-my-tezos-bb-delegate ${blocked ? 'disabled' : ''}>Delegate connected wallet</button>
+                    </div>
+                    ${blocked ? `<p class="my-tezos-delegation-blocked">${escapeHtml(blocked)}</p>` : ''}
+                    <p data-my-tezos-delegation-status role="status" aria-live="polite"></p>
+                </div>
+            </section>
+        `;
+        quietlySyncHtml(container, html);
+        const button = container.querySelector('[data-my-tezos-bb-delegate]');
+        if (button && !button.disabled) {
+            button.onclick = async () => {
+                button.disabled = true;
+                const status = container.querySelector('[data-my-tezos-delegation-status]');
+                if (status) status.textContent = 'Rechecking wallet and capacity…';
+                try {
+                    const fresh = await fetchDelegationGuidanceState();
+                    const freshBlocked = guidanceBlockedReason(fresh);
+                    if (freshBlocked) throw new Error(freshBlocked);
+                    const { result } = await requestConnectedWalletDelegation(BAKING_BENJAMINS_DELEGATE_ADDRESS);
+                    const operationHash = String(result?.operationHash || result?.transactionHash || '');
+                    if (status) {
+                        status.innerHTML = operationHash
+                            ? `Submitted; waiting for confirmation. <a href="https://tzkt.io/${encodeURIComponent(operationHash)}" target="_blank" rel="noopener noreferrer">View operation</a>`
+                            : 'Submitted; waiting for confirmation.';
+                        status.dataset.tone = 'success';
+                    }
+                    pollGuidanceDelegation(operationHash, data.fullAddress).catch(() => {});
+                } catch (error) {
+                    if (status) {
+                        status.textContent = /abort|cancel|declin|reject|denied/i.test(String(error?.message || error))
+                            ? 'The wallet did not submit the operation.'
+                            : (error?.message || 'Delegation could not be submitted.');
+                        status.dataset.tone = 'error';
+                    }
+                    button.disabled = false;
+                }
+            };
+        }
+    } catch {
+        if (container.querySelector('.my-tezos-builder-baker strong')) return;
+        const fallback = `
+            <section class="my-tezos-delegation-guide" data-quiet-key="my-tezos-delegation-guide">
+                <span class="feature-kicker">Choose your baker</span>
+                <h3>Delegate to an active baker you trust</h3>
+                <p>Live capacity is temporarily unavailable. Compare current baker facts before taking action.</p>
+                <a class="glass-button" href="/leaderboard/?view=directory">Open the Baker Directory</a>
+            </section>
+        `;
+        quietlySyncHtml(container, fallback);
+    }
+}
+
 function renderBriefTabs(cards, data) {
     const container = document.getElementById('drawer-brief');
     if (!container) return;
@@ -2498,6 +2666,7 @@ async function renderMorningBrief(address, force = false) {
         renderBakerOperatorStatus(operatorStatus, isBaker, bakerName);
         renderBriefTabs(cards, data);
         renderBakerActivity(bakerActivity);
+        renderDelegationGuidance(data, requestSeq).catch(() => {});
 
         // Feature 6: Baker health grade in drawer
         if (healthScore !== null) {
@@ -2550,20 +2719,6 @@ async function renderMorningBrief(address, force = false) {
                         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false, grace: '20%' } } }
                     });
                 }
-            }
-        }
-
-        // Feature 8: Non-baker conditional CTA
-        if (!hasRewardRole) {
-            const bakerResults = document.getElementById('my-baker-results');
-            if (bakerResults) {
-                quietlySyncHtml(bakerResults, `
-                    <div class="drawer-no-baker">
-                        <p>💡 This address isn't delegated or staking.</p>
-                        <p>No active reward estimate is shown. Delegation stays liquid, while reward rates, fees, and payout policy vary.</p>
-                        <a href="https://gov.tez.capital" target="_blank" class="glass-button" style="margin-top:8px;">🥩 Browse Bakers</a>
-                    </div>
-                `);
             }
         }
 
@@ -2973,11 +3128,11 @@ export function initMyTezos() {
             window._myTezosData = null;
             updateDrawerGreeting('');
             // Clear drawer sections
-            ['drawer-operator-status', 'drawer-brief', 'drawer-network', 'drawer-rewards', 'drawer-baker-activity'].forEach(id => {
+            ['drawer-operator-status', 'drawer-brief', 'drawer-network', 'drawer-rewards', 'drawer-baker-activity', 'my-tezos-delegation-guidance'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     el.innerHTML = '';
-                    if (id === 'drawer-baker-activity' || id === 'drawer-operator-status') el.hidden = true;
+                    if (id === 'drawer-baker-activity' || id === 'drawer-operator-status' || id === 'my-tezos-delegation-guidance') el.hidden = true;
                 }
             });
         }
@@ -3021,6 +3176,7 @@ export function initMyTezos() {
         };
         window._myTezosData = updated;
         renderBriefTabs(buildMorningBrief(updated), updated);
+        renderDelegationGuidance(updated, _briefRequestSeq).catch(() => {});
         window.dispatchEvent(new Event('my-tezos-data-ready'));
     });
 

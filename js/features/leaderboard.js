@@ -5,6 +5,14 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatMutez } from '../core/utils.js';
+import { buildBakerCapacitySnapshot } from '../core/baker-capacity.mjs';
+import {
+    connectOctezWallet,
+    getWalletAccount,
+    requestConnectedWalletDelegation,
+    requestConnectedWalletStake,
+    shortAddress
+} from '../core/wallet.js';
 import { isValidAddress } from './my-baker.js';
 import { pulseFresh } from '../effects/data-magic.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
@@ -18,10 +26,10 @@ import {
 const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
 const SORT_KEY = 'tezos-systems-leaderboard-sort';
-const CACHE_KEY = 'tezos-systems-leaderboard-cache-v5';
-const LEGACY_CACHE_KEYS = [1, 2, 3, 4].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
+const CACHE_KEY = 'tezos-systems-leaderboard-cache-v6';
+const LEGACY_CACHE_KEYS = [1, 2, 3, 4, 5].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=502';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=503';
 const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
 const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -66,6 +74,7 @@ let bakerDirectoryLastError = '';
 let bakerDirectorySavedBodyOverflow = null;
 let bakerDirectorySavedHtmlOverflow = null;
 let bakerDirectoryFocusedBeforeOpen = null;
+let bakerActionState = null;
 
 function ensureLeaderboardStyles() {
     if (document.getElementById('leaderboard-css')) return;
@@ -170,7 +179,7 @@ async function fetchBakers() {
     try {
         while (true) {
             const resp = await fetch(
-                `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,stakedBalance,balance,software,firstActivity,firstActivityTime&sort.desc=id&limit=${limit}&offset=${offset}`
+                `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,stakedBalance,balance,software,firstActivity,firstActivityTime,limitOfStakingOverBaking,edgeOfBakingOverStaking,pendingStakingParameters&sort.desc=id&limit=${limit}&offset=${offset}`
             );
             if (!resp.ok) throw new Error(`Baker directory HTTP ${resp.status}`);
             const batch = await resp.json();
@@ -396,9 +405,9 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
     const limit = Number.isFinite(Number(activeDelegationLimit)) && Number(activeDelegationLimit) > 0
         ? Number(activeDelegationLimit)
         : DEFAULT_DELEGATION_LIMIT;
-    const maxDelegation = ownStake * limit;
-    const delegationUsage = maxDelegation > 0 ? (extDelegated / maxDelegation) * 100 : 0;
-    const freeDelegationCapacity = Math.max(0, maxDelegation - extDelegated);
+    const capacity = buildBakerCapacitySnapshot(b, limit);
+    const delegationUsage = capacity.delegationUsage;
+    const freeDelegationCapacity = capacity.freeDelegationCapacity;
     const base = {
         ...b,
         stake,
@@ -411,6 +420,12 @@ function enrichBaker(b, activeDelegationLimit = delegationLimit) {
         tz4: isTz4(b.address, b.consensusAddress),
         delegationLimit: limit,
         delegationUsage,
+        stakingUsage: capacity.stakingUsage,
+        stakingLimit: capacity.stakingLimit,
+        rewardEdge: capacity.rewardEdge,
+        freeStakingCapacity: capacity.freeStakingCapacity,
+        acceptsExternalStake: capacity.acceptsExternalStake,
+        pendingStakingParameters: capacity.pendingStakingParameters,
         name: b.alias || (b.address.slice(0, 8) + '…'),
         sinceYear: sinceYear(b)
     };
@@ -1164,6 +1179,299 @@ function compactXtz(value) {
     }).format(number);
 }
 
+function exactXtz(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 'Unavailable';
+    return Math.floor(number).toLocaleString('en-US');
+}
+
+function operationHashFrom(result) {
+    return String(result?.operationHash || result?.transactionHash || '').trim();
+}
+
+function xtzInputToMutez(value) {
+    const cleaned = String(value || '').trim();
+    if (!/^\d+(?:\.\d{1,6})?$/.test(cleaned)) return null;
+    const [whole, fraction = ''] = cleaned.split('.');
+    const mutez = (BigInt(whole) * 1_000_000n) + BigInt(fraction.padEnd(6, '0'));
+    return mutez > 0n ? mutez : null;
+}
+
+function bakerActionButtonsHtml(baker, { compact = false } = {}) {
+    return `
+        <span class="baker-action-buttons ${compact ? 'compact' : ''}" aria-label="${escapeHtml(baker.name)} wallet actions">
+            <button type="button" data-baker-action="delegate" data-baker-address="${escapeHtml(baker.address)}">Delegate</button>
+            <button type="button" data-baker-action="stake" data-baker-address="${escapeHtml(baker.address)}">Stake</button>
+        </span>
+    `;
+}
+
+async function fetchBakerActionAccount(walletAccount) {
+    if (!walletAccount?.address) return null;
+    const response = await fetch(`${TZKT}/accounts/${encodeURIComponent(walletAccount.address)}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Connected account lookup failed (${response.status})`);
+    return response.json();
+}
+
+async function fetchFreshActionBaker(address) {
+    const [response, limit] = await Promise.all([
+        fetch(`${TZKT}/delegates/${encodeURIComponent(address)}`, { cache: 'no-store' }),
+        fetchDelegationLimit()
+    ]);
+    if (!response.ok) throw new Error(`Baker refresh failed (${response.status})`);
+    return enrichBaker(await response.json(), limit);
+}
+
+function closeBakerActionDialog() {
+    const overlay = document.getElementById('baker-action-modal');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    deactivateChamberDialog(overlay);
+    overlay.setAttribute('aria-hidden', 'true');
+    bakerActionState = null;
+}
+
+function ensureBakerActionDialog() {
+    let overlay = document.getElementById('baker-action-modal');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'baker-action-modal';
+    overlay.className = 'modal-overlay baker-action-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.innerHTML = `
+        <div class="baker-action-dialog" role="dialog" aria-modal="true" aria-labelledby="baker-action-title" tabindex="-1">
+            <button type="button" class="baker-action-close" aria-label="Close baker wallet action">&times;</button>
+            <div id="baker-action-content"></div>
+        </div>
+    `;
+    overlay.addEventListener('click', async (event) => {
+        if (event.target === overlay || event.target.closest('.baker-action-close')) {
+            closeBakerActionDialog();
+            return;
+        }
+        const connect = event.target.closest('[data-baker-action-connect]');
+        if (connect) {
+            connect.disabled = true;
+            try {
+                await connectOctezWallet({ syncMyTezos: false });
+                await renderBakerActionDialog({ refresh: true });
+            } catch (error) {
+                bakerActionState = { ...bakerActionState, status: error?.message || 'Wallet connection failed', tone: 'error' };
+                await renderBakerActionDialog();
+            }
+            return;
+        }
+        const submit = event.target.closest('[data-baker-action-submit]');
+        if (submit) submitBakerAction(submit).catch(() => {});
+    });
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+function actionStatusHtml(state) {
+    if (!state?.status) return '';
+    return `<p class="baker-action-status" data-tone="${escapeHtml(state.tone || '')}" role="status" aria-live="polite">${escapeHtml(state.status)}${state.operationHash ? ` · <a href="https://tzkt.io/${encodeURIComponent(state.operationHash)}" target="_blank" rel="noopener noreferrer">View operation</a>` : ''}</p>`;
+}
+
+async function renderBakerActionDialog({ refresh = false } = {}) {
+    const state = bakerActionState;
+    if (!state) return;
+    const overlay = ensureBakerActionDialog();
+    const content = overlay.querySelector('#baker-action-content');
+    const requestId = (state.requestId || 0) + 1;
+    bakerActionState = { ...state, requestId };
+
+    if (refresh || !state.accountLoaded) {
+        content.innerHTML = `
+            <h2 id="baker-action-title">Preparing baker action</h2>
+            <div class="baker-action-loading" role="status">Reading wallet and baker state…</div>
+        `;
+        try {
+            const wallet = await getWalletAccount({ quiet: true });
+            const [account, baker] = await Promise.all([
+                wallet?.address ? fetchBakerActionAccount(wallet) : Promise.resolve(null),
+                fetchFreshActionBaker(state.baker.address)
+            ]);
+            if (!bakerActionState || bakerActionState.requestId !== requestId) return;
+            bakerActionState = { ...bakerActionState, baker, wallet, account, accountLoaded: true };
+        } catch (error) {
+            if (!bakerActionState || bakerActionState.requestId !== requestId) return;
+            bakerActionState = {
+                ...bakerActionState,
+                accountLoaded: true,
+                status: error?.message || 'Live wallet state is unavailable',
+                tone: 'error'
+            };
+        }
+    }
+
+    const current = bakerActionState;
+    if (!current) return;
+    const { baker, wallet, account, mode } = current;
+    const connected = Boolean(wallet?.address);
+    const wrongNetwork = Boolean(wallet?.network?.type && wallet.network.type !== 'mainnet');
+    const registeredDelegate = account?.type === 'delegate';
+    const currentDelegate = String(account?.delegate?.address || '');
+    const alreadyThisBaker = currentDelegate === baker.address;
+    const delegatedElsewhere = Boolean(currentDelegate && !alreadyThisBaker);
+    const accountBalance = Math.max(0, Number(account?.balance || 0) / 1_000_000);
+    const delegationFits = accountBalance <= Math.max(0, Number(baker.freeDelegationCapacity || 0));
+    const canDelegate = connected && !wrongNetwork && !registeredDelegate && !currentDelegate
+        && baker.active !== false && delegationFits;
+    const canStake = connected && !wrongNetwork && !registeredDelegate && alreadyThisBaker
+        && baker.acceptsExternalStake;
+    let blocked = '';
+    if (!connected) blocked = 'Connect a wallet to continue. This does not replace the watch-only address saved in My Tezos.';
+    else if (wrongNetwork) blocked = 'Switch the connected wallet to Tezos Mainnet.';
+    else if (registeredDelegate) blocked = 'Registered baker accounts are not handled by these delegator actions.';
+    else if (delegatedElsewhere) blocked = `This wallet already delegates to ${account.delegate?.alias || shortAddress(currentDelegate)}. Baker switching is intentionally not offered here.`;
+    else if (mode === 'delegate' && alreadyThisBaker) blocked = 'This wallet already delegates to this baker.';
+    else if (mode === 'delegate' && !delegationFits) blocked = `This wallet’s ${exactXtz(accountBalance)} XTZ balance exceeds the baker’s reported ${exactXtz(baker.freeDelegationCapacity)} XTZ delegation room.`;
+    else if (mode === 'stake' && !alreadyThisBaker) blocked = 'Confirm delegation to this baker before staking.';
+    else if (mode === 'stake' && !baker.acceptsExternalStake) blocked = 'This baker is not currently accepting additional external stake.';
+
+    const title = mode === 'stake' ? `Stake with ${baker.name}` : `Delegate to ${baker.name}`;
+    const pending = baker.pendingStakingParameters
+        ? '<p class="baker-action-warning">This baker has a pending staking-parameter change. Review the wallet request and current terms carefully.</p>'
+        : '';
+    content.innerHTML = `
+        <span class="feature-kicker">Wallet-reviewed action</span>
+        <h2 id="baker-action-title">${escapeHtml(title)}</h2>
+        <code class="baker-action-address">${escapeHtml(baker.address)}</code>
+        <dl class="baker-action-facts">
+            <div><dt>Connected wallet</dt><dd>${connected ? escapeHtml(shortAddress(wallet.address)) : 'Not connected'}</dd></div>
+            <div><dt>Delegation room</dt><dd>${exactXtz(baker.freeDelegationCapacity)} XTZ</dd></div>
+            <div><dt>Staking room</dt><dd>${exactXtz(baker.freeStakingCapacity)} XTZ</dd></div>
+            <div><dt>Staker reward edge</dt><dd>${(Number(baker.rewardEdge || 0) * 100).toFixed(1)}%</dd></div>
+        </dl>
+        ${pending}
+        ${mode === 'stake' ? `
+            <label class="baker-action-amount">Amount to stake
+                <span><input id="baker-action-stake-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal" placeholder="0.000000"> XTZ</span>
+            </label>
+            <p class="baker-action-risk">Staked tez are locked, can take up to about four days to become spendable after unstaking, and can be slashed if the baker misbehaves. At least 1 XTZ must remain liquid for fees.</p>
+            <label class="baker-action-confirm"><input id="baker-action-risk-confirm" type="checkbox"> I understand the locking and slashing risk.</label>
+        ` : `
+            <p class="baker-action-risk">Delegation stays liquid and assigns this wallet’s balance to the selected baker. Baker fees and payout policy remain off-chain terms to verify independently.</p>
+        `}
+        ${blocked ? `<p class="baker-action-blocked">${escapeHtml(blocked)}</p>` : ''}
+        ${actionStatusHtml(current)}
+        <div class="baker-action-footer">
+            ${!connected ? '<button type="button" data-baker-action-connect>Connect wallet</button>' : ''}
+            <button type="button" class="primary" data-baker-action-submit="${mode}" ${mode === 'stake' ? (canStake ? '' : 'disabled') : (canDelegate ? '' : 'disabled')}>${mode === 'stake' ? 'Review stake in wallet' : 'Review delegation in wallet'}</button>
+        </div>
+    `;
+}
+
+async function pollBakerActionStatus(mode, operationHash) {
+    if (!operationHash) return;
+    const endpoint = mode === 'stake' ? 'transactions' : 'delegations';
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 3000));
+        try {
+            const response = await fetch(`${TZKT}/operations/${endpoint}/${encodeURIComponent(operationHash)}/status`, { cache: 'no-store' });
+            if (!response.ok) continue;
+            const value = String(await response.json()).replaceAll('"', '').toLowerCase();
+            if (value === 'applied') {
+                if (bakerActionState?.operationHash === operationHash) {
+                    bakerActionState = {
+                        ...bakerActionState,
+                        status: mode === 'stake' ? 'Stake confirmed on-chain.' : 'Delegation confirmed on-chain.',
+                        tone: 'success'
+                    };
+                    await renderBakerActionDialog({ refresh: true });
+                }
+                refreshBakerDirectoryChamber({ quiet: true, includeGovernance: false }).catch(() => {});
+                return;
+            }
+            if (['failed', 'backtracked', 'skipped'].includes(value)) {
+                if (bakerActionState?.operationHash === operationHash) {
+                    bakerActionState = { ...bakerActionState, status: `Operation ${value}.`, tone: 'error' };
+                    await renderBakerActionDialog();
+                }
+                return;
+            }
+        } catch { /* keep polling while the indexer catches up */ }
+    }
+}
+
+async function submitBakerAction(button) {
+    const current = bakerActionState;
+    if (!current || button.disabled) return;
+    button.disabled = true;
+    const mode = current.mode;
+    try {
+        const wallet = await getWalletAccount();
+        const [account, baker] = await Promise.all([
+            fetchBakerActionAccount(wallet),
+            fetchFreshActionBaker(current.baker.address)
+        ]);
+        if (account.type === 'delegate') throw new Error('Registered baker accounts cannot use this action');
+        const delegate = String(account.delegate?.address || '');
+        let result;
+        if (mode === 'delegate') {
+            if (delegate) throw new Error('This wallet already has a baker; switching is not offered here');
+            const balance = Math.max(0, Number(account.balance || 0) / 1_000_000);
+            if (baker.active === false || balance > Math.max(0, baker.freeDelegationCapacity)) {
+                throw new Error('The baker no longer has enough delegation room for this wallet');
+            }
+            ({ result } = await requestConnectedWalletDelegation(baker.address));
+        } else {
+            if (delegate !== baker.address) throw new Error('This wallet must first be delegated to the selected baker');
+            if (!baker.acceptsExternalStake) throw new Error('The baker no longer has external staking room');
+            const input = document.getElementById('baker-action-stake-amount');
+            const confirmed = document.getElementById('baker-action-risk-confirm')?.checked;
+            const amountMutez = xtzInputToMutez(input?.value);
+            if (!amountMutez) throw new Error('Enter a positive stake amount with no more than six decimals');
+            if (!confirmed) throw new Error('Confirm the locking and slashing risk before staking');
+            const liquidMutez = BigInt(String(Math.max(0, Math.floor(Number(account.balance || 0)))));
+            const reserveMutez = 1_000_000n;
+            const roomMutez = BigInt(String(Math.max(0, Math.floor(Number(baker.freeStakingCapacity || 0) * 1_000_000))));
+            if (amountMutez > roomMutez) throw new Error('The amount exceeds the baker’s current staking room');
+            if (liquidMutez <= reserveMutez || amountMutez > liquidMutez - reserveMutez) throw new Error('Leave at least 1 XTZ liquid for fees');
+            ({ result } = await requestConnectedWalletStake(amountMutez.toString()));
+        }
+        const operationHash = operationHashFrom(result);
+        bakerActionState = {
+            ...current,
+            baker,
+            wallet,
+            account,
+            accountLoaded: true,
+            operationHash,
+            status: 'Submitted; waiting for on-chain confirmation.',
+            tone: 'success'
+        };
+        await renderBakerActionDialog();
+        pollBakerActionStatus(mode, operationHash).catch(() => {});
+    } catch (error) {
+        bakerActionState = {
+            ...current,
+            status: /abort|cancel|declin|reject|denied/i.test(String(error?.message || error))
+                ? 'The wallet did not submit the operation.'
+                : (error?.message || 'The operation could not be submitted.'),
+            tone: 'error',
+            accountLoaded: true
+        };
+        await renderBakerActionDialog();
+    }
+}
+
+function openBakerActionDialog(mode, address) {
+    const baker = bakersData.find((item) => normalizedAddress(item.address) === normalizedAddress(address));
+    if (!baker || !['delegate', 'stake'].includes(mode)) return;
+    const overlay = ensureBakerActionDialog();
+    bakerActionState = { mode, baker, accountLoaded: false, status: '', tone: '', operationHash: '' };
+    overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeBakerActionDialog,
+        dialogSelector: '.baker-action-dialog',
+        titleId: 'baker-action-title',
+        initialFocusSelector: '.baker-action-close'
+    });
+    renderBakerActionDialog({ refresh: true }).catch(() => {});
+}
+
 function formattedObservedAt() {
     const parsed = Date.parse(leaderboardDataQuality.observedAt || '');
     if (!Number.isFinite(parsed)) return 'Awaiting a source receipt';
@@ -1229,10 +1537,12 @@ function directoryBakerDetailHtml(baker) {
                 <div><dt>External stakers</dt><dd>${Number(baker.stakers || 0).toLocaleString('en-US')}</dd></div>
                 <div><dt>Delegation use</dt><dd>${Number(baker.delegationUsage || 0).toFixed(0)}%</dd></div>
                 <div><dt>Delegation room</dt><dd>${compactXtz(capacity)} XTZ</dd></div>
+                <div><dt>Staking room</dt><dd>${compactXtz(baker.freeStakingCapacity)} XTZ</dd></div>
                 <div><dt>First activity</dt><dd>${escapeHtml(firstActivity)}</dd></div>
             </dl>
             <p class="baker-directory-detail-note">These are current on-chain facts and historical receipts. They do not establish payout policy, fee terms, uptime, or future performance.</p>
             <div class="baker-directory-detail-actions">
+                ${bakerActionButtonsHtml(baker)}
                 <button type="button" class="baker-directory-primary-action" data-bdc-open-profile="${escapeHtml(baker.address)}">Open full baker profile</button>
                 <a href="https://tzkt.io/${encodeURIComponent(baker.address)}" target="_blank" rel="noopener noreferrer">Inspect on TzKT</a>
             </div>
@@ -1357,6 +1667,7 @@ function bakerDirectoryDirectoryHtml() {
                         ${bakerDirectorySortHeader('capacity', 'Capacity used')}
                         ${bakerDirectorySortHeader('tz4', 'tz4')}
                         <th scope="col">Signals</th>
+                        <th scope="col">Wallet actions</th>
                     </tr></thead>
                     <tbody>
                         ${rows.map((baker) => `
@@ -1368,6 +1679,7 @@ function bakerDirectoryDirectoryHtml() {
                                 <td class="numeric ${Number(baker.delegationUsage || 0) >= 90 ? 'cap-critical' : Number(baker.delegationUsage || 0) >= 70 ? 'cap-warning' : ''}">${baker.openDelegationRoom ? '<span class="lb-open-capacity-dot" aria-label="Open delegation room"></span>' : ''}${Number(baker.delegationUsage || 0).toFixed(0)}%</td>
                                 <td class="center">${baker.tz4 ? 'Yes' : '—'}</td>
                                 <td>${directoryBadgeRailHtml(baker)}</td>
+                                <td>${bakerActionButtonsHtml(baker, { compact: true })}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -1563,6 +1875,12 @@ function bindBakerDirectoryBody(body) {
     body.addEventListener('click', (event) => {
         const target = event.target instanceof Element ? event.target : null;
         if (!target) return;
+
+        const bakerAction = target.closest('[data-baker-action][data-baker-address]');
+        if (bakerAction) {
+            openBakerActionDialog(bakerAction.dataset.bakerAction, bakerAction.dataset.bakerAddress);
+            return;
+        }
 
         const viewButton = target.closest('[data-bdc-view]');
         if (viewButton) {
@@ -1885,6 +2203,7 @@ export async function openBakerDirectoryChamber(options = {}) {
 }
 
 export function closeBakerDirectoryChamber({ preserveRoute = false } = {}) {
+    if (bakerActionState) closeBakerActionDialog();
     stopBakerDirectoryRefreshTimer();
     const overlay = document.getElementById('baker-directory-modal');
     overlay?.classList.remove('active');
