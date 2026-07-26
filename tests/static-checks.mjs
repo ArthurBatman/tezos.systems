@@ -2565,6 +2565,19 @@ async function checkSelectorContracts() {
   if (!/\.health-consensus-panel[^\{]*\{[^}]*grid-column:\s*1\s*\/\s*-1\s*;/s.test(healthStyles)) {
     fail('Network Health Consensus Lens must span the full dashboard width');
   }
+  const continuityPanelIndex = health.indexOf('${renderContinuityProofPanel()}');
+  const promotedCyclePanelIndex = health.indexOf('${renderCycleTimingPanel(data)}', continuityPanelIndex);
+  const healthDashboardIndex = health.indexOf('<div class="lb-dashboard-grid health-dashboard-grid">', continuityPanelIndex);
+  if (!(continuityPanelIndex >= 0
+      && promotedCyclePanelIndex > continuityPanelIndex
+      && promotedCyclePanelIndex < healthDashboardIndex)) {
+    fail('Network Health cycle progress must sit directly below Mainnet Continuity and above the detailed health grid');
+  }
+  if (!/\.health-continuity-runtime\s*\{[^}]*font-size:\s*clamp\(1\.3rem,\s*2\.5vw,\s*1\.9rem\);/s.test(styles)
+      || !/@media\s*\(max-width:\s*760px\)[\s\S]*?\.health-continuity-runtime\s*\{[^}]*font-size:\s*clamp\(1rem,\s*4\.5vw,\s*1\.35rem\);/s.test(styles)) {
+    fail('Network Health Mainnet Continuity counter must retain its compact desktop and mobile type scales');
+  }
+  pass('Network Health continuity and cycle-progress hierarchy checked');
   if (styles.includes('top-continuity-digits-') || app.includes('top-continuity-digits-')) {
     fail('top continuity runtime must use natural segment widths, not fixed digit slots');
   }
@@ -7490,7 +7503,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=498'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=499'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

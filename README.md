@@ -323,7 +323,8 @@ inline modal styles in `js/core/app.js`.
   Clicking a stat pill opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Mainnet Continuity panel with
   the same chain-age and upgrade-history context, explicitly separated from
-  availability monitoring.
+  availability monitoring. Its compact cycle-progress and timing panel sits
+  directly below that continuity context before the detailed health grid.
 - Tezos X Governance Chamber with direct `#l2chamber` access and visible L2
   Governance labeling,
   live FAST, SLOW, and Sequencer track status sourced from TzKT contract

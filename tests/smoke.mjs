@@ -8928,6 +8928,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const tickerLine = document.querySelector('#block-ticker-line');
     const cycleChip = document.querySelector('#cycle-chip');
     const healthProof = modal?.querySelector('#health-chain-proof');
+    const healthCyclePanel = modal?.querySelector('#health-cycle-timing');
+    const healthProofRect = healthProof?.getBoundingClientRect();
+    const healthCyclePanelRect = healthCyclePanel?.getBoundingClientRect();
     const tickerKicker = ticker?.querySelector('.block-ticker-kicker');
     const tickerPulse = ticker?.querySelector('#uptime-pulse-dot.block-ticker-pulse');
     const priceBar = document.querySelector('#price-bar');
@@ -9147,6 +9150,14 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       networkHealthProofFinality: healthProof?.querySelector('#chain-uptime-finality')?.textContent || '',
       networkHealthProofStaked: healthProof?.querySelector('#chain-uptime-staked')?.textContent || '',
       networkHealthProofIssuance: healthProof?.querySelector('#chain-uptime-issuance')?.textContent || '',
+      networkHealthProofFontSize: healthProof?.querySelector('#chain-uptime-counter')
+        ? parseFloat(getComputedStyle(healthProof.querySelector('#chain-uptime-counter')).fontSize)
+        : 0,
+      cycleImmediatelyAfterContinuity: healthProof?.nextElementSibling === healthCyclePanel,
+      cycleAlignedBelowContinuity: Boolean(healthProofRect && healthCyclePanelRect
+        && healthCyclePanelRect.top >= healthProofRect.bottom
+        && Math.abs(healthCyclePanelRect.left - healthProofRect.left) <= 1
+        && Math.abs(healthCyclePanelRect.right - healthProofRect.right) <= 1),
       blockTickerHealth: ticker?.dataset.blockHealth || '',
       blockTickerSignature: tickerLine?.dataset.blockTickerSignature || '',
       blockTickerSegmentOrder: tickerSegmentOrder,
@@ -9211,6 +9222,17 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(Math.abs(Number(healthState.cycleProgressNow) - 11.43) < 0.01, `network health chamber: current cycle progressbar value mismatch: ${healthState.cycleProgressNow}`);
   assert(/11\.4% through cycle 1,143/.test(healthState.cycleProgressText), `network health chamber: current cycle progressbar accessible text missing: ${healthState.cycleProgressText}`);
   assert(healthState.cycleProgressFill === '11.43%', `network health chamber: current cycle progress rail width mismatch: ${healthState.cycleProgressFill}`);
+  assert(
+    healthState.cycleImmediatelyAfterContinuity && healthState.cycleAlignedBelowContinuity,
+    `network health chamber: cycle progress should sit directly below Mainnet Continuity ${JSON.stringify({
+      immediatelyAfter: healthState.cycleImmediatelyAfterContinuity,
+      alignedBelow: healthState.cycleAlignedBelowContinuity
+    })}`
+  );
+  assert(
+    healthState.networkHealthProofFontSize >= 20 && healthState.networkHealthProofFontSize <= 32,
+    `network health chamber: Mainnet Continuity counter should stay compact and legible: ${healthState.networkHealthProofFontSize}px`
+  );
   assert(/Consensus Lens/.test(healthState.teztale) && /Teztale/.test(healthState.teztale) && /Nomadic Labs/.test(healthState.teztale), `network health chamber: Teztale consensus lens missing credit/context: ${healthState.teztale}`);
   assert(healthState.teztaleFullWidth, 'network health chamber: Teztale Consensus Lens should span the full dashboard width');
   assert(/66(?:⅔|\.7)%/.test(healthState.teztale), `network health chamber: Teztale quorum label must use the exact two-thirds threshold: ${healthState.teztale}`);
