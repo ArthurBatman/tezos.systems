@@ -6423,6 +6423,12 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
       const rewardsRect = document.querySelector('#drawer-rewards')?.getBoundingClientRect();
       const bakerRect = document.querySelector('#drawer-baker')?.getBoundingClientRect();
       const networkRect = document.querySelector('#drawer-network')?.getBoundingClientRect();
+      const directoryAction = document.querySelector('#my-tezos-delegation-guidance .my-tezos-directory-action');
+      const directoryLabel = directoryAction?.querySelector('.my-tezos-directory-label');
+      const guideRect = document.querySelector('.my-tezos-delegation-guide')?.getBoundingClientRect();
+      const directoryActionRect = directoryAction?.getBoundingClientRect();
+      const directoryLabelRect = directoryLabel?.getBoundingClientRect();
+      const directoryActionStyle = directoryAction ? getComputedStyle(directoryAction) : null;
       const fullWidth = (rect) => Boolean(
         rect
         && columnRect
@@ -6450,6 +6456,31 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
         activityHidden: Boolean(document.querySelector('#drawer-baker-activity')?.hidden),
         guidance: document.querySelector('#my-tezos-delegation-guidance')?.textContent?.replace(/\s+/g, ' ').trim() || '',
         directoryHref: document.querySelector('#my-tezos-delegation-guidance a[href^="/leaderboard/"]')?.getAttribute('href') || '',
+        directoryActionText: directoryAction?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        directoryActionHeight: directoryActionRect?.height || 0,
+        directoryActionWidth: directoryActionRect?.width || 0,
+        directoryActionPaddingInline: directoryActionStyle
+          ? Math.min(parseFloat(directoryActionStyle.paddingLeft) || 0, parseFloat(directoryActionStyle.paddingRight) || 0)
+          : 0,
+        directoryActionContained: Boolean(
+          directoryActionRect
+          && guideRect
+          && directoryActionRect.left >= guideRect.left - 1
+          && directoryActionRect.right <= guideRect.right + 1
+        ),
+        directoryLabelContained: Boolean(
+          directoryActionRect
+          && directoryLabelRect
+          && directoryLabelRect.left >= directoryActionRect.left + 8
+          && directoryLabelRect.right <= directoryActionRect.right - 8
+        ),
+        directoryActionOverflows: Boolean(
+          directoryAction
+          && (
+            directoryAction.scrollWidth > directoryAction.clientWidth + 1
+            || directoryAction.scrollHeight > directoryAction.clientHeight + 1
+          )
+        ),
         bakerReviewHref: document.querySelector('#my-tezos-delegation-guidance a[href*="baker="]')?.getAttribute('href') || '',
         directDelegationDisabled: Boolean(document.querySelector('[data-my-tezos-bb-delegate]')?.disabled),
         drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
@@ -6485,13 +6516,23 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
     );
     assert(
       state.guidance.includes('Delegate to an active baker you trust')
-        && state.guidance.includes('Built by this site’s baker')
+        && state.guidance.includes('Delegate to the builder of this site')
         && state.guidance.includes('Baking Benjamins')
         && state.guidance.includes('reported delegation room')
         && state.directoryHref === '/leaderboard/?view=directory'
         && state.bakerReviewHref.includes('baker=')
         && state.directDelegationDisabled,
       `my tezos idle account ${label}: transparent baker guidance or disconnected-wallet gating is missing ${JSON.stringify(state)}`
+    );
+    assert(
+      state.directoryActionText.includes('Compare all active bakers')
+        && state.directoryActionHeight >= 42
+        && state.directoryActionWidth >= 260
+        && state.directoryActionPaddingInline >= 10
+        && state.directoryActionContained
+        && state.directoryLabelContained
+        && !state.directoryActionOverflows,
+      `my tezos idle account ${label}: baker-directory action is cramped or clipped ${JSON.stringify(state)}`
     );
     assert(!state.drawerOverflow && !state.pageOverflow, `my tezos idle account ${label}: layout overflowed ${JSON.stringify(state)}`);
 

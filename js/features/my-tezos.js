@@ -2333,7 +2333,10 @@ async function renderDelegationGuidance(data, requestSeq) {
             <span class="feature-kicker">Choose your baker</span>
             <h3>Delegate to an active baker you trust</h3>
             <p>Compare current capacity and source-backed signals. Verify fees, payout timing, and service policy with the baker.</p>
-            <a class="glass-button" href="/leaderboard/?view=directory">Compare every active baker</a>
+            <a class="glass-button my-tezos-directory-action" href="/leaderboard/?view=directory">
+                <span class="my-tezos-directory-label">Compare all active bakers</span>
+                <span aria-hidden="true">→</span>
+            </a>
             <div class="my-tezos-builder-baker" role="status">Reading Baking Benjamins capacity…</div>
         </section>
     `;
@@ -2356,9 +2359,12 @@ async function renderDelegationGuidance(data, requestSeq) {
                 <span class="feature-kicker">Choose your baker</span>
                 <h3>Delegate to an active baker you trust</h3>
                 <p>Compare current capacity and source-backed signals. Verify fees, payout timing, and service policy with the baker.</p>
-                <a class="glass-button" href="/leaderboard/?view=directory">Compare every active baker</a>
+                <a class="glass-button my-tezos-directory-action" href="/leaderboard/?view=directory">
+                    <span class="my-tezos-directory-label">Compare all active bakers</span>
+                    <span aria-hidden="true">→</span>
+                </a>
                 <div class="my-tezos-builder-baker">
-                    <span class="my-tezos-builder-disclosure">Built by this site’s baker</span>
+                    <span class="my-tezos-builder-disclosure">Delegate to the builder of this site</span>
                     <strong>${BAKING_BENJAMINS_NAME}</strong>
                     <span>${free} XTZ reported delegation room</span>
                     <div class="my-tezos-builder-actions">
@@ -2408,7 +2414,10 @@ async function renderDelegationGuidance(data, requestSeq) {
                 <span class="feature-kicker">Choose your baker</span>
                 <h3>Delegate to an active baker you trust</h3>
                 <p>Live capacity is temporarily unavailable. Compare current baker facts before taking action.</p>
-                <a class="glass-button" href="/leaderboard/?view=directory">Open the Baker Directory</a>
+                <a class="glass-button my-tezos-directory-action" href="/leaderboard/?view=directory">
+                    <span class="my-tezos-directory-label">Open the Baker Directory</span>
+                    <span aria-hidden="true">→</span>
+                </a>
             </section>
         `;
         quietlySyncHtml(container, fallback);

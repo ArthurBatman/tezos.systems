@@ -22402,9 +22402,46 @@ body[data-theme="nerv"]::after {
     font-size: 0.76rem;
     line-height: 1.55;
 }
-.my-tezos-delegation-guide > .glass-button {
-    width: fit-content;
+.my-tezos-delegation-guide > .my-tezos-directory-action {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 22rem;
+    height: auto;
+    min-height: 44px;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.62rem 0.85rem;
+    border-color: rgba(69, 224, 200, 0.34);
+    border-radius: 8px;
+    background: rgba(69, 224, 200, 0.09);
+    color: var(--text-primary);
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.25;
     text-decoration: none;
+}
+.my-tezos-directory-label {
+    min-width: 0;
+}
+.my-tezos-directory-action > [aria-hidden="true"] {
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(69, 224, 200, 0.12);
+    color: var(--accent-cyan, #45e0c8);
+    font-size: 0.9rem;
+    line-height: 1;
+    transition: transform 0.18s ease;
+}
+.my-tezos-directory-action:is(:hover, :focus-visible) {
+    border-color: rgba(69, 224, 200, 0.62);
+    background: rgba(69, 224, 200, 0.14);
+}
+.my-tezos-directory-action:hover > [aria-hidden="true"] {
+    transform: translateX(2px);
 }
 .my-tezos-builder-baker {
     display: grid;

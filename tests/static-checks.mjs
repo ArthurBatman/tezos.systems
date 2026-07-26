@@ -544,7 +544,7 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['.my-tezos-start-grid', '.my-tezos-start-card', '.my-tezos-feature-map', '.my-tezos-onboarding-routes']) {
     if (!styles.includes(snippet)) fail(`My Tezos empty-state onboarding CSS missing: ${snippet}`);
   }
-  for (const snippet of ['#drawer-brief.is-without-baker', '.drawer-connected.is-without-baker .drawer-live-columns']) {
+  for (const snippet of ['#drawer-brief.is-without-baker', '.drawer-connected.is-without-baker .drawer-live-columns', '.my-tezos-directory-action']) {
     if (!styles.includes(snippet)) fail(`My Tezos idle-account layout CSS missing: ${snippet}`);
   }
   if (!bakerReportCard.includes('let bakerAddr = null;')
@@ -7896,7 +7896,8 @@ async function checkPromotedChamberContracts() {
   }
   for (const snippet of [
     'Delegate to an active baker you trust',
-    'Built by this site’s baker',
+    'Delegate to the builder of this site',
+    'Compare all active bakers',
     'reported delegation room',
     'data-my-tezos-bb-delegate',
     '/leaderboard/?view=directory'
@@ -7919,7 +7920,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=503'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=504'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
