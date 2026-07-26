@@ -312,11 +312,12 @@ inline modal styles in `js/core/app.js`.
   the final `1H Activity / TX / Moved / NFT` metric shape instead of flashing loading prose.
   On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
-  Imminent or newly crossed network milestones make the runtime glow and add a
-  compact linked marker immediately to the right of the uptime/year counter,
-  while remaining visually subordinate to the larger mainnet continuity counter;
-  the marker opens Network Pulse or the most relevant Chamber while the continuity
-  statement still opens Protocol Anthology.
+  Imminent or newly crossed network milestones turn the runtime itself into a
+  luminous chronograph and expose an anchored event card from the clock. Hover or
+  keyboard focus reveals the card on desktop. On touch screens, the first tap
+  expands the explanation in-flow without navigating and the second tap opens
+  Network Pulse or the most relevant Chamber. Without an active milestone, the
+  continuity statement continues to open Protocol Anthology.
   Clicking a stat pill opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Mainnet Continuity panel with
   the same chain-age and upgrade-history context, explicitly separated from
