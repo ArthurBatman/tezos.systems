@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-26',
+        entries: [
+            { type: '🔧', text: 'Mobile mainnet milestones now use a complete clock-hugging orbit and an opaque detail sheet that stays above live dashboard banners with reliably tappable actions' }
+        ]
+    },
+    {
         date: '2026-07-25',
         entries: [
             { type: '🎨', text: 'Network milestones now form a thin eclipse around the running mainnet-age clock—a shorter arc while approaching and a fuller arc once crossed; on touch, the clock opens a compact explanation sheet while a clearly labeled action opens the relevant room' },

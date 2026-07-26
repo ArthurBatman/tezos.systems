@@ -5318,15 +5318,26 @@ async function smokeCycleMilestone(browser, baseUrl) {
     const eclipse = document.querySelector('.top-continuity-milestone-eclipse');
     const activity = document.querySelector('#header-activity-button');
     const clockRect = clock?.getBoundingClientRect();
+    const runtimeRect = clock?.querySelector('.top-continuity-runtime')?.getBoundingClientRect();
+    const eclipseRect = eclipse?.getBoundingClientRect();
     const popoverRect = popover?.getBoundingClientRect();
     const linkRect = milestoneLink?.getBoundingClientRect();
     const closeRect = milestoneClose?.getBoundingClientRect();
     const activityRect = activity?.getBoundingClientRect();
+    const popoverBackground = popover ? getComputedStyle(popover).backgroundColor : '';
+    const popoverBackgroundAlpha = popoverBackground.startsWith('rgba(')
+      ? Number.parseFloat(popoverBackground.split(',').pop()) || 0
+      : 1;
+    const linkHitTarget = linkRect
+      ? document.elementFromPoint(linkRect.left + (linkRect.width / 2), linkRect.top + (linkRect.height / 2))
+      : null;
     return {
       hash: window.location.hash,
       chamberOpen: Boolean(document.querySelector('.chamber-overlay.active')),
       expanded: clock?.getAttribute('aria-expanded') || '',
       popoverAriaHidden: popover?.getAttribute('aria-hidden') || '',
+      popoverBackground,
+      popoverBackgroundAlpha,
       popoverOpacity: popover ? Number.parseFloat(getComputedStyle(popover).opacity) : 0,
       popoverText: popover?.textContent?.replace(/\s+/g, ' ').trim() || '',
       popoverInsideViewport: Boolean(popoverRect && popoverRect.left >= 0 && popoverRect.right <= window.innerWidth),
@@ -5337,9 +5348,18 @@ async function smokeCycleMilestone(browser, baseUrl) {
       eclipseVisible: Boolean(eclipse && !eclipse.hidden && getComputedStyle(eclipse).display !== 'none'),
       eclipseDasharray: eclipse ? getComputedStyle(eclipse.querySelector('.top-continuity-milestone-eclipse-arc')).strokeDasharray : '',
       eclipseAnimation: eclipse ? getComputedStyle(eclipse.querySelector('.top-continuity-milestone-eclipse-arc')).animationName : '',
+      eclipseWrapsRuntime: Boolean(
+        eclipseRect
+        && runtimeRect
+        && eclipseRect.left <= runtimeRect.left - 6
+        && eclipseRect.right >= runtimeRect.right + 6
+        && eclipseRect.top <= runtimeRect.top - 3
+        && eclipseRect.bottom >= runtimeRect.bottom + 3
+      ),
       linkText: milestoneLink?.textContent?.replace(/\s+/g, ' ').trim() || '',
       linkHref: milestoneLink?.getAttribute('href') || '',
       linkVisible: Boolean(linkRect && linkRect.width > 0 && linkRect.height > 0),
+      linkOwnsHitTarget: Boolean(linkHitTarget && milestoneLink?.contains(linkHitTarget)),
       closeVisible: Boolean(closeRect && closeRect.width > 0 && closeRect.height > 0),
       orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length
     };
@@ -5348,6 +5368,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && !firstTap.chamberOpen
     && firstTap.expanded === 'true'
     && firstTap.popoverAriaHidden === 'false'
+    && firstTap.popoverBackgroundAlpha === 1
     && firstTap.popoverOpacity >= 0.98
     && /Confirmed on-chain.*Open Network Health/.test(firstTap.popoverText)
     && firstTap.popoverInsideViewport
@@ -5359,9 +5380,11 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && firstTap.eclipseVisible
     && firstTap.eclipseDasharray.includes('78')
     && firstTap.eclipseAnimation === 'none'
+    && firstTap.eclipseWrapsRuntime
     && firstTap.linkText === 'Open Network Health ↗'
     && firstTap.linkHref === '#health'
     && firstTap.linkVisible
+    && firstTap.linkOwnsHitTarget
     && firstTap.closeVisible
     && firstTap.orbitControls === 0,
   `mobile cycle milestone: first clock tap should open a fixed, closeable explanation sheet without navigating or moving header content ${JSON.stringify(firstTap)}`);

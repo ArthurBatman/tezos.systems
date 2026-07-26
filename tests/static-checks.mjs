@@ -7425,7 +7425,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=495'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=496'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
