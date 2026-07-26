@@ -393,6 +393,21 @@
         setTimeout(startTour, 320);
     }
 
+    function placeNudgeInSearchRail(chips) {
+        var firstChip = chips.querySelector('.hero-search-chip');
+        if (firstChip) {
+            firstChip.insertAdjacentElement('afterend', nudge);
+        } else {
+            chips.prepend(nudge);
+        }
+    }
+
+    function keepNudgeInSearchRail() {
+        if (!nudge) return;
+        var chips = document.getElementById('hero-search-chips');
+        if (chips && nudge.parentElement !== chips) placeNudgeInSearchRail(chips);
+    }
+
     function createNudge() {
         if (hasActiveSurface()) {
             deferNudge();
@@ -403,16 +418,15 @@
         nudge.setAttribute('role', 'group');
         nudge.setAttribute('aria-label', 'Optional Tezos Systems tour');
         nudge.innerHTML =
-            '<strong>Quick tour?</strong>' +
-            '<div class="tour-nudge-actions">' +
-                '<button class="tour-start" type="button">Show</button>' +
-                '<button class="tour-dismiss" type="button" aria-label="Dismiss tour offer">×</button>' +
-            '</div>';
+            '<button class="tour-start" type="button">' +
+                '<span>Quick tour</span>' +
+            '</button>' +
+            '<button class="tour-dismiss" type="button" aria-label="Dismiss tour offer">×</button>';
         const heroSlot = document.getElementById('hero-slot');
         const chips = document.getElementById('hero-search-chips');
         const commandDeck = document.getElementById('upgrade-clock');
-        if (heroSlot && chips) {
-            heroSlot.insertBefore(nudge, chips);
+        if (chips) {
+            placeNudgeInSearchRail(chips);
         } else {
             (heroSlot || commandDeck || document.body).appendChild(nudge);
         }
@@ -422,6 +436,7 @@
     }
 
     window.TezosSystemsTour = { replay: replayTour };
+    window.addEventListener('hot-signal-rendered', keepNudgeInSearchRail);
 
     if (shouldOfferTour) {
         // Offer the tour after page settles without blocking the dashboard.

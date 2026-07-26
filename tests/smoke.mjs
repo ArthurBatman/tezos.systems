@@ -13637,19 +13637,13 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await page.locator('.tour-nudge').waitFor({ state: 'visible', timeout: 12000 });
   await assertLocatorCount(page.locator('.visit-streak-toast.visible'), 0, 'first visit welcome and help nudge overlap');
   const nudgeText = await page.locator('.tour-nudge').innerText();
-  assert(/Quick tour/i.test(nudgeText) && /Show/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
+  assert(/Quick tour/i.test(nudgeText) && !/Show/i.test(nudgeText), `first visit tour: passive help nudge copy mismatch: ${nudgeText}`);
   const desktopNudgeGeometry = await page.locator('.tour-nudge').evaluate((node) => {
     const rect = node.getBoundingClientRect();
     const chips = document.querySelector('#hero-search-chips');
     const chipsRect = chips?.getBoundingClientRect();
     const deckRect = document.querySelector('#upgrade-clock')?.getBoundingClientRect();
-    const overlapsChip = Array.from(chips?.querySelectorAll('.hero-search-chip') || []).some((chip) => {
-      const chipRect = chip.getBoundingClientRect();
-      return rect.left < chipRect.right
-        && rect.right > chipRect.left
-        && rect.top < chipRect.bottom
-        && rect.bottom > chipRect.top;
-    });
+    const firstChipRect = chips?.querySelector('.hero-search-chip')?.getBoundingClientRect();
     return {
       parentId: node.parentElement?.id || '',
       width: rect.width,
@@ -13658,18 +13652,20 @@ async function smokeFirstVisitTour(browser, baseUrl) {
       bottom: rect.bottom,
       chipsTop: chipsRect?.top || 0,
       chipsBottom: chipsRect?.bottom || 0,
-      overlapsChip,
+      firstChipTop: firstChipRect?.top || 0,
+      firstChipHeight: firstChipRect?.height || 0,
       deckHeight: deckRect?.height || 0
     };
   });
-  assert(desktopNudgeGeometry.parentId === 'hero-slot'
-    && desktopNudgeGeometry.width <= 220
+  assert(desktopNudgeGeometry.parentId === 'hero-search-chips'
+    && desktopNudgeGeometry.width <= 160
     && desktopNudgeGeometry.height <= 32
-    && desktopNudgeGeometry.top >= desktopNudgeGeometry.chipsTop - 8
+    && Math.abs(desktopNudgeGeometry.top - desktopNudgeGeometry.firstChipTop) <= 1
+    && Math.abs(desktopNudgeGeometry.height - desktopNudgeGeometry.firstChipHeight) <= 8
+    && desktopNudgeGeometry.top >= desktopNudgeGeometry.chipsTop
     && desktopNudgeGeometry.bottom <= desktopNudgeGeometry.chipsBottom + 1
-    && desktopNudgeGeometry.overlapsChip === false
     && desktopNudgeGeometry.deckHeight <= 180,
-  `first visit tour: desktop nudge interrupts the page instead of staying in the search row: ${JSON.stringify(desktopNudgeGeometry)}`);
+  `first visit tour: desktop nudge interrupts the page instead of joining the search rail: ${JSON.stringify(desktopNudgeGeometry)}`);
   await page.waitForTimeout(1800);
   assert(await page.locator('.tour-nudge').isVisible(), 'first visit tour: search chip refresh removed the desktop nudge');
   await assertLocatorCount(page.locator('.tour-nudge .tour-start'), 1, 'first visit tour start');
@@ -13727,21 +13723,31 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await assertLocatorCount(mobilePage.locator('.visit-streak-toast.visible'), 0, 'mobile first visit welcome and help nudge overlap');
   const mobileNudgeGeometry = await mobilePage.locator('.tour-nudge').evaluate((node) => {
     const rect = node.getBoundingClientRect();
+    const railRect = node.parentElement?.getBoundingClientRect();
+    const firstChipRect = node.parentElement?.querySelector('.hero-search-chip')?.getBoundingClientRect();
     return {
       parentId: node.parentElement?.id || '',
       left: rect.left,
       right: rect.right,
       width: rect.width,
       height: rect.height,
+      firstChipTop: firstChipRect?.top || 0,
+      firstChipHeight: firstChipRect?.height || 0,
+      top: rect.top,
+      railLeft: railRect?.left || 0,
+      railRight: railRect?.right || 0,
       viewportWidth: window.innerWidth
     };
   });
-  assert(mobileNudgeGeometry.parentId === 'hero-slot'
-    && mobileNudgeGeometry.width <= 220
+  assert(mobileNudgeGeometry.parentId === 'hero-search-chips'
+    && mobileNudgeGeometry.width <= 160
     && mobileNudgeGeometry.height <= 42
-    && mobileNudgeGeometry.left >= 0
+    && Math.abs(mobileNudgeGeometry.top - mobileNudgeGeometry.firstChipTop) <= 1
+    && Math.abs(mobileNudgeGeometry.height - mobileNudgeGeometry.firstChipHeight) <= 2
+    && mobileNudgeGeometry.left >= mobileNudgeGeometry.railLeft
+    && mobileNudgeGeometry.right <= mobileNudgeGeometry.railRight + 1
     && mobileNudgeGeometry.right <= mobileNudgeGeometry.viewportWidth,
-  `first visit tour: mobile nudge is not a compact visible search-row control: ${JSON.stringify(mobileNudgeGeometry)}`);
+  `first visit tour: mobile nudge is not a compact visible search-rail chip: ${JSON.stringify(mobileNudgeGeometry)}`);
   await mobilePage.locator('#hero-search-input').focus();
   await mobilePage.waitForFunction(() => document.body.classList.contains('hero-search-mode'), null, { timeout: 5000 });
   await mobilePage.locator('.tour-nudge').waitFor({ state: 'detached', timeout: 3000 });

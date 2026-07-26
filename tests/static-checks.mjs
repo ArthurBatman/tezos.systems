@@ -3009,11 +3009,13 @@ async function checkUxAuditContracts() {
     fail('TezosCRP category icon templates must defer off-screen loading and decoding');
   }
   if (!tooltipTour.includes("document.getElementById('hero-slot')")
-    || !tooltipTour.includes('heroSlot.insertBefore(nudge, chips)')
+    || !tooltipTour.includes("firstChip.insertAdjacentElement('afterend', nudge)")
+    || !tooltipTour.includes('chips.prepend(nudge)')
+    || !tooltipTour.includes("window.addEventListener('hot-signal-rendered', keepNudgeInSearchRail)")
     || !/\(heroSlot \|\| commandDeck \|\| document\.body\)\.appendChild\(nudge\)/.test(tooltipTour)
-    || !/\.tour-nudge\s*\{[\s\S]*?position:\s*absolute[\s\S]*?right:\s*0[\s\S]*?bottom:\s*0[\s\S]*?display:\s*inline-flex/.test(styles)
-    || !/\.tour-nudge\s*\{[\s\S]*?width:\s*auto[\s\S]*?min-height:\s*24px/.test(styles)) {
-    fail('first-visit guidance must stay compact beside the stable search suggestion row');
+    || !/\.tour-nudge\s*\{[\s\S]*?position:\s*static[\s\S]*?flex:\s*0 0 auto[\s\S]*?display:\s*inline-flex/.test(styles)
+    || !/\.tour-nudge\s*\{[\s\S]*?min-height:\s*24px[\s\S]*?scroll-snap-align:\s*start/.test(styles)) {
+    fail('first-visit guidance must stay compact inside the stable search suggestion rail');
   }
   if (!/\.site-map-shell \.site-map-sublink\s*\{[\s\S]*?min-height:\s*24px/.test(siteMapCss)
     || !/\.site-map-shell \.site-map-links \.site-map-link\s*\{[\s\S]*?min-height:\s*24px/.test(siteMapCss)
@@ -4520,7 +4522,7 @@ async function checkTourAndShareCaptureContracts() {
   }
   for (const snippet of [
     'Find anything',
-    'Quick tour?',
+    'Quick tour',
     'Start with mainnet history',
     'Read the latest head',
     'Protocol Anthology',
@@ -4529,7 +4531,7 @@ async function checkTourAndShareCaptureContracts() {
     'complete map stays folded',
     'Explore leads with all topics, Network Pulse, Staking, and Maxis',
     'Optional Tezos Systems tour',
-    '<button class="tour-start" type="button">Show</button>',
+    '<span>Quick tour</span>',
     'Dismiss tour offer'
   ]) {
     if (!tour.includes(snippet)) fail(`tooltip tour must retain passive search-help copy: ${snippet}`);
@@ -7425,7 +7427,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=496'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=497'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
