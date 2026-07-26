@@ -471,10 +471,24 @@ function runCharacterReveal(el, finalText, opts = {}) {
     const charDuration = Math.max(120, duration - staggerWindow);
     const fragment = document.createDocumentFragment();
 
+    let word = null;
     finalChars.forEach((ch, index) => {
+        if (/\s/.test(ch)) {
+            word = null;
+            fragment.append(document.createTextNode(ch));
+            return;
+        }
+
+        if (!word) {
+            word = document.createElement('span');
+            word.className = 'dm-glyph-word';
+            word.setAttribute('data-magic', 'off');
+            fragment.append(word);
+        }
+
         const rank = rankByIndex.get(index);
         if (rank === undefined) {
-            fragment.append(document.createTextNode(ch));
+            word.append(document.createTextNode(ch));
             return;
         }
         const span = document.createElement('span');
@@ -483,7 +497,7 @@ function runCharacterReveal(el, finalText, opts = {}) {
         span.textContent = ch;
         span.style.setProperty('--dm-char-ms', charDuration + 'ms');
         span.style.setProperty('--dm-char-delay', Math.min(rank, 8) / staggerSteps * staggerWindow + 'ms');
-        fragment.append(span);
+        word.append(span);
     });
 
     let done = false;
@@ -1116,6 +1130,9 @@ export function injectStyles() {
         '@keyframes dmDeltaChar{0%{opacity:0;transform:translateY(2px);color:#2563eb}' +
             '100%{opacity:1;transform:translateY(0);color:inherit}}',
         '@keyframes dmDeltaLine{0%{opacity:0;transform:scaleX(0)}25%{opacity:0.8}100%{opacity:0;transform:scaleX(1)}}',
+        // Character reveals retain ordinary word-level wrapping instead of creating
+        // a temporary line-break opportunity between every animated glyph.
+        '.dm-glyph-word{display:inline-block;white-space:nowrap}',
         // Abyss Sonar Echo — center-out resolve with two cyan pressure echoes
         '.dm-sonar-echo{position:relative;animation:dmSonarCore var(--dm-theme-ms,900ms) ease-out}',
         '.dm-sonar-echo::before,.dm-sonar-echo::after{content:attr(data-dm-sonar);position:absolute;inset:0;pointer-events:none;' +

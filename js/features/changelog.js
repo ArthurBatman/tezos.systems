@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-26',
         entries: [
+            { type: '🔧', text: 'Valley live-data updates now keep compact controls at their settled height instead of briefly wrapping animated values one character per line' },
             { type: '🎨', text: 'Undelegated My Tezos guidance now gives the active-baker comparison action proper mobile breathing room and plainly invites visitors to delegate to the builder of this site' },
             { type: '✨', text: 'Undelegated My Tezos accounts now compare active bakers, see a disclosed live-capacity Baking Benjamins recommendation, and use wallet-reviewed delegation; every complete Baker Directory row also offers guarded Delegate and Stake actions' },
             { type: '✨', text: 'Tezos Systems journeys now continue through the relevant My Tezos view, adapt the existing two account cards to verified roles and active tabs, and offer a session-only return to the originating room without retaining addresses or raw routes' },

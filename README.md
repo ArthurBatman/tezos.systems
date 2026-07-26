@@ -205,6 +205,8 @@ canonical `#theme=<name>` direct link, such as `/#theme=valley`; a valid hash
 theme takes precedence over the saved preference from first paint onward.
 Aurora's header title uses a desktop-specific multicolor sweep so the one-line
 wordmark stays as vivid as the wrapped mobile title.
+Character-by-character theme reveals preserve word-level wrapping so compact
+live-data controls keep their settled height while values animate.
 
 | Theme | Role |
 |-------|------|

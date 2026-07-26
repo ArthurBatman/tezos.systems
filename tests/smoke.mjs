@@ -16210,6 +16210,56 @@ async function smokeValleyTheme(browser, baseUrl) {
     `rapid Valley theme switching left stale canvases: ${JSON.stringify(rapidSwitchState)}`
   );
 
+  const dataButtonGeometry = await page.evaluate(async () => {
+    const webdriverDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
+    Object.defineProperty(Navigator.prototype, 'webdriver', {
+      configurable: true,
+      get: () => false
+    });
+
+    const button = document.createElement('button');
+    const value = document.createElement('strong');
+    button.style.cssText = [
+      'position:fixed',
+      'left:-9999px',
+      'top:0',
+      'width:2ch',
+      'padding:0',
+      'border:0',
+      'font:16px/20px sans-serif',
+      'white-space:normal',
+      'word-break:normal',
+      'overflow-wrap:normal'
+    ].join(';');
+    value.textContent = 'Data';
+    button.append(value);
+    document.body.append(button);
+
+    const baselineHeight = value.getBoundingClientRect().height;
+    const { mycelialBloomReveal } = await import('/js/effects/data-magic.js');
+    const cancel = mycelialBloomReveal(value, 'Data', { duration: 500 });
+    await new Promise(requestAnimationFrame);
+    const animatedHeight = value.getBoundingClientRect().height;
+    const charCount = value.querySelectorAll('.dm-mycelial-char').length;
+    const wordCount = value.querySelectorAll('.dm-glyph-word').length;
+
+    cancel();
+    button.remove();
+    if (webdriverDescriptor) {
+      Object.defineProperty(Navigator.prototype, 'webdriver', webdriverDescriptor);
+    } else {
+      delete Navigator.prototype.webdriver;
+    }
+
+    return { animatedHeight, baselineHeight, charCount, wordCount };
+  });
+  assert(
+    dataButtonGeometry.charCount === 4
+      && dataButtonGeometry.wordCount === 1
+      && dataButtonGeometry.animatedHeight <= dataButtonGeometry.baselineHeight + 1,
+    `Valley data animation split a compact button into per-character lines: ${JSON.stringify(dataButtonGeometry)}`
+  );
+
   for (const { label, viewport } of [
     { label: 'desktop', viewport: { width: 1366, height: 900 } },
     { label: 'mobile', viewport: { width: 390, height: 844 } },
