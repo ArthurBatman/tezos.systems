@@ -8189,9 +8189,13 @@ async function checkPromotedChamberContracts() {
   for (const selector of ['.baker-directory-entry-front', '.baker-directory-overlay', '.baker-directory-tabs', '.baker-directory-search', '.baker-directory-table', '.baker-directory-signal-grid']) {
     if (!leaderboardCss.includes(selector)) fail(`Baker Directory CSS is missing ${selector}`);
   }
+  if (!leaderboardCss.includes(':is(#whale-watch-entry-card, #baker-directory-entry-card)[data-chamber-layout="wide"]')
+    || !leaderboardCss.includes('min-height: 320px')) {
+    fail('Whale Watch and Baker Directory must retain one shared desktop launcher height floor');
+  }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=513'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=514'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

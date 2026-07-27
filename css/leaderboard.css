@@ -1612,6 +1612,12 @@
     color: #047857;
 }
 
+@media (min-width: 1180px) {
+    #chambers-grid > .chamber-category > .chamber-category-cards > :is(#whale-watch-entry-card, #baker-directory-entry-card)[data-chamber-layout="wide"] {
+        min-height: 320px;
+    }
+}
+
 @media (max-width: 1120px) {
     .baker-directory-header {
         grid-template-columns: minmax(0, 1fr) auto;
