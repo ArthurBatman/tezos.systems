@@ -21,7 +21,7 @@ const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
 const LS_PROTOCOL_LORE_DAY = 'tezos-systems-protocol-lore-hot-day';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
-const BRIEFING_SCHEMA_VERSION = 12;
+const BRIEFING_SCHEMA_VERSION = 13;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const NFT_FETCH_TIMEOUT_MS = 2500;
 const MILESTONE_FETCH_TIMEOUT_MS = 2800;
@@ -137,6 +137,9 @@ const NETWORK_FEATURE_FALLBACK_LABELS = {
 
 let lastStats = null;
 let lastXtzPrice = null;
+let lastPortfolioContext = null;
+let lastMemoryContext = null;
+let lastPersonalContextAddress = '';
 let personalizationWired = false;
 let hotTodayWired = false;
 let hotTodayRealtimeWired = false;
@@ -2097,6 +2100,7 @@ function scheduleHotSignalRender() {
     lastHotSignalRenderAt = Date.now();
     if (lastStats?.cycle) {
       renderToHotIsland(lastStats.cycle, hotTodayBriefingSentences, lastStats);
+      rerenderCachedBriefing();
     }
   }, wait);
 }
@@ -2219,6 +2223,296 @@ function getBriefingLead(profile, signals) {
   return 'A compact read on the network signals most likely to matter today.';
 }
 
+function compactPersonalNumber(value, maximumFractionDigits = 1) {
+  const number = finiteNumber(value);
+  if (number == null) return '—';
+  return number.toLocaleString('en-US', {
+    notation: Math.abs(number) >= 10_000 ? 'compact' : 'standard',
+    maximumFractionDigits
+  });
+}
+
+function personalTez(value, maximumFractionDigits = 1) {
+  return `${compactPersonalNumber(value, maximumFractionDigits)} XTZ`;
+}
+
+function personalUsd(value) {
+  const number = finiteNumber(value);
+  if (number == null) return '';
+  return number.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: Math.abs(number) >= 10_000 ? 'compact' : 'standard',
+    maximumFractionDigits: Math.abs(number) >= 10_000 ? 1 : 0
+  });
+}
+
+function personalAccountLabel(data, profile) {
+  return data?.story?.domainAlias
+    || data?.greetingName
+    || (profile?.address ? `${profile.address.slice(0, 8)}…${profile.address.slice(-4)}` : 'Your Tezos account');
+}
+
+function personalPortfolioSnapshot(data) {
+  const portfolioTotals = lastPortfolioContext?.totals;
+  const hasPortfolioTotals = portfolioTotals
+    && ['total', 'spendable', 'staked', 'unstaking'].every(key => finiteNumber(portfolioTotals[key]) != null);
+  if (hasPortfolioTotals) {
+    return {
+      total: Number(portfolioTotals.total) / 1e6,
+      spendable: Number(portfolioTotals.spendable) / 1e6,
+      staked: Number(portfolioTotals.staked) / 1e6,
+      unstaking: Number(portfolioTotals.unstaking) / 1e6,
+      count: Math.max(1, Number(lastPortfolioContext.count) || 1),
+      source: 'portfolio'
+    };
+  }
+  const total = Math.max(0, finiteNumber(data?.totalXTZ) || 0);
+  const staked = Math.max(0, finiteNumber(data?.staked) || 0);
+  return {
+    total,
+    spendable: Math.max(0, total - staked),
+    staked,
+    unstaking: 0,
+    count: 1,
+    source: 'account'
+  };
+}
+
+function buildPersonalSpotlight(data, profile, portfolio) {
+  const story = data?.story || {};
+  const collected = Math.max(0, Number(story.nftAssetsCollected) || 0);
+  const created = Math.max(0, Number(story.creatorStats?.totalCreated) || 0);
+  const days = Math.max(0, Number(story.daysSinceJoin) || 0);
+  const accepted = Math.max(0, Number(story.proposalsInjected) || 0);
+  const bakerAccepted = Math.max(0, Number(story.bakerProposalsInjected) || 0);
+  const stakedPct = portfolio.total > 0 ? (portfolio.staked / portfolio.total) * 100 : 0;
+  const label = personalAccountLabel(data, profile);
+
+  if (created > 0 || collected > 0) {
+    const parts = [
+      collected > 0 ? `${compactPersonalNumber(collected, 0)} collected` : '',
+      created > 0 ? `${compactPersonalNumber(created, 0)} created` : ''
+    ].filter(Boolean);
+    return {
+      tone: 'culture',
+      eyebrow: `${label} · on-chain culture`,
+      title: `${parts.join(' · ')} on Tezos`,
+      text: days > 0
+        ? `${compactPersonalNumber(days, 0)} days on-chain${story.joinedEra ? `, beginning in the ${story.joinedEra} era` : ''}.`
+        : 'Your collector and creator history makes culture and contract activity especially relevant.'
+    };
+  }
+  if (accepted > 0 || bakerAccepted > 0) {
+    const totalAccepted = accepted + bakerAccepted;
+    return {
+      tone: 'governance',
+      eyebrow: `${label} · governance lineage`,
+      title: `${totalAccepted} accepted proposal${totalAccepted === 1 ? '' : 's'} in your orbit`,
+      text: accepted > 0
+        ? `This account directly injected ${accepted}; these are durable protocol-history receipts.`
+        : `Your baker injected ${bakerAccepted}; the attribution stays with the baker, not this wallet.`
+    };
+  }
+  if (data?.isBaker) {
+    return {
+      tone: data?.bakerInactive ? 'watch' : 'operator',
+      eyebrow: `${label} · baker account`,
+      title: data?.attestRate != null ? `${data.attestRate}% attestation rate` : 'Your baker signal is live',
+      text: `${data?.health || 'Operator health'}${data?.rewardStreak > 0 ? ` · ${data.rewardStreak}-cycle reward streak` : ''}.`
+    };
+  }
+  if (portfolio.staked > 0) {
+    return {
+      tone: 'staking',
+      eyebrow: `${label} · active stake`,
+      title: `${stakedPct.toFixed(stakedPct >= 10 ? 0 : 1)}% of your XTZ is directly staked`,
+      text: `${personalTez(portfolio.staked)} is working in Tezos consensus${data?.bakerName ? ` with ${data.bakerName}` : ''}.`
+    };
+  }
+  if (days > 0) {
+    return {
+      tone: 'history',
+      eyebrow: `${label} · on-chain life`,
+      title: `${compactPersonalNumber(days, 0)} days on Tezos`,
+      text: `${story.joinedEra ? `Joined in the ${story.joinedEra} era` : 'Account history is indexed'}${story.upgradesSeen > 0 ? ` · ${story.upgradesSeen} named upgrades witnessed` : ''}.`
+    };
+  }
+  return {
+    tone: 'portfolio',
+    eyebrow: `${label} · current account`,
+    title: `${personalTez(portfolio.total)} across Tezos`,
+    text: portfolio.count > 1
+      ? `Complete current read across ${portfolio.count} included addresses.`
+      : 'Your live account position, followed by the network signals most likely to affect it.'
+  };
+}
+
+function personalFactRoute(view) {
+  return `/my/?view=${encodeURIComponent(view)}`;
+}
+
+function buildPersonalFacts(data, profile, portfolio) {
+  const story = data?.story || {};
+  const price = finiteNumber(data?.xtzPrice) ?? finiteNumber(lastXtzPrice);
+  const stakedPct = portfolio.total > 0 ? (portfolio.staked / portfolio.total) * 100 : 0;
+  const facts = [{
+    key: 'portfolio',
+    icon: '◫',
+    label: portfolio.count > 1 ? 'Included portfolio' : 'Your XTZ',
+    value: personalTez(portfolio.total),
+    detail: [
+      price != null ? personalUsd(portfolio.total * price) : '',
+      portfolio.count > 1 ? `${portfolio.count} addresses` : `${personalTez(portfolio.spendable)} spendable`
+    ].filter(Boolean).join(' · '),
+    view: 'portfolio',
+    tone: 'portfolio'
+  }];
+
+  if (portfolio.staked > 0 || portfolio.unstaking > 0) {
+    facts.push({
+      key: 'staking',
+      icon: '◆',
+      label: 'Working balance',
+      value: portfolio.staked > 0 ? personalTez(portfolio.staked) : personalTez(portfolio.unstaking),
+      detail: portfolio.staked > 0
+        ? `${stakedPct.toFixed(stakedPct >= 10 ? 0 : 1)}% directly staked${portfolio.unstaking > 0 ? ` · ${personalTez(portfolio.unstaking)} unstaking` : ''}`
+        : 'Unstaking in progress',
+      route: networkFeatureRoute('staking'),
+      tone: 'staking'
+    });
+  } else if (data?.bakerAddr) {
+    facts.push({
+      key: 'delegation',
+      icon: '↗',
+      label: data?.bakerInactive ? 'Delegation watch' : 'Delegated to',
+      value: data?.bakerName || 'Active baker',
+      detail: data?.bakerInactive ? 'Baker is inactive' : 'Baker health and payout policy matter here',
+      route: '#my-baker',
+      tone: data?.bakerInactive ? 'watch' : 'operator'
+    });
+  }
+
+  if (data?.activeRewardEstimate && finiteNumber(data?.estAnnual) != null) {
+    facts.push({
+      key: 'rewards',
+      icon: '＋',
+      label: 'Current reward estimate',
+      value: `+${personalTez(data.estAnnual)}/yr`,
+      detail: `${compactPersonalNumber(data.apyRate, 2)}% APY context${data.rewardStreak > 0 ? ` · ${data.rewardStreak}-cycle streak` : ''}`,
+      route: '#my-baker',
+      tone: 'rewards'
+    });
+  } else if (data?.rewardsLastCycle > 0 || data?.rewardStreak > 0) {
+    facts.push({
+      key: 'rewards',
+      icon: '＋',
+      label: 'Reward receipts',
+      value: data.rewardStreak > 0 ? `${data.rewardStreak}-cycle streak` : personalTez(data.rewardsLastCycle),
+      detail: data.rewardsLastCycle > 0
+        ? `${personalTez(data.rewardsLastCycle)} in the latest recorded cycle`
+        : 'Recent positive reward cycles',
+      route: '#my-baker',
+      tone: 'rewards'
+    });
+  } else if (data?.bakerAddr) {
+    facts.push({
+      key: 'baker',
+      icon: '◉',
+      label: data?.isBaker ? 'Baker health' : 'Your baker signal',
+      value: data?.health || (data?.attestRate != null ? `${data.attestRate}%` : 'Live'),
+      detail: [data?.bakerName, data?.attestRate != null ? `${data.attestRate}% attestation` : 'Current operator context'].filter(Boolean).join(' · '),
+      route: '#my-baker',
+      tone: data?.bakerInactive ? 'watch' : 'operator'
+    });
+  }
+
+  const collected = Math.max(0, Number(story.nftAssetsCollected) || 0);
+  const created = Math.max(0, Number(story.creatorStats?.totalCreated) || 0);
+  if (collected > 0 || created > 0) {
+    facts.push({
+      key: 'culture',
+      icon: '✦',
+      label: collected > 0 ? 'Collected on Tezos' : 'Created on Tezos',
+      value: collected > 0 ? `${compactPersonalNumber(collected, 0)} collected` : `${compactPersonalNumber(created, 0)} created`,
+      detail: created > 0
+        ? `${compactPersonalNumber(created, 0)} created${story.creatorStats?.totalSalesVolume > 0 ? ` · ${compactPersonalNumber(story.creatorStats.totalSalesVolume, 2)} XTZ sales` : ''}`
+        : `${compactPersonalNumber(story.daysSinceJoin, 0)} days on Tezos`,
+      view: collected > 0 ? 'collection' : 'story',
+      tone: 'culture'
+    });
+  }
+
+  if (story.domainAlias) {
+    facts.push({
+      key: 'identity',
+      icon: '◎',
+      label: 'Tezos identity',
+      value: story.domainAlias,
+      detail: 'Tezos Domains identity on this account',
+      view: 'story',
+      tone: 'history'
+    });
+  }
+
+  if (story.daysSinceJoin > 0) {
+    facts.push({
+      key: 'history',
+      icon: '∞',
+      label: 'On-chain life',
+      value: `${compactPersonalNumber(story.daysSinceJoin, 0)} days`,
+      detail: `${story.joinedEra ? `${story.joinedEra} era` : 'Tezos history'}${story.upgradesSeen > 0 ? ` · ${story.upgradesSeen} upgrades` : ''}`,
+      view: 'story',
+      tone: 'history'
+    });
+  }
+
+  const acceptedProposals = Math.max(0, Number(story.proposalsInjected) || 0)
+    + Math.max(0, Number(story.bakerProposalsInjected) || 0);
+  if (acceptedProposals > 0) {
+    facts.push({
+      key: 'governance',
+      icon: '◇',
+      label: 'Governance record',
+      value: `${compactPersonalNumber(acceptedProposals, 0)} accepted ${acceptedProposals === 1 ? 'proposal' : 'proposals'}`,
+      detail: story.bakerProposalsInjected > 0 ? 'Includes your baker’s accepted injections' : 'Accepted protocol injections by this account',
+      view: 'story',
+      tone: 'governance'
+    });
+  }
+
+  const latestActivity = lastMemoryContext?.latestActivity;
+  if (latestActivity && facts.length < 6) {
+    facts.push({
+      key: 'latest',
+      icon: latestActivity.direction === 'in' ? '↓' : latestActivity.direction === 'out' ? '↑' : '↔',
+      label: 'Latest receipt',
+      value: latestActivity.summary || 'On-chain activity',
+      detail: new Date(latestActivity.timestamp).toLocaleString(),
+      view: 'transactions',
+      tone: 'activity'
+    });
+  }
+
+  return facts.slice(0, 6);
+}
+
+function renderPersonalFact(fact) {
+  const route = fact.view ? personalFactRoute(fact.view) : fact.route || '#my-baker';
+  const viewAttr = fact.view ? ` data-my-tezos-view-route="${escapeHtml(fact.view)}"` : '';
+  return `
+    <a class="network-personal-fact network-personal-fact-${escapeHtml(fact.tone)}" href="${escapeHtml(route)}"${viewAttr} data-network-route="${escapeHtml(route)}" data-personal-fact="${escapeHtml(fact.key)}">
+      <span class="network-personal-fact-icon" aria-hidden="true">${escapeHtml(fact.icon)}</span>
+      <span class="network-personal-fact-copy">
+        <small>${escapeHtml(fact.label)}</small>
+        <strong>${escapeHtml(fact.value)}</strong>
+        <span>${escapeHtml(fact.detail)}</span>
+      </span>
+      <span class="network-personal-fact-arrow" aria-hidden="true">↗</span>
+    </a>
+  `;
+}
+
 function renderFocusChips(profile) {
   return profile.interests.slice(0, 5).map(item => {
     const key = safeCssToken(item.key);
@@ -2234,19 +2528,54 @@ function renderDeltaChip(delta, className) {
   return `<span class="${className} ${className}-${escapeHtml(delta.dir)}"><span aria-hidden="true">${arrow}</span>${escapeHtml(delta.value)}</span>`;
 }
 
-function renderSignalCard(signal, index) {
-  const label = `${signal.icon} ${signal.title}`;
+function personalSignalRelevance(signal, data, portfolio) {
+  const story = data?.story || {};
+  if (signal.category === 'price' && portfolio.total > 0) {
+    const price = finiteNumber(data?.xtzPrice) ?? finiteNumber(lastXtzPrice);
+    return price != null ? `Your current XTZ position is about ${personalUsd(portfolio.total * price)} at spot.` : '';
+  }
+  if (signal.category === 'staking' && portfolio.staked > 0) {
+    return `You have ${personalTez(portfolio.staked)} directly staked.`;
+  }
+  if (signal.category === 'baker' && data?.bakerName) {
+    return `${data.isBaker ? 'This is your operator lane.' : `Your baker is ${data.bakerName}.`}`;
+  }
+  if (signal.category === 'governance') {
+    const receipts = Math.max(0, Number(story.proposalsInjected) || 0) + Math.max(0, Number(story.bakerProposalsInjected) || 0);
+    return receipts > 0 ? `${receipts} accepted proposal receipt${receipts === 1 ? '' : 's'} already sit in your orbit.` : '';
+  }
+  if (signal.category === 'nft' && story.nftAssetsCollected > 0) {
+    return `Your collection currently counts ${compactPersonalNumber(story.nftAssetsCollected, 0)} assets.`;
+  }
+  if (signal.category === 'domains' && story.domainAlias) {
+    return `${story.domainAlias} is your on-chain identity here.`;
+  }
+  if (signal.category === 'contracts' && story.creatorStats?.totalCreated > 0) {
+    return `You have created ${compactPersonalNumber(story.creatorStats.totalCreated, 0)} assets on Tezos.`;
+  }
+  if (signal.category === 'cycle' && data?.bakerAddr) {
+    return 'Your baker rights and reward accounting advance on this cycle clock.';
+  }
+  return '';
+}
+
+function renderSignalCard(signal, index, data, portfolio) {
+  const label = signal.title;
   const route = routeForSignal(signal);
   const routeLabel = labelForSignal(signal);
+  const routeAction = /^(?:Open|Enter)\b/i.test(routeLabel) ? routeLabel : `Open ${routeLabel}`;
+  const relevance = personalSignalRelevance(signal, data, portfolio);
+  const featureClass = index === 0 ? ' is-network-lead' : '';
   return `
-    <a class="network-signal network-signal-${signal.tone}" href="${escapeHtml(route)}" data-category="${escapeHtml(signal.category)}" data-network-route="${escapeHtml(route)}" aria-label="${escapeHtml(`${routeLabel}: ${signal.detail}`)}">
-      <div class="network-signal-rank">${index + 1}</div>
+    <a class="network-signal network-signal-${signal.tone}${featureClass}" href="${escapeHtml(route)}" data-category="${escapeHtml(signal.category)}" data-network-route="${escapeHtml(route)}" aria-label="${escapeHtml(`${routeAction}: ${signal.detail}`)}">
+      <div class="network-signal-rank" aria-hidden="true">${escapeHtml(signal.icon)}</div>
       <div class="network-signal-main">
         <div class="network-signal-head">
           <span class="network-signal-label">${escapeHtml(label)}</span>
           <span class="network-signal-detail">${escapeHtml(signal.detail)}${renderDeltaChip(signal.delta, 'network-signal-delta')}</span>
         </div>
         <p>${escapeHtml(signal.text)}</p>
+        ${relevance ? `<small class="network-signal-relevance">${escapeHtml(relevance)}</small>` : ''}
       </div>
     </a>
   `;
@@ -2583,11 +2912,39 @@ function wirePersonalizationRefresh() {
   if (personalizationWired || typeof window === 'undefined') return;
   personalizationWired = true;
   window.addEventListener('my-tezos-data-ready', () => {
+    const currentAddress = String(window._myTezosData?.fullAddress || '');
+    if (currentAddress && currentAddress !== lastPersonalContextAddress) {
+      lastPortfolioContext = null;
+      lastMemoryContext = null;
+      lastPersonalContextAddress = currentAddress;
+    }
     if (lastStats?.cycle) {
       updateDailyBriefing(lastStats, lastXtzPrice).catch(() => rerenderCachedBriefing());
     } else {
       rerenderCachedBriefing();
     }
+  });
+  window.addEventListener('my-tezos-portfolio-ready', (event) => {
+    const detail = event.detail;
+    if (!detail?.totals) return;
+    lastPortfolioContext = {
+      totals: detail.totals,
+      count: Number(detail.count) || 1,
+      prices: detail.prices || null,
+      timestamp: Number(detail.timestamp) || Date.now()
+    };
+    rerenderCachedBriefing();
+  });
+  window.addEventListener('my-tezos-memory-ready', (event) => {
+    const detail = event.detail;
+    const activities = Array.isArray(detail?.activities) ? detail.activities : [];
+    lastMemoryContext = {
+      addressSet: Array.isArray(detail?.compositionAddresses) ? detail.compositionAddresses.join('|') : '',
+      activityCount: activities.length,
+      latestActivity: activities[0] || null,
+      status: detail?.status || 'cached'
+    };
+    rerenderCachedBriefing();
   });
 }
 
@@ -2614,6 +2971,11 @@ function wireNetworkContextNavigation(container) {
     if (!route) return;
 
     event.preventDefault();
+    const myTezosView = link.getAttribute('data-my-tezos-view-route');
+    if (myTezosView) {
+      window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: myTezosView } }));
+      return;
+    }
     closeDrawerForNetworkRoute(route);
 
     if (!route.startsWith('#')) {
@@ -2633,27 +2995,75 @@ function wireNetworkContextNavigation(container) {
   });
 }
 
+function selectDrawerNetworkSignals(sentences, profile) {
+  const briefingSignals = (Array.isArray(sentences) ? sentences : [])
+    .map(normalizeSignal)
+    .filter(signal => signal.text && !signal.hotOnly);
+  const poolSignals = hotPoolSignals()
+    .filter(signal => signal.text && !signal.hotOnly)
+    .map(signal => ({
+      ...signal,
+      score: (finiteNumber(signal.score) || 0) + scoreBoostFor(signal.category, profile)
+    }));
+  const merged = mergeHotSignals([], poolSignals, briefingSignals);
+  const notable = merged.filter(signal => signal.spectacle !== 'quiet');
+  const selected = [...notable];
+  for (const signal of merged) {
+    if (selected.length >= 4) break;
+    if (selected.some(item => item.id === signal.id)) continue;
+    selected.push(signal);
+  }
+  return selected
+    .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
+    .slice(0, 4);
+}
+
 function renderToDrawer(cycle, sentences) {
   const container = document.getElementById('drawer-network');
   if (!container) return;
   const profile = getCurrentMyTezosProfile();
-  const signals = (Array.isArray(sentences) ? sentences : [])
-    .map(normalizeSignal)
-    .filter(signal => signal.text && !signal.hotOnly)
-    .slice(0, 6);
+  const data = window._myTezosData || {};
+  const portfolio = personalPortfolioSnapshot(data);
+  const spotlight = buildPersonalSpotlight(data, profile, portfolio);
+  const facts = buildPersonalFacts(data, profile, portfolio);
+  const signals = selectDrawerNetworkSignals(sentences, profile);
   const lead = getBriefingLead(profile, signals);
   const html = `
     <section class="network-context-panel">
       <div class="network-context-header">
-        <a class="network-context-title" href="#health" data-network-route="#health" aria-label="Open Network Health" style="color:inherit;">🌐 Network Context</a>
+        <div>
+          <span class="network-context-kicker">Personalized Network Context</span>
+          <a class="network-context-title" href="#health" data-network-route="#health" aria-label="Open Network Health">Your Tezos, right now</a>
+        </div>
         <a class="network-context-cycle" href="#history" data-network-route="#history" aria-label="${escapeHtml(`Open protocol history for cycle ${cycle}`)}">Cycle ${escapeHtml(String(cycle))}</a>
       </div>
-      <p class="network-context-lede" data-magic-text>${escapeHtml(lead)}</p>
-      <div class="network-context-focus" aria-label="Context focus">
-        ${renderFocusChips(profile)}
-      </div>
-      <div class="network-context-signals">
-        ${signals.map(renderSignalCard).join('')}
+      <div class="network-context-columns">
+        <section class="network-personal-spotlight network-personal-spotlight-${escapeHtml(spotlight.tone)}" aria-labelledby="network-personal-title">
+          <div class="network-personal-spotlight-copy">
+            <span class="network-personal-eyebrow">${escapeHtml(spotlight.eyebrow)}</span>
+            <h4 id="network-personal-title" data-magic-text>${escapeHtml(spotlight.title)}</h4>
+            <p>${escapeHtml(spotlight.text)}</p>
+          </div>
+          <div class="network-context-focus" aria-label="Your context lenses">
+            ${renderFocusChips(profile)}
+          </div>
+          <div class="network-personal-facts">
+            ${facts.map(renderPersonalFact).join('')}
+          </div>
+        </section>
+        <section class="network-live-column" aria-labelledby="network-live-title">
+          <div class="network-context-now-heading">
+            <div>
+              <span>Tezos right now</span>
+              <strong id="network-live-title">Signals worth your attention</strong>
+            </div>
+            <a href="${escapeHtml(networkFeatureRoute('network'))}" data-network-route="${escapeHtml(networkFeatureRoute('network'))}" aria-label="${escapeHtml(networkFeatureLabel('network'))}">Open Network Pulse <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="network-context-lede" data-magic-text>${escapeHtml(lead)}</p>
+          <div class="network-context-signals">
+            ${signals.map((signal, index) => renderSignalCard(signal, index, data, portfolio)).join('')}
+          </div>
+        </section>
       </div>
     </section>
   `;

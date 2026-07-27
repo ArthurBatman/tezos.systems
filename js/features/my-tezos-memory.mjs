@@ -25,6 +25,10 @@ import {
     readCachedExactBalanceHistory,
     syncExactBalanceHistory
 } from './my-tezos-balance-history.mjs';
+import {
+    readMyTezosScope,
+    readScopedMyTezosEntries
+} from './my-tezos-scope.mjs';
 
 const INITIAL_DAYS = 365;
 const INITIAL_PAGE_LIMIT = 3;
@@ -36,6 +40,7 @@ let initialized = false;
 let activeGeneration = 0;
 let syncInFlight = null;
 let syncController = null;
+let syncMode = null;
 let successfulVisibleRender = false;
 let currentActivities = [];
 let currentHistory = null;
@@ -46,13 +51,33 @@ function includedEntries() {
     return readSavedMyTezosEntries().filter((entry) => entry.included !== false);
 }
 
-function panelVisible() {
+function memorySurfaceVisible() {
     return document.visibilityState === 'visible'
         && (
-            document.getElementById('my-tezos-panel-portfolio')?.hidden === false
+            document.getElementById('my-tezos-panel-overview')?.hidden === false
+            || document.getElementById('my-tezos-panel-portfolio')?.hidden === false
             || document.getElementById('my-tezos-panel-transactions')?.hidden === false
+            || document.getElementById('my-tezos-panel-story')?.hidden === false
         )
         && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
+}
+
+function panelVisible({ activityOnly = false } = {}) {
+    return document.visibilityState === 'visible'
+        && (
+            (activityOnly && document.getElementById('my-tezos-panel-overview')?.hidden === false)
+            || document.getElementById('my-tezos-panel-portfolio')?.hidden === false
+            || document.getElementById('my-tezos-panel-transactions')?.hidden === false
+            || document.getElementById('my-tezos-panel-story')?.hidden === false
+        )
+        && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
+}
+
+function visibleSyncMode() {
+    if (!memorySurfaceVisible()) return null;
+    return document.getElementById('my-tezos-panel-overview')?.hidden === false
+        ? 'activity'
+        : 'full';
 }
 
 function setStorageNotice(message = '') {
@@ -63,10 +88,13 @@ function setStorageNotice(message = '') {
 }
 
 function setStatus(message, state = '') {
-    const status = document.getElementById('portfolio-memory-status');
-    if (!status) return;
-    status.textContent = message;
-    status.dataset.state = state;
+    [
+        document.getElementById('portfolio-memory-status'),
+        document.getElementById('my-tezos-overview-activity-status')
+    ].filter(Boolean).forEach((status) => {
+        status.textContent = message;
+        status.dataset.state = state;
+    });
 }
 
 function renderWhileAway(activities, { baselineCreated = false } = {}) {
@@ -114,42 +142,73 @@ function renderWhileAway(activities, { baselineCreated = false } = {}) {
     });
 }
 
-function renderActivity(activities) {
-    const target = document.getElementById('portfolio-activity-list');
-    const empty = document.getElementById('portfolio-activity-empty');
+function activityRowHtml(activity) {
+    const display = activityDisplay(activity);
+    const direction = activity.direction === 'in' ? '↓' : activity.direction === 'out' ? '↑' : activity.direction === 'self' ? '↔' : '•';
+    const interactionType = activity.kind.startsWith('nft-') ? 'nft' : 'transfer';
+    return `
+        <article class="portfolio-activity-item activity-item-${interactionType}" data-quiet-key="${escapeHtml(activity.id)}" data-activity-id="${escapeHtml(activity.id)}" data-activity-type="${interactionType}">
+            <span class="portfolio-activity-direction" data-direction="${escapeHtml(activity.direction)}" aria-hidden="true">${direction}</span>
+            <div>
+                <strong>${escapeHtml(display.title)}</strong>
+                <span>${escapeHtml(new Date(activity.timestamp).toLocaleString())}${display.amountText ? ` · ${escapeHtml(display.amountText)}` : ''}</span>
+                <small>${escapeHtml(display.confidence)} · ${escapeHtml(activity.layer === 'l2' ? 'Etherlink L2' : 'Tezos L1')}</small>
+            </div>
+            ${display.explorerUrl ? `<a href="${escapeHtml(display.explorerUrl)}" target="_blank" rel="noopener" aria-label="Open source receipt">↗</a>` : ''}
+        </article>
+    `;
+}
+
+function renderActivityList(target, empty, activities, emptyMessage) {
     if (!target || !empty) return;
+    empty.hidden = activities.length > 0;
+    if (!activities.length) {
+        quietlySyncHtml(target, '');
+        empty.textContent = emptyMessage;
+        return;
+    }
+    quietlySyncHtml(target, activities.map(activityRowHtml).join(''));
+}
+
+function renderOverviewActivity(activities) {
+    renderActivityList(
+        document.getElementById('my-tezos-overview-activity-list'),
+        document.getElementById('my-tezos-overview-activity-empty'),
+        activities.slice(0, 3),
+        'No recent applied account activity is loaded yet.'
+    );
+}
+
+function renderActivity(activities) {
     const lastSeen = Number(localStorage.getItem(LAST_SEEN_KEY)) || 0;
     const filtered = activities.filter((activity) => {
         const isNft = activity.kind.startsWith('nft-');
         if (activityFilter === 'nft' ? !isNft : isNft) return false;
         return !unseenOnly || activity.timestamp > lastSeen;
     }).slice(0, 80);
-    empty.hidden = filtered.length > 0;
-    if (!filtered.length) {
-        quietlySyncHtml(target, '');
-        empty.textContent = unseenOnly
+    renderActivityList(
+        document.getElementById('portfolio-activity-list'),
+        document.getElementById('portfolio-activity-empty'),
+        filtered,
+        unseenOnly
             ? `No new ${activityFilter === 'nft' ? 'NFT interactions' : 'transfers'} remain in the loaded window.`
             : activityFilter === 'nft'
                 ? 'No NFT interactions are classified in the loaded activity window.'
-                : 'No transfer or account receipts are loaded yet.';
-        return;
-    }
-    quietlySyncHtml(target, filtered.map((activity) => {
-        const display = activityDisplay(activity);
-        const direction = activity.direction === 'in' ? '↓' : activity.direction === 'out' ? '↑' : activity.direction === 'self' ? '↔' : '•';
-        const interactionType = activity.kind.startsWith('nft-') ? 'nft' : 'transfer';
-        return `
-            <article class="portfolio-activity-item activity-item-${interactionType}" data-quiet-key="${escapeHtml(activity.id)}" data-activity-id="${escapeHtml(activity.id)}" data-activity-type="${interactionType}">
-                <span class="portfolio-activity-direction" data-direction="${escapeHtml(activity.direction)}" aria-hidden="true">${direction}</span>
-                <div>
-                    <strong>${escapeHtml(display.title)}</strong>
-                    <span>${escapeHtml(new Date(activity.timestamp).toLocaleString())}${display.amountText ? ` · ${escapeHtml(display.amountText)}` : ''}</span>
-                    <small>${escapeHtml(display.confidence)} · ${escapeHtml(activity.layer === 'l2' ? 'Etherlink L2' : 'Tezos L1')}</small>
-                </div>
-                ${display.explorerUrl ? `<a href="${escapeHtml(display.explorerUrl)}" target="_blank" rel="noopener" aria-label="Open source receipt">↗</a>` : ''}
-            </article>
-        `;
-    }).join(''));
+                : 'No transfer or account receipts are loaded yet.'
+    );
+}
+
+function renderTransactionSummary(activities, entries) {
+    const values = {
+        receipts: activities.length,
+        transfers: activities.filter((activity) => !activity.kind.startsWith('nft-')).length,
+        nfts: activities.filter((activity) => activity.kind.startsWith('nft-')).length,
+        wallets: entries.length
+    };
+    Object.entries(values).forEach(([key, value]) => {
+        const target = document.querySelector(`[data-transactions-total="${key}"] strong`);
+        if (target) target.textContent = Number(value).toLocaleString();
+    });
 }
 
 function setActivityFilter(filter, { onlyUnseen = false } = {}) {
@@ -165,12 +224,17 @@ function setActivityFilter(filter, { onlyUnseen = false } = {}) {
 
 function renderMemory(entries, history, activities, { status = 'cached', baselineCreated = false } = {}) {
     currentHistory = history;
-    currentActivities = aggregateMyTezosActivities(activities, entries.map((entry) => entry.address));
+    const scopedEntries = readScopedMyTezosEntries(entries);
+    currentActivities = aggregateMyTezosActivities(activities, scopedEntries.map((entry) => entry.address));
     renderWhileAway(currentActivities, { baselineCreated });
+    renderOverviewActivity(currentActivities);
     renderActivity(currentActivities);
+    renderTransactionSummary(currentActivities, scopedEntries);
     window.dispatchEvent(new CustomEvent('my-tezos-memory-ready', {
         detail: {
             compositionAddresses: entries.map((entry) => entry.address),
+            scopeAddresses: scopedEntries.map((entry) => entry.address),
+            scope: readMyTezosScope(entries),
             scheduleVersion: history?.scheduleVersion || null,
             seriesByAddress: history?.seriesByAddress || {},
             aggregate: history?.aggregate || [],
@@ -246,10 +310,12 @@ async function syncActivity(entries, ownedAddresses, { loadEarlier = false, sign
     return collected;
 }
 
-async function syncMemory({ loadEarlier = false, force = false } = {}) {
-    if (!panelVisible()) return null;
-    if (syncInFlight && !force) return syncInFlight;
-    if (syncInFlight && force) syncController?.abort();
+async function syncMemory({ loadEarlier = false, force = false, activityOnly = false } = {}) {
+    if (!panelVisible({ activityOnly })) return null;
+    const requestedMode = activityOnly ? 'activity' : 'full';
+    const upgrading = requestedMode === 'full' && syncMode === 'activity';
+    if (syncInFlight && !force && !upgrading) return syncInFlight;
+    if (syncInFlight && (force || upgrading)) syncController?.abort();
     const entries = includedEntries();
     const generation = ++activeGeneration;
     if (!entries.length) {
@@ -258,46 +324,61 @@ async function syncMemory({ loadEarlier = false, force = false } = {}) {
         setStatus('Include an L1 address to load Memory.', 'empty');
         return null;
     }
-    setStatus(loadEarlier ? 'Loading earlier TzKT receipts…' : 'Syncing account receipts while exact balance history fills…', 'loading');
+    setStatus(
+        loadEarlier
+            ? 'Loading earlier TzKT receipts…'
+            : activityOnly
+                ? 'Refreshing recent applied receipts…'
+                : 'Syncing account receipts while exact balance history fills…',
+        'loading'
+    );
     const controller = new AbortController();
     syncController = controller;
+    syncMode = requestedMode;
     const ownedAddresses = entries.map((entry) => entry.address);
 
     const pending = (async () => {
         const before = await readCachedMemory(entries);
         let latestHistory = before.history;
-        const historyPromise = loadEarlier
-            ? Promise.resolve(latestHistory)
-            : syncExactBalanceHistory(entries, {
-                signal: controller.signal,
-                onProgress: async (history) => {
-                    latestHistory = history;
-                    if (generation !== activeGeneration || !panelVisible()) return;
-                    renderMemory(entries, history, before.activities, { status: 'loading' });
-                }
-            });
-        const [historyResult, activityResult] = await Promise.allSettled([
-            historyPromise,
+        const jobs = [
             syncActivity(entries, ownedAddresses, {
                 loadEarlier,
                 signal: controller.signal
             })
-        ]);
-        if (generation !== activeGeneration || !panelVisible()) return null;
+        ];
+        if (!activityOnly) {
+            jobs.unshift(
+                loadEarlier
+                    ? Promise.resolve(latestHistory)
+                    : syncExactBalanceHistory(entries, {
+                        signal: controller.signal,
+                        onProgress: async (history) => {
+                            latestHistory = history;
+                            if (generation !== activeGeneration || !memorySurfaceVisible()) return;
+                            renderMemory(entries, history, before.activities, { status: 'loading' });
+                        }
+                    })
+            );
+        }
+        const results = await Promise.allSettled(jobs);
+        const historyResult = activityOnly ? null : results[0];
+        const activityResult = activityOnly ? results[0] : results[1];
+        if (generation !== activeGeneration || !memorySurfaceVisible()) return null;
         const cached = await readCachedMemory(entries);
-        if (historyResult.status === 'fulfilled') latestHistory = historyResult.value;
+        if (historyResult?.status === 'fulfilled') latestHistory = historyResult.value;
         let baselineCreated = false;
-        const successCount = [historyResult, activityResult].filter((result) => result.status === 'fulfilled').length;
+        const requiredResults = [historyResult, activityResult].filter(Boolean);
+        const successCount = requiredResults.filter((result) => result.status === 'fulfilled').length;
         if (successCount > 0 && !Number(localStorage.getItem(LAST_SEEN_KEY))) {
             localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
             baselineCreated = true;
         }
         renderMemory(entries, cached.history?.aggregate?.length ? cached.history : latestHistory, cached.activities, {
-            status: successCount === 2 ? 'complete' : 'partial',
+            status: successCount === requiredResults.length ? 'complete' : 'partial',
             baselineCreated
         });
         successfulVisibleRender = successCount > 0;
-        const failedResults = [historyResult, activityResult].filter((result) => result.status === 'rejected');
+        const failedResults = requiredResults.filter((result) => result.status === 'rejected');
         const failures = failedResults.length;
         const failureSummary = failedResults
             .map((result) => result.reason?.message || String(result.reason || 'source unavailable'))
@@ -306,7 +387,7 @@ async function syncMemory({ loadEarlier = false, force = false } = {}) {
         setStatus(
             failures
                 ? `Memory updated with partial source coverage · ${failureSummary || `${failures} request${failures === 1 ? '' : 's'} unavailable`}`
-                : `${loadEarlier ? 'Earlier receipts loaded' : 'Memory current'} · ${formatFreshnessStamp(new Date(), { source: 'TzKT' })}`,
+                : `${loadEarlier ? 'Earlier receipts loaded' : activityOnly ? 'Recent transactions current' : 'Memory current'} · ${formatFreshnessStamp(new Date(), { source: 'TzKT' })}`,
             failures ? 'partial' : 'complete'
         );
         await setMyTezosMeta('memory-last-success', {
@@ -324,26 +405,27 @@ async function syncMemory({ loadEarlier = false, force = false } = {}) {
         if (syncInFlight === pending) {
             syncInFlight = null;
             syncController = null;
+            syncMode = null;
         }
     });
     syncInFlight = pending;
     return pending;
 }
 
-function scheduleSync({ force = false } = {}) {
-    const run = () => syncMemory({ force }).catch(() => {});
+function scheduleSync({ force = false, activityOnly = false } = {}) {
+    const run = () => syncMemory({ force, activityOnly }).catch(() => {});
     if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1200 });
     else setTimeout(run, 250);
 }
 
-export async function activateMyTezosMemory({ force = false } = {}) {
+export async function activateMyTezosMemory({ force = false, activityOnly = false } = {}) {
     const entries = includedEntries();
     try {
         await initMyTezosDb();
         setStorageNotice('');
         const cached = await readCachedMemory(entries);
         renderMemory(entries, cached.history, cached.activities, { status: 'cached' });
-        scheduleSync({ force });
+        scheduleSync({ force, activityOnly });
     } catch (error) {
         setStorageNotice('History cannot be saved on this device. Current data remains available for this visit.');
         setStatus(error.message || 'Memory storage unavailable', 'error');
@@ -355,6 +437,9 @@ export function initMyTezosMemory() {
     initialized = true;
     document.getElementById('portfolio-load-earlier')?.addEventListener('click', () => {
         syncMemory({ loadEarlier: true }).catch(() => {});
+    });
+    document.getElementById('my-tezos-overview-transactions-link')?.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'transactions' } }));
     });
     document.querySelectorAll('[data-activity-filter]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -372,10 +457,17 @@ export function initMyTezosMemory() {
     });
     window.addEventListener('my-tezos-portfolio-changed', () => {
         activeGeneration += 1;
-        if (panelVisible()) activateMyTezosMemory({ force: true }).catch(() => {});
+        const mode = visibleSyncMode();
+        if (mode) activateMyTezosMemory({ force: true, activityOnly: mode === 'activity' }).catch(() => {});
+    });
+    window.addEventListener('my-tezos-scope-changed', () => {
+        activeGeneration += 1;
+        const mode = visibleSyncMode();
+        if (mode) activateMyTezosMemory({ activityOnly: mode === 'activity' }).catch(() => {});
     });
     document.addEventListener('visibilitychange', () => {
-        if (panelVisible()) scheduleSync();
+        const mode = visibleSyncMode();
+        if (mode) scheduleSync({ activityOnly: mode === 'activity' });
     });
 }
 
@@ -384,6 +476,7 @@ export function destroyMyTezosMemoryForTests() {
     syncController?.abort();
     syncController = null;
     syncInFlight = null;
+    syncMode = null;
     successfulVisibleRender = false;
     currentActivities = [];
     currentHistory = null;

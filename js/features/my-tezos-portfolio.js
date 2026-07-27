@@ -34,6 +34,11 @@ import {
     initMyTezosMemory
 } from './my-tezos-memory.mjs';
 import {
+    MY_TEZOS_SCOPE_ALL,
+    readMyTezosScope,
+    readScopedMyTezosEntries
+} from './my-tezos-scope.mjs';
+import {
     MY_TEZOS_PORTFOLIO_HISTORY_SCHEMA,
     MY_TEZOS_PORTFOLIO_SCHEMA,
     appendPortfolioSnapshot,
@@ -62,12 +67,12 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 let lastCompletePortfolio = null;
 let portfolioChart = null;
 let portfolioRange = '1y';
-let portfolioHistoryScope = 'portfolio';
 let portfolioRefreshInFlight = null;
 let portfolioRefreshController = null;
 let portfolioGeneration = 0;
 let portfolioTimer = null;
 let portfolioInitialized = false;
+let portfolioCompositionRefreshQueued = false;
 let exactHistoryState = {
     seriesByAddress: {},
     aggregate: [],
@@ -90,6 +95,11 @@ function isPortfolioVisible() {
     const panel = getPortfolioPanel();
     return document.visibilityState === 'visible'
         && panel?.hidden === false
+        && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
+}
+
+function isMyTezosVisible() {
+    return document.visibilityState === 'visible'
         && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
 }
 
@@ -206,7 +216,11 @@ function renderEmptySummary(message = 'Add or include an address to calculate a 
 function renderSummary(model) {
     const summary = document.getElementById('portfolio-summary');
     if (!summary) return;
-    const { totals, prices, entries, timestamp } = model;
+    const { prices, entries, rows, timestamp } = model;
+    const scope = readMyTezosScope();
+    const scopedEntries = readScopedMyTezosEntries(entries);
+    const scopedAddresses = new Set(scopedEntries.map((entry) => entry.address));
+    const totals = calculatePortfolioTotals(rows.filter((row) => scopedAddresses.has(row.address)));
     quietlyMutate(summary, () => {
         for (const key of ['total', 'spendable', 'staked', 'unstaking']) {
             const card = summary.querySelector(`[data-portfolio-total="${key}"]`);
@@ -221,7 +235,11 @@ function renderSummary(model) {
         }
     });
     const coverage = document.getElementById('portfolio-coverage');
-    if (coverage) coverage.textContent = `${entries.length}/${currentEntries().length} saved addresses included · complete current read`;
+    if (coverage) {
+        coverage.textContent = scope === MY_TEZOS_SCOPE_ALL
+            ? `${scopedEntries.length}/${currentEntries().length} saved addresses included · complete current read`
+            : `${scopedEntries[0]?.label || shortAddress(scopedEntries[0]?.address)} selected · complete current read`;
+    }
     const rates = document.getElementById('portfolio-rates');
     if (rates) {
         const priceCopy = prices?.usd && prices?.eur
@@ -229,6 +247,16 @@ function renderSummary(model) {
             : 'XTZ price unavailable; on-chain totals remain current.';
         rates.textContent = `${priceCopy} · ${formatFreshnessStamp(new Date(timestamp), { source: 'Portfolio' })}`;
     }
+    window.dispatchEvent(new CustomEvent('my-tezos-portfolio-ready', {
+        detail: {
+            composition: model.composition,
+            scope,
+            totals,
+            count: scopedEntries.length,
+            prices,
+            timestamp
+        }
+    }));
 }
 
 function walletValue(row, key) {
@@ -247,6 +275,13 @@ function walletBaker(row) {
 function renderWalletList(entries, model = lastCompletePortfolio) {
     const container = document.getElementById('drawer-saved-addresses');
     if (!container) return;
+    const includedCount = includedEntries(entries).length;
+    const count = document.getElementById('portfolio-wallet-count');
+    if (count) {
+        count.textContent = entries.length
+            ? `${includedCount} included · ${entries.length}/${MAX_SAVED_MY_TEZOS_ADDRESSES} saved`
+            : `0/${MAX_SAVED_MY_TEZOS_ADDRESSES} saved`;
+    }
     const active = localStorage.getItem(MY_TEZOS_ADDRESS_KEY) || '';
     const rows = model?.composition === portfolioCompositionKey(includedEntries(entries))
         ? new Map(model.rows.map((row) => [row.address, row]))
@@ -335,6 +370,7 @@ function wireWalletList(entries) {
             writeSavedMyTezosEntries(entries.map((entry) => (
                 entry.address === address ? { ...entry, included: input.checked } : entry
             )), { source: 'portfolio-inclusion' });
+            schedulePortfolioCompositionRefresh('Portfolio inclusion changed.');
         };
     });
 
@@ -397,7 +433,31 @@ function wireWalletList(entries) {
                     if (connected) connected.style.display = 'none';
                 }
             }
+            schedulePortfolioCompositionRefresh('Account removed. Recalculating the remaining portfolio.');
         };
+    });
+}
+
+function reconcilePortfolioComposition(message = 'Portfolio composition changed. Waiting for a complete current read.') {
+    const entries = currentEntries();
+    const composition = portfolioCompositionKey(includedEntries(entries));
+    renderWalletList(entries);
+    if (lastCompletePortfolio?.composition !== composition) {
+        portfolioGeneration += 1;
+        portfolioRefreshController?.abort();
+        renderEmptySummary(message);
+    }
+    renderHistory();
+    if (!isMyTezosVisible()) return Promise.resolve(null);
+    return refreshMyTezosPortfolio({ force: true, allowHidden: !isPortfolioVisible() });
+}
+
+function schedulePortfolioCompositionRefresh(message) {
+    if (portfolioCompositionRefreshQueued) return;
+    portfolioCompositionRefreshQueued = true;
+    queueMicrotask(() => {
+        portfolioCompositionRefreshQueued = false;
+        reconcilePortfolioComposition(message).catch(() => {});
     });
 }
 
@@ -415,23 +475,6 @@ function chartLabel(timestamp, range) {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function renderHistoryScopeOptions(entries = includedEntries()) {
-    const select = document.getElementById('portfolio-history-wallet');
-    if (!select) return;
-    const signature = entries.map((entry) => `${entry.address}:${entry.label || ''}`).join('|');
-    const validScopes = new Set(['portfolio', ...entries.map((entry) => entry.address)]);
-    if (!validScopes.has(portfolioHistoryScope)) portfolioHistoryScope = 'portfolio';
-    if (select.dataset.signature !== signature) {
-        const options = [
-            new Option('Portfolio total', 'portfolio'),
-            ...entries.map((entry) => new Option(entry.label || shortAddress(entry.address), entry.address))
-        ];
-        select.replaceChildren(...options);
-        select.dataset.signature = signature;
-    }
-    select.value = portfolioHistoryScope;
-}
-
 function historySourceLabel(point) {
     const sources = point?.sources?.length ? point.sources : [point?.source];
     return [...new Set(sources.filter(Boolean).map((source) => ({
@@ -445,15 +488,16 @@ function historySourceLabel(point) {
 }
 
 function selectedHistory() {
-    if (portfolioHistoryScope === 'portfolio') {
+    const scope = readMyTezosScope();
+    if (scope === MY_TEZOS_SCOPE_ALL) {
         return {
             points: exactHistoryState.aggregate || [],
             coverage: exactHistoryState.aggregateCoverage || {}
         };
     }
     return {
-        points: exactHistoryState.seriesByAddress?.[portfolioHistoryScope] || [],
-        coverage: exactHistoryState.coverageByAddress?.[portfolioHistoryScope] || {}
+        points: exactHistoryState.seriesByAddress?.[scope] || [],
+        coverage: exactHistoryState.coverageByAddress?.[scope] || {}
     };
 }
 
@@ -486,7 +530,6 @@ function renderHistory() {
     const canvas = document.getElementById('portfolio-history-chart');
     const empty = document.getElementById('portfolio-history-empty');
     if (!canvas || !empty) return;
-    renderHistoryScopeOptions();
     const selected = selectedHistory();
     const points = historyPointsForRange(selected.points, portfolioRange);
     renderHistoryStatus(selected.points, selected.coverage);
@@ -594,8 +637,24 @@ function setFreshness(message, state = '') {
     freshness.dataset.state = state;
 }
 
-export async function refreshMyTezosPortfolio({ force = false } = {}) {
-    if (!isPortfolioVisible()) return null;
+function setPortfolioRefreshState(loading, count = includedEntries().length) {
+    const button = document.getElementById('portfolio-refresh');
+    if (!button) return;
+    const label = button.querySelector('[data-portfolio-refresh-label]');
+    button.disabled = loading;
+    button.dataset.state = loading ? 'loading' : 'idle';
+    button.setAttribute('aria-busy', String(loading));
+    if (label) {
+        label.textContent = loading
+            ? `Updating ${count} wallet${count === 1 ? '' : 's'}…`
+            : 'Update portfolio';
+    } else {
+        button.textContent = loading ? 'Updating portfolio…' : 'Update portfolio';
+    }
+}
+
+export async function refreshMyTezosPortfolio({ force = false, allowHidden = false } = {}) {
+    if (allowHidden ? !isMyTezosVisible() : !isPortfolioVisible()) return null;
     if (portfolioRefreshInFlight && !force) return portfolioRefreshInFlight;
     if (portfolioRefreshInFlight && force) portfolioRefreshController?.abort();
 
@@ -615,10 +674,7 @@ export async function refreshMyTezosPortfolio({ force = false } = {}) {
     }
 
     const refreshButton = document.getElementById('portfolio-refresh');
-    if (refreshButton) {
-        refreshButton.disabled = true;
-        refreshButton.textContent = '↻ Refreshing…';
-    }
+    setPortfolioRefreshState(true, included.length);
     setFreshness(`Checking ${included.length} included address${included.length === 1 ? '' : 'es'} through TzKT…`, 'loading');
 
     const requestGeneration = ++portfolioGeneration;
@@ -647,7 +703,6 @@ export async function refreshMyTezosPortfolio({ force = false } = {}) {
             renderWalletList(currentEntries(), model);
             renderHistory();
             setFreshness(`Complete · ${included.length}/${included.length} included addresses · ${formatFreshnessStamp(new Date(model.timestamp), { source: 'Portfolio' })}`, 'complete');
-            window.dispatchEvent(new CustomEvent('my-tezos-portfolio-ready', { detail: { composition, totals, count: included.length } }));
             return model;
         } catch (error) {
             if (error?.name === 'AbortError' || requestGeneration !== portfolioGeneration) return null;
@@ -665,10 +720,7 @@ export async function refreshMyTezosPortfolio({ force = false } = {}) {
             if (portfolioRefreshInFlight === pending) {
                 portfolioRefreshInFlight = null;
                 portfolioRefreshController = null;
-                if (refreshButton) {
-                    refreshButton.disabled = false;
-                    refreshButton.textContent = '↻ Refresh';
-                }
+                if (refreshButton) setPortfolioRefreshState(false);
             }
         }
     })();
@@ -795,7 +847,10 @@ async function importPortfolioFile(file) {
 
 function wirePortfolioControls() {
     const refresh = document.getElementById('portfolio-refresh');
-    if (refresh) refresh.onclick = () => refreshMyTezosPortfolio({ force: true });
+    if (refresh) {
+        refresh.onclick = () => refreshMyTezosPortfolio({ force: true });
+        refresh.dataset.portfolioRefreshWired = 'true';
+    }
 
     document.querySelectorAll('[data-portfolio-range]').forEach((button) => {
         button.onclick = () => {
@@ -808,12 +863,6 @@ function wirePortfolioControls() {
             renderHistory();
         };
     });
-
-    const historyWallet = document.getElementById('portfolio-history-wallet');
-    if (historyWallet) historyWallet.onchange = () => {
-        portfolioHistoryScope = historyWallet.value || 'portfolio';
-        renderHistory();
-    };
 
     const form = document.getElementById('portfolio-add-form');
     if (form) form.onsubmit = async (event) => {
@@ -860,6 +909,9 @@ function wirePortfolioControls() {
 }
 
 export async function activateMyTezosPortfolio({ force = false } = {}) {
+    // Rebind idempotently on activation so route/view rehydration cannot leave
+    // a visible Portfolio control pointing at an earlier element instance.
+    wirePortfolioControls();
     const entries = currentEntries();
     renderWalletList(entries);
     const composition = portfolioCompositionKey(includedEntries(entries));
@@ -890,14 +942,15 @@ export function initMyTezosPortfolio() {
     renderHistory();
 
     window.addEventListener('my-tezos-portfolio-changed', () => {
-        const entries = currentEntries();
-        renderWalletList(entries);
-        const composition = portfolioCompositionKey(includedEntries(entries));
-        if (lastCompletePortfolio?.composition !== composition) {
-            renderEmptySummary('Portfolio composition changed. Waiting for a complete current read.');
+        schedulePortfolioCompositionRefresh('Portfolio composition changed. Waiting for a complete current read.');
+    });
+    window.addEventListener('my-tezos-scope-changed', () => {
+        if (lastCompletePortfolio?.composition === portfolioCompositionKey(includedEntries())) {
+            renderSummary(lastCompletePortfolio);
+        } else {
+            renderEmptySummary('Wallet scope changed. Waiting for a complete current read.');
         }
         renderHistory();
-        if (isPortfolioVisible()) refreshMyTezosPortfolio({ force: true }).catch(() => {});
     });
     window.addEventListener('my-baker-updated', () => renderWalletList(currentEntries()));
     const drawer = document.getElementById('my-tezos-drawer');
@@ -944,7 +997,6 @@ export function destroyMyTezosPortfolioForTests() {
     portfolioRefreshController = null;
     portfolioRefreshInFlight = null;
     portfolioRange = '1y';
-    portfolioHistoryScope = 'portfolio';
     exactHistoryState = {
         seriesByAddress: {},
         aggregate: [],

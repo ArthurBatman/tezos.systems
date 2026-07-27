@@ -724,8 +724,35 @@ inline modal styles in `js/core/app.js`.
   or signature. Both paths keep data in this browser and explain the six views
   plus the Ledger Flow and Maxi Passport handoffs before setup. Your Story separates the account's
   on-chain identity, protocol-era milestones, share surface, and browser-local
-  recent chapter from the live Overview. Overview keeps the active L1 address
-  synchronized with Ledger Flow, Maxi Passport, HEN, and the existing
+  recent chapter from the live Overview. Overview shows the three newest applied
+  account receipts with a direct handoff to the complete Transactions view, and
+  one shared wallet-scope control now governs all six tabs. It defaults to all
+  included L1 wallets, keeps current total, spendable, and staked XTZ visible
+  above every view, and deliberately narrows Portfolio history, Transactions,
+  Collection, and linked Tezos X accounts when one wallet is selected. A direct
+  wallet choice also becomes the active account for baker, rewards, identity,
+  and Story surfaces. Combined mode labels those account-only facts instead of
+  pretending multiple wallets have one baker, identity, or on-chain timeline.
+  Transactions also exposes loaded receipt, transfer/call, NFT-interaction, and
+  in-scope wallet totals. Overview's Network Context is a two-part personalized
+  briefing: a full-width row
+  places the wallet story and the live Tezos story in equal side-by-side panels
+  on desktop, then stacks them on narrow screens. The wallet panel selects the
+  account's most distinctive capital, staking, reward, baker, identity,
+  collection, creator, and on-chain-history facts; the Tezos panel ranks up to
+  four live signals from the shared network pulse and explains their
+  wallet-specific relevance when a defensible connection exists. These fact
+  and signal cards retain direct routes into the matching My Tezos view or
+  first-party Chamber and reconcile in place as account, Memory, Portfolio, or
+  shared hot-signal data arrives. Portfolio composition changes are immediate:
+  include, exclude, add, and remove actions
+  immediately invalidate the prior aggregate and complete a fresh current read,
+  while the visible Update Portfolio control always forces that same full
+  reload and names the number of wallets being updated. Portfolio also states
+  that public wallet data is downloaded directly into the browser and processed
+  locally, so a complete multi-wallet update can take a few seconds. The
+  active L1 address stays synchronized with Ledger Flow, Maxi Passport, HEN,
+  and the existing
   baker/reward lifecycle, while its baker
   signal uses one full-width next-round band plus four equal Octez, working,
   attestation, and DAL tiles. Shape-correct first-read cards hold the Overview
@@ -743,7 +770,11 @@ inline modal styles in `js/core/app.js`.
   remains one equal desktop row and a single mobile stack. Portfolio aggregates up to ten locally saved,
   independently includable Tezos L1 addresses through one bounded TzKT read and
   shows total, spendable, staked, and unstaking XTZ with current USD/EUR context
-  when available. Saved entries use the versioned
+  when available. Its ten-address manager stays compact in a bounded desktop
+  scroller with a sticky column guide, while narrow screens retain the natural
+  page scroll. The drawer-wide L1 scope and Tezos X's genuinely separate
+  Etherlink-account selector share one theme-aware, keyboard-visible control
+  treatment. Saved entries use the versioned
   `{ network, address, label, included, addedAt }` shape. The v2 JSON
   import/export path carries only user-authored L1 configuration, device-local
   L2 links, exact browser-observed snapshots, and seen watermarks; it never
@@ -753,8 +784,9 @@ inline modal styles in `js/core/app.js`.
   chart or liquid-balance reconstruction. It loads daily samples for the latest
   365 days first, then weekly samples back to the earliest included account's
   first activity, restarting the level schedule at protocol boundaries. The
-  default line is the complete included-address total, with a selector for each
-  address and 30D, 90D, 1Y, and All ranges. TzKT stepped balance history supplies
+  default line is the complete included-address total; the drawer-wide wallet
+  scope selects an individual address, while 30D, 90D, 1Y, and All control the
+  time range. TzKT stepped balance history supplies
   pre-Paris points, bakers/delegates, KT1 accounts, and tz accounts confirmed
   never to have staked. From Paris level 5,726,209, other tz accounts use
   historical contract `full_balance` from the verified
@@ -1217,7 +1249,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v506`, including hero search, theme
+- Current aligned shell cache stamp: `v512`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

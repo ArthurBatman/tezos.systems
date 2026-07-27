@@ -28,6 +28,10 @@ import {
     aggregateEtherlinkAccounts,
     upsertLinkedEtherlinkAccount
 } from './my-tezos-tezosx-model.mjs';
+import {
+    MY_TEZOS_SCOPE_ALL,
+    readMyTezosScope
+} from './my-tezos-scope.mjs';
 
 let initialized = false;
 let refreshInFlight = null;
@@ -52,6 +56,12 @@ function writeLinkedAccounts(entries, source = 'tezos-x') {
         detail: { entries: normalized, source }
     }));
     return normalized;
+}
+
+function scopedLinkedAccounts(entries = readLinkedAccounts()) {
+    const scope = readMyTezosScope();
+    if (scope === MY_TEZOS_SCOPE_ALL) return entries;
+    return entries.filter((entry) => entry.linkedL1Addresses.includes(scope));
 }
 
 function isVisible() {
@@ -83,14 +93,15 @@ function renderLinkedAccounts() {
     const selector = document.getElementById('tezosx-account-scope');
     if (!target || !selector) return;
     const entries = readLinkedAccounts();
-    if (!selectedAddress || !entries.some((entry) => entry.address === selectedAddress)) {
-        selectedAddress = entries.find((entry) => entry.included !== false)?.address || entries[0]?.address || '';
+    const scopedEntries = scopedLinkedAccounts(entries);
+    if (!selectedAddress || !scopedEntries.some((entry) => entry.address === selectedAddress)) {
+        selectedAddress = scopedEntries.find((entry) => entry.included !== false)?.address || scopedEntries[0]?.address || '';
     }
-    quietlySyncHtml(selector, entries.map((entry) => (
+    quietlySyncHtml(selector, scopedEntries.map((entry) => (
         `<option value="${escapeHtml(entry.address)}">${escapeHtml(linkName(entry))}</option>`
     )).join(''));
     selector.value = selectedAddress;
-    selector.disabled = entries.length === 0;
+    selector.disabled = scopedEntries.length === 0;
     if (!entries.length) {
         quietlySyncHtml(target, `
             <div class="tezosx-empty">
@@ -103,18 +114,19 @@ function renderLinkedAccounts() {
     const savedL1Entries = readSavedMyTezosEntries();
     const savedL1 = new Map(savedL1Entries.map((entry) => [entry.address, entry]));
     quietlySyncHtml(target, entries.map((entry) => {
+        const inScope = scopedEntries.some((candidate) => candidate.address === entry.address);
         const linked = entry.linkedL1Addresses
             .filter((address) => savedL1.has(address))
             .map((address) => savedL1.get(address)?.label || shortAddress(address));
         const removedLinks = entry.linkedL1Addresses.filter((address) => !savedL1.has(address)).length;
         return `
-            <article class="tezosx-account-row${entry.address === selectedAddress ? ' active' : ''}${entry.included === false ? ' excluded' : ''}">
+            <article class="tezosx-account-row${entry.address === selectedAddress ? ' active' : ''}${entry.included === false ? ' excluded' : ''}${inScope ? '' : ' out-of-scope'}">
                 <label class="portfolio-include-control" title="Include in Tezos X totals">
                     <input type="checkbox" data-tezosx-include="${escapeHtml(entry.address)}" ${entry.included === false ? '' : 'checked'} aria-label="Include ${escapeHtml(linkName(entry))} in Tezos X totals">
                     <span aria-hidden="true"></span>
                 </label>
                 <div class="tezosx-account-identity">
-                    <button type="button" data-tezosx-select="${escapeHtml(entry.address)}" aria-pressed="${entry.address === selectedAddress}">
+                    <button type="button" data-tezosx-select="${escapeHtml(entry.address)}" aria-pressed="${entry.address === selectedAddress}" ${inScope ? '' : 'disabled'}>
                         <strong>${escapeHtml(linkName(entry))}</strong>
                         <code>${escapeHtml(shortAddress(entry.address))}</code>
                     </button>
@@ -178,7 +190,7 @@ function renderLinkedAccounts() {
 }
 
 function renderSummary() {
-    const included = new Set(readLinkedAccounts().filter((entry) => entry.included !== false).map((entry) => entry.address));
+    const included = new Set(scopedLinkedAccounts().filter((entry) => entry.included !== false).map((entry) => entry.address));
     const rows = accountRows.filter((row) => included.has(row.address));
     const aggregate = aggregateEtherlinkAccounts(rows);
     const values = {
@@ -208,7 +220,8 @@ function renderDetails() {
         loadMore.disabled = Boolean(refreshInFlight);
     }
     if (!selectedAddress) {
-        quietlySyncHtml(target, '<div class="tezosx-empty"><strong>Link an Etherlink account</strong><span>Account activity stays separate from Tezos L1 and is labeled L2 throughout.</span></div>');
+        const hasLinks = readLinkedAccounts().length > 0;
+        quietlySyncHtml(target, `<div class="tezosx-empty"><strong>${hasLinks ? 'No Etherlink account in this wallet scope' : 'Link an Etherlink account'}</strong><span>${hasLinks ? 'Edit an L2 account’s L1 associations above, or switch the shared wallet scope back to all included wallets.' : 'Account activity stays separate from Tezos L1 and is labeled L2 throughout.'}</span></div>`);
         return;
     }
     const row = accountRows.find((item) => item.address === selectedAddress) || {};
@@ -297,7 +310,7 @@ async function refreshTezosX({ force = false, loadMore = false } = {}) {
     if (refreshInFlight && !force) return refreshInFlight;
     if (refreshInFlight && force) refreshController?.abort();
     const entries = readLinkedAccounts();
-    const included = entries.filter((entry) => entry.included !== false);
+    const included = scopedLinkedAccounts(entries).filter((entry) => entry.included !== false);
     const requestGeneration = ++generation;
     renderLinkedAccounts();
     if (!included.length) {
@@ -305,7 +318,14 @@ async function refreshTezosX({ force = false, loadMore = false } = {}) {
         currentDetails = null;
         renderSummary();
         renderDetails();
-        setStatus(entries.length ? 'No linked accounts are included.' : 'Link an Etherlink account to begin.', 'empty');
+        setStatus(
+            entries.length
+                ? readMyTezosScope() === MY_TEZOS_SCOPE_ALL
+                    ? 'No linked accounts are included.'
+                    : 'No included Etherlink account is linked to the selected L1 wallet.'
+                : 'Link an Etherlink account to begin.',
+            'empty'
+        );
         return null;
     }
     if (!selectedAddress) selectedAddress = included[0].address;
@@ -476,6 +496,13 @@ export async function activateMyTezosTezosX({ force = false } = {}) {
             if (isVisible()) refreshTezosX({ force: true }).catch(() => {});
         });
         window.addEventListener('my-tezos-portfolio-changed', renderLinkedAccounts);
+        window.addEventListener('my-tezos-scope-changed', () => {
+            generation += 1;
+            selectedAddress = '';
+            currentDetails = null;
+            renderLinkedAccounts();
+            if (isVisible()) refreshTezosX({ force: true }).catch(() => {});
+        });
     }
     renderLinkedAccounts();
     try {

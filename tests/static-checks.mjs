@@ -471,10 +471,11 @@ async function checkMyTezosPortfolioContracts() {
   assert.equal(rateLimitedBroker.getProviderLimit('octezArchive'), 3);
   assert.equal(rateLimitCalls, 2);
 
-  const [portfolio, myTezos, tabs, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, balanceHistory, balanceHistoryModel, config, collection, tezosx, bakerReportCard, rewards, sw] = await Promise.all([
+  const [portfolio, myTezos, tabs, scope, adapter, wallet, savedEntries, index, styles, smoke, db, broker, memory, balanceHistory, balanceHistoryModel, config, collection, tezosx, bakerReportCard, rewards, sw] = await Promise.all([
     readText('js/features/my-tezos-portfolio.js'),
     readText('js/features/my-tezos.js'),
     readText('js/features/my-tezos-tabs.mjs'),
+    readText('js/features/my-tezos-scope.mjs'),
     readText('js/features/my-tezos-tzkt-adapter.mjs'),
     readText('js/core/wallet.js'),
     readText('js/core/my-tezos-entries.mjs'),
@@ -499,7 +500,13 @@ async function checkMyTezosPortfolioContracts() {
     'portfolioChart.update(\'none\')',
     "label: 'Total XTZ'",
     "portfolioRange = '1y'",
-    "portfolioHistoryScope = 'portfolio'",
+    'readMyTezosScope()',
+    'readScopedMyTezosEntries(entries)',
+    'schedulePortfolioCompositionRefresh',
+    'setPortfolioRefreshState',
+    'Updating ${count} wallet',
+    "refresh.dataset.portfolioRefreshWired = 'true'",
+    'wirePortfolioControls();',
     'quietlySyncHtml(container, header + body)',
     'showing last complete read'
   ]) {
@@ -511,6 +518,15 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['setMyTezosView', 'sessionStorage.setItem(VIEW_SESSION_KEY', "event.key === 'ArrowRight'", "event.key === 'Home'", "routeMode: 'push'", "window.addEventListener('popstate'"]) {
     if (!tabs.includes(snippet)) fail(`My Tezos tab contract missing: ${snippet}`);
   }
+  for (const snippet of [
+    "MY_TEZOS_SCOPE_ALL = 'all'",
+    'readScopedMyTezosEntries',
+    "window.dispatchEvent(new CustomEvent('my-tezos-scope-changed'",
+    "window.addEventListener('my-tezos-portfolio-ready'",
+    "rememberMyTezosAddress(entry.address"
+  ]) {
+    if (!scope.includes(snippet)) fail(`My Tezos shared wallet scope contract missing: ${snippet}`);
+  }
   for (const snippet of ['activateMyTezosPortfolio', "registerMyTezosView('transactions'", "import('./my-tezos-collection.mjs')", "import('./my-tezos-tezosx.mjs')"]) {
     if (!myTezos.includes(snippet)) fail(`My Tezos lazy feature registration missing: ${snippet}`);
   }
@@ -521,8 +537,11 @@ async function checkMyTezosPortfolioContracts() {
     if (!savedEntries.includes(snippet)) fail(`My Tezos saved-entry schema contract missing: ${snippet}`);
   }
   if (!wallet.includes('my-tezos-portfolio-changed')) fail('My Tezos shared wallet mutation event is missing');
-  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-transactions', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'data-activity-filter="transfers"', 'data-activity-filter="nft"', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'portfolio-history-wallet', 'data-portfolio-range="1y"', 'Exact total XTZ:', 'Linked on this device', 'not an ownership proof']) {
+  for (const snippet of ['role="tablist"', 'my-tezos-panel-portfolio', 'my-tezos-panel-transactions', 'my-tezos-panel-collection', 'my-tezos-panel-tezos-x', 'id="my-tezos-wallet-scope"', 'data-my-tezos-scope-total="total"', 'data-transactions-total="receipts"', 'data-activity-filter="transfers"', 'data-activity-filter="nft"', 'data-portfolio-total="unstaking"', 'portfolio-history-chart', 'data-portfolio-range="1y"', 'Calculated on this device', 'can take a few seconds', 'portfolio-wallet-count', 'Exact total XTZ:', 'Linked on this device', 'not an ownership proof']) {
     if (!index.includes(snippet)) fail(`My Tezos Portfolio markup missing: ${snippet}`);
+  }
+  if ((index.match(/my-tezos-scope-select/g) || []).length !== 2) {
+    fail('The shared L1 wallet scope and separate Etherlink account selector must share the styled control contract');
   }
   for (const snippet of [
     'Connect Temple, Kukai, or another Tezos wallet',
@@ -538,7 +557,7 @@ async function checkMyTezosPortfolioContracts() {
       || !index.includes('class="glass-button my-baker-btn" type="submit" disabled')) {
     fail('My Tezos Tezos X form must remain disabled until its lazy validation module is ready');
   }
-  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.portfolio-summary-grid', '.portfolio-wallet-row', '.portfolio-history-controls', '.portfolio-history-status', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item', '--portfolio-history-height: clamp(300px, 38vh, 360px)', '.my-tezos-feature-shell .my-tezos-action[hidden]', '.my-tezos-scope-select']) {
+  for (const snippet of ['width: clamp(880px, 68vw, 960px)', 'grid-template-columns: repeat(4, minmax(0, 1fr))', '.my-tezos-wallet-scope-bar', '.my-tezos-scope-totals', '.portfolio-summary-grid', '.portfolio-wallet-row', '.portfolio-history-controls', '.portfolio-history-panel .portfolio-section-heading', '.portfolio-history-status', '.portfolio-local-notice', '.portfolio-refresh-icon', 'max-height: min(52vh, 510px)', 'position: sticky', '.collection-grid', '.tezosx-account-row', '.portfolio-activity-item', '--portfolio-history-height: clamp(300px, 38vh, 360px)', '.my-tezos-feature-shell .my-tezos-action[hidden]', '.my-tezos-drawer .my-tezos-scope-select']) {
     if (!styles.includes(snippet)) fail(`My Tezos adaptive Portfolio CSS missing: ${snippet}`);
   }
   for (const snippet of ['.my-tezos-start-grid', '.my-tezos-start-card', '.my-tezos-feature-map', '.my-tezos-onboarding-routes']) {
@@ -580,8 +599,20 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['MY_TEZOS_COLLECTION_PAGE_SIZE', 'Syncing complete Objkt coverage', 'mediaCandidates', 'showing last saved holdings', 'not a portfolio value', 'sourceReceipt']) {
     if (!collection.includes(snippet) && !index.includes(snippet)) fail(`My Tezos Collection contract missing: ${snippet}`);
   }
-  for (const snippet of ["activityFilter = 'transfers'", 'activity-item-${interactionType}', "my-tezos-panel-transactions"]) {
+  for (const snippet of ["activityFilter = 'transfers'", 'activity-item-${interactionType}', "my-tezos-panel-transactions", 'renderOverviewActivity', "slice(0, 3)"]) {
     if (!memory.includes(snippet)) fail(`My Tezos Transactions contract missing: ${snippet}`);
+  }
+  if (!myTezos.includes("registerMyTezosView('overview', () => activateMyTezosMemory({ activityOnly: true }))")) {
+    fail('My Tezos Overview no longer activates the lightweight transaction preview');
+  }
+  for (const snippet of ['my-tezos-overview-transactions', 'my-tezos-overview-activity-list', 'View all transactions']) {
+    if (!index.includes(snippet)) fail(`My Tezos Overview transaction preview markup missing: ${snippet}`);
+  }
+  if (index.indexOf('id="my-tezos-overview-transactions"') > index.indexOf('id="drawer-operator-status"')) {
+    fail('My Tezos Overview transaction preview no longer appears before the baker signal');
+  }
+  if (!styles.includes('.my-tezos-start-wallet::after')) {
+    fail('My Tezos empty-state action rows no longer reserve matching desktop feedback space');
   }
   for (const snippet of ['normalizeLinkedL2Accounts', 'linkedL1Addresses', 'data-tezosx-l1-link', 'nativeAvailable', 'Blockscout receipt', 'submitButton.disabled = false', "form?.setAttribute('aria-busy', 'false')"]) {
     if (!tezosx.includes(snippet)) fail(`My Tezos Tezos X contract missing: ${snippet}`);
@@ -5066,6 +5097,7 @@ async function checkDailyBriefingPriceContracts() {
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
   const shellExtras = await readText('css/shell-extras.css');
+  const styles = await readText('css/styles.css');
   const requiredSiteMapRoutes = {
     staking: 'staking-chamber',
     governance: 'chamber',
@@ -5128,7 +5160,7 @@ async function checkNetworkContextNavigationContracts() {
     'fetchNftPulse',
     'maybeDispatchProtocolLoreSignal',
     'delta: normalizeDelta',
-    'BRIEFING_SCHEMA_VERSION = 12',
+    'BRIEFING_SCHEMA_VERSION = 13',
     'MILESTONE_NEAR_MAX_DAYS = 30',
     'MILESTONE_CATALOG_URL',
     'mergedMilestoneThresholds',
@@ -5139,6 +5171,17 @@ async function checkNetworkContextNavigationContracts() {
     'captureNetworkMomentShare',
     '<a class="network-focus-chip"',
     '<a class="network-signal',
+    'network-personal-spotlight',
+    'network-personal-fact',
+    'buildPersonalSpotlight',
+    'buildPersonalFacts',
+    'selectDrawerNetworkSignals',
+    'personalSignalRelevance',
+    'network-context-columns',
+    'network-live-column',
+    "window.addEventListener('my-tezos-portfolio-ready'",
+    "window.addEventListener('my-tezos-memory-ready'",
+    'data-my-tezos-view-route',
     'data-network-route',
     'wireNetworkContextNavigation(container)',
     'closeDrawerForNetworkRoute(route)',
@@ -5147,6 +5190,18 @@ async function checkNetworkContextNavigationContracts() {
   ];
   for (const snippet of requiredSnippets) {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
+  }
+  for (const snippet of [
+    '.network-personal-spotlight',
+    '.network-personal-facts',
+    '.network-personal-fact',
+    '.network-context-columns',
+    '.network-live-column',
+    '.network-context-now-heading',
+    '.network-signal.is-network-lead',
+    '.network-signal-relevance'
+  ]) {
+    if (!styles.includes(snippet)) fail(`My Tezos personalized Network Context CSS missing: ${snippet}`);
   }
   if (briefing.includes('Earlier today') || shellExtras.includes('.hot-today-earlier')) {
     fail('What is hot today must not render a dead earlier-category breadcrumb');
@@ -7227,10 +7282,10 @@ async function checkQuietRefreshContracts() {
   if (!quietStyles.includes('[data-quiet-refreshing="true"]') || !quietStyles.includes('[data-quiet-refresh-settled="true"]')) {
     fail('quiet refresh CSS must suppress scroll animation and replayed entrances');
   }
-  for (const snippet of ['drawer-live-columns', 'drawer-live-column-primary', 'seedDrawerLoadingState', 'drawerLoadingCard']) {
+  for (const snippet of ['drawer-live-columns', 'drawer-live-column-primary', 'columns.appendChild(network)', 'seedDrawerLoadingState', 'drawerLoadingCard']) {
     if (!myTezos.includes(snippet)) fail(`My Tezos stable loading/layout contract is missing ${snippet}`);
   }
-  for (const snippet of ['.drawer-live-columns', '.drawer-loading-card', '.my-baker-loading-grid', '.my-baker-load-state']) {
+  for (const snippet of ['.drawer-live-columns', '.drawer-live-columns > #drawer-network', '.network-context-columns', '@container (min-width: 720px)', '.drawer-loading-card', '.my-baker-loading-grid', '.my-baker-load-state']) {
     if (!styles.includes(snippet)) fail(`My Tezos stable loading/layout CSS is missing ${snippet}`);
   }
   if (!myBaker.includes('my-baker-loading-stat') || !myBaker.includes('Retry account stats')) {
@@ -8101,7 +8156,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=506'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=512'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

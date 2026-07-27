@@ -5,6 +5,18 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-27',
+        entries: [
+            { type: '✨', text: 'One wallet scope now governs every My Tezos tab: all included wallets are totaled by default, a specific wallet focuses Portfolio history, Transactions, Collection, Story, and linked Tezos X accounts, and non-additive baker or identity facts stay explicitly account-bound' },
+            { type: '🔧', text: 'Portfolio account removal and inclusion changes now invalidate stale aggregates and immediately complete a fresh read; the visible update control is rebound on every Portfolio activation' },
+            { type: '🎨', text: 'Portfolio now uses a clear multi-wallet update action, polished theme-aware scope selectors across My Tezos, a compact ten-address manager, and an explicit browser-local download notice' },
+            { type: '✨', text: 'My Tezos Network Context is now a true personalized briefing: standout wallet history, capital, staking, rewards, baker, and culture facts lead into the most relevant live Tezos signals' },
+            { type: '🎨', text: 'The personalized briefing now pairs a dense six-fact wallet dossier with compact live Tezos signal rows on desktop, removes forced equal-height dead space, and keeps a deliberate narrow-screen stack' },
+            { type: '✨', text: 'My Tezos Overview now leads with the three newest applied transactions before the baker signal, with a direct path to the complete Transactions view' },
+            { type: '🎨', text: 'My Tezos wallet connection and watch-only setup controls now share one aligned desktop action line' }
+        ]
+    },
+    {
         date: '2026-07-26',
         entries: [
             { type: '🔧', text: 'Visible live numbers now keep their theme effect on first arrival and genuine background changes; duplicate publishers no longer cancel it, while off-screen and reduced-motion updates still settle immediately' },

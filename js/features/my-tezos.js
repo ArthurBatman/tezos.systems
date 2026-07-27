@@ -33,6 +33,11 @@ import {
     registerMyTezosView,
     setMyTezosView
 } from './my-tezos-tabs.mjs';
+import {
+    initMyTezosScope,
+    readMyTezosScope,
+    MY_TEZOS_SCOPE_ALL
+} from './my-tezos-scope.mjs';
 import { enqueueToast } from '../ui/toast-queue.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 import {
@@ -2996,7 +3001,8 @@ function organizeDrawerJourneys() {
     if (!primary || !secondary) return;
 
     [rewards, activity].forEach((section) => primary.appendChild(section));
-    [baker, network].forEach((section) => secondary.appendChild(section));
+    secondary.appendChild(baker);
+    columns.appendChild(network);
     if (more.parentElement !== connected) connected.insertBefore(more, share);
     connected.querySelector('#drawer-more-section-secondary')?.remove();
 
@@ -3094,6 +3100,8 @@ export { setMyTezosView };
 export function initMyTezos() {
     organizeDrawerJourneys();
     initMyTezosPortfolio();
+    initMyTezosScope();
+    registerMyTezosView('overview', () => activateMyTezosMemory({ activityOnly: true }));
     registerMyTezosView('portfolio', () => activateMyTezosPortfolio());
     registerMyTezosView('transactions', () => activateMyTezosMemory());
     registerMyTezosView('collection', () => import('./my-tezos-collection.mjs')
@@ -3102,6 +3110,17 @@ export function initMyTezos() {
     registerMyTezosView('tezos-x', () => import('./my-tezos-tezosx.mjs')
         .then((module) => module.activateMyTezosTezosX()));
     initMyTezosTabs();
+    window.addEventListener('my-tezos-drawer-opened', () => {
+        refreshMyTezosPortfolio({ allowHidden: true }).catch(() => {});
+    });
+    window.addEventListener('my-tezos-scope-changed', () => {
+        refreshMyTezosPortfolio({ allowHidden: true }).catch(() => {});
+        const scope = readMyTezosScope();
+        const activeView = document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView;
+        if (scope === MY_TEZOS_SCOPE_ALL && (activeView === 'overview' || activeView === 'story')) {
+            renderMyTezosJourneys();
+        }
+    });
     renderMyTezosJourneys({ place: true });
     window.addEventListener('my-tezos-view-changed', () => renderMyTezosJourneys({ place: true }));
     window.addEventListener('my-tezos-data-ready', () => renderMyTezosJourneys());

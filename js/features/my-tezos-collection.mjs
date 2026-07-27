@@ -19,11 +19,11 @@ import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import { readSavedMyTezosEntries, shortAddress } from '../core/wallet.js';
 import { collectionSummary } from './my-tezos-collection-model.mjs';
+import { readScopedMyTezosEntries } from './my-tezos-scope.mjs';
 
 let initialized = false;
 let refreshInFlight = null;
 let generation = 0;
-let selectedScope = 'all';
 let collectionMode = 'collected';
 let showSpam = false;
 let nextOffset = 0;
@@ -40,9 +40,7 @@ function includedEntries() {
 }
 
 function selectedEntries() {
-    const entries = includedEntries();
-    if (selectedScope === 'all') return entries;
-    return entries.filter((entry) => entry.address === selectedScope);
+    return readScopedMyTezosEntries();
 }
 
 function isVisible() {
@@ -110,23 +108,12 @@ function setStatus(message, state = '') {
     status.dataset.state = state;
 }
 
-function renderScopeOptions() {
-    const select = document.getElementById('collection-wallet-scope');
-    if (!select) return;
-    const entries = includedEntries();
-    if (selectedScope !== 'all' && !entries.some((entry) => entry.address === selectedScope)) selectedScope = 'all';
-    quietlySyncHtml(select, [
-        `<option value="all">All included wallets (${entries.length})</option>`,
-        ...entries.map((entry) => `<option value="${escapeHtml(entry.address)}">${escapeHtml(entry.label || shortAddress(entry.address))}</option>`)
-    ].join(''));
-    select.value = selectedScope;
-}
-
 function renderProfiles() {
     const target = document.getElementById('collection-profiles');
     if (!target) return;
-    const profiles = currentProfiles.filter((profile) => selectedScope === 'all' || profile.address === selectedScope);
-    const relevantRecords = currentRecords.filter((record) => selectedScope === 'all' || record.ownerAddress === selectedScope);
+    const scopeAddresses = new Set(selectedEntries().map((entry) => entry.address));
+    const profiles = currentProfiles.filter((profile) => scopeAddresses.has(profile.address));
+    const relevantRecords = currentRecords.filter((record) => scopeAddresses.has(record.ownerAddress));
     if (!profiles.length) {
         quietlySyncHtml(target, '<span>Objkt collector and creator profiles appear when the selected addresses have public profile data.</span>');
         return;
@@ -149,9 +136,9 @@ function renderProfiles() {
 }
 
 function renderCollection() {
-    renderScopeOptions();
+    const scopeAddresses = new Set(selectedEntries().map((entry) => entry.address));
     const relevant = currentRecords.filter((record) => (
-        (selectedScope === 'all' || record.ownerAddress === selectedScope)
+        scopeAddresses.has(record.ownerAddress)
         && (showSpam || !record.spam)
     ));
     const summary = collectionSummary(relevant);
@@ -413,14 +400,6 @@ async function refreshCollection({ force = false } = {}) {
 }
 
 function wireCollectionControls() {
-    document.getElementById('collection-wallet-scope')?.addEventListener('change', (event) => {
-        selectedScope = event.currentTarget.value || 'all';
-        nextOffset = 0;
-        complete = true;
-        renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
-        renderedAssetSignature = '';
-        activateMyTezosCollection({ force: true }).catch(() => {});
-    });
     document.querySelectorAll('[data-collection-mode]').forEach((button) => {
         button.addEventListener('click', () => {
             collectionMode = button.dataset.collectionMode === 'created' ? 'created' : 'collected';
@@ -453,11 +432,17 @@ export async function activateMyTezosCollection({ force = false } = {}) {
         wireCollectionControls();
         window.addEventListener('my-tezos-portfolio-changed', () => {
             generation += 1;
-            renderScopeOptions();
+            if (isVisible()) activateMyTezosCollection({ force: true }).catch(() => {});
+        });
+        window.addEventListener('my-tezos-scope-changed', () => {
+            generation += 1;
+            nextOffset = 0;
+            complete = true;
+            renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+            renderedAssetSignature = '';
             if (isVisible()) activateMyTezosCollection({ force: true }).catch(() => {});
         });
     }
-    renderScopeOptions();
     try {
         await initMyTezosDb();
         currentRecords = await readCachedRecords(selectedEntries());

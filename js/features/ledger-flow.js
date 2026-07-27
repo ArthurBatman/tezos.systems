@@ -12,7 +12,7 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=506';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=512';
 const DEFAULT_WINDOW = '30d';
 const TRANSFER_PAGE_LIMIT = 2000;
 const TRANSFER_FIELDS = 'id,hash,level,timestamp,amount,sender,target';

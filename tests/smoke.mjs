@@ -6800,6 +6800,10 @@ async function smokeMyTezosEmptyState(browser, baseUrl) {
         walletStatus: document.querySelector('#drawer-wallet-status')?.textContent?.trim() || '',
         trackLabel: trackButton?.textContent?.trim() || '',
         inputPlaceholder: input?.getAttribute('placeholder') || '',
+        actionTops: {
+          wallet: walletButton?.getBoundingClientRect().top ?? null,
+          watch: input?.getBoundingClientRect().top ?? null
+        },
         actionsReadable: [walletButton, trackButton].every((button) => (
           button
           && button.getBoundingClientRect().height >= 38
@@ -6842,6 +6846,10 @@ async function smokeMyTezosEmptyState(browser, baseUrl) {
     );
     if (label === 'desktop') {
       assert(state.startRows === 1 && state.featureRows === 2, `my tezos empty state desktop: expected paired setup and 3x2 feature map ${JSON.stringify(state)}`);
+      assert(
+        Math.abs(state.actionTops.wallet - state.actionTops.watch) <= 1,
+        `my tezos empty state desktop: wallet and watch-only controls are not level ${JSON.stringify(state.actionTops)}`
+      );
     } else {
       assert(state.startRows === 2 && state.featureRows === 6, `my tezos empty state mobile: expected readable single-column setup and feature map ${JSON.stringify(state)}`);
     }
@@ -7384,6 +7392,101 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   assert(initialPortfolio.selected === 'true' && initialPortfolio.sessionView === 'portfolio', `my tezos address switch: Portfolio tab did not persist for the session ${JSON.stringify(initialPortfolio)}`);
   assert(initialPortfolio.total.includes('1,500,000.00') && initialPortfolio.spendable.includes('300,000.00') && initialPortfolio.staked.includes('1,200,000.00') && initialPortfolio.unstaking.includes('0.00') && initialPortfolio.walletRows === 2, `my tezos address switch: TzKT full balances were not partitioned into exact four-way totals ${JSON.stringify(initialPortfolio)}`);
 
+  const allScope = await page.evaluate(() => ({
+    value: document.querySelector('#my-tezos-wallet-scope')?.value || '',
+    options: Array.from(document.querySelectorAll('#my-tezos-wallet-scope option')).map((option) => option.value),
+    wallets: document.querySelector('[data-my-tezos-scope-total="wallets"] strong')?.textContent || '',
+    total: document.querySelector('[data-my-tezos-scope-total="total"] strong')?.textContent || ''
+  }));
+  assert(
+    allScope.value === 'all'
+      && allScope.options.length === 3
+      && allScope.wallets === '2'
+      && allScope.total.includes('1,500,000.00'),
+    `my tezos address switch: shared scope did not default every view to the complete wallet total ${JSON.stringify(allScope)}`
+  );
+  await page.selectOption('#my-tezos-wallet-scope', SAMPLE_ADDRESS_2);
+  await page.waitForFunction((address) => (
+    document.querySelector('#my-tezos-wallet-scope')?.value === address
+      && document.querySelector('[data-my-tezos-scope-total="wallets"] strong')?.textContent === '1'
+      && document.querySelector('[data-my-tezos-scope-total="total"] strong')?.textContent?.includes('600,000.00')
+      && document.querySelector('[data-portfolio-total="total"] strong')?.textContent?.includes('600,000.00')
+  ), SAMPLE_ADDRESS_2, { timeout: 15000 });
+  for (const view of ['overview', 'transactions', 'collection', 'story', 'tezos-x']) {
+    await page.locator(`#my-tezos-tab-${view}`).click();
+    await page.waitForFunction(({ view, address }) => (
+      document.querySelector(`#my-tezos-tab-${view}`)?.getAttribute('aria-selected') === 'true'
+        && document.querySelector('#my-tezos-wallet-scope')?.value === address
+    ), { view, address: SAMPLE_ADDRESS_2 }, { timeout: 5000 });
+  }
+  await page.locator('#my-tezos-tab-transactions').click();
+  await page.waitForFunction(() => document.querySelector('[data-transactions-total="wallets"] strong')?.textContent === '1', null, { timeout: 10000 });
+  await page.locator('#my-tezos-tab-story').click();
+  const focusedStory = await page.evaluate(() => ({
+    boundaryHidden: document.querySelector('#my-tezos-story-scope-boundary')?.hidden,
+    storyHidden: document.querySelector('#my-tezos-story-content')?.hidden,
+    active: localStorage.getItem('tezos-systems-my-baker-address')
+  }));
+  assert(focusedStory.boundaryHidden && !focusedStory.storyHidden && focusedStory.active === SAMPLE_ADDRESS_2, `my tezos address switch: specific wallet scope did not focus the account-only Story surface ${JSON.stringify(focusedStory)}`);
+  await page.selectOption('#my-tezos-wallet-scope', 'all');
+  await page.waitForFunction(() => (
+    document.querySelector('[data-my-tezos-scope-total="wallets"] strong')?.textContent === '2'
+      && document.querySelector('[data-my-tezos-scope-total="total"] strong')?.textContent?.includes('1,500,000.00')
+      && document.querySelector('#my-tezos-story-scope-boundary')?.hidden === false
+      && document.querySelector('#my-tezos-story-content')?.hidden === true
+  ), null, { timeout: 15000 });
+  await page.locator('#my-tezos-tab-portfolio').click();
+
+  let manualPortfolioRequests = 0;
+  let holdManualPortfolioRefresh = true;
+  await page.route('**/accounts?*', async (route) => {
+    const url = route.request().url();
+    if (holdManualPortfolioRefresh && url.includes('address.in=')) {
+      manualPortfolioRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    return route.fallback();
+  });
+  await page.locator('#portfolio-refresh').click();
+  await page.waitForFunction(() => {
+    const button = document.querySelector('#portfolio-refresh');
+    return button?.disabled === true
+      && button.getAttribute('aria-busy') === 'true'
+      && button.textContent.includes('Updating 2 wallets');
+  }, null, { timeout: 3000 });
+  await page.waitForFunction(() => {
+    const button = document.querySelector('#portfolio-refresh');
+    return button?.disabled === false
+      && button.getAttribute('aria-busy') === 'false'
+      && button.textContent.includes('Update portfolio')
+      && document.querySelector('#portfolio-freshness')?.textContent?.includes('Complete');
+  }, null, { timeout: 15000 });
+  holdManualPortfolioRefresh = false;
+  assert(manualPortfolioRequests >= 1, `my tezos address switch: visible Refresh control did not request a fresh complete portfolio (${manualPortfolioRequests})`);
+
+  await page.evaluate(async (address) => {
+    const wallet = await import('/js/core/wallet.js');
+    const current = wallet.readSavedMyTezosEntries();
+    wallet.writeSavedMyTezosEntries([
+      ...current,
+      { network: 'tezos-l1', address, label: 'Removable Vault', included: true, addedAt: Date.now() }
+    ], { source: 'portfolio-remove-smoke-setup' });
+  }, SAMPLE_DELEGATOR_ADDRESS);
+  await page.waitForFunction((address) => (
+    document.querySelectorAll('.portfolio-wallet-row[data-address]').length === 3
+      && document.querySelector(`[data-portfolio-remove="${address}"]`)
+      && document.querySelector('#portfolio-freshness')?.textContent?.includes('3/3')
+  ), SAMPLE_DELEGATOR_ADDRESS, { timeout: 15000 });
+  await page.locator(`[data-portfolio-remove="${SAMPLE_DELEGATOR_ADDRESS}"]`).click();
+  await page.waitForFunction(() => {
+    const freshness = document.querySelector('#portfolio-freshness')?.textContent || '';
+    const total = document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '';
+    return document.querySelectorAll('.portfolio-wallet-row[data-address]').length === 2
+      && freshness.includes('Complete')
+      && freshness.includes('2/2')
+      && total.includes('1,500,000.00');
+  }, null, { timeout: 15000 });
+
   const firstInclude = page.locator(`[data-portfolio-include="${SAMPLE_ADDRESS}"]`);
   await firstInclude.uncheck();
   await page.waitForFunction(() => {
@@ -7417,9 +7520,12 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
     const stage = document.querySelector('.portfolio-history-stage')?.getBoundingClientRect();
     const canvas = document.querySelector('#portfolio-history-chart')?.getBoundingClientRect();
     const chart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart'));
-    const walletLabel = document.querySelector('.portfolio-history-wallet-label > span');
+    const walletLabel = document.querySelector('.my-tezos-scope-control > span');
+    const walletSelect = document.querySelector('#my-tezos-wallet-scope');
     const walletLabelRect = walletLabel?.getBoundingClientRect();
     const walletLabelStyle = walletLabel ? getComputedStyle(walletLabel) : null;
+    const walletSelectRect = walletSelect?.getBoundingClientRect();
+    const walletSelectStyle = walletSelect ? getComputedStyle(walletSelect) : null;
     const rangeTops = Array.from(document.querySelectorAll('.portfolio-history-ranges button'))
       .map((button) => Math.round(button.getBoundingClientRect().top));
     return {
@@ -7430,6 +7536,11 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       walletLabelWhiteSpace: walletLabelStyle?.whiteSpace || '',
       walletLabelWidth: Math.round(walletLabelRect?.width || 0),
       walletLabelHeight: Math.round(walletLabelRect?.height || 0),
+      walletSelectHeight: Math.round(walletSelectRect?.height || 0),
+      walletSelectBackground: walletSelectStyle?.backgroundColor || '',
+      walletSelectBorder: walletSelectStyle?.borderTopStyle || '',
+      walletSelectAppearance: walletSelectStyle?.appearance || '',
+      walletSelectOverflow: (walletSelect?.scrollWidth || 0) > (walletSelect?.clientWidth || 0) + 1,
       rangeTops
     };
   });
@@ -7441,6 +7552,11 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       && historyGeometry.walletLabelWhiteSpace === 'nowrap'
       && historyGeometry.walletLabelWidth >= 55
       && historyGeometry.walletLabelHeight <= 18
+      && historyGeometry.walletSelectHeight >= 38
+      && historyGeometry.walletSelectBackground !== 'rgba(0, 0, 0, 0)'
+      && historyGeometry.walletSelectBorder === 'solid'
+      && historyGeometry.walletSelectAppearance === 'none'
+      && !historyGeometry.walletSelectOverflow
       && new Set(historyGeometry.rangeTops).size === 1,
     `my tezos address switch: Portfolio history geometry is compressed or wraps its controls ${JSON.stringify(historyGeometry)}`
   );
@@ -7576,6 +7692,56 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       && journeyGeometry.activeView === 'portfolio'
       && journeyGeometry.secondaryContainers === 0,
     `my tezos address switch: account journeys are not one equal desktop row ${JSON.stringify(journeyGeometry)}`
+  );
+
+  await page.evaluate(async (addresses) => {
+    const wallet = await import('/js/core/wallet.js');
+    wallet.writeSavedMyTezosEntries(addresses.map((address, index) => ({
+      network: 'tezos-l1',
+      address,
+      label: index === 1 ? 'Active Vault' : `Wallet ${index + 1}`,
+      included: index === 1,
+      addedAt: Date.now() + index
+    })), { source: 'portfolio-ten-wallet-layout-smoke' });
+  }, [
+    SAMPLE_ADDRESS,
+    SAMPLE_ADDRESS_2,
+    SAMPLE_DELEGATOR_ADDRESS,
+    SAMPLE_REGULAR_DELEGATOR_ADDRESS,
+    SAMPLE_SMALL_DELEGATOR_ADDRESS,
+    SAMPLE_STAKER_ADDRESS,
+    SAMPLE_HEAVY_STAKER_ADDRESS,
+    SAMPLE_IDLE_ADDRESS,
+    SAMPLE_LARGE_STAKER_ADDRESS,
+    OVERDELEGATED_ADDRESS
+  ]);
+  await page.waitForFunction(() => (
+    document.querySelectorAll('.portfolio-wallet-row[data-address]').length === 10
+      && document.querySelector('#portfolio-wallet-count')?.textContent?.includes('10/10 saved')
+  ), null, { timeout: 15000 });
+  const tenWalletGeometry = await page.evaluate(() => {
+    const list = document.querySelector('#drawer-saved-addresses');
+    const header = list?.querySelector('.portfolio-wallet-row-header');
+    const rows = Array.from(list?.querySelectorAll('.portfolio-wallet-row[data-address]') || []);
+    return {
+      rows: rows.length,
+      count: document.querySelector('#portfolio-wallet-count')?.textContent?.trim() || '',
+      clientHeight: Math.round(list?.clientHeight || 0),
+      scrollHeight: Math.round(list?.scrollHeight || 0),
+      horizontalOverflow: (list?.scrollWidth || 0) > (list?.clientWidth || 0) + 1,
+      headerPosition: header ? getComputedStyle(header).position : '',
+      tallestRow: Math.round(Math.max(0, ...rows.map((row) => row.getBoundingClientRect().height)))
+    };
+  });
+  assert(
+    tenWalletGeometry.rows === 10
+      && tenWalletGeometry.count.includes('1 included · 10/10 saved')
+      && tenWalletGeometry.clientHeight <= 512
+      && tenWalletGeometry.scrollHeight > tenWalletGeometry.clientHeight
+      && !tenWalletGeometry.horizontalOverflow
+      && tenWalletGeometry.headerPosition === 'sticky'
+      && tenWalletGeometry.tallestRow <= 86,
+    `my tezos address switch: ten-wallet manager is not compact and scrollable ${JSON.stringify(tenWalletGeometry)}`
   );
 
   await context.close();
@@ -7850,7 +8016,7 @@ async function smokeMyTezosBalanceHistory(browser, baseUrl) {
       datasetLabels: chart.data.datasets.map((dataset) => dataset.label),
       pointSources: chart.$exactHistoryPoints.map((point) => point.source),
       activeRange: document.querySelector('[data-portfolio-range].active')?.dataset.portfolioRange,
-      scope: document.querySelector('#portfolio-history-wallet')?.value,
+      scope: document.querySelector('#my-tezos-wallet-scope')?.value,
       status: document.querySelector('#portfolio-history-status')?.textContent || '',
       historical,
       sync: stored.sync.filter((state) => state.stream === 'balance-history')
@@ -7858,7 +8024,7 @@ async function smokeMyTezosBalanceHistory(browser, baseUrl) {
   }, SAMPLE_DELEGATOR_ADDRESS);
   const initialRequests = [...fullBalanceRequests];
   assert(JSON.stringify(initial.datasetLabels) === JSON.stringify(['Total XTZ']), `my tezos exact history: chart rendered non-total evidence ${JSON.stringify(initial)}`);
-  assert(initial.activeRange === '1y' && initial.scope === 'portfolio', `my tezos exact history: default range or scope drifted ${JSON.stringify(initial)}`);
+  assert(initial.activeRange === '1y' && initial.scope === 'all', `my tezos exact history: default range or scope drifted ${JSON.stringify(initial)}`);
   assert(initial.pointSources.every((source) => source === 'tzkt-rpc-archive'), `my tezos exact history: fallback archive source was not retained ${JSON.stringify(initial)}`);
   assert(/exact points/i.test(initial.status) && /TzKT archive RPC/i.test(initial.status), `my tezos exact history: progress/source status missing ${JSON.stringify(initial)}`);
   assert(
@@ -7887,7 +8053,7 @@ async function smokeMyTezosBalanceHistory(browser, baseUrl) {
     `my tezos exact history: provider fallback or request dedupe failed ${JSON.stringify(initialRequests)}`
   );
 
-  await page.selectOption('#portfolio-history-wallet', SAMPLE_DELEGATOR_ADDRESS);
+  await page.selectOption('#my-tezos-wallet-scope', SAMPLE_DELEGATOR_ADDRESS);
   await page.locator('[data-portfolio-range="all"]').click();
   const label = page.locator(`[data-portfolio-label="${SAMPLE_DELEGATOR_ADDRESS}"]`);
   await label.focus();
@@ -7930,7 +8096,7 @@ async function smokeMyTezosBalanceHistory(browser, baseUrl) {
       sameChart: window.__exactHistoryChartBefore === window.Chart.getChart(document.querySelector('#portfolio-history-chart')),
       sameCanvas: window.__exactHistoryCanvasBefore === document.querySelector('#portfolio-history-chart'),
       range: document.querySelector('[data-portfolio-range].active')?.dataset.portfolioRange,
-      scope: document.querySelector('#portfolio-history-wallet')?.value,
+      scope: document.querySelector('#my-tezos-wallet-scope')?.value,
       focused: document.activeElement === input,
       selectionStart: input?.selectionStart,
       selectionEnd: input?.selectionEnd,
@@ -8046,8 +8212,136 @@ async function smokeMyTezosMemory(browser, baseUrl) {
     ]));
   }, { first: SAMPLE_ADDRESS, second: SAMPLE_ADDRESS_2 });
   const page = await context.newPage();
+  const overviewArchiveRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/full_balance')) overviewArchiveRequests.push(request.url());
+  });
   attachIssueCollectors(page, 'my tezos memory', issues);
-  await openMyTezosSmokeView(page, baseUrl, 'portfolio');
+  await openMyTezosSmokeView(page, baseUrl, 'overview');
+  await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#my-tezos-overview-activity-status')?.dataset.state), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelectorAll('#my-tezos-overview-activity-list .portfolio-activity-item').length === 3, null, { timeout: 10000 });
+  const overviewDesktop = await page.evaluate(() => {
+    const drawer = document.querySelector('#my-tezos-drawer');
+    const section = document.querySelector('#my-tezos-overview-transactions');
+    const bakerSignal = document.querySelector('#drawer-operator-status');
+    const button = document.querySelector('#my-tezos-overview-transactions-link');
+    const rows = Array.from(document.querySelectorAll('#my-tezos-overview-activity-list .portfolio-activity-item'));
+    return {
+      title: document.querySelector('#my-tezos-overview-transactions-title')?.textContent?.trim() || '',
+      button: button?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      rowCount: rows.length,
+      types: rows.map((row) => row.dataset.activityType),
+      body: rows.map((row) => row.textContent?.replace(/\s+/g, ' ').trim() || ''),
+      beforeBakerSignal: Boolean(
+        section
+          && bakerSignal
+          && (section.compareDocumentPosition(bakerSignal) & Node.DOCUMENT_POSITION_FOLLOWING)
+      ),
+      buttonHeight: button?.getBoundingClientRect().height || 0,
+      sectionInside: section.getBoundingClientRect().left >= drawer.getBoundingClientRect().left
+        && section.getBoundingClientRect().right <= drawer.getBoundingClientRect().right,
+      overflow: section.scrollWidth > section.clientWidth + 1
+    };
+  });
+  assert(
+    overviewDesktop.title === 'Last 3 transactions'
+      && overviewDesktop.button.includes('View all transactions')
+      && overviewDesktop.rowCount === 3
+      && overviewDesktop.types.includes('nft')
+      && /Shared Smoke Artifact/.test(overviewDesktop.body.join(' '))
+      && overviewDesktop.beforeBakerSignal
+      && overviewDesktop.buttonHeight >= 36
+      && overviewDesktop.sectionInside
+      && !overviewDesktop.overflow,
+    `my tezos overview transactions: desktop preview is incomplete or clipped ${JSON.stringify(overviewDesktop)}`
+  );
+  assert(overviewArchiveRequests.length === 0, `my tezos overview transactions: lightweight preview started exact-history archive reads ${JSON.stringify(overviewArchiveRequests)}`);
+
+  const overviewQuietBefore = await page.evaluate(() => {
+    const body = document.querySelector('#drawer-body');
+    const list = document.querySelector('#my-tezos-overview-activity-list');
+    const firstRow = list?.querySelector('.portfolio-activity-item');
+    const button = document.querySelector('#my-tezos-overview-transactions-link');
+    const titleText = firstRow?.querySelector('strong')?.firstChild;
+    body.scrollTop = Math.min(
+      Math.max(0, document.querySelector('#my-tezos-overview-transactions')?.offsetTop - 80),
+      Math.max(0, body.scrollHeight - body.clientHeight)
+    );
+    button?.focus({ preventScroll: true });
+    if (titleText?.length) {
+      const range = document.createRange();
+      range.setStart(titleText, 0);
+      range.setEnd(titleText, Math.min(6, titleText.length));
+      const selection = document.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    delete list.dataset.quietRefreshSettled;
+    window.__overviewTransactionRow = firstRow;
+    window.__overviewTransactionButton = button;
+    window.dispatchEvent(new CustomEvent('my-tezos-portfolio-changed', { detail: { source: 'overview-quiet-smoke' } }));
+    return {
+      scrollTop: body.scrollTop,
+      selection: document.getSelection()?.toString() || ''
+    };
+  });
+  await page.waitForFunction(() => document.querySelector('#my-tezos-overview-activity-status')?.dataset.state === 'loading', null, { timeout: 5000 });
+  await page.waitForFunction(() => (
+    document.querySelector('#my-tezos-overview-activity-status')?.dataset.state === 'complete'
+      && document.querySelector('#my-tezos-overview-activity-list')?.dataset.quietRefreshSettled === 'true'
+  ), null, { timeout: 15000 });
+  const overviewQuietAfter = await page.evaluate(() => ({
+    sameRow: document.querySelector('#my-tezos-overview-activity-list .portfolio-activity-item') === window.__overviewTransactionRow,
+    focused: document.activeElement === window.__overviewTransactionButton,
+    scrollTop: document.querySelector('#drawer-body')?.scrollTop || 0,
+    selection: document.getSelection()?.toString() || ''
+  }));
+  assert(
+    overviewQuietAfter.sameRow
+      && overviewQuietAfter.focused
+      && Math.abs(overviewQuietAfter.scrollTop - overviewQuietBefore.scrollTop) <= 1
+      && overviewQuietAfter.selection === overviewQuietBefore.selection,
+    `my tezos overview transactions: background refresh replaced or moved the reader ${JSON.stringify({ overviewQuietBefore, overviewQuietAfter })}`
+  );
+  const readerScrollTop = await page.evaluate(() => {
+    const body = document.querySelector('#drawer-body');
+    body.scrollTop = Math.min(body.scrollTop + 18, Math.max(0, body.scrollHeight - body.clientHeight));
+    return body.scrollTop;
+  });
+  await page.waitForTimeout(150);
+  const readerScrollAfter = await page.evaluate(() => document.querySelector('#drawer-body')?.scrollTop || 0);
+  assert(Math.abs(readerScrollAfter - readerScrollTop) <= 1, `my tezos overview transactions: delayed refresh restore overwrote reader scroll ${JSON.stringify({ readerScrollTop, readerScrollAfter })}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const overviewMobile = await page.evaluate(() => {
+    const section = document.querySelector('#my-tezos-overview-transactions');
+    const button = document.querySelector('#my-tezos-overview-transactions-link');
+    const rows = Array.from(document.querySelectorAll('#my-tezos-overview-activity-list .portfolio-activity-item'));
+    return {
+      rowCount: rows.length,
+      buttonWidth: button?.getBoundingClientRect().width || 0,
+      sectionWidth: section?.getBoundingClientRect().width || 0,
+      rowOverflow: rows.some((row) => row.scrollWidth > row.clientWidth + 1),
+      sectionOverflow: section.scrollWidth > section.clientWidth + 1,
+      pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+    };
+  });
+  assert(
+    overviewMobile.rowCount === 3
+      && overviewMobile.buttonWidth >= overviewMobile.sectionWidth - 34
+      && !overviewMobile.rowOverflow
+      && !overviewMobile.sectionOverflow
+      && !overviewMobile.pageOverflow,
+    `my tezos overview transactions: mobile preview is incomplete or clipped ${JSON.stringify(overviewMobile)}`
+  );
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.locator('#my-tezos-overview-transactions-link').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#my-tezos-tab-transactions')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-panel-transactions')?.hidden === false
+  ), null, { timeout: 10000 });
+  await page.locator('#my-tezos-tab-portfolio').click();
   await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#portfolio-memory-status')?.dataset.state), null, { timeout: 30000 });
   await page.waitForFunction(() => document.querySelectorAll('#portfolio-activity-list .portfolio-activity-item').length >= 3, null, { timeout: 10000 });
   await page.locator('[data-portfolio-range="all"]').click();
@@ -8132,8 +8426,8 @@ async function smokeMyTezosMemory(browser, baseUrl) {
       whileAway: document.querySelector('#portfolio-while-away')?.textContent || '',
       activity: document.querySelector('#portfolio-activity-list')?.textContent || '',
       historyStatus: document.querySelector('#portfolio-history-status')?.textContent || '',
-      historyScope: document.querySelector('#portfolio-history-wallet')?.value || '',
-      historyOptions: Array.from(document.querySelectorAll('#portfolio-history-wallet option')).map((option) => option.value),
+      historyScope: document.querySelector('#my-tezos-wallet-scope')?.value || '',
+      historyOptions: Array.from(document.querySelectorAll('#my-tezos-wallet-scope option')).map((option) => option.value),
       chartPoints: chart?.$exactHistoryPoints || [],
       lastSeen: Number(localStorage.getItem('tezos-systems-my-tezos-memory-last-seen-v1')) || 0,
       historical: stored.snapshots.filter((row) => row.sourceType === 'historical-total').length,
@@ -8148,7 +8442,7 @@ async function smokeMyTezosMemory(browser, baseUrl) {
   assert(/Moved XTZ|Staked XTZ|Delegate changed/i.test(memoryState.activity), `my tezos memory: human activity classification missing ${memoryState.activity}`);
   assert(memoryState.historical >= 8 && memoryState.observed >= 1 && memoryState.activityRows >= 4, `my tezos memory: normalized records were not persisted ${JSON.stringify(memoryState)}`);
   assert(
-    memoryState.historyScope === 'portfolio'
+    memoryState.historyScope === 'all'
       && memoryState.historyOptions.includes(SAMPLE_ADDRESS)
       && memoryState.historyOptions.includes(SAMPLE_ADDRESS_2)
       && /exact points/i.test(memoryState.historyStatus)
@@ -8175,13 +8469,19 @@ async function smokeMyTezosMemory(browser, baseUrl) {
 async function smokeMyTezosCollection(browser, baseUrl) {
   const issues = [];
   let objktRequests = 0;
+  const objktAddressBatches = [];
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     serviceWorkers: 'block'
   });
   await installFeatureMocks(context);
   context.on('request', (request) => {
-    if (request.url().includes('data.objkt.com/v3/graphql') && request.postData()?.includes('MyTezosCollection')) objktRequests += 1;
+    if (request.url().includes('data.objkt.com/v3/graphql') && request.postData()?.includes('MyTezosCollection')) {
+      objktRequests += 1;
+      try {
+        objktAddressBatches.push(JSON.parse(request.postData() || '{}')?.variables?.addresses || []);
+      } catch {}
+    }
   });
   await context.addInitScript(({ first, second }) => {
     localStorage.setItem('tezos-systems-theme', 'aurora');
@@ -8218,14 +8518,17 @@ async function smokeMyTezosCollection(browser, baseUrl) {
     loadMoreVisible: document.querySelector('#collection-load-more')?.hidden === false,
     overflow: document.querySelector('#my-tezos-panel-collection')?.scrollWidth - document.querySelector('#my-tezos-panel-collection')?.clientWidth,
     scope: (() => {
-      const select = document.querySelector('#collection-wallet-scope');
-      const heading = select?.closest('.portfolio-heading-row');
+      const select = document.querySelector('#my-tezos-wallet-scope');
+      const heading = select?.closest('.my-tezos-wallet-scope-bar');
       const style = select ? getComputedStyle(select) : null;
       const rect = select?.getBoundingClientRect();
       return {
         height: rect?.height || 0,
         width: rect?.width || 0,
         headingWidth: heading?.getBoundingClientRect().width || 0,
+        barOverflow: heading ? heading.scrollWidth - heading.clientWidth : Infinity,
+        metricTops: Array.from(document.querySelectorAll('.my-tezos-scope-totals article'))
+          .map((article) => Math.round(article.getBoundingClientRect().top)),
         overflow: select ? select.scrollWidth - select.clientWidth : Infinity,
         paddingRight: Number.parseFloat(style?.paddingRight || '0'),
         fontFamily: style?.fontFamily || ''
@@ -8246,6 +8549,8 @@ async function smokeMyTezosCollection(browser, baseUrl) {
     collected.scope.height >= 40
       && collected.scope.height <= 48
       && collected.scope.width <= collected.scope.headingWidth + 1
+      && collected.scope.barOverflow <= 1
+      && new Set(collected.scope.metricTops).size === 2
       && collected.scope.overflow <= 1
       && collected.scope.paddingRight >= 36
       && !/mono/i.test(collected.scope.fontFamily),
@@ -8258,6 +8563,17 @@ async function smokeMyTezosCollection(browser, baseUrl) {
   assert(collected.flaggedHidden && collected.loadMoreVisible && collected.overflow <= 1, `my tezos collection: flagged, progressive grid, or mobile geometry state failed ${JSON.stringify(collected)}`);
   assert(collected.pills.every((pill) => pill.height >= 36 && pill.paddingLeft >= 10 && pill.paddingRight >= 10), `my tezos collection: control pill geometry collapsed ${JSON.stringify(collected.pills)}`);
   assert(objktRequests === 2, `my tezos collection: complete 139-row coverage should use two Objkt pages (${objktRequests})`);
+
+  await page.selectOption('#my-tezos-wallet-scope', SAMPLE_ADDRESS_2);
+  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'loading', null, { timeout: 3000 });
+  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'complete', null, { timeout: 30000 });
+  assert(
+    objktAddressBatches.slice(-2).every((addresses) => addresses.length === 1 && addresses[0] === SAMPLE_ADDRESS_2),
+    `my tezos collection: shared specific-wallet scope did not constrain Objkt reads ${JSON.stringify(objktAddressBatches)}`
+  );
+  await page.selectOption('#my-tezos-wallet-scope', 'all');
+  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'loading', null, { timeout: 3000 });
+  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'complete', null, { timeout: 30000 });
 
   await page.locator('#collection-load-more').click();
   await page.waitForFunction(() => document.querySelectorAll('#collection-grid .collection-asset-card').length === 137, null, { timeout: 5000 });
@@ -8368,6 +8684,18 @@ async function smokeMyTezosTezosX(browser, baseUrl) {
       && state.hiddenLoadMoreDisplay === 'none',
     `my tezos tezos x: actions are cramped or hidden load-more leaked into the layout ${JSON.stringify(state)}`
   );
+
+  await page.locator('#tezosx-account-list details summary').click();
+  await page.locator(`[data-tezosx-l1-link="${SAMPLE_ETHERLINK_ADDRESS}"][value="${SAMPLE_ADDRESS_2}"]`).uncheck();
+  await page.selectOption('#my-tezos-wallet-scope', SAMPLE_ADDRESS_2);
+    await page.waitForFunction((address) => (
+      document.querySelector('#my-tezos-wallet-scope')?.value === address
+        && document.querySelector('#tezosx-account-scope')?.disabled === true
+        && document.querySelector('[data-tezosx-total="native"] strong')?.textContent?.startsWith('0')
+        && document.querySelector('.tezosx-account-row.out-of-scope [data-tezosx-select]')?.disabled === true
+    ), SAMPLE_ADDRESS_2, { timeout: 10000 });
+  await page.selectOption('#my-tezos-wallet-scope', 'all');
+  await page.waitForFunction(() => /2\.5/.test(document.querySelector('[data-tezosx-total="native"] strong')?.textContent || ''), null, { timeout: 10000 });
 
   const include = page.locator(`[data-tezosx-include="${SAMPLE_ETHERLINK_ADDRESS}"]`);
   await include.uncheck();
@@ -8730,7 +9058,10 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(storyText.includes('Known as qa-baker.tez'), `my tezos proposal attribution: domain alias missing: ${storyText}`);
 
   await page.waitForFunction(() => document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-metric').length >= 4, null, { timeout: 10000 });
-  await page.waitForFunction(() => document.querySelectorAll('#drawer-network .network-signal').length >= 4, null, { timeout: 15000 });
+  await page.waitForFunction(() => (
+    document.querySelectorAll('#drawer-network .network-signal').length >= 4
+      && document.querySelectorAll('#drawer-network .network-personal-fact').length >= 3
+  ), null, { timeout: 15000 });
   const storySurface = await page.evaluate(() => ({
     metrics: document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-metric').length,
     badges: document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-badge').length,
@@ -8739,9 +9070,30 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
     overviewStoryCards: document.querySelectorAll('#drawer-brief .brief-section-story').length,
     recentChapter: document.querySelector('#my-tezos-panel-story .my-tezos-recent-chapter')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     signals: document.querySelectorAll('#drawer-network .network-signal').length,
+    signalLeads: document.querySelectorAll('#drawer-network .network-signal.is-network-lead').length,
+    signalRelevance: document.querySelectorAll('#drawer-network .network-signal-relevance').length,
+    personalFacts: document.querySelectorAll('#drawer-network .network-personal-fact').length,
+    personalText: document.querySelector('#drawer-network .network-personal-spotlight')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     focus: document.querySelector('#drawer-network .network-context-focus')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     networkText: document.querySelector('#drawer-network')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    legacyList: document.querySelectorAll('#drawer-network .network-context-list li').length
+    legacyList: document.querySelectorAll('#drawer-network .network-context-list li').length,
+    networkLayout: (() => {
+      const outerColumns = document.querySelector('.drawer-live-columns')?.getBoundingClientRect();
+      const network = document.querySelector('#drawer-network')?.getBoundingClientRect();
+      const personal = document.querySelector('#drawer-network .network-personal-spotlight')?.getBoundingClientRect();
+      const live = document.querySelector('#drawer-network .network-live-column')?.getBoundingClientRect();
+      return {
+        directFullWidth: document.querySelector('#drawer-network')?.parentElement?.classList.contains('drawer-live-columns')
+          && outerColumns
+          && network
+          && Math.abs(network.left - outerColumns.left) <= 1
+          && Math.abs(network.right - outerColumns.right) <= 1,
+        siblingColumns: personal
+          && live
+          && Math.abs(personal.top - live.top) <= 1
+          && personal.right < live.left
+      };
+    })()
   }));
   assert(storySurface.metrics >= 4, `my tezos proposal attribution: story metrics missing: ${JSON.stringify(storySurface)}`);
   assert(storySurface.badges >= 5, `my tezos proposal attribution: story badges too thin: ${JSON.stringify(storySurface)}`);
@@ -8749,9 +9101,36 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(storySurface.next.includes('Now watching') || storySurface.next.includes('Now compounding'), `my tezos proposal attribution: next signal missing: ${storySurface.next}`);
   assert(storySurface.overviewStoryCards === 0 && storySurface.recentChapter.includes('While you were away'), `my tezos proposal attribution: Story was not isolated in its own view ${JSON.stringify(storySurface)}`);
   assert(storySurface.signals >= 4, `my tezos proposal attribution: network context signals missing: ${JSON.stringify(storySurface)}`);
+  assert(storySurface.signalLeads === 1, `my tezos proposal attribution: Tezos-now signal hierarchy missing: ${JSON.stringify(storySurface)}`);
+  assert(storySurface.personalFacts >= 6 && storySurface.personalText.includes('qa-baker.tez') && storySurface.personalText.includes('501'), `my tezos proposal attribution: wallet spotlight is not genuinely personal: ${JSON.stringify(storySurface)}`);
+  assert(storySurface.signalRelevance >= 1, `my tezos proposal attribution: Tezos-now signals lack wallet relevance: ${JSON.stringify(storySurface)}`);
   assert(/Baker|Governance|Collector|Creator|Portfolio|Network/.test(storySurface.focus), `my tezos proposal attribution: network context focus chips missing: ${storySurface.focus}`);
   assert(storySurface.networkText.includes('Network Context') && storySurface.networkText.includes('Cycle'), `my tezos proposal attribution: network context header missing: ${storySurface.networkText}`);
   assert(storySurface.legacyList === 0, `my tezos proposal attribution: network context still renders legacy bullet list: ${storySurface.networkText}`);
+  assert(storySurface.networkLayout.directFullWidth, `my tezos proposal attribution: Network Context is not a full-width row: ${JSON.stringify(storySurface.networkLayout)}`);
+
+  await page.locator('#my-tezos-tab-overview').click();
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-overview')?.getAttribute('aria-selected') === 'true', null, { timeout: 5000 });
+  const visibleNetworkLayout = await page.evaluate(() => {
+    const personal = document.querySelector('#drawer-network .network-personal-spotlight')?.getBoundingClientRect();
+    const live = document.querySelector('#drawer-network .network-live-column')?.getBoundingClientRect();
+    return {
+      siblingColumns: personal
+        && live
+        && Math.abs(personal.top - live.top) <= 1
+        && personal.right < live.left,
+      personalHeight: Math.round(personal?.height || 0),
+      liveHeight: Math.round(live?.height || 0)
+    };
+  });
+  assert(
+    visibleNetworkLayout.siblingColumns
+      && visibleNetworkLayout.personalHeight > 0
+      && visibleNetworkLayout.personalHeight < 520
+      && visibleNetworkLayout.liveHeight > 0
+      && visibleNetworkLayout.liveHeight < 520,
+    `my tezos proposal attribution: visible wallet and Tezos panels are not compact sibling columns: ${JSON.stringify(visibleNetworkLayout)}`
+  );
 
   const networkRoutes = await page.evaluate(() => ({
     header: {
@@ -8773,6 +9152,11 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
       href: signal.getAttribute('href') || '',
       route: signal.getAttribute('data-network-route') || '',
       aria: signal.getAttribute('aria-label') || ''
+    })),
+    personalFacts: Array.from(document.querySelectorAll('#drawer-network .network-personal-fact')).map((fact) => ({
+      tag: fact.tagName,
+      route: fact.getAttribute('data-network-route') || '',
+      view: fact.getAttribute('data-my-tezos-view-route') || ''
     }))
   }));
   assert(networkRoutes.header.title === '#health' && networkRoutes.header.cycle === '#history', `my tezos proposal attribution: network context header routes missing: ${JSON.stringify(networkRoutes.header)}`);
@@ -8781,7 +9165,10 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(renderedFocusRoutes.length >= 1 && renderedFocusRoutes.every((chip) => chip.tag === 'A' && isFirstPartyRoute(chip.href) && isFirstPartyRoute(chip.route) && /Open|Enter/.test(chip.aria)), `my tezos proposal attribution: rendered focus chips are not clickable routes: ${JSON.stringify(networkRoutes.focus)}`);
   assert(networkRoutes.focus.baker?.tag === 'A' && networkRoutes.focus.baker.route === '#my-baker', `my tezos proposal attribution: baker chip route mismatch: ${JSON.stringify(networkRoutes.focus)}`);
   assert(networkRoutes.signals.length >= 4 && networkRoutes.signals.every((signal) => signal.tag === 'A' && isFirstPartyRoute(signal.href) && isFirstPartyRoute(signal.route) && /Open|Enter/.test(signal.aria)), `my tezos proposal attribution: network signal routes missing: ${JSON.stringify(networkRoutes.signals)}`);
+  assert(networkRoutes.personalFacts.length >= 3 && networkRoutes.personalFacts.every((fact) => fact.tag === 'A' && isFirstPartyRoute(fact.route)), `my tezos proposal attribution: personalized fact routes missing: ${JSON.stringify(networkRoutes.personalFacts)}`);
 
+  await page.locator('#my-tezos-tab-story').click();
+  await page.waitForFunction(() => document.querySelector('#my-tezos-tab-story')?.getAttribute('aria-selected') === 'true', null, { timeout: 5000 });
   await page.locator('#my-tezos-story-content .story-share-btn').click();
   await page.locator('#share-modal.visible').waitFor({ state: 'visible', timeout: 10000 });
   const shareState = await page.evaluate(() => ({
@@ -8923,6 +9310,7 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
     { label: 'desktop', viewport: { width: 1280, height: 900 } },
     { label: 'mobile', viewport: { width: 390, height: 844 } },
     { label: 'portfolio tablet', viewport: { width: 760, height: 900 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
+    { label: 'portfolio compact drawer', viewport: { width: 700, height: 900 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
     { label: 'portfolio mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=portfolio', expectedView: 'portfolio' },
     { label: 'transactions mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=transactions', expectedView: 'transactions' },
     { label: 'collection mobile', viewport: { width: 390, height: 844 }, path: '/my/?view=collection', expectedView: 'collection' },
@@ -8948,9 +9336,16 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
 
     const state = await page.evaluate(() => {
       const drawer = document.querySelector('#my-tezos-drawer');
+      const drawerBody = document.querySelector('#drawer-body');
       const summaryCards = Array.from(document.querySelectorAll('.portfolio-summary-card')).map((card) => card.getBoundingClientRect());
       const refreshButton = document.querySelector('#portfolio-refresh');
       const refreshRect = refreshButton?.getBoundingClientRect();
+      const activePanelElement = document.querySelector('[data-my-tezos-panel]:not([hidden])');
+      const scopeSelectCandidate = document.querySelector('#my-tezos-wallet-scope');
+      const scopeSelect = scopeSelectCandidate?.getClientRects().length ? scopeSelectCandidate : null;
+      const scopeSelectRect = scopeSelect?.getBoundingClientRect();
+      const scopeSelectStyle = scopeSelect ? getComputedStyle(scopeSelect) : null;
+      const localNotice = document.querySelector('.portfolio-local-notice');
       return {
         pathname: window.location.pathname,
         search: window.location.search,
@@ -8960,12 +9355,22 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
         emptyStateVisible: getComputedStyle(document.querySelector('#drawer-empty-state')).display !== 'none',
         portfolioSelected: document.querySelector('#my-tezos-tab-portfolio')?.getAttribute('aria-selected') || '',
         selectedView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
-        activePanel: document.querySelector('[data-my-tezos-panel]:not([hidden])')?.dataset.myTezosPanel || '',
+        activePanel: activePanelElement?.dataset.myTezosPanel || '',
         drawerWidth: drawer.getBoundingClientRect().width,
         summaryRows: new Set(summaryCards.map((rect) => Math.round(rect.top))).size,
         summaryInsideDrawer: summaryCards.every((rect) => rect.left >= -1 && rect.right <= drawer.getBoundingClientRect().right + 1),
-        refreshReadable: Boolean(refreshButton && refreshRect.width >= 88 && refreshButton.scrollWidth <= refreshButton.clientWidth + 1),
+        refreshReadable: Boolean(refreshButton && refreshRect.width >= 160 && refreshButton.scrollWidth <= refreshButton.clientWidth + 1),
+        localNoticeFits: Boolean(localNotice && localNotice.scrollWidth <= localNotice.clientWidth + 1),
+        scopeSelect: scopeSelect ? {
+          height: Math.round(scopeSelectRect?.height || 0),
+          appearance: scopeSelectStyle?.appearance || '',
+          background: scopeSelectStyle?.backgroundColor || '',
+          border: scopeSelectStyle?.borderTopStyle || '',
+          clipped: scopeSelect.scrollWidth > scopeSelect.clientWidth + 1
+        } : null,
         drawerOverflow: drawer.scrollWidth > drawer.clientWidth + 1,
+        drawerBodyOverflow: drawerBody.scrollWidth > drawerBody.clientWidth + 1,
+        drawerBodyScrollLeft: Math.round(drawerBody.scrollLeft),
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
       };
     });
@@ -8976,7 +9381,7 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
     if (expectedView === 'portfolio') {
       assert(state.search === '?view=portfolio' && state.portfolioSelected === 'true', `my tezos pretty route ${label} did not select Portfolio: ${JSON.stringify(state)}`);
       assert(state.drawerWidth >= viewport.width - 1 && state.summaryRows === 2, `my tezos pretty route ${label} did not use full-width 2x2 Portfolio geometry: ${JSON.stringify(state)}`);
-      assert(state.summaryInsideDrawer && state.refreshReadable, `my tezos pretty route ${label} clipped Portfolio cards or action labels: ${JSON.stringify(state)}`);
+      assert(state.summaryInsideDrawer && state.refreshReadable && state.localNoticeFits, `my tezos pretty route ${label} clipped Portfolio cards, local notice, or action labels: ${JSON.stringify(state)}`);
       assert(!/tz[1-4]|KT1/.test(state.search), `my tezos pretty route ${label} leaked an address into the route: ${state.search}`);
     } else if (expectedView === 'overview') {
       assert(state.emptyStateVisible && state.portfolioSelected === 'false', `my tezos pretty route ${label} should open the address-free Overview state`);
@@ -8988,7 +9393,18 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
         `my tezos pretty route ${label} did not activate ${expectedView}: ${JSON.stringify(state)}`
       );
     }
-    assert(!state.drawerOverflow && !state.pageOverflow, `my tezos pretty route ${label} overflowed: ${JSON.stringify(state)}`);
+    if (state.scopeSelect) {
+      assert(
+        state.scopeSelect
+          && state.scopeSelect.height >= 40
+          && state.scopeSelect.appearance === 'none'
+          && state.scopeSelect.background !== 'rgba(0, 0, 0, 0)'
+          && state.scopeSelect.border === 'solid'
+          && !state.scopeSelect.clipped,
+        `my tezos pretty route ${label} left a native, clipped, or unstyled scope dropdown: ${JSON.stringify(state.scopeSelect)}`
+      );
+    }
+    assert(!state.drawerOverflow && !state.drawerBodyOverflow && state.drawerBodyScrollLeft === 0 && !state.pageOverflow, `my tezos pretty route ${label} overflowed or shifted: ${JSON.stringify(state)}`);
 
     await context.close();
     assert(issues.length === 0, `my tezos pretty route ${label} browser issues:\n${issues.join('\n')}`);
