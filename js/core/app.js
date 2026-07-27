@@ -16,8 +16,16 @@ import {
 import { renderSiteHandoff } from './site-handoff.js';
 import { initSiteJourneyCapture } from './site-journey.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
-import { flipCard, updateStatInstant, revealStat, showLoading, showError } from '../ui/animations.js';
-import { blockTick, initDataMagic, prefersReducedMotion, setMagicNumber, tweenNumber } from '../effects/data-magic.js';
+import { flipCard, revealStat, showLoading, showError } from '../ui/animations.js';
+import {
+    blockTick,
+    cancelFresh,
+    initDataMagic,
+    prefersReducedMotion,
+    pulseFresh,
+    setMagicNumber,
+    tweenNumber
+} from '../effects/data-magic.js';
 import {
     formatCount,
     formatPercentage,
@@ -118,8 +126,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=505';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=505';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=506';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=506';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -996,10 +1004,10 @@ async function updateStats(newStats) {
 
         // Reconcile changed values together. Each visible card gets one
         // theme-aware text transition; offscreen cards settle silently.
-        await Promise.all(updates.map((update) => {
+        updates.forEach((update) => {
             const card = document.querySelector(`[data-stat="${update.cardId}"]`);
-            return card ? flipCard(card, update.value, update.formatter) : Promise.resolve(false);
-        }));
+            if (card) flipCard(card, update.value, update.formatter);
+        });
         
         // Update descriptions
         const tz4Desc2 = document.getElementById('tz4-description');
@@ -2490,11 +2498,11 @@ function updateTz4ChamberTile(stats) {
     const percentage = Number(stats.tz4Percentage);
     if (!Number.isFinite(percentage)) return;
 
-    updateStatInstant('tz4-adoption', percentage, formatTz4Progress);
+    const card = document.querySelector('.stat-card[data-stat="tz4-adoption"]');
+    if (card) flipCard(card, percentage, formatTz4Progress);
     const tz4Desc = document.getElementById('tz4-description');
     if (!tz4Desc) return;
 
-    const card = document.querySelector('.stat-card[data-stat="tz4-adoption"]');
     if (card?.dataset.tz4PowerDescription) {
         tz4Desc.textContent = card.dataset.tz4PowerDescription;
         return;
@@ -2750,7 +2758,7 @@ function initUptimeClock() {
         : '~12s';
     let chainStakedText = '';
     let chainIssuanceText = '';
-    const topContinuityAnimations = new Map();
+    const pendingTopContinuityText = new Map();
     let topContinuityArrived = false;
     let topContinuityArrivalStarted = false;
     const chainMetricAliases = {
@@ -2961,55 +2969,68 @@ function initUptimeClock() {
         tickUptime();
     }
 
-    function updateTopContinuityShuffleState() {
-        // Keep live-number motion scoped to the pill whose value changed.
-        // A rail-level state repaints neighboring pills and makes stable values look jittery.
-    }
-
-    function setTopContinuityText(id, text, options = {}) {
+    function setTopContinuityText(id, text) {
         const el = document.getElementById(id);
         if (!el || text === undefined || text === null || text === '') return;
 
         const nextText = String(text);
-        if (el.dataset.finalText === nextText && !options.changed) return;
-
         const pill = el.closest('.top-continuity-stat');
-        if (pill?.classList.contains('is-loading')) {
-            pill.classList.remove('is-loading');
-            pill.removeAttribute('aria-busy');
-        }
+        const pending = pendingTopContinuityText.get(id);
+        const hadActiveMagic = Boolean(el.__dmMagicCancel);
+        if (
+            pending === nextText
+            || (el.dataset.finalText === nextText && !hadActiveMagic)
+        ) return;
 
-        const hadFinalText = Boolean(el.dataset.finalText);
+        // Empty first-arrival values have no measurable width once their
+        // skeleton class is removed. Keep the latest factual target queued
+        // until its pill is actually revealed, then measure and animate on
+        // the production surface instead of burning the effect while hidden.
+        if (
+            !prefersReducedMotion()
+            && !el.dataset.finalText
+            && topContinuityPanel?.classList.contains('hero-arrival-pending')
+            && !pill?.classList.contains('hero-arrived')
+        ) {
+            pendingTopContinuityText.set(id, nextText);
+            return;
+        }
+        pendingTopContinuityText.delete(id);
+
         const currentText = el.dataset.finalText || el.textContent.trim();
-        const allowMotion = options.motion !== false && options.shuffle !== false;
-        const isLiveChange = options.changed || currentText !== nextText;
-        const isReadyForMotion = (hadFinalText && currentText && currentText !== '—') || options.animateInitial !== false;
-        const shouldAnimate = allowMotion && isReadyForMotion && isLiveChange && !prefersReducedMotion();
-        topContinuityAnimations.delete(id);
+        const shouldAnimate = (currentText !== nextText || hadActiveMagic) && !prefersReducedMotion();
         pill?.classList.remove('is-shuffling');
 
         el.dataset.finalText = nextText;
         el.classList.toggle('is-shuffling', shouldAnimate);
         pill?.classList.toggle('is-shuffling', shouldAnimate);
-        if (shouldAnimate) topContinuityAnimations.set(id, true);
-        updateTopContinuityShuffleState();
-        setMagicNumber(el, nextText, {
+        const animated = setMagicNumber(el, nextText, {
             force: true,
-            changed: options.changed,
-            animateInitial: options.animateInitial,
             animate: shouldAnimate,
             duration: TOP_CONTINUITY_SHUFFLE_MS,
             onDone: () => {
-                topContinuityAnimations.delete(id);
                 el.classList.remove('is-shuffling');
                 pill?.classList.remove('is-shuffling');
-                updateTopContinuityShuffleState();
             }
         });
+        if (pill?.classList.contains('is-loading')) {
+            pill.classList.remove('is-loading');
+            pill.removeAttribute('aria-busy');
+        }
+        if (animated) pulseFresh(pill || el);
+        else if (hadActiveMagic && !el.__dmMagicCancel) cancelFresh(pill || el);
 
         if (explainActiveKey && topContinuityValueKeys[id] === explainActiveKey) {
             updateTopContinuityExplainTitle();
         }
+    }
+
+    function flushPendingTopContinuityText(pill) {
+        const valueId = pill?.querySelector('strong')?.id;
+        const pending = valueId ? pendingTopContinuityText.get(valueId) : null;
+        if (!valueId || !pending) return;
+        pendingTopContinuityText.delete(valueId);
+        setTopContinuityText(valueId, pending);
     }
 
     function renderTopContinuityRuntime(years, days, hours, mins) {
@@ -3032,11 +3053,6 @@ function initUptimeClock() {
 
         const nextText = `${years}y ${days}d ${hours}h ${mins}m`;
         if (el.dataset.finalText === nextText) return;
-
-        const existingFrame = topContinuityAnimations.get(el.id);
-        if (existingFrame) {
-            topContinuityAnimations.delete(el.id);
-        }
 
         el.dataset.finalText = nextText;
         const finalHtml = renderTopContinuityRuntime(years, days, hours, mins);
@@ -3062,7 +3078,6 @@ function initUptimeClock() {
                         revealTopContinuityPills();
                     }
                 });
-                updateTopContinuityShuffleState();
                 return;
             }
         }
@@ -3070,7 +3085,6 @@ function initUptimeClock() {
         el.innerHTML = finalHtml;
         if (!topContinuityArrived) revealTopContinuityPills();
         el.classList.remove('is-shuffling');
-        updateTopContinuityShuffleState();
     }
 
     function revealTopContinuityPills() {
@@ -3079,7 +3093,10 @@ function initUptimeClock() {
         const pills = Array.from(topContinuityPanel?.querySelectorAll('.top-continuity-stat') || []);
         if (!pills.length || prefersReducedMotion()) {
             topContinuityPanel?.classList.remove('hero-arrival-pending');
-            pills.forEach((pill) => pill.classList.add('hero-arrived'));
+            pills.forEach((pill) => {
+                pill.classList.add('hero-arrived');
+                flushPendingTopContinuityText(pill);
+            });
             settleHeroArrival();
             return;
         }
@@ -3087,6 +3104,7 @@ function initUptimeClock() {
         pills.forEach((pill, index) => {
             window.setTimeout(() => {
                 pill.classList.add('hero-arrived');
+                flushPendingTopContinuityText(pill);
                 if (index === pills.length - 1) {
                     window.setTimeout(() => {
                         topContinuityPanel?.classList.remove('hero-arrival-pending');
@@ -3097,11 +3115,11 @@ function initUptimeClock() {
         });
     }
 
-    function setChainText(id, text, options = {}) {
+    function setChainText(id, text) {
         const el = document.getElementById(id);
-        if (el && text) setMagicNumber(el, text, options);
+        if (el && text) setMagicNumber(el, text);
         (chainMetricAliases[id] || []).forEach((targetId) => {
-            setTopContinuityText(targetId, text, options);
+            setTopContinuityText(targetId, text);
         });
     }
 
@@ -3473,15 +3491,13 @@ function initUptimeClock() {
                     const avgBlockTime = (last - first) / (recentBlockTimes.length - 1);
                     const finality = Math.round((avgBlockTime * 2) / 1000);
                     const finalityText = `${finality}s`;
-                    const finalityChanged = chainFinalityText !== finalityText;
                     chainFinalityText = finalityText;
                     finalityButton?.classList.remove('is-loading');
                     finalityButton?.removeAttribute('aria-busy');
                     if (finalityButton) finalityButton.title = 'Live Tenderbake finality estimate from recent block cadence.';
                     try { localStorage.setItem(FINALITY_CACHE_KEY, String(finality)); } catch (_) {}
-                    const liveFinalityOptions = { changed: finalityChanged, animateInitial: true };
-                    if (finalityEl) setMagicNumber(finalityEl, finalityText, liveFinalityOptions);
-                    setChainText('chain-uptime-finality', finalityText, liveFinalityOptions);
+                    if (finalityEl) setMagicNumber(finalityEl, finalityText);
+                    setChainText('chain-uptime-finality', finalityText);
                 }
 
                 // Flash the pulse dot

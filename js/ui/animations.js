@@ -2,7 +2,11 @@
  * Stat-card loading, first-arrival, and live-value motion.
  */
 
-import { cancelMagic, tweenNumber, revealValue, setMagicNumber } from '../effects/data-magic.js';
+import {
+    cancelFresh,
+    pulseFresh,
+    setMagicValue
+} from '../effects/data-magic.js';
 
 const LOADING_COPY = {
     'total-bakers': 'Preheating the baker board',
@@ -37,39 +41,35 @@ function loadingCopyFor(cardId) {
 function clearLoadingState(element) {
     if (!element) return;
     const loadingCopy = element.dataset.loadingCopy;
-    element.classList.remove('loading');
+    element.classList.remove('loading', 'error-state');
     delete element.dataset.loadingCopy;
     if (loadingCopy && element.getAttribute('aria-label') === loadingCopy) {
         element.removeAttribute('aria-label');
     }
 }
 
-const pendingStatReveals = new WeakMap();
-
-function invalidateStatReveal(element) {
-    if (!element) return null;
-    const pending = pendingStatReveals.get(element);
-    if (pending?.timer) clearTimeout(pending.timer);
-    pendingStatReveals.delete(element);
-    return pending || null;
+function statFreshSurface(element) {
+    const card = element?.closest?.('[data-stat]');
+    return card?.querySelector('.card-inner') || card || element;
 }
 
-function cancelStatReveal(element) {
-    if (!element) return;
-    const pending = invalidateStatReveal(element);
-    cancelMagic(element, {
-        preserveSelection: true,
-        additionalCancel: pending?.cancel
-    });
+function hasStatMotion(element) {
+    return Boolean(element?.__dmMagicCancel);
+}
+
+function statTargetState(element, finalText) {
+    const active = hasStatMotion(element);
+    return {
+        sameActive: active && element.__dmMagicFinalText === finalText,
+        sameSettled: !active && element.textContent.trim() === finalText
+    };
 }
 
 function writeStatInstant(element, text) {
     if (!element) return;
-    cancelStatReveal(element);
-    setMagicNumber(element, String(text), {
-        force: true,
-        animate: false,
-        animateInitial: false
+    cancelFresh(statFreshSurface(element));
+    setMagicValue(element, String(text), {
+        animate: false
     });
     clearLoadingState(element);
 }
@@ -85,9 +85,9 @@ function writeStatInstant(element, text) {
  * @param {HTMLElement} cardElement - The stat card element
  * @param {string|number} newValue - New value to display
  * @param {Function} formatter - Formatter function for the value
- * @returns {Promise<boolean>} Whether a visible value transition started
+ * @returns {boolean} Whether a visible value transition started
  */
-export async function flipCard(cardElement, newValue, formatter) {
+export function flipCard(cardElement, newValue, formatter) {
     if (!cardElement) {
         console.warn('Card element not found');
         return false;
@@ -102,22 +102,29 @@ export async function flipCard(cardElement, newValue, formatter) {
     }
 
     const formattedValue = String(formatter ? formatter(newValue) : newValue);
-    cancelStatReveal(frontValue);
-    cancelStatReveal(backValue);
+    const {
+        sameActive: sameActiveTarget,
+        sameSettled: sameSettledTarget
+    } = statTargetState(frontValue, formattedValue);
+    if (!(sameActiveTarget || sameSettledTarget)) {
+        cancelFresh(statFreshSurface(frontValue));
+    }
     clearLoadingState(frontValue);
     clearLoadingState(backValue);
 
     // Keep the hidden face truthful without causing an unnecessary mutation.
-    setMagicNumber(backValue, formattedValue, {
-        force: true,
-        animate: false,
-        animateInitial: false
-    });
+    setMagicValue(backValue, formattedValue, { animate: false });
 
-    const animated = setMagicNumber(frontValue, formattedValue, {
+    if (sameSettledTarget) return false;
+
+    const animated = setMagicValue(frontValue, formattedValue, {
         force: true,
-        animateInitial: false
+        animateInitial: true
     });
+    if (animated) pulseFresh(cardElement.querySelector('.card-inner') || cardElement);
+    else if (sameActiveTarget && !hasStatMotion(frontValue)) {
+        cancelFresh(statFreshSurface(frontValue));
+    }
     return animated;
 }
 
@@ -142,27 +149,13 @@ export function updateStatInstant(cardId, value, formatter) {
     writeStatInstant(backValue, formattedValue);
 }
 
-// Cascading stagger so first-load reveals ripple instead of firing in lockstep.
-let revealSeq = 0;
-let revealResetTimer = null;
-const REVEAL_STAGGER_MS = 45;
-const REVEAL_STAGGER_MAX = 12; // cap the cascade length
-
-function nextRevealDelay() {
-    const delay = Math.min(revealSeq, REVEAL_STAGGER_MAX) * REVEAL_STAGGER_MS;
-    revealSeq++;
-    if (revealResetTimer) clearTimeout(revealResetTimer);
-    revealResetTimer = setTimeout(() => { revealSeq = 0; }, 400);
-    return delay;
-}
-
 /**
- * Reveal a stat value on first load with magic: numbers count up (odometer),
- * strings decode in (scramble). Falls back to an instant set under reduced motion.
+ * Reveal a stat value on first load with the active theme personality.
+ * Falls back to an instant set under reduced motion or outside the viewport.
  * Drop-in replacement for updateStatInstant on the first-load path.
  *
  * @param {string} cardId
- * @param {string|number} value  raw value (number → count-up, string → scramble)
+ * @param {string|number} value  raw value
  * @param {Function} formatter   value → display string
  */
 export function revealStat(cardId, value, formatter) {
@@ -171,43 +164,40 @@ export function revealStat(cardId, value, formatter) {
 
     const frontValue = card.querySelector(`#${cardId}-front`);
     const backValue = card.querySelector(`#${cardId}-back`);
-    const apply = (el, str) => {
-        if (!el) return;
-        writeStatInstant(el, str);
-    };
-
-    const isNumeric = typeof value === 'number' && Number.isFinite(value);
-    const finalStr = formatter ? formatter(value) : String(value);
+    const finalStr = String(formatter ? formatter(value) : value);
 
     // Back face holds the settled value immediately (it's hidden on first load).
-    apply(backValue, finalStr);
+    if (backValue) {
+        setMagicValue(backValue, finalStr, { animate: false });
+        clearLoadingState(backValue);
+    }
 
     if (!frontValue) return;
-    cancelStatReveal(frontValue);
-    clearLoadingState(frontValue);
-
-    const delay = nextRevealDelay();
-    const pending = { timer: null, cancel: null, finalText: finalStr };
-    pendingStatReveals.set(frontValue, pending);
-    const run = () => {
-        if (pendingStatReveals.get(frontValue) !== pending) return;
-        pending.timer = null;
-        const onDone = () => {
-            frontValue.__dmMagicFinalText = finalStr;
-            if (pendingStatReveals.get(frontValue) === pending) {
-                pendingStatReveals.delete(frontValue);
-            }
-        };
-        if (isNumeric) {
-            pending.cancel = tweenNumber(frontValue, 0, value, { formatter, onDone });
-        } else {
-            pending.cancel = revealValue(frontValue, finalStr, { onDone });
-        }
-    };
-    if (delay > 0) {
-        pending.timer = setTimeout(run, delay);
+    const {
+        sameActive: sameActiveTarget,
+        sameSettled: sameSettledTarget
+    } = statTargetState(frontValue, finalStr);
+    if (sameSettledTarget) {
+        clearLoadingState(frontValue);
+        return;
     }
-    else run();
+    if (sameActiveTarget) {
+        setMagicValue(frontValue, finalStr, {
+            force: true,
+            animateInitial: true
+        });
+        if (!hasStatMotion(frontValue)) cancelFresh(statFreshSurface(frontValue));
+        clearLoadingState(frontValue);
+        return;
+    }
+
+    cancelFresh(statFreshSurface(frontValue));
+    clearLoadingState(frontValue);
+    const animated = setMagicValue(frontValue, finalStr, {
+        force: true,
+        animateInitial: true
+    });
+    if (animated) pulseFresh(card.querySelector('.card-inner') || card);
 }
 
 /**
@@ -245,12 +235,12 @@ export function showError(cardId, message = "Didn't load — retrying next refre
         const backValue = card.querySelector(`#${cardId}-back`);
 
         if (frontValue) {
-            frontValue.classList.add('error-state');
             clearLoadingState(frontValue);
+            frontValue.classList.add('error-state');
         }
         if (backValue) {
-            backValue.classList.add('error-state');
             clearLoadingState(backValue);
+            backValue.classList.add('error-state');
         }
     }
 }

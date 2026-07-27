@@ -7,7 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-26',
         entries: [
-            { type: '🔧', text: 'Live numbers now animate only for genuine visible changes; unchanged or off-screen refreshes settle quietly, reduced-motion updates are immediate, and ambient theme personality stays decorative without moving the reader' },
+            { type: '🔧', text: 'Visible live numbers now keep their theme effect on first arrival and genuine background changes; duplicate publishers no longer cancel it, while off-screen and reduced-motion updates still settle immediately' },
             { type: '🔧', text: 'Valley live-data updates now keep compact controls at their settled height instead of briefly wrapping animated values one character per line' },
             { type: '🎨', text: 'Undelegated My Tezos guidance now gives the active-baker comparison action proper mobile breathing room and plainly invites visitors to delegate to the builder of this site' },
             { type: '✨', text: 'Undelegated My Tezos accounts now compare active bakers, see a disclosed live-capacity Baking Benjamins recommendation, and use wallet-reviewed delegation; every complete Baker Directory row also offers guarded Delegate and Stake actions' },

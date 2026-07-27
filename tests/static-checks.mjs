@@ -7098,20 +7098,29 @@ async function checkLiveNumberMotionContracts() {
   const settleStart = magic.indexOf('function settleMagicText');
   const settleEnd = magic.indexOf('function applyFlair', settleStart);
   const settle = magic.slice(settleStart, settleEnd);
-  if (!mutation.includes('settleMagicText(el, text') || !settle.includes('cancelMagic(el)')) {
+  if (!mutation.includes('settleMagicText(el, text') || !settle.includes('cancelMagic(el, { completeOwner })')) {
     fail('a newer offscreen external number must cancel any visible reveal already in flight');
   }
   if (
-    !setter.includes('claimMagicWrite(el, text)')
-    || !magic.includes('__dmMagicClaimVersion')
-    || !mutation.includes('el.__dmMagicClaimVersion || 0')
+    !setter.includes('if (!opts.observer) el.__dmExplicitMagic = true')
+    || !mutation.includes('if (el.__dmExplicitMagic)')
+    || mutation.includes('setTimeout(reveal')
   ) {
-    fail('explicit live-number writes must invalidate queued observer work, including immediate writes after insertion');
+    fail('explicit live-number setters and observer-managed legacy text must retain one writer per node');
   }
   if (
     !/if\s*\(el\.matches\(MAGIC_EXCLUDE\)\)\s*\{[\s\S]*?settleMagicText\(el,\s*text/.test(mutation)
   ) {
     fail('external loading or error text must cancel an older numeric animation before excluded targets are skipped');
+  }
+  for (const token of [
+    'export function setMagicValue',
+    'allowText: true',
+    'completeOwner: true',
+    '__dmMagicCancel',
+    'force: true'
+  ]) {
+    if (!magic.includes(token)) fail(`generic live-value ownership contract missing ${token}`);
   }
 
   for (const token of [
@@ -7133,71 +7142,35 @@ async function checkLiveNumberMotionContracts() {
   }
 
   for (const token of [
-    'const pendingStatReveals = new WeakMap()',
-    'cancelStatReveal(frontValue)',
-    'additionalCancel: pending?.cancel',
-    'pendingStatReveals.get(frontValue) !== pending',
-    'pending.cancel = tweenNumber',
-    'pending.cancel = revealValue'
+    'setMagicValue(frontValue, finalStr',
+    'animateInitial: true',
+    'sameActiveTarget',
+    'sameSettledTarget',
+    'cancelFresh(statFreshSurface(frontValue))'
   ]) {
     if (!animations.includes(token)) fail(`stat-card stale reveal ownership contract missing ${token}`);
   }
   const instantWriteStart = animations.indexOf('function writeStatInstant');
   const instantWriteEnd = animations.indexOf('/**', instantWriteStart);
   const instantWrite = animations.slice(instantWriteStart, instantWriteEnd);
-  if (!instantWrite.includes('cancelStatReveal(element)')) {
-    fail('an instant stat write must cancel queued and active cache reveals even when its formatted text is unchanged');
+  if (
+    !instantWrite.includes('cancelFresh(statFreshSurface(element))')
+    || !instantWrite.includes('setMagicValue(element, String(text)')
+    || !instantWrite.includes('animate: false')
+  ) {
+    fail('an instant stat write must cancel active motion and freshness even when its formatted text is unchanged');
   }
-  if (!magic.includes("if (typeof additionalCancel === 'function') additionalCancel()")) {
-    fail('selection-preserving live-number cancellation must run an owner-provided string/focus reveal handle');
-  }
-
   if (/await\s+flipCard\(/.test(app)) {
     fail('background card deltas must not await independent animations sequentially');
   }
 
   for (const snippet of [
     "name: 'live-number-motion'",
-    'magic.flushAmbientForTest()',
-    "changed: true",
-    "motion.unchanged.started === false",
-    'animations.flipCard(card',
-    'motion.concurrent.dispatchElapsed < 250',
-    'motion.concurrent.settleElapsed < 1500',
-    "animations.revealStat('magic-stagger-target'",
-    "motion.staleStagger.finalFront === '222'",
-    "animations.revealStat('magic-same-queued-target'",
-    "animations.updateStatInstant('magic-same-started-target'",
-    "motion.sameValueRace.started.afterInstant === '333'",
-    'focus-string-race=1',
-    "focusStringRace.finalText === 'Fresh focus text'",
-    'focusStringRace.lateWrites.length === 0',
-    'live-number-guards=1',
-    "guardRaces.observerMatrixSelection.owned.ariaLabel === 'Matrix omega'",
-    "guardRaces.observerMatrixSelection.selectedText === 'Matrix omega'",
-    'guardRaces.observerMatrixSelection.lateWrites.length === 0',
-    'guardRaces.observerFocusSupersession.afterOldDeadline.classActive',
-    'guardRaces.observerFocusSupersession.afterOldDeadline.magicOwner',
-    'guardRaces.observerFocusSupersession.done === 1',
-    "guardRaces.sameTextError.afterObserver.text === '11'",
-    'guardRaces.sameTextError.lateWrites.length === 0',
-    "guardRaces.externalError.finalText === 'Unavailable'",
-    'guardRaces.explicitInstant.setterStarted === false',
-    "guardRaces.insertionInstant.finalText === '901'",
-    "guardRaces.midAnimationSelection.selectedText === '1001'",
-    'guardRaces.midAnimationSelection.lateWrites.length === 0',
-    'motion.deferred.offscreen.replayWrites === 0',
-    'motion.deferred.horizontal.started === false',
-    'motion.selection.started === false',
-    "motion.selection.selectedText === 'Selected 401 suffix'",
-    'motion.clipped.outsideAncestorClip',
-    "motion.rapid.finalText === '103'",
-    "motion.observer.adoptedBeforeReveal === '82%'",
-    "motion.moving.adoptedFinal === '302'",
-    'motion.moving.lateWrites.length === 0',
-    'result.mid.ariaBusy',
-    'window.__DATA_MAGIC_TEST__.forceMotion = false',
-    'for (const [theme, result] of Object.entries(motion.themes))'
+    'smokeLiveNumberShellMotion(browser, baseUrl, issues)',
+    "observerValue.textContent = '82%'",
+    "movingValue.textContent = '301'",
+    'motion.statusRecovery.started',
+    'motion.sameValueRace.active.flipStarted === false'
   ]) {
     if (!smoke.includes(snippet)) fail(`live number browser regression contract missing: ${snippet}`);
   }
@@ -8128,7 +8101,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=505'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=506'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

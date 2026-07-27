@@ -17727,6 +17727,363 @@ async function smokeQuietRefresh(browser, baseUrl) {
   log('ok - quiet background refresh smoke');
 }
 
+async function smokeLiveNumberShellMotion(browser, baseUrl, issues) {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'no-preference',
+    serviceWorkers: 'block'
+  });
+  await context.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    window.__DATA_MAGIC_TEST__ = { forceMotion: true };
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'live number production shell', issues);
+  const shellOrigin = new URL(baseUrl).origin;
+  await page.route('**/*', async (route) => {
+    const request = route.request();
+    const resourceType = request.resourceType();
+    let requestOrigin = shellOrigin;
+    try { requestOrigin = new URL(request.url()).origin; } catch {}
+    if (requestOrigin !== shellOrigin && (resourceType === 'fetch' || resourceType === 'xhr')) {
+      await route.abort('aborted');
+      return;
+    }
+    await route.continue();
+  });
+
+  const response = await page.goto(`${baseUrl}/#theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `live number production shell failed with HTTP ${response?.status()}`);
+  await page.waitForFunction(() => typeof window._updateUptimeClock === 'function', null, { timeout: 15000 });
+
+  const shellMotion = await page.evaluate(async () => {
+    const value = document.getElementById('hero-chain-uptime-bakers');
+    const pill = value?.closest('.top-continuity-stat');
+    if (!value || !pill) return { missing: true };
+    const identity = value;
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const active = () => (
+      value.getAttribute('aria-busy') === 'true'
+      || Boolean(value.__dmMagicCancel)
+      || value.classList.contains('is-shuffling')
+      || pill.classList.contains('is-shuffling')
+    );
+    const rect = () => {
+      const box = pill.getBoundingClientRect();
+      return { y: box.y, height: box.height };
+    };
+    const runUpdate = async (activeBakers, { duplicate = false, timeout = 4200 } = {}) => {
+      const finalText = String(activeBakers);
+      const frames = [];
+      const startedAt = performance.now();
+      window._updateUptimeClock({
+        activeBakers,
+        stakedRatio: 30.4,
+        currentIssuanceRate: 3.1
+      });
+      let sawActive = false;
+      let stableFrames = 0;
+      let frameIndex = 0;
+      while (performance.now() - startedAt < timeout) {
+        await frame();
+        frameIndex += 1;
+        if (duplicate && frameIndex === 2) {
+          window._updateUptimeClock({
+            activeBakers,
+            stakedRatio: 30.4,
+            currentIssuanceRate: 3.1
+          });
+        }
+        const isActive = active();
+        sawActive ||= isActive;
+        frames.push({
+          t: performance.now() - startedAt,
+          text: value.textContent,
+          active: isActive,
+          arrived: pill.classList.contains('hero-arrived'),
+          rect: rect()
+        });
+        if (sawActive && value.textContent === finalText && !isActive) stableFrames += 1;
+        else stableFrames = 0;
+        if (stableFrames >= 4) break;
+      }
+      const activeFrames = frames.filter((entry) => entry.active && entry.arrived);
+      const intermediateTexts = Array.from(new Set(
+        activeFrames.map((entry) => entry.text).filter((text) => text && text !== finalText)
+      ));
+      return {
+        finalText,
+        frames,
+        sawActive,
+        activeFrames: activeFrames.length,
+        intermediateTexts,
+        firstActiveAt: activeFrames[0]?.t ?? null,
+        activeDuration: activeFrames.length > 1
+          ? activeFrames[activeFrames.length - 1].t - activeFrames[0].t
+          : 0,
+        final: value.textContent,
+        busy: value.getAttribute('aria-busy'),
+        active: active(),
+        sameNode: value === identity
+      };
+    };
+
+    const first = await runUpdate(197, { duplicate: true });
+    pill.focus({ preventScroll: true });
+    const scrollBefore = { x: window.scrollX, y: window.scrollY };
+    const changed = await runUpdate(198, { duplicate: true, timeout: 2600 });
+    const focusPreserved = document.activeElement === pill;
+    const scrollAfter = { x: window.scrollX, y: window.scrollY };
+
+    window._updateUptimeClock({
+      activeBakers: 201,
+      stakedRatio: 30.4,
+      currentIssuanceRate: 3.1
+    });
+    await frame();
+    await frame();
+    const hiddenStarted = active();
+    pill.hidden = true;
+    window._updateUptimeClock({
+      activeBakers: 201,
+      stakedRatio: 30.4,
+      currentIssuanceRate: 3.1
+    });
+    const hiddenImmediate = {
+      text: value.textContent,
+      busy: value.getAttribute('aria-busy'),
+      active: active(),
+      fresh: pill.classList.contains('dm-fresh')
+    };
+    pill.hidden = false;
+    const hiddenWrites = [];
+    const hiddenObserver = new MutationObserver(() => hiddenWrites.push(value.textContent));
+    hiddenObserver.observe(value, { childList: true, characterData: true, subtree: true });
+    await frame();
+    await frame();
+    await frame();
+    hiddenObserver.disconnect();
+    const hiddenSettled = {
+      started: hiddenStarted,
+      immediate: hiddenImmediate,
+      text: value.textContent,
+      busy: value.getAttribute('aria-busy'),
+      active: active(),
+      fresh: pill.classList.contains('dm-fresh'),
+      replayWrites: hiddenWrites
+    };
+
+    window.__DATA_MAGIC_TEST__.forceMotion = false;
+    window._updateUptimeClock({
+      activeBakers: 199,
+      stakedRatio: 30.4,
+      currentIssuanceRate: 3.1
+    });
+    const reducedImmediate = {
+      text: value.textContent,
+      busy: value.getAttribute('aria-busy'),
+      active: active(),
+      fresh: pill.classList.contains('dm-fresh')
+    };
+    await frame();
+    await frame();
+    const reducedLater = {
+      text: value.textContent,
+      busy: value.getAttribute('aria-busy'),
+      active: active(),
+      fresh: pill.classList.contains('dm-fresh')
+    };
+    window.__DATA_MAGIC_TEST__.forceMotion = true;
+
+    return {
+      missing: false,
+      first,
+      changed,
+      focusPreserved,
+      scrollBefore,
+      scrollAfter,
+      hiddenSettled,
+      reducedImmediate,
+      reducedLater,
+      sameNode: value === identity
+    };
+  });
+
+  assert(!shellMotion.missing, 'live number production shell is missing the baker continuity value');
+  for (const [phase, result] of [['first', shellMotion.first], ['changed', shellMotion.changed]]) {
+    const rects = result.frames.filter((entry) => entry.active && entry.arrived).map((entry) => entry.rect);
+    const yDrift = rects.length
+      ? Math.max(...rects.map((rect) => rect.y)) - Math.min(...rects.map((rect) => rect.y))
+      : Infinity;
+    const heightDrift = rects.length
+      ? Math.max(...rects.map((rect) => rect.height)) - Math.min(...rects.map((rect) => rect.height))
+      : Infinity;
+    assert(
+      result.sawActive
+        && result.activeFrames >= 3
+        && result.intermediateTexts.length >= 1
+        && result.firstActiveAt !== null
+        && result.firstActiveAt < (phase === 'first' ? 2200 : 150)
+        && result.activeDuration >= 500
+        && result.activeDuration < 2200
+        && result.final === result.finalText
+        && result.busy !== 'true'
+        && !result.active
+        && result.sameNode
+        && yDrift <= (phase === 'first' ? 4.5 : 1)
+        && heightDrift <= 1,
+      `live number production shell ${phase} motion was not visibly painted and stable ${JSON.stringify({
+        activeFrames: result.activeFrames,
+        intermediateTexts: result.intermediateTexts,
+        firstActiveAt: result.firstActiveAt,
+        activeDuration: result.activeDuration,
+        final: result.final,
+        busy: result.busy,
+        active: result.active,
+        yDrift,
+        heightDrift
+      })}`
+    );
+  }
+  assert(
+    shellMotion.focusPreserved
+      && shellMotion.scrollBefore.x === shellMotion.scrollAfter.x
+      && shellMotion.scrollBefore.y === shellMotion.scrollAfter.y
+      && shellMotion.sameNode,
+    `live number production shell disturbed focus, scroll, or node identity ${JSON.stringify(shellMotion)}`
+  );
+  assert(
+    shellMotion.hiddenSettled.started
+      && shellMotion.hiddenSettled.immediate.text === '201'
+      && shellMotion.hiddenSettled.immediate.busy !== 'true'
+      && !shellMotion.hiddenSettled.immediate.active
+      && !shellMotion.hiddenSettled.immediate.fresh
+      && shellMotion.hiddenSettled.text === '201'
+      && shellMotion.hiddenSettled.busy !== 'true'
+      && !shellMotion.hiddenSettled.active
+      && !shellMotion.hiddenSettled.fresh
+      && shellMotion.hiddenSettled.replayWrites.length === 0,
+    `live number production shell replayed a hidden same-target owner ${JSON.stringify(shellMotion.hiddenSettled)}`
+  );
+  assert(
+    shellMotion.reducedImmediate.text === '199'
+      && shellMotion.reducedLater.text === '199'
+      && shellMotion.reducedImmediate.busy !== 'true'
+      && shellMotion.reducedLater.busy !== 'true'
+      && !shellMotion.reducedImmediate.active
+      && !shellMotion.reducedLater.active
+      && !shellMotion.reducedImmediate.fresh
+      && !shellMotion.reducedLater.fresh,
+    `live number production shell reduced-motion update was not immediate and still ${JSON.stringify(shellMotion)}`
+  );
+
+  const bakerValue = page.locator('#hero-chain-uptime-bakers');
+  await page.evaluate(() => {
+    window._updateUptimeClock({
+      activeBakers: 200,
+      stakedRatio: 30.4,
+      currentIssuanceRate: 3.1
+    });
+  });
+  await page.waitForFunction(() => (
+    document.getElementById('hero-chain-uptime-bakers')?.getAttribute('aria-busy') === 'true'
+  ), null, { timeout: 1000 });
+  await page.waitForTimeout(180);
+  const midpointText = await bakerValue.textContent();
+  const midpointPixels = await bakerValue.screenshot();
+  await page.waitForFunction(() => {
+    const value = document.getElementById('hero-chain-uptime-bakers');
+    return value?.textContent === '200' && value.getAttribute('aria-busy') !== 'true';
+  }, null, { timeout: 2500 });
+  const finalPixels = await bakerValue.screenshot();
+  assert(
+    midpointText !== '200'
+      && createHash('sha256').update(midpointPixels).digest('hex')
+        !== createHash('sha256').update(finalPixels).digest('hex'),
+    `live number production shell midpoint was not visibly distinct from settlement (${midpointText})`
+  );
+
+  const scrolledObserverMotion = await page.evaluate(async () => {
+    const value = document.getElementById('network-health-front');
+    if (!value) return { missing: true };
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const active = () => (
+      value.getAttribute('aria-busy') === 'true'
+      || Boolean(value.__dmMagicCancel)
+      || value.classList.contains('is-shuffling')
+    );
+
+    // Isolate this existing production node from its network-health publisher
+    // while exercising the shared raw-write observer.
+    value.id = 'network-health-front-motion-smoke';
+    value.className = 'stat-value network-health-score';
+    value.dataset.magic = 'off';
+    value.textContent = '99.7%';
+    await frame();
+    await frame();
+    delete value.dataset.magic;
+    const html = document.documentElement;
+    const body = document.body;
+    const htmlScrollBehavior = html.style.scrollBehavior;
+    const bodyScrollBehavior = body.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    body.style.scrollBehavior = 'auto';
+    value.scrollIntoView({ block: 'center', behavior: 'auto' });
+    await frame();
+    await frame();
+
+    const scrollBefore = window.scrollY;
+    const rect = value.getBoundingClientRect();
+    const samples = [];
+    value.textContent = '42%';
+    const startedAt = performance.now();
+    let sawActive = false;
+    let stableFrames = 0;
+    while (performance.now() - startedAt < 2200) {
+      await frame();
+      const isActive = active();
+      sawActive ||= isActive;
+      samples.push({ text: value.textContent, active: isActive });
+      if (sawActive && value.textContent === '42%' && !isActive) stableFrames += 1;
+      else stableFrames = 0;
+      if (stableFrames >= 4) break;
+    }
+    html.style.scrollBehavior = htmlScrollBehavior;
+    body.style.scrollBehavior = bodyScrollBehavior;
+    value.id = 'network-health-front';
+    return {
+      missing: false,
+      scrollBefore,
+      scrollAfter: window.scrollY,
+      rect: { top: rect.top, bottom: rect.bottom },
+      activeFrames: samples.filter((sample) => sample.active).length,
+      intermediate: samples.some((sample) => sample.active && sample.text !== '42%'),
+      final: value.textContent,
+      busy: value.getAttribute('aria-busy'),
+      active: active()
+    };
+  });
+  assert(
+    !scrolledObserverMotion.missing
+      && scrolledObserverMotion.scrollBefore > 0
+      && scrolledObserverMotion.rect.top >= 0
+      && scrolledObserverMotion.rect.bottom <= 900
+      && scrolledObserverMotion.activeFrames >= 3
+      && scrolledObserverMotion.intermediate
+      && scrolledObserverMotion.final === '42%'
+      && scrolledObserverMotion.busy !== 'true'
+      && !scrolledObserverMotion.active,
+    `live number production shell skipped a visible scrolled observer update ${JSON.stringify(scrolledObserverMotion)}`
+  );
+
+  await context.close();
+}
+
 async function smokeLiveNumberMotion(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -17863,6 +18220,50 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       active: activeMotion(visible)
     };
 
+    // A second production writer can publish the same formatted value while
+    // the first reveal is still painting it. The duplicate is a no-op: it may
+    // not cancel the original owner or fire cleanup callbacks early.
+    const duplicate = makeValue('magic-duplicate-owner', '31.0%');
+    duplicate.style.cssText += 'position:fixed;left:24px;top:125px;';
+    document.body.append(duplicate);
+    const duplicateObserver = observeText(duplicate);
+    let duplicateOwnerDone = 0;
+    let duplicateWriterDone = 0;
+    const duplicateOwnerStarted = magic.setMagicNumber(duplicate, '31.1%', {
+      force: true,
+      changed: true,
+      duration: 180,
+      onDone: () => { duplicateOwnerDone += 1; }
+    });
+    await nextFrame();
+    const writesBeforeDuplicate = duplicateObserver.writes.length;
+    const duplicateWriterStarted = magic.setMagicNumber(duplicate, '31.1%', {
+      force: true,
+      changed: true,
+      duration: 180,
+      onDone: () => { duplicateWriterDone += 1; }
+    });
+    const duplicateMid = {
+      active: activeMotion(duplicate),
+      ownerDone: duplicateOwnerDone,
+      writerDone: duplicateWriterDone,
+      ariaBusy: duplicate.getAttribute('aria-busy')
+    };
+    await settleFrames(20);
+    duplicateObserver.observer.disconnect();
+    const duplicateOwner = {
+      ownerStarted: duplicateOwnerStarted,
+      writerStarted: duplicateWriterStarted,
+      mid: duplicateMid,
+      ownerDone: duplicateOwnerDone,
+      writerDone: duplicateWriterDone,
+      writesBeforeDuplicate,
+      writesAfterDuplicate: duplicateObserver.writes.length - writesBeforeDuplicate,
+      text: duplicate.textContent,
+      active: activeMotion(duplicate),
+      ariaBusy: duplicate.getAttribute('aria-busy')
+    };
+
     // Several changed cards begin together, finish within one animation
     // budget, and retain reader state.
     const rail = document.createElement('div');
@@ -17909,9 +18310,6 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       scrollLeft: rail.scrollLeft
     };
 
-    // A cached first-load reveal can be waiting in the stagger queue when a
-    // fresher background value arrives. The delayed cache task must lose
-    // ownership and may never paint over the live value.
     const makeStatCard = (id, text) => {
       const card = document.createElement('article');
       card.dataset.stat = id;
@@ -17923,43 +18321,110 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       document.body.append(card);
       return card;
     };
-    const staggerPrimer = makeStatCard('magic-stagger-primer', '1');
-    const staggerTarget = makeStatCard('magic-stagger-target', '100');
-    animations.revealStat('magic-stagger-primer', 2, String);
-    animations.revealStat('magic-stagger-target', 111, String);
-    const staggerFront = staggerTarget.querySelector('#magic-stagger-target-front');
-    const staggerWrites = observeText(staggerFront);
-    const freshFlipStarted = await animations.flipCard(staggerTarget, 222, String);
+
+    // Live proposal/period strings use the same owned theme path as numbers.
+    // Clean renders the final copy through animated character spans rather
+    // than silently settling now that the full-card flip is gone.
+    const textDeltaCard = makeStatCard('magic-text-delta', 'Exploration');
+    const textDeltaFront = textDeltaCard.querySelector('#magic-text-delta-front');
+    const textDeltaIdentity = textDeltaFront;
+    const textDeltaStarted = await animations.flipCard(textDeltaCard, 'Promotion', String);
+    await nextFrame();
+    const textDeltaMid = {
+      active: activeMotion(textDeltaFront),
+      text: textDeltaFront.textContent,
+      childCount: textDeltaFront.children.length,
+      ariaBusy: textDeltaFront.getAttribute('aria-busy'),
+      fresh: textDeltaCard.querySelector('.card-inner')?.classList.contains('dm-fresh') || false
+    };
     await settleFrames(30);
-    const staggerAfterFreshBudget = staggerFront.textContent;
-    staggerWrites.writes.length = 0;
-    await settleFrames(60);
-    staggerWrites.observer.disconnect();
-    const staleStagger = {
-      freshFlipStarted,
-      afterFreshBudget: staggerAfterFreshBudget,
-      finalFront: staggerFront.textContent,
-      finalBack: staggerTarget.querySelector('#magic-stagger-target-back').textContent,
-      lateWrites: [...staggerWrites.writes],
-      active: activeMotion(staggerFront),
-      primerConnected: staggerPrimer.isConnected
+    const textDelta = {
+      started: textDeltaStarted,
+      mid: textDeltaMid,
+      text: textDeltaFront.textContent,
+      back: textDeltaCard.querySelector('#magic-text-delta-back').textContent,
+      sameNode: textDeltaFront === textDeltaIdentity,
+      active: activeMotion(textDeltaFront),
+      ariaBusy: textDeltaFront.getAttribute('aria-busy')
     };
 
-    // Equality still transfers ownership. Whether the cached reveal is queued
-    // or has already started, a fresh writer with the same formatted value
-    // must cancel the old task and leave one settled value immediately.
-    const sameQueuedPrimer = makeStatCard('magic-same-queued-primer', '1');
-    const sameQueuedTarget = makeStatCard('magic-same-queued-target', '300');
-    animations.revealStat('magic-same-queued-primer', 2, String);
-    animations.revealStat('magic-same-queued-target', 333, String);
-    const sameQueuedFront = sameQueuedTarget.querySelector('#magic-same-queued-target-front');
-    const sameQueuedWrites = observeText(sameQueuedFront);
-    const sameQueuedFlipStarted = await animations.flipCard(sameQueuedTarget, 333, String);
+    // Loading/error takeover owns both the value and its freshness cue.
+    const statusCard = makeStatCard('magic-status-pulse', '10');
+    const statusFront = statusCard.querySelector('#magic-status-pulse-front');
+    const statusInner = statusCard.querySelector('.card-inner');
+    const statusStarted = await animations.flipCard(statusCard, 11, String);
+    await nextFrame();
+    const statusBeforeError = {
+      active: activeMotion(statusFront),
+      fresh: statusInner.classList.contains('dm-fresh')
+    };
+    animations.showError('magic-status-pulse', 'Unavailable');
+    const statusImmediate = {
+      text: statusFront.textContent,
+      active: activeMotion(statusFront),
+      fresh: statusInner.classList.contains('dm-fresh'),
+      error: statusFront.classList.contains('error-state')
+    };
+    await settleFrames(20);
+    const statusTakeover = {
+      started: statusStarted,
+      beforeError: statusBeforeError,
+      immediate: statusImmediate,
+      text: statusFront.textContent,
+      back: statusCard.querySelector('#magic-status-pulse-back').textContent,
+      active: activeMotion(statusFront),
+      fresh: statusInner.classList.contains('dm-fresh')
+    };
+
+    const recoveryStarted = await animations.flipCard(statusCard, 12, String);
+    await nextFrame();
+    const recoveryMid = {
+      text: statusFront.textContent,
+      active: activeMotion(statusFront),
+      busy: statusFront.getAttribute('aria-busy'),
+      error: statusFront.classList.contains('error-state')
+    };
     await settleFrames(30);
-    const sameQueuedAfterFreshBudget = sameQueuedFront.textContent;
-    sameQueuedWrites.writes.length = 0;
+    const statusRecovery = {
+      started: recoveryStarted,
+      mid: recoveryMid,
+      text: statusFront.textContent,
+      back: statusCard.querySelector('#magic-status-pulse-back').textContent,
+      active: activeMotion(statusFront),
+      busy: statusFront.getAttribute('aria-busy'),
+      error: statusFront.classList.contains('error-state')
+    };
+
+    // Same-value publishers preserve an active reveal owner; an explicit
+    // instant status write still settles that owner immediately.
+    const sameActiveTarget = makeStatCard('magic-same-active-target', '400');
+    animations.revealStat('magic-same-active-target', 444, String);
+    await nextFrame();
+    const sameActiveFront = sameActiveTarget.querySelector('#magic-same-active-target-front');
+    const sameActiveFlipStarted = await animations.flipCard(sameActiveTarget, 444, String);
+    const sameActiveAfterDuplicate = {
+      text: sameActiveFront.textContent,
+      active: activeMotion(sameActiveFront),
+      ariaBusy: sameActiveFront.getAttribute('aria-busy')
+    };
     await settleFrames(60);
-    sameQueuedWrites.observer.disconnect();
+
+    const sameActiveOffscreenTarget = makeStatCard('magic-same-active-offscreen', '500');
+    animations.revealStat('magic-same-active-offscreen', 555, String);
+    await nextFrame();
+    const sameActiveOffscreenFront = sameActiveOffscreenTarget.querySelector('#magic-same-active-offscreen-front');
+    sameActiveOffscreenFront.dataset.magicViewport = 'off';
+    const sameActiveOffscreenFlipStarted = await animations.flipCard(sameActiveOffscreenTarget, 555, String);
+    const sameActiveOffscreenImmediate = {
+      text: sameActiveOffscreenFront.textContent,
+      active: activeMotion(sameActiveOffscreenFront),
+      ariaBusy: sameActiveOffscreenFront.getAttribute('aria-busy'),
+      fresh: sameActiveOffscreenTarget.querySelector('.card-inner')?.classList.contains('dm-fresh') || false
+    };
+    sameActiveOffscreenFront.dataset.magicViewport = 'on';
+    const sameActiveOffscreenWrites = observeText(sameActiveOffscreenFront);
+    await settleFrames(30);
+    sameActiveOffscreenWrites.observer.disconnect();
 
     const sameStartedTarget = makeStatCard('magic-same-started-target', '300');
     animations.revealStat('magic-same-started-target', 333, String);
@@ -17973,15 +18438,22 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     await settleFrames(60);
     sameStartedWrites.observer.disconnect();
     const sameValueRace = {
-      queued: {
-        flipStarted: sameQueuedFlipStarted,
-        afterFreshBudget: sameQueuedAfterFreshBudget,
-        finalFront: sameQueuedFront.textContent,
-        finalBack: sameQueuedTarget.querySelector('#magic-same-queued-target-back').textContent,
-        lateWrites: [...sameQueuedWrites.writes],
-        loading: sameQueuedFront.classList.contains('loading'),
-        active: activeMotion(sameQueuedFront),
-        primerConnected: sameQueuedPrimer.isConnected
+      active: {
+        flipStarted: sameActiveFlipStarted,
+        afterDuplicate: sameActiveAfterDuplicate,
+        finalFront: sameActiveFront.textContent,
+        finalBack: sameActiveTarget.querySelector('#magic-same-active-target-back').textContent,
+        active: activeMotion(sameActiveFront),
+        ariaBusy: sameActiveFront.getAttribute('aria-busy')
+      },
+      offscreen: {
+        flipStarted: sameActiveOffscreenFlipStarted,
+        immediate: sameActiveOffscreenImmediate,
+        finalFront: sameActiveOffscreenFront.textContent,
+        finalBack: sameActiveOffscreenTarget.querySelector('#magic-same-active-offscreen-back').textContent,
+        replayWrites: [...sameActiveOffscreenWrites.writes],
+        active: activeMotion(sameActiveOffscreenFront),
+        ariaBusy: sameActiveOffscreenFront.getAttribute('aria-busy')
       },
       started: {
         afterInstant: sameStartedAfterInstant,
@@ -17991,6 +18463,48 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
         loading: sameStartedFront.classList.contains('loading'),
         active: activeMotion(sameStartedFront)
       }
+    };
+
+    // If an active same-target value becomes non-visible, the duplicate write
+    // is a settle request rather than permission to replay when it returns.
+    const sameOffscreen = makeValue('magic-same-offscreen', '450');
+    sameOffscreen.style.cssText += 'position:fixed;left:24px;top:190px;';
+    document.body.append(sameOffscreen);
+    let sameOffscreenOwnerDone = 0;
+    let sameOffscreenWriterDone = 0;
+    const sameOffscreenOwnerStarted = magic.setMagicNumber(sameOffscreen, '451', {
+      force: true,
+      changed: true,
+      duration: 180,
+      onDone: () => { sameOffscreenOwnerDone += 1; }
+    });
+    await nextFrame();
+    sameOffscreen.dataset.magicViewport = 'off';
+    const sameOffscreenWriterStarted = magic.setMagicNumber(sameOffscreen, '451', {
+      force: true,
+      changed: true,
+      duration: 180,
+      onDone: () => { sameOffscreenWriterDone += 1; }
+    });
+    const sameOffscreenImmediate = {
+      text: sameOffscreen.textContent,
+      active: activeMotion(sameOffscreen),
+      ownerDone: sameOffscreenOwnerDone,
+      writerDone: sameOffscreenWriterDone,
+      ariaBusy: sameOffscreen.getAttribute('aria-busy')
+    };
+    const sameOffscreenWrites = observeText(sameOffscreen);
+    sameOffscreen.dataset.magicViewport = 'on';
+    await settleFrames(20);
+    sameOffscreenWrites.observer.disconnect();
+    const sameTargetOffscreen = {
+      ownerStarted: sameOffscreenOwnerStarted,
+      writerStarted: sameOffscreenWriterStarted,
+      immediate: sameOffscreenImmediate,
+      text: sameOffscreen.textContent,
+      replayWrites: [...sameOffscreenWrites.writes],
+      active: activeMotion(sameOffscreen),
+      ariaBusy: sameOffscreen.getAttribute('aria-busy')
     };
 
     // Hidden/offscreen changes commit their final values silently and are not
@@ -18258,11 +18772,6 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     const observerValue = makeValue('magic-observer-offscreen', '80%', 'off');
     observerValue.classList.add('stat-value');
     document.body.append(observerValue);
-    observerMagic.setMagicNumber(observerValue, '81%', {
-      force: true,
-      changed: true,
-      duration: 60
-    });
     observerMagic.initDataMagic();
     observerValue.textContent = '82%';
     await settleFrames(3);
@@ -18295,12 +18804,9 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     document.body.append(movingValue);
     await settleFrames(2);
     delete movingValue.dataset.magic;
-    const movingStarted = observerMagic.setMagicNumber(movingValue, '301', {
-      force: true,
-      changed: true,
-      duration: 180
-    });
-    await nextFrame();
+    movingValue.textContent = '301';
+    await settleFrames(2);
+    const movingStarted = activeMotion(movingValue);
     movingValue.dataset.magicViewport = 'off';
     const movingWrites = observeText(movingValue);
     movingValue.textContent = '302';
@@ -18323,9 +18829,13 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       visibleMid,
       visible: visibleResult,
       unchanged,
+      duplicateOwner,
       concurrent,
-      staleStagger,
+      textDelta,
+      statusTakeover,
+      statusRecovery,
       sameValueRace,
+      sameTargetOffscreen,
       deferred,
       selection: selectionResult,
       clipped: clippedResult,
@@ -18362,6 +18872,21 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     `live number motion: unchanged background update replayed text motion ${JSON.stringify(motion.unchanged)}`
   );
   assert(
+    motion.duplicateOwner.ownerStarted
+      && motion.duplicateOwner.writerStarted === false
+      && motion.duplicateOwner.mid.active
+      && motion.duplicateOwner.mid.ownerDone === 0
+      && motion.duplicateOwner.mid.writerDone === 0
+      && motion.duplicateOwner.mid.ariaBusy === 'true'
+      && motion.duplicateOwner.ownerDone === 1
+      && motion.duplicateOwner.writerDone === 0
+      && motion.duplicateOwner.writesAfterDuplicate > 0
+      && motion.duplicateOwner.text === '31.1%'
+      && !motion.duplicateOwner.active
+      && motion.duplicateOwner.ariaBusy !== 'true',
+    `live number motion: a duplicate same-target writer cancelled the active owner ${JSON.stringify(motion.duplicateOwner)}`
+  );
+  assert(
     motion.concurrent.starts.every(Boolean)
       && motion.concurrent.dispatchElapsed < 250
       && motion.concurrent.settleElapsed < 1500
@@ -18373,29 +18898,84 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     `live number motion: concurrent deltas blocked sequentially or disturbed reading state ${JSON.stringify(motion.concurrent)}`
   );
   assert(
-    motion.staleStagger.freshFlipStarted === true
-      && motion.staleStagger.afterFreshBudget === '222'
-      && motion.staleStagger.finalFront === '222'
-      && motion.staleStagger.finalBack === '222'
-      && motion.staleStagger.lateWrites.length === 0
-      && !motion.staleStagger.active,
-    `live number motion: delayed cache reveal overwrote a fresher live card value ${JSON.stringify(motion.staleStagger)}`
+    motion.textDelta.started
+      && motion.textDelta.mid.active
+      && motion.textDelta.mid.text === 'Promotion'
+      && motion.textDelta.mid.childCount > 0
+      && motion.textDelta.mid.ariaBusy === 'true'
+      && motion.textDelta.mid.fresh
+      && motion.textDelta.text === 'Promotion'
+      && motion.textDelta.back === 'Promotion'
+      && motion.textDelta.sameNode
+      && !motion.textDelta.active
+      && motion.textDelta.ariaBusy !== 'true',
+    `live number motion: textual stat delta settled without its owned theme effect ${JSON.stringify(motion.textDelta)}`
   );
   assert(
-    motion.sameValueRace.queued.flipStarted === true
-      && motion.sameValueRace.queued.afterFreshBudget === '333'
-      && motion.sameValueRace.queued.finalFront === '333'
-      && motion.sameValueRace.queued.finalBack === '333'
-      && motion.sameValueRace.queued.lateWrites.length === 0
-      && !motion.sameValueRace.queued.loading
-      && !motion.sameValueRace.queued.active
+    motion.statusTakeover.started
+      && motion.statusTakeover.beforeError.active
+      && motion.statusTakeover.beforeError.fresh
+      && motion.statusTakeover.immediate.text === 'Unavailable'
+      && !motion.statusTakeover.immediate.active
+      && !motion.statusTakeover.immediate.fresh
+      && motion.statusTakeover.immediate.error
+      && motion.statusTakeover.text === 'Unavailable'
+      && motion.statusTakeover.back === 'Unavailable'
+      && !motion.statusTakeover.active
+      && !motion.statusTakeover.fresh,
+    `live number motion: loading/error takeover retained stale motion or freshness ${JSON.stringify(motion.statusTakeover)}`
+  );
+  assert(
+    motion.statusRecovery.started
+      && motion.statusRecovery.mid.active
+      && motion.statusRecovery.mid.busy === 'true'
+      && !motion.statusRecovery.mid.error
+      && motion.statusRecovery.text === '12'
+      && motion.statusRecovery.back === '12'
+      && !motion.statusRecovery.active
+      && motion.statusRecovery.busy !== 'true'
+      && !motion.statusRecovery.error,
+    `live number motion: successful data did not recover from error styling with its visible effect ${JSON.stringify(motion.statusRecovery)}`
+  );
+  assert(
+    motion.sameValueRace.active.flipStarted === false
+      && motion.sameValueRace.active.afterDuplicate.active
+      && motion.sameValueRace.active.afterDuplicate.ariaBusy === 'true'
+      && motion.sameValueRace.active.finalFront === '444'
+      && motion.sameValueRace.active.finalBack === '444'
+      && !motion.sameValueRace.active.active
+      && motion.sameValueRace.active.ariaBusy !== 'true'
+      && motion.sameValueRace.offscreen.flipStarted === false
+      && motion.sameValueRace.offscreen.immediate.text === '555'
+      && !motion.sameValueRace.offscreen.immediate.active
+      && motion.sameValueRace.offscreen.immediate.ariaBusy !== 'true'
+      && !motion.sameValueRace.offscreen.immediate.fresh
+      && motion.sameValueRace.offscreen.finalFront === '555'
+      && motion.sameValueRace.offscreen.finalBack === '555'
+      && motion.sameValueRace.offscreen.replayWrites.length === 0
+      && !motion.sameValueRace.offscreen.active
+      && motion.sameValueRace.offscreen.ariaBusy !== 'true'
       && motion.sameValueRace.started.afterInstant === '333'
       && motion.sameValueRace.started.finalFront === '333'
       && motion.sameValueRace.started.finalBack === '333'
       && motion.sameValueRace.started.lateWrites.length === 0
       && !motion.sameValueRace.started.loading
       && !motion.sameValueRace.started.active,
-    `live number motion: same-formatted fresh writer failed to cancel queued/started cache reveal ${JSON.stringify(motion.sameValueRace)}`
+    `live number motion: same-formatted writer cancelled or restarted its active owner ${JSON.stringify(motion.sameValueRace)}`
+  );
+  assert(
+    motion.sameTargetOffscreen.ownerStarted
+      && motion.sameTargetOffscreen.writerStarted === false
+      && motion.sameTargetOffscreen.immediate.text === '451'
+      && !motion.sameTargetOffscreen.immediate.active
+      && motion.sameTargetOffscreen.immediate.ownerDone === 1
+      && motion.sameTargetOffscreen.immediate.writerDone === 1
+      && motion.sameTargetOffscreen.immediate.ariaBusy !== 'true'
+      && motion.sameTargetOffscreen.text === '451'
+      && motion.sameTargetOffscreen.replayWrites.length === 0
+      && !motion.sameTargetOffscreen.active
+      && motion.sameTargetOffscreen.ariaBusy !== 'true',
+    `live number motion: offscreen same-target owner replayed after settlement ${JSON.stringify(motion.sameTargetOffscreen)}`
   );
   assert(
     motion.deferred.offscreen.started === false
@@ -18584,6 +19164,31 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
 
     magic.initDataMagic();
 
+    // Explicit data-magic text remains eligible even at compact label sizes;
+    // the observer owns these targets by opt-in rather than font threshold.
+    const smallTextValue = makeValue('magic-observer-small-text', 'Before');
+    smallTextValue.dataset.magicText = '';
+    smallTextValue.style.fontSize = '12px';
+    smallTextValue.classList.add('loading');
+    document.body.append(smallTextValue);
+    await settleFrames(2);
+    smallTextValue.classList.remove('loading');
+    smallTextValue.textContent = 'After';
+    await settleFrames(2);
+    const smallTextMid = {
+      text: smallTextValue.textContent,
+      active: activeMotion(smallTextValue),
+      busy: smallTextValue.getAttribute('aria-busy')
+    };
+    await settleFrames(65);
+    const observerSmallText = {
+      mid: smallTextMid,
+      text: smallTextValue.textContent,
+      finalText: smallTextValue.__dmMagicFinalText,
+      active: activeMotion(smallTextValue),
+      busy: smallTextValue.getAttribute('aria-busy')
+    };
+
     // Observer-started string effects need the same ownership and accessibility
     // lifecycle as explicit numeric effects. A selection created after Matrix
     // scrambling starts must settle the final string and stop every later frame.
@@ -18690,9 +19295,8 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     document.body.dataset.theme = 'matrix';
     window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: 'matrix' } }));
 
-    // Exact target equality cannot let an error/status transition inherit an
-    // active animation. The exclusion and authoritative text arrive in the
-    // same turn as the 10→11 owner and must evict it within the observer turn.
+    // Exact target equality cannot let an explicit error/status transition
+    // inherit an active animation.
     const sameTextErrorValue = makeValue('magic-same-text-error', '10');
     sameTextErrorValue.classList.add('loading');
     document.body.append(sameTextErrorValue);
@@ -18705,7 +19309,10 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       duration: 180
     });
     sameTextErrorValue.classList.add('error-state');
-    sameTextErrorValue.textContent = '11';
+    magic.setMagicNumber(sameTextErrorValue, '11', {
+      force: true,
+      animate: false
+    });
     const sameTextErrorImmediate = sameTextErrorValue.textContent;
     await settleFrames(3);
     const sameTextErrorAfterObserver = {
@@ -18830,10 +19437,12 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
     document.body.append(midSelectionValue);
     await settleFrames(2);
     delete midSelectionValue.dataset.magic;
+    let midSelectionDone = 0;
     const midSelectionStarted = magic.setMagicNumber(midSelectionValue, '1001', {
       force: true,
       changed: true,
-      duration: 180
+      duration: 180,
+      onDone: () => { midSelectionDone += 1; }
     });
     await nextFrame();
     const selection = document.getSelection();
@@ -18865,11 +19474,13 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       rangeCount: selection.rangeCount,
       lateWrites: [...midSelectionWrites.writes],
       active: activeMotion(midSelectionValue),
-      ariaBusy: midSelectionValue.getAttribute('aria-busy')
+      ariaBusy: midSelectionValue.getAttribute('aria-busy'),
+      done: midSelectionDone
     };
     selection.removeAllRanges();
 
     return {
+      observerSmallText,
       observerMatrixSelection,
       observerFocusSupersession,
       sameTextError,
@@ -18879,6 +19490,15 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       midAnimationSelection
     };
   });
+  assert(
+    guardRaces.observerSmallText.mid.active
+      && guardRaces.observerSmallText.mid.busy === 'true'
+      && guardRaces.observerSmallText.text === 'After'
+      && guardRaces.observerSmallText.finalText === 'After'
+      && !guardRaces.observerSmallText.active
+      && guardRaces.observerSmallText.busy !== 'true',
+    `live number motion: compact explicit data-magic text skipped its observer effect ${JSON.stringify(guardRaces.observerSmallText)}`
+  );
   assert(
     guardRaces.observerMatrixSelection.owned.finalText === 'Matrix omega'
       && guardRaces.observerMatrixSelection.owned.magicOwner
@@ -18989,11 +19609,13 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       && guardRaces.midAnimationSelection.rangeCount === 1
       && guardRaces.midAnimationSelection.lateWrites.length === 0
       && !guardRaces.midAnimationSelection.active
-      && guardRaces.midAnimationSelection.ariaBusy !== 'true',
+      && guardRaces.midAnimationSelection.ariaBusy !== 'true'
+      && guardRaces.midAnimationSelection.done === 1,
     `live number motion: selection created mid-animation was lost or received later glyph frames ${JSON.stringify(guardRaces.midAnimationSelection)}`
   );
 
   await context.close();
+  await smokeLiveNumberShellMotion(browser, baseUrl, issues);
   assert(issues.length === 0, `live number motion browser issues:\n${issues.join('\n')}`);
   log('ok - live background number motion, accessibility, and theme personality smoke');
 }

@@ -116,7 +116,7 @@ function dmWrite(el, str) {
         const finalText = String(el.__dmMagicFinalText);
         el.__dmSelectionSettling = true;
         try {
-            cancelMagic(el);
+            cancelMagic(el, { completeOwner: true });
             if (el.textContent !== finalText) {
                 el.__dmLastWrite = finalText;
                 el.textContent = finalText;
@@ -256,32 +256,26 @@ function holdAccessibleFinalText(el, text) {
     };
 }
 
-export function cancelMagic(el, { preserveSelection = false, additionalCancel = null } = {}) {
+export function cancelMagic(el, { completeOwner = false } = {}) {
     if (!el) return;
-    const selection = preserveSelection && selectionIntersects(el)
-        ? captureTargetSelection(el)
-        : null;
-    // Some owners (notably staggered first-load stat reveals) retain a
-    // higher-level cancel handle that is not registered on the element by
-    // every theme effect. Run it inside the same selection-preserving
-    // transaction before clearing the engine's element-local handles.
-    if (typeof additionalCancel === 'function') additionalCancel();
     if (el.__dmMagicCancel) {
-        el.__dmMagicCancel();
+        el.__dmMagicCancel({ complete: completeOwner });
         el.__dmMagicCancel = null;
     }
     if (el.__dmTweenCancel) el.__dmTweenCancel();
     if (el.__dmScrambleCancel) el.__dmScrambleCancel();
     if (el.__dmAuroraCancel) el.__dmAuroraCancel();
     if (el.__dmThemeCancel) el.__dmThemeCancel();
-    restoreTargetSelection(el, selection);
 }
 
-function settleMagicText(el, text, { preserveSelection = false } = {}) {
+function settleMagicText(el, text, {
+    preserveSelection = false,
+    completeOwner = false
+} = {}) {
     const selection = preserveSelection && selectionIntersects(el)
         ? captureTargetSelection(el)
         : null;
-    cancelMagic(el);
+    cancelMagic(el, { completeOwner });
     if (el.textContent !== text) dmWrite(el, text);
     restoreTargetSelection(el, selection);
 }
@@ -294,21 +288,6 @@ function hasActiveMagic(el) {
         || el?.__dmAuroraCancel
         || el?.__dmThemeCancel
     );
-}
-
-/**
- * Distinguish an explicit owner write from the MutationObserver record it can
- * produce later in the same turn. The monotonically increasing version also
- * invalidates an observer reveal that was already staggered for the same text.
- */
-function claimMagicWrite(el, text) {
-    const version = (el.__dmMagicClaimVersion || 0) + 1;
-    const claim = { text, version };
-    el.__dmMagicClaimVersion = version;
-    el.__dmMagicClaim = claim;
-    setTimeout(() => {
-        if (el.__dmMagicClaim === claim) delete el.__dmMagicClaim;
-    }, 0);
 }
 
 function applyFlair(el, personality) {
@@ -909,11 +888,13 @@ function beginOwnedMagicReveal(el, text, opts = {}) {
         onDone: finish
     });
     if (settled) return false;
-    const cancel = () => {
-        effectCancel();
+    const cancel = ({ complete = false } = {}) => {
+        if (settled) return;
         settled = true;
-        restoreAccessibility();
         el.__dmMagicCancel = null;
+        effectCancel();
+        restoreAccessibility();
+        if (complete) opts.onDone?.();
     };
     el.__dmMagicCancel = cancel;
     return true;
@@ -926,7 +907,10 @@ function beginOwnedMagicReveal(el, text, opts = {}) {
 export function setMagicNumber(el, finalText, opts = {}) {
     if (!el) return false;
     const text = finalText == null ? '' : String(finalText);
-    if (!opts.observer) claimMagicWrite(el, text);
+    // Explicitly reconciled values have one writer: their setter. The global
+    // observer remains available for legacy/injected live text, but must not
+    // race the same node and replay its intermediate frames.
+    if (!opts.observer) el.__dmExplicitMagic = true;
     const renderedText = el.textContent.trim();
     const trackedText = el.__dmMagicFinalText;
     // An active reveal's DOM contains transitional glyphs, so its tracked
@@ -944,18 +928,40 @@ export function setMagicNumber(el, finalText, opts = {}) {
     // unchanged request may still be arriving while the same target is
     // mid-reveal; stop those glyph frames and settle the selection in place.
     if (selectionIntersects(el)) {
-        settleMagicText(el, text, { preserveSelection: true });
+        settleMagicText(el, text, {
+            preserveSelection: true,
+            completeOwner: true
+        });
         opts.onDone?.();
         return false;
     }
 
     if (unchanged) {
-        // Equality is still an ownership transfer for an explicit writer. A
-        // same-target settle-now request must stop glyphs and clear aria-busy.
-        if (!opts.observer && (opts.animate === false || hasActiveMagic(el))) {
-            settleMagicText(el, text, { preserveSelection: true });
+        // A duplicate live writer targeting the same final text must not tear
+        // down the reveal that is already painting that value. Only an
+        // explicit settle-now writer (loading/error/reduced-motion takeover)
+        // owns cancellation; the original reveal owns its completion callback.
+        const active = hasActiveMagic(el);
+        const sameActiveTarget = active && trackedText === text;
+        const mustSettle = (
+            opts.animate === false
+            || isHidden()
+            || prefersReducedMotion()
+            || !inViewport(el)
+            || !isMajorMagicTarget(el, opts)
+        );
+        if (active && (mustSettle || !sameActiveTarget)) {
+            settleMagicText(el, text, {
+                preserveSelection: true,
+                // Environmental settlement completes the current owner. A
+                // same-visible-text observer write that supersedes a different
+                // target cancels that stale owner without firing its callback.
+                completeOwner: sameActiveTarget
+            });
+            opts.onDone?.();
+        } else if (!active) {
+            opts.onDone?.();
         }
-        opts.onDone?.();
         return false;
     }
 
@@ -966,7 +972,8 @@ export function setMagicNumber(el, finalText, opts = {}) {
     }
 
     if (
-        !isMagicNumberText(text)
+        (!opts.allowText && !isMagicNumberText(text))
+        || (opts.allowText && !text)
         || isHidden()
         || prefersReducedMotion()
         || !inViewport(el)
@@ -987,6 +994,14 @@ export function setMagicNumber(el, finalText, opts = {}) {
 }
 
 /**
+ * Theme-aware setter for prominent numeric or textual values. This shares the
+ * number setter's visibility, ownership, selection, and accessibility guards.
+ */
+export function setMagicValue(el, finalText, opts = {}) {
+    return setMagicNumber(el, finalText, { ...opts, allowText: true });
+}
+
+/**
  * One-shot accent shimmer sweep across an element — "this value is fresh."
  * No-op under reduced motion.
  */
@@ -1001,6 +1016,13 @@ export function pulseFresh(el) {
         el.classList.remove('dm-fresh');
         el.__dmFreshTimer = null;
     }, 1000);
+}
+
+export function cancelFresh(el) {
+    if (!el) return;
+    if (el.__dmFreshTimer) clearTimeout(el.__dmFreshTimer);
+    el.__dmFreshTimer = null;
+    el.classList.remove('dm-fresh');
 }
 
 /**
@@ -1090,7 +1112,15 @@ function isPlaceholderText(text) {
 function inViewport(el) {
     const override = typeof window !== 'undefined' ? window.__DATA_MAGIC_TEST__?.isInViewport : null;
     if (typeof override === 'function') return Boolean(override(el));
-    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle?.(el);
+    if (style?.display === 'none' || style?.visibility === 'hidden' || style?.visibility === 'collapse') return false;
+    let rect = el.getBoundingClientRect();
+    if ((rect.width <= 0 || rect.height <= 0) && isPlaceholderText(el.textContent.trim())) {
+        const reservedSurface = el.closest?.('.top-continuity-stat, [data-stat]');
+        if (reservedSurface && reservedSurface !== el) {
+            rect = reservedSurface.getBoundingClientRect();
+        }
+    }
     if (
         rect.width <= 0
         || rect.height <= 0
@@ -1100,8 +1130,6 @@ function inViewport(el) {
         || rect.left >= window.innerWidth
         || el.closest?.('[hidden], [aria-hidden="true"]')
     ) return false;
-    const style = window.getComputedStyle?.(el);
-    if (style?.display === 'none' || style?.visibility === 'hidden' || style?.visibility === 'collapse') return false;
 
     let visibleLeft = Math.max(0, rect.left);
     let visibleRight = Math.min(window.innerWidth, rect.right);
@@ -1109,6 +1137,7 @@ function inViewport(el) {
     let visibleBottom = Math.min(window.innerHeight, rect.bottom);
     const clippingValues = new Set(['auto', 'hidden', 'clip', 'scroll', 'overlay']);
     for (let ancestor = el.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        if (ancestor === document.body || ancestor === document.documentElement) continue;
         const ancestorStyle = window.getComputedStyle?.(ancestor);
         const clipsX = clippingValues.has(ancestorStyle?.overflowX);
         const clipsY = clippingValues.has(ancestorStyle?.overflowY);
@@ -1203,11 +1232,14 @@ function onMagicMutations(mutations) {
             collectAddedMagicTargets(touched, added, addedTargets);
         }
     }
-    let staggerIndex = 0;
     for (const el of touched) {
         if (el.children.length > 0) continue; // leaf text only
         const text = el.textContent.trim();
         if (isPlaceholderText(text)) continue;
+        if (el.__dmExplicitMagic) {
+            lastSeenText.set(el, String(el.__dmMagicFinalText ?? text).trim());
+            continue;
+        }
         const engineWrite = (
             el.__dmLastWrite !== undefined
             && String(el.__dmLastWrite).trim() === text
@@ -1220,29 +1252,11 @@ function onMagicMutations(mutations) {
                 ? String(el.__dmMagicFinalText)
                 : text;
             el.__dmMagicFinalText = settledText;
-            delete el.__dmMagicClaim;
-            settleMagicText(el, settledText, { preserveSelection: true });
+            settleMagicText(el, settledText, {
+                preserveSelection: true,
+                completeOwner: true
+            });
             lastSeenText.set(el, settledText);
-            continue;
-        }
-        const explicitClaim = el.__dmMagicClaim;
-        if (explicitClaim?.text === text) {
-            // The direct writer already owns this exact value. Consume the
-            // matching insertion/change record instead of replaying it.
-            delete el.__dmMagicClaim;
-            lastSeenText.set(el, text);
-            continue;
-        }
-        // A direct setter may claim a newly inserted element before the
-        // observer receives its insertion record. Never let that stale record
-        // cancel the newer factual value already in flight.
-        if (
-            el.__dmMagicCancel
-            && el.__dmLastWrite === undefined
-            && el.__dmMagicFinalText !== undefined
-            && text !== el.__dmMagicFinalText
-        ) {
-            lastSeenText.set(el, el.__dmMagicFinalText);
             continue;
         }
         // Engine's own frames: adopt without re-animating.
@@ -1254,43 +1268,36 @@ function onMagicMutations(mutations) {
         const previousText = lastSeenText.get(el)
             ?? previousMutationText.get(el)
             ?? (addedTargets.has(el) ? '—' : undefined);
-        if (previousText === text) continue;
+        const conflictingActiveTarget = (
+            hasActiveMagic(el)
+            && el.__dmMagicFinalText !== undefined
+            && String(el.__dmMagicFinalText).trim() !== text
+        );
+        if (previousText === text && !conflictingActiveTarget) continue;
         lastSeenText.set(el, text);
-        const delay = Math.min(staggerIndex++, 8) * 60;
-        const claimVersion = el.__dmMagicClaimVersion || 0;
-        const reveal = () => {
-            // A newer render superseded this staggered frame. Never replay stale text.
-            if (
-                lastSeenText.get(el) !== text
-                || el.textContent.trim() !== text
-                || (el.__dmMagicClaimVersion || 0) !== claimVersion
-            ) return;
-            if (isMagicNumberText(text)) {
-                setMagicNumber(el, text, {
-                    animateInitial: true,
-                    previousText,
-                    observer: true
-                });
-            } else {
-                el.__dmMagicFinalText = text;
-                if (selectionIntersects(el)) {
-                    settleMagicText(el, text, { preserveSelection: true });
-                } else {
-                    beginOwnedMagicReveal(el, text);
-                }
-            }
-        };
         // Offscreen/hidden writes are already settled by their owner. They must
         // not queue a reveal that surprises the reader after scrolling.
         if (!inViewport(el)) {
-            settleMagicText(el, text, { preserveSelection: true });
-            if (isMagicNumberText(text)) el.__dmMagicFinalText = text;
+            settleMagicText(el, text, {
+                preserveSelection: true,
+                completeOwner: true
+            });
+            el.__dmMagicFinalText = text;
             continue;
         }
-        if (delay > 0) {
-            setTimeout(reveal, delay);
+        if (isMagicNumberText(text)) {
+            setMagicNumber(el, text, {
+                animateInitial: true,
+                previousText,
+                observer: true
+            });
         } else {
-            reveal();
+            setMagicValue(el, text, {
+                animateInitial: true,
+                previousText,
+                observer: true,
+                force: true
+            });
         }
     }
 }
@@ -1307,7 +1314,8 @@ function guardSelectedMagic() {
             || !selectionIntersects(el)
         ) continue;
         settleMagicText(el, String(el.__dmMagicFinalText), {
-            preserveSelection: true
+            preserveSelection: true,
+            completeOwner: true
         });
     }
 }
@@ -1357,7 +1365,13 @@ function ambientTargets() {
         // Loading copy can outlive its class (cached-stats path): real stat values
         // are short or contain a digit; prose like "Preheating the oven" is neither.
         if (text.length > 16 && !/\d/.test(text)) return false;
-        if (el.__dmTweenCancel || el.__dmScrambleCancel || el.__dmAuroraCancel || el.__dmThemeCancel) return false; // mid-animation
+        if (
+            el.__dmMagicCancel
+            || el.__dmTweenCancel
+            || el.__dmScrambleCancel
+            || el.__dmAuroraCancel
+            || el.__dmThemeCancel
+        ) return false; // mid-animation
         return inViewport(el);
     });
 }
