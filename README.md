@@ -176,8 +176,9 @@ tezos.systems/
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
    tools, leaderboard, My Tezos, and share-ready UI through quiet DOM
    reconciliation: timed updates preserve page and chamber scroll, focused
-   controls, text selection, and existing panel nodes, while hidden tabs defer
-   network polling until they become visible. Welcome, streak,
+   controls, text selection, and existing panel nodes, including when several
+   cards change in the same refresh. Hidden tabs defer network polling until
+   they become visible. Welcome, streak,
    anniversary, network-moment, and cycle toasts go through a shared priority
    queue after the hero arrival settles so first-load signals do not stack over
    one another.
@@ -206,7 +207,12 @@ theme takes precedence over the saved preference from first paint onward.
 Aurora's header title uses a desktop-specific multicolor sweep so the one-line
 wordmark stays as vivid as the wrapped mobile title.
 Character-by-character theme reveals preserve word-level wrapping so compact
-live-data controls keep their settled height while values animate.
+live-data controls keep their settled height while values animate. A background
+reveal runs only when the verified, formatted visible value has actually
+changed; an unchanged value never re-decodes. Offscreen and hidden updates
+settle silently on their final text, reduced-motion updates appear immediately,
+and ambient theme personality stays decorative instead of mutating readable
+data.
 
 | Theme | Role |
 |-------|------|
@@ -1211,7 +1217,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v504`, including hero search, theme
+- Current aligned shell cache stamp: `v505`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

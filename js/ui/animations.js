@@ -1,22 +1,9 @@
 /**
- * Animation system for stat card flip effects
- * Manages animation queue to prevent overlapping flips
+ * Stat-card loading, first-arrival, and live-value motion.
  */
 
-import { debugLog } from '../core/utils.js';
-import { tweenNumber, revealValue, setMagicNumber, pulseFresh } from '../effects/data-magic.js';
+import { cancelMagic, tweenNumber, revealValue, setMagicNumber } from '../effects/data-magic.js';
 
-// Import arcade effects (dynamic to avoid circular dependency)
-let arcadeEffects = null;
-try {
-    import('../effects/arcade-effects.js').then(module => {
-        arcadeEffects = module;
-    });
-} catch (e) {
-    debugLog('Arcade effects not available');
-}
-
-const FLIP_DURATION = 600; // milliseconds - matches CSS transition
 const LOADING_COPY = {
     'total-bakers': 'Preheating the baker board',
     'tz4-adoption': 'Counting fresh keys',
@@ -49,87 +36,89 @@ function loadingCopyFor(cardId) {
 
 function clearLoadingState(element) {
     if (!element) return;
+    const loadingCopy = element.dataset.loadingCopy;
     element.classList.remove('loading');
     delete element.dataset.loadingCopy;
-    element.removeAttribute('aria-label');
+    if (loadingCopy && element.getAttribute('aria-label') === loadingCopy) {
+        element.removeAttribute('aria-label');
+    }
 }
+
+const pendingStatReveals = new WeakMap();
+
+function invalidateStatReveal(element) {
+    if (!element) return null;
+    const pending = pendingStatReveals.get(element);
+    if (pending?.timer) clearTimeout(pending.timer);
+    pendingStatReveals.delete(element);
+    return pending || null;
+}
+
+function cancelStatReveal(element) {
+    if (!element) return;
+    const pending = invalidateStatReveal(element);
+    cancelMagic(element, {
+        preserveSelection: true,
+        additionalCancel: pending?.cancel
+    });
+}
+
+function writeStatInstant(element, text) {
+    if (!element) return;
+    cancelStatReveal(element);
+    setMagicNumber(element, String(text), {
+        force: true,
+        animate: false,
+        animateInitial: false
+    });
+    clearLoadingState(element);
+}
+
 /**
- * Flip a stat card with new value
+ * Reconcile a changed live stat in place.
+ *
+ * The historical name remains for callers, but background data no longer
+ * flips the whole card or waits through a 600ms transition. The hidden back
+ * face is settled immediately and the visible front receives one theme-aware
+ * value transition only when its formatted value changed.
+ *
  * @param {HTMLElement} cardElement - The stat card element
  * @param {string|number} newValue - New value to display
  * @param {Function} formatter - Formatter function for the value
- * @returns {Promise} Resolves when animation completes
+ * @returns {Promise<boolean>} Whether a visible value transition started
  */
 export async function flipCard(cardElement, newValue, formatter) {
-    return new Promise((resolve) => {
-        if (!cardElement) {
-            console.warn('Card element not found');
-            resolve();
-            return;
-        }
+    if (!cardElement) {
+        console.warn('Card element not found');
+        return false;
+    }
 
-        // Find the card inner container
-        const cardInner = cardElement.querySelector('.card-inner');
-        if (!cardInner) {
-            console.warn('Card inner not found');
-            resolve();
-            return;
-        }
+    const statType = cardElement.getAttribute('data-stat');
+    const frontValue = cardElement.querySelector(`#${statType}-front`);
+    const backValue = cardElement.querySelector(`#${statType}-back`);
+    if (!frontValue || !backValue) {
+        console.warn('Card value element not found');
+        return false;
+    }
 
-        // Find back face value element
-        const statType = cardElement.getAttribute('data-stat');
-        const backValue = cardElement.querySelector(`#${statType}-back`);
+    const formattedValue = String(formatter ? formatter(newValue) : newValue);
+    cancelStatReveal(frontValue);
+    cancelStatReveal(backValue);
+    clearLoadingState(frontValue);
+    clearLoadingState(backValue);
 
-        if (!backValue) {
-            console.warn('Back value element not found');
-            resolve();
-            return;
-        }
-
-        // Format and update back face with new value
-        const formattedValue = formatter ? formatter(newValue) : newValue;
-
-        // Use requestAnimationFrame for smooth rendering
-        requestAnimationFrame(() => {
-            backValue.textContent = formattedValue;
-
-            clearLoadingState(backValue);
-
-            // Add flipping class to start animation
-            cardElement.classList.add('flipping');
-
-            // Trigger arcade effects if available
-            if (arcadeEffects) {
-                // Hit flash on flip
-                setTimeout(() => {
-                    if (arcadeEffects.hitFlash) {
-                        arcadeEffects.hitFlash(cardElement);
-                    }
-                }, 200);
-            }
-
-            // After animation completes
-            setTimeout(() => {
-                // Update front face
-                const frontValue = cardElement.querySelector(`#${statType}-front`);
-                if (frontValue) {
-                    setMagicNumber(frontValue, formattedValue, {
-                        force: true,
-                        animateInitial: true
-                    });
-                    clearLoadingState(frontValue);
-                }
-
-                // Remove flipping class
-                cardElement.classList.remove('flipping');
-
-                // Fresh-data shimmer — signal this value just refreshed
-                pulseFresh(cardElement.querySelector('.card-inner') || cardElement);
-
-                resolve();
-            }, FLIP_DURATION);
-        });
+    // Keep the hidden face truthful without causing an unnecessary mutation.
+    setMagicNumber(backValue, formattedValue, {
+        force: true,
+        animate: false,
+        animateInitial: false
     });
+
+    const animated = setMagicNumber(frontValue, formattedValue, {
+        force: true,
+        animateInitial: false
+    });
+    return animated;
 }
 
 /**
@@ -149,14 +138,8 @@ export function updateStatInstant(cardId, value, formatter) {
     const frontValue = card.querySelector(`#${statType}-front`);
     const backValue = card.querySelector(`#${statType}-back`);
 
-    if (frontValue) {
-        frontValue.textContent = formattedValue;
-        clearLoadingState(frontValue);
-    }
-    if (backValue) {
-        backValue.textContent = formattedValue;
-        clearLoadingState(backValue);
-    }
+    writeStatInstant(frontValue, formattedValue);
+    writeStatInstant(backValue, formattedValue);
 }
 
 // Cascading stagger so first-load reveals ripple instead of firing in lockstep.
@@ -190,8 +173,7 @@ export function revealStat(cardId, value, formatter) {
     const backValue = card.querySelector(`#${cardId}-back`);
     const apply = (el, str) => {
         if (!el) return;
-        el.textContent = str;
-        clearLoadingState(el);
+        writeStatInstant(el, str);
     };
 
     const isNumeric = typeof value === 'number' && Number.isFinite(value);
@@ -201,17 +183,30 @@ export function revealStat(cardId, value, formatter) {
     apply(backValue, finalStr);
 
     if (!frontValue) return;
+    cancelStatReveal(frontValue);
     clearLoadingState(frontValue);
 
     const delay = nextRevealDelay();
+    const pending = { timer: null, cancel: null, finalText: finalStr };
+    pendingStatReveals.set(frontValue, pending);
     const run = () => {
+        if (pendingStatReveals.get(frontValue) !== pending) return;
+        pending.timer = null;
+        const onDone = () => {
+            frontValue.__dmMagicFinalText = finalStr;
+            if (pendingStatReveals.get(frontValue) === pending) {
+                pendingStatReveals.delete(frontValue);
+            }
+        };
         if (isNumeric) {
-            tweenNumber(frontValue, 0, value, { formatter });
+            pending.cancel = tweenNumber(frontValue, 0, value, { formatter, onDone });
         } else {
-            revealValue(frontValue, finalStr);
+            pending.cancel = revealValue(frontValue, finalStr, { onDone });
         }
     };
-    if (delay > 0) setTimeout(run, delay);
+    if (delay > 0) {
+        pending.timer = setTimeout(run, delay);
+    }
     else run();
 }
 
@@ -228,7 +223,7 @@ export function showLoading(cardId) {
 
         [frontValue, backValue].forEach((valueEl) => {
             if (!valueEl) return;
-            valueEl.textContent = copy;
+            writeStatInstant(valueEl, copy);
             valueEl.dataset.loadingCopy = copy;
             valueEl.setAttribute('aria-label', copy);
             valueEl.classList.add('loading');

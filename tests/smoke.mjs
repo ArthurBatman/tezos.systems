@@ -17727,6 +17727,1277 @@ async function smokeQuietRefresh(browser, baseUrl) {
   log('ok - quiet background refresh smoke');
 }
 
+async function smokeLiveNumberMotion(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'no-preference',
+    serviceWorkers: 'block'
+  });
+  await context.addInitScript(() => {
+    window.__DATA_MAGIC_TEST__ = {
+      forceMotion: true,
+      isInViewport: (element) => element?.dataset?.magicViewport !== 'off'
+    };
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'live number motion', issues);
+  const response = await page.goto(`${baseUrl}/offline.html`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `live number motion: fixture route failed with HTTP ${response?.status()}`);
+
+  const motion = await page.evaluate(async () => {
+    const magic = await import('/js/effects/data-magic.js?smoke=live-number-motion');
+    const animations = await import('/js/ui/animations.js?smoke=live-number-motion');
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const settleFrames = async (count = 3) => {
+      for (let index = 0; index < count; index += 1) await nextFrame();
+    };
+    const makeValue = (id, text, viewport = 'on') => {
+      const element = document.createElement('output');
+      element.id = id;
+      element.dataset.magicNumber = 'major';
+      element.dataset.magicViewport = viewport;
+      element.setAttribute('aria-live', 'polite');
+      element.style.cssText = 'display:inline-block;min-width:100px;font-size:24px;line-height:1.4;';
+      element.textContent = text;
+      return element;
+    };
+    const observeText = (element) => {
+      const writes = [];
+      const observer = new MutationObserver(() => writes.push(element.textContent));
+      observer.observe(element, { childList: true, characterData: true, subtree: true });
+      return { writes, observer };
+    };
+    const activeMotion = (element) => Boolean(
+      element.__dmMagicCancel
+      || element.__dmScrambleCancel
+      || element.__dmAuroraCancel
+      || element.__dmThemeCancel
+      || Array.from(element.classList).some((name) => name.startsWith('dm-'))
+    );
+    const selectTheme = (theme) => {
+      document.body.dataset.theme = theme;
+      window.dispatchEvent(new CustomEvent('themechange', { detail: { theme } }));
+    };
+
+    document.body.innerHTML = '';
+    document.body.style.cssText = 'min-height:4000px;margin:0;padding:24px;';
+    selectTheme('matrix');
+
+    // The forced ambient tick must remain decorative: unchanged text is never
+    // replaced with glyphs merely because a timer fired.
+    const ambientCard = document.createElement('div');
+    ambientCard.dataset.stat = 'ambient-smoke';
+    ambientCard.style.cssText = 'position:fixed;left:24px;top:24px;';
+    const ambientValue = makeValue('ambient-smoke-front', '30.5%');
+    ambientCard.append(ambientValue);
+    document.body.append(ambientCard);
+    const ambientObserver = observeText(ambientValue);
+    magic.flushAmbientForTest();
+    await settleFrames();
+    ambientObserver.observer.disconnect();
+    const ambient = {
+      text: ambientValue.textContent,
+      textWrites: ambientObserver.writes.length,
+      decorative: ambientCard.classList.contains('dm-fresh') || ambientValue.classList.contains('dm-fresh')
+    };
+
+    // One visible factual delta starts one reveal and settles on the exact
+    // value. The stable accessible label + busy state keep glyph frames out of
+    // assistive announcements.
+    const visible = makeValue('magic-visible', '30.5%');
+    visible.setAttribute('aria-label', 'Delegated stake');
+    visible.setAttribute('aria-busy', 'false');
+    visible.style.position = 'fixed';
+    visible.style.left = '24px';
+    visible.style.top = '90px';
+    document.body.append(visible);
+    const visibleIdentity = visible;
+    const visibleObserver = observeText(visible);
+    let visibleDone = 0;
+    const visibleStarted = magic.setMagicNumber(visible, '30.7%', {
+      force: true,
+      changed: true,
+      duration: 96,
+      onDone: () => {
+        visibleDone += 1;
+      }
+    });
+    await nextFrame();
+    const visibleMid = {
+      active: activeMotion(visible),
+      ariaLabel: visible.getAttribute('aria-label'),
+      ariaBusy: visible.getAttribute('aria-busy')
+    };
+    await settleFrames(20);
+    await settleFrames(2);
+    visibleObserver.observer.disconnect();
+    const visibleResult = {
+      started: visibleStarted,
+      done: visibleDone,
+      text: visible.textContent,
+      sameNode: visible === visibleIdentity,
+      writes: visibleObserver.writes.length,
+      ariaLabel: visible.getAttribute('aria-label'),
+      ariaBusy: visible.getAttribute('aria-busy')
+    };
+
+    // A caller hint must not override equality: an unchanged background write
+    // produces no visual or text animation.
+    const unchangedObserver = observeText(visible);
+    let unchangedDone = 0;
+    const unchangedStarted = magic.setMagicNumber(visible, '30.7%', {
+      force: true,
+      changed: true,
+      duration: 48,
+      onDone: () => { unchangedDone += 1; }
+    });
+    await settleFrames(4);
+    unchangedObserver.observer.disconnect();
+    const unchanged = {
+      started: unchangedStarted,
+      done: unchangedDone,
+      text: visible.textContent,
+      writes: unchangedObserver.writes.length,
+      active: activeMotion(visible)
+    };
+
+    // Several changed cards begin together, finish within one animation
+    // budget, and retain reader state.
+    const rail = document.createElement('div');
+    rail.id = 'magic-motion-rail';
+    rail.style.cssText = 'position:fixed;left:220px;top:24px;width:280px;overflow:auto;white-space:nowrap;';
+    const focus = document.createElement('button');
+    focus.textContent = 'Keep focus';
+    focus.style.width = '140px';
+    rail.append(focus);
+    selectTheme('clean');
+    const concurrentCards = Array.from({ length: 5 }, (_, index) => {
+      const card = document.createElement('article');
+      card.dataset.stat = `magic-concurrent-${index}`;
+      card.style.display = 'inline-block';
+      card.innerHTML = `<div class="card-inner">
+        <output id="magic-concurrent-${index}-front" data-magic-number="major" aria-live="polite"
+          style="display:inline-block;width:150px;font-size:24px;">${10 + index}%</output>
+        <output id="magic-concurrent-${index}-back" data-magic-number="major"
+          style="display:none;">${10 + index}%</output>
+      </div>`;
+      rail.append(card);
+      return card;
+    });
+    document.body.append(rail);
+    rail.scrollLeft = 110;
+    focus.focus({ preventScroll: true });
+    const concurrentNodes = concurrentCards.map((card) => card.querySelector('[id$="-front"]'));
+    const startedAt = performance.now();
+    const concurrentStarts = await Promise.all(concurrentCards.map((card, index) => (
+      animations.flipCard(card, 20 + index, (value) => `${value}%`)
+    )));
+    const dispatchElapsed = performance.now() - startedAt;
+    for (let frame = 0; frame < 40 && concurrentNodes.some(activeMotion); frame += 1) {
+      await nextFrame();
+    }
+    const concurrent = {
+      dispatchElapsed,
+      settleElapsed: performance.now() - startedAt,
+      starts: concurrentStarts,
+      values: concurrentCards.map((card) => card.querySelector('[id$="-front"]').textContent),
+      backs: concurrentCards.map((card) => card.querySelector('[id$="-back"]').textContent),
+      sameNodes: concurrentCards.every((card, index) => card.querySelector('[id$="-front"]') === concurrentNodes[index]),
+      focused: document.activeElement === focus,
+      scrollLeft: rail.scrollLeft
+    };
+
+    // A cached first-load reveal can be waiting in the stagger queue when a
+    // fresher background value arrives. The delayed cache task must lose
+    // ownership and may never paint over the live value.
+    const makeStatCard = (id, text) => {
+      const card = document.createElement('article');
+      card.dataset.stat = id;
+      card.innerHTML = `<div class="card-inner">
+        <output id="${id}-front" data-magic-number="major" aria-live="polite"
+          style="display:inline-block;min-width:100px;font-size:24px;">${text}</output>
+        <output id="${id}-back" data-magic-number="major" style="display:none;">${text}</output>
+      </div>`;
+      document.body.append(card);
+      return card;
+    };
+    const staggerPrimer = makeStatCard('magic-stagger-primer', '1');
+    const staggerTarget = makeStatCard('magic-stagger-target', '100');
+    animations.revealStat('magic-stagger-primer', 2, String);
+    animations.revealStat('magic-stagger-target', 111, String);
+    const staggerFront = staggerTarget.querySelector('#magic-stagger-target-front');
+    const staggerWrites = observeText(staggerFront);
+    const freshFlipStarted = await animations.flipCard(staggerTarget, 222, String);
+    await settleFrames(30);
+    const staggerAfterFreshBudget = staggerFront.textContent;
+    staggerWrites.writes.length = 0;
+    await settleFrames(60);
+    staggerWrites.observer.disconnect();
+    const staleStagger = {
+      freshFlipStarted,
+      afterFreshBudget: staggerAfterFreshBudget,
+      finalFront: staggerFront.textContent,
+      finalBack: staggerTarget.querySelector('#magic-stagger-target-back').textContent,
+      lateWrites: [...staggerWrites.writes],
+      active: activeMotion(staggerFront),
+      primerConnected: staggerPrimer.isConnected
+    };
+
+    // Equality still transfers ownership. Whether the cached reveal is queued
+    // or has already started, a fresh writer with the same formatted value
+    // must cancel the old task and leave one settled value immediately.
+    const sameQueuedPrimer = makeStatCard('magic-same-queued-primer', '1');
+    const sameQueuedTarget = makeStatCard('magic-same-queued-target', '300');
+    animations.revealStat('magic-same-queued-primer', 2, String);
+    animations.revealStat('magic-same-queued-target', 333, String);
+    const sameQueuedFront = sameQueuedTarget.querySelector('#magic-same-queued-target-front');
+    const sameQueuedWrites = observeText(sameQueuedFront);
+    const sameQueuedFlipStarted = await animations.flipCard(sameQueuedTarget, 333, String);
+    await settleFrames(30);
+    const sameQueuedAfterFreshBudget = sameQueuedFront.textContent;
+    sameQueuedWrites.writes.length = 0;
+    await settleFrames(60);
+    sameQueuedWrites.observer.disconnect();
+
+    const sameStartedTarget = makeStatCard('magic-same-started-target', '300');
+    animations.revealStat('magic-same-started-target', 333, String);
+    await nextFrame();
+    const sameStartedFront = sameStartedTarget.querySelector('#magic-same-started-target-front');
+    const sameStartedWrites = observeText(sameStartedFront);
+    animations.updateStatInstant('magic-same-started-target', 333, String);
+    await settleFrames(3);
+    const sameStartedAfterInstant = sameStartedFront.textContent;
+    sameStartedWrites.writes.length = 0;
+    await settleFrames(60);
+    sameStartedWrites.observer.disconnect();
+    const sameValueRace = {
+      queued: {
+        flipStarted: sameQueuedFlipStarted,
+        afterFreshBudget: sameQueuedAfterFreshBudget,
+        finalFront: sameQueuedFront.textContent,
+        finalBack: sameQueuedTarget.querySelector('#magic-same-queued-target-back').textContent,
+        lateWrites: [...sameQueuedWrites.writes],
+        loading: sameQueuedFront.classList.contains('loading'),
+        active: activeMotion(sameQueuedFront),
+        primerConnected: sameQueuedPrimer.isConnected
+      },
+      started: {
+        afterInstant: sameStartedAfterInstant,
+        finalFront: sameStartedFront.textContent,
+        finalBack: sameStartedTarget.querySelector('#magic-same-started-target-back').textContent,
+        lateWrites: [...sameStartedWrites.writes],
+        loading: sameStartedFront.classList.contains('loading'),
+        active: activeMotion(sameStartedFront)
+      }
+    };
+
+    // Hidden/offscreen changes commit their final values silently and are not
+    // queued to replay when the reader later reveals or scrolls to them.
+    const offscreen = makeValue('magic-offscreen', '40%', 'off');
+    offscreen.style.cssText += 'position:absolute;top:2600px;';
+    document.body.append(offscreen);
+    const offscreenStart = magic.setMagicNumber(offscreen, '41%', {
+      force: true,
+      changed: true,
+      duration: 72
+    });
+    await settleFrames(2);
+    const offscreenObserver = observeText(offscreen);
+    offscreen.dataset.magicViewport = 'on';
+    offscreen.scrollIntoView({ block: 'center' });
+    await settleFrames(5);
+    offscreenObserver.observer.disconnect();
+
+    const hidden = makeValue('magic-hidden', '50%', 'off');
+    hidden.hidden = true;
+    document.body.append(hidden);
+    const hiddenStart = magic.setMagicNumber(hidden, '51%', {
+      force: true,
+      changed: true,
+      duration: 72
+    });
+    await settleFrames(2);
+    const hiddenObserver = observeText(hidden);
+    hidden.hidden = false;
+    hidden.dataset.magicViewport = 'on';
+    await settleFrames(5);
+    hiddenObserver.observer.disconnect();
+
+    // Horizontal clipping is offscreen too. Exercise the real geometry path,
+    // not the deterministic viewport hook, so a value beyond either side of
+    // the viewport cannot animate or queue a later replay.
+    const viewportHook = window.__DATA_MAGIC_TEST__.isInViewport;
+    window.__DATA_MAGIC_TEST__.isInViewport = null;
+    const horizontal = makeValue('magic-horizontal-offscreen', '60%');
+    horizontal.style.cssText += 'position:fixed;left:5000px;top:24px;';
+    document.body.append(horizontal);
+    const horizontalStart = magic.setMagicNumber(horizontal, '61%', {
+      force: true,
+      changed: true,
+      duration: 72
+    });
+    await settleFrames(2);
+    const horizontalObserver = observeText(horizontal);
+    horizontal.style.left = '24px';
+    await settleFrames(5);
+    horizontalObserver.observer.disconnect();
+    window.__DATA_MAGIC_TEST__.isInViewport = viewportHook;
+    const deferred = {
+      offscreen: {
+        started: offscreenStart,
+        text: offscreen.textContent,
+        replayWrites: offscreenObserver.writes.length,
+        active: activeMotion(offscreen)
+      },
+      hidden: {
+        started: hiddenStart,
+        text: hidden.textContent,
+        replayWrites: hiddenObserver.writes.length,
+        active: activeMotion(hidden)
+      },
+      horizontal: {
+        started: horizontalStart,
+        text: horizontal.textContent,
+        replayWrites: horizontalObserver.writes.length,
+        active: activeMotion(horizontal)
+      }
+    };
+
+    // A reader may be selecting text across a live statistic. Preserve that
+    // exact range and commit only the settled factual string—never transient
+    // glyphs—while the selection intersects the target.
+    const selectionFixture = document.createElement('p');
+    selectionFixture.style.cssText = 'position:fixed;left:24px;top:230px;font-size:24px;';
+    const selectionBefore = document.createElement('span');
+    selectionBefore.textContent = 'Selected ';
+    const selectionValue = makeValue('magic-selected', '400');
+    const selectionAfter = document.createElement('span');
+    selectionAfter.textContent = ' suffix';
+    selectionFixture.append(selectionBefore, selectionValue, selectionAfter);
+    document.body.append(selectionFixture);
+    const selection = document.getSelection();
+    const selectedRange = document.createRange();
+    selectedRange.setStart(selectionBefore.firstChild, 0);
+    selectedRange.setEnd(selectionAfter.firstChild, selectionAfter.firstChild.length);
+    selection.removeAllRanges();
+    selection.addRange(selectedRange);
+    const selectionAnchor = selection.anchorNode;
+    const selectionFocus = selection.focusNode;
+    const selectedWrites = observeText(selectionValue);
+    let selectedDone = 0;
+    const selectedStarted = magic.setMagicNumber(selectionValue, '401', {
+      force: true,
+      changed: true,
+      duration: 90,
+      onDone: () => { selectedDone += 1; }
+    });
+    await settleFrames(8);
+    selectedWrites.observer.disconnect();
+    const selectionResult = {
+      started: selectedStarted,
+      done: selectedDone,
+      text: selectionValue.textContent,
+      writes: [...selectedWrites.writes],
+      active: activeMotion(selectionValue),
+      rangeCount: selection.rangeCount,
+      anchorPreserved: selection.anchorNode === selectionAnchor,
+      focusPreserved: selection.focusNode === selectionFocus,
+      selectedText: selection.toString()
+    };
+    selection.removeAllRanges();
+
+    // A viewport-coordinate check is insufficient when an overflow ancestor
+    // clips the entire number. Commit silently, then prove revealing the child
+    // later cannot replay the old update.
+    const clippedViewportHook = window.__DATA_MAGIC_TEST__.isInViewport;
+    window.__DATA_MAGIC_TEST__.isInViewport = null;
+    const clip = document.createElement('div');
+    clip.style.cssText = 'position:fixed;left:24px;top:320px;width:120px;height:50px;overflow:hidden;';
+    const clippedValue = makeValue('magic-clipped', '500');
+    clippedValue.style.cssText += 'position:absolute;left:200px;top:0;width:100px;';
+    clip.append(clippedValue);
+    document.body.append(clip);
+    const clipRect = clip.getBoundingClientRect();
+    const clippedRect = clippedValue.getBoundingClientRect();
+    const clippedStarted = magic.setMagicNumber(clippedValue, '501', {
+      force: true,
+      changed: true,
+      duration: 90
+    });
+    await settleFrames(3);
+    const clippedWrites = observeText(clippedValue);
+    clippedValue.style.left = '0';
+    await settleFrames(8);
+    clippedWrites.observer.disconnect();
+    window.__DATA_MAGIC_TEST__.isInViewport = clippedViewportHook;
+    const clippedResult = {
+      started: clippedStarted,
+      text: clippedValue.textContent,
+      replayWrites: clippedWrites.writes.length,
+      active: activeMotion(clippedValue),
+      rectInsideWindow: clippedRect.left >= 0
+        && clippedRect.right <= window.innerWidth
+        && clippedRect.top >= 0
+        && clippedRect.bottom <= window.innerHeight,
+      outsideAncestorClip: clippedRect.left >= clipRect.right
+    };
+
+    // Superseded reveals must cancel cleanly; only the newest factual value may
+    // remain after all pending frames.
+    window.scrollTo(0, 0);
+    const rapid = makeValue('magic-rapid', '100');
+    rapid.style.cssText += 'position:fixed;left:24px;top:150px;';
+    document.body.append(rapid);
+    magic.setMagicNumber(rapid, '101', { force: true, changed: true, duration: 140 });
+    magic.setMagicNumber(rapid, '102', { force: true, changed: true, duration: 110 });
+    let rapidDone = 0;
+    magic.setMagicNumber(rapid, '103', {
+      force: true,
+      changed: true,
+      duration: 64,
+      onDone: () => { rapidDone += 1; }
+    });
+    await settleFrames(20);
+    const rapidResult = {
+      text: rapid.textContent,
+      finalText: rapid.__dmMagicFinalText,
+      done: rapidDone,
+      active: activeMotion(rapid)
+    };
+
+    // Every public theme explicitly dispatches its documented personality and
+    // settles the factual string exactly.
+    const expectedModes = {
+      aurora: 'resolve',
+      matrix: 'scramble',
+      hen: 'scramble',
+      default: 'focus',
+      void: 'focus',
+      ember: 'kindle',
+      signal: 'sweep',
+      nerv: 'scramble',
+      clean: 'delta',
+      dark: 'focus',
+      bubblegum: 'scramble',
+      abyss: 'sonar',
+      moss: 'growth',
+      valley: 'growth',
+      warzone: 'lock'
+    };
+    const themes = {};
+    let themeIndex = 0;
+    for (const [theme, expectedMode] of Object.entries(expectedModes)) {
+      selectTheme(theme);
+      const themeMagic = await import(`/js/effects/data-magic.js?smoke-theme=${theme}`);
+      const element = makeValue(`magic-theme-${theme}`, `${themeIndex + 1}`);
+      element.style.cssText += `position:fixed;left:${540 + (themeIndex % 4) * 130}px;top:${24 + Math.floor(themeIndex / 4) * 70}px;`;
+      document.body.append(element);
+      const started = themeMagic.setMagicNumber(element, `${themeIndex + 101}`, {
+        force: true,
+        changed: true,
+        duration: 42,
+        onDone: () => {}
+      });
+      await nextFrame();
+      const mid = {
+        active: activeMotion(element),
+        ariaLabel: element.getAttribute('aria-label'),
+        ariaBusy: element.getAttribute('aria-busy')
+      };
+      await settleFrames(20);
+      themes[theme] = {
+        expectedMode,
+        mode: themeMagic.getPersonality().mode,
+        started,
+        mid,
+        text: element.textContent,
+        finalText: element.__dmMagicFinalText,
+        ariaBusy: element.getAttribute('aria-busy')
+      };
+      themeIndex += 1;
+    }
+
+    // Reduced motion is an immediate factual commit with no transitional
+    // classes, but still calls completion exactly once.
+    window.__DATA_MAGIC_TEST__.forceMotion = false;
+    selectTheme('matrix');
+    const reduced = makeValue('magic-reduced', '70%');
+    document.body.append(reduced);
+    const reducedObserver = observeText(reduced);
+    let reducedDone = 0;
+    magic.setMagicNumber(reduced, '71%', {
+      force: true,
+      changed: true,
+      duration: 100,
+      onDone: () => { reducedDone += 1; }
+    });
+    const reducedImmediate = {
+      text: reduced.textContent,
+      done: reducedDone,
+      active: activeMotion(reduced),
+      ariaBusy: reduced.getAttribute('aria-busy')
+    };
+    await settleFrames(4);
+    reducedObserver.observer.disconnect();
+    const reducedResult = {
+      ...reducedImmediate,
+      laterText: reduced.textContent,
+      laterDone: reducedDone,
+      writes: reducedObserver.writes.length
+    };
+
+    // External live surfaces often write text directly and rely on the shared
+    // MutationObserver. An offscreen write must be adopted as the latest final
+    // value even though it receives no reveal; exposing it and re-setting that
+    // exact value later must remain a no-op.
+    window.__DATA_MAGIC_TEST__.forceMotion = true;
+    selectTheme('matrix');
+    const observerMagic = await import('/js/effects/data-magic.js?smoke=live-number-observer');
+    const observerValue = makeValue('magic-observer-offscreen', '80%', 'off');
+    observerValue.classList.add('stat-value');
+    document.body.append(observerValue);
+    observerMagic.setMagicNumber(observerValue, '81%', {
+      force: true,
+      changed: true,
+      duration: 60
+    });
+    observerMagic.initDataMagic();
+    observerValue.textContent = '82%';
+    await settleFrames(3);
+    const adoptedBeforeReveal = observerValue.__dmMagicFinalText;
+    const observerWrites = observeText(observerValue);
+    observerValue.dataset.magicViewport = 'on';
+    const observerReplayStarted = observerMagic.setMagicNumber(observerValue, '82%', {
+      force: true,
+      changed: true,
+      duration: 60
+    });
+    await settleFrames(8);
+    observerWrites.observer.disconnect();
+    const observerResult = {
+      adoptedBeforeReveal,
+      replayStarted: observerReplayStarted,
+      replayWrites: observerWrites.writes.length,
+      text: observerValue.textContent,
+      finalText: observerValue.__dmMagicFinalText,
+      active: activeMotion(observerValue)
+    };
+
+    // If a visible reveal is in flight when layout moves the target offscreen,
+    // a newer external value must cancel that reveal. No old rAF may repaint
+    // over the adopted final value after the observer has reconciled it.
+    const movingValue = makeValue('magic-moving-offscreen', '300');
+    movingValue.classList.add('stat-value');
+    movingValue.dataset.magic = 'off';
+    movingValue.style.cssText += 'position:fixed;left:220px;top:230px;';
+    document.body.append(movingValue);
+    await settleFrames(2);
+    delete movingValue.dataset.magic;
+    const movingStarted = observerMagic.setMagicNumber(movingValue, '301', {
+      force: true,
+      changed: true,
+      duration: 180
+    });
+    await nextFrame();
+    movingValue.dataset.magicViewport = 'off';
+    const movingWrites = observeText(movingValue);
+    movingValue.textContent = '302';
+    await settleFrames(3);
+    const adoptedMovingFinal = movingValue.__dmMagicFinalText;
+    movingWrites.writes.length = 0;
+    await settleFrames(20);
+    movingWrites.observer.disconnect();
+    const movingResult = {
+      started: movingStarted,
+      adoptedFinal: adoptedMovingFinal,
+      text: movingValue.textContent,
+      finalText: movingValue.__dmMagicFinalText,
+      lateWrites: [...movingWrites.writes],
+      active: activeMotion(movingValue)
+    };
+
+    return {
+      ambient,
+      visibleMid,
+      visible: visibleResult,
+      unchanged,
+      concurrent,
+      staleStagger,
+      sameValueRace,
+      deferred,
+      selection: selectionResult,
+      clipped: clippedResult,
+      rapid: rapidResult,
+      themes,
+      reduced: reducedResult,
+      observer: observerResult,
+      moving: movingResult
+    };
+  });
+  assert(
+    motion.ambient.text === '30.5%' && motion.ambient.textWrites === 0 && motion.ambient.decorative,
+    `live number motion: forced ambient tick mutated unchanged text or lost its decorative pulse ${JSON.stringify(motion.ambient)}`
+  );
+  assert(
+    motion.visible.started === true
+      && motion.visibleMid.active
+      && motion.visibleMid.ariaLabel === '30.7%'
+      && motion.visibleMid.ariaBusy === 'true'
+      && motion.visible.done === 1
+      && motion.visible.text === '30.7%'
+      && motion.visible.sameNode
+      && motion.visible.writes > 0
+      && motion.visible.ariaLabel === 'Delegated stake'
+      && motion.visible.ariaBusy === 'false',
+    `live number motion: one visible delta did not animate once, stay accessible, and settle exactly ${JSON.stringify({ mid: motion.visibleMid, final: motion.visible })}`
+  );
+  assert(
+    motion.unchanged.started === false
+      && motion.unchanged.done === 1
+      && motion.unchanged.text === '30.7%'
+      && motion.unchanged.writes === 0
+      && !motion.unchanged.active,
+    `live number motion: unchanged background update replayed text motion ${JSON.stringify(motion.unchanged)}`
+  );
+  assert(
+    motion.concurrent.starts.every(Boolean)
+      && motion.concurrent.dispatchElapsed < 250
+      && motion.concurrent.settleElapsed < 1500
+      && motion.concurrent.values.join(',') === '20%,21%,22%,23%,24%'
+      && motion.concurrent.backs.join(',') === '20%,21%,22%,23%,24%'
+      && motion.concurrent.sameNodes
+      && motion.concurrent.focused
+      && Math.abs(motion.concurrent.scrollLeft - 110) < 1,
+    `live number motion: concurrent deltas blocked sequentially or disturbed reading state ${JSON.stringify(motion.concurrent)}`
+  );
+  assert(
+    motion.staleStagger.freshFlipStarted === true
+      && motion.staleStagger.afterFreshBudget === '222'
+      && motion.staleStagger.finalFront === '222'
+      && motion.staleStagger.finalBack === '222'
+      && motion.staleStagger.lateWrites.length === 0
+      && !motion.staleStagger.active,
+    `live number motion: delayed cache reveal overwrote a fresher live card value ${JSON.stringify(motion.staleStagger)}`
+  );
+  assert(
+    motion.sameValueRace.queued.flipStarted === true
+      && motion.sameValueRace.queued.afterFreshBudget === '333'
+      && motion.sameValueRace.queued.finalFront === '333'
+      && motion.sameValueRace.queued.finalBack === '333'
+      && motion.sameValueRace.queued.lateWrites.length === 0
+      && !motion.sameValueRace.queued.loading
+      && !motion.sameValueRace.queued.active
+      && motion.sameValueRace.started.afterInstant === '333'
+      && motion.sameValueRace.started.finalFront === '333'
+      && motion.sameValueRace.started.finalBack === '333'
+      && motion.sameValueRace.started.lateWrites.length === 0
+      && !motion.sameValueRace.started.loading
+      && !motion.sameValueRace.started.active,
+    `live number motion: same-formatted fresh writer failed to cancel queued/started cache reveal ${JSON.stringify(motion.sameValueRace)}`
+  );
+  assert(
+    motion.deferred.offscreen.started === false
+      && motion.deferred.offscreen.text === '41%'
+      && motion.deferred.offscreen.replayWrites === 0
+      && !motion.deferred.offscreen.active
+      && motion.deferred.hidden.started === false
+      && motion.deferred.hidden.text === '51%'
+      && motion.deferred.hidden.replayWrites === 0
+      && !motion.deferred.hidden.active
+      && motion.deferred.horizontal.started === false
+      && motion.deferred.horizontal.text === '61%'
+      && motion.deferred.horizontal.replayWrites === 0
+      && !motion.deferred.horizontal.active,
+    `live number motion: hidden/offscreen final values replayed stale motion when revealed ${JSON.stringify(motion.deferred)}`
+  );
+  assert(
+    motion.selection.started === false
+      && motion.selection.done === 1
+      && motion.selection.text === '401'
+      && motion.selection.writes.length <= 1
+      && motion.selection.writes.every((text) => text === '401')
+      && !motion.selection.active
+      && motion.selection.rangeCount === 1
+      && motion.selection.anchorPreserved
+      && motion.selection.focusPreserved
+      && motion.selection.selectedText === 'Selected 401 suffix',
+    `live number motion: intersecting text selection moved or received glyph frames ${JSON.stringify(motion.selection)}`
+  );
+  assert(
+    motion.clipped.rectInsideWindow
+      && motion.clipped.outsideAncestorClip
+      && motion.clipped.started === false
+      && motion.clipped.text === '501'
+      && motion.clipped.replayWrites === 0
+      && !motion.clipped.active,
+    `live number motion: overflow-clipped value animated or replayed after reveal ${JSON.stringify(motion.clipped)}`
+  );
+  assert(
+    motion.rapid.text === '103'
+      && motion.rapid.finalText === '103'
+      && motion.rapid.done === 1
+      && !motion.rapid.active,
+    `live number motion: rapid deltas did not settle on the newest exact value ${JSON.stringify(motion.rapid)}`
+  );
+  for (const [theme, result] of Object.entries(motion.themes)) {
+    assert(
+      result.mode === result.expectedMode
+        && result.started === true
+        && result.mid.active
+        && result.mid.ariaLabel === result.finalText
+        && result.mid.ariaBusy === 'true'
+        && result.text === result.finalText
+        && result.ariaBusy !== 'true',
+      `live number motion: ${theme} personality failed explicit dispatch/accessibility/final-value contract ${JSON.stringify(result)}`
+    );
+  }
+  assert(
+    motion.reduced.text === '71%'
+      && motion.reduced.laterText === '71%'
+      && motion.reduced.done === 1
+      && motion.reduced.laterDone === 1
+      && !motion.reduced.active
+      && motion.reduced.ariaBusy !== 'true',
+    `live number motion: reduced motion did not commit immediately and exactly once ${JSON.stringify(motion.reduced)}`
+  );
+  assert(
+    motion.observer.adoptedBeforeReveal === '82%'
+      && motion.observer.replayStarted === false
+      && motion.observer.replayWrites === 0
+      && motion.observer.text === '82%'
+      && motion.observer.finalText === '82%'
+      && !motion.observer.active,
+    `live number motion: offscreen external mutation was not adopted or replayed after reveal ${JSON.stringify(motion.observer)}`
+  );
+  assert(
+    motion.moving.started === true
+      && motion.moving.adoptedFinal === '302'
+      && motion.moving.text === '302'
+      && motion.moving.finalText === '302'
+      && motion.moving.lateWrites.length === 0
+      && !motion.moving.active,
+    `live number motion: old visible reveal overwrote a newer offscreen external value ${JSON.stringify(motion.moving)}`
+  );
+
+  const focusResponse = await page.goto(`${baseUrl}/offline.html?focus-string-race=1`, { waitUntil: 'domcontentloaded' });
+  assert(focusResponse?.ok(), `live number focus-string motion: fixture route failed with HTTP ${focusResponse?.status()}`);
+  const focusStringRace = await page.evaluate(async () => {
+    document.body.innerHTML = '';
+    document.body.dataset.theme = 'default';
+    const animations = await import('/js/ui/animations.js?smoke=focus-string-race');
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const settleFrames = async (count) => {
+      for (let index = 0; index < count; index += 1) await nextFrame();
+    };
+
+    const card = document.createElement('article');
+    card.dataset.stat = 'magic-focus-string';
+    card.style.cssText = 'position:fixed;left:24px;top:24px;';
+    card.innerHTML = `<div class="card-inner">
+      <output id="magic-focus-string-front" data-magic-number="major" aria-live="polite"
+        style="display:inline-block;min-width:220px;font-size:24px;">Seed text</output>
+      <output id="magic-focus-string-back" data-magic-number="major"
+        style="display:none;">Seed text</output>
+    </div>`;
+    document.body.append(card);
+    const front = card.querySelector('#magic-focus-string-front');
+    const back = card.querySelector('#magic-focus-string-back');
+
+    animations.revealStat('magic-focus-string', 'Cached focus text', String);
+    await nextFrame();
+    const started = front.classList.contains('dm-focus-in');
+    const writes = [];
+    const observer = new MutationObserver(() => writes.push(front.textContent));
+    observer.observe(front, { childList: true, characterData: true, subtree: true });
+    animations.updateStatInstant('magic-focus-string', 'Fresh focus text', String);
+    await settleFrames(3);
+    const afterInstant = front.textContent;
+    writes.length = 0;
+    await settleFrames(40);
+    observer.disconnect();
+    return {
+      started,
+      afterInstant,
+      front: front.textContent,
+      back: back.textContent,
+      finalText: front.__dmMagicFinalText,
+      lateWrites: writes,
+      active: Boolean(
+        front.__dmMagicCancel
+        || front.__dmThemeCancel
+        || front.classList.contains('dm-focus-in')
+      ),
+      loading: front.classList.contains('loading'),
+      ariaBusy: front.getAttribute('aria-busy')
+    };
+  });
+  assert(
+    focusStringRace.started
+      && focusStringRace.afterInstant === 'Fresh focus text'
+      && focusStringRace.front === 'Fresh focus text'
+      && focusStringRace.back === 'Fresh focus text'
+      && focusStringRace.finalText === 'Fresh focus text'
+      && focusStringRace.lateWrites.length === 0
+      && !focusStringRace.active
+      && !focusStringRace.loading
+      && focusStringRace.ariaBusy !== 'true',
+    `live number motion: interrupted focus-theme string reveal overwrote newer text ${JSON.stringify(focusStringRace)}`
+  );
+
+  const guardResponse = await page.goto(`${baseUrl}/offline.html?live-number-guards=1`, { waitUntil: 'domcontentloaded' });
+  assert(guardResponse?.ok(), `live number guard races: fixture route failed with HTTP ${guardResponse?.status()}`);
+  const guardRaces = await page.evaluate(async () => {
+    document.body.innerHTML = '';
+    document.body.dataset.theme = 'matrix';
+    const magic = await import('/js/effects/data-magic.js?smoke=live-number-guards');
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const settleFrames = async (count) => {
+      for (let index = 0; index < count; index += 1) await nextFrame();
+    };
+    const activeMotion = (element) => Boolean(
+      element.__dmMagicCancel
+      || element.__dmTweenCancel
+      || element.__dmScrambleCancel
+      || element.__dmAuroraCancel
+      || element.__dmThemeCancel
+      || Array.from(element.classList).some((name) => name.startsWith('dm-'))
+    );
+    const makeValue = (id, text) => {
+      const element = document.createElement('output');
+      element.id = id;
+      element.className = 'stat-value';
+      element.dataset.magicNumber = 'major';
+      element.dataset.magicViewport = 'on';
+      element.setAttribute('aria-live', 'polite');
+      element.style.cssText = 'display:inline-block;min-width:140px;font-size:24px;';
+      element.textContent = text;
+      return element;
+    };
+    const observeText = (element) => {
+      const writes = [];
+      const observer = new MutationObserver(() => writes.push(element.textContent));
+      observer.observe(element, { childList: true, characterData: true, subtree: true });
+      return { writes, observer };
+    };
+
+    magic.initDataMagic();
+
+    // Observer-started string effects need the same ownership and accessibility
+    // lifecycle as explicit numeric effects. A selection created after Matrix
+    // scrambling starts must settle the final string and stop every later frame.
+    const matrixStringValue = makeValue('magic-observer-matrix-string', 'Matrix alpha');
+    matrixStringValue.dataset.magicText = '';
+    matrixStringValue.classList.add('loading');
+    document.body.append(matrixStringValue);
+    await settleFrames(2);
+    matrixStringValue.classList.remove('loading');
+    matrixStringValue.textContent = 'Matrix omega';
+    await settleFrames(2);
+    const matrixStringOwned = {
+      finalText: matrixStringValue.__dmMagicFinalText,
+      magicOwner: Boolean(matrixStringValue.__dmMagicCancel),
+      effectOwner: Boolean(matrixStringValue.__dmScrambleCancel),
+      ariaLabel: matrixStringValue.getAttribute('aria-label'),
+      ariaBusy: matrixStringValue.getAttribute('aria-busy'),
+      active: activeMotion(matrixStringValue)
+    };
+    const matrixStringWrites = observeText(matrixStringValue);
+    const matrixSelection = document.getSelection();
+    const matrixRange = document.createRange();
+    matrixRange.selectNodeContents(matrixStringValue);
+    matrixSelection.removeAllRanges();
+    matrixSelection.addRange(matrixRange);
+    await settleFrames(3);
+    const matrixAfterSelection = {
+      text: matrixStringValue.textContent,
+      selectedText: matrixSelection.toString(),
+      anchorInside: matrixStringValue.contains(matrixSelection.anchorNode),
+      focusInside: matrixStringValue.contains(matrixSelection.focusNode),
+      rangeCount: matrixSelection.rangeCount,
+      active: activeMotion(matrixStringValue),
+      ariaBusy: matrixStringValue.getAttribute('aria-busy')
+    };
+    matrixStringWrites.writes.length = 0;
+    await settleFrames(65);
+    matrixStringWrites.observer.disconnect();
+    const observerMatrixSelection = {
+      owned: matrixStringOwned,
+      afterSelection: matrixAfterSelection,
+      text: matrixStringValue.textContent,
+      finalText: matrixStringValue.__dmMagicFinalText,
+      selectedText: matrixSelection.toString(),
+      anchorInside: matrixStringValue.contains(matrixSelection.anchorNode),
+      focusInside: matrixStringValue.contains(matrixSelection.focusNode),
+      rangeCount: matrixSelection.rangeCount,
+      lateWrites: [...matrixStringWrites.writes],
+      active: activeMotion(matrixStringValue),
+      ariaBusy: matrixStringValue.getAttribute('aria-busy')
+    };
+    matrixSelection.removeAllRanges();
+
+    // A Default-theme observer focus timer must be cancelled when an explicit
+    // newer reveal takes ownership. At the old timer's deadline the new focus
+    // class, owner, and aria-busy state must still be intact.
+    document.body.dataset.theme = 'default';
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: 'default' } }));
+    const focusOwnerValue = makeValue('magic-observer-focus-owner', 'Observer focus seed');
+    focusOwnerValue.dataset.magicText = '';
+    focusOwnerValue.classList.add('loading');
+    document.body.append(focusOwnerValue);
+    await settleFrames(2);
+    focusOwnerValue.classList.remove('loading');
+    focusOwnerValue.textContent = 'Observer focus first';
+    await settleFrames(2);
+    const observerFocusOwned = {
+      classActive: focusOwnerValue.classList.contains('dm-focus-in'),
+      magicOwner: Boolean(focusOwnerValue.__dmMagicCancel),
+      ariaBusy: focusOwnerValue.getAttribute('aria-busy')
+    };
+    let explicitFocusDone = 0;
+    const explicitFocusStarted = magic.setMagicNumber(focusOwnerValue, '202', {
+      force: true,
+      changed: true,
+      duration: 900,
+      onDone: () => { explicitFocusDone += 1; }
+    });
+    await settleFrames(36);
+    const focusAfterOldDeadline = {
+      text: focusOwnerValue.textContent,
+      finalText: focusOwnerValue.__dmMagicFinalText,
+      classActive: focusOwnerValue.classList.contains('dm-focus-in'),
+      magicOwner: Boolean(focusOwnerValue.__dmMagicCancel),
+      ariaLabel: focusOwnerValue.getAttribute('aria-label'),
+      ariaBusy: focusOwnerValue.getAttribute('aria-busy'),
+      done: explicitFocusDone
+    };
+    const focusLateWrites = observeText(focusOwnerValue);
+    await settleFrames(35);
+    focusLateWrites.observer.disconnect();
+    const observerFocusSupersession = {
+      observerOwned: observerFocusOwned,
+      explicitStarted: explicitFocusStarted,
+      afterOldDeadline: focusAfterOldDeadline,
+      text: focusOwnerValue.textContent,
+      finalText: focusOwnerValue.__dmMagicFinalText,
+      lateWrites: [...focusLateWrites.writes],
+      active: activeMotion(focusOwnerValue),
+      ariaBusy: focusOwnerValue.getAttribute('aria-busy'),
+      done: explicitFocusDone
+    };
+
+    document.body.dataset.theme = 'matrix';
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: 'matrix' } }));
+
+    // Exact target equality cannot let an error/status transition inherit an
+    // active animation. The exclusion and authoritative text arrive in the
+    // same turn as the 10→11 owner and must evict it within the observer turn.
+    const sameTextErrorValue = makeValue('magic-same-text-error', '10');
+    sameTextErrorValue.classList.add('loading');
+    document.body.append(sameTextErrorValue);
+    await settleFrames(2);
+    sameTextErrorValue.classList.remove('loading');
+    const sameTextErrorWrites = observeText(sameTextErrorValue);
+    const sameTextErrorStarted = magic.setMagicNumber(sameTextErrorValue, '11', {
+      force: true,
+      changed: true,
+      duration: 180
+    });
+    sameTextErrorValue.classList.add('error-state');
+    sameTextErrorValue.textContent = '11';
+    const sameTextErrorImmediate = sameTextErrorValue.textContent;
+    await settleFrames(3);
+    const sameTextErrorAfterObserver = {
+      text: sameTextErrorValue.textContent,
+      finalText: sameTextErrorValue.__dmMagicFinalText,
+      active: activeMotion(sameTextErrorValue),
+      ariaBusy: sameTextErrorValue.getAttribute('aria-busy')
+    };
+    sameTextErrorWrites.writes.length = 0;
+    await settleFrames(20);
+    sameTextErrorWrites.observer.disconnect();
+    const sameTextError = {
+      started: sameTextErrorStarted,
+      immediate: sameTextErrorImmediate,
+      afterObserver: sameTextErrorAfterObserver,
+      text: sameTextErrorValue.textContent,
+      finalText: sameTextErrorValue.__dmMagicFinalText,
+      lateWrites: [...sameTextErrorWrites.writes],
+      active: activeMotion(sameTextErrorValue),
+      ariaBusy: sameTextErrorValue.getAttribute('aria-busy')
+    };
+
+    // A nonnumeric/error write is authoritative even when a numeric tween owns
+    // the element. The observer must cancel that owner before its next frame.
+    const errorValue = makeValue('magic-error-during-tween', '700');
+    errorValue.classList.add('loading');
+    document.body.append(errorValue);
+    await settleFrames(2);
+    errorValue.classList.remove('loading');
+    magic.tweenNumber(errorValue, 700, 701, { duration: 180, formatter: String });
+    await nextFrame();
+    const errorTweenStarted = Boolean(errorValue.__dmTweenCancel);
+    const errorWrites = observeText(errorValue);
+    errorValue.classList.add('error-state');
+    errorValue.textContent = 'Unavailable';
+    await settleFrames(3);
+    const errorAfterExternal = errorValue.textContent;
+    errorWrites.writes.length = 0;
+    await settleFrames(20);
+    errorWrites.observer.disconnect();
+    const externalError = {
+      started: errorTweenStarted,
+      afterExternal: errorAfterExternal,
+      text: errorValue.textContent,
+      finalText: errorValue.__dmMagicFinalText,
+      lateWrites: [...errorWrites.writes],
+      active: activeMotion(errorValue),
+      ariaBusy: errorValue.getAttribute('aria-busy')
+    };
+
+    // An explicit no-motion write is also a cancellation request. Equality
+    // with an in-flight target must not leave glyphs, aria-busy, or old frames.
+    const explicitValue = makeValue('magic-explicit-instant', '800');
+    explicitValue.dataset.magic = 'off';
+    document.body.append(explicitValue);
+    await settleFrames(2);
+    delete explicitValue.dataset.magic;
+    magic.setMagicNumber(explicitValue, '801', { force: true, changed: true, duration: 180 });
+    await nextFrame();
+    const explicitAnimationStarted = activeMotion(explicitValue);
+    const explicitWrites = observeText(explicitValue);
+    let explicitDone = 0;
+    const explicitStarted = magic.setMagicNumber(explicitValue, '801', {
+      force: true,
+      changed: true,
+      animate: false,
+      onDone: () => { explicitDone += 1; }
+    });
+    const explicitImmediate = {
+      text: explicitValue.textContent,
+      active: activeMotion(explicitValue),
+      ariaBusy: explicitValue.getAttribute('aria-busy')
+    };
+    await settleFrames(3);
+    explicitWrites.writes.length = 0;
+    await settleFrames(20);
+    explicitWrites.observer.disconnect();
+    const explicitInstant = {
+      animationStarted: explicitAnimationStarted,
+      setterStarted: explicitStarted,
+      done: explicitDone,
+      immediate: explicitImmediate,
+      text: explicitValue.textContent,
+      finalText: explicitValue.__dmMagicFinalText,
+      lateWrites: [...explicitWrites.writes],
+      active: activeMotion(explicitValue),
+      ariaBusy: explicitValue.getAttribute('aria-busy')
+    };
+
+    // The observer receives insertion records after the direct owner has
+    // settled. It must adopt that write rather than replay it as first arrival.
+    const insertedValue = makeValue('magic-inserted-instant', '900');
+    const insertedWrites = observeText(insertedValue);
+    document.body.append(insertedValue);
+    let insertedDone = 0;
+    const insertedStarted = magic.setMagicNumber(insertedValue, '901', {
+      force: true,
+      changed: true,
+      animate: false,
+      onDone: () => { insertedDone += 1; }
+    });
+    const insertedImmediate = insertedValue.textContent;
+    await settleFrames(3);
+    insertedWrites.writes.length = 0;
+    await settleFrames(20);
+    insertedWrites.observer.disconnect();
+    const insertionInstant = {
+      setterStarted: insertedStarted,
+      done: insertedDone,
+      immediate: insertedImmediate,
+      text: insertedValue.textContent,
+      finalText: insertedValue.__dmMagicFinalText,
+      lateWrites: [...insertedWrites.writes],
+      active: activeMotion(insertedValue),
+      ariaBusy: insertedValue.getAttribute('aria-busy')
+    };
+
+    // Selection can begin after motion has started. The next frame must settle
+    // the final text while preserving the range, then stop all later writes.
+    const midSelectionValue = makeValue('magic-mid-selection', '1000');
+    midSelectionValue.dataset.magic = 'off';
+    document.body.append(midSelectionValue);
+    await settleFrames(2);
+    delete midSelectionValue.dataset.magic;
+    const midSelectionStarted = magic.setMagicNumber(midSelectionValue, '1001', {
+      force: true,
+      changed: true,
+      duration: 180
+    });
+    await nextFrame();
+    const selection = document.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(midSelectionValue);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const midSelectionWrites = observeText(midSelectionValue);
+    await settleFrames(3);
+    const selectionAfterSettle = {
+      text: midSelectionValue.textContent,
+      selectedText: selection.toString(),
+      anchorInside: midSelectionValue.contains(selection.anchorNode),
+      focusInside: midSelectionValue.contains(selection.focusNode),
+      rangeCount: selection.rangeCount,
+      active: activeMotion(midSelectionValue)
+    };
+    midSelectionWrites.writes.length = 0;
+    await settleFrames(20);
+    midSelectionWrites.observer.disconnect();
+    const midAnimationSelection = {
+      started: midSelectionStarted,
+      afterSettle: selectionAfterSettle,
+      text: midSelectionValue.textContent,
+      finalText: midSelectionValue.__dmMagicFinalText,
+      selectedText: selection.toString(),
+      anchorInside: midSelectionValue.contains(selection.anchorNode),
+      focusInside: midSelectionValue.contains(selection.focusNode),
+      rangeCount: selection.rangeCount,
+      lateWrites: [...midSelectionWrites.writes],
+      active: activeMotion(midSelectionValue),
+      ariaBusy: midSelectionValue.getAttribute('aria-busy')
+    };
+    selection.removeAllRanges();
+
+    return {
+      observerMatrixSelection,
+      observerFocusSupersession,
+      sameTextError,
+      externalError,
+      explicitInstant,
+      insertionInstant,
+      midAnimationSelection
+    };
+  });
+  assert(
+    guardRaces.observerMatrixSelection.owned.finalText === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.owned.magicOwner
+      && guardRaces.observerMatrixSelection.owned.effectOwner
+      && guardRaces.observerMatrixSelection.owned.ariaLabel === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.owned.ariaBusy === 'true'
+      && guardRaces.observerMatrixSelection.owned.active
+      && guardRaces.observerMatrixSelection.afterSelection.text === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.afterSelection.selectedText === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.afterSelection.anchorInside
+      && guardRaces.observerMatrixSelection.afterSelection.focusInside
+      && guardRaces.observerMatrixSelection.afterSelection.rangeCount === 1
+      && !guardRaces.observerMatrixSelection.afterSelection.active
+      && guardRaces.observerMatrixSelection.afterSelection.ariaBusy !== 'true'
+      && guardRaces.observerMatrixSelection.text === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.finalText === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.selectedText === 'Matrix omega'
+      && guardRaces.observerMatrixSelection.anchorInside
+      && guardRaces.observerMatrixSelection.focusInside
+      && guardRaces.observerMatrixSelection.rangeCount === 1
+      && guardRaces.observerMatrixSelection.lateWrites.length === 0
+      && !guardRaces.observerMatrixSelection.active
+      && guardRaces.observerMatrixSelection.ariaBusy !== 'true',
+    `live number motion: observer-owned Matrix string lost accessibility ownership or a mid-reveal selection ${JSON.stringify(guardRaces.observerMatrixSelection)}`
+  );
+  assert(
+    guardRaces.observerFocusSupersession.observerOwned.classActive
+      && guardRaces.observerFocusSupersession.observerOwned.magicOwner
+      && guardRaces.observerFocusSupersession.observerOwned.ariaBusy === 'true'
+      && guardRaces.observerFocusSupersession.explicitStarted
+      && guardRaces.observerFocusSupersession.afterOldDeadline.text === '202'
+      && guardRaces.observerFocusSupersession.afterOldDeadline.finalText === '202'
+      && guardRaces.observerFocusSupersession.afterOldDeadline.classActive
+      && guardRaces.observerFocusSupersession.afterOldDeadline.magicOwner
+      && guardRaces.observerFocusSupersession.afterOldDeadline.ariaLabel === '202'
+      && guardRaces.observerFocusSupersession.afterOldDeadline.ariaBusy === 'true'
+      && guardRaces.observerFocusSupersession.afterOldDeadline.done === 0
+      && guardRaces.observerFocusSupersession.text === '202'
+      && guardRaces.observerFocusSupersession.finalText === '202'
+      && guardRaces.observerFocusSupersession.lateWrites.length === 0
+      && !guardRaces.observerFocusSupersession.active
+      && guardRaces.observerFocusSupersession.ariaBusy !== 'true'
+      && guardRaces.observerFocusSupersession.done === 1,
+    `live number motion: an old observer focus timer stripped a newer explicit reveal ${JSON.stringify(guardRaces.observerFocusSupersession)}`
+  );
+  assert(
+    guardRaces.sameTextError.started
+      && guardRaces.sameTextError.immediate === '11'
+      && guardRaces.sameTextError.afterObserver.text === '11'
+      && guardRaces.sameTextError.afterObserver.finalText === '11'
+      && !guardRaces.sameTextError.afterObserver.active
+      && guardRaces.sameTextError.afterObserver.ariaBusy !== 'true'
+      && guardRaces.sameTextError.text === '11'
+      && guardRaces.sameTextError.finalText === '11'
+      && guardRaces.sameTextError.lateWrites.length === 0
+      && !guardRaces.sameTextError.active
+      && guardRaces.sameTextError.ariaBusy !== 'true',
+    `live number motion: same-target error transition retained active glyph ownership ${JSON.stringify(guardRaces.sameTextError)}`
+  );
+  assert(
+    guardRaces.externalError.started
+      && guardRaces.externalError.afterExternal === 'Unavailable'
+      && guardRaces.externalError.text === 'Unavailable'
+      && guardRaces.externalError.finalText === 'Unavailable'
+      && guardRaces.externalError.lateWrites.length === 0
+      && !guardRaces.externalError.active
+      && guardRaces.externalError.ariaBusy !== 'true',
+    `live number motion: numeric tween overwrote authoritative external error text ${JSON.stringify(guardRaces.externalError)}`
+  );
+  assert(
+    guardRaces.explicitInstant.animationStarted
+      && guardRaces.explicitInstant.setterStarted === false
+      && guardRaces.explicitInstant.done === 1
+      && guardRaces.explicitInstant.immediate.text === '801'
+      && !guardRaces.explicitInstant.immediate.active
+      && guardRaces.explicitInstant.immediate.ariaBusy !== 'true'
+      && guardRaces.explicitInstant.text === '801'
+      && guardRaces.explicitInstant.finalText === '801'
+      && guardRaces.explicitInstant.lateWrites.length === 0
+      && !guardRaces.explicitInstant.active
+      && guardRaces.explicitInstant.ariaBusy !== 'true',
+    `live number motion: explicit animate:false left a same-target effect active ${JSON.stringify(guardRaces.explicitInstant)}`
+  );
+  assert(
+    guardRaces.insertionInstant.setterStarted === false
+      && guardRaces.insertionInstant.done === 1
+      && guardRaces.insertionInstant.immediate === '901'
+      && guardRaces.insertionInstant.text === '901'
+      && guardRaces.insertionInstant.finalText === '901'
+      && guardRaces.insertionInstant.lateWrites.length === 0
+      && !guardRaces.insertionInstant.active
+      && guardRaces.insertionInstant.ariaBusy !== 'true',
+    `live number motion: observer replayed an immediate direct write after insertion ${JSON.stringify(guardRaces.insertionInstant)}`
+  );
+  assert(
+    guardRaces.midAnimationSelection.started
+      && guardRaces.midAnimationSelection.afterSettle.text === '1001'
+      && guardRaces.midAnimationSelection.afterSettle.selectedText === '1001'
+      && guardRaces.midAnimationSelection.afterSettle.anchorInside
+      && guardRaces.midAnimationSelection.afterSettle.focusInside
+      && guardRaces.midAnimationSelection.afterSettle.rangeCount === 1
+      && !guardRaces.midAnimationSelection.afterSettle.active
+      && guardRaces.midAnimationSelection.text === '1001'
+      && guardRaces.midAnimationSelection.finalText === '1001'
+      && guardRaces.midAnimationSelection.selectedText === '1001'
+      && guardRaces.midAnimationSelection.anchorInside
+      && guardRaces.midAnimationSelection.focusInside
+      && guardRaces.midAnimationSelection.rangeCount === 1
+      && guardRaces.midAnimationSelection.lateWrites.length === 0
+      && !guardRaces.midAnimationSelection.active
+      && guardRaces.midAnimationSelection.ariaBusy !== 'true',
+    `live number motion: selection created mid-animation was lost or received later glyph frames ${JSON.stringify(guardRaces.midAnimationSelection)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `live number motion browser issues:\n${issues.join('\n')}`);
+  log('ok - live background number motion, accessibility, and theme personality smoke');
+}
+
 async function smokeChamberCategories(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -18016,6 +19287,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },
     { name: 'hash-modal-cleanup', description: 'Hash-routed modal navigation closes stale history and chamber overlays before opening the next room', run: () => smokeHashModalCleanup(browser, baseUrl) },
     { name: 'ux-regressions', description: 'Clean theme contrast, deep-linked utility sections, share picker contrast, widget utility', run: () => smokeUxChanges(browser, baseUrl) },
+    { name: 'live-number-motion', description: 'Only factual live deltas animate, with concurrent quiet updates, newest-value cancellation, reduced motion, stable accessibility, and every theme personality', run: () => smokeLiveNumberMotion(browser, baseUrl) },
     { name: 'quiet-refresh', description: 'Background data reconciliation preserves page, rail, chamber, focus, selection, and animation state', run: () => smokeQuietRefresh(browser, baseUrl) },
     { name: 'baker-directory', description: 'Complete paged active-baker set, search, factual signals, direct route, quiet reading state, and mobile geometry', run: () => smokeLeaderboardSignals(browser, baseUrl) },
     { name: 'baker-wallet-actions', description: 'Every canonical baker row exposes wallet-reviewed first-time delegation and exact Tezos stake operations', run: () => smokeBakerWalletActions(browser, baseUrl) },

@@ -118,8 +118,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=504';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=504';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=505';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=505';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -994,11 +994,12 @@ async function updateStats(newStats) {
             updates.push({ cardId: 'active-contracts', value: newStats.activeContracts24h, formatter: formatLarge });
         }
 
-        // Apply updates with animations
-        for (const update of updates) {
+        // Reconcile changed values together. Each visible card gets one
+        // theme-aware text transition; offscreen cards settle silently.
+        await Promise.all(updates.map((update) => {
             const card = document.querySelector(`[data-stat="${update.cardId}"]`);
-            if (card) await flipCard(card, update.value, update.formatter);
-        }
+            return card ? flipCard(card, update.value, update.formatter) : Promise.resolve(false);
+        }));
         
         // Update descriptions
         const tz4Desc2 = document.getElementById('tz4-description');

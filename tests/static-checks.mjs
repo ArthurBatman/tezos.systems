@@ -6997,6 +6997,214 @@ async function checkTezosCrpContracts() {
   pass(`TezosCRP source, identity, category, route, and cadence contracts checked (${dataset.awards.length} awards across ${dataset.coverage.covered_periods} months)`);
 }
 
+async function checkLiveNumberMotionContracts() {
+  const [magic, animations, app, smoke] = await Promise.all([
+    readText('js/effects/data-magic.js'),
+    readText('js/ui/animations.js'),
+    readText('js/core/app.js'),
+    readText('tests/smoke.mjs')
+  ]);
+
+  const expectedThemeModes = {
+    aurora: 'resolve',
+    matrix: 'scramble',
+    hen: 'scramble',
+    default: 'focus',
+    void: 'focus',
+    ember: 'kindle',
+    signal: 'sweep',
+    nerv: 'scramble',
+    clean: 'delta',
+    dark: 'focus',
+    bubblegum: 'scramble',
+    abyss: 'sonar',
+    moss: 'growth',
+    valley: 'growth',
+    warzone: 'lock'
+  };
+  for (const [theme, mode] of Object.entries(expectedThemeModes)) {
+    const personality = new RegExp(`\\b${theme}:\\s*\\{[^}]*\\bmode:\\s*['"]${mode}['"]`, 's');
+    if (!personality.test(magic)) fail(`live number motion must retain the explicit ${theme} → ${mode} personality`);
+  }
+
+  for (const hook of ['window.__DATA_MAGIC_TEST__', 'flushAmbientForTest']) {
+    if (!magic.includes(hook)) fail(`live number motion deterministic browser hook missing ${hook}`);
+  }
+
+  const setterStart = magic.indexOf('export function setMagicNumber');
+  const setterEnd = magic.indexOf('/**\n * One-shot accent shimmer', setterStart);
+  const setter = magic.slice(setterStart, setterEnd);
+  if (setterStart < 0 || setterEnd < 0) {
+    fail('live number motion setter contract could not be located');
+  } else {
+    if (!/previousText\s*===\s*text/.test(setter) || !/return false;/.test(setter)) {
+      fail('live number setter must make exact text equality authoritative and skip unchanged animation');
+    }
+    if (/queueVisibleMagic\(/.test(setter)) {
+      fail('hidden/offscreen live-number changes must commit silently, never queue an old reveal for later');
+    }
+    if (
+      !/if\s*\(unchanged\)\s*\{[\s\S]*?opts\.animate\s*===\s*false[\s\S]*?settleMagicText\(el,\s*text/.test(setter)
+    ) {
+      fail('explicit animate:false must settle and cancel an equal in-flight target inside the unchanged branch');
+    }
+    for (const token of ['aria-label', 'aria-busy']) {
+      if (!setter.includes(token) && !magic.includes(token)) {
+        fail(`live number animation must shield intermediate glyph frames with a stable ${token}`);
+      }
+    }
+  }
+
+  const ambientStart = magic.indexOf('function ambientTick');
+  const ambientEnd = magic.indexOf('function scheduleAmbient', ambientStart);
+  const ambient = magic.slice(ambientStart, ambientEnd);
+  if (ambientStart < 0 || ambientEnd < 0) {
+    fail('live number ambient contract could not be located');
+  } else {
+    const textRevealCalls = [
+      'scrambleText(',
+      'auroraResolve(',
+      'kindleReveal(',
+      'sweepLockReveal(',
+      'deltaTickReveal(',
+      'sonarEchoReveal(',
+      'mycelialBloomReveal(',
+      'targetLockReveal(',
+      'focusReveal(',
+      'revealValue(',
+      'setMagicNumber('
+    ];
+    if (textRevealCalls.some((call) => ambient.includes(call)) || /textContent\s*=/.test(ambient)) {
+      fail('ambient personality may decorate a stable value but must never mutate unchanged text');
+    }
+    if (!ambient.includes('pulseFresh(')) {
+      fail('ambient live-number personality must retain a decorative non-text freshness pulse');
+    }
+  }
+
+  const viewportStart = magic.indexOf('function inViewport');
+  const viewportEnd = magic.indexOf('function isLeafMagicNumberCandidate', viewportStart);
+  const viewport = magic.slice(viewportStart, viewportEnd);
+  if (!/rect\.right\s*<=\s*0/.test(viewport) || !/rect\.left\s*>=\s*window\.innerWidth/.test(viewport)) {
+    fail('live number viewport gate must treat horizontally clipped values as offscreen');
+  }
+
+  const mutationStart = magic.indexOf('function onMagicMutations');
+  const mutationEnd = magic.indexOf('export function observeMagic', mutationStart);
+  const mutation = magic.slice(mutationStart, mutationEnd);
+  if (!mutation.includes('__dmMagicFinalText')) {
+    fail('offscreen external number mutations must update the adopted final text without queuing a reveal');
+  }
+  const settleStart = magic.indexOf('function settleMagicText');
+  const settleEnd = magic.indexOf('function applyFlair', settleStart);
+  const settle = magic.slice(settleStart, settleEnd);
+  if (!mutation.includes('settleMagicText(el, text') || !settle.includes('cancelMagic(el)')) {
+    fail('a newer offscreen external number must cancel any visible reveal already in flight');
+  }
+  if (
+    !setter.includes('claimMagicWrite(el, text)')
+    || !magic.includes('__dmMagicClaimVersion')
+    || !mutation.includes('el.__dmMagicClaimVersion || 0')
+  ) {
+    fail('explicit live-number writes must invalidate queued observer work, including immediate writes after insertion');
+  }
+  if (
+    !/if\s*\(el\.matches\(MAGIC_EXCLUDE\)\)\s*\{[\s\S]*?settleMagicText\(el,\s*text/.test(mutation)
+  ) {
+    fail('external loading or error text must cancel an older numeric animation before excluded targets are skipped');
+  }
+
+  for (const token of [
+    'selectionIntersects(el)',
+    'captureTargetSelection(el)',
+    'restoreTargetSelection(el, selection)',
+    "document.addEventListener('selectionchange', guardSelectedMagic)"
+  ]) {
+    if (!magic.includes(token)) fail(`live number selection-preservation contract missing ${token}`);
+  }
+  for (const token of [
+    'clippingValues',
+    'ancestor.clientWidth',
+    'ancestor.clientHeight',
+    'visibleRight <= visibleLeft',
+    'visibleBottom <= visibleTop'
+  ]) {
+    if (!viewport.includes(token)) fail(`live number overflow-clipping contract missing ${token}`);
+  }
+
+  for (const token of [
+    'const pendingStatReveals = new WeakMap()',
+    'cancelStatReveal(frontValue)',
+    'additionalCancel: pending?.cancel',
+    'pendingStatReveals.get(frontValue) !== pending',
+    'pending.cancel = tweenNumber',
+    'pending.cancel = revealValue'
+  ]) {
+    if (!animations.includes(token)) fail(`stat-card stale reveal ownership contract missing ${token}`);
+  }
+  const instantWriteStart = animations.indexOf('function writeStatInstant');
+  const instantWriteEnd = animations.indexOf('/**', instantWriteStart);
+  const instantWrite = animations.slice(instantWriteStart, instantWriteEnd);
+  if (!instantWrite.includes('cancelStatReveal(element)')) {
+    fail('an instant stat write must cancel queued and active cache reveals even when its formatted text is unchanged');
+  }
+  if (!magic.includes("if (typeof additionalCancel === 'function') additionalCancel()")) {
+    fail('selection-preserving live-number cancellation must run an owner-provided string/focus reveal handle');
+  }
+
+  if (/await\s+flipCard\(/.test(app)) {
+    fail('background card deltas must not await independent animations sequentially');
+  }
+
+  for (const snippet of [
+    "name: 'live-number-motion'",
+    'magic.flushAmbientForTest()',
+    "changed: true",
+    "motion.unchanged.started === false",
+    'animations.flipCard(card',
+    'motion.concurrent.dispatchElapsed < 250',
+    'motion.concurrent.settleElapsed < 1500',
+    "animations.revealStat('magic-stagger-target'",
+    "motion.staleStagger.finalFront === '222'",
+    "animations.revealStat('magic-same-queued-target'",
+    "animations.updateStatInstant('magic-same-started-target'",
+    "motion.sameValueRace.started.afterInstant === '333'",
+    'focus-string-race=1',
+    "focusStringRace.finalText === 'Fresh focus text'",
+    'focusStringRace.lateWrites.length === 0',
+    'live-number-guards=1',
+    "guardRaces.observerMatrixSelection.owned.ariaLabel === 'Matrix omega'",
+    "guardRaces.observerMatrixSelection.selectedText === 'Matrix omega'",
+    'guardRaces.observerMatrixSelection.lateWrites.length === 0',
+    'guardRaces.observerFocusSupersession.afterOldDeadline.classActive',
+    'guardRaces.observerFocusSupersession.afterOldDeadline.magicOwner',
+    'guardRaces.observerFocusSupersession.done === 1',
+    "guardRaces.sameTextError.afterObserver.text === '11'",
+    'guardRaces.sameTextError.lateWrites.length === 0',
+    "guardRaces.externalError.finalText === 'Unavailable'",
+    'guardRaces.explicitInstant.setterStarted === false',
+    "guardRaces.insertionInstant.finalText === '901'",
+    "guardRaces.midAnimationSelection.selectedText === '1001'",
+    'guardRaces.midAnimationSelection.lateWrites.length === 0',
+    'motion.deferred.offscreen.replayWrites === 0',
+    'motion.deferred.horizontal.started === false',
+    'motion.selection.started === false',
+    "motion.selection.selectedText === 'Selected 401 suffix'",
+    'motion.clipped.outsideAncestorClip',
+    "motion.rapid.finalText === '103'",
+    "motion.observer.adoptedBeforeReveal === '82%'",
+    "motion.moving.adoptedFinal === '302'",
+    'motion.moving.lateWrites.length === 0',
+    'result.mid.ariaBusy',
+    'window.__DATA_MAGIC_TEST__.forceMotion = false',
+    'for (const [theme, result] of Object.entries(motion.themes))'
+  ]) {
+    if (!smoke.includes(snippet)) fail(`live number browser regression contract missing: ${snippet}`);
+  }
+
+  pass('live number exact-delta, stale-work, concurrency, selection, clipping, visibility, cancellation, accessibility, reduced-motion, ambient, and theme contracts checked');
+}
+
 async function checkQuietRefreshContracts() {
   const [quiet, app, daily, myTezos, myBaker, tezlink, capital, ecosystem, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
     readText('js/core/quiet-refresh.js'),
@@ -7920,7 +8128,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=504'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=505'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -8030,6 +8238,7 @@ async function main() {
   await checkMyTezosPortfolioContracts();
   await checkCapitalContracts();
   await checkEcosystemActivityContracts();
+  await checkLiveNumberMotionContracts();
   await checkQuietRefreshContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();

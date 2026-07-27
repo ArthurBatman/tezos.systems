@@ -11,7 +11,7 @@
  *   • revealValue  — theme-aware dispatch across the theme personalities
  *   • pulseFresh   — one-shot accent shimmer sweep signalling "this value just updated"
  *   • blockTick    — mechanical up-tick for the block-height number (the chain's heartbeat)
- *   • initDataMagic — themechange tracking + the ambient loop (sparse idle re-decodes)
+ *   • initDataMagic — themechange tracking + a sparse decorative ambient pulse
  *
  * Every theme carries an effect personality. Matrix, HEN, NERV, and Bubblegum
  * keep their strong themed decodes; the environment-led themes use bespoke
@@ -83,6 +83,8 @@ export function getPersonality() {
 }
 
 export function prefersReducedMotion() {
+    const testOverride = typeof window !== 'undefined' ? window.__DATA_MAGIC_TEST__?.forceMotion : undefined;
+    if (typeof testOverride === 'boolean') return !testOverride;
     // Automation (Playwright/Selenium set navigator.webdriver) gets instant
     // text: assertions must never race a decode animation.
     if (typeof navigator !== 'undefined' && navigator.webdriver === true) return true;
@@ -101,12 +103,169 @@ function easeOutExpo(t) {
 // All engine writes go through here so the magic observer can distinguish
 // its own frames from external updates (and skip re-animating them).
 function dmWrite(el, str) {
+    // A selection can begin between animation frames, before selectionchange
+    // is delivered. Claim it synchronously at the write boundary so the next
+    // glyph frame cannot replace the reader's range.
+    if (
+        !el.__dmSelectionSettling
+        && el.__dmMagicCancel
+        && el.__dmMagicFinalText !== undefined
+        && selectionIntersects(el)
+    ) {
+        const selection = captureTargetSelection(el);
+        const finalText = String(el.__dmMagicFinalText);
+        el.__dmSelectionSettling = true;
+        try {
+            cancelMagic(el);
+            if (el.textContent !== finalText) {
+                el.__dmLastWrite = finalText;
+                el.textContent = finalText;
+            }
+        } finally {
+            restoreTargetSelection(el, selection);
+            delete el.__dmSelectionSettling;
+        }
+        return false;
+    }
     el.__dmLastWrite = str;
     el.textContent = str;
+    return true;
 }
 
-function cancelMagic(el) {
+function selectionIntersects(el) {
+    const selection = document.getSelection?.();
+    if (!selection?.rangeCount) return false;
+    for (let index = 0; index < selection.rangeCount; index++) {
+        try {
+            if (selection.getRangeAt(index).intersectsNode(el)) return true;
+        } catch {}
+    }
+    return false;
+}
+
+function captureSelectionBoundary(root, node, offset) {
+    if (!node) return null;
+    if (node === root || root.contains(node)) {
+        try {
+            const prefix = document.createRange();
+            prefix.selectNodeContents(root);
+            prefix.setEnd(node, offset);
+            return { inside: true, textOffset: prefix.toString().length };
+        } catch {
+            return { inside: true, textOffset: 0 };
+        }
+    }
+    return { inside: false, node, offset };
+}
+
+function resolveSelectionBoundary(root, boundary) {
+    if (!boundary) return null;
+    if (!boundary.inside) {
+        if (!boundary.node?.isConnected) return null;
+        const max = boundary.node.nodeType === Node.TEXT_NODE
+            ? boundary.node.length
+            : boundary.node.childNodes?.length ?? 0;
+        return { node: boundary.node, offset: Math.min(boundary.offset, max) };
+    }
+
+    let remaining = Math.max(0, boundary.textOffset);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let textNode = walker.nextNode();
+    let lastTextNode = null;
+    while (textNode) {
+        lastTextNode = textNode;
+        if (remaining <= textNode.length) return { node: textNode, offset: remaining };
+        remaining -= textNode.length;
+        textNode = walker.nextNode();
+    }
+    if (lastTextNode) return { node: lastTextNode, offset: lastTextNode.length };
+    return { node: root, offset: 0 };
+}
+
+function captureTargetSelection(root) {
+    const selection = document.getSelection?.();
+    if (!selection?.rangeCount) return null;
+    const ranges = [];
+    for (let index = 0; index < selection.rangeCount; index++) {
+        const range = selection.getRangeAt(index);
+        ranges.push({
+            start: captureSelectionBoundary(root, range.startContainer, range.startOffset),
+            end: captureSelectionBoundary(root, range.endContainer, range.endOffset)
+        });
+    }
+    return {
+        ranges,
+        anchor: captureSelectionBoundary(root, selection.anchorNode, selection.anchorOffset),
+        focus: captureSelectionBoundary(root, selection.focusNode, selection.focusOffset)
+    };
+}
+
+function restoreTargetSelection(root, snapshot) {
+    if (!snapshot) return;
+    const selection = document.getSelection?.();
+    if (!selection) return;
+    try {
+        const anchor = resolveSelectionBoundary(root, snapshot.anchor);
+        const focus = resolveSelectionBoundary(root, snapshot.focus);
+        selection.removeAllRanges();
+        if (
+            snapshot.ranges.length === 1
+            && anchor
+            && focus
+            && typeof selection.setBaseAndExtent === 'function'
+        ) {
+            selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+            return;
+        }
+        for (const savedRange of snapshot.ranges) {
+            const start = resolveSelectionBoundary(root, savedRange.start);
+            const end = resolveSelectionBoundary(root, savedRange.end);
+            if (!start || !end) continue;
+            const range = document.createRange();
+            range.setStart(start.node, start.offset);
+            range.setEnd(end.node, end.offset);
+            selection.addRange(range);
+        }
+    } catch {
+        // The selected value changed shape; the factual write still wins.
+    }
+}
+
+/**
+ * Keep the settled value exposed to assistive technology while visual glyph
+ * frames run. Author-provided accessibility metadata is restored exactly when
+ * the reveal settles or is superseded.
+ */
+function holdAccessibleFinalText(el, text) {
+    const hadLabel = el.hasAttribute('aria-label');
+    const previousLabel = el.getAttribute('aria-label');
+    const hadBusy = el.hasAttribute('aria-busy');
+    const previousBusy = el.getAttribute('aria-busy');
+    let restored = false;
+
+    el.setAttribute('aria-label', text);
+    el.setAttribute('aria-busy', 'true');
+
+    return () => {
+        if (restored) return;
+        restored = true;
+        if (hadLabel) el.setAttribute('aria-label', previousLabel);
+        else el.removeAttribute('aria-label');
+        if (hadBusy) el.setAttribute('aria-busy', previousBusy);
+        else el.removeAttribute('aria-busy');
+    };
+}
+
+export function cancelMagic(el, { preserveSelection = false, additionalCancel = null } = {}) {
     if (!el) return;
+    const selection = preserveSelection && selectionIntersects(el)
+        ? captureTargetSelection(el)
+        : null;
+    // Some owners (notably staggered first-load stat reveals) retain a
+    // higher-level cancel handle that is not registered on the element by
+    // every theme effect. Run it inside the same selection-preserving
+    // transaction before clearing the engine's element-local handles.
+    if (typeof additionalCancel === 'function') additionalCancel();
     if (el.__dmMagicCancel) {
         el.__dmMagicCancel();
         el.__dmMagicCancel = null;
@@ -115,6 +274,41 @@ function cancelMagic(el) {
     if (el.__dmScrambleCancel) el.__dmScrambleCancel();
     if (el.__dmAuroraCancel) el.__dmAuroraCancel();
     if (el.__dmThemeCancel) el.__dmThemeCancel();
+    restoreTargetSelection(el, selection);
+}
+
+function settleMagicText(el, text, { preserveSelection = false } = {}) {
+    const selection = preserveSelection && selectionIntersects(el)
+        ? captureTargetSelection(el)
+        : null;
+    cancelMagic(el);
+    if (el.textContent !== text) dmWrite(el, text);
+    restoreTargetSelection(el, selection);
+}
+
+function hasActiveMagic(el) {
+    return Boolean(
+        el?.__dmMagicCancel
+        || el?.__dmTweenCancel
+        || el?.__dmScrambleCancel
+        || el?.__dmAuroraCancel
+        || el?.__dmThemeCancel
+    );
+}
+
+/**
+ * Distinguish an explicit owner write from the MutationObserver record it can
+ * produce later in the same turn. The monotonically increasing version also
+ * invalidates an observer reveal that was already staggered for the same text.
+ */
+function claimMagicWrite(el, text) {
+    const version = (el.__dmMagicClaimVersion || 0) + 1;
+    const claim = { text, version };
+    el.__dmMagicClaimVersion = version;
+    el.__dmMagicClaim = claim;
+    setTimeout(() => {
+        if (el.__dmMagicClaim === claim) delete el.__dmMagicClaim;
+    }, 0);
 }
 
 function applyFlair(el, personality) {
@@ -166,7 +360,7 @@ export function tweenNumber(el, from, to, opts = {}) {
         if (cancelled) return;
         const p = Math.min(1, (now - startedAt) / duration);
         const value = start + (end - start) * easeOutExpo(p);
-        dmWrite(el, formatter(value));
+        if (!dmWrite(el, formatter(value))) return;
         if (p < 1) {
             rafId = requestAnimationFrame(step);
         } else {
@@ -241,7 +435,7 @@ export function scrambleText(el, finalText, opts = {}) {
                 out += glyph();
             }
         }
-        dmWrite(el, out);
+        if (!dmWrite(el, out)) return;
         if (p < 1) {
             rafId = requestAnimationFrame(step);
         } else {
@@ -322,7 +516,7 @@ export function auroraResolve(el, finalText, opts = {}) {
             const oldChar = previous[index];
             return oldChar && !/\s/.test(oldChar) ? oldChar : '·';
         });
-        dmWrite(el, out.join(''));
+        if (!dmWrite(el, out.join(''))) return;
         if (p < 1) {
             rafId = requestAnimationFrame(step);
         } else {
@@ -415,7 +609,7 @@ function runWaveReveal(el, finalText, opts = {}) {
             const oldChar = previous[index];
             return oldChar && !/\s/.test(oldChar) ? oldChar : '·';
         });
-        dmWrite(el, out.join(''));
+        if (!dmWrite(el, out.join(''))) return;
         if (p < 1) {
             rafId = requestAnimationFrame(step);
         } else {
@@ -698,6 +892,33 @@ function isMajorMagicTarget(el, opts = {}) {
     return Number.isFinite(fontSize) && fontSize >= minFontPx;
 }
 
+function beginOwnedMagicReveal(el, text, opts = {}) {
+    cancelMagic(el);
+    injectStyles();
+    const restoreAccessibility = holdAccessibleFinalText(el, text);
+    let settled = false;
+    const finish = () => {
+        if (settled) return;
+        settled = true;
+        restoreAccessibility();
+        el.__dmMagicCancel = null;
+        opts.onDone?.();
+    };
+    const effectCancel = revealValue(el, text, {
+        duration: opts.duration,
+        onDone: finish
+    });
+    if (settled) return false;
+    const cancel = () => {
+        effectCancel();
+        settled = true;
+        restoreAccessibility();
+        el.__dmMagicCancel = null;
+    };
+    el.__dmMagicCancel = cancel;
+    return true;
+}
+
 /**
  * Theme-aware setter for prominent live numeric text. This is the preferred
  * write path for realtime values big enough to make motion useful.
@@ -705,46 +926,64 @@ function isMajorMagicTarget(el, opts = {}) {
 export function setMagicNumber(el, finalText, opts = {}) {
     if (!el) return false;
     const text = finalText == null ? '' : String(finalText);
-    const previousText = el.__dmMagicFinalText ?? el.textContent.trim();
-    const unchanged = !opts.changed && previousText === text;
+    if (!opts.observer) claimMagicWrite(el, text);
+    const renderedText = el.textContent.trim();
+    const trackedText = el.__dmMagicFinalText;
+    // An active reveal's DOM contains transitional glyphs, so its tracked
+    // target is authoritative. Once settled, an external loading/error write
+    // may supersede that target and the actual rendered text must win.
+    const previousText = opts.previousText ?? (
+        el.__dmMagicCancel || renderedText === trackedText
+            ? trackedText ?? renderedText
+            : renderedText
+    );
+    const unchanged = previousText === text;
     el.__dmMagicFinalText = text;
 
-    if (unchanged) {
+    // A reader selecting this value takes priority over equality. An
+    // unchanged request may still be arriving while the same target is
+    // mid-reveal; stop those glyph frames and settle the selection in place.
+    if (selectionIntersects(el)) {
+        settleMagicText(el, text, { preserveSelection: true });
         opts.onDone?.();
         return false;
     }
 
-    if (!isMagicNumberText(text) || opts.animate === false || isHidden() || !isMajorMagicTarget(el, opts)) {
-        cancelMagic(el);
-        dmWrite(el, text);
+    if (unchanged) {
+        // Equality is still an ownership transfer for an explicit writer. A
+        // same-target settle-now request must stop glyphs and clear aria-busy.
+        if (!opts.observer && (opts.animate === false || hasActiveMagic(el))) {
+            settleMagicText(el, text, { preserveSelection: true });
+        }
+        opts.onDone?.();
+        return false;
+    }
+
+    if (opts.animate === false) {
+        settleMagicText(el, text);
+        opts.onDone?.();
+        return false;
+    }
+
+    if (
+        !isMagicNumberText(text)
+        || isHidden()
+        || prefersReducedMotion()
+        || !inViewport(el)
+        || !isMajorMagicTarget(el, opts)
+    ) {
+        settleMagicText(el, text);
         opts.onDone?.();
         return false;
     }
 
     if (opts.animateInitial === false && isPlaceholderText(previousText)) {
-        cancelMagic(el);
-        dmWrite(el, text);
+        settleMagicText(el, text);
         opts.onDone?.();
         return false;
     }
 
-    cancelMagic(el);
-    injectStyles();
-    if (!inViewport(el)) {
-        dmWrite(el, text);
-        queueVisibleMagic(el, text, opts);
-        opts.onDone?.();
-        return false;
-    }
-    const cancel = revealValue(el, text, {
-        duration: opts.duration,
-        onDone: () => {
-            el.__dmMagicCancel = null;
-            opts.onDone?.();
-        }
-    });
-    el.__dmMagicCancel = cancel;
-    return true;
+    return beginOwnedMagicReveal(el, text, opts);
 }
 
 /**
@@ -754,10 +993,14 @@ export function setMagicNumber(el, finalText, opts = {}) {
 export function pulseFresh(el) {
     if (!el || prefersReducedMotion()) return;
     injectStyles();
+    if (el.__dmFreshTimer) clearTimeout(el.__dmFreshTimer);
     el.classList.remove('dm-fresh');
     void el.offsetWidth; // restart animation
     el.classList.add('dm-fresh');
-    setTimeout(() => el.classList.remove('dm-fresh'), 1000);
+    el.__dmFreshTimer = setTimeout(() => {
+        el.classList.remove('dm-fresh');
+        el.__dmFreshTimer = null;
+    }, 1000);
 }
 
 /**
@@ -838,53 +1081,51 @@ const MAGIC_NUMBER_SCOPE_SELECTORS = [
 ].join(', ');
 
 let magicObserver = null;
-let magicVisibilityObserver = null;
 const lastSeenText = new WeakMap();
-const pendingVisibleText = new WeakMap();
 
 function isPlaceholderText(text) {
     return !text || text === '---' || text === '--' || text === '—';
 }
 
 function inViewport(el) {
+    const override = typeof window !== 'undefined' ? window.__DATA_MAGIC_TEST__?.isInViewport : null;
+    if (typeof override === 'function') return Boolean(override(el));
     const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
-}
+    if (
+        rect.width <= 0
+        || rect.height <= 0
+        || rect.bottom <= 0
+        || rect.top >= window.innerHeight
+        || rect.right <= 0
+        || rect.left >= window.innerWidth
+        || el.closest?.('[hidden], [aria-hidden="true"]')
+    ) return false;
+    const style = window.getComputedStyle?.(el);
+    if (style?.display === 'none' || style?.visibility === 'hidden' || style?.visibility === 'collapse') return false;
 
-function ensureMagicVisibilityObserver() {
-    if (magicVisibilityObserver || typeof IntersectionObserver === 'undefined') return magicVisibilityObserver;
-    magicVisibilityObserver = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            const el = entry.target;
-            const pending = pendingVisibleText.get(el);
-            if (!pending) {
-                magicVisibilityObserver.unobserve(el);
-                continue;
-            }
-            const text = el.textContent.trim();
-            pendingVisibleText.delete(el);
-            magicVisibilityObserver.unobserve(el);
-            if (text !== pending.text || isHidden() || prefersReducedMotion() || !isMajorMagicTarget(el, pending.opts)) continue;
-            cancelMagic(el);
-            const cancel = revealValue(el, text, {
-                duration: pending.opts?.duration,
-                onDone: () => {
-                    el.__dmMagicCancel = null;
-                }
-            });
-            el.__dmMagicCancel = cancel;
+    let visibleLeft = Math.max(0, rect.left);
+    let visibleRight = Math.min(window.innerWidth, rect.right);
+    let visibleTop = Math.max(0, rect.top);
+    let visibleBottom = Math.min(window.innerHeight, rect.bottom);
+    const clippingValues = new Set(['auto', 'hidden', 'clip', 'scroll', 'overlay']);
+    for (let ancestor = el.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        const ancestorStyle = window.getComputedStyle?.(ancestor);
+        const clipsX = clippingValues.has(ancestorStyle?.overflowX);
+        const clipsY = clippingValues.has(ancestorStyle?.overflowY);
+        if (!clipsX && !clipsY) continue;
+        const ancestorRect = ancestor.getBoundingClientRect();
+        const clipLeft = ancestorRect.left + ancestor.clientLeft;
+        const clipTop = ancestorRect.top + ancestor.clientTop;
+        if (clipsX) {
+            visibleLeft = Math.max(visibleLeft, clipLeft);
+            visibleRight = Math.min(visibleRight, clipLeft + ancestor.clientWidth);
         }
-    }, { root: null, threshold: 0.2 });
-    return magicVisibilityObserver;
-}
-
-function queueVisibleMagic(el, text, opts = {}) {
-    if (!el || opts.queue === false || isHidden() || prefersReducedMotion()) return false;
-    const observer = ensureMagicVisibilityObserver();
-    if (!observer) return false;
-    pendingVisibleText.set(el, { text, opts });
-    observer.observe(el);
+        if (clipsY) {
+            visibleTop = Math.max(visibleTop, clipTop);
+            visibleBottom = Math.min(visibleBottom, clipTop + ancestor.clientHeight);
+        }
+        if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) return false;
+    }
     return true;
 }
 
@@ -898,10 +1139,12 @@ function isMagicNumberScope(el) {
     return Boolean(el?.matches?.(MAGIC_NUMBER_SCOPE_SELECTORS) || el?.closest?.(MAGIC_NUMBER_SCOPE_SELECTORS));
 }
 
-function collectScopedMagicNumbers(touched, root) {
+function collectScopedMagicNumbers(touched, root, addedTargets) {
     if (!root?.querySelectorAll || !isMagicNumberScope(root)) return;
     for (const el of root.querySelectorAll('*')) {
-        if (isLeafMagicNumberCandidate(el)) touched.add(el);
+        if (!isLeafMagicNumberCandidate(el)) continue;
+        touched.add(el);
+        addedTargets?.add(el);
     }
 }
 
@@ -915,59 +1158,136 @@ function addMagicTouch(touched, el) {
     if (isLeafMagicNumberCandidate(el)) touched.add(el);
 }
 
-function collectAddedMagicTargets(touched, added) {
+function collectAddedMagicTargets(touched, added, addedTargets) {
     if (added.nodeType === 3) {
         addMagicTouch(touched, added.parentElement);
         return;
     }
     if (added.nodeType !== 1) return;
-    if (added.matches?.(MAGIC_TEXT_SELECTORS) || isLeafMagicNumberCandidate(added)) touched.add(added);
+    if (added.matches?.(MAGIC_TEXT_SELECTORS) || isLeafMagicNumberCandidate(added)) {
+        touched.add(added);
+        addedTargets.add(added);
+    }
     if (added.querySelectorAll) {
-        for (const el of added.querySelectorAll(MAGIC_TEXT_SELECTORS)) touched.add(el);
-        for (const el of added.querySelectorAll(MAGIC_NUMBER_CANDIDATE_SELECTORS)) {
-            if (isLeafMagicNumberCandidate(el)) touched.add(el);
+        for (const el of added.querySelectorAll(MAGIC_TEXT_SELECTORS)) {
+            touched.add(el);
+            addedTargets.add(el);
         }
-        collectScopedMagicNumbers(touched, added);
+        for (const el of added.querySelectorAll(MAGIC_NUMBER_CANDIDATE_SELECTORS)) {
+            if (!isLeafMagicNumberCandidate(el)) continue;
+            touched.add(el);
+            addedTargets.add(el);
+        }
+        collectScopedMagicNumbers(touched, added, addedTargets);
     }
 }
 
 function onMagicMutations(mutations) {
     const touched = new Set();
+    const addedTargets = new Set();
+    const previousMutationText = new Map();
     for (const m of mutations) {
         const node = m.target.nodeType === 3 ? m.target.parentElement : m.target;
         addMagicTouch(touched, node);
+        if (node && !previousMutationText.has(node)) {
+            const previous = m.type === 'characterData'
+                ? m.oldValue
+                : Array.from(m.removedNodes || []).map((removed) => removed.textContent || '').join('');
+            if (previous != null && String(previous).trim()) {
+                previousMutationText.set(node, String(previous).trim());
+            }
+        }
         // innerHTML renders (the chamber pattern) insert whole subtrees: the
         // matching elements arrive inside addedNodes, never as the target.
         for (const added of m.addedNodes) {
-            collectAddedMagicTargets(touched, added);
+            collectAddedMagicTargets(touched, added, addedTargets);
         }
     }
     let staggerIndex = 0;
     for (const el of touched) {
-        if (el.children.length > 0 || el.matches(MAGIC_EXCLUDE)) continue; // leaf text only
+        if (el.children.length > 0) continue; // leaf text only
         const text = el.textContent.trim();
         if (isPlaceholderText(text)) continue;
+        const engineWrite = (
+            el.__dmLastWrite !== undefined
+            && String(el.__dmLastWrite).trim() === text
+        );
+        if (el.matches(MAGIC_EXCLUDE)) {
+            // Exclusion suppresses new motion; it must never preserve an old
+            // owner. When the current mutation is one of that owner's frames,
+            // settle its tracked target rather than adopting a glyph frame.
+            const settledText = engineWrite && el.__dmMagicFinalText !== undefined
+                ? String(el.__dmMagicFinalText)
+                : text;
+            el.__dmMagicFinalText = settledText;
+            delete el.__dmMagicClaim;
+            settleMagicText(el, settledText, { preserveSelection: true });
+            lastSeenText.set(el, settledText);
+            continue;
+        }
+        const explicitClaim = el.__dmMagicClaim;
+        if (explicitClaim?.text === text) {
+            // The direct writer already owns this exact value. Consume the
+            // matching insertion/change record instead of replaying it.
+            delete el.__dmMagicClaim;
+            lastSeenText.set(el, text);
+            continue;
+        }
+        // A direct setter may claim a newly inserted element before the
+        // observer receives its insertion record. Never let that stale record
+        // cancel the newer factual value already in flight.
+        if (
+            el.__dmMagicCancel
+            && el.__dmLastWrite === undefined
+            && el.__dmMagicFinalText !== undefined
+            && text !== el.__dmMagicFinalText
+        ) {
+            lastSeenText.set(el, el.__dmMagicFinalText);
+            continue;
+        }
         // Engine's own frames: adopt without re-animating.
-        if (el.__dmLastWrite !== undefined && String(el.__dmLastWrite).trim() === text) {
+        if (engineWrite) {
             lastSeenText.set(el, text);
             continue;
         }
         // Unchanged rewrites (features often re-set identical text every refresh).
-        if (lastSeenText.get(el) === text) continue;
+        const previousText = lastSeenText.get(el)
+            ?? previousMutationText.get(el)
+            ?? (addedTargets.has(el) ? '—' : undefined);
+        if (previousText === text) continue;
         lastSeenText.set(el, text);
         const delay = Math.min(staggerIndex++, 8) * 60;
+        const claimVersion = el.__dmMagicClaimVersion || 0;
         const reveal = () => {
+            // A newer render superseded this staggered frame. Never replay stale text.
+            if (
+                lastSeenText.get(el) !== text
+                || el.textContent.trim() !== text
+                || (el.__dmMagicClaimVersion || 0) !== claimVersion
+            ) return;
             if (isMagicNumberText(text)) {
-                setMagicNumber(el, text, { animateInitial: true, changed: true });
+                setMagicNumber(el, text, {
+                    animateInitial: true,
+                    previousText,
+                    observer: true
+                });
             } else {
-                revealValue(el, text);
+                el.__dmMagicFinalText = text;
+                if (selectionIntersects(el)) {
+                    settleMagicText(el, text, { preserveSelection: true });
+                } else {
+                    beginOwnedMagicReveal(el, text);
+                }
             }
         };
+        // Offscreen/hidden writes are already settled by their owner. They must
+        // not queue a reveal that surprises the reader after scrolling.
         if (!inViewport(el)) {
-            if (isMagicNumberText(text)) {
-                queueVisibleMagic(el, text, { animateInitial: true, changed: true });
-            }
-        } else if (delay > 0) {
+            settleMagicText(el, text, { preserveSelection: true });
+            if (isMagicNumberText(text)) el.__dmMagicFinalText = text;
+            continue;
+        }
+        if (delay > 0) {
             setTimeout(reveal, delay);
         } else {
             reveal();
@@ -975,19 +1295,44 @@ function onMagicMutations(mutations) {
     }
 }
 
+let selectionGuardInstalled = false;
+
+function guardSelectedMagic() {
+    const selection = document.getSelection?.();
+    if (!selection?.rangeCount) return;
+    for (const el of document.querySelectorAll('[aria-busy="true"]')) {
+        if (
+            !el.__dmMagicCancel
+            || el.__dmMagicFinalText === undefined
+            || !selectionIntersects(el)
+        ) continue;
+        settleMagicText(el, String(el.__dmMagicFinalText), {
+            preserveSelection: true
+        });
+    }
+}
+
 export function observeMagic() {
     if (magicObserver || typeof MutationObserver === 'undefined' || !document.body) return;
     magicObserver = new MutationObserver(onMagicMutations);
-    magicObserver.observe(document.body, { childList: true, characterData: true, subtree: true });
+    magicObserver.observe(document.body, {
+        childList: true,
+        characterData: true,
+        characterDataOldValue: true,
+        subtree: true
+    });
+    if (!selectionGuardInstalled) {
+        document.addEventListener('selectionchange', guardSelectedMagic);
+        selectionGuardInstalled = true;
+    }
 }
 
 // ─── AMBIENT LOOP ───
-// Every 18–35s, one random visible stat quietly repeats its theme reveal or
-// shimmers in focus themes. Sparse enough to feel alive, not busy.
+// Every 18–35s, one random visible stat receives a decorative shimmer. Ambient
+// personality never rewrites factual text; glyph reveals mean the data changed.
 
 const AMBIENT_MIN_MS = 18000;
 const AMBIENT_MAX_MS = 35000;
-const AMBIENT_REDECODE_MS = 420;
 let ambientTimer = null;
 
 // Stat-grid fronts plus chamber metrics and the hero chain chips. The hero
@@ -1017,36 +1362,23 @@ function ambientTargets() {
     });
 }
 
-function ambientTick() {
-    scheduleAmbient();
+function ambientTick({ reschedule = true } = {}) {
+    if (reschedule) scheduleAmbient();
     if (isHidden() || prefersReducedMotion()) return;
 
     const targets = ambientTargets();
     if (!targets.length) return;
     const el = targets[(Math.random() * targets.length) | 0];
+    const card = el.closest('[data-stat]');
+    pulseFresh(card?.querySelector('.card-inner') || el);
+}
 
-    const mode = getPersonality().mode;
-    if (mode === 'scramble') {
-        // Re-decode the value in place — same text, brief glyph shiver.
-        scrambleText(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS });
-    } else if (mode === 'resolve') {
-        auroraResolve(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 160 });
-    } else if (mode === 'kindle') {
-        kindleReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 120 });
-    } else if (mode === 'sweep') {
-        sweepLockReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 80 });
-    } else if (mode === 'delta') {
-        deltaTickReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS - 120 });
-    } else if (mode === 'sonar') {
-        sonarEchoReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 260 });
-    } else if (mode === 'growth') {
-        mycelialBloomReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 220 });
-    } else if (mode === 'lock') {
-        targetLockReveal(el, el.textContent.trim(), { duration: AMBIENT_REDECODE_MS + 100 });
-    } else {
-        const card = el.closest('[data-stat]');
-        pulseFresh(card?.querySelector('.card-inner') || el);
-    }
+/**
+ * Deterministic browser-test seam: run one ambient pass without arming a timer.
+ * Tests may provide window.__DATA_MAGIC_TEST__.forceMotion/isInViewport.
+ */
+export function flushAmbientForTest() {
+    ambientTick({ reschedule: false });
 }
 
 function scheduleAmbient() {
