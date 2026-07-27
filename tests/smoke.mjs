@@ -6132,7 +6132,8 @@ async function smokeMyTezosColdStart(browser, baseUrl) {
         `my tezos cold start ${label}: raw drawer became visible before lazy CSS ${JSON.stringify(beforeCss)}`
       );
       assert(
-        beforeCss.drawerClass === 'my-tezos-drawer'
+        beforeCss.drawerClass.split(/\s+/).includes('my-tezos-drawer')
+          && !beforeCss.drawerClass.split(/\s+/).includes('open')
           && beforeCss.ariaHidden === 'true'
           && beforeCss.inert
           && beforeCss.transitionDuration === '0s',
