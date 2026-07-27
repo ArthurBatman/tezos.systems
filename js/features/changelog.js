@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-27',
         entries: [
+            { type: '🎨', text: 'Valley now doubles its data-reactive meadow banks around an earthy, naturally overhung path that meets a reflective lake, with golden seed-head waves and drifting moth-light' },
             { type: '✨', text: 'One wallet scope now governs every My Tezos tab: all included wallets are totaled by default, a specific wallet focuses Portfolio history, Transactions, Collection, Story, and linked Tezos X accounts, and non-additive baker or identity facts stay explicitly account-bound' },
             { type: '🔧', text: 'Portfolio account removal and inclusion changes now invalidate stale aggregates and immediately complete a fresh read; the visible update control is rebound on every Portfolio activation' },
             { type: '🎨', text: 'Portfolio now uses a clear multi-wallet update action, polished theme-aware scope selectors across My Tezos, a compact ten-address manager, and an explicit browser-local download notice' },

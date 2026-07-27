@@ -12,6 +12,9 @@ const CANVAS_ID = 'valley-background-canvas';
 // full-viewport paint cost. All readable dashboard content remains DOM-native.
 const DPR_CAP = 1;
 const FRAME_INTERVAL_MS = 1000 / 30;
+const GRASS_DENSITY_MULTIPLIER = 2;
+const EXTRA_GRASS_SEED_SALT = 0x9E3779B9;
+const MEADOW_SEED_SALT = 0x85EBCA6B;
 const TAU = Math.PI * 2;
 
 const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
@@ -78,9 +81,13 @@ class ValleyEffect {
         this.height = 0;
         this.dpr = 1;
         this.grass = [];
+        this.grassCandidateCount = 0;
+        this.pathwayPath = null;
+        this.lakePath = null;
         this.trees = [];
         this.clouds = [];
         this.seeds = [];
+        this.meadowMotes = [];
         this.paused = true;
         this.contextLost = false;
 
@@ -171,9 +178,13 @@ class ValleyEffect {
         this.canvas = null;
         this.ctx = null;
         this.grass = [];
+        this.grassCandidateCount = 0;
+        this.pathwayPath = null;
+        this.lakePath = null;
         this.trees = [];
         this.clouds = [];
         this.seeds = [];
+        this.meadowMotes = [];
     }
 
     pause() {
@@ -287,6 +298,9 @@ class ValleyEffect {
         this.canvas.dataset.valleyStakeNormalized = this.targets.stake.toFixed(4);
         this.canvas.dataset.valleyDpr = this.dpr.toFixed(2);
         this.canvas.dataset.valleyGrass = String(this.grass.length);
+        this.canvas.dataset.valleyGrassCandidates = String(this.grassCandidateCount);
+        this.canvas.dataset.valleyDestination = 'wildfire-lake';
+        this.canvas.dataset.valleyMeadowMotes = String(this.meadowMotes.length);
     }
 
     resize() {
@@ -303,31 +317,91 @@ class ValleyEffect {
         this.updateDebugState();
     }
 
-    buildScene() {
-        const random = seededRandom(
-            ((Math.round(this.width) * 73856093) ^ (Math.round(this.height) * 19349663)) >>> 0
+    createGrassBlade(random, index, compact) {
+        const depth = random();
+        const baseY = lerp(this.height * 0.52, this.height * 1.035, Math.pow(depth, 0.7));
+        const perspective = clamp((baseY - (this.height * 0.5)) / (this.height * 0.52));
+        return {
+            x: random() * this.width,
+            y: baseY + ((random() - 0.5) * this.height * 0.025),
+            length: lerp(5, compact ? 34 : 48, Math.pow(perspective, 1.3)) * lerp(0.76, 1.18, random()),
+            phase: random() * TAU,
+            width: lerp(0.45, compact ? 1.2 : 1.55, perspective) * lerp(0.75, 1.15, random()),
+            depth: perspective,
+            seedHead: index % (compact ? 37 : 31) === 0 && perspective > 0.56
+        };
+    }
+
+    buildLandscapeGeometry() {
+        const shorelineY = this.height * 0.605;
+        const mouthX = this.width * 0.59;
+        const bottomX = this.width * 0.42;
+        const bottomHalfWidth = this.width * (this.width < 640 ? 0.24 : 0.19);
+        const pathwayPath = new Path2D();
+        pathwayPath.moveTo(mouthX - (this.width * 0.018), shorelineY);
+        pathwayPath.bezierCurveTo(
+            this.width * 0.57,
+            this.height * 0.69,
+            bottomX + (this.width * 0.12),
+            this.height * 0.79,
+            bottomX - bottomHalfWidth,
+            this.height + 20
         );
+        pathwayPath.lineTo(bottomX + bottomHalfWidth, this.height + 20);
+        pathwayPath.bezierCurveTo(
+            bottomX + (this.width * 0.03),
+            this.height * 0.82,
+            this.width * 0.63,
+            this.height * 0.68,
+            mouthX + (this.width * 0.018),
+            shorelineY
+        );
+        pathwayPath.closePath();
+
+        const lakeHalfWidth = this.width * (this.width < 640 ? 0.39 : 0.32);
+        const farY = this.height * 0.49;
+        const lakePath = new Path2D();
+        lakePath.moveTo(mouthX - lakeHalfWidth, this.height * 0.555);
+        lakePath.bezierCurveTo(
+            mouthX - (lakeHalfWidth * 0.7),
+            farY,
+            mouthX + (lakeHalfWidth * 0.56),
+            farY,
+            mouthX + lakeHalfWidth,
+            this.height * 0.548
+        );
+        lakePath.bezierCurveTo(
+            mouthX + (lakeHalfWidth * 0.72),
+            this.height * 0.602,
+            mouthX - (lakeHalfWidth * 0.52),
+            this.height * 0.624,
+            mouthX - lakeHalfWidth,
+            this.height * 0.555
+        );
+        lakePath.closePath();
+
+        this.pathwayPath = pathwayPath;
+        this.lakePath = lakePath;
+    }
+
+    buildScene() {
+        const sceneSeed = (
+            (Math.round(this.width) * 73856093) ^ (Math.round(this.height) * 19349663)
+        ) >>> 0;
+        const random = seededRandom(sceneSeed);
         const compact = this.width < 640;
         const medium = this.width < 1100;
         const grassCount = compact ? 480 : medium ? 780 : 1250;
         const treeCount = compact ? 13 : medium ? 20 : 28;
         const cloudCount = compact ? 4 : 7;
         const seedCount = compact ? 12 : 24;
+        const meadowMoteCount = compact ? 72 : medium ? 112 : 164;
 
-        this.grass = Array.from({ length: grassCount }, (_value, index) => {
-            const depth = random();
-            const baseY = lerp(this.height * 0.52, this.height * 1.035, Math.pow(depth, 0.7));
-            const perspective = clamp((baseY - (this.height * 0.5)) / (this.height * 0.52));
-            return {
-                x: random() * this.width,
-                y: baseY + ((random() - 0.5) * this.height * 0.025),
-                length: lerp(5, compact ? 34 : 48, Math.pow(perspective, 1.3)) * lerp(0.76, 1.18, random()),
-                phase: random() * TAU,
-                width: lerp(0.45, compact ? 1.2 : 1.55, perspective) * lerp(0.75, 1.15, random()),
-                depth: perspective,
-                seedHead: index % (compact ? 37 : 31) === 0 && perspective > 0.56
-            };
-        }).sort((left, right) => left.depth - right.depth);
+        this.buildLandscapeGeometry();
+        const baseGrass = Array.from(
+            { length: grassCount },
+            (_value, index) => this.createGrassBlade(random, index, compact)
+        );
 
         this.trees = Array.from({ length: treeCount }, (_value, index) => {
             const sideBias = index % 3 === 0 ? random() * 0.25 : 0.17 + (random() * 0.78);
@@ -340,7 +414,9 @@ class ValleyEffect {
                 phase: random() * TAU,
                 tone: index % 4
             };
-        }).sort((left, right) => left.y - right.y);
+        })
+            .filter((tree) => !this.ctx.isPointInPath(this.lakePath, tree.x, tree.y))
+            .sort((left, right) => left.y - right.y);
 
         this.clouds = Array.from({ length: cloudCount }, () => ({
             x: random() * this.width,
@@ -358,6 +434,40 @@ class ValleyEffect {
             speed: lerp(0.35, 1.1, random()),
             size: lerp(0.6, 1.8, random())
         }));
+
+        const extraGrassRandom = seededRandom((sceneSeed ^ EXTRA_GRASS_SEED_SALT) >>> 0);
+        const extraGrassCount = grassCount * (GRASS_DENSITY_MULTIPLIER - 1);
+        const extraGrass = Array.from(
+            { length: extraGrassCount },
+            (_value, index) => this.createGrassBlade(extraGrassRandom, grassCount + index, compact)
+        );
+        const grassCandidates = [...baseGrass, ...extraGrass];
+        this.grassCandidateCount = grassCandidates.length;
+        this.grass = grassCandidates
+            .filter((blade) => (
+                !this.ctx.isPointInPath(this.pathwayPath, blade.x, blade.y)
+                && !this.ctx.isPointInPath(this.lakePath, blade.x, blade.y)
+            ))
+            .sort((left, right) => left.depth - right.depth);
+
+        const meadowRandom = seededRandom((sceneSeed ^ MEADOW_SEED_SALT) >>> 0);
+        this.meadowMotes = [];
+        while (this.meadowMotes.length < meadowMoteCount) {
+            const depth = meadowRandom();
+            const baseY = lerp(this.height * 0.515, this.height * 0.79, Math.pow(depth, 0.82));
+            const x = meadowRandom() * this.width;
+            if (this.ctx.isPointInPath(this.pathwayPath, x, baseY)
+                || this.ctx.isPointInPath(this.lakePath, x, baseY)) continue;
+            this.meadowMotes.push({
+                x,
+                baseY,
+                lift: lerp(3, compact ? 18 : 28, meadowRandom()) * lerp(0.55, 1, depth),
+                phase: meadowRandom() * TAU,
+                speed: lerp(0.18, 0.62, meadowRandom()),
+                size: lerp(0.9, compact ? 2 : 2.7, depth) * lerp(0.78, 1.18, meadowRandom()),
+                depth
+            });
+        }
     }
 
     animate(timestamp) {
@@ -404,9 +514,12 @@ class ValleyEffect {
         this.drawClouds(ctx, time, staticFrame);
         this.drawMountains(ctx);
         this.drawHills(ctx, time);
-        this.drawRiver(ctx, time, staticFrame);
+        this.drawWildfireMeadowHaze(ctx, time, staticFrame);
+        this.drawLake(ctx, time, staticFrame);
+        this.drawPathway(ctx);
         this.drawTrees(ctx, time, staticFrame);
         this.drawGrass(ctx, time, staticFrame);
+        this.drawWildfireMeadow(ctx, time, staticFrame);
         this.drawSeeds(ctx, time, staticFrame);
         this.drawAtmosphere(ctx);
 
@@ -507,61 +620,267 @@ class ValleyEffect {
         }
     }
 
-    drawRiver(ctx, time, staticFrame) {
-        const horizonY = this.height * 0.535;
+    drawPathway(ctx) {
+        const shorelineY = this.height * 0.605;
         const mouthX = this.width * 0.59;
         const bottomX = this.width * 0.42;
         const bottomHalfWidth = this.width * (this.width < 640 ? 0.24 : 0.19);
+        if (!this.pathwayPath) return;
 
         ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(mouthX - (this.width * 0.012), horizonY);
-        ctx.bezierCurveTo(
-            this.width * 0.57,
-            this.height * 0.66,
-            bottomX + (this.width * 0.12),
-            this.height * 0.79,
-            bottomX - bottomHalfWidth,
-            this.height + 20
-        );
-        ctx.lineTo(bottomX + bottomHalfWidth, this.height + 20);
-        ctx.bezierCurveTo(
-            bottomX + (this.width * 0.03),
-            this.height * 0.82,
-            this.width * 0.63,
-            this.height * 0.64,
-            mouthX + (this.width * 0.012),
-            horizonY
-        );
-        ctx.closePath();
+        const earth = ctx.createLinearGradient(0, shorelineY, 0, this.height);
+        earth.addColorStop(0, '#96815B');
+        earth.addColorStop(0.3, '#746746');
+        earth.addColorStop(0.68, '#514B36');
+        earth.addColorStop(1, '#33362C');
+        ctx.fillStyle = earth;
+        ctx.fill(this.pathwayPath);
+        ctx.clip(this.pathwayPath);
 
-        const water = ctx.createLinearGradient(0, horizonY, 0, this.height);
-        water.addColorStop(0, '#8E9C87');
-        water.addColorStop(0.35, '#687F75');
-        water.addColorStop(0.72, '#415E5B');
-        water.addColorStop(1, '#263E3D');
-        ctx.fillStyle = water;
-        ctx.fill();
-        ctx.clip();
-
-        const glintAlpha = 0.08 + (this.current.energy * 0.12);
-        ctx.strokeStyle = `rgba(255, 224, 166, ${glintAlpha})`;
-        ctx.lineCap = 'round';
-        for (let index = 0; index < 18; index += 1) {
-            const progress = index / 18;
-            const y = lerp(horizonY + 8, this.height, Math.pow(progress, 1.45));
-            const width = lerp(8, bottomHalfWidth * 1.6, progress);
-            const drift = staticFrame ? 0 : Math.sin((time * 0.8) + (index * 1.9)) * lerp(1, 8, progress);
-            ctx.lineWidth = lerp(0.45, 1.8, progress);
+        for (let index = 0; index < 33; index += 1) {
+            const noise = (Math.sin(index * 12.9898) + 1) * 0.5;
+            const progress = clamp(((index + (noise * 0.84)) / 33), 0.02, 0.98);
+            const perspective = Math.pow(progress, 1.42);
+            const y = lerp(shorelineY + 3, this.height + 4, perspective);
+            const centerX = lerp(mouthX, bottomX, progress)
+                + Math.sin((progress * 5.1) + 0.7) * this.width * 0.025;
+            const pathHalfWidth = lerp(this.width * 0.005, bottomHalfWidth * 0.82, Math.pow(progress, 1.55));
+            const x = centerX + ((noise - 0.5) * pathHalfWidth * 1.35);
+            const radiusX = lerp(1.2, 17, perspective) * lerp(0.62, 1.28, noise);
+            const radiusY = lerp(0.7, 5.5, perspective) * lerp(0.72, 1.16, 1 - noise);
+            ctx.fillStyle = index % 3 === 0
+                ? 'rgba(222, 190, 126, 0.105)'
+                : 'rgba(34, 43, 31, 0.115)';
             ctx.beginPath();
-            ctx.moveTo(lerp(mouthX, bottomX, progress) - (width * 0.45) + drift, y);
-            ctx.quadraticCurveTo(
-                lerp(mouthX, bottomX, progress) + drift,
-                y + Math.sin(index * 2.2) * 2,
-                lerp(mouthX, bottomX, progress) + (width * 0.45) + drift,
-                y
-            );
+            ctx.ellipse(x, y, radiusX, radiusY, (noise - 0.5) * 0.7, 0, TAU);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    drawLake(ctx, time, staticFrame) {
+        if (!this.lakePath) return;
+        const farY = this.height * 0.49;
+        const nearY = this.height * 0.615;
+        const centerX = this.width * 0.59;
+        const lakeHalfWidth = this.width * (this.width < 640 ? 0.39 : 0.32);
+
+        ctx.save();
+        const water = ctx.createLinearGradient(0, farY, 0, nearY);
+        water.addColorStop(0, '#7B887B');
+        water.addColorStop(0.42, '#5D726B');
+        water.addColorStop(1, '#354F4D');
+        ctx.fillStyle = water;
+        ctx.fill(this.lakePath);
+        ctx.clip(this.lakePath);
+
+        const reflection = ctx.createRadialGradient(
+            centerX + (lakeHalfWidth * 0.22),
+            this.height * 0.535,
+            0,
+            centerX + (lakeHalfWidth * 0.22),
+            this.height * 0.535,
+            lakeHalfWidth * 0.75
+        );
+        reflection.addColorStop(0, `rgba(244, 207, 139, ${0.15 + (this.current.cycle * 0.13)})`);
+        reflection.addColorStop(0.42, 'rgba(214, 182, 119, 0.08)');
+        reflection.addColorStop(1, 'rgba(214, 182, 119, 0)');
+        ctx.fillStyle = reflection;
+        ctx.fillRect(
+            centerX - lakeHalfWidth,
+            farY,
+            lakeHalfWidth * 2,
+            nearY - farY
+        );
+
+        ctx.lineCap = 'round';
+        for (let index = 0; index < 13; index += 1) {
+            const noise = (Math.sin((index + 3) * 9.173) + 1) * 0.5;
+            const progress = (index + 1) / 14;
+            const y = lerp(farY + (this.height * 0.025), nearY, progress);
+            const width = lakeHalfWidth * lerp(0.16, 1.45, Math.sin(progress * Math.PI));
+            const drift = staticFrame ? 0 : Math.sin((time * 0.42) + index) * lerp(0.5, 4, progress);
+            ctx.strokeStyle = index % 3 === 0
+                ? `rgba(246, 216, 158, ${0.08 + (this.current.energy * 0.08)})`
+                : 'rgba(198, 215, 192, 0.075)';
+            ctx.lineWidth = lerp(0.45, 1.25, progress);
+            ctx.beginPath();
+            ctx.moveTo(centerX - (width * noise * 0.7) + drift, y);
+            ctx.lineTo(centerX + (width * (1 - noise) * 0.7) + drift, y);
             ctx.stroke();
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(62, 69, 44, 0.78)';
+        ctx.lineWidth = Math.max(2, this.height * 0.006);
+        ctx.stroke(this.lakePath);
+        ctx.restore();
+    }
+
+    drawWildfireMeadowHaze(ctx, time, staticFrame) {
+        const centerX = this.width * 0.59;
+        const centerY = this.height * 0.555;
+        const pulse = staticFrame ? 0 : Math.sin(time * 0.34) * 0.012;
+        const energy = 0.08 + (this.current.energy * 0.07) + pulse;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(1, 0.28);
+        const basinGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, this.width * 0.42);
+        basinGlow.addColorStop(0, `rgba(224, 181, 91, ${energy})`);
+        basinGlow.addColorStop(0.48, `rgba(175, 157, 76, ${energy * 0.6})`);
+        basinGlow.addColorStop(1, 'rgba(175, 157, 76, 0)');
+        ctx.fillStyle = basinGlow;
+        ctx.fillRect(-this.width * 0.5, -this.height, this.width, this.height * 2);
+        ctx.restore();
+    }
+
+    drawWildfireMeadow(ctx, time, staticFrame) {
+        const energy = this.current.energy;
+        const waveTravel = staticFrame ? 0.38 : ((time * (0.055 + (energy * 0.035))) % 1);
+        const visibleMotes = Math.floor(this.meadowMotes.length * (0.72 + (energy * 0.28)));
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        const glowBands = [[], [], []];
+        for (let index = 0; index < this.grass.length; index += 5) {
+            const blade = this.grass[index];
+            if (blade.depth < 0.08) continue;
+            const xNormalized = blade.x / this.width;
+            const meadowWave = 0.5 + (
+                Math.sin(
+                    (xNormalized * 12.5)
+                    + (blade.y / this.height * 4.2)
+                    - (waveTravel * TAU)
+                    + (Math.sin(blade.phase) * 0.55)
+                ) * 0.5
+            );
+            const impulseDistance = Math.min(
+                Math.abs(xNormalized - this.blockOrigin),
+                1 - Math.abs(xNormalized - this.blockOrigin)
+            );
+            const impulseGlow = this.blockImpulse * Math.exp(
+                -(impulseDistance * impulseDistance) / 0.012
+            );
+            const glow = clamp((meadowWave - 0.55) * 2.5 + impulseGlow, 0, 1);
+            if (glow < 0.08) continue;
+
+            const sway = staticFrame
+                ? Math.sin(blade.phase) * blade.length * 0.025
+                : Math.sin((time * 0.9) + blade.phase) * blade.length * this.current.wind * 0.08;
+            const tipX = blade.x + sway;
+            const tipY = blade.y - blade.length;
+            glowBands[Math.min(2, Math.floor(glow * 3))].push({
+                blade,
+                sway,
+                tipX,
+                tipY
+            });
+        }
+
+        for (let band = 0; band < glowBands.length; band += 1) {
+            const litBlades = glowBands[band];
+            if (!litBlades.length) continue;
+            ctx.strokeStyle = `rgba(245, 200, 104, ${0.24 + (band * 0.22)})`;
+            ctx.beginPath();
+            for (const { blade, sway, tipX, tipY } of litBlades) {
+                ctx.lineWidth = Math.max(0.55, blade.width * 0.7);
+                ctx.moveTo(blade.x, blade.y - (blade.length * 0.28));
+                ctx.quadraticCurveTo(
+                    blade.x + (sway * 0.28),
+                    blade.y - (blade.length * 0.68),
+                    tipX,
+                    tipY
+                );
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = `rgba(255, 222, 139, ${0.38 + (band * 0.25)})`;
+            ctx.beginPath();
+            for (const { blade, sway, tipX, tipY } of litBlades) {
+                const radiusX = Math.max(0.65, blade.width * 0.9);
+                const rotation = sway * 0.02;
+                ctx.moveTo(
+                    tipX + (Math.cos(rotation) * radiusX),
+                    tipY + (Math.sin(rotation) * radiusX)
+                );
+                ctx.ellipse(
+                    tipX,
+                    tipY,
+                    radiusX,
+                    Math.max(1.2, blade.width * 1.9),
+                    rotation,
+                    0,
+                    TAU
+                );
+            }
+            ctx.fill();
+        }
+
+        const moteBands = [[], [], []];
+        for (let index = 0; index < visibleMotes; index += 1) {
+            const mote = this.meadowMotes[index];
+            const travel = staticFrame ? 0 : time * mote.speed;
+            const x = mote.x + (staticFrame ? 0 : Math.sin(travel + mote.phase) * mote.lift * 0.42);
+            const y = mote.baseY
+                - mote.lift
+                + (staticFrame ? 0 : Math.sin((travel * 1.7) + mote.phase) * mote.lift * 0.28);
+            const flutter = staticFrame ? 0.55 : 0.3 + (Math.abs(Math.sin((time * 4.5) + mote.phase)) * 0.7);
+            moteBands[Math.min(2, Math.floor(mote.depth * 3))].push({
+                flutter,
+                mote,
+                x,
+                y
+            });
+        }
+
+        for (let band = 0; band < moteBands.length; band += 1) {
+            const visibleBand = moteBands[band];
+            if (!visibleBand.length) continue;
+            const alpha = (0.34 + (band * 0.2)) * (0.78 + (energy * 0.22));
+            ctx.fillStyle = `rgba(255, 226, 151, ${alpha})`;
+            ctx.beginPath();
+            for (const { flutter, mote, x, y } of visibleBand) {
+                const wingRadiusX = mote.size * flutter;
+                const leftCenterX = x - (mote.size * 0.85);
+                const rightCenterX = x + (mote.size * 0.85);
+                ctx.moveTo(
+                    leftCenterX + (Math.cos(-0.45) * wingRadiusX),
+                    y + (Math.sin(-0.45) * wingRadiusX)
+                );
+                ctx.ellipse(
+                    leftCenterX,
+                    y,
+                    wingRadiusX,
+                    mote.size * 0.42,
+                    -0.45,
+                    0,
+                    TAU
+                );
+                ctx.moveTo(
+                    rightCenterX + (Math.cos(0.45) * wingRadiusX),
+                    y + (Math.sin(0.45) * wingRadiusX)
+                );
+                ctx.ellipse(
+                    rightCenterX,
+                    y,
+                    wingRadiusX,
+                    mote.size * 0.42,
+                    0.45,
+                    0,
+                    TAU
+                );
+            }
+            ctx.fill();
+            ctx.fillStyle = `rgba(255, 239, 185, ${Math.min(0.92, alpha + 0.12)})`;
+            ctx.beginPath();
+            for (const { mote, x, y } of visibleBand) {
+                const coreRadius = Math.max(0.45, mote.size * 0.34);
+                ctx.moveTo(x + coreRadius, y);
+                ctx.arc(x, y, coreRadius, 0, TAU);
+            }
+            ctx.fill();
         }
         ctx.restore();
     }

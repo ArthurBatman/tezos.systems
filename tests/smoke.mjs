@@ -16362,6 +16362,117 @@ async function smokeValleyTheme(browser, baseUrl) {
     Number(bufferedDataRevision) > 0,
     `Valley did not replay the latest stats event after its delayed renderer mounted: ${bufferedDataRevision}`
   );
+  const meadowState = await page.locator('#valley-background-canvas').evaluate((canvas) => ({
+    destination: canvas.dataset.valleyDestination,
+    motes: Number(canvas.dataset.valleyMeadowMotes)
+  }));
+  assert(
+    meadowState.destination === 'wildfire-lake' && meadowState.motes > 0,
+    `Valley must open through the Wildfire Meadow onto its rendered lake: ${JSON.stringify(meadowState)}`
+  );
+
+  const grassBankState = await page.evaluate(async () => {
+    const { createValleyEffect } = await import('/js/effects/valley-effects.js');
+    const viewports = [
+      { label: 'desktop', width: 1366, height: 900, expectedCandidates: 2500, expectedMotes: 164 },
+      { label: 'mobile', width: 390, height: 844, expectedCandidates: 960, expectedMotes: 72 },
+      { label: 'short landscape', width: 844, height: 390, expectedCandidates: 1560, expectedMotes: 112 }
+    ];
+
+    return viewports.map(({ label, width, height, expectedCandidates, expectedMotes }) => {
+      const effect = createValleyEffect();
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      effect.canvas = canvas;
+      effect.ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      effect.width = width;
+      effect.height = height;
+      effect.dpr = 1;
+      effect.buildScene();
+
+      const grass = effect.grass;
+      effect.grass = [];
+      effect.drawScene(0, true);
+      const withoutGrass = effect.ctx.getImageData(0, 0, width, height).data;
+
+      effect.grass = grass;
+      effect.drawScene(0, true);
+      const withGrass = effect.ctx.getImageData(0, 0, width, height).data;
+
+      const rootsOnPath = grass.filter((blade) => (
+        effect.ctx.isPointInPath(effect.pathwayPath, blade.x, blade.y)
+      )).length;
+      const rootsInLake = grass.filter((blade) => (
+        effect.ctx.isPointInPath(effect.lakePath, blade.x, blade.y)
+      )).length;
+      const treeRootsInLake = effect.trees.filter((tree) => (
+        effect.ctx.isPointInPath(effect.lakePath, tree.x, tree.y)
+      )).length;
+      let pathwayInteriorSamples = 0;
+      let pathwayInteriorChangedSamples = 0;
+      let pathwayEdgeChangedSamples = 0;
+      let bankChangedSamples = 0;
+      for (let y = 2; y < height - 2; y += 2) {
+        for (let x = 2; x < width - 2; x += 2) {
+          const offset = ((y * width) + x) * 4;
+          const changed = (
+            withoutGrass[offset] !== withGrass[offset]
+            || withoutGrass[offset + 1] !== withGrass[offset + 1]
+            || withoutGrass[offset + 2] !== withGrass[offset + 2]
+          );
+          const onPathway = effect.ctx.isPointInPath(effect.pathwayPath, x, y);
+          const safelyInsidePathway = (
+            onPathway
+            && effect.ctx.isPointInPath(effect.pathwayPath, x - 10, y)
+            && effect.ctx.isPointInPath(effect.pathwayPath, x + 10, y)
+            && effect.ctx.isPointInPath(effect.pathwayPath, x, y - 10)
+            && effect.ctx.isPointInPath(effect.pathwayPath, x, y + 10)
+          );
+          if (safelyInsidePathway) {
+            pathwayInteriorSamples += 1;
+            if (changed) pathwayInteriorChangedSamples += 1;
+          } else if (onPathway && changed) {
+            pathwayEdgeChangedSamples += 1;
+          } else if (changed) {
+            bankChangedSamples += 1;
+          }
+        }
+      }
+
+      return {
+        bankChangedSamples,
+        candidateCount: effect.grassCandidateCount,
+        expectedCandidates,
+        expectedMotes,
+        grassCount: grass.length,
+        label,
+        meadowMotes: effect.meadowMotes.length,
+        pathwayEdgeChangedSamples,
+        pathwayInteriorChangedSamples,
+        pathwayInteriorSamples,
+        rootsInLake,
+        rootsOnPath,
+        treeRootsInLake
+      };
+    });
+  });
+  assert(
+    grassBankState.every((state) => (
+      state.candidateCount === state.expectedCandidates
+      && state.meadowMotes === state.expectedMotes
+      && state.grassCount > state.expectedCandidates * 0.7
+      && state.grassCount < state.expectedCandidates
+      && state.rootsOnPath === 0
+      && state.rootsInLake === 0
+      && state.treeRootsInLake === 0
+      && state.pathwayInteriorSamples > 100
+      && state.pathwayInteriorChangedSamples / state.pathwayInteriorSamples < 0.03
+      && state.pathwayEdgeChangedSamples > 0
+      && state.bankChangedSamples > 100
+    )),
+    `Valley grass, trees, and wildfire motes must stay responsive while roots remain off the naturally overhung path and lake: ${JSON.stringify(grassBankState)}`
+  );
 
   const canvasSignature = () => page.evaluate(() => {
     const canvas = document.getElementById('valley-background-canvas');

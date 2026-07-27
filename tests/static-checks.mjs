@@ -4637,6 +4637,41 @@ async function checkValleyThemeContracts() {
       || !/\.remove\(\)/.test(rendererSource)) {
       fail('Valley renderer must expose cleanup that removes its canvas');
     }
+    if (!/const GRASS_DENSITY_MULTIPLIER\s*=\s*2\s*;/.test(rendererSource)
+      || !/extraGrassRandom\s*=\s*seededRandom/.test(rendererSource)
+      || !/grassCount\s*\*\s*\(GRASS_DENSITY_MULTIPLIER\s*-\s*1\)/.test(rendererSource)) {
+      fail('Valley must double its grass through an independently seeded bank population');
+    }
+    if (!/buildLandscapeGeometry\s*\(\)/.test(rendererSource)
+      || !/isPointInPath\(\s*this\.pathwayPath\s*,\s*blade\.x\s*,\s*blade\.y\s*\)/.test(rendererSource)
+      || !/isPointInPath\(\s*this\.lakePath\s*,\s*blade\.x\s*,\s*blade\.y\s*\)/.test(rendererSource)
+      || !/isPointInPath\(\s*this\.lakePath\s*,\s*tree\.x\s*,\s*tree\.y\s*\)/.test(rendererSource)
+      || /clip\(\s*this\.grassBankClip/.test(rendererSource)) {
+      fail('Valley grass and trees must exclude roots from the path and lake without hard-clipping natural blade overhang');
+    }
+    if (!/drawWildfireMeadowHaze\s*\(/.test(rendererSource)
+      || !/drawWildfireMeadow\s*\(/.test(rendererSource)
+      || !/drawLake\s*\(/.test(rendererSource)
+      || !/valleyDestination\s*=\s*['"]wildfire-lake['"]/.test(rendererSource)
+      || !/const MEADOW_SEED_SALT/.test(rendererSource)
+      || !/this\.blockImpulse\s*\*\s*Math\.exp/.test(rendererSource)
+      || !/earth\.addColorStop/.test(rendererSource)) {
+      fail('Valley path must read as earth, cross the data-reactive wildfire meadow, and end at a reflective lake');
+    }
+    if (!/grassBankState/.test(smokeSource)
+      || !/destination\s*===\s*['"]wildfire-lake['"]/.test(smokeSource)
+      || !/expectedMotes:\s*164/.test(smokeSource)
+      || !/expectedMotes:\s*72/.test(smokeSource)
+      || !/expectedMotes:\s*112/.test(smokeSource)
+      || !/rootsOnPath\s*===\s*0/.test(smokeSource)
+      || !/rootsInLake\s*===\s*0/.test(smokeSource)
+      || !/treeRootsInLake\s*===\s*0/.test(smokeSource)
+      || !/pathwayEdgeChangedSamples\s*>\s*0/.test(smokeSource)
+      || !/expectedCandidates:\s*2500/.test(smokeSource)
+      || !/expectedCandidates:\s*960/.test(smokeSource)
+      || !/expectedCandidates:\s*1560/.test(smokeSource)) {
+      fail('Valley smoke must prove doubled grass, path-root exclusion, and natural overhang at every responsive density');
+    }
   }
 
   const valleyBlock = stylesSource.match(/\[data-theme=["']valley["']\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
@@ -4701,7 +4736,7 @@ async function checkValleyThemeContracts() {
   if (!smokeSource.includes("name: 'valley-theme'")) {
     fail('smoke catalog must include the focused Valley lifecycle suite');
   }
-  pass('Valley registry, lazy renderer, lifecycle, accessibility, fallback, and contrast contracts checked');
+  pass('Valley registry, bank density, grounded pathway, destination, lazy renderer, lifecycle, accessibility, fallback, and contrast contracts checked');
 }
 
 async function checkPortableTooling() {
@@ -8156,7 +8191,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=512'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=513'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
