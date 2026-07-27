@@ -9022,6 +9022,15 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
 
   await page.locator('#my-tezos-btn').click();
   await expectClassContains(page.locator('#my-tezos-drawer'), 'open', 'my tezos proposal attribution drawer');
+  await page.waitForFunction((address) => (
+    Array.from(document.querySelectorAll('#my-tezos-wallet-scope option'))
+      .some((option) => option.value === address)
+  ), SAMPLE_DELEGATOR_ADDRESS, { timeout: 15000 });
+  await page.selectOption('#my-tezos-wallet-scope', SAMPLE_DELEGATOR_ADDRESS);
+  await page.waitForFunction((address) => (
+    document.querySelector('#my-tezos-wallet-scope')?.value === address
+      && localStorage.getItem('tezos-systems-my-baker-address') === address
+  ), SAMPLE_DELEGATOR_ADDRESS, { timeout: 10000 });
   try {
     await page.waitForFunction((address) => {
       const story = window._myTezosData?.story;
