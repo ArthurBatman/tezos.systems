@@ -8565,16 +8565,29 @@ async function smokeMyTezosCollection(browser, baseUrl) {
   assert(collected.pills.every((pill) => pill.height >= 36 && pill.paddingLeft >= 10 && pill.paddingRight >= 10), `my tezos collection: control pill geometry collapsed ${JSON.stringify(collected.pills)}`);
   assert(objktRequests === 2, `my tezos collection: complete 139-row coverage should use two Objkt pages (${objktRequests})`);
 
-  await page.selectOption('#my-tezos-wallet-scope', SAMPLE_ADDRESS_2);
-  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'loading', null, { timeout: 3000 });
-  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'complete', null, { timeout: 30000 });
-  assert(
-    objktAddressBatches.slice(-2).every((addresses) => addresses.length === 1 && addresses[0] === SAMPLE_ADDRESS_2),
-    `my tezos collection: shared specific-wallet scope did not constrain Objkt reads ${JSON.stringify(objktAddressBatches)}`
-  );
-  await page.selectOption('#my-tezos-wallet-scope', 'all');
-  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'loading', null, { timeout: 3000 });
-  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'complete', null, { timeout: 30000 });
+  const selectCollectionScope = async (value, expectedAddresses, label) => {
+    const requestStart = objktAddressBatches.length;
+    await page.selectOption('#my-tezos-wallet-scope', value);
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      const recentBatches = objktAddressBatches.slice(requestStart);
+      const status = await page.locator('#collection-status').getAttribute('data-state');
+      const scopeValue = await page.locator('#my-tezos-wallet-scope').inputValue();
+      if (
+        scopeValue === value
+          && status === 'complete'
+          && recentBatches.length >= 2
+          && recentBatches.slice(-2).every((addresses) => (
+            JSON.stringify(addresses) === JSON.stringify(expectedAddresses)
+          ))
+      ) return;
+      await sleep(100);
+    }
+    throw new Error(`my tezos collection: ${label} scope did not settle with constrained Objkt reads ${JSON.stringify(objktAddressBatches)}`);
+  };
+
+  await selectCollectionScope(SAMPLE_ADDRESS_2, [SAMPLE_ADDRESS_2], 'specific-wallet');
+  await selectCollectionScope('all', [SAMPLE_ADDRESS, SAMPLE_ADDRESS_2], 'all-wallet');
 
   await page.locator('#collection-load-more').click();
   await page.waitForFunction(() => document.querySelectorAll('#collection-grid .collection-asset-card').length === 137, null, { timeout: 5000 });
