@@ -261,7 +261,13 @@
     letter-spacing: 0.03em;
 }
 
-.top-uptime-cluster.has-milestone-signal,
+.top-uptime-cluster.has-milestone-signal {
+    --milestone-blue: var(--uptime-badge-label);
+    --milestone-cyan: color-mix(in srgb, var(--uptime-badge-label) 72%, var(--uptime-badge-value));
+    --milestone-pink: var(--uptime-badge-label);
+    --milestone-ink: var(--uptime-badge-value);
+}
+
 .hot-today-milestone-shell,
 .hot-today-card-milestone {
     --milestone-blue: #2c7df7;
@@ -283,65 +289,87 @@
     isolation: isolate;
 }
 
-.top-continuity-milestone-eclipse {
-    position: absolute;
-    top: -0.36rem;
-    left: -0.68rem;
-    display: block;
-    width: calc(100% + 1.36rem);
-    height: calc(100% + 0.66rem);
-    z-index: -1;
-    pointer-events: none;
-    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--milestone-blue) 26%, transparent));
+.top-continuity-runtime {
+    position: relative;
+    z-index: 1;
 }
 
-.top-continuity-milestone-eclipse[hidden] {
+.top-continuity-milestone-outline {
+    position: absolute;
+    top: -0.44rem;
+    left: -0.62rem;
+    display: block;
+    width: calc(100% + 1.24rem);
+    height: calc(100% + 0.78rem);
+    border: 1.5px solid color-mix(in srgb, var(--uptime-badge-label) 66%, var(--uptime-badge-value));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--bg-primary) 96%, var(--uptime-badge-label) 4%);
+    box-shadow: none;
+    z-index: 0;
+    pointer-events: none;
+    transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.top-continuity-milestone-outline[hidden] {
     display: none;
 }
 
-.top-continuity-milestone-eclipse svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
+.top-continuity-milestone-new {
+    position: absolute;
+    top: -0.62rem;
+    right: -0.48rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.05rem;
+    padding: 0.12rem 0.38rem;
+    border: 2px solid var(--bg-primary);
+    border-radius: 999px;
+    background: var(--uptime-badge-label);
+    color: var(--bg-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.54rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: transform 160ms ease;
 }
 
-.top-continuity-milestone-eclipse ellipse {
-    fill: none;
-    vector-effect: non-scaling-stroke;
+.top-uptime-cluster.is-uptime-milestone-arriving .top-continuity-milestone-outline {
+    animation: uptimeMilestoneOutlineArrival 720ms cubic-bezier(0.16, 0.86, 0.22, 1) both;
 }
 
-.top-continuity-milestone-eclipse-track {
-    stroke: color-mix(in srgb, var(--milestone-blue) 20%, transparent);
-    stroke-width: 0.8px;
+.top-uptime-cluster.is-uptime-milestone-arriving .top-continuity-milestone-new {
+    animation: uptimeMilestoneNewArrival 9s ease-out both;
 }
 
-.top-continuity-milestone-eclipse-arc {
-    stroke: color-mix(in srgb, var(--milestone-cyan) 68%, var(--milestone-blue));
-    stroke-width: 1.45px;
-    stroke-linecap: round;
-    stroke-dasharray: 42 58;
-    stroke-dashoffset: 68;
+.top-uptime-cluster.has-milestone-signal .top-continuity-history:is(:hover, :focus-visible) .top-continuity-milestone-outline {
+    border-color: var(--uptime-badge-label);
+    background: color-mix(in srgb, var(--bg-primary) 91%, var(--uptime-badge-label) 9%);
 }
 
-.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse {
-    filter:
-        drop-shadow(0 0 5px color-mix(in srgb, var(--milestone-cyan) 38%, transparent))
-        drop-shadow(0 0 9px color-mix(in srgb, var(--milestone-blue) 18%, transparent));
-}
-
-.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse-track {
-    stroke: color-mix(in srgb, var(--milestone-blue) 28%, transparent);
-}
-
-.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse-arc {
-    stroke: color-mix(in srgb, var(--milestone-cyan) 80%, var(--milestone-pink));
-    stroke-width: 1.65px;
-    stroke-dasharray: 78 22;
+.top-uptime-cluster.has-milestone-signal .top-continuity-history:is(:hover, :focus-visible) .top-continuity-milestone-new {
+    transform: translateY(-0.12rem);
 }
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-history {
     cursor: pointer;
+}
+
+@keyframes uptimeMilestoneOutlineArrival {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0); }
+}
+
+@keyframes uptimeMilestoneNewArrival {
+    0% { opacity: 0; transform: translateY(0.55rem) scale(0.8); }
+    7% { opacity: 1; transform: translateY(-0.12rem) scale(1.04); }
+    12% { opacity: 1; transform: none; }
+    57% { opacity: 1; transform: none; }
+    61% { opacity: 1; transform: translateY(-0.16rem); }
+    65%, 100% { opacity: 1; transform: none; }
 }
 
 .top-continuity-milestone-popover {
@@ -352,13 +380,11 @@
     gap: 0.34rem;
     width: min(20rem, calc(100vw - 2rem));
     padding: 0.72rem 0.78rem 0.7rem;
-    border: 1px solid color-mix(in srgb, var(--milestone-cyan) 28%, var(--glass-border));
-    border-left: 2px solid color-mix(in srgb, var(--milestone-blue) 72%, var(--milestone-cyan));
+    border: 1px solid color-mix(in srgb, var(--uptime-badge-label) 38%, var(--glass-border));
+    border-left: 2px solid var(--uptime-badge-label);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--bg-primary, #07101d) 97%, var(--milestone-blue) 3%);
-    box-shadow:
-        0 12px 30px rgba(0, 0, 0, 0.36),
-        0 0 18px color-mix(in srgb, var(--milestone-blue) 9%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 96%, var(--uptime-badge-label) 4%);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
     color: var(--text-primary);
     font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     line-height: 1.35;
@@ -1186,19 +1212,6 @@
         inset -3px 0 0 rgba(182, 83, 168, 0.52);
 }
 
-[data-theme="clean"] .top-uptime-cluster.is-milestone-crossed .top-continuity-runtime,
-[data-theme="clean"] .top-uptime-cluster.is-milestone-crossed :is(.top-continuity-claim, .top-continuity-origin) {
-    color: #1857aa;
-}
-
-[data-theme="clean"] .top-continuity-milestone-popover {
-    border-color: #168fa9;
-    background:
-        linear-gradient(135deg, rgba(44, 125, 247, 0.12), rgba(32, 200, 215, 0.06)),
-        rgba(255, 255, 255, 0.98);
-    color: #134e88;
-}
-
 .hot-today-rank {
     width: 1.9rem;
     height: 1.9rem;
@@ -1570,7 +1583,10 @@
     .hot-today-card-milestone .hot-today-milestone-status,
     .hot-today-card-milestone .hot-today-milestone-trace > span,
     .top-uptime-cluster .top-continuity-runtime,
+    .top-uptime-cluster .top-continuity-milestone-outline,
+    .top-uptime-cluster .top-continuity-milestone-new,
     .top-uptime-cluster .top-continuity-milestone-popover {
+        animation: none !important;
         transition: none !important;
     }
 }
@@ -1938,12 +1954,7 @@
         padding: 0.18rem 0.58rem 0.22rem;
     }
 
-    .top-continuity-runtime {
-        position: relative;
-        z-index: 1;
-    }
-
-    .top-continuity-milestone-eclipse {
+    .top-continuity-milestone-outline {
         top: 50%;
         left: 50%;
         width: calc(100% + 0.08rem);
@@ -1952,12 +1963,9 @@
         transform: translate(-50%, -50%);
     }
 
-    .top-continuity-milestone-eclipse-track {
-        stroke-width: 1.05px;
-    }
-
-    .top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-eclipse-arc {
-        stroke-width: 1.85px;
+    .top-continuity-milestone-new {
+        top: -0.58rem;
+        right: -0.42rem;
     }
 
     .top-continuity-milestone-popover {
@@ -1970,9 +1978,8 @@
         width: min(22rem, calc(100vw - 1.2rem));
         margin: 0;
         padding: 0.84rem 0.88rem 0.8rem;
-        background-color: #07101d;
-        background-image:
-            linear-gradient(135deg, rgba(44, 125, 247, 0.11), rgba(32, 200, 215, 0.045) 58%, rgba(217, 108, 198, 0.045));
+        background-color: color-mix(in srgb, var(--bg-primary) 96%, var(--uptime-badge-label) 4%);
+        background-image: none;
         opacity: 1;
         visibility: visible;
         text-align: left;
@@ -1982,7 +1989,7 @@
         -webkit-backdrop-filter: none;
         box-shadow:
             0 18px 48px rgba(0, 0, 0, 0.52),
-            0 0 22px color-mix(in srgb, var(--milestone-blue) 13%, transparent);
+            0 0 0 1px color-mix(in srgb, var(--uptime-badge-label) 16%, transparent);
         z-index: 7200;
     }
 

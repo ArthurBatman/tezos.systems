@@ -126,8 +126,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=520';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=520';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=521';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=521';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -2729,7 +2729,7 @@ function initUptimeClock() {
     const topContinuityClaim = topContinuityHistory?.querySelector('.top-continuity-claim');
     const topContinuityOrigin = topContinuityHistory?.querySelector('.top-continuity-origin');
     const topContinuityArrow = topContinuityHistory?.querySelector('.top-continuity-arrow');
-    const topContinuityMilestoneEclipse = topContinuityHistory?.querySelector('.top-continuity-milestone-eclipse');
+    const topContinuityMilestoneOutline = topContinuityHistory?.querySelector('.top-continuity-milestone-outline');
     const topContinuityMilestonePopover = document.getElementById('top-continuity-milestone-popover');
     const topContinuityMilestoneClose = document.getElementById('top-continuity-milestone-close');
     const topContinuityMilestoneStatus = document.getElementById('top-continuity-milestone-status');
@@ -2747,6 +2747,8 @@ function initUptimeClock() {
     const LAUNCH = new Date(MAINNET_LAUNCH).getTime();
     const TOP_CONTINUITY_SHUFFLE_MS = 1500;
     const FINALITY_CACHE_KEY = 'tezos-systems-finality-seconds';
+    const UPTIME_MILESTONE_SEEN_KEY = 'tezos-systems-uptime-milestone-seen-v1';
+    const UPTIME_MILESTONE_SEEN_LIMIT = 64;
     let lastBlockLevel = 0;
     let lastBlockTime = null;
     let recentBlockTimes = []; // last N block timestamps for finality avg
@@ -2778,7 +2780,7 @@ function initUptimeClock() {
     let activeUptimeMilestoneSignal = null;
     let uptimeMilestoneTimer = null;
     let renderedUptimeMilestoneSignature = '__unset__';
-    let uptimeMilestoneDisclosureLocked = false;
+    let seenUptimeMilestoneKeys = new Set();
     const defaultUptimeAriaLabel = topContinuityHistory?.getAttribute('aria-label') || '';
     const defaultUptimeTitle = topContinuityHistory?.getAttribute('title') || '';
     const defaultUptimeAriaControls = topContinuityHistory?.getAttribute('aria-controls') || '';
@@ -2802,6 +2804,25 @@ function initUptimeClock() {
         return Number.isFinite(timestamp) ? timestamp : null;
     }
 
+    function readUptimeMilestoneSeen(rawValue) {
+        let raw = rawValue;
+        if (raw === undefined) {
+            try { raw = localStorage.getItem(UPTIME_MILESTONE_SEEN_KEY); } catch (_) { raw = null; }
+        }
+        if (!raw) return new Set();
+        try {
+            const parsed = JSON.parse(raw);
+            const values = Array.isArray(parsed) ? parsed : parsed?.seen;
+            return new Set((Array.isArray(values) ? values : [])
+                .filter((value) => typeof value === 'string' && value)
+                .slice(-UPTIME_MILESTONE_SEEN_LIMIT));
+        } catch (_) {
+            return new Set();
+        }
+    }
+
+    seenUptimeMilestoneKeys = readUptimeMilestoneSeen();
+
     function getActiveUptimeMilestoneSignal(now = Date.now()) {
         const expiresAt = finiteTimestamp(activeUptimeMilestoneSignal?.expiresAt);
         if (expiresAt != null && expiresAt <= now) {
@@ -2822,6 +2843,43 @@ function initUptimeClock() {
         if (signal?.milestoneStatus === 'crossed') return 'crossed';
         if (signal?.milestoneStatus === 'near') return 'near';
         return signal?.kind === 'event' ? 'crossed' : 'near';
+    }
+
+    function uptimeMilestoneSeenIdentity(signal) {
+        const id = cleanUptimeMilestoneText(signal?.id);
+        return id ? `${id}|${uptimeMilestoneStatus(signal)}` : '';
+    }
+
+    function uptimeMilestoneIsSeen(signal) {
+        const identity = uptimeMilestoneSeenIdentity(signal);
+        return Boolean(identity) && seenUptimeMilestoneKeys.has(identity);
+    }
+
+    function getUnseenUptimeMilestoneSignal(now = Date.now()) {
+        const signal = getActiveUptimeMilestoneSignal(now);
+        return signal && !uptimeMilestoneIsSeen(signal) ? signal : null;
+    }
+
+    function markUptimeMilestoneSeen(signal) {
+        const identity = uptimeMilestoneSeenIdentity(signal);
+        if (!identity) return;
+        const values = [...seenUptimeMilestoneKeys].filter((value) => value !== identity);
+        values.push(identity);
+        seenUptimeMilestoneKeys = new Set(values.slice(-UPTIME_MILESTONE_SEEN_LIMIT));
+        try {
+            localStorage.setItem(UPTIME_MILESTONE_SEEN_KEY, JSON.stringify({
+                schema: 1,
+                seen: [...seenUptimeMilestoneKeys]
+            }));
+        } catch (_) {}
+    }
+
+    function restartUptimeMilestoneAttractor(active) {
+        if (!topContinuityProof) return;
+        topContinuityProof.classList.remove('is-uptime-milestone-arriving');
+        if (!active) return;
+        void topContinuityProof.offsetWidth;
+        topContinuityProof.classList.add('is-uptime-milestone-arriving');
     }
 
     function uptimeMilestoneDestination(signal) {
@@ -2845,11 +2903,9 @@ function initUptimeClock() {
         return labels[destination] || (/^Open\b/i.test(supplied) ? supplied : 'Open milestone details');
     }
 
-    function setUptimeMilestonePopoverVisible(visible, { lockDisclosure = false, resetDisclosure = false } = {}) {
+    function setUptimeMilestonePopoverVisible(visible) {
         if (!topContinuityMilestonePopover || !topContinuityProof) return;
-        if (visible && !getActiveUptimeMilestoneSignal()) return;
-        if (lockDisclosure) uptimeMilestoneDisclosureLocked = true;
-        if (resetDisclosure) uptimeMilestoneDisclosureLocked = false;
+        if (visible && !getUnseenUptimeMilestoneSignal()) return;
         topContinuityProof.classList.toggle('is-milestone-disclosed', visible);
         topContinuityMilestonePopover.setAttribute('aria-hidden', visible ? 'false' : 'true');
         topContinuityHistory?.setAttribute('aria-expanded', visible ? 'true' : 'false');
@@ -2871,18 +2927,19 @@ function initUptimeClock() {
     function syncUptimeMilestoneCelebration(signal = getActiveUptimeMilestoneSignal()) {
         const active = Boolean(signal);
         const status = active ? uptimeMilestoneStatus(signal) : null;
-        const crossed = status === 'crossed';
-        const near = status === 'near';
+        const unseen = active && !uptimeMilestoneIsSeen(signal);
+        const crossed = unseen && status === 'crossed';
+        const near = unseen && status === 'near';
         const renderSignature = active
-            ? `${signal.id}|${status}|${signal.shortLabel || signal.icon || signal.title}|${signal.expiresAt || ''}`
+            ? `${signal.id}|${status}|${signal.shortLabel || signal.icon || signal.title}|${signal.expiresAt || ''}|${unseen ? 'unseen' : 'seen'}`
             : '';
         if (renderSignature === renderedUptimeMilestoneSignature) return;
         renderedUptimeMilestoneSignature = renderSignature;
-        topContinuityHistory?.classList.toggle('has-milestone-signal', active);
+        topContinuityHistory?.classList.toggle('has-milestone-signal', unseen);
         topContinuityHistory?.classList.toggle('is-milestone-near', near);
         topContinuityHistory?.classList.toggle('is-milestone-crossed', crossed);
         topContinuityHistory?.classList.toggle('is-milestone-celebrating', crossed);
-        topContinuityProof?.classList.toggle('has-milestone-signal', active);
+        topContinuityProof?.classList.toggle('has-milestone-signal', unseen);
         topContinuityProof?.classList.toggle('is-milestone-near', near);
         topContinuityProof?.classList.toggle('is-milestone-crossed', crossed);
         topContinuityProof?.classList.toggle('is-milestone-celebrating', crossed);
@@ -2890,14 +2947,15 @@ function initUptimeClock() {
         topContinuityPanel?.classList.toggle('has-milestone-celebration', crossed);
 
         if (topContinuityHistory) {
-            if (active) topContinuityHistory.dataset.milestoneStatus = status;
+            if (unseen) topContinuityHistory.dataset.milestoneStatus = status;
             else delete topContinuityHistory.dataset.milestoneStatus;
         }
-        setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
-        if (topContinuityMilestoneEclipse) topContinuityMilestoneEclipse.hidden = !active;
-        if (topContinuityMilestonePopover) topContinuityMilestonePopover.hidden = !active;
+        setUptimeMilestonePopoverVisible(false);
+        if (topContinuityMilestoneOutline) topContinuityMilestoneOutline.hidden = !unseen;
+        if (topContinuityMilestonePopover) topContinuityMilestonePopover.hidden = !unseen;
+        restartUptimeMilestoneAttractor(unseen);
 
-        if (active) {
+        if (unseen) {
             const target = cleanUptimeMilestoneText(signal.shortLabel || signal.icon || signal.title || 'Milestone');
             const destination = uptimeMilestoneDestination(signal);
             const destinationLabel = uptimeMilestoneDestinationLabel(destination, signal);
@@ -2915,7 +2973,7 @@ function initUptimeClock() {
             topContinuityHistory.dataset.milestoneRoute = destination;
             topContinuityHistory.setAttribute('aria-describedby', topContinuityMilestonePopover.id);
             topContinuityHistory.setAttribute('aria-expanded', 'false');
-            topContinuityHistory.setAttribute('aria-label', `${milestoneState}: ${target}. Activate to show event details.`);
+            topContinuityHistory.setAttribute('aria-label', `${milestoneState}: ${target}. Activate to ${destinationLabel.replace(/^Open\b/, 'open')}.`);
             topContinuityHistory.setAttribute('aria-controls', topContinuityMilestonePopover.id);
             topContinuityHistory.removeAttribute('title');
         } else {
@@ -3280,7 +3338,7 @@ function initUptimeClock() {
             setUptimeMilestonePopoverVisible(true);
         });
         topContinuityProof?.addEventListener('pointerleave', (event) => {
-            if (event.pointerType === 'touch' || uptimeMilestoneDisclosureLocked) return;
+            if (event.pointerType === 'touch') return;
             if (!topContinuityProof.contains(document.activeElement)) {
                 setUptimeMilestonePopoverVisible(false);
             }
@@ -3289,28 +3347,22 @@ function initUptimeClock() {
             setUptimeMilestonePopoverVisible(true);
         });
         topContinuityProof?.addEventListener('focusout', (event) => {
-            if (!uptimeMilestoneDisclosureLocked && !topContinuityProof.contains(event.relatedTarget)) {
+            if (!topContinuityProof.contains(event.relatedTarget)) {
                 setUptimeMilestonePopoverVisible(false);
             }
         });
         topContinuityHistory.addEventListener('keydown', (event) => {
-            if (event.key !== 'Escape' || !getActiveUptimeMilestoneSignal()) return;
+            if (event.key !== 'Escape' || !getUnseenUptimeMilestoneSignal()) return;
             event.preventDefault();
-            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
-        });
-        document.addEventListener('pointerdown', (event) => {
-            if (!uptimeMilestoneDisclosureLocked || topContinuityProof?.contains(event.target)) return;
-            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
+            setUptimeMilestonePopoverVisible(false);
         });
         topContinuityHistory.addEventListener('click', (event) => {
-            const milestoneSignal = getActiveUptimeMilestoneSignal();
+            const milestoneSignal = getUnseenUptimeMilestoneSignal();
             if (milestoneSignal) {
                 event.preventDefault();
-                const shouldOpen = !topContinuityProof?.classList.contains('is-milestone-disclosed')
-                    || !uptimeMilestoneDisclosureLocked;
-                setUptimeMilestonePopoverVisible(shouldOpen, shouldOpen
-                    ? { lockDisclosure: true }
-                    : { resetDisclosure: true });
+                markUptimeMilestoneSeen(milestoneSignal);
+                syncUptimeMilestoneCelebration(milestoneSignal);
+                openUptimeMilestoneDestination(milestoneSignal);
                 return;
             }
             if (window.location.hash !== '#protocol-history') {
@@ -3319,14 +3371,15 @@ function initUptimeClock() {
             openProtocolHistoryChamber();
         });
         topContinuityMilestoneLink?.addEventListener('click', (event) => {
-            const milestoneSignal = getActiveUptimeMilestoneSignal();
+            const milestoneSignal = getUnseenUptimeMilestoneSignal();
             if (!milestoneSignal) return;
             event.preventDefault();
-            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
+            markUptimeMilestoneSeen(milestoneSignal);
+            syncUptimeMilestoneCelebration(milestoneSignal);
             openUptimeMilestoneDestination(milestoneSignal);
         });
         topContinuityMilestoneClose?.addEventListener('click', () => {
-            setUptimeMilestonePopoverVisible(false, { resetDisclosure: true });
+            setUptimeMilestonePopoverVisible(false);
             topContinuityMilestoneClose.blur();
         });
         topContinuityPanel.querySelectorAll('.top-continuity-stat[data-card-history]').forEach((pill) => {
@@ -3362,6 +3415,11 @@ function initUptimeClock() {
         window.addEventListener('hot-signal-rendered', (event) => {
             setActiveUptimeMilestoneSignal(event?.detail?.milestone || null);
         });
+        window.addEventListener('storage', (event) => {
+            if (event.key !== UPTIME_MILESTONE_SEEN_KEY) return;
+            seenUptimeMilestoneKeys = readUptimeMilestoneSeen(event.newValue);
+            syncUptimeMilestoneCelebration(getActiveUptimeMilestoneSignal());
+        });
     }
 
     function syncChainProofMetrics() {
@@ -3373,7 +3431,7 @@ function initUptimeClock() {
 
     function applyUptimeAnniversaryState(anniversary, totalDays, upgradeCount) {
         const active = Boolean(anniversary?.isAnniversary);
-        const activeMilestone = getActiveUptimeMilestoneSignal();
+        const activeMilestone = getUnseenUptimeMilestoneSignal();
         syncUptimeMilestoneCelebration(activeMilestone);
         topContinuityHistory?.classList.toggle('is-anniversary', active);
         topContinuityPanel?.classList.toggle('has-anniversary', active);
@@ -3397,8 +3455,11 @@ function initUptimeClock() {
         const milestoneLead = activeMilestone
             ? `${uptimeMilestoneStatus(activeMilestone) === 'crossed' ? 'Network milestone confirmed' : 'Network milestone approaching'}: ${describeUptimeMilestone(activeMilestone)}. `
             : '';
+        const action = activeMilestone
+            ? uptimeMilestoneDestinationLabel(uptimeMilestoneDestination(activeMilestone), activeMilestone)
+            : 'Open Protocol Anthology Chamber';
         topContinuityHistory.title = `${milestoneLead}${myth}`;
-        topContinuityHistory.setAttribute('aria-label', `${milestoneLead}${myth} Open Protocol Anthology Chamber`);
+        topContinuityHistory.setAttribute('aria-label', `${milestoneLead}${myth} ${action}`);
     }
 
     // Tick the uptime counter every second — fixed-width digits
