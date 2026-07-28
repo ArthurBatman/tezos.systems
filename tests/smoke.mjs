@@ -2,6 +2,7 @@
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import net from 'node:net';
 import path from 'node:path';
@@ -4485,6 +4486,325 @@ async function smokeAppShell(browser, baseUrl) {
 
   assert(issues.length === 0, `app shell browser issues:\n${issues.join('\n')}`);
   log(`ok - app shell smoke (${shell.assetResults.length} shell assets)`);
+}
+
+async function smokeReleaseUpdateDock(browser, baseUrl) {
+  const issues = [];
+
+  for (const testCase of [
+    {
+      label: 'desktop valley',
+      viewport: { width: 1440, height: 900 },
+      theme: 'valley',
+      reducedMotion: 'no-preference',
+      edge: 20
+    },
+    {
+      label: 'mobile clean reduced motion',
+      viewport: { width: 390, height: 844 },
+      theme: 'clean',
+      reducedMotion: 'reduce',
+      edge: 12
+    }
+  ]) {
+    const context = await browser.newContext({
+      viewport: testCase.viewport,
+      reducedMotion: testCase.reducedMotion,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context);
+    await context.addInitScript((theme) => {
+      localStorage.setItem('tezos-systems-theme', theme);
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    }, testCase.theme);
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `release update dock ${testCase.label}`, issues);
+    const response = await page.goto(`${baseUrl}/?theme=${testCase.theme}`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `release update dock ${testCase.label}: dashboard failed with HTTP ${response?.status()}`);
+    await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+    await page.locator('#hero-search-input').focus();
+    await page.evaluate(() => {
+      const input = document.getElementById('hero-search-input');
+      input?.setSelectionRange?.(0, 0);
+      window.__releaseUpdateBaseline = {
+        focus: document.activeElement,
+        scrollY: window.scrollY
+      };
+    });
+
+    await page.evaluate(async () => {
+      const ui = await import('/js/ui/release-update.js');
+      window.__releaseUpdateUi = ui;
+      window.__releaseUpdateActions = 0;
+      window.__releaseUpdateLater = 0;
+      ui.showReleaseUpdateDock({
+        onAction: () => { window.__releaseUpdateActions += 1; },
+        onLater: () => { window.__releaseUpdateLater += 1; }
+      });
+    });
+
+    const dock = page.locator('[data-release-update-dock]');
+    await dock.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForFunction(() => document.querySelector('[data-release-update-dock]')?.classList.contains('is-visible'));
+    await dock.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
+    const initial = await page.evaluate(({ edge, mobile, reducedMotion }) => {
+      const dock = document.querySelector('[data-release-update-dock]');
+      const card = dock?.querySelector('.release-update-card');
+      const action = dock?.querySelector('[data-release-update-action]');
+      const later = dock?.querySelector('[data-release-update-later]');
+      const copy = dock?.querySelector('.release-update-copy');
+      const dockRect = dock?.getBoundingClientRect();
+      const cardRect = card?.getBoundingClientRect();
+      const actionRect = action?.getBoundingClientRect();
+      const laterRect = later?.getBoundingClientRect();
+      const rootStyles = getComputedStyle(document.documentElement);
+      const dockStyles = dock ? getComputedStyle(dock) : null;
+      const cardStyles = card ? getComputedStyle(card) : null;
+      const actionStyles = action ? getComputedStyle(action) : null;
+      const baseline = window.__releaseUpdateBaseline;
+      return {
+        activePreserved: document.activeElement === baseline?.focus,
+        actionBg: actionStyles?.backgroundColor || '',
+        actionColor: actionStyles?.color || '',
+        actionHeight: actionRect?.height || 0,
+        actionWidth: actionRect?.width || 0,
+        ariaLive: copy?.getAttribute('aria-live') || '',
+        bottom: dockRect ? innerHeight - dockRect.bottom : Number.NaN,
+        cardBg: cardStyles?.backgroundImage || cardStyles?.backgroundColor || '',
+        cardWidth: cardRect?.width || 0,
+        dockWidth: dockRect?.width || 0,
+        edge,
+        focusId: document.activeElement?.id || '',
+        laterHeight: laterRect?.height || 0,
+        mobile,
+        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        reducedTransition: reducedMotion ? dockStyles?.transitionDuration || '' : '',
+        right: dockRect ? innerWidth - dockRect.right : Number.NaN,
+        safeBottom: rootStyles.getPropertyValue('--toast-safe-bottom').trim(),
+        scrollPreserved: Math.abs(window.scrollY - (baseline?.scrollY || 0)) <= 1,
+        title: dock?.querySelector('.release-update-title')?.textContent || '',
+        zIndex: Number(dockStyles?.zIndex || 0)
+      };
+    }, {
+      edge: testCase.edge,
+      mobile: testCase.viewport.width <= 600,
+      reducedMotion: testCase.reducedMotion === 'reduce'
+    });
+
+    assert(initial.activePreserved && initial.focusId === 'hero-search-input' && initial.scrollPreserved, `release update dock ${testCase.label}: appearance stole focus or scroll ${JSON.stringify(initial)}`);
+    assert(initial.title === 'New version ready' && initial.ariaLive === 'polite', `release update dock ${testCase.label}: release copy/accessibility missing ${JSON.stringify(initial)}`);
+    assert(initial.actionHeight >= 43.9 && initial.laterHeight >= 43.9, `release update dock ${testCase.label}: actions are undersized ${JSON.stringify(initial)}`);
+    assert(initial.zIndex >= 10004 && initial.cardBg !== 'none' && initial.actionBg !== initial.actionColor, `release update dock ${testCase.label}: system notice is not visually stark ${JSON.stringify(initial)}`);
+    assert(initial.safeBottom && !initial.pageOverflow, `release update dock ${testCase.label}: safe-area or overflow contract failed ${JSON.stringify(initial)}`);
+    assert(Math.abs(initial.bottom - testCase.edge) <= 2 && Math.abs(initial.right - testCase.edge) <= 2, `release update dock ${testCase.label}: dock missed its viewport edge ${JSON.stringify(initial)}`);
+    if (testCase.viewport.width <= 600) {
+      assert(initial.dockWidth >= testCase.viewport.width - 26 && initial.actionWidth >= initial.cardWidth - 30, `release update dock ${testCase.label}: mobile dock/action should span the safe width ${JSON.stringify(initial)}`);
+      assert(initial.reducedTransition === '0s', `release update dock ${testCase.label}: reduced motion kept an entrance transition ${JSON.stringify(initial)}`);
+    } else {
+      assert(initial.dockWidth >= 400 && initial.dockWidth <= 440.5, `release update dock ${testCase.label}: desktop dock width drifted ${JSON.stringify(initial)}`);
+    }
+
+    const later = page.locator('[data-release-update-later]');
+    assert(await later.count() === 1, `release update dock ${testCase.label}: expected one Later action`);
+    await later.click();
+    await page.waitForFunction(() => document.activeElement?.classList.contains('release-update-pill'));
+    const collapsed = await page.evaluate(() => {
+      const dock = document.querySelector('[data-release-update-dock]');
+      const pill = dock?.querySelector('.release-update-pill');
+      const rect = dock?.getBoundingClientRect();
+      return {
+        activePill: document.activeElement === pill,
+        cardHidden: dock?.querySelector('.release-update-card')?.hidden || false,
+        collapsed: dock?.classList.contains('is-collapsed') || false,
+        laterCount: window.__releaseUpdateLater || 0,
+        pillHeight: pill?.getBoundingClientRect().height || 0,
+        pillHidden: pill?.hidden ?? true,
+        width: rect?.width || 0
+      };
+    });
+    assert(collapsed.activePill && collapsed.cardHidden && collapsed.collapsed && !collapsed.pillHidden && collapsed.laterCount === 1 && collapsed.pillHeight >= 44, `release update dock ${testCase.label}: Later did not preserve a reachable pill ${JSON.stringify(collapsed)}`);
+
+    const pill = page.locator('.release-update-pill');
+    assert(await pill.count() === 1, `release update dock ${testCase.label}: expected one collapsed update pill`);
+    await pill.click();
+    await page.waitForFunction(() => document.activeElement?.matches('[data-release-update-action]'));
+    const replay = await page.evaluate(() => {
+      const ui = window.__releaseUpdateUi;
+      const dock = document.querySelector('[data-release-update-dock]');
+      ui.showReleaseUpdateDock({
+        onAction: () => { window.__releaseUpdateActions += 1; },
+        onLater: () => { window.__releaseUpdateLater += 1; }
+      });
+      return {
+        activeAction: document.activeElement?.matches('[data-release-update-action]') || false,
+        stillVisible: dock?.classList.contains('is-visible') || false
+      };
+    });
+    assert(replay.activeAction && replay.stillVisible, `release update dock ${testCase.label}: resurface replayed or lost the settled dock ${JSON.stringify(replay)}`);
+
+    const action = page.locator('[data-release-update-action]');
+    assert(await action.count() === 1, `release update dock ${testCase.label}: expected one primary update action`);
+    await action.click();
+    const updating = await page.evaluate(() => {
+      const dock = document.querySelector('[data-release-update-dock]');
+      const action = dock?.querySelector('[data-release-update-action]');
+      return {
+        actionCount: window.__releaseUpdateActions || 0,
+        disabled: action?.disabled || false,
+        state: dock?.dataset.state || '',
+        text: action?.textContent || ''
+      };
+    });
+    assert(updating.actionCount === 1 && updating.disabled && updating.state === 'updating' && updating.text === 'Updating…', `release update dock ${testCase.label}: primary progress state failed ${JSON.stringify(updating)}`);
+
+    await page.evaluate(() => {
+      window.__releaseUpdateUi.setReleaseUpdateDockState({
+        state: 'reload',
+        title: 'Update applied in another tab',
+        detail: 'Reload this tab to finish using the new Tezos Systems build.',
+        actionLabel: 'Reload this tab',
+        pendingLabel: 'Reloading…',
+        pillLabel: 'Reload to update',
+        onAction: () => { window.__releaseUpdateActions += 1; }
+      });
+    });
+    const fallback = await page.evaluate(() => {
+      const dock = document.querySelector('[data-release-update-dock]');
+      const action = dock?.querySelector('[data-release-update-action]');
+      return {
+        disabled: action?.disabled || false,
+        state: dock?.dataset.state || '',
+        text: action?.textContent || '',
+        title: dock?.querySelector('.release-update-title')?.textContent || ''
+      };
+    });
+    assert(!fallback.disabled && fallback.state === 'reload' && fallback.text === 'Reload this tab' && fallback.title === 'Update applied in another tab', `release update dock ${testCase.label}: reload fallback did not recover the action ${JSON.stringify(fallback)}`);
+
+    await page.evaluate(() => window.__releaseUpdateUi.hideReleaseUpdateDock());
+    await dock.waitFor({ state: 'hidden', timeout: 2000 });
+    const released = await page.evaluate(() => ({
+      raised: document.body.classList.contains('toast-safe-area-raised'),
+      safeBottom: getComputedStyle(document.documentElement).getPropertyValue('--toast-safe-bottom').trim()
+    }));
+    assert(!released.raised && !released.safeBottom, `release update dock ${testCase.label}: safe-area reservation leaked after hide ${JSON.stringify(released)}`);
+
+    await context.close();
+  }
+
+  let serviceWorkerVersion = 1;
+  const lifecycleServer = createServer(async (request, response) => {
+    try {
+      const requestUrl = request.url || '/';
+      const pathname = new URL(requestUrl, 'http://127.0.0.1').pathname;
+      if (pathname === '/sw.js') {
+        response.writeHead(200, {
+          'Cache-Control': 'no-store',
+          'Content-Type': 'application/javascript',
+          'Service-Worker-Allowed': '/'
+        });
+        response.end(`
+          const VERSION = ${serviceWorkerVersion};
+          self.addEventListener('install', () => {});
+          self.addEventListener('message', (event) => {
+            if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+          });
+          self.addEventListener('activate', (event) => {
+            event.waitUntil(self.clients.claim());
+          });
+        `);
+        return;
+      }
+
+      const upstream = await fetch(`${baseUrl}${requestUrl}`);
+      const body = Buffer.from(await upstream.arrayBuffer());
+      response.statusCode = upstream.status;
+      for (const header of ['cache-control', 'content-type', 'etag', 'last-modified']) {
+        const value = upstream.headers.get(header);
+        if (value) response.setHeader(header, value);
+      }
+      response.end(body);
+    } catch (error) {
+      response.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end(`Lifecycle proxy failed: ${error.message}`);
+    }
+  });
+  await new Promise((resolve, reject) => {
+    lifecycleServer.once('error', reject);
+    lifecycleServer.listen(0, '127.0.0.1', resolve);
+  });
+  const lifecycleAddress = lifecycleServer.address();
+  const lifecycleBaseUrl = `http://127.0.0.1:${lifecycleAddress.port}`;
+
+  const lifecycleContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'allow'
+  });
+  await installFeatureMocks(lifecycleContext);
+  await lifecycleContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const updatingPage = await lifecycleContext.newPage();
+  const siblingPage = await lifecycleContext.newPage();
+  attachIssueCollectors(updatingPage, 'release update lifecycle primary', issues);
+  attachIssueCollectors(siblingPage, 'release update lifecycle sibling', issues);
+
+  let response = await updatingPage.goto(`${lifecycleBaseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `release update lifecycle: first load failed with HTTP ${response?.status()}`);
+  await updatingPage.evaluate(() => navigator.serviceWorker.ready);
+  await updatingPage.reload({ waitUntil: 'domcontentloaded' });
+  await updatingPage.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 10000 });
+
+  response = await siblingPage.goto(`${lifecycleBaseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `release update lifecycle: sibling load failed with HTTP ${response?.status()}`);
+  await siblingPage.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 10000 });
+
+  serviceWorkerVersion = 2;
+  await updatingPage.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    await registration.update();
+  });
+  await updatingPage.locator('[data-release-update-dock].is-visible').waitFor({ state: 'visible', timeout: 10000 });
+  const waitingState = await updatingPage.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return {
+      action: document.querySelector('[data-release-update-action]')?.textContent || '',
+      waiting: registration.waiting?.state || ''
+    };
+  });
+  assert(waitingState.action === 'Update & reload' && waitingState.waiting === 'installed', `release update lifecycle: waiting worker did not produce the release dock ${JSON.stringify(waitingState)}`);
+
+  const lifecycleAction = updatingPage.locator('[data-release-update-action]');
+  await Promise.all([
+    updatingPage.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+    lifecycleAction.click()
+  ]);
+  await updatingPage.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 10000 });
+  const activatedState = await updatingPage.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return {
+      dockCount: document.querySelectorAll('[data-release-update-dock]:not([hidden])').length,
+      waiting: registration.waiting?.state || ''
+    };
+  });
+  assert(activatedState.dockCount === 0 && !activatedState.waiting, `release update lifecycle: primary tab did not finish on the active worker ${JSON.stringify(activatedState)}`);
+
+  await siblingPage.locator('[data-release-update-dock].is-visible').waitFor({ state: 'visible', timeout: 10000 });
+  const siblingState = await siblingPage.evaluate(() => ({
+    action: document.querySelector('[data-release-update-action]')?.textContent || '',
+    title: document.querySelector('.release-update-title')?.textContent || ''
+  }));
+  assert(siblingState.title === 'Update applied in another tab' && siblingState.action === 'Reload this tab', `release update lifecycle: sibling tab did not receive a reload-safe cross-tab notice ${JSON.stringify(siblingState)}`);
+  await lifecycleContext.close();
+  await new Promise((resolve, reject) => lifecycleServer.close(error => error ? reject(error) : resolve()));
+
+  assert(issues.length === 0, `release update dock browser issues:\n${issues.join('\n')}`);
+  log('ok - persistent responsive release update dock and service-worker lifecycle smoke');
 }
 
 async function smokeHeroLandscape(browser, baseUrl) {
@@ -20609,6 +20929,7 @@ function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
     { name: 'app-shell', description: 'Version metadata, service worker, manifest, icons, robots, sitemap, and shell assets', run: () => smokeAppShell(browser, baseUrl) },
+    { name: 'release-update', description: 'Persistent desktop/mobile release dock, Later pill, activation fallback, and cross-tab service-worker lifecycle', run: () => smokeReleaseUpdateDock(browser, baseUrl) },
     { name: 'hero-landscape', description: 'Hero continuity signals balance into matching left and right stacks on mobile landscape', run: () => smokeHeroLandscape(browser, baseUrl) },
     { name: 'hero-command-bar', description: 'Hero command bar owns the first-screen retrieval path, protocol deep dives, and command routing', run: () => smokeHeroCommandBar(browser, baseUrl) },
     { name: 'cycle-milestone', description: 'Exact cycle milestones survive stale catalogs and quiet reconciliation while dead history breadcrumbs stay removed', run: () => smokeCycleMilestone(browser, baseUrl) },

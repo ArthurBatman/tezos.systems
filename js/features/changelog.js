@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
+            { type: '🎨', text: 'New Tezos Systems builds now use a high-contrast persistent release dock with a full-size Update & reload action and a compact Later state' },
+            { type: '🔧', text: 'Long-open and cross-tab sessions now keep new builds reachable through hourly visible checks, reliable resurfacing, and a reload fallback when activation takes longer than expected' },
             { type: '🔧', text: 'Live Chamber launchers now name their source and show a relative or UTC observation time instead of an ambiguous local-time stamp' },
             { type: '🔧', text: 'Cycle History now separates scheduled capture from observed delivery cadence, while generated proofbooks disclose their six-hour schedule and Whale Watch names its exact archived window' },
             { type: '🔧', text: 'Capital now carries the CoinGecko quote observation and last-good source state into both its compact launcher and full room' }

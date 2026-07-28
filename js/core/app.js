@@ -52,7 +52,7 @@ import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js
 import { initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
-import { enqueueToast, setToastGate } from '../ui/toast-queue.js';
+import { setToastGate } from '../ui/toast-queue.js';
 import { fetchProtocols } from '../features/governance.js';
 import { initGovernanceAlerts } from '../features/governance-alerts.js';
 import { initChamber } from '../features/chamber.js';
@@ -126,8 +126,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=517';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=517';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=518';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=518';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -5309,58 +5309,127 @@ window.TezosStats = { refresh };
 // ==========================================
 // SERVICE WORKER REGISTRATION
 // ==========================================
+const SERVICE_WORKER_UPDATE_CHECK_MS = 60 * 60 * 1000;
+const SERVICE_WORKER_UPDATE_DEFER_MS = 30 * 60 * 1000;
+const SERVICE_WORKER_ACTIVATION_FALLBACK_MS = 8000;
+let releaseUpdateUiPromise = null;
+
+function loadReleaseUpdateUi() {
+    if (!releaseUpdateUiPromise) releaseUpdateUiPromise = import('../ui/release-update.js');
+    return releaseUpdateUiPromise;
+}
+
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        let updateToastVisible = false;
         let reloadRequested = false;
         let reloading = false;
+        let controlledAtRegistration = Boolean(navigator.serviceWorker.controller);
+        let deferredUntil = 0;
+        let deferredTimer = 0;
+        let activationFallbackTimer = 0;
+
+        const clearDeferredTimer = () => {
+            if (!deferredTimer) return;
+            window.clearTimeout(deferredTimer);
+            deferredTimer = 0;
+        };
+
+        const scheduleResurface = (callback) => {
+            clearDeferredTimer();
+            const delay = Math.max(0, deferredUntil - Date.now());
+            deferredTimer = window.setTimeout(() => {
+                deferredTimer = 0;
+                if (document.visibilityState === 'visible') callback();
+            }, delay);
+        };
+
+        const deferPrompt = (resurface) => {
+            deferredUntil = Date.now() + SERVICE_WORKER_UPDATE_DEFER_MS;
+            scheduleResurface(resurface);
+        };
+
+        const reloadThisTab = () => {
+            reloadRequested = true;
+            window.location.reload();
+        };
+
+        const showAppliedElsewherePrompt = async ({ forceExpand = true } = {}) => {
+            const ui = await loadReleaseUpdateUi();
+            const resurface = () => showAppliedElsewherePrompt({ forceExpand: true });
+            ui.showReleaseUpdateDock({
+                state: 'reload',
+                title: 'Update applied in another tab',
+                detail: 'Reload this tab to finish using the new Tezos Systems build.',
+                actionLabel: 'Reload this tab',
+                pendingLabel: 'Reloading…',
+                pillLabel: 'Reload to update',
+                expanded: forceExpand || Date.now() >= deferredUntil,
+                onAction: reloadThisTab,
+                onLater: () => deferPrompt(resurface)
+            });
+        };
 
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (!reloadRequested || reloading) return;
-            reloading = true;
-            window.location.reload();
+            if (activationFallbackTimer) {
+                window.clearTimeout(activationFallbackTimer);
+                activationFallbackTimer = 0;
+            }
+            if (reloadRequested && !reloading) {
+                reloading = true;
+                window.location.reload();
+                return;
+            }
+            if (!controlledAtRegistration) {
+                controlledAtRegistration = true;
+                return;
+            }
+            showAppliedElsewherePrompt({ forceExpand: Date.now() >= deferredUntil });
         });
 
-        const showUpdatePrompt = (reg) => {
-            if (updateToastVisible || !reg.waiting || !navigator.serviceWorker.controller) return;
-            updateToastVisible = true;
-            enqueueToast({
-                priority: 0,
-                duration: 15000,
-                show(done, duration) {
-                    const toast = document.createElement('div');
-                    toast.className = 'visit-streak-toast service-worker-update-toast';
-                    toast.setAttribute('role', 'status');
-                    toast.setAttribute('aria-live', 'polite');
-                    const copy = document.createElement('span');
-                    copy.className = 'visit-streak-copy';
-                    copy.textContent = 'A fresh Tezos Systems build is ready.';
-                    const button = document.createElement('button');
-                    button.className = 'visit-streak-share';
-                    button.type = 'button';
-                    button.textContent = 'Update';
-                    toast.append(copy, button);
-                    document.body.appendChild(toast);
-                    requestAnimationFrame(() => toast.classList.add('visible'));
+        const showUpdatePrompt = async (reg, { forceExpand = false } = {}) => {
+            if (!reg.waiting || !navigator.serviceWorker.controller) return;
+            const ui = await loadReleaseUpdateUi();
+            if (!reg.waiting || !navigator.serviceWorker.controller) return;
 
-                    let closed = false;
-                    const close = () => {
-                        if (closed) return;
-                        closed = true;
-                        toast.classList.remove('visible');
-                        window.setTimeout(() => {
-                            toast.remove();
-                            updateToastVisible = false;
-                            done();
-                        }, 500);
-                    };
-                    button.addEventListener('click', () => {
-                        reloadRequested = true;
-                        button.disabled = true;
-                        button.textContent = 'Updating…';
-                        reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
-                    });
-                    window.setTimeout(close, duration);
+            const resurface = () => showUpdatePrompt(reg, { forceExpand: true });
+            const showReloadFallback = () => {
+                ui.setReleaseUpdateDockState({
+                    state: 'reload',
+                    title: 'Update ready to finish',
+                    detail: 'Reload this tab to finish applying the new Tezos Systems build.',
+                    actionLabel: 'Reload now',
+                    pendingLabel: 'Reloading…',
+                    pillLabel: 'Reload to update',
+                    onAction: reloadThisTab,
+                    onLater: () => {
+                        reloadRequested = false;
+                        deferPrompt(resurface);
+                    }
+                });
+            };
+
+            ui.showReleaseUpdateDock({
+                state: 'ready',
+                title: 'New version ready',
+                detail: 'Reload for the latest Tezos Systems fixes and features.',
+                actionLabel: 'Update & reload',
+                pendingLabel: 'Updating…',
+                pillLabel: 'Update ready',
+                expanded: forceExpand || Date.now() >= deferredUntil,
+                onLater: () => deferPrompt(resurface),
+                onAction() {
+                    const waiting = reg.waiting;
+                    if (!waiting) {
+                        reloadThisTab();
+                        return;
+                    }
+                    reloadRequested = true;
+                    waiting.postMessage({ type: 'SKIP_WAITING' });
+                    if (activationFallbackTimer) window.clearTimeout(activationFallbackTimer);
+                    activationFallbackTimer = window.setTimeout(() => {
+                        activationFallbackTimer = 0;
+                        if (!reloading) showReloadFallback();
+                    }, SERVICE_WORKER_ACTIVATION_FALLBACK_MS);
                 }
             });
         };
@@ -5377,11 +5446,16 @@ function registerServiceWorker() {
 
             let lastUpdateCheck = 0;
             const checkForUpdate = () => {
-                if (document.visibilityState !== 'visible' || Date.now() - lastUpdateCheck < 60 * 60 * 1000) return;
+                if (document.visibilityState !== 'visible') return;
+                if (reg.waiting) showUpdatePrompt(reg, { forceExpand: Date.now() >= deferredUntil });
+                if (Date.now() - lastUpdateCheck < SERVICE_WORKER_UPDATE_CHECK_MS) return;
                 lastUpdateCheck = Date.now();
                 reg.update().catch(() => {});
             };
-            document.addEventListener('visibilitychange', checkForUpdate);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') checkForUpdate();
+            });
+            window.setInterval(checkForUpdate, SERVICE_WORKER_UPDATE_CHECK_MS);
             checkForUpdate();
         }).catch((err) => {
             console.warn('SW registration failed:', err);

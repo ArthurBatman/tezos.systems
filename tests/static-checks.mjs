@@ -1505,6 +1505,8 @@ async function checkCacheBustAlignment() {
   const index = await readText('index.html');
   const sw = await readText('sw.js');
   const app = await readText('js/core/app.js');
+  const releaseUpdate = await readText('js/ui/release-update.js');
+  const styles = await readText('css/styles.css');
   const heroSearch = await readText('js/features/search.js');
   const leaderboard = await readText('js/features/leaderboard.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
@@ -1631,8 +1633,33 @@ async function checkCacheBustAlignment() {
   if (shellAssetsBlock.includes("'/'") || shellAssetsBlock.includes("'/index.html'")) {
     fail('sw.js must not precache navigable dashboard HTML when offline navigations deliberately use offline.html');
   }
-  if (!sw.includes("event.data?.type === 'SKIP_WAITING'") || !app.includes("reg.waiting?.postMessage({ type: 'SKIP_WAITING' })")) {
+  if (!sw.includes("event.data?.type === 'SKIP_WAITING'") || !app.includes("waiting.postMessage({ type: 'SKIP_WAITING' })")) {
     fail('service-worker updates must wait for an explicit visible user action');
+  }
+  const releaseUpdateContracts = [
+    ["import('../ui/release-update.js')", app],
+    ['SERVICE_WORKER_UPDATE_CHECK_MS', app],
+    ['SERVICE_WORKER_UPDATE_DEFER_MS', app],
+    ['SERVICE_WORKER_ACTIVATION_FALLBACK_MS', app],
+    ['window.setInterval(checkForUpdate, SERVICE_WORKER_UPDATE_CHECK_MS)', app],
+    ["document.visibilityState === 'visible'", app],
+    ['Update applied in another tab', app],
+    ['Update ready to finish', app],
+    ['showReleaseUpdateDock', releaseUpdate],
+    ['reserveToastSafeArea(SAFE_AREA_KEY', releaseUpdate],
+    ["pill.addEventListener('click'", releaseUpdate],
+    [".release-update-action", styles],
+    ['min-height: 44px', styles],
+    [".release-update-dock.is-collapsed", styles]
+  ];
+  for (const [snippet, source] of releaseUpdateContracts) {
+    if (!source.includes(snippet)) fail(`service-worker release dock contract missing: ${snippet}`);
+  }
+  if (!shellAssetsBlock.includes("'/js/ui/release-update.js'")) {
+    fail('service-worker install shell must include the dedicated release update UI');
+  }
+  if (app.includes('service-worker-update-toast') || app.includes('duration: 15000')) {
+    fail('service-worker updates must not regress to the expiring ambient toast');
   }
   if (!themePreload.includes("window.location.hash.slice(1)") || !themePreload.includes("get('theme')")) {
     fail('theme-preload.js must honor hash theme deep links before first paint');
@@ -1640,7 +1667,7 @@ async function checkCacheBustAlignment() {
   if (!themeUi.includes("window.location.hash.slice(1)") || !themeUi.includes("hashParams.get('theme')")) {
     fail('theme.js runtime initialization must preserve hash theme precedence over saved preferences');
   }
-  pass('service worker uses a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
+  pass('service worker uses a persistent responsive release dock, visible hourly checks, cross-tab recovery, a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
 
   if (!index.includes('<meta property="og:image:width" content="1200">') || !index.includes('<meta property="og:image:height" content="630">')) {
     fail('index.html root OG image metadata must match generated og-image.png at 1200x630');
@@ -8277,7 +8304,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=517'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=518'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

@@ -12,7 +12,7 @@ import { escapeHtml, formatFreshnessStamp, matchesTextQuery, pluralize, setDataF
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=517';
+const STAKING_CSS_URL = '/css/staking-chamber.css?v=518';
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
