@@ -772,6 +772,8 @@ async function checkRequiredFiles() {
     'js/core/api.js',
     'js/core/config.js',
     'js/core/quiet-refresh.js',
+    'js/core/search-catalog.js',
+    'js/core/search-entities.js',
     'js/core/site-map.js',
     'js/core/site-journey.js',
     'js/core/etherlink-governance-contracts.mjs',
@@ -834,6 +836,7 @@ async function checkRequiredFiles() {
     'scripts/measure-initial-load.mjs',
     'tests/fixtures/initial-load-baseline.json',
     'scripts/generate-milestone-catalog.mjs',
+    'scripts/generate-search-catalog.mjs',
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-chain-comparison.mjs',
     'scripts/refresh-capital-data.mjs',
@@ -872,6 +875,7 @@ async function checkRequiredFiles() {
     'data/ecosystem-entry-summary.json',
     'data/whale-watch.json',
     'data/milestone-catalog.json',
+    'data/search-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-careers.json',
     'data/maxis-l2-governance.json',
@@ -1419,11 +1423,46 @@ async function checkSiteMapGraphContracts() {
   }
 
   const search = await readText('js/features/search.js');
+  const searchEntities = await readText('js/core/search-entities.js');
+  const searchCatalogSource = await readText('js/core/search-catalog.js');
+  const nativeExplorer = await readText('js/features/native-explorer.js');
+  const tezosCrpSearch = await readText('js/features/tezoscrp.js');
+  const searchCatalog = JSON.parse(await readText('data/search-catalog.json'));
+  const ecosystemAppsForSearch = JSON.parse(await readText('data/ecosystem-apps.json'));
   const app = await readText('js/core/app.js');
   const index = await readText('index.html');
   const siteHandoff = await readText('js/core/site-handoff.js');
   const wayfinder = await readText('js/ui/wayfinder.js');
   if (/const\s+CHAMBERS\s*=/.test(search)) fail('hero search must not keep a duplicate Chamber catalog');
+  const searchContracts = [
+    ['generated first-party catalog loader', 'loadSearchCatalog', search],
+    ['stable quiet result reconciliation', 'quietlySyncHtml(panel', search],
+    ['nonselectable loading results', 'selectable: false', search],
+    ['no pointer-move rerender', "panel.addEventListener('mousemove'", search, false],
+    ['Base58 checksum validation', 'validateBase58Check', searchEntities],
+    ['case-sensitive address warning', 'case-sensitive', search],
+    ['catalog ranking through shared score', 'siteMapSearchScore(row, raw)', searchCatalogSource],
+    ['contract entrypoint endpoint', '/entrypoints', nativeExplorer],
+    ['contract same-code endpoint', '/same', nativeExplorer],
+    ['contract raw-code endpoint', '/code?format=1', nativeExplorer],
+    ['stale contract response guard', 'generation !== requestGeneration', nativeExplorer],
+    ['TezosCRP archive query route', "url.searchParams.set('q'", tezosCrpSearch]
+  ];
+  for (const [label, snippet, source, expected = true] of searchContracts) {
+    const present = source.includes(snippet);
+    if (present !== expected) fail(`search contract mismatch: ${label}`);
+  }
+  const searchCatalogKinds = searchCatalog.rows?.reduce((counts, row) => counts.add(row.kind), new Set()) || new Set();
+  if (searchCatalog.schemaVersion !== 1
+    || searchCatalog.rows?.length < 850
+    || !['app', 'identity', 'history', 'milestone'].every((kind) => searchCatalogKinds.has(kind))) {
+    fail('generated search catalog is incomplete');
+  } else {
+    pass(`search safety, catalog, contract-lens, and stable-interaction contracts checked: ${searchCatalog.rows.length} rows`);
+  }
+  const catalogAppNames = new Set(searchCatalog.rows?.filter((row) => row.kind === 'app').map((row) => row.title));
+  const missingSearchApps = (ecosystemAppsForSearch.apps || []).map((appEntry) => appEntry.name).filter((name) => !catalogAppNames.has(name));
+  if (missingSearchApps.length) fail(`generated search catalog omits reviewed apps: ${missingSearchApps.join(', ')}`);
   if (!index.includes('data-site-handoff data-site-context="home"')
     || !index.includes('data-site-footer data-site-context="home"')
     || !siteHandoff.includes('SITE_MAP_NAV_GROUPS.map')) {
@@ -2063,7 +2102,7 @@ async function checkSelectorContracts() {
     ['Top continuity mobile explainer reserves flow', '.top-continuity-explain.is-visible', shellExtrasCss],
     ['Hero search .tez scoped Domains route', '#domains=${encodeURIComponent(domain)}', search],
     ['Hero search Ledger Flow command', 'Ledger Flow', search],
-    ['Hero search Ledger Flow scoped account route', '#ledger-flow=${encodeURIComponent(q)}', search],
+    ['Hero search Ledger Flow scoped account route', '#ledger-flow=${encodeURIComponent(address)}', search],
     ['Hero search KT1 starter route', "['kt1', 'KT1 Contracts']", search],
     ['Hero search grouped visual order normalization', 'groupOrderedResults', search],
     ['Hero search Maxi Passport intent route', '/maxis/?view=passport', siteMap],
@@ -8195,7 +8234,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=514'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=515'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

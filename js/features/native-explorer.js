@@ -4,15 +4,13 @@
 
 import { API_URLS } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
+import { parseSearchEntity, validateBase58Check } from '../core/search-entities.js';
 
 const TZKT = API_URLS.tzkt;
-const ACCOUNT_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
-const OPERATION_RE = /^o[0-9A-Za-z]{50}$/;
-const BLOCK_HASH_RE = /^B[0-9A-Za-z]{50}$/;
-const BLOCK_LEVEL_RE = /^\d{1,}$/;
 const OVERLAY_ID = 'native-explorer-overlay';
 
 let escHandler = null;
+let requestGeneration = 0;
 
 function shortHash(value, head = 10, tail = 6) {
     const text = String(value || '');
@@ -121,18 +119,35 @@ async function fetchRecentAccountTransactions(address) {
 
 async function fetchAccountLens(address) {
     const encoded = encodeURIComponent(address);
-    const [account, delegate, contract, recent] = await Promise.allSettled([
+    const [account, delegate, recent] = await Promise.allSettled([
         fetchJson(`${TZKT}/accounts/${encoded}`),
         address.startsWith('tz') ? fetchJson(`${TZKT}/delegates/${encoded}`) : Promise.resolve(null),
-        address.startsWith('KT1') ? fetchJson(`${TZKT}/contracts/${encoded}`) : Promise.resolve(null),
         fetchRecentAccountTransactions(address)
     ]);
     return {
         address,
         account: account.status === 'fulfilled' ? account.value : null,
         delegate: delegate.status === 'fulfilled' ? delegate.value : null,
-        contract: contract.status === 'fulfilled' ? contract.value : null,
         recent: recent.status === 'fulfilled' ? recent.value : []
+    };
+}
+
+async function fetchContractLens(address) {
+    const encoded = encodeURIComponent(address);
+    const [account, contract, recent, entrypoints, sameCode] = await Promise.allSettled([
+        fetchJson(`${TZKT}/accounts/${encoded}`),
+        fetchJson(`${TZKT}/contracts/${encoded}`),
+        fetchRecentAccountTransactions(address),
+        fetchJson(`${TZKT}/contracts/${encoded}/entrypoints`),
+        fetchJson(`${TZKT}/contracts/${encoded}/same`)
+    ]);
+    return {
+        address,
+        account: account.status === 'fulfilled' ? account.value : null,
+        contract: contract.status === 'fulfilled' ? contract.value : null,
+        recent: recent.status === 'fulfilled' ? recent.value : [],
+        entrypoints: entrypoints.status === 'fulfilled' && Array.isArray(entrypoints.value) ? entrypoints.value : [],
+        sameCode: sameCode.status === 'fulfilled' && Array.isArray(sameCode.value) ? sameCode.value : []
     };
 }
 
@@ -164,24 +179,20 @@ function renderRecentTransactions(rows, address) {
     }).join('');
 }
 
-function renderAccountLens(data, kind) {
+function renderAccountLens(data) {
     const account = data.account || {};
     const delegate = data.delegate || null;
-    const contract = data.contract || null;
-    const display = entityName(delegate || contract || account || { address: data.address });
-    const isContract = kind === 'contract' || data.address.startsWith('KT1');
-    const type = contract?.kind || account.type || (isContract ? 'contract' : 'account');
+    const display = entityName(delegate || account || { address: data.address });
+    const type = account.type || 'account';
     const metrics = [
-        metric('Balance', formatMutez(account.balance ?? delegate?.balance ?? contract?.balance), type),
+        metric('Balance', formatMutez(account.balance ?? delegate?.balance), type),
         metric('Last activity', account.lastActivity ? formatNumber(account.lastActivity) : '--', formatDate(account.lastActivityTime)),
-        metric('Transactions', formatNumber(account.numTransactions ?? delegate?.numTransactions ?? contract?.numTransactions)),
-        isContract
-            ? metric('Entrypoints', formatNumber(contract?.entrypoints ?? contract?.numEntrypoints), 'contract surface')
-            : metric('Delegators', formatNumber(delegate?.numDelegators), delegate?.active ? 'active baker' : 'account')
+        metric('Transactions', formatNumber(account.numTransactions ?? delegate?.numTransactions)),
+        metric('Delegators', formatNumber(delegate?.numDelegators), delegate?.active ? 'active baker' : 'account')
     ].join('');
     const actions = [
         `<a href="/#ledger-flow=${encodeURIComponent(data.address)}">Open Ledger Flow</a>`,
-        data.address.startsWith('tz') ? `<a href="/#baker=${encodeURIComponent(data.address)}">Try baker profile</a>` : '',
+        delegate?.active ? `<a href="/#baker=${encodeURIComponent(data.address)}">Open baker profile</a>` : '',
         `<a href="/#my-baker=${encodeURIComponent(data.address)}">Track in My Tezos</a>`,
         externalTzktLink(data.address),
         circulationLinks()
@@ -189,7 +200,7 @@ function renderAccountLens(data, kind) {
 
     return `
         <div class="native-explorer-hero">
-            <span>${escapeHtml(isContract ? 'Native contract view' : 'Native account view')}</span>
+            <span>Native account view</span>
             <h2>${escapeHtml(display)}</h2>
             <code>${escapeHtml(data.address)}</code>
         </div>
@@ -203,6 +214,113 @@ function renderAccountLens(data, kind) {
             <div class="native-explorer-events">
                 ${renderRecentTransactions(data.recent, data.address)}
             </div>
+        </section>
+    `;
+}
+
+function schemaSummary(value, depth = 0) {
+    if (value === null || value === undefined) return 'unit';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return `[${value.slice(0, 3).map((item) => schemaSummary(item, depth + 1)).join(', ')}${value.length > 3 ? ', …' : ''}]`;
+    if (typeof value !== 'object') return String(value);
+    const entries = Object.entries(value);
+    if (depth >= 2) return entries.map(([key]) => key.replace(/^schema:/, '')).slice(0, 4).join(', ') || 'object';
+    const summary = entries.slice(0, 5).map(([key, nested]) => {
+        const label = key.replace(/^schema:/, '').replace(/:[a-z_]+(?=:|$)/gi, '');
+        return `${label}: ${schemaSummary(nested, depth + 1)}`;
+    }).join(' · ');
+    return `${summary}${entries.length > 5 ? ' · …' : ''}`;
+}
+
+function renderContractEntrypoints(entrypoints) {
+    if (!entrypoints.length) {
+        return '<div class="native-explorer-empty">TzKT did not return a decoded entrypoint list for this contract.</div>';
+    }
+    return entrypoints.map((entrypoint) => `
+        <article class="native-contract-entrypoint">
+            <div>
+                <strong>${escapeHtml(entrypoint.name || 'default')}</strong>
+                ${entrypoint.unused ? '<span>unused</span>' : ''}
+            </div>
+            <code>${escapeHtml(schemaSummary(entrypoint.jsonParameters))}</code>
+        </article>
+    `).join('');
+}
+
+function renderSameCode(rows, address) {
+    const matches = rows.filter((row) => row?.address && row.address !== address).slice(0, 8);
+    if (!matches.length) return '<div class="native-explorer-empty">No additional matching deployments were returned.</div>';
+    return matches.map((match) => `
+        <a class="native-contract-match" href="#contract=${encodeURIComponent(match.address)}" data-native-entity-link>
+            <strong>${escapeHtml(match.alias || shortHash(match.address, 12, 8))}</strong>
+            <code>${escapeHtml(match.address)}</code>
+            <span>${escapeHtml(match.kind || 'same code')}</span>
+        </a>
+    `).join('');
+}
+
+function renderContractLens(data) {
+    const account = data.account || {};
+    const contract = data.contract || {};
+    const display = entityName(contract || account || { address: data.address });
+    const metrics = [
+        metric('Balance', formatMutez(account.balance ?? contract.balance), contract.kind || 'smart contract'),
+        metric('Deployed', formatDate(contract.firstActivityTime || account.firstActivityTime), contract.firstActivity ? `level ${formatNumber(contract.firstActivity)}` : ''),
+        metric('Transactions', formatNumber(account.numTransactions ?? contract.numTransactions), `${formatNumber(data.recent.length)} recent flow rows`),
+        metric('Entrypoints', formatNumber(data.entrypoints.length), 'decoded TzKT interface'),
+        metric('Active tokens', formatNumber(contract.activeTokensCount ?? account.activeTokensCount), 'contract-issued assets'),
+        metric('Token transfers', formatNumber(contract.tokenTransfersCount ?? account.tokenTransfersCount), 'indexed token movements'),
+        metric('Events', formatNumber(contract.eventsCount ?? account.eventsCount), 'indexed contract events')
+    ].join('');
+    const identity = [
+        row('Creator', contract.creator?.alias || contract.creator?.address),
+        row('Kind', contract.kind || account.type),
+        row('Code hash', contract.codeHash),
+        row('Type hash', contract.typeHash),
+        row('TZIPs', Array.isArray(contract.tzips) ? contract.tzips.join(', ') : contract.tzips)
+    ].join('');
+    const rawCodeUrl = `${TZKT}/contracts/${encodeURIComponent(data.address)}/code?format=1`;
+    const actions = [
+        `<a href="/#ledger-flow=${encodeURIComponent(data.address)}">Open Ledger Flow</a>`,
+        externalTzktLink(data.address),
+        `<a href="${escapeHtml(rawCodeUrl)}" target="_blank" rel="noopener">View raw contract code</a>`,
+        circulationLinks()
+    ].join('');
+    return `
+        <div class="native-explorer-hero native-contract-hero">
+            <span>Native smart contract view</span>
+            <h2>${escapeHtml(display)}</h2>
+            <code>${escapeHtml(data.address)}</code>
+        </div>
+        <div class="native-explorer-metrics native-contract-metrics">${metrics}</div>
+        <div class="native-explorer-actions">${actions}</div>
+        <section class="native-explorer-section">
+            <div class="native-explorer-section-head">
+                <h3>Contract identity</h3>
+                <span>TzKT indexed deployment facts</span>
+            </div>
+            <div class="native-contract-identity">${identity}</div>
+        </section>
+        <section class="native-explorer-section">
+            <div class="native-explorer-section-head">
+                <h3>Entrypoints</h3>
+                <span>${escapeHtml(formatNumber(data.entrypoints.length))} decoded calls · parameter shapes are summaries</span>
+            </div>
+            <div class="native-contract-entrypoints">${renderContractEntrypoints(data.entrypoints)}</div>
+        </section>
+        <section class="native-explorer-section">
+            <div class="native-explorer-section-head">
+                <h3>Related deployments</h3>
+                <span>Contracts returned by TzKT's same-code index</span>
+            </div>
+            <div class="native-contract-matches">${renderSameCode(data.sameCode, data.address)}</div>
+        </section>
+        <section class="native-explorer-section">
+            <div class="native-explorer-section-head">
+                <h3>Recent contract flow</h3>
+                <span>Applied account-level transactions</span>
+            </div>
+            <div class="native-explorer-events">${renderRecentTransactions(data.recent, data.address)}</div>
         </section>
     `;
 }
@@ -363,6 +481,7 @@ function renderError(type, value, error) {
 }
 
 export function closeNativeExplorer() {
+    requestGeneration += 1;
     const overlay = document.getElementById(OVERLAY_ID);
     if (!overlay) return;
     overlay.classList.remove('active');
@@ -375,28 +494,44 @@ export function closeNativeExplorer() {
 }
 
 export async function openNativeExplorer(type, rawValue) {
-    const value = String(rawValue || '').trim();
-    if (!value) return;
+    const parsed = parseSearchEntity(rawValue);
+    const value = parsed?.value || String(rawValue || '').trim();
+    if (!value || !parsed) return;
+    const generation = ++requestGeneration;
     const normalizedType = type === 'op' ? 'operation' : type;
     renderLoading(normalizedType, value);
     try {
-        if ((normalizedType === 'account' || normalizedType === 'contract') && ACCOUNT_RE.test(value)) {
-            const lens = await fetchAccountLens(value);
-            renderOverlay(renderAccountLens(lens, normalizedType));
+        if (parsed.requiresChecksum && !await validateBase58Check(value)) {
+            throw new Error('Base58 checksum failed. Tezos identifiers are case-sensitive.');
+        }
+        if (generation !== requestGeneration) return;
+        if (normalizedType === 'contract' && parsed.kind === 'contract') {
+            const lens = await fetchContractLens(value);
+            if (generation !== requestGeneration) return;
+            renderOverlay(renderContractLens(lens));
             return;
         }
-        if (normalizedType === 'operation' && OPERATION_RE.test(value)) {
+        if (normalizedType === 'account' && parsed.kind === 'account') {
+            const lens = await fetchAccountLens(value);
+            if (generation !== requestGeneration) return;
+            renderOverlay(renderAccountLens(lens));
+            return;
+        }
+        if (normalizedType === 'operation' && parsed.kind === 'operation') {
             const rows = await fetchOperationLens(value);
+            if (generation !== requestGeneration) return;
             renderOverlay(renderOperationLens(value, rows));
             return;
         }
-        if (normalizedType === 'block' && (BLOCK_HASH_RE.test(value) || BLOCK_LEVEL_RE.test(value))) {
+        if (normalizedType === 'block' && parsed.kind === 'block') {
             const block = await fetchBlockLens(value);
+            if (generation !== requestGeneration) return;
             renderOverlay(renderBlockLens(block));
             return;
         }
         throw new Error('Unsupported Tezos entity shape.');
     } catch (error) {
+        if (generation !== requestGeneration) return;
         renderError(normalizedType, value, error);
     }
 }

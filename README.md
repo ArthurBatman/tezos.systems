@@ -69,6 +69,7 @@ tezos.systems/
 │   └── effects/                       # Matrix, themed backgrounds, audio/vibes, data-magic text reveals
 ├── data/
 │   ├── protocol-data.json             # Activated protocol timeline and lore
+│   ├── search-catalog.json             # Generated compact site-wide search index
 │   ├── protocol-debates.json          # Debate/rejection narratives
 │   ├── governance-votes.json          # Generated governance vote history
 │   ├── governance-refresh-report.json # Generated stale-data/lore audit
@@ -626,17 +627,35 @@ inline modal styles in `js/core/app.js`.
   Internal routes open My Tezos, baker profiles, protocol lore/history,
   Chambers, themes, calculator, comparisons, leaderboard, whale/giant feeds,
   NFT lookup, History, Network Snapshot, and native account/contract/operation/
-  block receipt views. `js/core/site-map.js` is the discovery source of truth:
+  block receipt views. Full Tezos identifiers and approved explorer URLs are
+  parsed into explicit entity types and Base58 checksums are verified before a
+  native destination becomes actionable; prefix normalization never changes
+  the case-sensitive address body. KT1 results open a contract-specific lens
+  with deployment identity, decoded entrypoints, indexed tokens/events,
+  recent flow, raw code, and TzKT same-code deployments. Etherlink identifiers
+  receive an explicitly external Blockscout route.
+  `js/core/site-map.js` is the discovery source of truth:
   it owns featured search chips/defaults, relevance-ranked destinations and
   subfeature intents, sitemap metadata, the complete grouped footer map, and
   semantic next-step relationships. The same manifest also declares hash/path
   aliases, canonical share/copy routes, nested Maxis/compare/widget views, and
   the public crawl set, so those surfaces cannot quietly become parallel route
-  catalogs. Exact intent ranks before broad keyword matches; Maxis Season,
+  catalogs. Token-aware intent ranking handles natural phrases without matching
+  short substrings inside unrelated words, exact slash commands remain
+  first-class, and spelling recovery is offered only when it resolves to a real
+  destination. Generated `data/search-catalog.json` rows add reviewed ecosystem
+  apps, TezosCRP identities, protocol debates, and network milestones without
+  loading the large source archives into the command bar. Landing-page search
+  uses the same route, intent, entity, and catalog logic. Exact intent ranks
+  before broad keyword matches; Maxis Season,
   Passport, Champions, and lane queries preserve their room state, and pasted
   addresses or `.tez` names also expose a scoped Maxi Passport path. Baker-name
-  searches hydrate from active leaderboard data, while TzKT remains available
-  from native receipts as an audit trail. Blank search stays intentionally
+  searches hydrate from active leaderboard data and bounded TzKT alias
+  suggestions that remain labeled as source aliases rather than verified
+  identities. Loading rows are never selectable, keyboard selection survives
+  asynchronous result arrival, blank Enter is inert, focus is contained and
+  restored, and search stores no raw query history. TzKT remains available from
+  native receipts as an audit trail. Blank search stays intentionally
   compact with eight useful starting points; the dynamic `All` chip explicitly opens
   the complete manifest directory without making every search session begin in
   an atlas.
@@ -1249,7 +1268,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v514`, including hero search, theme
+- Current aligned shell cache stamp: `v515`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

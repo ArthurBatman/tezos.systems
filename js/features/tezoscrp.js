@@ -328,6 +328,8 @@ function readRouteState() {
     if (period && /^20\d{2}-(?:0[1-9]|1[0-2])$/.test(period)) state.archivePeriod = period;
     const category = params.get('category');
     if (category) state.archiveCategory = category;
+    const query = params.get('q');
+    state.archiveQuery = state.view === 'archive' ? String(query || '').slice(0, 120) : '';
 }
 
 function syncRoute() {
@@ -341,6 +343,8 @@ function syncRoute() {
     else url.searchParams.delete('period');
     if (state.view === 'archive' && state.archiveCategory) url.searchParams.set('category', state.archiveCategory);
     else url.searchParams.delete('category');
+    if (state.view === 'archive' && state.archiveQuery.trim()) url.searchParams.set('q', state.archiveQuery.trim());
+    else url.searchParams.delete('q');
     history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -734,6 +738,7 @@ function renderArchive() {
     search?.addEventListener('input', () => {
         state.archiveQuery = search.value;
         state.archiveLimit = PAGE_SIZE;
+        syncRoute();
         renderArchiveRows();
     });
     renderArchiveRows();

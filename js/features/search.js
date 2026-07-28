@@ -5,6 +5,19 @@
 
 import { debounce, escapeHtml } from '../core/utils.js';
 import { loadDataAsset } from '../core/data-assets.js';
+import { API_URLS } from '../core/config.js';
+import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import {
+    explorerUrlForEntity,
+    parseSearchEntity,
+    validateBase58Check
+} from '../core/search-entities.js';
+import {
+    isSearchCatalogLoaded,
+    loadSearchCatalog,
+    searchFirstPartyCatalog
+} from '../core/search-catalog.js';
+import { resolveTezDomainAddress } from '../core/tezos-domains.js';
 import {
     findSiteMapEntry,
     navigateSiteMapEntry,
@@ -15,38 +28,18 @@ import {
     siteMapRoute,
     siteMapSearchScore,
     siteMapSearchChips,
-    siteMapStarters
+    siteMapStarters,
+    suggestSiteMapQuery
 } from '../core/site-map.js';
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
-import { getTopHotSignal } from './daily-briefing.js';
 
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=514';
-
-const ADDRESS_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
-const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
-const OPERATION_RE = /^o[0-9A-Za-z]{50}$/;
-const BLOCK_HASH_RE = /^B[0-9A-Za-z]{50}$/;
-const BLOCK_LEVEL_RE = /^\d{4,}$/;
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=515';
 
 const RUNTIME_QUICK_CHIPS = [
     { label: 'KT1', value: 'KT1' },
     { label: '/theme', value: '/theme' }
 ];
-
-function livePulseChip() {
-    const signal = getTopHotSignal();
-    if (!signal?.route) return null;
-    const label = String(signal.title || signal.routeLabel || 'Live pulse').replace(/\s+/g, ' ').trim();
-    const fullLabel = `Live: ${label}`;
-    const compactLabel = fullLabel.length <= 24
-        ? fullLabel
-        : `${fullLabel.slice(0, 23).replace(/\s+\S*$/, '').trim()}…`;
-    return {
-        label: compactLabel,
-        route: signal.route
-    };
-}
 
 const RUNTIME_COMMANDS = [
     { id: 'theme', title: '/theme', detail: 'Switch visual theme', action: 'theme-picker', aliases: ['theme', 'themes', 'switch theme'] },
@@ -93,6 +86,10 @@ let protocols = [];
 let protocolsPromise = null;
 const bakerSearchCache = new Map();
 const bakerSearchInFlight = new Map();
+const accountSuggestionCache = new Map();
+const accountSuggestionInFlight = new Map();
+const entityResolutionCache = new Map();
+const entityResolutionInFlight = new Map();
 
 const STARTER_QUERY_RESULTS = new Map([
     ['kt1', 'KT1 Contracts'],
@@ -123,35 +120,25 @@ function normalizeQuery(value) {
     return String(value || '').trim();
 }
 
-function searchText(result) {
-    return [
-        result.title,
-        result.detail,
-        result.group,
-        result.kind,
-        ...(result.aliases || [])
-    ].join(' ').toLowerCase();
-}
-
 function matchesQuery(result, query) {
-    const q = query.toLowerCase();
-    if (!q) return true;
-    const bare = q.replace(/^\//, '');
-    return searchText(result).includes(q) || searchText(result).includes(bare);
+    return siteMapSearchScore({
+        id: result.id || result.kind,
+        title: result.title,
+        detail: result.detail,
+        group: result.group,
+        href: result.value,
+        keywords: result.aliases || []
+    }, query) > 0;
 }
 
 function bakerSearchKey(query) {
     return normalizeQuery(query).toLowerCase().replace(/\s+/g, ' ');
 }
 
-function shouldSearchBakers(query) {
+function shouldSearchNames(query) {
     const q = normalizeQuery(query);
-    if (q.length < 2 || q.startsWith('/')) return false;
-    if (ADDRESS_RE.test(q) || TEZ_DOMAIN_RE.test(q) || OPERATION_RE.test(q) || BLOCK_HASH_RE.test(q) || BLOCK_LEVEL_RE.test(q)) return false;
-    if (searchSiteMapIntents(q).length || searchSiteMap(q).length) return false;
-    if (RUNTIME_COMMANDS.some((command) => matchesQuery(commandResult(command), q))) return false;
-    if (protocols.some((protocol) => matchesQuery(protocolResult(protocol), q))) return false;
-    return true;
+    if (q.length < 3 || q.length > 64 || q.startsWith('/') || q.split(/\s+/).length > 4) return false;
+    return !parseSearchEntity(q);
 }
 
 function monthYear(date) {
@@ -185,6 +172,7 @@ function protocolResult(protocol) {
     ].filter(Boolean).join(' · ');
     const change = Array.isArray(protocol.changes) ? protocol.changes[0] : '';
     return {
+        id: `protocol:${protocol.name}`,
         kind: 'protocol',
         group: 'Protocol History',
         title: protocol.name,
@@ -205,6 +193,7 @@ function protocolResult(protocol) {
 
 function commandResult(command) {
     return {
+        id: `command:${command.id}`,
         kind: 'command',
         group: command.group || 'Commands',
         title: command.title,
@@ -218,6 +207,7 @@ function commandResult(command) {
 
 function siteMapIntentResult(intent, { browse = false } = {}) {
     return {
+        id: `intent:${intent.parentId}:${intent.id}`,
         kind: 'page',
         group: browse ? intent.group : 'Feature views',
         title: intent.title,
@@ -236,6 +226,7 @@ function siteMapResult(entry, { starter = false, browse = false } = {}) {
     const buttonTarget = SITE_MAP_BUTTON_TARGETS.get(entry.id);
     const route = siteMapRoute(entry);
     return {
+        id: `site-map:${entry.id}`,
         kind: entry.group === 'Guides' ? 'guide' : entry.group === 'Story Rooms' ? 'story' : 'page',
         group: starter ? 'Start here' : browse ? entry.group : 'Pages on tezos.systems',
         title: entry.title,
@@ -249,6 +240,7 @@ function siteMapResult(entry, { starter = false, browse = false } = {}) {
 
 function maxiPassportEntityResult(target, group = 'Maxis & Identity') {
     return {
+        id: `passport:${target}`,
         kind: 'page',
         group,
         title: `Open ${target} in Maxi Passport`,
@@ -271,6 +263,7 @@ function bakerResult(baker) {
         delegators ? `${delegators.toLocaleString('en-US')} delegators` : ''
     ].filter(Boolean).join(' · ');
     return {
+        id: `baker:${baker.address}`,
         kind: 'baker',
         group: 'Bakers & Accounts',
         title: baker.name || baker.alias || baker.address,
@@ -282,98 +275,183 @@ function bakerResult(baker) {
     };
 }
 
-function cachedBakerResults(query) {
-    const key = bakerSearchKey(query);
-    const matches = bakerSearchCache.get(key);
-    if (!Array.isArray(matches) || !matches.length) return [];
-    return matches.map(bakerResult);
-}
-
 function bakerLoadingResult(query) {
     return {
+        id: `status:bakers:${bakerSearchKey(query)}`,
         kind: 'baker',
         group: 'Bakers & Accounts',
-        title: `Searching bakers for "${query}"`,
-        detail: 'Checking the active leaderboard by baker alias and address',
+        title: `Searching on-chain names for "${query}"`,
+        detail: 'Checking active bakers and TzKT account aliases',
         badge: 'baker',
-        action: 'hash',
-        value: '#leaderboard',
-        aliases: ['baker search', 'leaderboard', query]
+        action: null,
+        selectable: false
     };
 }
 
-function entityResults(query) {
-    const q = normalizeQuery(query);
-    if (!q) return [];
+function statusResult(id, group, title, detail, badge = 'checking') {
+    return {
+        id: `status:${id}`,
+        kind: 'status',
+        group,
+        title,
+        detail,
+        badge,
+        action: null,
+        selectable: false
+    };
+}
 
-    if (ADDRESS_RE.test(q)) {
-        if (q.startsWith('KT1')) {
-            return [
-                {
-                    kind: 'contract',
-                    group: 'Contract actions',
-                    title: 'Inspect KT1 contract',
-                    detail: `${q} · native balance, activity, and account-flow view`,
-                    badge: 'contract',
-                    action: 'hash',
-                    value: `#contract=${encodeURIComponent(q)}`
-                },
-                {
-                    kind: 'chamber',
-                    group: 'Contract actions',
-                    title: 'Open in Ledger Flow',
-                    detail: 'Map sent, received, and first-funding transfer paths',
-                    badge: 'flow',
-                    action: 'hash',
-                    value: `#ledger-flow=${encodeURIComponent(q)}`
-                }
-            ];
+function accountSuggestionResult(account) {
+    const address = account?.address || '';
+    const isContract = address.startsWith('KT1');
+    return {
+        id: `tzkt-alias:${address}`,
+        kind: isContract ? 'contract' : 'account',
+        group: 'On-chain names',
+        title: account?.alias || address,
+        detail: `TzKT alias · ${address} · verify identity before acting`,
+        badge: 'TzKT alias',
+        action: 'hash',
+        value: `#${isContract ? 'contract' : 'account'}=${encodeURIComponent(address)}`,
+        aliases: [account?.alias, address].filter(Boolean)
+    };
+}
+
+function cachedNameResults(query) {
+    const key = bakerSearchKey(query);
+    return [
+        ...((bakerSearchCache.get(key) || []).map(bakerResult)),
+        ...((accountSuggestionCache.get(key) || []).map(accountSuggestionResult))
+    ];
+}
+
+function accountActions(address, account = null, { group = 'Account actions', domain = '' } = {}) {
+    const label = domain || address;
+    const results = [
+        {
+            id: `account:${address}`,
+            kind: 'account',
+            group,
+            title: `Inspect ${domain ? label : 'account'}`,
+            detail: `${address} · native balance, identity, and recent flow`,
+            badge: 'account',
+            action: 'hash',
+            value: `#account=${encodeURIComponent(address)}`
+        },
+        {
+            id: `my-tezos:${address}`,
+            kind: 'account',
+            group,
+            title: `Track ${domain ? label : 'in My Tezos'}`,
+            detail: 'Save this account in the browser-local My Tezos workspace',
+            badge: 'account',
+            action: 'hash',
+            value: `#my-baker=${encodeURIComponent(domain || address)}`
+        },
+        maxiPassportEntityResult(address, group),
+        {
+            id: `ledger-flow:${address}`,
+            kind: 'chamber',
+            group,
+            title: `Open ${domain ? label : 'account'} in Ledger Flow`,
+            detail: 'Map sent, received, and first-funding transfer paths',
+            badge: 'flow',
+            action: 'hash',
+            value: `#ledger-flow=${encodeURIComponent(address)}`
         }
-        return [
-            {
-                kind: 'account',
-                group: 'Account actions',
-                title: 'Inspect account',
-                detail: `${q} · native balance, identity, and recent flow`,
-                badge: 'account',
-                action: 'hash',
-                value: `#account=${encodeURIComponent(q)}`
-            },
-            {
-                kind: 'account',
-                group: 'Account actions',
-                title: 'Track as My Tezos',
-                detail: `${q} · save this as your My Tezos account`,
-                badge: 'account',
-                action: 'hash',
-                value: `#my-baker=${encodeURIComponent(q)}`
-            },
-            maxiPassportEntityResult(q, 'Account actions'),
-            {
-                kind: 'chamber',
-                group: 'Account actions',
-                title: 'Open in Ledger Flow',
-                detail: 'Map sent, received, and first-funding transfer paths',
-                badge: 'flow',
-                action: 'hash',
-                value: `#ledger-flow=${encodeURIComponent(q)}`
-            },
-            {
-                kind: 'baker',
-                group: 'Account actions',
-                title: 'Try as baker profile',
-                detail: 'If this address bakes, open its operator drawer',
-                badge: 'baker',
-                action: 'hash',
-                value: `#baker=${encodeURIComponent(q)}`
-            }
-        ];
+    ];
+    if (account?.type === 'delegate' || account?.active === true) {
+        results.push({
+            id: `baker:${address}`,
+            kind: 'baker',
+            group,
+            title: `Open ${domain ? label : 'active baker'} profile`,
+            detail: 'TzKT identifies this address as a delegate',
+            badge: 'baker',
+            action: 'hash',
+            value: `#baker=${encodeURIComponent(address)}`
+        });
     }
+    return results;
+}
 
-    if (TEZ_DOMAIN_RE.test(q)) {
-        const domain = q.toLowerCase();
-        return [
+function contractActions(address, account = null) {
+    return [
+        {
+            id: `contract:${address}`,
+            kind: 'contract',
+            group: 'Contract actions',
+            title: account?.alias || 'Inspect KT1 contract',
+            detail: `${address} · native code, entrypoints, activity, and related deployments`,
+            badge: 'contract',
+            action: 'hash',
+            value: `#contract=${encodeURIComponent(address)}`
+        },
+        {
+            id: `ledger-flow:${address}`,
+            kind: 'chamber',
+            group: 'Contract actions',
+            title: 'Open in Ledger Flow',
+            detail: 'Map sent, received, and first-funding transfer paths',
+            badge: 'flow',
+            action: 'hash',
+            value: `#ledger-flow=${encodeURIComponent(address)}`
+        }
+    ];
+}
+
+function entityResults(query) {
+    const entity = parseSearchEntity(query);
+    if (!entity) return [];
+    const cached = entityResolutionCache.get(entity.value);
+
+    if (entity.kind === 'partial-address') {
+        return [statusResult(
+            `partial:${entity.value}`,
+            'Entity lookup',
+            'Keep typing or paste the complete address',
+            `${entity.value.length} of 36 characters · no destination opens until the identifier is complete`,
+            'incomplete'
+        )];
+    }
+    if (entity.kind === 'invalid-address') {
+        return [statusResult(
+            `invalid:${entity.value}`,
+            'Entity lookup',
+            'That address shape is not valid',
+            'Tezos Base58 identifiers are case-sensitive. Check the original address instead of changing its capitalization.',
+            'invalid'
+        )];
+    }
+    if (entity.kind === 'etherlink-address' || entity.kind === 'etherlink-transaction') {
+        return [{
+            id: `${entity.kind}:${entity.value}`,
+            kind: 'etherlink',
+            group: 'Etherlink',
+            title: entity.kind === 'etherlink-address' ? 'Open Etherlink address' : 'Open Etherlink transaction',
+            detail: `${entity.value} · external Blockscout explorer`,
+            badge: 'external',
+            action: 'external',
+            value: explorerUrlForEntity(entity)
+        }];
+    }
+    if (entity.kind === 'block' && !entity.requiresChecksum) {
+        return [{
+            id: `block:${entity.value}`,
+            kind: 'block',
+            group: 'Operations & Blocks',
+            title: `Block #${Number(entity.value).toLocaleString('en-US')}`,
+            detail: 'Open native block receipt and producer view',
+            badge: 'block',
+            action: 'hash',
+            value: `#block=${encodeURIComponent(entity.value)}`
+        }];
+    }
+    if (entity.kind === 'domain') {
+        const domain = entity.value;
+        const results = [
             {
+                id: `domain:${domain}`,
                 kind: 'chamber',
                 group: 'Domain actions',
                 title: `Check ${domain} in Tezos Domains`,
@@ -382,73 +460,60 @@ function entityResults(query) {
                 action: 'hash',
                 value: `#domains=${encodeURIComponent(domain)}`
             },
-            maxiPassportEntityResult(domain, 'Domain actions'),
-            {
-                kind: 'account',
-                group: 'Domain actions',
-                title: `Track ${domain} as My Tezos`,
-                detail: 'Resolve Tezos Domains name and make it easy to change later',
-                badge: '.tez',
-                action: 'hash',
-                value: `#my-baker=${encodeURIComponent(domain)}`
-            },
-            {
-                kind: 'chamber',
-                group: 'Domain actions',
-                title: `Open ${domain} in Ledger Flow`,
-                detail: 'Resolve this Tezos Domains name and map account transfers',
-                badge: 'flow',
-                action: 'hash',
-                value: `#ledger-flow=${encodeURIComponent(domain)}`
-            },
-            {
-                kind: 'baker',
-                group: 'Domain actions',
-                title: `Try ${domain} as baker`,
-                detail: 'Resolve domain and open baker profile if active',
-                badge: 'baker',
-                action: 'hash',
-                value: `#baker=${encodeURIComponent(domain)}`
-            }
+            maxiPassportEntityResult(domain, 'Domain actions')
         ];
+        if (!cached) {
+            results.push(statusResult(`domain:${domain}`, 'Domain actions', `Resolving ${domain}`, 'Checking the Tezos Domains address and account type'));
+        } else if (cached.address) {
+            results.push(...accountActions(cached.address, cached.account, { group: 'Domain actions', domain }));
+        } else {
+            results.push(statusResult(`domain-error:${domain}`, 'Domain actions', `${domain} did not resolve`, cached.error || 'No address is published for this name', 'unresolved'));
+        }
+        return results;
     }
-
-    if (OPERATION_RE.test(q)) {
+    if (!cached) {
+        return [statusResult(
+            `validate:${entity.value}`,
+            'Entity lookup',
+            `Validating ${entity.kind}`,
+            'Checking the Base58 checksum before enabling a destination'
+        )];
+    }
+    if (!cached.valid) {
+        return [statusResult(
+            `checksum:${entity.value}`,
+            'Entity lookup',
+            'Checksum failed',
+            'Tezos identifiers are case-sensitive. Copy the exact original value and try again.',
+            'invalid'
+        )];
+    }
+    if (entity.kind === 'contract') return contractActions(entity.value, cached.account);
+    if (entity.kind === 'account') return accountActions(entity.value, cached.account);
+    if (entity.kind === 'operation') {
         return [{
-            kind: 'operation',
+            id: `operation:${entity.value}`,
+            kind: entity.kind,
             group: 'Operations & Blocks',
-            title: q,
+            title: entity.value,
             detail: 'Open native operation contents and status',
             badge: 'operation',
             action: 'hash',
-            value: `#operation=${encodeURIComponent(q)}`
+            value: `#operation=${encodeURIComponent(entity.value)}`
         }];
     }
-
-    if (BLOCK_HASH_RE.test(q)) {
+    if (entity.kind === 'block') {
         return [{
+            id: `block:${entity.value}`,
             kind: 'block',
             group: 'Operations & Blocks',
-            title: q,
+            title: entity.value,
             detail: 'Open native block receipt and producer view',
             badge: 'block',
             action: 'hash',
-            value: `#block=${encodeURIComponent(q)}`
+            value: `#block=${encodeURIComponent(entity.value)}`
         }];
     }
-
-    if (BLOCK_LEVEL_RE.test(q)) {
-        return [{
-            kind: 'block',
-            group: 'Operations & Blocks',
-            title: `Block #${Number(q).toLocaleString('en-US')}`,
-            detail: 'Open native block receipt and producer view',
-            badge: 'block',
-            action: 'hash',
-            value: `#block=${encodeURIComponent(q)}`
-        }];
-    }
-
     return [];
 }
 
@@ -460,19 +525,32 @@ function starterResults(query) {
     return result ? [result] : [];
 }
 
-function textFallbackResults(query) {
-    const q = normalizeQuery(query);
-    if (!q || q.startsWith('/') || q.length < 2) return [];
-    if (ADDRESS_RE.test(q) || TEZ_DOMAIN_RE.test(q) || OPERATION_RE.test(q) || BLOCK_HASH_RE.test(q) || BLOCK_LEVEL_RE.test(q)) return [];
+function catalogResult(row) {
+    return {
+        id: `catalog:${row.id}`,
+        kind: row.kind || 'page',
+        group: row.group || 'On tezos.systems',
+        title: row.title,
+        detail: row.detail,
+        badge: row.badge || row.kind || 'site',
+        action: 'page',
+        value: row.href,
+        aliases: row.aliases || []
+    };
+}
+
+function typoSuggestionResult(query) {
+    const suggestion = suggestSiteMapQuery(query);
+    if (!suggestion) return [];
     return [{
-        kind: 'baker',
-        group: 'Bakers & Accounts',
-        title: `Search bakers for "${q}"`,
-        detail: 'Open the leaderboard, then choose a baker profile or paste its address back here',
-        badge: 'baker',
-        action: 'hash',
-        value: '#leaderboard',
-        aliases: ['baker search', 'leaderboard', q]
+        id: `query:${suggestion.corrected}`,
+        kind: 'suggestion',
+        group: 'Try another spelling',
+        title: `Did you mean “${suggestion.corrected}”?`,
+        detail: `Search Tezos Systems for ${suggestion.corrected}`,
+        badge: 'suggestion',
+        action: 'query',
+        value: suggestion.corrected
     }];
 }
 
@@ -507,7 +585,10 @@ function themeResults(query) {
 
 function dedupeResults(results) {
     const seen = new Set();
-    return results.filter((result) => {
+    return results.filter(Boolean).map((result) => {
+        const identity = result.id || `${result.action || result.kind}:${result.value || result.title}`;
+        return { selectable: result.selectable !== false && Boolean(result.action), ...result, id: identity };
+    }).filter((result) => {
         const key = `${result.action || result.kind}:${result.value || result.title}`;
         if (seen.has(key)) return false;
         seen.add(key);
@@ -517,8 +598,11 @@ function dedupeResults(results) {
 
 function buildResults(query, { browseAll = false } = {}) {
     const q = normalizeQuery(query);
-    const bakerMatches = cachedBakerResults(q);
-    const bakerLoading = shouldSearchBakers(q) && !bakerSearchCache.has(bakerSearchKey(q)) && bakerSearchInFlight.has(bakerSearchKey(q))
+    const entity = parseSearchEntity(q);
+    const nameMatches = cachedNameResults(q);
+    const nameLoading = shouldSearchNames(q)
+        && (!bakerSearchCache.has(bakerSearchKey(q)) || !accountSuggestionCache.has(bakerSearchKey(q)))
+        && (bakerSearchInFlight.has(bakerSearchKey(q)) || accountSuggestionInFlight.has(bakerSearchKey(q)))
         ? [bakerLoadingResult(q)]
         : [];
     const protocolMatches = (q.startsWith('/') ? [] : protocols)
@@ -526,7 +610,19 @@ function buildResults(query, { browseAll = false } = {}) {
         .reverse()
         .map(protocolResult)
         .filter((result) => matchesQuery(result, q));
-    const commandMatches = RUNTIME_COMMANDS.map(commandResult).filter((result) => matchesQuery(result, q));
+    const commandMatches = RUNTIME_COMMANDS
+        .map(commandResult)
+        .map((result, index) => ({ result, index, score: siteMapSearchScore({
+            id: result.id,
+            title: result.title,
+            detail: result.detail,
+            group: result.group,
+            href: result.title,
+            keywords: result.aliases
+        }, q) }))
+        .filter(({ score }) => score > 0)
+        .sort((left, right) => right.score - left.score || left.index - right.index)
+        .map(({ result }) => result);
     const siteMapIntents = searchSiteMapIntents(q);
     const siteMapEntries = searchSiteMap(q);
     const siteMapIntentMatches = siteMapIntents.map(siteMapIntentResult);
@@ -534,6 +630,12 @@ function buildResults(query, { browseAll = false } = {}) {
     const entityMatches = entityResults(q);
     const themeMatches = themeResults(q);
     const starterMatches = starterResults(q);
+    const catalogMatches = q.startsWith('/') || entity
+        ? []
+        : searchFirstPartyCatalog(q, { limit: 10 }).map(catalogResult);
+    const catalogLoading = q.length >= 2 && !q.startsWith('/') && !entity && !isSearchCatalogLoaded()
+        ? [statusResult('catalog', 'On tezos.systems', 'Searching the first-party catalog', 'Checking apps, identities, debates, and network milestones')]
+        : [];
 
     if (!q) {
         if (browseAll) {
@@ -553,10 +655,8 @@ function buildResults(query, { browseAll = false } = {}) {
     const topIntent = intentMatches[0];
     const topCanonicalEntry = siteMapEntries[0];
     const topCanonicalScore = topCanonicalEntry ? siteMapSearchScore(topCanonicalEntry, q) : 0;
-    const preferIntent = Boolean(topIntent) && (
-        topIntent.parentId === topCanonicalEntry?.id
-        || Number(topIntent.searchScore || 0) > topCanonicalScore
-    );
+    const preferIntent = !q.startsWith('/') && Boolean(topIntent)
+        && Number(topIntent.searchScore || 0) > topCanonicalScore;
     const manifestMatches = !intentMatches.length
         ? canonicalMatches
         : preferIntent
@@ -567,16 +667,19 @@ function buildResults(query, { browseAll = false } = {}) {
         ...entityMatches,
         ...themeMatches,
         ...starterMatches,
-        ...manifestMatches,
+        ...(q.startsWith('/') ? commandMatches : manifestMatches),
+        ...(q.startsWith('/') ? manifestMatches : catalogMatches),
         ...protocolMatches.slice(0, 5),
-        ...commandMatches.slice(0, 4),
-        ...bakerMatches,
-        ...bakerLoading
+        ...(q.startsWith('/') ? [] : commandMatches.slice(0, 4)),
+        ...nameMatches,
+        ...nameLoading,
+        ...catalogLoading
     ];
 
+    const hasSelectableResult = directMatches.some((result) => result?.selectable !== false && result?.action);
     return dedupeResults([
         ...directMatches,
-        ...(directMatches.length ? [] : textFallbackResults(q))
+        ...(hasSelectableResult ? [] : typoSuggestionResult(q))
     ]);
 }
 
@@ -597,18 +700,41 @@ function groupOrderedResults(results) {
     return groupedResults(results).flatMap((group) => group.results);
 }
 
-function resultHtml(result, index, selectedIndex) {
+function resultDomId(result) {
+    let hash = 2166136261;
+    for (const character of String(result.id || 'result')) {
+        hash ^= character.charCodeAt(0);
+        hash = Math.imul(hash, 16777619);
+    }
+    return `hero-search-option-${(hash >>> 0).toString(36)}`;
+}
+
+function resultHtml(result, selectedId) {
+    if (result.selectable === false) {
+        return `
+            <div class="hero-search-status-row" role="status" data-quiet-key="${escapeHtml(result.id)}">
+                <span class="hero-result-mark" data-kind="${escapeHtml(result.kind)}" aria-hidden="true"></span>
+                <span class="hero-result-copy">
+                    <strong>${escapeHtml(result.title)}</strong>
+                    <span>${escapeHtml(result.detail || '')}</span>
+                </span>
+                <span class="hero-result-badge" data-kind="${escapeHtml(result.badge || result.kind)}">${escapeHtml(result.badge || result.kind)}</span>
+            </div>
+        `;
+    }
     const isExternal = result.action === 'external';
-    const selected = index === selectedIndex;
+    const selected = result.id === selectedId;
+    const domId = resultDomId(result);
     return `
         <button
             class="hero-search-result ${selected ? 'is-selected' : ''}"
-            id="hero-search-option-${index}"
+            id="${domId}"
             type="button"
             role="option"
             tabindex="-1"
             aria-selected="${selected ? 'true' : 'false'}"
-            data-result-index="${index}"
+            data-result-id="${escapeHtml(result.id)}"
+            data-quiet-key="${escapeHtml(result.id)}"
         >
             <span class="hero-result-mark" data-kind="${escapeHtml(result.kind)}" aria-hidden="true"></span>
             <span class="hero-result-copy">
@@ -696,6 +822,19 @@ function isTextEntryTarget(target) {
     return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable;
 }
 
+function isBlockingOverlayActive() {
+    return [...document.querySelectorAll('.modal-overlay.active, .chamber-overlay.active, [aria-modal="true"]')]
+        .some((element) => {
+            const overlay = element.matches('.modal-overlay, .chamber-overlay')
+                ? element
+                : element.closest('.modal-overlay, .chamber-overlay');
+            const active = overlay
+                ? overlay.classList.contains('active') && overlay.getAttribute('aria-hidden') !== 'true'
+                : element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0;
+            return active && !element.closest('#hero-slot');
+        });
+}
+
 export function initHeroSearch() {
     const root = document.getElementById('hero-slot');
     const form = document.getElementById('hero-search-form');
@@ -708,13 +847,24 @@ export function initHeroSearch() {
 
     let isOpen = false;
     let isBrowsingAll = false;
-    let selectedIndex = -1;
+    let selectedId = '';
     let results = [];
+    let priorFocus = null;
+    const inertedElements = new Set();
+    let lastAnnouncement = '';
+    let liveRegion = document.getElementById('hero-search-status');
+    if (!liveRegion) {
+        liveRegion = document.createElement('div');
+        liveRegion.id = 'hero-search-status';
+        liveRegion.className = 'visually-hidden';
+        liveRegion.setAttribute('role', 'status');
+        liveRegion.setAttribute('aria-live', 'polite');
+        liveRegion.setAttribute('aria-atomic', 'true');
+        root.appendChild(liveRegion);
+    }
 
     const renderQuickChips = () => {
-        const liveChip = livePulseChip();
         const chipList = [
-            ...(liveChip ? [liveChip] : []),
             { label: `All ${siteMapBrowseEntries().length + siteMapBrowseIntents().length}`, browseAll: true },
             ...siteMapSearchChips(),
             ...RUNTIME_QUICK_CHIPS
@@ -731,92 +881,210 @@ export function initHeroSearch() {
     };
 
     renderQuickChips();
-    window.addEventListener('hot-signal-rendered', renderQuickChips);
 
-    const setOpen = (next) => {
+    const syncAvailableHeight = () => {
+        if (!isOpen) return;
+        const top = panel.getBoundingClientRect().top;
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        root.style.setProperty('--hero-search-available-height', `${Math.max(180, viewportHeight - top - 12)}px`);
+    };
+
+    const setBackgroundInert = (next) => {
+        if (next) {
+            let activeBranch = root;
+            while (activeBranch?.parentElement) {
+                const parent = activeBranch.parentElement;
+                for (const element of parent.children) {
+                    if (element === activeBranch
+                        || element.contains(root)
+                        || ['SCRIPT', 'STYLE', 'LINK'].includes(element.tagName)
+                        || element.hasAttribute('inert')) continue;
+                    element.setAttribute('inert', '');
+                    inertedElements.add(element);
+                }
+                if (parent === document.body) break;
+                activeBranch = parent;
+            }
+            return;
+        }
+        for (const element of inertedElements) element.removeAttribute('inert');
+        inertedElements.clear();
+    };
+
+    const setOpen = (next, { restoreFocus = true } = {}) => {
         const wasOpen = isOpen;
         isOpen = Boolean(next);
+        if (isOpen && !wasOpen && document.activeElement !== input && !root.contains(document.activeElement)) {
+            priorFocus = document.activeElement;
+        }
         root.classList.toggle('is-open', isOpen);
         document.body.classList.toggle('hero-search-mode', isOpen);
         panel.hidden = !isOpen;
         input.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        if (isOpen && !wasOpen) window.dispatchEvent(new Event('hero-search-opened'));
+        setBackgroundInert(isOpen);
+        if (isOpen && !wasOpen) {
+            window.dispatchEvent(new Event('hero-search-opened'));
+            requestAnimationFrame(syncAvailableHeight);
+        }
         if (!isOpen) {
             isBrowsingAll = false;
-            selectedIndex = -1;
+            selectedId = '';
             root.classList.remove('has-query');
             root.classList.remove('is-browsing-all');
             input.setAttribute('aria-activedescendant', '');
+            root.style.removeProperty('--hero-search-available-height');
+            if (restoreFocus && priorFocus instanceof HTMLElement && priorFocus.isConnected) priorFocus.focus();
+            priorFocus = null;
         }
     };
 
     const syncActiveDescendant = () => {
-        if (selectedIndex >= 0) {
-            input.setAttribute('aria-activedescendant', `hero-search-option-${selectedIndex}`);
-        } else {
-            input.setAttribute('aria-activedescendant', '');
+        const result = results.find((candidate) => candidate.id === selectedId && candidate.selectable !== false);
+        input.setAttribute('aria-activedescendant', result ? resultDomId(result) : '');
+    };
+
+    const rerenderCurrentQuery = (key) => {
+        if (isOpen && bakerSearchKey(input.value) === key) render();
+    };
+
+    const queueNameLookups = (value) => {
+        const q = normalizeQuery(value);
+        if (!shouldSearchNames(q)) return;
+        const key = bakerSearchKey(q);
+        if (!bakerSearchCache.has(key) && !bakerSearchInFlight.has(key)) {
+            const promise = findBakersByName(q, { limit: 5 })
+                .then((matches) => {
+                    bakerSearchCache.set(key, Array.isArray(matches) ? matches : []);
+                })
+                .catch(() => {
+                    bakerSearchCache.set(key, []);
+                })
+                .finally(() => {
+                    bakerSearchInFlight.delete(key);
+                    rerenderCurrentQuery(key);
+                });
+            bakerSearchInFlight.set(key, promise);
+        }
+        if (!accountSuggestionCache.has(key) && !accountSuggestionInFlight.has(key)) {
+            const url = `${API_URLS.tzkt}/suggest/accounts/${encodeURIComponent(q)}?limit=5`;
+            const promise = fetch(url, { cache: 'no-store', __tezosSystemsPriority: 'interactive' })
+                .then((response) => response.ok ? response.json() : [])
+                .then((matches) => {
+                    accountSuggestionCache.set(key, Array.isArray(matches) ? matches.filter((match) => match?.address) : []);
+                })
+                .catch(() => {
+                    accountSuggestionCache.set(key, []);
+                })
+                .finally(() => {
+                    accountSuggestionInFlight.delete(key);
+                    rerenderCurrentQuery(key);
+                });
+            accountSuggestionInFlight.set(key, promise);
         }
     };
 
-    const queueBakerLookup = (value) => {
+    const fetchTzktAccount = async (address) => {
+        const response = await fetch(`${API_URLS.tzkt}/accounts/${encodeURIComponent(address)}`, {
+            cache: 'no-store',
+            __tezosSystemsPriority: 'interactive'
+        });
+        if (!response.ok) return null;
+        return response.json();
+    };
+
+    const queueEntityResolution = (value) => {
+        const entity = parseSearchEntity(value);
+        if (!entity || entityResolutionCache.has(entity.value) || entityResolutionInFlight.has(entity.value)) return;
+        if (['partial-address', 'invalid-address', 'etherlink-address', 'etherlink-transaction'].includes(entity.kind)) return;
+        if (entity.kind === 'block' && !entity.requiresChecksum) return;
+        const promise = (async () => {
+            if (entity.kind === 'domain') {
+                try {
+                    const address = await resolveTezDomainAddress(entity.value);
+                    const account = address ? await fetchTzktAccount(address).catch(() => null) : null;
+                    entityResolutionCache.set(entity.value, {
+                        valid: Boolean(address),
+                        address,
+                        account,
+                        error: address ? '' : 'No address is published for this name'
+                    });
+                } catch (error) {
+                    entityResolutionCache.set(entity.value, {
+                        valid: false,
+                        address: '',
+                        account: null,
+                        error: error?.message || 'Domain lookup unavailable'
+                    });
+                }
+                return;
+            }
+            const valid = entity.requiresChecksum ? await validateBase58Check(entity.value) : true;
+            const account = valid && ['account', 'contract'].includes(entity.kind)
+                ? await fetchTzktAccount(entity.value).catch(() => null)
+                : null;
+            entityResolutionCache.set(entity.value, { valid, account });
+        })().finally(() => {
+            entityResolutionInFlight.delete(entity.value);
+            if (isOpen && parseSearchEntity(input.value)?.value === entity.value) render();
+        });
+        entityResolutionInFlight.set(entity.value, promise);
+    };
+
+    const queueCatalogLookup = (value) => {
         const q = normalizeQuery(value);
-        if (!shouldSearchBakers(q)) return;
-        const key = bakerSearchKey(q);
-        if (bakerSearchCache.has(key) || bakerSearchInFlight.has(key)) return;
-        const promise = findBakersByName(q, { limit: 5 })
-            .then((matches) => {
-                bakerSearchCache.set(key, Array.isArray(matches) ? matches : []);
-            })
-            .catch(() => {
-                bakerSearchCache.set(key, []);
-            })
-            .finally(() => {
-                bakerSearchInFlight.delete(key);
-                if (isOpen && bakerSearchKey(input.value) === key) render();
-            });
-        bakerSearchInFlight.set(key, promise);
+        if (q.length < 2 || q.startsWith('/') || parseSearchEntity(q) || isSearchCatalogLoaded()) return;
+        loadSearchCatalog().finally(() => {
+            if (isOpen && normalizeQuery(input.value) === q) render();
+        });
     };
 
     const render = () => {
         if (!isOpen) return;
-        queueBakerLookup(input.value);
+        queueNameLookups(input.value);
+        queueEntityResolution(input.value);
+        queueCatalogLookup(input.value);
         root.classList.toggle('has-query', Boolean(normalizeQuery(input.value)));
         root.classList.toggle('is-browsing-all', isBrowsingAll);
         results = groupOrderedResults(buildResults(input.value, { browseAll: isBrowsingAll }));
-        if (selectedIndex >= results.length) selectedIndex = results.length ? 0 : -1;
-        if (selectedIndex < 0 && normalizeQuery(input.value) && results.length) selectedIndex = 0;
+        const selectableResults = results.filter((result) => result.selectable !== false);
+        if (!selectableResults.some((result) => result.id === selectedId)) selectedId = '';
+        if (!selectedId && normalizeQuery(input.value) && selectableResults.length) selectedId = selectableResults[0].id;
+        const isLoading = results.some((result) => result.selectable === false && result.badge === 'checking');
+        panel.setAttribute('aria-busy', isLoading ? 'true' : 'false');
 
         if (!results.length) {
-            panel.innerHTML = '<div class="hero-search-empty">No Tezos Systems room matched that yet. Try a wallet address, .tez name, baker, KT1 contract, operation hash, block, protocol, or slash command.</div>';
+            quietlySyncHtml(panel, '<div class="hero-search-empty" data-quiet-key="empty">No result matched. Try a complete wallet, .tez name, contract, operation, block, protocol, app, identity, or slash command.</div>');
             syncActiveDescendant();
+            if (lastAnnouncement !== 'No results') {
+                liveRegion.textContent = 'No results';
+                lastAnnouncement = 'No results';
+            }
             return;
         }
 
-        let index = 0;
         const destinationCount = siteMapBrowseEntries().length + siteMapBrowseIntents().length;
         const guide = normalizeQuery(input.value)
             ? ''
             : isBrowsingAll
                 ? `<div class="hero-search-guide"><strong>All ${destinationCount} destinations.</strong><span>The complete Tezos Systems directory. Start typing to narrow it, or choose any room, guide, tool, view, widget, or feed.</span></div>`
                 : `<div class="hero-search-guide"><strong>Start from anything.</strong><span>Choose a useful starting point below, paste a wallet, .tez name, baker, contract, operation, block, or protocol, or open All ${destinationCount} for the complete directory. Press / from anywhere.</span></div>`;
-        panel.innerHTML = guide + groupedResults(results).map((group) => {
-            const rows = group.results.map((result) => resultHtml(result, index++, selectedIndex)).join('');
+        quietlySyncHtml(panel, guide + groupedResults(results).map((group) => {
+            const rows = group.results.map((result) => resultHtml(result, selectedId)).join('');
             return `
-                <section class="hero-search-group" role="group" aria-label="${escapeHtml(group.label)}">
+                <section class="hero-search-group" role="group" aria-label="${escapeHtml(group.label)}" data-quiet-key="group:${escapeHtml(group.label)}">
                     <div class="hero-search-group-label">${escapeHtml(group.label)}</div>
                     ${rows}
                 </section>
             `;
-        }).join('');
+        }).join(''));
         syncActiveDescendant();
-        if (selectedIndex >= 0) {
-            const option = panel.querySelector(`#hero-search-option-${selectedIndex}`);
-            if (option) {
-                const panelRect = panel.getBoundingClientRect();
-                const optionRect = option.getBoundingClientRect();
-                if (optionRect.top < panelRect.top) panel.scrollTop -= panelRect.top - optionRect.top + 8;
-                else if (optionRect.bottom > panelRect.bottom) panel.scrollTop += optionRect.bottom - panelRect.bottom + 8;
-            }
+        syncAvailableHeight();
+        const announcement = isLoading
+            ? `Searching. ${selectableResults.length} results available`
+            : `${selectableResults.length} result${selectableResults.length === 1 ? '' : 's'} available`;
+        if (announcement !== lastAnnouncement) {
+            liveRegion.textContent = announcement;
+            lastAnnouncement = announcement;
         }
     };
 
@@ -834,16 +1102,26 @@ export function initHeroSearch() {
         input.focus();
         setOpen(true);
         ensureProtocols();
-        selectedIndex = -1;
+        selectedId = '';
         render();
+    };
+
+    const executeResult = (result) => {
+        if (!result || result.selectable === false) return false;
+        if (result.action === 'query') {
+            applyQuery(result.value);
+            return false;
+        }
+        return runResult(result);
     };
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
         if (!isOpen) setOpen(true);
         render();
-        const result = results[selectedIndex >= 0 ? selectedIndex : 0];
-        if (runResult(result)) setOpen(false);
+        if (!normalizeQuery(input.value) && !isBrowsingAll) return;
+        const result = results.find((candidate) => candidate.id === selectedId && candidate.selectable !== false);
+        if (executeResult(result)) setOpen(false, { restoreFocus: false });
     });
 
     closeButton.addEventListener('click', () => {
@@ -862,6 +1140,10 @@ export function initHeroSearch() {
         }
     });
 
+    form.addEventListener('pointerdown', () => {
+        if (!isOpen && !root.contains(document.activeElement)) priorFocus = document.activeElement;
+    });
+
     input.addEventListener('focus', () => {
         setOpen(true);
         ensureProtocols();
@@ -871,7 +1153,7 @@ export function initHeroSearch() {
     input.addEventListener('input', () => {
         if (!isOpen) setOpen(true);
         isBrowsingAll = false;
-        selectedIndex = -1;
+        selectedId = '';
         debouncedRender();
     });
 
@@ -887,8 +1169,9 @@ export function initHeroSearch() {
             event.preventDefault();
             if (!isOpen) setOpen(true);
             render();
-            const result = results[selectedIndex >= 0 ? selectedIndex : 0];
-            if (runResult(result)) setOpen(false);
+            if (!normalizeQuery(input.value) && !isBrowsingAll) return;
+            const result = results.find((candidate) => candidate.id === selectedId && candidate.selectable !== false);
+            if (executeResult(result)) setOpen(false, { restoreFocus: false });
             return;
         }
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -897,28 +1180,29 @@ export function initHeroSearch() {
             setOpen(true);
             render();
         }
-        if (!results.length) return;
+        const selectableResults = results.filter((result) => result.selectable !== false);
+        if (!selectableResults.length) return;
         const dir = event.key === 'ArrowDown' ? 1 : -1;
-        selectedIndex = selectedIndex < 0
-            ? (dir > 0 ? 0 : results.length - 1)
-            : (selectedIndex + dir + results.length) % results.length;
-        render();
-    });
-
-    panel.addEventListener('mousemove', (event) => {
-        const option = event.target.closest('[data-result-index]');
-        if (!option) return;
-        const next = Number(option.dataset.resultIndex);
-        if (!Number.isFinite(next) || next === selectedIndex) return;
-        selectedIndex = next;
-        render();
+        const currentIndex = selectableResults.findIndex((result) => result.id === selectedId);
+        const nextIndex = currentIndex < 0
+            ? (dir > 0 ? 0 : selectableResults.length - 1)
+            : (currentIndex + dir + selectableResults.length) % selectableResults.length;
+        const previousOption = selectedId ? panel.querySelector(`[data-result-id="${CSS.escape(selectedId)}"]`) : null;
+        previousOption?.classList.remove('is-selected');
+        previousOption?.setAttribute('aria-selected', 'false');
+        selectedId = selectableResults[nextIndex].id;
+        const option = panel.querySelector(`[data-result-id="${CSS.escape(selectedId)}"]`);
+        option?.classList.add('is-selected');
+        option?.setAttribute('aria-selected', 'true');
+        syncActiveDescendant();
+        option?.scrollIntoView({ block: 'nearest' });
     });
 
     panel.addEventListener('click', (event) => {
-        const option = event.target.closest('[data-result-index]');
+        const option = event.target.closest('[data-result-id]');
         if (!option) return;
-        const result = results[Number(option.dataset.resultIndex)];
-        if (runResult(result)) setOpen(false);
+        const result = results.find((candidate) => candidate.id === option.dataset.resultId);
+        if (executeResult(result)) setOpen(false, { restoreFocus: false });
     });
 
     chips.addEventListener('click', (event) => {
@@ -929,7 +1213,7 @@ export function initHeroSearch() {
             setOpen(true);
             ensureProtocols();
             isBrowsingAll = true;
-            selectedIndex = -1;
+            selectedId = '';
             render();
             return;
         }
@@ -958,13 +1242,33 @@ export function initHeroSearch() {
     });
 
     document.addEventListener('keydown', (event) => {
+        if (isOpen && event.key === 'Tab') {
+            const focusable = [...root.querySelectorAll('button:not([disabled]), input:not([disabled]), a[href]')]
+                .filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0);
+            if (!focusable.length) return;
+            const current = focusable.indexOf(document.activeElement);
+            const next = event.shiftKey
+                ? (current <= 0 ? focusable.length - 1 : current - 1)
+                : (current < 0 || current === focusable.length - 1 ? 0 : current + 1);
+            event.preventDefault();
+            focusable[next].focus();
+            return;
+        }
         if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-        if (isTextEntryTarget(event.target)) return;
+        if (isTextEntryTarget(event.target) || isBlockingOverlayActive()) return;
         event.preventDefault();
+        priorFocus = document.activeElement;
         input.focus();
         input.select();
     });
 
+    window.addEventListener('resize', syncAvailableHeight);
+    window.visualViewport?.addEventListener('resize', syncAvailableHeight);
+    window.visualViewport?.addEventListener('scroll', syncAvailableHeight);
+
     // Warm the protocol index after first paint, but keep the hero input cheap.
     window.setTimeout(ensureProtocols, 1200);
+
+    const searchHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('search');
+    if (searchHash) applyQuery(searchHash);
 }

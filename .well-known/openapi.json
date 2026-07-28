@@ -365,6 +365,20 @@
         }
       }
     },
+    "/data/search-catalog.json": {
+      "get": {
+        "operationId": "getSearchCatalog",
+        "summary": "Get the compact Tezos Systems search catalog",
+        "description": "Reviewed ecosystem apps, TezosCRP identities, protocol debates, and network milestone tracks projected for browser search.",
+        "x-refresh-cadence": "Regenerated whenever a contributing source or the canonical site map changes",
+        "x-license-boundary": "Repository-authored schema and projection logic are covered by MPL-2.0; source facts, aliases, and official recognition records retain their source terms.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
     "/data/my-tezos-contracts.json": {
       "get": {
         "operationId": "getMyTezosContractRegistry",

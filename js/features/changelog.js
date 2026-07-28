@@ -7,6 +7,10 @@ const CHANGELOG = [
     {
         date: '2026-07-27',
         entries: [
+            { type: '🔧', text: 'Search suggestions now stay focused on navigation and lookup shortcuts instead of repeating the dashboard’s live milestone signal' },
+            { type: '✨', text: 'Search now reaches reviewed apps, TezosCRP identities, protocol debates, milestones, TzKT aliases, approved explorer URLs, and checksum-verified Tezos or Etherlink identifiers' },
+            { type: '🔧', text: 'Search ranking now understands natural multiword intent, offers safe spelling recovery, keeps asynchronous keyboard selection stable, leaves blank Enter inert, and never stores raw query history' },
+            { type: '✨', text: 'KT1 results now open a native contract lens with deployment facts, decoded entrypoints, indexed tokens and events, recent flow, raw code, and related same-code deployments' },
             { type: '🔧', text: 'Whale Watch and Baker Directory launchers now keep matching desktop heights as their live summaries change' },
             { type: '🎨', text: 'Valley now doubles its data-reactive meadow banks around an earthy, naturally overhung path that meets a reflective lake, with golden seed-head waves and drifting moth-light' },
             { type: '✨', text: 'One wallet scope now governs every My Tezos tab: all included wallets are totaled by default, a specific wallet focuses Portfolio history, Transactions, Collection, Story, and linked Tezos X accounts, and non-additive baker or identity facts stay explicitly account-bound' },

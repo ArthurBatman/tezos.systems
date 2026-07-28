@@ -117,6 +117,7 @@ const formattingViewports = [
 const SAMPLE_ADDRESS = 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9';
 const SAMPLE_ADDRESS_2 = 'tz1hThMBD8jQjFt78heuCnKxJnJtQo9Ao25X';
 const SAMPLE_ADDRESS_3 = 'tz1PendingBaker1111111111111111111111';
+const SAMPLE_CONTRACT = 'KT1V5XKmeypanMS9pR65REpqmVejWBZURuuT';
 const SAMPLE_IDLE_ADDRESS = 'tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb';
 const SAMPLE_ETHERLINK_ADDRESS = '0x1111111111111111111111111111111111111111';
 const SAMPLE_LEDGER_ORIGIN = 'tz1LedgerOrigin1111111111111111111111';
@@ -1491,6 +1492,69 @@ async function installFeatureMocks(context, options = {}) {
 
     if (options.milestoneCatalog && parsedUrl.pathname.endsWith('/data/milestone-catalog.json')) {
       return fulfillJson(route, options.milestoneCatalog);
+    }
+
+    if (parsedUrl.origin === 'https://api.tzkt.io' && parsedUrl.pathname.includes('/v1/suggest/accounts/')) {
+      await new Promise((resolve) => setTimeout(resolve, 220));
+      const query = decodeURIComponent(parsedUrl.pathname.split('/v1/suggest/accounts/')[1] || '').toLowerCase();
+      if (query.includes('quipu')) {
+        return fulfillJson(route, [
+          { address: SAMPLE_CONTRACT, alias: 'QuipuSwap Router' },
+          { address: SAMPLE_ADDRESS, alias: 'Quipu community baker' }
+        ]);
+      }
+      if (query.includes('governance')) {
+        return fulfillJson(route, [{ address: SAMPLE_ADDRESS_2, alias: 'Governance Baker Alias' }]);
+      }
+      return fulfillJson(route, []);
+    }
+
+    if (parsedUrl.origin === 'https://api.tzkt.io' && parsedUrl.pathname === `/v1/accounts/${SAMPLE_CONTRACT}`) {
+      return fulfillJson(route, {
+        address: SAMPLE_CONTRACT,
+        alias: 'Smoke Contract',
+        type: 'contract',
+        balance: 123000000,
+        numTransactions: 42,
+        activeTokensCount: 3,
+        eventsCount: 19,
+        tokenTransfersCount: 27,
+        firstActivity: 12000000,
+        firstActivityTime: '2025-01-02T03:04:05Z'
+      });
+    }
+
+    if (parsedUrl.origin === 'https://api.tzkt.io' && parsedUrl.pathname === `/v1/contracts/${SAMPLE_CONTRACT}/entrypoints`) {
+      return fulfillJson(route, [
+        { name: 'default', jsonParameters: { 'schema:unit': 'unit' }, unused: false },
+        { name: 'swap', jsonParameters: { 'schema:object': { 'amount:nat': 'nat', 'receiver:address': 'address' } }, unused: false }
+      ]);
+    }
+
+    if (parsedUrl.origin === 'https://api.tzkt.io' && parsedUrl.pathname === `/v1/contracts/${SAMPLE_CONTRACT}/same`) {
+      return fulfillJson(route, [
+        { address: SAMPLE_CONTRACT, alias: 'Smoke Contract', kind: 'smart_contract' },
+        { address: 'KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton', alias: 'Related Smoke Deployment', kind: 'smart_contract' }
+      ]);
+    }
+
+    if (parsedUrl.origin === 'https://api.tzkt.io' && parsedUrl.pathname === `/v1/contracts/${SAMPLE_CONTRACT}`) {
+      return fulfillJson(route, {
+        address: SAMPLE_CONTRACT,
+        alias: 'Smoke Contract',
+        kind: 'smart_contract',
+        balance: 123000000,
+        creator: { address: SAMPLE_ADDRESS, alias: 'Smoke Creator' },
+        codeHash: 123456789,
+        typeHash: 987654321,
+        tzips: ['fa2'],
+        activeTokensCount: 3,
+        eventsCount: 19,
+        tokenTransfersCount: 27,
+        numTransactions: 42,
+        firstActivity: 12000000,
+        firstActivityTime: '2025-01-02T03:04:05Z'
+      });
     }
 
     if (whaleChamberMocks && parsedUrl.pathname.endsWith('/data/whale-watch.json')) {
@@ -4667,6 +4731,13 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item').first().waitFor({ state: 'visible', timeout: 10000 });
   const firstProtocolInHistory = await page.locator('#protocol-history-chamber-modal #upgrade-timeline .timeline-item').first().getAttribute('data-protocol');
   assert(firstProtocolInHistory === 'Ushuaia', `hero command bar: Protocol History Chamber should start at current protocol, saw ${firstProtocolInHistory}`);
+  await page.keyboard.press('/');
+  const modalSlashState = await page.evaluate(() => ({
+    modalActive: Boolean(document.querySelector('#protocol-history-chamber-modal.active')),
+    searchFocused: document.activeElement?.id === 'hero-search-input',
+    searchOpen: document.body.classList.contains('hero-search-mode')
+  }));
+  assert(modalSlashState.modalActive && !modalSlashState.searchFocused && !modalSlashState.searchOpen, `hero command bar: slash shortcut escaped an active Chamber ${JSON.stringify(modalSlashState)}`);
   await page.locator('#protocol-history-chamber-modal .chamber-close').click();
   await page.locator('#protocol-history-chamber-modal').waitFor({ state: 'detached', timeout: 5000 });
   try {
@@ -4693,6 +4764,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     const panel = document.querySelector('#hero-search-panel');
     return {
       bodyMode: document.body.classList.contains('hero-search-mode'),
+      mainInert: main.hasAttribute('inert'),
       mainOpacity: Number.parseFloat(getComputedStyle(main).opacity),
       mainPointerEvents: getComputedStyle(main).pointerEvents,
       commandDeckZ: Number.parseInt(getComputedStyle(commandDeck).zIndex, 10),
@@ -4700,6 +4772,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     };
   });
   assert(focusModeState.bodyMode, 'hero command bar: search focus should transform the page');
+  assert(focusModeState.mainInert, 'hero command bar: background content should be inert while search is open');
   assert(focusModeState.mainOpacity <= 0.2, `hero command bar: Chambers should recede behind search, opacity ${focusModeState.mainOpacity}`);
   assert(focusModeState.mainPointerEvents === 'none', `hero command bar: background chambers should not sit above active search, pointer events ${focusModeState.mainPointerEvents}`);
   assert(focusModeState.commandDeckZ >= 3000 && focusModeState.panelZ > focusModeState.commandDeckZ, `hero command bar: search layer z-index mismatch ${JSON.stringify(focusModeState)}`);
@@ -4720,6 +4793,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
       && chipLabels.includes('/health')
       && chipLabels.includes('/domains')
       && chipLabels.some((label) => /^All \d+$/.test(label))
+      && !chipLabels.some((label) => /^(Live|Near|Milestone):/i.test(label))
       && !chipLabels.some((label) => /Wallet\/\.tez/i.test(label)),
     `hero command bar: manifest quick chips are incomplete: ${chipLabels.join(', ')}`
   );
@@ -4758,7 +4832,11 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     ['tezos vs ethereum', 'Tezos vs Ethereum'],
     ['/changelog', '/changelog'],
     ['nft', 'HEN Live Feed'],
-    ['/stake', 'Staking Chamber']
+    ['/stake', 'Staking Chamber'],
+    ['missed blocks octez', 'Network Health'],
+    ['cost to transact', 'Network Fees by Layer'],
+    ['how do i stake', 'Staking Chamber'],
+    ['fee', 'Network Fees by Layer']
   ];
   for (const [query, expectedTitle] of rankedSearchIntents) {
     await page.locator('#hero-search-input').fill(query);
@@ -4770,6 +4848,38 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     const rankedText = await page.locator('#hero-search-panel').innerText();
     assert(!new RegExp(`Searching bakers for "${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'i').test(rankedText), `hero command bar: site intent fell through to baker loading for ${query}: ${rankedText}`);
   }
+  await page.locator('#hero-search-input').fill('QuipuSwap');
+  await page.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'QuipuSwap', null, { timeout: 5000 });
+  const quipuSearchText = await page.locator('#hero-search-panel').innerText();
+  assert(/reviewed contract universe/i.test(quipuSearchText), `hero command bar: generated app catalog did not outrank unverified aliases: ${quipuSearchText}`);
+
+  await page.locator('#hero-search-input').fill('governence');
+  await page.waitForFunction(() => /Did you mean “governance”/i.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+
+  await page.locator('#hero-search-input').fill('aliasdelay');
+  await page.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-status-row'), null, { timeout: 5000 });
+  const loadingState = await page.evaluate(() => ({
+    statusRows: document.querySelectorAll('#hero-search-panel .hero-search-status-row[role="status"]').length,
+    selectableStatusRows: document.querySelectorAll('#hero-search-panel .hero-search-status-row[role="option"], #hero-search-panel .hero-search-status-row button').length
+  }));
+  assert(loadingState.statusRows >= 1 && loadingState.selectableStatusRows === 0, `hero command bar: async loading rows must not enter keyboard selection ${JSON.stringify(loadingState)}`);
+
+  await page.locator('#hero-search-input').fill('network health');
+  await page.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'Network Health', null, { timeout: 5000 });
+  await page.evaluate(() => {
+    window.__heroSearchHoverNode = document.querySelector('#hero-search-panel .hero-search-result');
+  });
+  await page.locator('#hero-search-panel .hero-search-result').nth(1).hover();
+  const hoverPreservedNode = await page.evaluate(() => window.__heroSearchHoverNode === document.querySelector('#hero-search-panel .hero-search-result'));
+  assert(hoverPreservedNode, 'hero command bar: pointer movement replaced stable result nodes');
+
+  await page.locator('#hero-search-input').fill('');
+  const blankEnterState = await page.evaluate(() => ({ href: location.href, hash: location.hash }));
+  await page.locator('#hero-search-input').press('Enter');
+  await page.waitForTimeout(120);
+  const blankEnterAfter = await page.evaluate(() => ({ href: location.href, hash: location.hash, open: document.body.classList.contains('hero-search-mode') }));
+  assert(blankEnterAfter.href === blankEnterState.href && blankEnterAfter.hash === blankEnterState.hash && blankEnterAfter.open, `hero command bar: blank Enter navigated or closed search ${JSON.stringify({ blankEnterState, blankEnterAfter })}`);
+
   await page.locator('#hero-search-input').fill('KT1');
   await page.waitForFunction(() => /KT1 Contracts/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   const kt1StarterText = await page.locator('#hero-search-panel').innerText();
@@ -4786,6 +4896,26 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.waitForFunction(() => /Check viral\.tez in Tezos Domains/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   const domainEntityText = await page.locator('#hero-search-panel').innerText();
   assert(/Check viral\.tez in Tezos Domains/.test(domainEntityText) && /Open viral\.tez in Maxi Passport/.test(domainEntityText) && /Lookup availability/i.test(domainEntityText), `hero command bar: .tez entity should offer Domains and Maxi Passport routes: ${domainEntityText}`);
+
+  await page.locator('#hero-search-input').fill(SAMPLE_CONTRACT.toLowerCase());
+  await page.waitForFunction(() => /Checksum failed/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+  assert(await page.locator('#hero-search-panel .hero-search-result').count() === 0, 'hero command bar: invalid lowercased Base58 body became actionable');
+
+  await page.locator('#hero-search-input').fill(`https://tzkt.io/${SAMPLE_CONTRACT}/operations`);
+  await page.waitForFunction(() => /Smoke Contract|Inspect KT1 contract/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+  await page.locator('#hero-search-panel .hero-search-result').first().click();
+  await page.locator('#native-explorer-overlay.active .native-contract-entrypoint').first().waitFor({ state: 'visible', timeout: 5000 });
+  const contractLensState = await page.evaluate(() => {
+    const overlay = document.querySelector('#native-explorer-overlay.active');
+    return {
+      text: overlay?.innerText || '',
+      entrypoints: overlay?.querySelectorAll('.native-contract-entrypoint').length || 0,
+      sameCode: overlay?.querySelectorAll('.native-contract-match').length || 0,
+      rawCode: overlay?.querySelector('a[href*="/code?format=1"]')?.getAttribute('href') || ''
+    };
+  });
+  assert(contractLensState.entrypoints === 2 && contractLensState.sameCode === 1 && /Contract identity/.test(contractLensState.text) && /Smoke Creator/.test(contractLensState.text) && /Related Smoke Deployment/.test(contractLensState.text) && contractLensState.rawCode.includes(`/contracts/${SAMPLE_CONTRACT}/code?format=1`), `hero command bar: native contract lens is incomplete ${JSON.stringify(contractLensState)}`);
+  await page.locator('#native-explorer-overlay .native-explorer-close').click();
   await page.mouse.click(10, 10);
   await page.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.getElementById('hero-search-panel')?.hidden, null, { timeout: 5000 });
 
@@ -4901,16 +5031,34 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     && new URLSearchParams(location.search).get('lane') === 'transaction'
     && !new URLSearchParams(location.search).has('view'), null, { timeout: 5000 });
 
+  const stableSelectionResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(stableSelectionResponse?.ok(), `hero command bar stable selection: dashboard failed with HTTP ${stableSelectionResponse?.status()}`);
+  await intentPage.locator('#hero-search-input').fill('governance');
+  await intentPage.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'Tezos L1 Governance', null, { timeout: 5000 });
+  await intentPage.locator('#hero-search-input').press('ArrowDown');
+  const selectedBeforeAsync = await intentPage.evaluate(() => {
+    const selected = document.querySelector('#hero-search-panel .hero-search-result.is-selected');
+    window.__heroSelectedBeforeAsync = selected;
+    return selected?.dataset.resultId || '';
+  });
+  await intentPage.waitForFunction(() => /Governance Baker Alias/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+  const selectedAfterAsync = await intentPage.evaluate(() => {
+    const selected = document.querySelector('#hero-search-panel .hero-search-result.is-selected');
+    return {
+      id: selected?.dataset.resultId || '',
+      sameNode: selected === window.__heroSelectedBeforeAsync
+    };
+  });
+  assert(selectedBeforeAsync && selectedAfterAsync.id === selectedBeforeAsync && selectedAfterAsync.sameNode, `hero command bar: asynchronous aliases replaced or moved keyboard selection ${JSON.stringify({ selectedBeforeAsync, selectedAfterAsync })}`);
+
   await seedIntent('my tezos', 'My Tezos');
   await intentPage.locator('#hero-search-input').press('Enter');
   await intentPage.locator('#my-tezos-drawer.open').waitFor({ state: 'visible', timeout: 5000 });
 
   await seedIntent('viral.tez', 'Check viral.tez in Tezos Domains');
-  await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: 'Try viral.tez as baker' }).click();
-  await intentPage.waitForFunction(() => window.location.hash === '#baker=viral.tez', null, { timeout: 5000 });
-  await seedIntent('viral.tez', 'Check viral.tez in Tezos Domains');
+  assert(await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: 'Try viral.tez as baker' }).count() === 0, 'hero command bar: unresolved .tez names must not become arbitrary baker routes');
   await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: 'Open viral.tez in Ledger Flow' }).click();
-  await intentPage.waitForFunction(() => window.location.hash === '#ledger-flow=viral.tez', null, { timeout: 5000 });
+  await intentPage.waitForFunction((address) => window.location.hash === `#ledger-flow=${address}`, SAMPLE_ADDRESS, { timeout: 5000 });
 
   await seedIntent(SAMPLE_ADDRESS, 'Inspect account');
   await intentPage.locator('#hero-search-panel .hero-search-result').filter({ hasText: `Open ${SAMPLE_ADDRESS} in Maxi Passport` }).click();
@@ -5026,13 +5174,16 @@ async function smokeHeroCommandBar(browser, baseUrl) {
       chips: (() => {
         const el = document.getElementById('hero-search-chips');
         const rect = el?.getBoundingClientRect();
-        return rect ? { top: rect.top, bottom: rect.bottom, height: rect.height, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, flexWrap: getComputedStyle(el).flexWrap } : null;
+        const chipHeights = Array.from(el?.querySelectorAll('.hero-search-chip') || [], (chip) => chip.getBoundingClientRect().height);
+        return rect ? { top: rect.top, bottom: rect.bottom, height: rect.height, minChipHeight: chipHeights.length ? Math.min(...chipHeights) : 0, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, flexWrap: getComputedStyle(el).flexWrap } : null;
       })(),
       panel: (() => {
         const rect = document.getElementById('hero-search-panel')?.getBoundingClientRect();
         return rect ? { top: rect.top, bottom: rect.bottom } : null;
       })(),
-      closeVisible: getComputedStyle(document.getElementById('hero-search-close')).display !== 'none'
+      closeVisible: getComputedStyle(document.getElementById('hero-search-close')).display !== 'none',
+      closeHeight: document.getElementById('hero-search-close')?.getBoundingClientRect().height || 0,
+      submitHeight: document.querySelector('.hero-search-submit')?.getBoundingClientRect().height || 0
     };
   }, mobileBeforeFocus);
   assert(mobileFocusState.fontSize >= 16, `hero command bar mobile focus: input font must stay at least 16px, saw ${JSON.stringify(mobileFocusState)}`);
@@ -5041,6 +5192,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   assert(mobileFocusState.inputRight <= mobileFocusState.viewportWidth + 1, `hero command bar mobile focus: input overflows viewport ${JSON.stringify(mobileFocusState)}`);
   assert(mobileFocusState.commandPosition === 'fixed' && mobileFocusState.deck?.top >= 0 && mobileFocusState.deck?.bottom <= mobileFocusState.viewportHeight + 1 && mobileFocusState.deck?.left >= 0 && mobileFocusState.deck?.right <= mobileFocusState.viewportWidth + 1, `hero command bar mobile focus: command sheet escaped viewport ${JSON.stringify(mobileFocusState)}`);
   assert(mobileFocusState.chips?.flexWrap === 'nowrap' && mobileFocusState.chips.height <= 48 && mobileFocusState.chips.scrollWidth > mobileFocusState.chips.clientWidth, `hero command bar mobile focus: shortcuts must stay in one reachable rail ${JSON.stringify(mobileFocusState)}`);
+  assert(mobileFocusState.chips?.minChipHeight >= 44 && mobileFocusState.closeHeight >= 44 && mobileFocusState.submitHeight >= 44, `hero command bar mobile focus: controls do not meet 44px touch targets ${JSON.stringify(mobileFocusState)}`);
   assert(mobileFocusState.form?.bottom <= mobileFocusState.chips?.top + 1 && mobileFocusState.chips?.bottom <= mobileFocusState.panel?.top + 1 && mobileFocusState.panel?.bottom <= mobileFocusState.viewportHeight + 1, `hero command bar mobile focus: form, chips, and results overlap ${JSON.stringify(mobileFocusState)}`);
   assert(mobileFocusState.closeVisible, `hero command bar mobile focus: explicit close button is not visible ${JSON.stringify(mobileFocusState)}`);
 
@@ -5048,6 +5200,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await mobilePage.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'Network Health', null, { timeout: 5000 });
   const mobileQueryState = await mobilePage.evaluate(() => ({
     chipsDisplay: getComputedStyle(document.getElementById('hero-search-chips')).display,
+    badgeDisplay: getComputedStyle(document.querySelector('#hero-search-panel .hero-result-badge')).display,
     selectedVisible: (() => {
       const panel = document.getElementById('hero-search-panel')?.getBoundingClientRect();
       const option = document.querySelector('#hero-search-panel .hero-search-result.is-selected')?.getBoundingClientRect();
@@ -5055,6 +5208,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     })()
   }));
   assert(mobileQueryState.chipsDisplay === 'none' && mobileQueryState.selectedVisible, `hero command bar mobile query: shortcuts should collapse and first result stay visible ${JSON.stringify(mobileQueryState)}`);
+  assert(mobileQueryState.badgeDisplay !== 'none', `hero command bar mobile query: result badge was hidden ${JSON.stringify(mobileQueryState)}`);
 
   await mobilePage.setViewportSize({ width: 390, height: 667 });
   const shortViewportState = await mobilePage.evaluate(() => {
@@ -10715,9 +10869,18 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     await page.waitForFunction(() => /of 40 matching recognitions/.test(document.querySelector('#tezoscrp-archive-results')?.textContent || ''));
     await page.locator('#tezoscrp-archive-search').fill('Baking Benjamins');
     await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-archive-results .tezoscrp-archive-list article').length === 1);
+    assert(await page.evaluate(() => new URLSearchParams(location.search).get('q')) === 'Baking Benjamins', `TezosCRP ${label}: archive identity query was not reflected in the route`);
     const archiveRow = (await page.locator('#tezoscrp-archive-results .tezoscrp-archive-list article').innerText()).replace(/\s+/g, ' ');
     assert(/Jun 2026/.test(archiveRow) && /Baking Benjamins/i.test(archiveRow) && /Official source|Tezos Commons X post/i.test(archiveRow), `TezosCRP ${label}: archive filtering/source mismatch ${archiveRow}`);
     assert(!/0\s*ꜩ published/.test(archiveRow), `TezosCRP ${label}: missing payout amount was misrepresented as zero ${archiveRow}`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('#tezoscrp-modal.active #tezoscrp-archive-search').waitFor({ state: 'visible', timeout: 15000 });
+    const restoredArchiveState = await page.evaluate(() => ({
+      query: document.querySelector('#tezoscrp-archive-search')?.value || '',
+      rows: document.querySelectorAll('#tezoscrp-archive-results .tezoscrp-archive-list article').length,
+      view: new URLSearchParams(location.search).get('view')
+    }));
+    assert(restoredArchiveState.query === 'Baking Benjamins' && restoredArchiveState.rows === 1 && restoredArchiveState.view === 'archive', `TezosCRP ${label}: catalog deep link did not restore archive identity filtering ${JSON.stringify(restoredArchiveState)}`);
 
     const settled = await page.evaluate(() => {
       const modal = document.querySelector('#tezoscrp-modal .tezoscrp-content');
@@ -14470,7 +14633,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   });
   assert(mobileNudgeGeometry.parentId === 'hero-search-chips'
     && mobileNudgeGeometry.width <= 160
-    && mobileNudgeGeometry.height <= 42
+    && mobileNudgeGeometry.height <= 44.5
     && Math.abs(mobileNudgeGeometry.top - mobileNudgeGeometry.firstChipTop) <= 1
     && Math.abs(mobileNudgeGeometry.height - mobileNudgeGeometry.firstChipHeight) <= 2
     && mobileNudgeGeometry.left >= mobileNudgeGeometry.railLeft

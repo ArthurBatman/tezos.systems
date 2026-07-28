@@ -41,6 +41,7 @@ const ECOSYSTEM_TARGETS = ['data/ecosystem-stats.json'];
 const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json', 'data/ecosystem-entry-summary.json'];
 const WHALE_WATCH_TARGETS = ['data/whale-watch.json'];
 const TEZOSCRP_TARGETS = ['data/tezoscrp-awards.json', 'data/tezoscrp-summary.json'];
+const SEARCH_CATALOG_TARGETS = ['data/search-catalog.json'];
 
 const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
@@ -61,7 +62,8 @@ const GENERATED_TARGETS = unique([
   ...ECOSYSTEM_TARGETS,
   ...LAUNCHER_PROJECTION_TARGETS,
   ...WHALE_WATCH_TARGETS,
-  ...TEZOSCRP_TARGETS
+  ...TEZOSCRP_TARGETS,
+  ...SEARCH_CATALOG_TARGETS
 ]);
 
 function unique(values) {
@@ -276,6 +278,24 @@ async function main() {
   if (shouldStage) stageTargets(MILESTONE_TARGETS);
 
   const touched = unique([...initialStaged, ...(modeName === 'precommit' ? stagedFiles() : [])]);
+
+  if (shouldRun(modeName, touched, [
+    /^scripts\/generate-search-catalog\.mjs$/,
+    /^scripts\/refresh-generated-surfaces\.mjs$/,
+    /^js\/core\/site-map\.js$/,
+    /^data\/ecosystem-apps\.json$/,
+    /^data\/tezoscrp-awards\.json$/,
+    /^data\/protocol-(?:data|debates)\.json$/,
+    /^data\/milestone-catalog\.json$/,
+    /^data\/search-catalog\.json$/
+  ])) {
+    ran.push('search-catalog');
+    nodeScript('scripts/generate-search-catalog.mjs');
+    if (shouldStage) stageTargets(SEARCH_CATALOG_TARGETS);
+  } else if (modeName === 'precommit') {
+    nodeScript('scripts/generate-search-catalog.mjs', ['--check']);
+    ran.push('search-catalog-check');
+  }
 
   if (shouldRun(modeName, touched, [/^css\/styles\.css$/, /^scripts\/build-css\.mjs$/, /^package(?:-lock)?\.json$/])) {
     ran.push('css');

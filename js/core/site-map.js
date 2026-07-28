@@ -675,8 +675,38 @@ function normalizedSearchValue(value) {
         .toLowerCase()
         .replace(/^\//, '')
         .replace(/[?#].*$/, '')
+        .replace(/[’']/g, '')
+        .replace(/[^a-z0-9.%+\s/_-]+/g, ' ')
         .replace(/[-_/]+/g, ' ')
         .replace(/\s+/g, ' ');
+}
+
+const SEARCH_STOP_WORDS = new Set([
+    'a', 'an', 'and', 'can', 'do', 'find', 'for', 'how', 'i', 'in', 'is',
+    'me', 'of', 'on', 'show', 'the', 'to', 'what', 'where'
+]);
+
+function searchTokens(value, { keepStopWords = false } = {}) {
+    const tokens = normalizedSearchValue(value).split(' ').filter(Boolean);
+    if (keepStopWords) return tokens;
+    const meaningful = tokens.filter((token) => !SEARCH_STOP_WORDS.has(token));
+    return meaningful.length ? meaningful : tokens;
+}
+
+function searchTokenMatches(queryToken, candidateToken) {
+    if (queryToken === candidateToken) return true;
+    if (queryToken.length >= 3 && (
+        `${queryToken}s` === candidateToken
+        || `${candidateToken}s` === queryToken
+    )) return true;
+    if (queryToken.length < 4 || candidateToken.length < 4) return false;
+    return candidateToken.startsWith(queryToken) || queryToken.startsWith(candidateToken);
+}
+
+function coversSearchTokens(queryTokens, candidateTokens) {
+    return queryTokens.length > 0 && queryTokens.every((queryToken) => (
+        candidateTokens.some((candidateToken) => searchTokenMatches(queryToken, candidateToken))
+    ));
 }
 
 export function siteMapSearchScore(entry, query) {
@@ -687,20 +717,36 @@ export function siteMapSearchScore(entry, query) {
     const id = normalizedSearchValue(entry.id);
     const href = String(entry.href || '').toLowerCase();
     const hash = String(entry.hash || '').toLowerCase().replace(/^#/, '');
-    const keywords = (entry.keywords || []).map((keyword) => String(keyword).toLowerCase());
+    const keywords = [...(entry.keywords || []), ...(entry.aliases || [])]
+        .map((keyword) => String(keyword).toLowerCase());
     const normalizedKeywords = keywords.map(normalizedSearchValue);
-    const haystack = siteMapSearchText(entry);
+    const queryTokens = searchTokens(q);
+    const titleTokens = searchTokens(entry.title, { keepStopWords: true });
+    const idTokens = searchTokens(entry.id, { keepStopWords: true });
+    const keywordTokens = keywords.flatMap((keyword) => searchTokens(keyword, { keepStopWords: true }));
+    const detailTokens = searchTokens(entry.detail, { keepStopWords: true });
+    const groupTokens = searchTokens(entry.group, { keepStopWords: true });
+    const routeTokens = [
+        ...searchTokens(entry.href, { keepStopWords: true }),
+        ...searchTokens(entry.hash, { keepStopWords: true }),
+        ...(entry.paths || []).flatMap((path) => searchTokens(path, { keepStopWords: true }))
+    ];
+    const allTokens = [...titleTokens, ...idTokens, ...keywordTokens, ...detailTokens, ...groupTokens, ...routeTokens];
 
     if (q === String(entry.href || '').toLowerCase() || q === String(entry.hash || '').toLowerCase()) return 120;
     if (q.startsWith('/') && hash === bare) return 118;
+    if (!normalized) return 0;
     if (normalized === title || normalized === id || normalized === hash) return 115;
     if (title.includes(normalized) && normalizedKeywords.includes(normalized)) return 113;
-    if (title.startsWith(normalized) || id.startsWith(normalized)) return 112;
+    if (normalized.length >= 4 && (title.startsWith(normalized) || id.startsWith(normalized))) return 112;
     if (normalizedKeywords.includes(normalized)) return 110;
     if (href === `/${bare}` || href === `/${bare}/` || href === `/#${bare}`) return 105;
-    if (normalizedKeywords.some((keyword) => keyword.startsWith(normalized))) return 85;
-    if (title.includes(normalized) || id.includes(normalized)) return 75;
-    if (haystack.includes(q) || haystack.includes(bare)) return 50;
+    if (coversSearchTokens(queryTokens, titleTokens)) return 96;
+    if (coversSearchTokens(queryTokens, keywordTokens)) return 92;
+    if (coversSearchTokens(queryTokens, [...titleTokens, ...idTokens, ...keywordTokens])) return 88;
+    if (coversSearchTokens(queryTokens, allTokens)) return 78;
+    if (normalized.length >= 4 && normalizedKeywords.some((keyword) => keyword.startsWith(normalized))) return 76;
+    if (normalized.length >= 4 && (title.includes(normalized) || id.includes(normalized))) return 74;
     return 0;
 }
 
@@ -718,7 +764,7 @@ export function searchSiteMapIntents(query) {
     const raw = String(query || '').trim();
     if (!raw) return [];
     const wantsSeason = /\bseason\b/i.test(raw);
-    const queryTokens = normalizedSearchValue(raw).split(' ').filter(Boolean);
+    const queryTokens = searchTokens(raw);
     return SITE_MAP
         .flatMap((entry, parentIndex) => (entry.searchIntents || [])
             .filter((intent) => !intent.journeyOnly)
@@ -737,24 +783,89 @@ export function searchSiteMapIntents(query) {
             };
         }))
         .map((intent) => {
-            const discriminantTokens = normalizedSearchValue(String(intent.id || '').replace(/^[^-]+-/, '')).split(' ').filter(Boolean);
+            const discriminantTokens = searchTokens(String(intent.id || '').replace(/^[^-]+-/, ''), { keepStopWords: true });
             const intentTokens = [intent.id, intent.title, intent.detail, intent.group, ...(intent.keywords || [])]
-                .flatMap((value) => normalizedSearchValue(value).split(' '))
+                .flatMap((value) => searchTokens(value, { keepStopWords: true }))
                 .filter(Boolean);
             const hasSpecificIntent = queryTokens.some((queryToken) => (
                 queryToken.length >= 3
-                && discriminantTokens.some((token) => token.startsWith(queryToken) || queryToken.startsWith(token))
+                && discriminantTokens.some((token) => searchTokenMatches(queryToken, token))
             ));
-            const coversEveryToken = queryTokens.every((queryToken) => intentTokens.some((token) => (
-                token === queryToken
-                || (queryToken.length >= 3 && (token.startsWith(queryToken) || queryToken.startsWith(token)))
-            )));
+            const coversEveryToken = coversSearchTokens(queryTokens, intentTokens);
+            const exactKeywordMatch = (intent.keywords || [])
+                .some((keyword) => normalizedSearchValue(keyword) === normalizedSearchValue(raw));
             const score = Math.max(siteMapSearchScore(intent, raw), coversEveryToken ? 108 : 0);
-            return { intent, score, hasSpecificIntent };
+            return { intent, score, hasSpecificIntent, coversEveryToken, exactKeywordMatch };
         })
-        .filter(({ score, hasSpecificIntent }) => hasSpecificIntent && score >= 75)
+        .filter(({ score, hasSpecificIntent, coversEveryToken, exactKeywordMatch }) => (
+            score >= 75 && (hasSpecificIntent || coversEveryToken || exactKeywordMatch)
+        ))
         .sort((a, b) => b.score - a.score || a.intent.parentIndex - b.intent.parentIndex || a.intent.intentIndex - b.intent.intentIndex)
         .map(({ intent, score }) => ({ ...intent, searchScore: score }));
+}
+
+function boundedEditDistance(left, right, maximum = 2) {
+    const a = String(left || '');
+    const b = String(right || '');
+    if (Math.abs(a.length - b.length) > maximum) return maximum + 1;
+    let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+    for (let row = 1; row <= a.length; row += 1) {
+        const current = [row];
+        let rowMinimum = current[0];
+        for (let column = 1; column <= b.length; column += 1) {
+            const value = Math.min(
+                current[column - 1] + 1,
+                previous[column] + 1,
+                previous[column - 1] + (a[row - 1] === b[column - 1] ? 0 : 1)
+            );
+            current[column] = value;
+            rowMinimum = Math.min(rowMinimum, value);
+        }
+        if (rowMinimum > maximum) return maximum + 1;
+        previous = current;
+    }
+    return previous[b.length];
+}
+
+function siteMapSuggestionTokens() {
+    return [...new Set(SITE_MAP.flatMap((entry) => [
+        entry.id,
+        entry.title,
+        ...(entry.keywords || []),
+        ...(entry.searchIntents || []).flatMap((intent) => [
+            intent.id,
+            intent.title,
+            ...(intent.keywords || [])
+        ])
+    ]).flatMap((value) => searchTokens(value, { keepStopWords: true }))
+        .filter((token) => token.length >= 5))];
+}
+
+export function suggestSiteMapQuery(query) {
+    const raw = String(query || '').trim();
+    if (!raw || raw.startsWith('/') || searchSiteMap(raw).length || searchSiteMapIntents(raw).length) return null;
+    const tokens = searchTokens(raw, { keepStopWords: true });
+    const candidates = siteMapSuggestionTokens();
+    let changed = false;
+    const correctedTokens = tokens.map((token) => {
+        if (token.length < 5 || candidates.includes(token)) return token;
+        const match = candidates
+            .map((candidate) => ({
+                candidate,
+                distance: boundedEditDistance(token, candidate, 2)
+            }))
+            .filter(({ distance }) => distance <= 2)
+            .sort((left, right) => left.distance - right.distance
+                || Math.abs(left.candidate.length - token.length) - Math.abs(right.candidate.length - token.length)
+                || left.candidate.localeCompare(right.candidate))[0];
+        if (!match) return token;
+        changed = true;
+        return match.candidate;
+    });
+    if (!changed) return null;
+    const corrected = correctedTokens.join(' ');
+    if (!searchSiteMap(corrected).length && !searchSiteMapIntents(corrected).length) return null;
+    return { original: raw, corrected };
 }
 
 export function siteMapGroup(label) {

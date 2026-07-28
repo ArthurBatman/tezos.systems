@@ -14,7 +14,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const ECOSYSTEM_CSS_URL = '/css/ecosystem.css?v=514';
+const ECOSYSTEM_CSS_URL = '/css/ecosystem.css?v=515';
 const ECOSYSTEM_SNAPSHOT_URL = '/data/ecosystem-stats.json';
 const ECOSYSTEM_ENTRY_SUMMARY_URL = '/data/ecosystem-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;

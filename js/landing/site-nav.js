@@ -4,8 +4,12 @@ import {
     findCurrentSiteMapEntry,
     findSiteMapEntry,
     siteMapRoute,
-    searchSiteMap
+    searchSiteMap,
+    searchSiteMapIntents,
+    suggestSiteMapQuery
 } from '../core/site-map.js';
+import { loadSearchCatalog, searchFirstPartyCatalog } from '../core/search-catalog.js';
+import { parseSearchEntity } from '../core/search-entities.js';
 import { renderSiteHandoff } from '../core/site-handoff.js';
 import { initSiteJourneyCapture, siteMapJourneyLinks } from '../core/site-journey.js';
 import { initFooterDelegation } from '../core/wallet.js';
@@ -84,29 +88,93 @@ function renderNav() {
     const searchForm = nav.querySelector('.landing-nav-search');
     const searchInput = searchForm?.querySelector('input');
     const searchResults = searchForm?.querySelector('.landing-nav-search-results');
+    let searchVersion = 0;
+    let selectedIndex = -1;
+    let renderedLinks = [];
     const closeSearch = () => {
         if (!searchResults || !searchInput) return;
         searchResults.hidden = true;
         searchInput.setAttribute('aria-expanded', 'false');
+        searchInput.removeAttribute('aria-activedescendant');
+        selectedIndex = -1;
     };
-    const renderSearch = () => {
+    const setSelectedIndex = (next) => {
+        if (!searchInput || !renderedLinks.length) return;
+        selectedIndex = (next + renderedLinks.length) % renderedLinks.length;
+        renderedLinks.forEach((link, index) => {
+            link.classList.toggle('is-selected', index === selectedIndex);
+            link.setAttribute('aria-selected', index === selectedIndex ? 'true' : 'false');
+        });
+        searchInput.setAttribute('aria-activedescendant', renderedLinks[selectedIndex].id);
+        renderedLinks[selectedIndex].scrollIntoView({ block: 'nearest' });
+    };
+    const renderSearch = async () => {
         if (!searchResults || !searchInput) return;
         const query = searchInput.value.trim();
         if (!query) { closeSearch(); return; }
-        const matches = searchSiteMap(query).slice(0, 6);
+        const version = ++searchVersion;
+        await loadSearchCatalog();
+        if (version !== searchVersion || query !== searchInput.value.trim()) return;
+        const entity = parseSearchEntity(query);
+        const matches = [
+            ...searchSiteMapIntents(query).map((intent) => ({
+                id: `intent-${intent.parentId}-${intent.id}`,
+                title: intent.title,
+                detail: intent.detail || intent.group,
+                href: intent.href
+            })),
+            ...searchSiteMap(query).map((entry) => ({
+                id: `entry-${entry.id}`,
+                title: entry.title,
+                detail: entry.detail || entry.group,
+                href: entryRoute(entry)
+            })),
+            ...searchFirstPartyCatalog(query, { limit: 8 }).map((row) => ({
+                id: `catalog-${row.id}`,
+                title: row.title,
+                detail: row.detail || row.group,
+                href: row.href
+            })),
+            ...(entity ? [{
+                id: `entity-${entity.kind}`,
+                title: 'Inspect this blockchain identifier',
+                detail: 'Continue in the native Tezos Systems search lens',
+                href: `/#search=${encodeURIComponent(query)}`
+            }] : [])
+        ].filter((match, index, rows) => rows.findIndex((row) => row.href === match.href) === index).slice(0, 8);
+        const suggestion = matches.length ? null : suggestSiteMapQuery(query);
+        if (suggestion) {
+            matches.push({
+                id: 'spelling-suggestion',
+                title: `Did you mean “${suggestion.corrected}”?`,
+                detail: 'Continue in the complete Tezos Systems search',
+                href: `/#search=${encodeURIComponent(suggestion.corrected)}`
+            });
+        }
         searchResults.innerHTML = matches.length
-            ? matches.map((entry) => `<a role="option" href="${escapeHtml(entryRoute(entry))}"><strong>${escapeHtml(entry.title)}</strong><span>${escapeHtml(entry.detail || entry.group || '')}</span></a>`).join('')
-            : '<p>No matching Tezos Systems destination.</p>';
+            ? matches.map((match, index) => `<a id="landing-search-option-${index}" role="option" aria-selected="false" href="${escapeHtml(match.href)}"><strong>${escapeHtml(match.title)}</strong><span>${escapeHtml(match.detail || '')}</span></a>`).join('')
+            : '<p role="status">No matching destination, first-party record, or recognizable blockchain identifier.</p>';
         searchResults.hidden = false;
         searchInput.setAttribute('aria-expanded', 'true');
+        renderedLinks = [...searchResults.querySelectorAll('a[role="option"]')];
+        selectedIndex = -1;
+        searchInput.removeAttribute('aria-activedescendant');
     };
     searchInput?.addEventListener('input', renderSearch);
     searchInput?.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') { closeSearch(); searchInput.blur(); }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            setSelectedIndex(selectedIndex + (event.key === 'ArrowDown' ? 1 : -1));
+        }
+        if (event.key === 'Enter' && selectedIndex >= 0) {
+            event.preventDefault();
+            window.location.assign(renderedLinks[selectedIndex].href);
+        }
     });
     searchForm?.addEventListener('submit', (event) => {
         event.preventDefault();
-        const first = searchResults?.querySelector('a');
+        const first = selectedIndex >= 0 ? renderedLinks[selectedIndex] : searchResults?.querySelector('a');
         if (first) window.location.assign(first.href);
     });
     document.addEventListener('keydown', (event) => {

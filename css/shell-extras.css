@@ -1613,7 +1613,7 @@
 
 .native-explorer-actions a,
 .native-explorer-actions button {
-    min-height: 34px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1682,6 +1682,83 @@
 .native-explorer-status-failed,
 .native-explorer-status-backtracked {
     color: #ff6b8a !important;
+}
+
+.native-contract-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
+.native-contract-identity,
+.native-contract-entrypoints,
+.native-contract-matches {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.native-contract-identity {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.native-contract-entrypoints {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.native-contract-entrypoint,
+.native-contract-match {
+    min-width: 0;
+    padding: 0.72rem;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.native-contract-entrypoint div,
+.native-contract-match {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+}
+
+.native-contract-entrypoint strong,
+.native-contract-match strong {
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+}
+
+.native-contract-entrypoint span,
+.native-contract-match span {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+}
+
+.native-contract-entrypoint code,
+.native-contract-match code {
+    display: block;
+    min-width: 0;
+    margin-top: 0.45rem;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.native-contract-match {
+    color: inherit;
+    text-decoration: none;
+}
+
+.native-contract-match code {
+    margin: 0;
+}
+
+.native-contract-match:is(:hover, :focus-visible) {
+    border-color: color-mix(in srgb, var(--accent-cyan) 38%, var(--glass-border));
+    outline: none;
 }
 
 @media (max-width: 640px) {
@@ -1924,6 +2001,16 @@
     .native-explorer-op-grid,
     .native-explorer-block-producer {
         grid-template-columns: 1fr;
+    }
+
+    .native-contract-entrypoints,
+    .native-contract-identity {
+        grid-template-columns: 1fr;
+    }
+
+    .native-contract-match {
+        display: grid;
+        justify-items: start;
     }
 
     .native-explorer-event {
