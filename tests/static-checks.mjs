@@ -1674,6 +1674,31 @@ async function checkCacheBustAlignment() {
   } else {
     pass('root OG image dimensions match generator output');
   }
+  const rootOgUrl = index.match(/<meta property="og:image" content="(https:\/\/tezos\.systems\/og-image\.png\?v=[^"]+)">/)?.[1];
+  if (!rootOgUrl || !index.includes(`<meta name="twitter:image" content="${rootOgUrl}">`)) {
+    fail('index.html root OG and X metadata must share one cache-busted social-card URL');
+  } else {
+    const rootOgConsumers = [
+      'landing.html',
+      'staking/index.html',
+      'governance/index.html',
+      'bakers/index.html',
+      'hen/index.html',
+      'compare/index.html',
+      'compare/tezos-vs-ethereum.html',
+      'compare/tezos-vs-solana.html',
+      'compare/tezos-vs-cardano.html',
+      'compare/tezos-vs-algorand.html'
+    ];
+    for (const file of rootOgConsumers) {
+      const html = await readText(file);
+      const references = [...html.matchAll(/https:\/\/tezos\.systems\/og-image\.png(?:\?v=[^"']+)?/g)].map((match) => match[0]);
+      if (!references.length || references.some((reference) => reference !== rootOgUrl)) {
+        fail(`${file} must use the shared cache-busted root social-card URL`);
+      }
+    }
+    pass(`root social-card cache key aligned across ${rootOgConsumers.length + 1} public surfaces`);
+  }
 
   if (!app.includes("fetch('/version.json'")) {
     fail('app.js must fetch /version.json from the site root so clean route pages do not request nested version metadata');
@@ -4911,6 +4936,18 @@ async function checkPortableTooling() {
   const rootOgGenerator = await readText('scripts/generate-og-image.js');
   if (rootOgGenerator.includes('Math.random')) {
     fail('scripts/generate-og-image.js must be deterministic when commit hooks regenerate og-image.png');
+  }
+  const rootOgContracts = [
+    ["../js/effects/valley-effects.js", 'reuse the real Valley renderer'],
+    ['class="valley-wash"', 'protect foreground contrast over the Valley scene'],
+    ['font-size: 64px', 'keep the root social-card title readable after feed downscaling'],
+    ['font-size: 18px; line-height: 1.05', 'keep root social-card metric labels readable after feed downscaling'],
+    ['data-og-ready', 'wait for the deterministic Valley frame before capture']
+  ];
+  for (const [snippet, description] of rootOgContracts) {
+    if (!rootOgGenerator.includes(snippet)) {
+      fail(`scripts/generate-og-image.js must ${description}`);
+    }
   }
 
   if (!(await pathExists('scripts/lib/playwright-browser.cjs'))) {

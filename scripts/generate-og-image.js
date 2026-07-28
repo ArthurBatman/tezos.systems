@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Generate OG image for tezos.systems with live stats and matrix theme.
+ * Generate the root OG image for tezos.systems with live stats and the
+ * deterministic static frame from the Valley theme.
  * Run: node scripts/generate-og-image.js
  * Uses Playwright and falls back to local Chrome/Chromium if the bundled
  * browser is missing.
@@ -8,8 +9,11 @@
 
 const fs = require('fs');
 const path = require('path');
-const { pathToFileURL } = require('url');
 const { launchChromium } = require('./lib/playwright-browser.cjs');
+
+const PROJECT_ROOT = path.join(__dirname, '..');
+const OG_ORIGIN = 'http://tezos-og.local';
+const OG_PREVIEW_PATH = '/scripts/_og-preview.html';
 
 async function fetchStats() {
     const [statsResp, protocolResp] = await Promise.all([
@@ -41,60 +45,38 @@ async function fetchStats() {
     return { bakers, tz4Bakers, tz4Pct, stakingRatio, supply: supplyB, protocolName };
 }
 
-function hashSeed(value) {
-    let seed = 2166136261;
-    for (let i = 0; i < value.length; i++) {
-        seed ^= value.charCodeAt(i);
-        seed = Math.imul(seed, 16777619);
-    }
-    return seed >>> 0;
-}
-
-function seededRandom(seed) {
-    let state = seed >>> 0;
-    return () => {
-        state = Math.imul(state + 0x6D2B79F5, 1);
-        let t = state;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-function generateMatrixChars(stats) {
-    const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
-    const random = seededRandom(hashSeed(JSON.stringify(stats)));
-    let result = '';
-    for (let i = 0; i < 3000; i++) {
-        result += chars[Math.floor(random() * chars.length)];
-    }
-    return result;
-}
-
 function buildHTML(stats) {
+    const serializedStats = JSON.stringify(stats).replace(/</g, '\\u003c');
     return `<!DOCTYPE html>
-<html>
+<html data-og-ready="false">
 <head>
 <meta charset="utf-8">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; }
   body {
-    width: 1200px; height: 630px;
-    background: #000; color: #00ff41;
+    background: #182016; color: #fff4d6;
     font-family: 'Share Tech Mono', monospace;
     overflow: hidden; position: relative;
   }
-  .bg-chars {
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    font-size: 14px; line-height: 1.1;
-    color: rgba(0, 255, 65, 0.06);
-    overflow: hidden; word-break: break-all;
-    padding: 10px; z-index: 0;
+  #valley-background-canvas {
+    position: absolute !important;
+    z-index: 0 !important;
+    opacity: 1 !important;
+  }
+  .valley-wash {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      radial-gradient(circle at 78% 14%, rgba(255, 231, 177, 0.05), transparent 32%),
+      linear-gradient(90deg, rgba(8, 12, 8, 0.62) 0%, rgba(8, 12, 8, 0.28) 52%, rgba(8, 12, 8, 0.42) 100%),
+      linear-gradient(180deg, rgba(7, 10, 7, 0.14) 0%, rgba(7, 10, 7, 0.42) 48%, rgba(7, 10, 7, 0.68) 100%);
   }
   .content {
-    position: relative; z-index: 1;
-    padding: 50px 60px; height: 100%;
+    position: relative; z-index: 2;
+    padding: 42px 50px 32px; height: 100%;
     display: flex; flex-direction: column;
     justify-content: space-between;
   }
@@ -104,82 +86,92 @@ function buildHTML(stats) {
   }
   .title {
     font-family: 'Orbitron', sans-serif;
-    font-size: 48px; font-weight: 900; color: #00ff41;
-    text-shadow: 0 0 20px rgba(0, 255, 65, 0.5), 0 0 40px rgba(0, 255, 65, 0.2);
-    letter-spacing: 4px;
+    font-size: 64px; line-height: 1; font-weight: 900; color: #fff4d6;
+    background: linear-gradient(110deg, #fff8e6 0%, #f3c47a 55%, #dfa06f 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 5px 26px rgba(17, 18, 11, 0.38);
+    letter-spacing: 2px;
   }
   .subtitle {
-    font-size: 18px; color: rgba(0, 255, 65, 0.5);
-    margin-top: 8px; letter-spacing: 1px;
+    font-size: 23px; line-height: 1.25; color: #f5e7c6;
+    margin-top: 12px; letter-spacing: 0.25px;
+    text-shadow: 0 2px 10px rgba(8, 10, 7, 0.85);
   }
   .live-badge {
-    background: rgba(0, 255, 65, 0.1);
-    border: 1px solid rgba(0, 255, 65, 0.3);
-    border-radius: 20px; padding: 8px 20px;
-    font-size: 14px; color: #00ff41;
+    background: rgba(20, 29, 18, 0.88);
+    border: 1px solid rgba(169, 209, 142, 0.58);
+    border-radius: 999px; padding: 10px 18px;
+    font-size: 16px; line-height: 1; color: #d5f0c2;
+    letter-spacing: 0.8px;
     display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 8px 24px rgba(8, 10, 7, 0.22);
   }
   .live-dot {
-    width: 8px; height: 8px; background: #00ff41;
-    border-radius: 50%; box-shadow: 0 0 8px #00ff41;
+    width: 9px; height: 9px; background: #a9d18e;
+    border-radius: 50%; box-shadow: 0 0 10px rgba(169, 209, 142, 0.85);
   }
   .stats-grid {
     display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
+    gap: 16px;
   }
   .stat-card {
-    background: rgba(0, 255, 65, 0.04);
-    border: 1px solid rgba(0, 255, 65, 0.15);
-    border-radius: 12px; padding: 24px 28px;
+    min-height: 121px;
+    background: linear-gradient(145deg, rgba(35, 42, 27, 0.92), rgba(19, 24, 16, 0.88));
+    border: 1px solid rgba(231, 182, 108, 0.38);
+    border-radius: 14px; padding: 17px 22px 15px;
+    box-shadow: 0 12px 30px rgba(8, 10, 7, 0.2);
   }
   .stat-label {
-    font-size: 12px; color: rgba(0, 255, 65, 0.4);
-    letter-spacing: 2px; text-transform: uppercase;
-    margin-bottom: 8px;
+    font-size: 18px; line-height: 1.05; font-weight: 700; color: #ead9b6;
+    letter-spacing: 0.7px; text-transform: uppercase;
+    margin-bottom: 7px;
   }
   .stat-value {
     font-family: 'Orbitron', sans-serif;
-    font-size: 42px; font-weight: 700; color: #00ff41;
-    text-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+    font-size: 50px; line-height: 1; font-weight: 700; color: #fff4d6;
+    text-shadow: 0 3px 15px rgba(8, 10, 7, 0.5);
+  }
+  .stat-value.live {
+    color: #c8e7b4;
   }
   .stat-value.accent {
-    color: #ff0080;
-    text-shadow: 0 0 15px rgba(255, 0, 128, 0.4);
+    color: #f4a083;
   }
   .footer {
     display: flex; justify-content: space-between;
     align-items: center;
+    color: #ead9b6;
+    text-shadow: 0 2px 10px rgba(8, 10, 7, 0.9);
   }
   .footer-left {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 16px; font-weight: 700;
-    color: rgba(0, 255, 65, 0.3); letter-spacing: 2px;
-    border: 1px solid rgba(0, 255, 65, 0.15);
-    border-radius: 6px; padding: 6px 14px;
+    font-size: 17px; font-weight: 700;
+    letter-spacing: 0.6px;
   }
   .footer-right {
-    font-size: 16px; color: rgba(0, 255, 65, 0.3);
-    letter-spacing: 1px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px; font-weight: 700; color: #fff4d6;
+    letter-spacing: 0.4px;
   }
 </style>
 </head>
 <body>
-  <div class="bg-chars">${generateMatrixChars(stats)}</div>
+  <div class="valley-wash"></div>
   <div class="content">
     <div class="header">
       <div>
         <div class="title">TEZOS SYSTEMS</div>
-        <div class="subtitle">Real-time Tezos network intelligence · ${stats.protocolName} protocol</div>
+        <div class="subtitle">Live Tezos + Tezos X intelligence · ${stats.protocolName} protocol</div>
       </div>
       <div class="live-badge"><div class="live-dot"></div>LIVE DATA</div>
     </div>
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Active Bakers</div>
-        <div class="stat-value">${stats.bakers}</div>
+        <div class="stat-value live">${stats.bakers}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">TZ4 Consensus Keys</div>
+        <div class="stat-label">TZ4 Keys</div>
         <div class="stat-value">${stats.tz4Bakers}</div>
       </div>
       <div class="stat-card">
@@ -187,8 +179,8 @@ function buildHTML(stats) {
         <div class="stat-value accent">${stats.tz4Pct}%</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Staking Ratio</div>
-        <div class="stat-value">${stats.stakingRatio}%</div>
+        <div class="stat-label">Staked</div>
+        <div class="stat-value live">${stats.stakingRatio}%</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Total Supply</div>
@@ -196,16 +188,35 @@ function buildHTML(stats) {
       </div>
       <div class="stat-card">
         <div class="stat-label">Protocol</div>
-        <div class="stat-value" style="font-size: 32px;">${stats.protocolName}</div>
+        <div class="stat-value" style="font-size: 40px;">${stats.protocolName}</div>
       </div>
     </div>
     <div class="footer">
-      <div class="footer-left">Tezos Systems</div>
+      <div class="footer-left">Real-time network facts, chambers, and personal tools</div>
       <div class="footer-right">tezos.systems</div>
     </div>
   </div>
+  <script type="module">
+    import { createValleyEffect } from '../js/effects/valley-effects.js';
+
+    const stats = ${serializedStats};
+    const valley = createValleyEffect().start().seedStats({
+      stakingRatio: Number(stats.stakingRatio),
+      cycleProgress: 58,
+      transactions24h: 180000
+    });
+    valley.pause();
+    valley.drawScene(0, true);
+    document.documentElement.dataset.ogReady = 'true';
+  </script>
 </body>
 </html>`;
+}
+
+function localContentType(filePath) {
+    if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8';
+    if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
+    return 'application/octet-stream';
 }
 
 async function main() {
@@ -214,10 +225,7 @@ async function main() {
     console.log('Stats:', JSON.stringify(stats));
 
     const html = buildHTML(stats);
-    const tmpHtml = path.join(__dirname, '_og-tmp.html');
-    fs.writeFileSync(tmpHtml, html);
-
-    const outputPath = path.join(__dirname, '..', 'og-image.png');
+    const outputPath = path.join(PROJECT_ROOT, 'og-image.png');
 
     console.log('Capturing with Playwright...');
     const { chromium } = require('playwright');
@@ -226,12 +234,38 @@ async function main() {
     try {
         browser = await launchChromium(chromium, { headless: true });
         const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-        await page.goto(pathToFileURL(tmpHtml).href, { waitUntil: 'networkidle', timeout: 15000 });
-        await page.waitForTimeout(2000); // fonts
+        await page.route(`${OG_ORIGIN}/**`, async (route) => {
+            const requestUrl = new URL(route.request().url());
+            if (requestUrl.pathname === OG_PREVIEW_PATH) {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'text/html; charset=utf-8',
+                    body: html
+                });
+                return;
+            }
+
+            const assetPath = path.resolve(PROJECT_ROOT, `.${decodeURIComponent(requestUrl.pathname)}`);
+            if (!assetPath.startsWith(`${PROJECT_ROOT}${path.sep}`)) {
+                await route.fulfill({ status: 403, body: 'Forbidden' });
+                return;
+            }
+            try {
+                await route.fulfill({
+                    status: 200,
+                    contentType: localContentType(assetPath),
+                    body: fs.readFileSync(assetPath)
+                });
+            } catch (_error) {
+                await route.fulfill({ status: 404, body: 'Not found' });
+            }
+        });
+        await page.goto(`${OG_ORIGIN}${OG_PREVIEW_PATH}`, { waitUntil: 'networkidle', timeout: 15000 });
+        await page.waitForSelector('html[data-og-ready="true"]', { timeout: 10000 });
+        await page.evaluate(() => document.fonts.ready);
         await page.screenshot({ path: outputPath, type: 'png' });
     } finally {
         if (browser) await browser.close();
-        try { fs.unlinkSync(tmpHtml); } catch(e) {}
     }
 
     console.log(`✅ OG image saved to ${outputPath}`);

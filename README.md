@@ -137,7 +137,7 @@ tezos.systems/
 │   ├── build-css.mjs                  # Base/theme CSS splitter and minifier
 │   ├── update-governance-votes.mjs    # Compatibility wrapper
 │   ├── stamp-version.sh               # Pre-commit version metadata stamp
-│   └── generate-og-image.js           # OG image generator
+│   └── generate-og-image.js           # Valley root OG social-card generator
 ├── .github/scripts/
 │   ├── collect-data.js                # 2-hour global Supabase history row
 │   └── collect-chamber-history.js     # 30-minute chamber/domain snapshots

@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
+            { type: '🎨', text: 'Social previews now carry the painterly Valley landscape behind high-contrast data glass, with larger titles and metric labels that remain readable in an X feed' },
             { type: '🎨', text: 'New Tezos Systems builds now use a high-contrast persistent release dock with a full-size Update & reload action and a compact Later state' },
             { type: '🔧', text: 'Long-open and cross-tab sessions now keep new builds reachable through hourly visible checks, reliable resurfacing, and a reload fallback when activation takes longer than expected' },
             { type: '🔧', text: 'Live Chamber launchers now name their source and show a relative or UTC observation time instead of an ambiguous local-time stamp' },
