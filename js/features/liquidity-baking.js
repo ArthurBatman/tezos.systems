@@ -5,7 +5,7 @@
 
 import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
-import { escapeHtml, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
@@ -1428,7 +1428,7 @@ async function loadEntryCardStatus({ force = false } = {}) {
             card.dataset.lbLive = 'true';
             card.dataset.lbRefreshInterval = String(LB_ENTRY_REFRESH_MS);
             const updatedAt = data.latest?.timestamp || Date.now();
-            card.dataset.updatedLabel = `as of ${formatUtcTime(updatedAt)} UTC`;
+            card.dataset.updatedLabel = formatFreshnessStamp(updatedAt, { source: 'TzKT blocks' });
             setDataFreshnessState(card, updatedAt, LB_ENTRY_REFRESH_MS * 2);
         }
     } catch {

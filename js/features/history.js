@@ -18,7 +18,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=516';
+const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=517';
 const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all']);
 const DEFAULT_CYCLE_HISTORY_RANGE = 'all';
 
@@ -60,7 +60,7 @@ const HISTORY_SOURCE_DISCLOSURES = [
     {
         key: 'global',
         label: 'Global',
-        cadence: 'Every 2h',
+        cadence: 'Scheduled every 2h',
         coverage: 'Network, protocol, staking, baker, issuance, and Liquidity Baking snapshots.',
         sources: [
             { label: 'TzKT', href: 'https://api.tzkt.io/v1/head' },
@@ -70,7 +70,7 @@ const HISTORY_SOURCE_DISCLOSURES = [
     {
         key: 'market',
         label: 'Market',
-        cadence: 'Every 30m',
+        cadence: 'Scheduled every 30m',
         coverage: 'XTZ spot, market cap, volume, fiat, and BTC-denominated snapshots.',
         sources: [
             { label: 'CoinGecko', href: 'https://www.coingecko.com/en/coins/tezos' }
@@ -79,7 +79,7 @@ const HISTORY_SOURCE_DISCLOSURES = [
     {
         key: 'networkHealth',
         label: 'Network Health',
-        cadence: 'Every 30m',
+        cadence: 'Scheduled every 30m',
         coverage: 'Recent block timing, rounds, attestation power, and missed rights samples.',
         sources: [
             { label: 'TzKT blocks & rights', href: 'https://api.tzkt.io/v1/blocks?sort.desc=level&limit=16' }
@@ -88,7 +88,7 @@ const HISTORY_SOURCE_DISCLOSURES = [
     {
         key: 'tezosx',
         label: 'Tezos X',
-        cadence: 'Every 30m',
+        cadence: 'Scheduled every 30m',
         coverage: 'Etherlink TVL, transactions, accounts, gas, block time, and head agreement.',
         sources: [
             { label: 'DefiLlama', href: 'https://defillama.com/chain/Etherlink' },
@@ -99,7 +99,7 @@ const HISTORY_SOURCE_DISCLOSURES = [
     {
         key: 'governance',
         label: 'Governance',
-        cadence: 'Every 30m',
+        cadence: 'Scheduled every 30m',
         coverage: 'Current period, proposal, voter, voting-power, quorum, and ballot snapshots.',
         sources: [
             { label: 'TzKT governance', href: 'https://api.tzkt.io/v1/voting/periods/current' }
@@ -410,6 +410,25 @@ function formatCoverageDate(value) {
     });
 }
 
+function observedCadenceLabel(timestamps) {
+    if (!Array.isArray(timestamps) || timestamps.length < 2) return '';
+    const gaps = timestamps
+        .slice(1)
+        .map((date, index) => date.getTime() - timestamps[index].getTime())
+        .filter((gap) => Number.isFinite(gap) && gap > 0)
+        .sort((a, b) => a - b);
+    if (!gaps.length) return '';
+    const middle = Math.floor(gaps.length / 2);
+    const medianMs = gaps.length % 2
+        ? gaps[middle]
+        : (gaps[middle - 1] + gaps[middle]) / 2;
+    const minutes = Math.max(1, Math.round(medianMs / (60 * 1000)));
+    const interval = minutes < 120
+        ? `${minutes}m`
+        : `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)}h`;
+    return `observed median ~${interval}`;
+}
+
 function historyCoverageLabel(receipt, range) {
     if (historyReceiptUnavailable(receipt)) return `Unavailable for ${rangeLabel(range)}`;
     const rows = historyReceiptRows(receipt);
@@ -426,7 +445,8 @@ function historyCoverageLabel(receipt, range) {
     const first = formatCoverageDate(timestamps[0]);
     const last = formatCoverageDate(timestamps[timestamps.length - 1]);
     const window = first === last ? `${first} UTC` : `${first}–${last} UTC`;
-    return `${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? 'snapshot' : 'snapshots'} · ${window}`;
+    const observedCadence = observedCadenceLabel(timestamps);
+    return `${rows.length.toLocaleString('en-US')} ${rows.length === 1 ? 'snapshot' : 'snapshots'} · ${window}${observedCadence ? ` · ${observedCadence}` : ''}`;
 }
 
 function renderHistorySourceCoverage(receipts, range) {

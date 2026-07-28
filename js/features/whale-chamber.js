@@ -7,7 +7,8 @@
  * labelled independently and never combined into an "economic volume" claim.
  */
 
-import { escapeHtml } from '../core/utils.js';
+import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
+import { escapeHtml, formatUtcDateTime } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import {
     activateChamberDialog,
@@ -114,6 +115,15 @@ function ageLabel(value) {
     if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
     if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
     return `${Math.floor(elapsed / 86_400_000)}d ago`;
+}
+
+function archiveWindowLabel(transfer = lastArtifact?.transfers24h) {
+    const since = transfer?.window?.since;
+    const until = transfer?.window?.until;
+    if (!Number.isFinite(Date.parse(since || '')) || !Number.isFinite(Date.parse(until || ''))) {
+        return 'window unavailable';
+    }
+    return `${formatUtcDateTime(since)} → ${formatUtcDateTime(until)} UTC`;
 }
 
 function receiptHref(hash, address = '') {
@@ -347,7 +357,8 @@ function sourceStripMarkup() {
         <div class="whale-watch-source-strip${stale}" id="whale-watch-freshness" role="status" aria-live="polite">
             <span class="whale-watch-live-dot" aria-hidden="true"></span>
             <strong>Shared archive</strong>
-            <span>${generatedAt ? `generated ${escapeHtml(ageLabel(generatedAt))}` : 'not yet available'}</span>
+            <span>${generatedAt ? `generated ${escapeHtml(ageLabel(generatedAt))} · ${escapeHtml(GENERATED_PROOFBOOK_SCHEDULE_LABEL)}` : 'not yet available'}</span>
+            ${lastArtifact?.transfers24h ? `<span>window ${escapeHtml(archiveWindowLabel())}</span>` : ''}
             ${artifactError ? `<span>last-good retained · refresh failed</span>` : ''}
             <a href="${ARTIFACT_URL}" target="_blank" rel="noopener">JSON receipt</a>
         </div>`;
@@ -402,7 +413,7 @@ function overviewMarkup() {
                 <article><span>Dormant cohort</span><strong>${exact(dormant.eligibleCount)}</strong><small>${xtz(dormant.eligibleBalanceMutez, 2)} observed holdings</small></article>
             </div>
             <div class="whale-watch-grid whale-watch-grid-overview">
-                <article class="whale-watch-panel"><div class="whale-watch-panel-title"><div><span>Receipt of scale</span><h4>Largest observed operation</h4></div><span class="whale-watch-chip">24H</span></div>${largestOperationMarkup(transfer.largestOperation)}</article>
+                <article class="whale-watch-panel"><div class="whale-watch-panel-title"><div><span>Receipt of scale</span><h4>Largest observed operation</h4></div><span class="whale-watch-chip">Archived window</span></div>${largestOperationMarkup(transfer.largestOperation)}</article>
                 <article class="whale-watch-panel"><div class="whale-watch-panel-title"><div><span>Source-native names</span><h4>TzKT-labeled endpoints</h4></div><span class="whale-watch-chip">Live tape</span></div>
                     <div class="whale-watch-endpoint-sample"><div><span>Applied transfers</span><strong>${exact(named.appliedTransactions)}</strong></div><div><span>Touching an alias</span><strong>${exact(named.labeledTransactions)}</strong></div><div><span>Distinct named endpoints</span><strong>${exact(named.endpoints.length)}</strong></div></div>
                     <p>${exact(named.unlabeledTransactions)} applied transaction rows have no endpoint alias in the bounded live sample. TzKT aliases are presented as source context only; Whale Watch does not infer exchange ownership or beneficial control.</p>
@@ -656,7 +667,7 @@ function entryMarkup() {
         </div>
         <div class="whale-watch-entry-sonar" aria-hidden="true"><i></i><i></i><i></i><b>🐋</b></div>
         <div class="whale-watch-entry-metrics">
-            <div><span>Largest · 24H</span><strong>${transfer?.largestOperation ? xtz(transfer.largestOperation.amountMutez, 2) : 'Loading'}</strong></div>
+            <div><span>Largest · archive</span><strong>${transfer?.largestOperation ? xtz(transfer.largestOperation.amountMutez, 2) : 'Loading'}</strong></div>
             <div><span>Operation groups</span><strong>${transfer ? exact(transfer.operationGroupCount) : '—'}</strong></div>
             <div><span>Dormant accounts</span><strong>${dormant ? exact(dormant.eligibleCount) : '—'}</strong></div>
         </div>
@@ -686,7 +697,7 @@ export function updateWhaleWatchEntry({ quiet = false } = {}) {
     front.dataset.whaleWatchRendered = '1';
     const card = document.getElementById('whale-watch-entry-card');
     card?.removeAttribute('data-updated-label');
-    if (artifactError && lastArtifact && card) card.dataset.updatedLabel = `Last good ${ageLabel(lastArtifact.generatedAt)} · refresh failed`;
+    if (artifactError && lastArtifact && card) card.dataset.updatedLabel = `Last good ${ageLabel(lastArtifact.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
     window.syncChamberEntryFooters?.(card);
     wireEntry(card);
 }

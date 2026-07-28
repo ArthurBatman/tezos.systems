@@ -11,7 +11,7 @@ import {
     ETHERLINK_GOVERNANCE_TRACKS as TRACK_TEMPLATES,
     classifyEtherlinkGovernanceTrack
 } from '../core/etherlink-governance-contracts.mjs';
-import { escapeHtml, formatUtcDateTime, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, formatUtcDateTime, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -1247,8 +1247,7 @@ function renderEntryCard(data) {
         metricsEl.innerHTML = renderEntryMetrics(data);
     }
     const updatedAt = data.updatedAt || Date.now();
-    const time = new Date(updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
-    card.dataset.updatedLabel = `as of ${time} UTC`;
+    card.dataset.updatedLabel = formatFreshnessStamp(updatedAt, { source: 'TzKT' });
     setDataFreshnessState(card, updatedAt, ENTRY_REFRESH_MS * 2);
 }
 

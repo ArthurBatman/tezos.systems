@@ -11,7 +11,7 @@
  * Keeps the live proposal window visible even before the first proposal lands.
  */
 
-import { escapeHtml, formatLiveCountdown, matchesTextQuery, setDataFreshnessState, startLiveTimeTicker } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, formatLiveCountdown, matchesTextQuery, setDataFreshnessState, startLiveTimeTicker } from '../core/utils.js';
 import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
@@ -2380,8 +2380,7 @@ async function loadEntryCardStatus({ force = false } = {}) {
         }
         if (card) {
             const updatedAt = Date.now();
-            const time = new Date(updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
-            card.dataset.updatedLabel = `as of ${time} UTC`;
+            card.dataset.updatedLabel = formatFreshnessStamp(updatedAt, { source: 'TzKT' });
             setDataFreshnessState(card, updatedAt, CHAMBER_ENTRY_REFRESH_MS * 2);
         }
         const isActive = currentPeriod.status === 'active' && currentPeriod.kind !== 'proposal';

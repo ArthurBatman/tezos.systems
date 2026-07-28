@@ -303,8 +303,8 @@ inline modal styles in `js/core/app.js`.
   Each Chamber row is wrapped responsively so wide cards keep their companion
   card instead of creating desktop grid holes; cards also keep a canonical
   app-shell open affordance in the fixed footer rail, card-level direct-link
-  controls, a matching section info button, and quiet `as of` freshness stamps on
-  the live chamber cards.
+  controls, a matching section info button, and quiet source-aware freshness
+  stamps that use relative age for recent observations and UTC for older ones.
 - A live block ticker sits as its own island below the header/title row and
   above the command deck.
   It uses the Network Health block feed to show the latest block, baker,
@@ -559,8 +559,10 @@ inline modal styles in `js/core/app.js`.
   balances, requested amounts, deposits, and activation allocations are never
   substituted. The live tape publishes only when its transaction, delegation,
   stake, and unstake lanes all succeed, and TzKT aliases are source context—not
-  inferred exchange ownership or beneficial control. Legacy `#giants` opens
-  Deep Sleep inside this room.
+  inferred exchange ownership or beneficial control. Its shared-archive strip
+  names the exact UTC bounds represented by “24 hours” and discloses the
+  generator's six-hour schedule. Legacy `#giants` opens Deep Sleep inside this
+  room.
 - Network Health Chamber with direct `#health` access, recent block cadence,
   consensus round, missed attestation, missed baking-right detail, TzKT cyclic
   cycle-time drift, exact current-cycle percentage and remaining time from the
@@ -664,7 +666,8 @@ inline modal styles in `js/core/app.js`.
   signals in one measured archive. Its 24-hour, 7-day, 30-day, and all-captured
   ranges never synthesize missing intervals; `?range=...&metric=...` links can
   reopen one exact chart without replacing the surrounding source and freshness
-  context.
+  context. Each source names its configured capture schedule separately from
+  the median interval observed in the returned rows.
 - Protocol History Chamber with direct `#protocol-history` access, backed by
   `data/protocol-data.json` and `data/protocol-debates.json`. It preserves the
   protocol timeline, individual protocol lore modals, share capture, and impact
@@ -1037,7 +1040,10 @@ The pre-commit hook runs
 the same orchestrator in
 commit mode so fast-moving generated outputs update with each normal commit.
 `.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
-and commits only when generated outputs change.
+every six hours and commits only when generated outputs change. Capital,
+Ecosystem Activity, Maxis, and Whale Watch surface that configured schedule
+beside the artifact's actual generation or source-observation age; Capital also
+preserves the CoinGecko quote time and last-good status in its compact launcher.
 `.github/workflows/refresh-chain-comparison.yml` runs on the first day of each
 month, refreshes and validates the comparison receipt, rebakes the standalone
 pages, and commits only a fully verified snapshot.
@@ -1073,9 +1079,11 @@ the manual `Backfill Supabase History` GitHub Action so it can use the
 service-role `SUPABASE_KEY`; it defaults to dry-run mode and intentionally
 leaves older tz4 power fields blank because TzKT exposes baker power as current
 delegate state rather than a reliable historical snapshot.
-`npm run check:supabase:freshness` verifies that the latest global history row
-is less than three hours old and each 30-minute domain table is less than
-90 minutes old.
+`npm run check:supabase:freshness` uses the shared browser/operations contract
+to raise a delivery alarm when any of the five history ledgers is more than five
+hours old. The Chamber still discloses their configured two-hour or 30-minute
+capture schedules and the median interval actually observed in returned rows;
+the five-hour threshold is an operational stale alarm, not a cadence claim.
 
 ## Local Development
 
@@ -1268,7 +1276,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v516`, including hero search, theme
+- Current aligned shell cache stamp: `v517`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

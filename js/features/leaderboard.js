@@ -4,7 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml, formatMutez } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, formatMutez } from '../core/utils.js';
 import { buildBakerCapacitySnapshot } from '../core/baker-capacity.mjs';
 import {
     connectOctezWallet,
@@ -29,7 +29,7 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v6';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4, 5].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=516';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=517';
 const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
 const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -1475,12 +1475,7 @@ function openBakerActionDialog(mode, address) {
 function formattedObservedAt() {
     const parsed = Date.parse(leaderboardDataQuality.observedAt || '');
     if (!Number.isFinite(parsed)) return 'Awaiting a source receipt';
-    return `Observed ${new Date(parsed).toLocaleString([], {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    })}`;
+    return `Observed ${formatFreshnessStamp(parsed, { source: 'TzKT' })}`;
 }
 
 function bakerDirectorySummary() {

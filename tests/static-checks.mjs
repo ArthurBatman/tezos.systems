@@ -3765,6 +3765,10 @@ async function checkLauncherProjectionContracts() {
     || capitalProjection.source?.fileSha256 !== createHash('sha256').update(capitalSourceText).digest('hex')) {
     fail('Capital launcher projection must match its stable payload and exact reviewed source receipt');
   }
+  if (capitalProjection.markets?.xtz?.coin?.lastUpdated !== capitalSource.markets?.xtz?.coin?.lastUpdated
+    || capitalProjection.markets?.xtz?.coin?.sourceStatus !== capitalSource.sources?.coingecko?.status) {
+    fail('Capital launcher projection must carry the reviewed CoinGecko observation time and source status');
+  }
 
   if (Buffer.byteLength(maxisProjectionText) > 24 * 1024) {
     fail(`Maxis launcher projection exceeds its 24 KiB budget: ${Buffer.byteLength(maxisProjectionText)} bytes`);
@@ -3843,6 +3847,8 @@ async function checkLauncherProjectionContracts() {
       "const CAPITAL_ENTRY_SUMMARY_URL = '/data/capital-entry-summary.json'",
       'fetchCapitalEntrySummary',
       'fetchCapitalSnapshot',
+      'priceFreshnessLabel',
+      'GENERATED_PROOFBOOK_SCHEDULE_LABEL',
       'Capital snapshot failed its SHA-256 integrity receipt',
       'Capital snapshot is older than the launcher projection source receipt',
       'in-memory launcher projection instead of leaving the Chamber pinned'
@@ -3918,11 +3924,13 @@ async function checkModuleImportVersions() {
 
 async function checkHistoricalPagination() {
   const api = await readText('js/core/api.js');
+  const freshnessContracts = await readText('js/core/freshness-contracts.mjs');
   const history = await readText('js/features/history.js');
   const index = await readText('index.html');
   const collector = await readText('.github/scripts/collect-data.js');
   const backfill = await readText('scripts/backfill-supabase-history.mjs');
   const freshness = await readText('scripts/check-supabase-history-freshness.mjs');
+  const generatedWorkflow = await readText('.github/workflows/refresh-governance-surfaces.yml');
   const backfillWorkflow = await readText('.github/workflows/backfill-supabase-history.yml');
   const packageJson = await readText('package.json');
   const migration = await readText('supabase/migrations/20260618190000_expand_historical_capture.sql');
@@ -3934,6 +3942,30 @@ async function checkHistoricalPagination() {
   }
   if (!api.includes('historicalDataCache') || !api.includes('cached.promise')) {
     fail('fetchHistoricalData must cache in-flight and recent history requests so range switches do not refetch the same rows');
+  }
+  for (const table of [
+    'tezos_history',
+    'market_history',
+    'network_health_history',
+    'governance_period_history',
+    'tezosx_history'
+  ]) {
+    if (!freshnessContracts.includes(`${table}: 5 * HOUR_MS`)) {
+      fail(`shared historical freshness contract must give ${table} a five-hour delivery alarm`);
+    }
+  }
+  if (!api.includes("from './freshness-contracts.mjs'")
+    || !freshness.includes("from '../js/core/freshness-contracts.mjs'")) {
+    fail('browser history reads and the operational freshness checker must share one freshness contract');
+  }
+  for (const snippet of ['Scheduled every 2h', 'Scheduled every 30m', 'observed median ~']) {
+    if (!history.includes(snippet)) {
+      fail(`Cycle History must distinguish configured and observed delivery cadence via ${snippet}`);
+    }
+  }
+  if (!generatedWorkflow.includes("cron: '17 */6 * * *'")
+    || !freshnessContracts.includes("GENERATED_PROOFBOOK_SCHEDULE_LABEL = '6h schedule'")) {
+    fail('generated proofbook schedule disclosure must match the six-hour workflow cadence');
   }
 
   if (/delay\s*:\s*\([^)]*\)\s*=>\s*[^,\n}]*dataIndex/.test(history)) {
@@ -8245,7 +8277,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=516'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=517'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

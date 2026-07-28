@@ -7,7 +7,8 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
-import { escapeHtml } from '../core/utils.js';
+import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
+import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
@@ -189,6 +190,20 @@ function ageLabel(value) {
     return `${Math.floor(elapsed / DAY_MS)}d ago`;
 }
 
+function priceFreshnessLabel(snapshot) {
+    const coin = snapshot?.markets?.xtz?.coin || {};
+    const source = snapshot?.sources?.coingecko || {};
+    const observedAt = coin.lastUpdated || source.retrievedAt;
+    const sourceStatus = source.status || coin.sourceStatus || 'unavailable';
+    if (!Number.isFinite(Date.parse(observedAt || ''))) return 'CoinGecko · observation time unavailable';
+    const label = sourceStatus === 'ok'
+        ? 'CoinGecko'
+        : sourceStatus === 'stale'
+            ? 'last-good CoinGecko'
+            : 'CoinGecko unavailable';
+    return formatFreshnessStamp(observedAt, { source: label });
+}
+
 function truncate(value, length = 20) {
     const text = String(value ?? '');
     if (text.length <= length) return text;
@@ -287,6 +302,8 @@ async function validateEntrySummary(summary) {
     const history = summary.markets.xtz.priceHistory.usd;
     if (numeric(summary.markets.xtz.coin.currentPriceUsd) === null
         || numeric(summary.markets.xtz.coin.change24hPct) === null
+        || !Number.isFinite(Date.parse(summary.markets.xtz.coin.lastUpdated || ''))
+        || !['ok', 'stale', 'unavailable'].includes(summary.markets.xtz.coin.sourceStatus)
         || history.length < 2
         || history.some((row) => !Number.isFinite(Date.parse(row?.date)) || numeric(row?.value) === null)) {
         throw new Error('Capital entry summary has invalid XTZ launcher history.');
@@ -802,7 +819,7 @@ function renderSystem(snapshot) {
             ${kpi('Tezos L1 TVL', formatUsd(tezos.tvl?.currentUsd), 'DefiLlama exact-chain row')}
             ${kpi('Etherlink L2 TVL', formatUsd(etherlink.tvl?.currentUsd), 'DefiLlama exact-chain row', 'blue')}
             ${kpi('Stablecoins · both layers', formatUsd(totalStable), 'Layer values summed; bridge overlap remains possible', 'gold')}
-            ${kpi('XTZ / USD', formatUsd(coin.currentPriceUsd, false), `${formatPct(coin.change24hPct, { signed: true })} over 24h`, 'rose')}
+            ${kpi('XTZ / USD', formatUsd(coin.currentPriceUsd, false), `${formatPct(coin.change24hPct, { signed: true })} over 24h · ${priceFreshnessLabel(snapshot)}`, 'rose')}
             ${kpi('L1 daily avg operations', formatRate(numeric(latestL1Day.count) === null ? null : latestL1Day.count / 86400), `${latestL1Day.date || 'Unavailable'} · applied operations, not EVM TPS`, 'blue')}
             ${kpi('L2 daily avg transactions', formatRate(numeric(latestCompleteL2Day.value) === null ? null : latestCompleteL2Day.value / 86400), `${latestCompleteL2Day.date || 'Unavailable'} · completed-day EVM average`, 'gold')}
         </div>
@@ -868,7 +885,7 @@ function renderMarkets(snapshot) {
     const priceChart = renderPriceHistory(xtz.priceHistory?.usd, range, coin);
     return `
         <div class="capital-panel-grid">
-            ${panel('XTZ / USD daily close', 'Price history', priceChart, `${range} · daily close · CoinGecko`, true, 'capital-market-price-panel')}
+            ${panel('XTZ / USD daily close', 'Price history', priceChart, `${range} · daily close · ${priceFreshnessLabel(snapshot)}`, true, 'capital-market-price-panel')}
             ${panel('Return matrix', 'Relative performance', renderReturnMatrix(snapshot), '1h and 4h intentionally unavailable; daily-close basis', true)}
             ${panel('Venue tape', 'Quality-screened tickers', renderTickerTable(usable, 'CoinGecko XTZ market tickers requiring no quarantine'), `${usable.length} reviewable rows · showing up to 28`, true)}
             ${panel('Quarantine', 'Stale, anomalous, or structurally thin', renderTickerTable(quarantined, 'Quarantined CoinGecko XTZ ticker rows', 18), `${quarantined.length} of ${tickers.length} rows · no trading call to action`, true)}
@@ -1028,8 +1045,8 @@ function freshnessPresentation(snapshot) {
     const generated = Date.parse(snapshot.generatedAt);
     const stale = !Number.isFinite(generated) || Date.now() - generated > STALE_AFTER_MS;
     const label = lastRefreshError
-        ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed`
-        : `Generated ${ageLabel(snapshot.generatedAt)}`;
+        ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
+        : `Generated ${ageLabel(snapshot.generatedAt)} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
     return { label, stale: stale || Boolean(lastRefreshError) };
 }
 
@@ -1086,13 +1103,13 @@ function entryMarkup(snapshot) {
         <div>
             <div class="capital-entry-title-line"><h2 class="stat-label" id="capital-entry-title">Capital Chamber</h2><span class="capital-entry-chip">Public-source</span></div>
             <div class="stat-value capital-entry-value">${escapeHtml(formatUsd(totalTvl))}</div>
-            <div class="capital-source-line"><span class="stat-description">One-system DeFi TVL</span><span class="capital-entry-source-label">snapshot ${escapeHtml(ageLabel(snapshot.generatedAt))}</span></div>
+            <div class="capital-source-line"><span class="stat-description">One-system DeFi TVL</span><span class="capital-entry-source-label">snapshot ${escapeHtml(ageLabel(snapshot.generatedAt))} · ${escapeHtml(GENERATED_PROOFBOOK_SCHEDULE_LABEL)}</span></div>
         </div>
         <div class="capital-entry-kpis">
             <div class="capital-entry-kpi"><span>Tezos L1 TVL</span><strong>${escapeHtml(formatUsd(tezos.tvl?.currentUsd))}</strong><small>Exact-chain</small></div>
             <div class="capital-entry-kpi"><span>Etherlink L2 TVL</span><strong>${escapeHtml(formatUsd(etherlink.tvl?.currentUsd))}</strong><small>Exact-chain</small></div>
             <div class="capital-entry-kpi"><span>Stablecoins</span><strong>${escapeHtml(formatUsd(totalStable))}</strong><small>Both layers</small></div>
-            <div class="capital-entry-kpi"><span>XTZ</span><strong>${escapeHtml(formatUsd(coin.currentPriceUsd, false))}</strong><small>${escapeHtml(formatPct(coin.change24hPct, { signed: true }))} · 24h</small></div>
+            <div class="capital-entry-kpi"><span>XTZ</span><strong>${escapeHtml(formatUsd(coin.currentPriceUsd, false))}</strong><small>${escapeHtml(formatPct(coin.change24hPct, { signed: true }))} · 24h · ${escapeHtml(priceFreshnessLabel(snapshot))}</small></div>
         </div>
         ${renderEntryPriceHistory(snapshot.markets.xtz?.priceHistory?.usd)}
     `;
@@ -1114,12 +1131,12 @@ function updateEntry(snapshot, { quiet = false } = {}) {
 function markRefreshFailure() {
     const freshness = document.getElementById('capital-freshness');
     if (freshness && lastSnapshot) {
-        freshness.textContent = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed`;
+        freshness.textContent = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
         freshness.classList.add('is-stale');
     }
     const card = document.getElementById('capital-entry-card');
     if (card && lastSnapshot) {
-        card.dataset.updatedLabel = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed`;
+        card.dataset.updatedLabel = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
         window.syncChamberEntryFooters?.(card);
     }
 }

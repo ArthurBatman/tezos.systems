@@ -3,14 +3,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { HISTORY_FRESHNESS_LIMITS } from '../js/core/freshness-contracts.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TABLES = [
-  { table: 'tezos_history', label: 'global history', maxAgeMs: 3 * 60 * 60 * 1000 },
-  { table: 'market_history', label: 'market history', maxAgeMs: 90 * 60 * 1000 },
-  { table: 'network_health_history', label: 'network health history', maxAgeMs: 90 * 60 * 1000 },
-  { table: 'tezosx_history', label: 'Tezos X history', maxAgeMs: 90 * 60 * 1000 },
-  { table: 'governance_period_history', label: 'governance period history', maxAgeMs: 90 * 60 * 1000 }
+  { table: 'tezos_history', label: 'global history', maxAgeMs: HISTORY_FRESHNESS_LIMITS.tezos_history },
+  { table: 'market_history', label: 'market history', maxAgeMs: HISTORY_FRESHNESS_LIMITS.market_history },
+  { table: 'network_health_history', label: 'network health history', maxAgeMs: HISTORY_FRESHNESS_LIMITS.network_health_history },
+  { table: 'tezosx_history', label: 'Tezos X history', maxAgeMs: HISTORY_FRESHNESS_LIMITS.tezosx_history },
+  { table: 'governance_period_history', label: 'governance period history', maxAgeMs: HISTORY_FRESHNESS_LIMITS.governance_period_history }
 ];
 
 async function readPublicConfig() {

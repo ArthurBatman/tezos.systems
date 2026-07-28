@@ -3,6 +3,7 @@
  * Ongoing Maxis identities, protocol seasons, address passports, and immutable champions.
  */
 
+import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
 import { escapeHtml, formatUtcDateTime } from '../core/utils.js';
 import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -12,7 +13,7 @@ const CAREER_DATA_URL = '/data/maxis-careers.json';
 const L2_GOVERNANCE_DATA_URL = '/data/maxis-l2-governance.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
 const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=516';
+const MAXIS_CSS_URL = '/css/maxis.css?v=517';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -1178,7 +1179,7 @@ function renderMaxisHero() {
                 <span><strong>${escapeHtml(String(categories.length || '—'))}</strong>Maxi identities</span>
                 <span><strong>${escapeHtml(String(data ? uniqueRankedWallets(data) : '—'))}</strong>ranked wallets</span>
                 <span><strong>${escapeHtml(String(clocks.length || '—'))} clocks</strong>live · rolling · all-time</span>
-                <span><strong>${escapeHtml(state.label)}</strong>${state.stale ? 'previous valid snapshot' : 'generated snapshot'}</span>
+                <span><strong>${escapeHtml(state.label)}</strong>${state.stale ? 'previous valid snapshot' : 'generated snapshot'} · ${escapeHtml(GENERATED_PROOFBOOK_SCHEDULE_LABEL)}</span>
             </div>
         </header>
     `;
@@ -3466,7 +3467,7 @@ function updateEntryCard(legacy, manifest = null, summary = null) {
     dispatchMaxisHotSignals(legacy, manifest, summary);
     const state = freshness(legacy || summary);
     const identityCount = categoriesFor(legacy || {}).length;
-    card.dataset.updatedLabel = `Maxis · ${state.stale ? 'previous valid' : state.label}`;
+    card.dataset.updatedLabel = `Maxis · ${state.stale ? 'previous valid' : state.label} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
     card.classList.toggle('chamber-data-stale', state.stale);
     const backValue = card.querySelector('.card-back .stat-value');
     const backCopy = card.querySelector('.card-back .stat-description');

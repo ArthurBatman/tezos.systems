@@ -4,7 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -437,8 +437,7 @@ function renderEntryCard(data) {
     }
     if (card) {
         const updatedAt = data.updatedAt || Date.now();
-        const time = new Date(updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
-        card.dataset.updatedLabel = `as of ${time} UTC`;
+        card.dataset.updatedLabel = formatFreshnessStamp(updatedAt, { source: 'Tezos X sources' });
         setDataFreshnessState(card, updatedAt, ENTRY_REFRESH_MS * 2);
     }
 }

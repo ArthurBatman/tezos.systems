@@ -49,6 +49,8 @@ function validateSource(snapshot) {
   }
   assert(Number.isFinite(snapshot.markets?.xtz?.coin?.currentPriceUsd), 'Capital snapshot is missing the current XTZ/USD quote');
   assert(Number.isFinite(snapshot.markets?.xtz?.coin?.change24hPct), 'Capital snapshot is missing the XTZ 24-hour return');
+  assert(Number.isFinite(Date.parse(snapshot.markets?.xtz?.coin?.lastUpdated || '')), 'Capital snapshot is missing the XTZ quote observation time');
+  assert(['ok', 'stale', 'unavailable'].includes(snapshot.sources?.coingecko?.status), 'Capital snapshot is missing the CoinGecko source status');
   const history = snapshot.markets?.xtz?.priceHistory?.usd;
   assert(Array.isArray(history) && history.length, 'Capital snapshot is missing XTZ/USD price history');
 }
@@ -94,7 +96,9 @@ function buildProjection(snapshot, sourceText) {
       xtz: {
         coin: {
           currentPriceUsd: coin.currentPriceUsd,
-          change24hPct: coin.change24hPct
+          change24hPct: coin.change24hPct,
+          lastUpdated: coin.lastUpdated,
+          sourceStatus: snapshot.sources.coingecko.status
         },
         priceHistory: {
           usd: entryPriceHistory(snapshot.markets.xtz.priceHistory.usd)
@@ -121,6 +125,8 @@ function validateProjection(projection, byteLength) {
   assert(projection.source?.path === SOURCE_PATH, `Capital entry summary source must be ${SOURCE_PATH}`);
   assert(/^[0-9a-f]{64}$/.test(projection.source?.contentHash || ''), 'Capital entry summary source contentHash is invalid');
   assert(/^[0-9a-f]{64}$/.test(projection.source?.fileSha256 || ''), 'Capital entry summary source fileSha256 is invalid');
+  assert(Number.isFinite(Date.parse(projection.markets?.xtz?.coin?.lastUpdated || '')), 'Capital entry summary XTZ observation time is invalid');
+  assert(['ok', 'stale', 'unavailable'].includes(projection.markets?.xtz?.coin?.sourceStatus), 'Capital entry summary CoinGecko source status is invalid');
   assert(projection.markets?.xtz?.priceHistory?.usd?.length >= 89, 'Capital entry summary must retain the trailing 90-day XTZ/USD chart input');
   assert(byteLength <= MAX_OUTPUT_BYTES, `Capital entry summary is ${byteLength} bytes; maximum is ${MAX_OUTPUT_BYTES}`);
 }

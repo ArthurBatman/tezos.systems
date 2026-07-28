@@ -7,6 +7,7 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
 import { escapeHtml } from '../core/utils.js';
 import {
     activateChamberDialog,
@@ -14,7 +15,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const ECOSYSTEM_CSS_URL = '/css/ecosystem.css?v=516';
+const ECOSYSTEM_CSS_URL = '/css/ecosystem.css?v=517';
 const ECOSYSTEM_SNAPSHOT_URL = '/data/ecosystem-stats.json';
 const ECOSYSTEM_ENTRY_SUMMARY_URL = '/data/ecosystem-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -536,8 +537,8 @@ function freshnessPresentation(snapshot) {
     return {
         stale: stale || Boolean(lastRefreshError),
         label: lastRefreshError
-            ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed`
-            : `Generated ${ageLabel(snapshot.generatedAt)}`
+            ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
+            : `Generated ${ageLabel(snapshot.generatedAt)} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
     };
 }
 
@@ -675,7 +676,7 @@ function updateEntry(snapshot, { quiet = false } = {}) {
     else front.innerHTML = markup;
     front.dataset.ecosystemRendered = '1';
     const card = document.getElementById('ecosystem-entry-card');
-    delete card?.dataset.updatedLabel;
+    if (card) card.dataset.updatedLabel = freshnessPresentation(snapshot).label;
     window.syncChamberEntryFooters?.(card);
     wireEntry(card);
 }
@@ -683,12 +684,12 @@ function updateEntry(snapshot, { quiet = false } = {}) {
 function markRefreshFailure() {
     const freshness = document.getElementById('ecosystem-freshness');
     if (freshness && lastSnapshot) {
-        freshness.textContent = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed`;
+        freshness.textContent = `Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
         freshness.classList.add('is-stale');
     }
     const card = document.getElementById('ecosystem-entry-card');
     if (card && (lastSnapshot || lastEntrySummary)) {
-        card.dataset.updatedLabel = `Last good ${ageLabel((lastSnapshot || lastEntrySummary).generatedAt)} · refresh failed`;
+        card.dataset.updatedLabel = `Last good ${ageLabel((lastSnapshot || lastEntrySummary).generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
         window.syncChamberEntryFooters?.(card);
     }
 }

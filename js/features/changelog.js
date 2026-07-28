@@ -5,6 +5,14 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-28',
+        entries: [
+            { type: '🔧', text: 'Live Chamber launchers now name their source and show a relative or UTC observation time instead of an ambiguous local-time stamp' },
+            { type: '🔧', text: 'Cycle History now separates scheduled capture from observed delivery cadence, while generated proofbooks disclose their six-hour schedule and Whale Watch names its exact archived window' },
+            { type: '🔧', text: 'Capital now carries the CoinGecko quote observation and last-good source state into both its compact launcher and full room' }
+        ]
+    },
+    {
         date: '2026-07-27',
         entries: [
             { type: '🎨', text: 'Valley trees now sway at one-fifth of the grass’s travel and tempo for a barely-there canopy motion' },

@@ -4,7 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
 import { fetchCycleInfo, fetchWithRetry } from '../core/api.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
@@ -53,7 +53,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=516';
+const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=517';
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -2201,10 +2201,8 @@ function renderNetworkHealth(data) {
     const card = document.querySelector('.stat-card[data-stat="network-health"]');
     if (card) {
         const labelTimestamp = data.headTimestamp || data.updatedAt || Date.now();
-        const freshnessTimestamp = data.updatedAt || Date.now();
-        const time = new Date(labelTimestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
-        card.dataset.updatedLabel = `as of ${time} UTC`;
-        setDataFreshnessState(card, freshnessTimestamp, LIVE_REFRESH_INTERVAL * 2);
+        card.dataset.updatedLabel = formatFreshnessStamp(labelTimestamp, { source: 'TzKT head' });
+        setDataFreshnessState(card, labelTimestamp, LIVE_REFRESH_INTERVAL * 2);
     }
 
     ensureHealthEntryTape();

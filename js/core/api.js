@@ -5,7 +5,10 @@
 
 import { API_URLS, CACHE_TTLS, FETCH_LIMITS, HISTORY_START } from './config.js';
 import { loadDataAsset } from './data-assets.js';
+import { HISTORY_FRESHNESS_LIMITS } from './freshness-contracts.mjs';
 import { calculatePercentage } from './utils.js';
+
+export { HISTORY_FRESHNESS_LIMITS };
 
 // API endpoint configurations
 const ENDPOINTS = {
@@ -54,14 +57,6 @@ export const DOMAIN_HISTORY_TABLES = {
     tezosx: 'tezosx_history',
     governance: 'governance_period_history'
 };
-export const HISTORY_FRESHNESS_LIMITS = {
-    tezos_history: 3 * 60 * 60 * 1000,
-    market_history: 90 * 60 * 1000,
-    network_health_history: 90 * 60 * 1000,
-    governance_period_history: 90 * 60 * 1000,
-    tezosx_history: 90 * 60 * 1000
-};
-
 function qualityFromSettled(entries, fallbacks) {
     const values = {};
     const failedCategories = [];

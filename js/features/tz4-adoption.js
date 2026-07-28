@@ -4,7 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
-import { escapeHtml, formatMutez, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp, formatMutez, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { fetchWithRetry } from '../core/api.js';
 import { quietlyMutate } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -407,7 +407,7 @@ function renderTz4EntryPreview(data) {
     card.dataset.tz4LatestSwitches = String(latest.length || 0);
     card.dataset.tz4PowerDescription = `${formatCount(data.activeCount)} / ${formatCount(data.total)} bakers active · ${formatPercent(data.activePowerPct)} power`;
     const updatedAt = data.updatedAt || new Date().toISOString();
-    card.dataset.updatedLabel = `as of ${new Date(updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })} UTC`;
+    card.dataset.updatedLabel = formatFreshnessStamp(updatedAt, { source: 'TzKT' });
     setDataFreshnessState(card, updatedAt, CACHE_TTL * 2);
     const description = document.getElementById('tz4-description');
     if (description) {

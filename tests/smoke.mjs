@@ -10187,10 +10187,10 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.cardTabIndex === '', `network health chamber: article should not be keyboard focusable: ${healthState.cardTabIndex}`);
   assert(healthState.cardCue && healthState.cardCueTag === 'BUTTON' && /Open Network Health Chamber/.test(healthState.cardCueLabel), 'network health chamber: explicit Open button missing');
   assert(healthState.cardCopyHash === '#health', `network health chamber: card direct link mismatch: ${healthState.cardCopyHash}`);
-  assert(/^as of \d{2}:\d{2} UTC$/.test(healthState.cardUpdatedLabel), `network health chamber: freshness stamp mismatch: ${healthState.cardUpdatedLabel}`);
-  assert(healthState.cardFreshnessState === 'fresh' && !healthState.cardStale, `network health chamber: block-age watch state should not mark fresh fetch stale: ${healthState.cardFreshnessState}/${healthState.cardStale}`);
+  assert(/^TzKT head · (?:\d+[sm] ago|just now|\d{2}:\d{2} UTC)$/.test(healthState.cardUpdatedLabel), `network health chamber: freshness stamp mismatch: ${healthState.cardUpdatedLabel}`);
+  assert(healthState.cardFreshnessState === 'stale' && healthState.cardStale, `network health chamber: stale head time should drive the card watch state: ${healthState.cardFreshnessState}/${healthState.cardStale}`);
   assert(healthState.cardFreshnessStaleAfter === '12000', `network health chamber: freshness threshold should track 2x live refresh interval, saw ${healthState.cardFreshnessStaleAfter}`);
-  assert(healthState.cardFreshnessAgeMs < 12000, `network health chamber: freshness timestamp should come from fetch time, saw ${healthState.cardFreshnessAgeMs}ms`);
+  assert(healthState.cardFreshnessAgeMs >= 85000, `network health chamber: freshness timestamp should come from the observed head, saw ${healthState.cardFreshnessAgeMs}ms`);
   assert(healthState.blockTickerOwnIsland, 'network health chamber: live block ticker should be its own top-level island');
   assert(healthState.blockTickerAfterHeader, 'network health chamber: live block ticker should sit directly below the header');
   assert(healthState.blockTickerBeforeCommandDeck, 'network health chamber: live block ticker should sit directly above the command deck');
@@ -12062,8 +12062,11 @@ async function smokeLauncherProjections(browser, baseUrl) {
   };
   const entryMarkup = () => page.evaluate(() => ({
     capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
+    capitalUpdated: document.querySelector('#capital-entry-card')?.dataset.updatedLabel || '',
     ecosystem: document.querySelector('#ecosystem-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
-    maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || ''
+    ecosystemUpdated: document.querySelector('#ecosystem-entry-card')?.dataset.updatedLabel || '',
+    maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
+    maxisUpdated: document.querySelector('#maxis-entry-card')?.dataset.updatedLabel || ''
   }));
 
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
@@ -12088,6 +12091,9 @@ async function smokeLauncherProjections(browser, baseUrl) {
     && !hasSeasonSummary(), `full Maxis data loaded before its Chamber opened: ${initialPaths.join(', ')}`);
 
   const beforeOpen = await entryMarkup();
+  assert(/CoinGecko/.test(beforeOpen.capital) && /6h schedule/.test(beforeOpen.capital), `Capital launcher freshness truth missing: ${beforeOpen.capital}`);
+  assert(/6h schedule/.test(beforeOpen.ecosystemUpdated), `Ecosystem launcher schedule disclosure missing: ${beforeOpen.ecosystemUpdated}`);
+  assert(/6h schedule/.test(beforeOpen.maxisUpdated), `Maxis launcher schedule disclosure missing: ${beforeOpen.maxisUpdated}`);
   await page.locator('#capital-entry-front').click();
   await page.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 20000 });
   await waitForRequests(() => hasPath('/data/capital-snapshot.json'), 'Capital Chamber did not request its reviewed full snapshot');
@@ -12441,6 +12447,7 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(cardState.copyHash === '#capital', `capital chamber: card copy route mismatch ${cardState.copyHash}`);
   assert(/Capital Chamber/.test(cardState.text) && /Tezos|Etherlink/.test(cardState.text), `capital chamber: root card copy missing ${cardState.text}`);
   assert(/snapshot/i.test(cardState.text), `capital chamber: root card must expose a generated-snapshot freshness receipt ${cardState.text}`);
+  assert(/CoinGecko/.test(cardState.text) && /6h schedule/.test(cardState.text), `capital chamber: launcher source age and generation schedule missing ${cardState.text}`);
   assert(cardState.role === 'article', `capital chamber: root card semantics missing ${JSON.stringify(cardState)}`);
   assert(/XTZ USD 90D daily close history/i.test(cardState.priceHistoryLabel) && cardState.priceHistoryPath.length > 80, `capital chamber: root card historical XTZ line is missing ${JSON.stringify(cardState)}`);
 
@@ -12496,7 +12503,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(shellState.kpis >= 4 && shellState.charts >= 2, `capital chamber: One System KPIs/charts are too sparse ${JSON.stringify(shellState)}`);
   assert(/Tezos/.test(shellState.text) && /Etherlink/.test(shellState.text) && /TVL/.test(shellState.text) && /stablecoin/i.test(shellState.text) && /transaction|TPS/i.test(shellState.text), `capital chamber: One System cross-layer copy missing ${shellState.text}`);
   assert(shellState.sourceReceipts > 0, 'capital chamber: One System source receipts missing');
-  assert(/Generated|Last good/i.test(shellState.freshness), `capital chamber: generated-at freshness receipt missing ${shellState.freshness}`);
+  assert(/Generated|Last good/i.test(shellState.freshness) && /6h schedule/.test(shellState.freshness), `capital chamber: generated-at freshness receipt or schedule missing ${shellState.freshness}`);
+  assert(/CoinGecko/.test(shellState.text), `capital chamber: XTZ quote source age missing ${shellState.text}`);
 
   const firstTab = page.locator('#capital-modal .capital-tab').first();
   await firstTab.focus();
@@ -13007,7 +13015,7 @@ async function smokeTezlinkChamber(browser, baseUrl) {
 
   assert(tezlinkState.cardWide, 'tezlink chamber: card should be double-width');
   assert(tezlinkState.cardCopyHash === '#tezosx', `tezlink chamber: card copy hash mismatch: ${tezlinkState.cardCopyHash}`);
-  assert(/^as of \d{2}:\d{2} UTC$/.test(tezlinkState.cardUpdatedLabel), `tezlink chamber: freshness stamp mismatch: ${tezlinkState.cardUpdatedLabel}`);
+  assert(/^Tezos X sources · /.test(tezlinkState.cardUpdatedLabel), `tezlink chamber: freshness stamp mismatch: ${tezlinkState.cardUpdatedLabel}`);
   assert(/\$18\.1M/.test(tezlinkState.cardValue), `tezlink chamber: card TVL mismatch: ${tezlinkState.cardValue}`);
   assert(/Atomic L2/.test(tezlinkState.cardDescription) && /TVL [+-]\d+\.\d% \/ 30d|TVL tracking/.test(tezlinkState.cardDescription), `tezlink chamber: card description should keep TVL with the trend copy: ${tezlinkState.cardDescription}`);
   assert(!/\bTVL$/.test(tezlinkState.cardDescription), `tezlink chamber: card description should not leave TVL as a trailing orphan: ${tezlinkState.cardDescription}`);
@@ -13599,7 +13607,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(dashboardState.tezlinkEntryGeometry.metricsRightOfMain && dashboardState.tezlinkEntryGeometry.tapeBelowMetrics, `governance testing period: Tezos X live tape should sit below the metric tiles in the Network category: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.metricTruncations.length === 0, `governance testing period: Tezos X metric tiles should not ellipsize while governance is active: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.pairedWithHealth, `governance testing period: Tezos X and Network Health cards should keep matched row height: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
-  const chamberFreshnessLabels = dashboardState.chamberUpdatedLabels.filter((label) => /^as of \d{2}:\d{2} UTC$/.test(label));
+  const chamberFreshnessLabels = dashboardState.chamberUpdatedLabels.filter((label) => /^(?:TzKT(?: head| blocks)?|Tezos X sources) · /.test(label));
   assert(chamberFreshnessLabels.length >= 6, `governance testing period: chamber freshness stamps missing: ${dashboardState.chamberUpdatedLabels.join(', ')}`);
   assert(dashboardState.etherlinkEntryGeometry.titleMetricsOverlap === 0, `governance testing period: Tezos X Governance title should not overlap proposal chips: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
   assert(dashboardState.etherlinkEntryGeometry.metricsRightOfMain, `governance testing period: Tezos X Governance proposal chips should sit beside the title/value lane: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
@@ -14083,7 +14091,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(!/pp\/day/.test(lbState.forecast), `governance testing period: LB forecast should avoid verbose pp/day unit: ${lbState.forecast}`);
   assert(/EMA History Strip/.test(lbState.history) && /Sample/.test(lbState.history), `governance testing period: LB history strip missing: ${lbState.history}`);
   assert(/Vote Change Feed/.test(lbState.changeFeed), `governance testing period: LB vote change feed missing: ${lbState.changeFeed}`);
-  assert(/^as of \d{2}:\d{2} UTC$/.test(lbState.cardUpdatedLabel), `governance testing period: LB freshness stamp mismatch: ${lbState.cardUpdatedLabel}`);
+  assert(/^TzKT blocks · /.test(lbState.cardUpdatedLabel), `governance testing period: LB freshness stamp mismatch: ${lbState.cardUpdatedLabel}`);
   await page.locator('#lb-lore-toggle').click();
   const lbLoreExpandedState = await page.evaluate(() => ({
     expanded: document.querySelector('#liquidity-baking-modal #lb-lore-toggle')?.getAttribute('aria-expanded') || '',
@@ -14211,7 +14219,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(tz4State.systemLinks >= 3, `governance testing period: tz4 Tezos.Systems baker links missing, saw ${tz4State.systemLinks}`);
   assert(tz4State.tzktLinks >= 3, `governance testing period: tz4 TzKT links missing, saw ${tz4State.tzktLinks}`);
   assert(/Direct: \/tz4\//.test(tz4State.footer), `governance testing period: tz4 direct footer missing: ${tz4State.footer}`);
-  assert(/^as of \d{2}:\d{2} UTC$/.test(tz4State.cardUpdatedLabel), `governance testing period: tz4 freshness stamp mismatch: ${tz4State.cardUpdatedLabel}`);
+  assert(/^TzKT · /.test(tz4State.cardUpdatedLabel), `governance testing period: tz4 freshness stamp mismatch: ${tz4State.cardUpdatedLabel}`);
   assert(/Copy Chambers link/.test(tz4State.chambersLauncherCopy), `governance testing period: combined Chambers launcher copy link missing: ${tz4State.chambersLauncherCopy}`);
   assert(tz4State.intervalDelays.includes(60000), `governance testing period: tz4 modal 60s refresh timer was not registered: ${tz4State.intervalDelays.join(', ')}`);
 
@@ -14847,6 +14855,7 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
       veteran: readRow(veteran),
       postCutoff: readRow(postCutoff),
       footer: document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent || '',
+      observed: document.querySelector('#baker-directory-modal .baker-directory-receipt small')?.textContent?.trim() || '',
       setCopy: document.querySelector('#baker-directory-panel .baker-directory-section-heading')?.textContent || ''
     };
   }, { og: SAMPLE_ADDRESS, veteran: SAMPLE_ADDRESS_2, postCutoff: SAMPLE_ADDRESS_3 });
@@ -14857,6 +14866,7 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
   assert(signalState.og.badges.some((badge) => badge.kind === 'voting' && /Streak · 12/.test(badge.text) && /Career high: 18/.test(badge.title)), `Baker Directory: completed-ballot streak receipt missing ${JSON.stringify(signalState.og)}`);
   assert(signalState.veteran.badges.some((badge) => badge.kind === 'veteran' && /Veteran · 2021/.test(badge.text)), `Baker Directory: end-of-2021 Veteran cutoff missing ${JSON.stringify(signalState.veteran)}`);
   assert(!signalState.postCutoff.badges.some((badge) => ['og', 'veteran'].includes(badge.kind)), `Baker Directory: post-cutoff baker received a tenure marker ${JSON.stringify(signalState.postCutoff)}`);
+  assert(/^Observed TzKT · /.test(signalState.observed), `Baker Directory: source-aware observation stamp missing ${JSON.stringify(signalState)}`);
   assert(/Complete funded set/.test(signalState.setCopy) && /governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer), `Baker Directory: set or source receipt copy drifted ${JSON.stringify(signalState)}`);
 
   await page.evaluate((address) => {
@@ -15195,9 +15205,14 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   await page.locator('#whale-watch-modal.active #whale-watch-panel-overview').waitFor({ state: 'visible', timeout: 15000 });
   await assertPromotedLauncherGeometry(page, 'Whale Watch desktop launcher pair', { desktop: true });
   await expectCount(page, '#whale-watch-modal [role="tab"][data-whale-view]', 5, 'Whale Watch views');
+  const sourceStripText = await page.locator('#whale-watch-freshness').innerText();
+  assert(/6h schedule/.test(sourceStripText) && /window .* → .* UTC/.test(sourceStripText), `Whale Watch: exact archived window and generator cadence missing: ${sourceStripText}`);
+  const launcherText = await page.locator('#whale-watch-entry-card').innerText();
+  assert(/Largest · archive/i.test(launcherText) && !/Largest · 24H/i.test(launcherText), `Whale Watch: launcher largest-transfer label must name the archive: ${launcherText}`);
   const overviewText = await page.locator('#whale-watch-panel-overview').innerText();
   assert(/3/.test(overviewText) && /2 operation groups/.test(overviewText), `Whale Watch: complete operation/group counts missing: ${overviewText}`);
   assert(/Gross observed legs/i.test(overviewText) && /not economic volume/i.test(overviewText), `Whale Watch: observed-leg semantics missing: ${overviewText}`);
+  assert(/Archived window/i.test(overviewText) && !/Largest · 24H/i.test(overviewText), `Whale Watch: largest transfer label must name the archived window: ${overviewText}`);
   assert(/One operation id is one tape row/.test(overviewText) && /operation-group hash can connect several related hops/.test(overviewText), `Whale Watch: identity methodology missing: ${overviewText}`);
   await page.waitForFunction(() => document.querySelectorAll('#whale-watch-panel-overview .whale-watch-label-receipts a').length === 3, null, { timeout: 10000 });
   const aliasReceiptState = await page.evaluate(() => ({
@@ -15519,11 +15534,16 @@ async function smokeCycleHistoryChamber(browser, baseUrl) {
       contentTop: modal?.querySelector('.cycle-history-content')?.scrollTop || 0,
       title: modal?.querySelector('#history-modal-title')?.textContent || '',
       chartCount: modal?.querySelectorAll('[data-history-metric]').length || 0,
-      sourceLedgers: modal?.querySelectorAll('.cycle-history-system-strip span').length || 0
+      sourceLedgers: modal?.querySelectorAll('.cycle-history-system-strip span').length || 0,
+      sourceCadences: Array.from(modal?.querySelectorAll('.cycle-history-source-head span') || []).map((item) => item.textContent?.trim() || ''),
+      sourceCoverage: Array.from(modal?.querySelectorAll('.cycle-history-source-coverage') || []).map((item) => item.textContent?.trim() || '')
     };
   });
   assert(directState.range === '24h' && directState.metric === 'price' && directState.select === 'price' && directState.focusedCurrent === 'true', `Cycle History: direct range/metric state failed ${JSON.stringify(directState)}`);
   assert(directState.title === 'Cycle History Chamber' && directState.chartCount === 15 && directState.sourceLedgers === 5 && directState.focusedVisible, `Cycle History: full Chamber anatomy failed ${JSON.stringify(directState)}`);
+  assert(directState.sourceCadences.includes('Scheduled every 2h')
+    && directState.sourceCadences.filter((label) => label === 'Scheduled every 30m').length === 4
+    && directState.sourceCoverage.some((label) => /observed median ~/.test(label)), `Cycle History: scheduled and observed cadence truth missing ${JSON.stringify(directState)}`);
 
   await page.locator('.history-controls .time-range-btn[data-range="7d"]').click();
   await page.waitForFunction(() => document.querySelector('#history-modal')?.dataset.historyRange === '7d' && document.querySelector('#history-modal')?.getAttribute('aria-busy') !== 'true', null, { timeout: 15000 });
