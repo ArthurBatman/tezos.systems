@@ -2767,7 +2767,10 @@ async function checkSelectorContracts() {
     ['top continuity milestone crossed state', "classList.toggle('is-milestone-crossed', crossed)", app],
     ['top continuity nullable milestone expiry guard', "if (value == null || value === '') return null;", app],
     ['top continuity milestone clean outline', '.top-continuity-milestone-outline', shellExtrasCss],
+    ['top continuity milestone transparent interior', 'background: transparent;', shellExtrasCss],
+    ['top continuity milestone hairline border', 'border: 1px solid color-mix(in srgb, var(--uptime-badge-label) 58%, var(--uptime-badge-value));', shellExtrasCss],
     ['top continuity milestone NEW marker styles', '.top-continuity-milestone-new', shellExtrasCss],
+    ['top continuity milestone NEW marker separated above outline', 'top: -1.3rem;', shellExtrasCss],
     ['top continuity milestone removes offset highlight', 'box-shadow: none;', shellExtrasCss],
     ['top continuity milestone one-shot arrival', 'uptimeMilestoneNewArrival 9s ease-out both', shellExtrasCss],
     ['top continuity milestone popover styles', '.top-continuity-milestone-popover', shellExtrasCss],
@@ -8386,7 +8389,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=521'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=522'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

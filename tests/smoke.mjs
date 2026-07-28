@@ -5817,17 +5817,40 @@ async function smokeCycleMilestone(browser, baseUrl) {
       outlineWrapsRuntime: Boolean(
         outlineRect
         && runtimeRect
-        && outlineRect.left <= runtimeRect.left - 6
-        && outlineRect.right >= runtimeRect.right + 6
-        && outlineRect.top <= runtimeRect.top - 3
-        && outlineRect.bottom >= runtimeRect.bottom + 3
+        && outlineRect.left <= runtimeRect.left - 3
+        && outlineRect.right >= runtimeRect.right + 3
+        && outlineRect.top <= runtimeRect.top - 2
+        && outlineRect.bottom >= runtimeRect.bottom + 2
       ),
+      outlineTightToRuntime: Boolean(
+        outlineRect
+        && runtimeRect
+        && runtimeRect.left - outlineRect.left <= 8
+        && outlineRect.right - runtimeRect.right <= 8
+        && runtimeRect.top - outlineRect.top <= 5
+        && outlineRect.bottom - runtimeRect.bottom <= 5
+      ),
+      outlineInsets: outlineRect && runtimeRect ? {
+        left: runtimeRect.left - outlineRect.left,
+        right: outlineRect.right - runtimeRect.right,
+        top: runtimeRect.top - outlineRect.top,
+        bottom: outlineRect.bottom - runtimeRect.bottom
+      } : null,
       outlineBorderStyle: outlineStyle?.borderStyle || '',
       outlineBorderWidth: Number.parseFloat(outlineStyle?.borderTopWidth || '0'),
+      outlineBackground: outlineStyle?.backgroundColor || '',
       outlineBoxShadow: outlineStyle?.boxShadow || '',
       outlineAnimation: outlineStyle?.animationName || '',
       outlineAnimationIterations: outlineStyle?.animationIterationCount || '',
       markerText: marker?.textContent?.trim() || '',
+      markerGap: outlineRect && markerRect ? outlineRect.top - markerRect.bottom : -999,
+      markerRect: markerRect ? {
+        top: markerRect.top,
+        bottom: markerRect.bottom,
+        height: markerRect.height
+      } : null,
+      markerBorderWidth: Number.parseFloat(markerStyle?.borderTopWidth || '0'),
+      markerBoxShadow: markerStyle?.boxShadow || '',
       markerAnimation: markerStyle?.animationName || '',
       markerAnimationIterations: markerStyle?.animationIterationCount || '',
       markerAttachedTopRight: Boolean(
@@ -5887,12 +5910,18 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && before.outlineVisible
     && before.outlineInsideClock
     && before.outlineWrapsRuntime
+    && before.outlineTightToRuntime
     && before.outlineBorderStyle === 'solid'
     && before.outlineBorderWidth >= 1
+    && before.outlineBorderWidth <= 1.34
+    && before.outlineBackground === 'rgba(0, 0, 0, 0)'
     && before.outlineBoxShadow === 'none'
     && before.outlineAnimation.includes('uptimeMilestoneOutlineArrival')
     && before.outlineAnimationIterations === '1'
     && before.markerText === 'New'
+    && before.markerGap >= 2
+    && before.markerBorderWidth === 0
+    && before.markerBoxShadow === 'none'
     && before.markerAnimation.includes('uptimeMilestoneNewArrival')
     && before.markerAnimationIterations === '1'
     && before.markerAttachedTopRight
@@ -6008,8 +6037,18 @@ async function smokeCycleMilestone(browser, baseUrl) {
         && outlineRect.top <= runtimeRect.top - 2
         && outlineRect.bottom >= runtimeRect.bottom + 2
       ),
+      outlineTightToRuntime: Boolean(
+        outlineRect
+        && runtimeRect
+        && runtimeRect.left - outlineRect.left <= 7
+        && outlineRect.right - runtimeRect.right <= 7
+        && runtimeRect.top - outlineRect.top <= 5
+        && outlineRect.bottom - runtimeRect.bottom <= 5
+      ),
+      outlineBackground: outlineStyle?.backgroundColor || '',
       outlineBoxShadow: outlineStyle?.boxShadow || '',
       markerText: marker?.textContent?.trim() || '',
+      markerGap: outlineRect && markerRect ? outlineRect.top - markerRect.bottom : -999,
       markerAttachedTopRight: Boolean(
         markerRect
         && runtimeRect
@@ -6024,8 +6063,11 @@ async function smokeCycleMilestone(browser, baseUrl) {
   assert(
     beforeTap.outlineVisible
       && beforeTap.outlineWrapsRuntime
+      && beforeTap.outlineTightToRuntime
+      && beforeTap.outlineBackground === 'rgba(0, 0, 0, 0)'
       && beforeTap.outlineBoxShadow === 'none'
       && beforeTap.markerText === 'New'
+      && beforeTap.markerGap >= 1
       && beforeTap.markerAttachedTopRight
       && /mainnet age.*since 2018/i.test(beforeTap.subline)
       && beforeTap.route === '#health',
@@ -18470,6 +18512,11 @@ async function smokeThemeSelection(browser, baseUrl) {
         const second = luminance(right);
         return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
       };
+      const alpha = (value) => {
+        if (String(value || '').trim() === 'transparent') return 0;
+        const numbers = String(value || '').match(/[\d.]+/g)?.map(Number) || [];
+        return numbers.length >= 4 ? numbers[3] : 1;
+      };
       const activityTopBefore = activity?.getBoundingClientRect().top ?? -1;
       outline.hidden = false;
       cluster.classList.add('has-milestone-signal', 'is-milestone-crossed', 'is-uptime-milestone-arriving');
@@ -18489,14 +18536,22 @@ async function smokeThemeSelection(browser, baseUrl) {
           && outlineRect.right >= runtimeRect.right + 1
           && outlineRect.top <= runtimeRect.top - 2
           && outlineRect.bottom >= runtimeRect.bottom + 2,
+        outlineTightToRuntime: runtimeRect.left - outlineRect.left <= 7
+          && outlineRect.right - runtimeRect.right <= 7
+          && runtimeRect.top - outlineRect.top <= 5
+          && outlineRect.bottom - runtimeRect.bottom <= 5,
         outlineInsideViewport: outlineRect.left >= 0 && outlineRect.right <= window.innerWidth,
         outlineBorderStyle: outlineStyle.borderStyle,
         outlineBorderWidth: Number.parseFloat(outlineStyle.borderTopWidth),
+        outlineBackgroundAlpha: alpha(outlineStyle.backgroundColor),
         outlineBoxShadow: outlineStyle.boxShadow,
         outlineAnimation: outlineStyle.animationName,
         outlineAnimationIterations: outlineStyle.animationIterationCount,
-        outlineGrayscaleContrast: contrast(outlineStyle.borderTopColor, outlineStyle.backgroundColor),
+        outlineGrayscaleContrast: contrast(outlineStyle.borderTopColor, getComputedStyle(document.body).backgroundColor),
         markerText: marker.textContent?.trim() || '',
+        markerGap: outlineRect.top - markerRect.bottom,
+        markerBorderWidth: Number.parseFloat(markerStyle.borderTopWidth),
+        markerBoxShadow: markerStyle.boxShadow,
         markerInsideViewport: markerRect.left >= 0 && markerRect.right <= window.innerWidth,
         markerAttachedTopRight: markerRect.right >= runtimeRect.right
           && markerRect.left >= runtimeRect.right - markerRect.width
@@ -18514,14 +18569,19 @@ async function smokeThemeSelection(browser, baseUrl) {
         && /mainnet age.*since 2018/i.test(milestoneState.subline)
         && milestoneState.outlineVisible
         && milestoneState.outlineWrapsRuntime
+        && milestoneState.outlineTightToRuntime
         && milestoneState.outlineInsideViewport
         && milestoneState.outlineBorderStyle === 'solid'
-        && milestoneState.outlineBorderWidth >= 1
+        && milestoneState.outlineBorderWidth === 1
+        && milestoneState.outlineBackgroundAlpha === 0
         && milestoneState.outlineBoxShadow === 'none'
         && milestoneState.outlineAnimation.includes('uptimeMilestoneOutlineArrival')
         && milestoneState.outlineAnimationIterations === '1'
         && milestoneState.outlineGrayscaleContrast >= 3
         && milestoneState.markerText === 'New'
+        && milestoneState.markerGap >= 1
+        && milestoneState.markerBorderWidth === 0
+        && milestoneState.markerBoxShadow === 'none'
         && milestoneState.markerInsideViewport
         && milestoneState.markerAttachedTopRight
         && milestoneState.markerContrast >= 4.5

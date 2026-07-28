@@ -7,7 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
-            { type: '🎨', text: 'Unseen network milestones now turn the mainnet-age numerals into a theme-matched outlined NEW action that retires after opening the relevant room and re-arms only for genuinely new milestone status' },
+            { type: '🎨', text: 'Unseen network milestones now use a tight transparent hairline and separate NEW marker around mainnet age, then retire after opening the relevant room and re-arm only for genuinely new milestone status' },
             { type: '✨', text: 'Live Pulse now adds source-gated 7- and 30-day context, period-accurate governance, richer market context, and consensus cards only when the latest sample is genuinely exceptional' },
             { type: '🎨', text: 'Live Pulse now uses a labeled signal rail, honest per-card timing, clearer milestone trajectory copy, and complete loading, quiet-network, unavailable, and last-good states' },
             { type: '✨', text: 'My Tezos now draws from the same live candidate set, keeps milestones visible in the personal briefing, and combines account and network changes into one structured While you were away report' },

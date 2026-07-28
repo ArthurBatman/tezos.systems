@@ -326,8 +326,9 @@ inline modal styles in `js/core/app.js`.
   On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   An unseen imminent or newly crossed network milestone gives the live runtime
-  a theme-derived clean outline with an attached `NEW` marker while preserving
-  `MAINNET AGE · SINCE 2018`. Hover or keyboard focus reveals an anchored event
+  a tight, transparent theme-derived hairline with a separate `NEW` marker just
+  above its top-right corner while preserving `MAINNET AGE · SINCE 2018`.
+  Hover or keyboard focus reveals an anchored event
   card on desktop. The first activation records that milestone id and status as
   seen, opens Network Pulse or the most relevant Chamber directly, and retires
   the treatment across reloads and open tabs. A later `near` to `crossed`
@@ -1297,7 +1298,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v521`, including hero search, theme
+- Current aligned shell cache stamp: `v522`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

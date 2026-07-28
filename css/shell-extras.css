@@ -286,6 +286,8 @@
 
 .top-continuity-primary-line {
     position: relative;
+    width: max-content;
+    max-width: 100%;
     isolation: isolate;
 }
 
@@ -296,18 +298,19 @@
 
 .top-continuity-milestone-outline {
     position: absolute;
-    top: -0.44rem;
-    left: -0.62rem;
+    top: -0.26rem;
+    left: -0.38rem;
     display: block;
-    width: calc(100% + 1.24rem);
-    height: calc(100% + 0.78rem);
-    border: 1.5px solid color-mix(in srgb, var(--uptime-badge-label) 66%, var(--uptime-badge-value));
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--bg-primary) 96%, var(--uptime-badge-label) 4%);
+    width: calc(100% + 0.76rem);
+    height: calc(100% + 0.44rem);
+    border: 1px solid color-mix(in srgb, var(--uptime-badge-label) 58%, var(--uptime-badge-value));
+    border-radius: 4px;
+    background: transparent;
     box-shadow: none;
+    opacity: 0.74;
     z-index: 0;
     pointer-events: none;
-    transition: border-color 160ms ease, background-color 160ms ease;
+    transition: border-color 160ms ease, opacity 160ms ease;
 }
 
 .top-continuity-milestone-outline[hidden] {
@@ -316,21 +319,22 @@
 
 .top-continuity-milestone-new {
     position: absolute;
-    top: -0.62rem;
-    right: -0.48rem;
+    top: -1.3rem;
+    right: -0.06rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 1.05rem;
-    padding: 0.12rem 0.38rem;
-    border: 2px solid var(--bg-primary);
-    border-radius: 999px;
+    min-height: 1rem;
+    padding: 0.1rem 0.38rem;
+    border: 0;
+    border-radius: 2px;
     background: var(--uptime-badge-label);
     color: var(--bg-primary);
+    box-shadow: none;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.54rem;
+    font-size: 0.6rem;
     font-weight: 900;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     line-height: 1;
     text-transform: uppercase;
     white-space: nowrap;
@@ -347,11 +351,11 @@
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-history:is(:hover, :focus-visible) .top-continuity-milestone-outline {
     border-color: var(--uptime-badge-label);
-    background: color-mix(in srgb, var(--bg-primary) 91%, var(--uptime-badge-label) 9%);
+    opacity: 1;
 }
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-history:is(:hover, :focus-visible) .top-continuity-milestone-new {
-    transform: translateY(-0.12rem);
+    transform: translate(0.08rem, -0.12rem);
 }
 
 .top-uptime-cluster.has-milestone-signal .top-continuity-history {
@@ -364,7 +368,7 @@
 }
 
 @keyframes uptimeMilestoneNewArrival {
-    0% { opacity: 0; transform: translateY(0.55rem) scale(0.8); }
+    0% { opacity: 0; transform: translateY(-0.25rem) scale(0.8); }
     7% { opacity: 1; transform: translateY(-0.12rem) scale(1.04); }
     12% { opacity: 1; transform: none; }
     57% { opacity: 1; transform: none; }
@@ -1957,15 +1961,15 @@
     .top-continuity-milestone-outline {
         top: 50%;
         left: 50%;
-        width: calc(100% + 0.08rem);
-        height: calc(100% + 0.12rem);
+        width: calc(100% - 0.4rem);
+        height: calc(100% - 0.04rem);
         z-index: 0;
         transform: translate(-50%, -50%);
     }
 
     .top-continuity-milestone-new {
-        top: -0.58rem;
-        right: -0.42rem;
+        top: -1.26rem;
+        right: 0;
     }
 
     .top-continuity-milestone-popover {
