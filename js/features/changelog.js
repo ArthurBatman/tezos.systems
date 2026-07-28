@@ -7,6 +7,10 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
+            { type: '✨', text: 'Live Pulse now adds source-gated 7- and 30-day context, period-accurate governance, richer market context, and consensus cards only when the latest sample is genuinely exceptional' },
+            { type: '🎨', text: 'Live Pulse now uses a labeled signal rail, honest per-card timing, clearer milestone trajectory copy, and complete loading, quiet-network, unavailable, and last-good states' },
+            { type: '✨', text: 'My Tezos now draws from the same live candidate set, keeps milestones visible in the personal briefing, and combines account and network changes into one structured While you were away report' },
+            { type: '🔧', text: 'Live Pulse refreshes now retain source-aware last-good fields for a bounded window and preserve the rendered reading surface when a later update fails' },
             { type: '✨', text: 'Every active My Tezos view now receives quiet 30-second live updates: transactions, Portfolio, Collection, Your Story, and Tezos X refresh without reloading the page or resetting filters, expanded history, charts, focus, selection, or scroll' },
             { type: '🎨', text: 'Social previews now carry the painterly Valley landscape behind high-contrast data glass, with larger titles and metric labels that remain readable in an X feed' },
             { type: '🎨', text: 'New Tezos Systems builds now use a high-contrast persistent release dock with a full-size Update & reload action and a compact Later state' },

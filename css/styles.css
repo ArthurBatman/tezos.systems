@@ -14494,9 +14494,31 @@ body {
 .morning-brief-earnings .brief-title { color: var(--accent-cyan, #00d4ff); }
 .morning-brief-baker .brief-title { color: var(--color-success, #10b981); }
 .morning-brief-story .brief-title { color: #a78bfa; }
-.morning-brief-overnight .brief-title { color: #f59e0b; }
+.morning-brief-overnight .brief-title,
+.brief-section-overnight .brief-section-title { color: #f59e0b; }
+.overnight-sections { display: grid; gap: 10px; }
+.overnight-sections section { display: grid; gap: 5px; }
+.overnight-sections section > small {
+    color: var(--text-tertiary, #777);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
 .overnight-bullets { display: flex; flex-direction: column; gap: 4px; }
-.overnight-bullet { font-size: 0.82rem; line-height: 1.5; }
+.overnight-bullet {
+    display: grid;
+    grid-template-columns: 0.7rem minmax(0, 1fr);
+    gap: 0.2rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+.overnight-bullet-positive strong { color: var(--color-success, #10b981); }
+.overnight-bullet-negative strong { color: var(--color-error, #ef4444); }
+.overnight-bullet-network {
+    color: color-mix(in srgb, var(--text-secondary, #888) 82%, var(--accent-cyan, #00d4ff));
+}
 
 /* Collapsed state */
 .brief-collapsed {
@@ -23607,6 +23629,48 @@ body[data-theme="nerv"]::after {
     color: var(--text-secondary);
     font-size: 0.76rem;
     line-height: 1.4;
+}
+.network-context-milestone-line {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, auto) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.38rem;
+    padding: 0.38rem 0.48rem;
+    border: 1px solid rgba(91,168,255,0.18);
+    border-radius: 7px;
+    background: linear-gradient(90deg, rgba(91,168,255,0.08), rgba(69,224,200,0.035));
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+.network-context-milestone-line > span:first-child { color: var(--accent-cyan, #45e0c8); }
+.network-context-milestone-line small {
+    color: var(--accent-cyan, #45e0c8);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.54rem;
+    font-weight: 850;
+    text-transform: uppercase;
+}
+.network-context-milestone-line strong,
+.network-context-milestone-line em {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.network-context-milestone-line strong {
+    color: var(--text-primary);
+    font-size: 0.68rem;
+}
+.network-context-milestone-line em {
+    font-size: 0.62rem;
+    font-style: normal;
+}
+.network-context-milestone-line:hover,
+.network-context-milestone-line:focus-visible {
+    border-color: rgba(69,224,200,0.34);
+    color: var(--text-primary);
+    outline: none;
 }
 .network-personal-spotlight {
     position: relative;

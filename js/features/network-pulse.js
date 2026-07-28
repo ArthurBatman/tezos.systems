@@ -8,11 +8,11 @@ import {
     DOMAIN_HISTORY_TABLES,
     HISTORY_FRESHNESS_LIMITS,
     fetchAllStats,
-    fetchChamberHistoricalData,
     fetchHistoricalData
 } from '../core/api.js';
 import { siteMapCanonicalRoute, siteMapRoute } from '../core/site-map.js';
 import { siteMapJourneyLinks } from '../core/site-journey.js';
+import { getPulseDomainRows, getPulseHistoryRows } from '../core/pulse-history.mjs';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply, formatUtcDateTime, pluralize } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
@@ -20,9 +20,8 @@ import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=519';
+const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=520';
 const HISTORY_RANGE = '7d';
-const ENTRY_HISTORY_RANGE = '30d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_SPARK_POINTS = 50;
@@ -659,7 +658,7 @@ async function getHistoryRows() {
 
 async function getDomainHistoryRows() {
     if (activeDomainHistoryFetch) return activeDomainHistoryFetch;
-    activeDomainHistoryFetch = fetchChamberHistoricalData(HISTORY_RANGE)
+    activeDomainHistoryFetch = getPulseDomainRows()
         .then((rows) => {
             lastDomainRows = {
                 market: Array.isArray(rows?.market) ? rows.market : [],
@@ -905,7 +904,7 @@ function updateEntryCard(stats = lastKnownStats()) {
 
 function getEntryHistoryRows() {
     if (activeEntryHistoryFetch) return activeEntryHistoryFetch;
-    activeEntryHistoryFetch = fetchHistoricalData(ENTRY_HISTORY_RANGE)
+    activeEntryHistoryFetch = getPulseHistoryRows()
         .then((rows) => {
             lastEntryHistoryRows = Array.isArray(rows) ? rows : [];
             updateEntryCard(lastKnownStats());

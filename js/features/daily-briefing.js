@@ -10,6 +10,14 @@ import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
 import { escapeHtml } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { findSiteMapEntry } from '../core/site-map.js';
+import {
+  describePulseSeries,
+  getPulseDomainReceipt,
+  getPulseHistoryReceipt,
+  pulseSeriesContextLine,
+  readCachedPulseDomainReceipt,
+  readCachedPulseHistoryReceipt
+} from '../core/pulse-history.mjs';
 import { cycleMilestoneStartLevel, generatedMilestoneAnchor, generatedMilestoneMoments, mergedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS, normalizeMilestoneStore, qualifyMilestoneNearState } from './milestone-lifecycle.mjs';
 import { fetchXTZPrice } from './price.js';
@@ -21,12 +29,13 @@ const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
 const LS_PROTOCOL_LORE_DAY = 'tezos-systems-protocol-lore-hot-day';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
-const BRIEFING_SCHEMA_VERSION = 13;
+const BRIEFING_SCHEMA_VERSION = 14;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const NFT_FETCH_TIMEOUT_MS = 2500;
 const MILESTONE_FETCH_TIMEOUT_MS = 2800;
 const MILESTONE_CATALOG_URL = '/data/milestone-catalog.json';
 const HOT_TODAY_LIVE_TICK_MS = 1000;
+const HOT_TODAY_INITIAL_TIMEOUT_MS = 8000;
 const HOT_SIGNAL_RENDER_THROTTLE_MS = 1000;
 const HOT_SIGNAL_RENDER_CAP = 12;
 const HOT_SIGNAL_CATEGORY_BUDGET = 2;
@@ -39,12 +48,24 @@ const ACTIVITY_NEUTRAL_PCT = 1;
 const ACTIVITY_MEANINGFUL_PCT = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
+const PULSE_LAST_GOOD_TTL_MS = 4 * HOUR_MS;
 const MILESTONE_NEAR_LEAD_DAYS = 14;
 const MILESTONE_NEAR_MAX_DAYS = 30;
 const MILESTONE_RATE_MIN_SAMPLE_MS = HOUR_MS;
 const MILESTONE_RATE_MAX_SAMPLE_MS = 14 * DAY_MS;
 const OBJKT_GRAPHQL_ENDPOINT = 'https://data.objkt.com/v3/graphql';
 const OBJKT_SALES_SAMPLE_LIMIT = 500;
+const PULSE_RETAIN_FIELD_CATEGORIES = Object.freeze({
+  transactionVolume24h: 'transactionVolume24h',
+  totalTransactions: 'totalTransactions',
+  contractCalls24h: 'contractCalls24h',
+  fundedAccounts: 'fundedAccounts',
+  newAccounts24h: 'newAccounts24h',
+  smartContracts: 'smartContracts',
+  activeContracts24h: 'activeContracts24h',
+  tokens: 'tokens',
+  rollups: 'rollups'
+});
 
 const CATEGORY_META = {
   baker: { label: 'Baker', icon: '🍞', tone: 'operator', visual: 'operator', detail: 'Personal operator signal' },
@@ -145,6 +166,7 @@ let hotTodayWired = false;
 let hotTodayRealtimeWired = false;
 let hotTodayLiveTimer = null;
 let hotTodayExpiryTimer = null;
+let hotTodayInitialTimer = null;
 let hotTodaySignals = [];
 let hotTodayBriefingSentences = [];
 let hotTodayActiveIndex = 0;
@@ -153,6 +175,17 @@ let lastHotTodayLeadId = '';
 let hotSignalRenderTimer = null;
 let lastHotSignalRenderAt = 0;
 let hotSignalListenerWired = false;
+let hotTodayStripNavigationFrame = 0;
+let hotTodayStripUserIntentUntil = 0;
+let pulseHistoryLoadScheduled = false;
+let pulseHistoryLoadInFlight = null;
+let pulseHistoryRevision = 0;
+let lastPulseHistoryReceipt = readCachedPulseHistoryReceipt();
+let lastPulseDomainReceipt = readCachedPulseDomainReceipt();
+let lastLiveCandidates = [];
+let lastLiveCandidateFingerprint = '';
+let lastHotTodayDataState = 'loading';
+let lastHotTodayGoodAt = 0;
 let protocolLoreSignalInFlight = false;
 let lastMilestoneStats = {};
 let generatedMilestoneCatalog = null;
@@ -161,6 +194,7 @@ const exactMilestoneMomentPromises = new Map();
 const exactMilestoneMoments = new Map();
 const hotSignalPool = new Map();
 const seenMilestoneArrivals = new Set();
+const lastStatsFieldObservedAt = new Map();
 
 // ─── Template Library ────────────────────────────────────────────────────────
 
@@ -264,6 +298,62 @@ function finiteNumber(value) {
   if (value == null || value === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function parsedTimestamp(value, fallback = null) {
+  const timestamp = typeof value === 'number' ? value : Date.parse(value || '');
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+function statsFieldObservedAt(stats, category, fallback = Date.now()) {
+  const stale = stats?._quality?.staleObservedAt?.[category];
+  return parsedTimestamp(stale, parsedTimestamp(stats?._quality?.observedAt, fallback));
+}
+
+function pulseStatsCategoryUnavailable(stats, category) {
+  const unavailable = Array.isArray(stats?._quality?.unavailableCategories)
+    ? stats._quality.unavailableCategories
+    : [];
+  const stale = Array.isArray(stats?._quality?.staleCategories)
+    ? stats._quality.staleCategories
+    : [];
+  return unavailable.includes(category) || stale.includes(category);
+}
+
+function mergePulseStats(stats) {
+  if (!stats || typeof stats !== 'object') return lastStats || {};
+  const previous = lastStats && typeof lastStats === 'object' ? lastStats : {};
+  const next = { ...previous, ...stats };
+  const now = Date.now();
+
+  Object.entries(PULSE_RETAIN_FIELD_CATEGORIES).forEach(([field, category]) => {
+    if (!Object.prototype.hasOwnProperty.call(stats, field)) return;
+    const incoming = stats[field];
+    if (incoming !== null && incoming !== undefined) {
+      const observedAt = statsFieldObservedAt(stats, category, now);
+      if (pulseStatsCategoryUnavailable(stats, category) && (now - observedAt) > PULSE_LAST_GOOD_TTL_MS) {
+        next[field] = null;
+        lastStatsFieldObservedAt.delete(field);
+        return;
+      }
+      lastStatsFieldObservedAt.set(field, observedAt);
+      return;
+    }
+    const observedAt = lastStatsFieldObservedAt.get(field) || 0;
+    const canRetain = previous[field] !== null
+      && previous[field] !== undefined
+      && pulseStatsCategoryUnavailable(stats, category)
+      && observedAt > 0
+      && (now - observedAt) <= PULSE_LAST_GOOD_TTL_MS;
+    if (canRetain) next[field] = previous[field];
+  });
+
+  lastStats = next;
+  return next;
+}
+
+function pulseFieldObservedAt(field, fallback = Date.now()) {
+  return lastStatsFieldObservedAt.get(field) || fallback;
 }
 
 function safeLocalStorageGet(key) {
@@ -819,7 +909,9 @@ function milestoneText(track, state) {
   const gap = milestoneGapLabel(track, state.gap);
 
   if (state.status === 'near') {
-    return `${current}; ${gap} until ${target} ${targetSuffix}.`;
+    const etaDays = finiteNumber(state.etaDays);
+    const eta = etaDays == null ? '' : ` — about ${Math.max(1, Math.ceil(etaDays))} day${Math.ceil(etaDays) === 1 ? '' : 's'} at the recent pace`;
+    return `${gap} to go${eta}.`;
   }
   if (state.status === 'crossed') {
     if (track.id === 'cycle') {
@@ -841,9 +933,7 @@ function compactTimeRemaining(expiresAt, now = Date.now()) {
 function milestoneDetail(track, state, lifecycle = {}, now = Date.now()) {
   const target = milestoneTargetLabel(track, state.target);
   if (state.status === 'near') {
-    const etaDays = finiteNumber(state.etaDays);
-    const eta = etaDays == null ? '' : `, about ${Math.max(1, Math.ceil(etaDays))}d at recent pace`;
-    return `${milestoneGapLabel(track, state.gap)} to go${eta}`;
+    return `${milestoneCurrentLabel(track, state.current)} now`;
   }
   if (state.status === 'crossed') {
     const freshness = lifecycle.expiresAt ? `, ${compactTimeRemaining(lifecycle.expiresAt, now)}` : '';
@@ -1113,6 +1203,10 @@ function normalizeDelta(delta) {
   };
 }
 
+function normalizeContext(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 96);
+}
+
 function signedDelta(value, unit = '', precision = 1) {
   const number = finiteNumber(value);
   if (number == null) return null;
@@ -1190,6 +1284,7 @@ function makeSignal(category, score, text, options = {}) {
   const meta = categoryMeta(category);
   const kind = normalizeSignalKind(options.kind || (options.breaking ? 'event' : 'state'));
   const tone = options.tone || meta.tone;
+  const createdAt = finiteNumber(options.createdAt) || Date.now();
   const milestoneStatus = options.milestoneStatus === 'crossed'
     ? 'crossed'
     : options.milestoneStatus === 'near'
@@ -1212,8 +1307,11 @@ function makeSignal(category, score, text, options = {}) {
     milestoneTrack: options.milestoneTrack ? safeCssToken(options.milestoneTrack) : null,
     route: normalizeRoute(options.route),
     delta: normalizeDelta(options.delta),
+    context: normalizeContext(options.context),
     breaking: options.breaking === true || kind === 'event',
-    createdAt: finiteNumber(options.createdAt) || Date.now(),
+    createdAt,
+    observedAt: finiteNumber(options.observedAt) || createdAt,
+    startedAt: finiteNumber(options.startedAt),
     expiresAt: finiteNumber(options.expiresAt),
     share: options.share || null,
     live: options.live === true,
@@ -1747,6 +1845,7 @@ function normalizeSignal(signal, index = 0) {
       ? 'near'
       : null;
   const score = finiteNumber(signal?.score) ?? (20 - index);
+  const createdAt = finiteNumber(signal?.createdAt) || Date.now();
   return {
     id: safeCssToken(signal?.id || category),
     category,
@@ -1764,8 +1863,11 @@ function normalizeSignal(signal, index = 0) {
     milestoneTrack: signal?.milestoneTrack ? safeCssToken(signal.milestoneTrack) : null,
     route: normalizeRoute(signal?.route),
     delta: normalizeDelta(signal?.delta),
+    context: normalizeContext(signal?.context),
     breaking: signal?.breaking === true || kind === 'event',
-    createdAt: finiteNumber(signal?.createdAt) || Date.now(),
+    createdAt,
+    observedAt: finiteNumber(signal?.observedAt) || createdAt,
+    startedAt: finiteNumber(signal?.startedAt),
     expiresAt: finiteNumber(signal?.expiresAt),
     share: signal?.share || null,
     live: signal?.live === true,
@@ -1781,6 +1883,202 @@ function currentUtcTick() {
     hour12: false,
     timeZone: 'UTC'
   });
+}
+
+function compactMoney(value) {
+  const number = finiteNumber(value);
+  if (number == null) return '';
+  return number.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: Math.abs(number) >= 1_000_000 ? 'compact' : 'standard',
+    maximumFractionDigits: Math.abs(number) >= 1_000_000 ? 1 : 0
+  });
+}
+
+function latestReceiptRow(source) {
+  if (source?.status !== 'available' || !source?.fresh || !Array.isArray(source.rows) || !source.rows.length) return null;
+  return source.rows[source.rows.length - 1] || null;
+}
+
+function pulseHistoryContext(rows, column, current, options = {}) {
+  const descriptor = describePulseSeries(rows, column, current, options);
+  return pulseSeriesContextLine(descriptor, options);
+}
+
+function coreSignalHistoryContext(signal) {
+  if (lastPulseHistoryReceipt?.status !== 'available' || !lastPulseHistoryReceipt?.fresh) return '';
+  const rows = lastPulseHistoryReceipt.rows || [];
+  const mappings = {
+    'live-volume': ['tx_volume_24h', finiteNumber(lastStats?.transactionVolume24h), 'flow', { relativeThreshold: 12 }],
+    'live-contracts': ['contract_calls_24h', finiteNumber(lastStats?.contractCalls24h), 'flow', { relativeThreshold: 12 }],
+    'live-accounts': ['new_accounts_24h', finiteNumber(lastStats?.newAccounts24h), 'flow', { relativeThreshold: 15 }],
+    'daily-tz4-switches': ['tz4_power_pct', finiteNumber(lastStats?.tz4Percentage), 'ratio', { pointThreshold: 0.5 }],
+    'daily-staking-apy-shift': ['staking_apy_stake', finiteNumber(lastStats?.stakeAPY), 'ratio', { pointThreshold: 0.2 }],
+    'daily-lb-ema-drift': ['lb_ema_pct', finiteNumber(lastStats?.lbEmaPct), 'ratio', { pointThreshold: 1 }],
+    'daily-lb-subsidy-flip': ['lb_ema_pct', finiteNumber(lastStats?.lbEmaPct), 'ratio', { pointThreshold: 1 }]
+  };
+  const mapping = mappings[signal.id];
+  if (!mapping || mapping[1] == null) return '';
+  const [column, current, mode, options] = mapping;
+  return pulseHistoryContext(rows, column, current, { mode, ...options });
+}
+
+function enrichSignalWithPulseContext(input) {
+  const signal = normalizeSignal(input);
+  let context = signal.context || coreSignalHistoryContext(signal);
+  let detail = signal.detail;
+  let startedAt = signal.startedAt;
+  let observedAt = signal.observedAt;
+
+  if (signal.id.startsWith('daily-')) {
+    const snapshot = dailySnapshotReference();
+    startedAt ||= finiteNumber(snapshot?.capturedAt);
+    observedAt = parsedTimestamp(lastStats?._quality?.observedAt, observedAt);
+  }
+
+  if (signal.category === 'price') {
+    const source = lastPulseDomainReceipt?.sources?.market;
+    const latest = latestReceiptRow(source);
+    if (latest) {
+      const volume = compactMoney(latest.volume_24h_usd);
+      const marketCap = compactMoney(latest.market_cap_usd);
+      const marketParts = [
+        signal.detail,
+        volume ? `${volume} 24h volume` : '',
+        marketCap ? `${marketCap} market cap` : ''
+      ].filter(Boolean);
+      detail = marketParts.join(' · ');
+      context ||= pulseHistoryContext(
+        source.rows,
+        'volume_24h_usd',
+        latest.volume_24h_usd,
+        { mode: 'flow', relativeThreshold: 15 }
+      );
+    }
+  }
+
+  return {
+    ...signal,
+    detail: String(detail || '').slice(0, 132),
+    context: normalizeContext(context),
+    startedAt,
+    observedAt
+  };
+}
+
+function governancePeriodSignal(stats = {}) {
+  const source = lastPulseDomainReceipt?.sources?.governance;
+  const latest = latestReceiptRow(source);
+  if (governanceAlertStripVisible()) return null;
+  const rawKind = String(latest?.period_kind || stats.govPeriodKind || '').toLowerCase();
+  if (!rawKind) return null;
+  const kind = rawKind === 'testing' ? 'cooldown' : rawKind;
+  const periodLabels = {
+    proposal: 'Proposal',
+    exploration: 'Exploration',
+    cooldown: 'Cooldown',
+    promotion: 'Promotion',
+    adoption: 'Adoption'
+  };
+  const period = periodLabels[kind] || String(stats.votingPeriod || 'Governance');
+  const proposal = String(stats.govProposalName || (hasActiveProposalLabel(stats.proposal) ? stats.proposal : latest?.proposal) || '').trim();
+  const historyDaysLeft = Math.max(0, Math.ceil((Date.parse(latest?.period_end || '') - Date.now()) / DAY_MS));
+  const daysLeft = Number.isFinite(historyDaysLeft)
+    ? historyDaysLeft
+    : finiteNumber(stats.participationDaysLeft);
+  const timing = Number.isFinite(daysLeft) ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'Current governance period';
+  let text = '';
+  let detail = timing;
+
+  if (kind === 'proposal') {
+    text = proposal
+      ? `"${proposal}" leads the open proposal-selection window.`
+      : 'Protocol proposal submissions are open.';
+    detail = `${timing} · no ballot yet`;
+  } else if (kind === 'exploration' || kind === 'promotion') {
+    const participation = finiteNumber(latest?.participation_pct) ?? finiteNumber(stats.participation);
+    const voters = finiteNumber(latest?.voters_voted);
+    text = proposal
+      ? `"${proposal}" is in the ${period} ballot.`
+      : `The ${period} ballot is open.`;
+    detail = participation != null
+      ? `${participation.toFixed(1)}% participation · ${timing}`
+      : voters != null
+        ? `${formatCount(voters)} voters · ${timing}`
+        : timing;
+  } else if (kind === 'cooldown') {
+    text = proposal
+      ? `"${proposal}" is in testing and review before the final vote.`
+      : 'Governance is in its testing and review period.';
+    detail = `${timing} · no ballot in this period`;
+  } else if (kind === 'adoption') {
+    text = proposal
+      ? `"${proposal}" is in activation preparation.`
+      : 'The accepted protocol is in activation preparation.';
+    detail = `${timing} · no ballot in this period`;
+  } else {
+    return null;
+  }
+
+  return makeSignal('governance', 118, text, {
+    id: `live-governance-${kind || 'period'}`,
+    title: `${period} period`,
+    detail,
+    tone: 'governance-hot',
+    startedAt: parsedTimestamp(latest?.period_start),
+    observedAt: parsedTimestamp(latest?.timestamp, parsedTimestamp(stats?._quality?.observedAt)),
+    expiresAt: parsedTimestamp(latest?.period_end),
+    live: true
+  });
+}
+
+function addDomainHistorySignals(signals, stats = {}) {
+  const governance = governancePeriodSignal(stats);
+  if (governance) signals.push(governance);
+
+  const healthSource = lastPulseDomainReceipt?.sources?.networkHealth;
+  const health = latestReceiptRow(healthSource);
+  const maxRound = finiteNumber(health?.max_round);
+  const missedBlocks = finiteNumber(health?.missed_blocks);
+  if (health && ((maxRound != null && maxRound >= 1) || (missedBlocks != null && missedBlocks >= 3))) {
+    const exceptions = [
+      maxRound != null && maxRound >= 1 ? `round ${Math.round(maxRound)}` : '',
+      missedBlocks != null && missedBlocks >= 3 ? `${Math.round(missedBlocks)} missed blocks` : ''
+    ].filter(Boolean);
+    signals.push(makeSignal('security', 112, `The latest consensus-health sample recorded ${exceptions.join(' and ')}.`, {
+      id: 'live-consensus-exception',
+      title: 'Consensus exception',
+      detail: 'Exceptional read, not the routine baseline',
+      route: '#health',
+      observedAt: parsedTimestamp(health.timestamp),
+      expiresAt: parsedTimestamp(health.timestamp, 0) + (healthSource.freshnessLimitMs || 0),
+      live: true
+    }));
+  }
+
+  const tezosxSource = lastPulseDomainReceipt?.sources?.tezosx;
+  const tezosx = latestReceiptRow(tezosxSource);
+  if (tezosx) {
+    const transactions = finiteNumber(tezosx.transactions_24h);
+    const context = transactions == null ? '' : pulseHistoryContext(
+      tezosxSource.rows,
+      'transactions_24h',
+      transactions,
+      { mode: 'flow', relativeThreshold: 15 }
+    );
+    if (transactions != null && context) {
+      signals.push(makeSignal('etherlink', 88, `${formatCount(transactions)} Etherlink transactions landed in the latest 24-hour read.`, {
+        id: 'etherlink-throughput',
+        title: 'Etherlink throughput',
+        detail: 'Tezos L2 activity',
+        route: '/tezosx/',
+        context,
+        observedAt: parsedTimestamp(tezosx.timestamp),
+        live: true
+      }));
+    }
+  }
 }
 
 function governanceAlertStripVisible() {
@@ -1940,6 +2238,7 @@ function buildLiveHotSignals(stats = lastStats || {}) {
 
   addDailyDeltaSignals(signals, stats);
   signals.push(...buildMilestoneSignals(milestoneStats));
+  addDomainHistorySignals(signals, stats);
 
   if (uptimeAnniversary.isAnniversary) {
     signals.push(makeSignal('anniversary', 180, uptimeAnniversary.hotText, {
@@ -1956,22 +2255,13 @@ function buildLiveHotSignals(stats = lastStats || {}) {
     }));
   }
 
-  if (hasActiveProposalLabel(stats?.proposal) && !governanceAlertStripVisible()) {
-    signals.push(makeSignal('governance', 118, `"${stats.proposal}" is in ${stats.votingPeriod || 'the active'} period.`, {
-      id: 'live-governance',
-      title: 'Governance',
-      detail: stats.participation != null ? `${Number(stats.participation).toFixed(1)}% participation` : 'Protocol decision lane',
-      tone: 'governance-hot',
-      live: true
-    }));
-  }
-
   if (stats?.contractCalls24h != null) {
     signals.push(makeSignal('contracts', 106, `${Number(stats.contractCalls24h).toLocaleString('en-US')} contract calls in the last 24h.`, {
       id: 'live-contracts',
       title: 'Contract calls',
       detail: 'App and DeFi pulse',
       tone: 'activity',
+      observedAt: pulseFieldObservedAt('contractCalls24h'),
       live: true
     }));
   }
@@ -1982,6 +2272,7 @@ function buildLiveHotSignals(stats = lastStats || {}) {
       title: 'Chain activity',
       detail: 'Transaction flow',
       tone: 'activity',
+      observedAt: pulseFieldObservedAt('transactionVolume24h'),
       live: true
     }));
   }
@@ -1992,6 +2283,7 @@ function buildLiveHotSignals(stats = lastStats || {}) {
       title: 'Fresh accounts',
       detail: 'Onboarding signal',
       tone: newAccounts > 200 ? 'growth' : 'quiet',
+      observedAt: pulseFieldObservedAt('newAccounts24h'),
       live: true
     }));
   } else if (fundedAccounts != null && fundedAccounts > 0) {
@@ -2000,6 +2292,7 @@ function buildLiveHotSignals(stats = lastStats || {}) {
       title: 'Funded accounts',
       detail: 'Network reach',
       tone: 'growth',
+      observedAt: pulseFieldObservedAt('fundedAccounts'),
       live: true
     }));
   }
@@ -2010,10 +2303,35 @@ function buildLiveHotSignals(stats = lastStats || {}) {
       detail: `Trading around $${fmtPrice(lastXtzPrice)}`,
       tone: priceChange >= 0 ? 'market-up' : 'market-down',
       delta: signedDelta(priceChange, '%', 1),
+      observedAt: parsedTimestamp(stats?._quality?.observedAt),
       live: true
     }));
   }
   return signals.filter(signal => signal.text);
+}
+
+function liveCandidateFingerprint(stats = {}) {
+  const fields = [
+    'cycle', 'blockLevel', 'cycleProgress', 'contractCalls24h', 'transactionVolume24h',
+    'newAccounts24h', 'fundedAccounts', 'priceChange24h', 'proposal', 'govPeriodKind',
+    'participation', 'participationDaysLeft', 'tz4Bakers', 'tz4Percentage', 'totalBakers',
+    'totalDelegators', 'totalStakers', 'totalBurned', 'smartContracts', 'stakeAPY',
+    'lbEmaPct', 'lbSubsidyDisabled'
+  ];
+  return JSON.stringify({
+    history: pulseHistoryRevision,
+    price: finiteNumber(lastXtzPrice),
+    snapshot: dailySnapshotReference()?.capturedAt || 0,
+    values: Object.fromEntries(fields.map(field => [field, stats?.[field] ?? null]))
+  });
+}
+
+function getLiveCandidateSignals(stats = lastStats || {}) {
+  const fingerprint = liveCandidateFingerprint(stats);
+  if (fingerprint === lastLiveCandidateFingerprint) return lastLiveCandidates;
+  lastLiveCandidateFingerprint = fingerprint;
+  lastLiveCandidates = buildLiveHotSignals(stats).map(enrichSignalWithPulseContext);
+  return lastLiveCandidates;
 }
 
 function pruneExpiredHotSignals(now = Date.now()) {
@@ -2129,7 +2447,7 @@ function mergeHotSignals(liveSignals, poolSignals, briefingSignals) {
   const categoryCounts = new Map();
   const now = Date.now();
   const sorted = [...liveSignals, ...poolSignals, ...briefingSignals]
-    .map(normalizeSignal)
+    .map(enrichSignalWithPulseContext)
     .filter(signal => signal.text)
     .filter(signal => !signalIsExpired(signal, now))
     .sort((a, b) => {
@@ -2204,7 +2522,18 @@ function prefersReducedMotion() {
 function refreshHotTodayLiveMetrics() {
   const island = document.getElementById('hot-today-island');
   if (!island || island.hidden) return;
-  setHotTodayLiveText('clock', `${currentUtcTick()} UTC`);
+  const now = Date.now();
+  setHotTodayLiveText('clock', hotTodayClockLabel(now));
+  island.querySelectorAll('[data-hot-age]').forEach((element) => {
+    const signal = {
+      kind: element.dataset.hotKind,
+      createdAt: finiteNumber(element.dataset.hotCreatedAt),
+      observedAt: finiteNumber(element.dataset.hotObservedAt),
+      startedAt: finiteNumber(element.dataset.hotStartedAt)
+    };
+    const label = signalAgeLabel(signal, now);
+    if (element.textContent !== label) element.textContent = label;
+  });
 }
 
 function getBriefingLead(profile, signals) {
@@ -2670,6 +2999,41 @@ async function shareHotTodayMilestone(signal, button) {
   }
 }
 
+function relativeSignalAge(timestamp, now = Date.now()) {
+  const age = Math.max(0, now - (finiteNumber(timestamp) || now));
+  if (age < 60_000) return 'Just now';
+  if (age < HOUR_MS) return `${Math.max(1, Math.floor(age / 60_000))}m ago`;
+  if (age < DAY_MS) return `${Math.max(1, Math.floor(age / HOUR_MS))}h ago`;
+  return new Date(timestamp).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+}
+
+function signalAgeLabel(signal, now = Date.now()) {
+  const startedAt = finiteNumber(signal?.startedAt);
+  if (startedAt) {
+    const weekday = new Date(startedAt).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    return `Since ${weekday}`;
+  }
+  const timestamp = signal?.kind === 'event'
+    ? finiteNumber(signal?.createdAt)
+    : finiteNumber(signal?.observedAt) || finiteNumber(signal?.createdAt);
+  const relative = relativeSignalAge(timestamp, now);
+  if (signal?.kind === 'event') return relative;
+  return relative === 'Just now' ? 'Live' : `Updated ${relative}`;
+}
+
+function hotTodayClockLabel(now = Date.now()) {
+  if (lastHotTodayDataState === 'stale' && lastHotTodayGoodAt) {
+    return `Last good ${relativeSignalAge(lastHotTodayGoodAt, now)} · ${currentUtcTick()} UTC`;
+  }
+  const observed = hotTodaySignals
+    .map(signal => finiteNumber(signal.observedAt) || finiteNumber(signal.createdAt))
+    .filter(Boolean);
+  const latest = observed.length ? Math.max(...observed) : null;
+  return latest
+    ? `Latest signal ${relativeSignalAge(latest, now)} · ${currentUtcTick()} UTC`
+    : `Live · ${currentUtcTick()} UTC`;
+}
+
 function renderHotSignal(signal, index) {
   const route = routeForSignal(signal);
   const routeLabel = labelForSignal(signal);
@@ -2701,14 +3065,20 @@ function renderHotSignal(signal, index) {
   const speciesMark = milestoneStatus ? '' : `
       <span class="hot-today-species-mark" aria-hidden="true"><span></span><span></span><span></span></span>
   `;
+  const ageLabel = signalAgeLabel(signal);
+  const contextMarkup = signal.context
+    ? `<small class="hot-today-context">${escapeHtml(signal.context)}</small>`
+    : '';
   const cardMarkup = `
     <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${milestoneAttributes} aria-label="${escapeHtml(ariaLabel)}">
       ${speciesMark}
       <span class="hot-today-rank">${escapeHtml(signal.icon)}</span>
       <span class="hot-today-copy">
+        <small class="hot-today-kicker"><span>${escapeHtml(categoryMeta(signal.category).label)}</span><span class="hot-today-age" data-hot-age data-hot-created-at="${escapeHtml(String(signal.createdAt || ''))}" data-hot-observed-at="${escapeHtml(String(signal.observedAt || ''))}" data-hot-started-at="${escapeHtml(String(signal.startedAt || ''))}" data-hot-kind="${escapeHtml(signal.kind)}">${escapeHtml(ageLabel)}</span></small>
         ${milestoneStatusMarkup}
         <strong>${escapeHtml(signal.title)}</strong>
         <span>${escapeHtml(signal.text)}</span>
+        ${contextMarkup}
       </span>
       <em><span>${escapeHtml(signal.detail)}</span>${renderDeltaChip(signal.delta, 'hot-today-delta')}</em>
       ${milestoneTraceMarkup}
@@ -2757,11 +3127,14 @@ function applyHotTodayActive(index = hotTodayActiveIndex, { scroll = false } = {
 }
 
 function renderHotTodayProgress(signals = hotTodaySignals) {
-  if (!Array.isArray(signals) || signals.length <= 1) return '';
+  if (!Array.isArray(signals) || !signals.length) return '';
   return `
-    <div class="hot-today-progress" aria-label="Live Pulse position">
+    <div class="hot-today-progress" aria-label="Live Pulse signals">
       ${signals.map((signal, index) => `
-        <button class="hot-today-progress-segment" type="button" data-hot-progress-index="${index}" aria-label="${escapeHtml(`Show ${signal.title || `signal ${index + 1}`}`)}"></button>
+        <button class="hot-today-progress-segment hot-today-rail-chip" type="button" data-quiet-key="hot-rail-${escapeHtml(signal.id)}" data-hot-progress-index="${index}" data-hot-kind="${escapeHtml(signal.kind)}" aria-label="${escapeHtml(`Show ${signal.title || `signal ${index + 1}`}`)}">
+          <span class="hot-today-rail-icon" aria-hidden="true">${escapeHtml(signal.category === 'milestone' ? '◎' : signal.icon)}</span>
+          <span class="hot-today-rail-label">${escapeHtml(signal.shortLabel || signal.title || `Signal ${index + 1}`)}</span>
+        </button>
       `).join('')}
     </div>
   `;
@@ -2790,7 +3163,10 @@ function wireHotTodayRealtime() {
       refreshHotTodayLiveMetrics();
     });
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshHotTodayLiveMetrics();
+      if (document.visibilityState === 'visible') {
+        refreshHotTodayLiveMetrics();
+        schedulePulseHistoryLoad();
+      }
     });
   }
   if (!hotTodayLiveTimer) {
@@ -2810,6 +3186,37 @@ function wireHotTodayProgressNavigation(island) {
     event.preventDefault();
     applyHotTodayActive(Number(button.dataset.hotProgressIndex), { scroll: true });
   });
+  const markStripIntent = (event) => {
+    const target = event.target;
+    if (target?.closest?.('.hot-today-strip, .hot-today-progress')) {
+      hotTodayStripUserIntentUntil = Date.now() + 1200;
+    }
+  };
+  island.addEventListener('wheel', markStripIntent, { capture: true, passive: true });
+  island.addEventListener('touchstart', markStripIntent, { capture: true, passive: true });
+  island.addEventListener('pointerdown', markStripIntent, true);
+  island.addEventListener('keydown', markStripIntent, true);
+  island.addEventListener('scroll', (event) => {
+    const strip = event.target.closest?.('.hot-today-strip');
+    if (!strip || !island.contains(strip)) return;
+    if (Date.now() > hotTodayStripUserIntentUntil) return;
+    if (hotTodayStripNavigationFrame) cancelAnimationFrame(hotTodayStripNavigationFrame);
+    hotTodayStripNavigationFrame = requestAnimationFrame(() => {
+      hotTodayStripNavigationFrame = 0;
+      const cards = Array.from(strip.querySelectorAll('[data-hot-signal-index]'));
+      if (!cards.length) return;
+      const center = strip.scrollLeft + (strip.clientWidth / 2);
+      const nearest = cards.reduce((best, card) => {
+        const item = card.closest('.hot-today-milestone-shell') || card;
+        const itemCenter = item.offsetLeft + (item.offsetWidth / 2);
+        const distance = Math.abs(itemCenter - center);
+        return distance < best.distance
+          ? { distance, index: Number(card.dataset.hotSignalIndex) }
+          : best;
+      }, { distance: Infinity, index: hotTodayActiveIndex });
+      if (nearest.index !== hotTodayActiveIndex) applyHotTodayActive(nearest.index, { scroll: false });
+    });
+  }, true);
 }
 
 function settleMilestoneCardArrivals(island) {
@@ -2818,6 +3225,91 @@ function settleMilestoneCardArrivals(island) {
       if (card.isConnected) card.classList.remove('is-milestone-arriving');
     }, MILESTONE_CARD_ARRIVAL_MS);
   });
+}
+
+function pulseHasConfirmedStats(stats = {}) {
+  return finiteNumber(stats.cycle) != null
+    && finiteNumber(stats.blockLevel) != null
+    && stats?._quality?.status !== 'unavailable';
+}
+
+function renderHotTodayState(state, stats = lastStats || {}) {
+  const island = document.getElementById('hot-today-island');
+  const content = document.getElementById('hot-today-content');
+  if (!island || !content) return;
+  const loading = state === 'loading';
+  const quiet = state === 'quiet';
+  lastHotTodayDataState = state;
+  if (!loading) hotTodaySignals = [];
+  const title = quiet ? 'The network is steady' : 'Live Pulse is unavailable';
+  const text = quiet
+    ? 'No signal clears the headline threshold in the latest available read.'
+    : 'The live read did not arrive. Last-good history and source status remain available in Network Pulse.';
+  const stateMarkup = loading
+    ? `
+      <div class="hot-today-head-meta">
+        <span class="hot-today-clock"><span class="hot-today-clock-dot" aria-hidden="true"></span><span data-hot-live="clock">Live · ${escapeHtml(currentUtcTick())} UTC</span></span>
+      </div>
+      <div class="hot-today-strip hot-today-strip-loading" aria-label="Live Pulse loading">
+        ${Array.from({ length: 3 }, (_, index) => `
+          <span class="hot-today-card hot-today-card-placeholder" data-quiet-key="hot-placeholder-${index}" aria-hidden="true">
+            <i></i><b></b><span></span><em></em>
+          </span>
+        `).join('')}
+      </div>
+      <div class="hot-today-progress hot-today-progress-loading" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+    `
+    : `
+      <div class="hot-today-head-meta">
+        <a class="hot-today-clock" href="#health" data-network-route="#health"><span class="hot-today-clock-dot" aria-hidden="true"></span><span data-hot-live="clock">${escapeHtml(hotTodayClockLabel())}</span></a>
+      </div>
+      <div class="hot-today-terminal hot-today-terminal-${escapeHtml(state)}" role="status">
+        <span class="hot-today-terminal-icon" aria-hidden="true">${quiet ? '○' : '◇'}</span>
+        <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(text)}</small></span>
+        <a href="${escapeHtml(networkFeatureRoute('network'))}" data-network-route="${escapeHtml(networkFeatureRoute('network'))}">Open Network Pulse <span aria-hidden="true">↗</span></a>
+      </div>
+    `;
+
+  island.hidden = false;
+  island.dataset.pulseState = state;
+  island.setAttribute('aria-busy', loading ? 'true' : 'false');
+  island.setAttribute('aria-live', loading ? 'off' : 'polite');
+  if (hotTodayHasRendered) quietlySyncHtml(content, stateMarkup);
+  else content.innerHTML = stateMarkup;
+  hotTodayHasRendered = !loading;
+  wireNetworkContextNavigation(island);
+  wireHotTodayRealtime();
+  if (!loading) {
+    scheduleHotSignalExpiryRefresh([]);
+    captureDailySnapshot(stats);
+  }
+}
+
+function schedulePulseHistoryLoad() {
+  if (typeof window === 'undefined' || pulseHistoryLoadScheduled || pulseHistoryLoadInFlight) return;
+  if (document.visibilityState !== 'visible') return;
+  pulseHistoryLoadScheduled = true;
+  const load = () => {
+    pulseHistoryLoadInFlight = Promise.all([
+      getPulseHistoryReceipt(),
+      getPulseDomainReceipt()
+    ]).then(([historyReceipt, domainReceipt]) => {
+      lastPulseHistoryReceipt = historyReceipt;
+      lastPulseDomainReceipt = domainReceipt;
+      pulseHistoryRevision += 1;
+      lastLiveCandidateFingerprint = '';
+      scheduleHotSignalRender();
+      rerenderCachedBriefing();
+    }).catch(() => {
+      // History is additive context. Current cards remain usable without it.
+    }).finally(() => {
+      pulseHistoryLoadInFlight = null;
+    });
+  };
+  if ('requestIdleCallback' in window) window.requestIdleCallback(load, { timeout: 2500 });
+  else window.setTimeout(load, 0);
 }
 
 function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
@@ -2836,15 +3328,13 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     .filter(signal => !['cycle', 'security', 'network', 'staking'].includes(signal.category))
     .filter(signal => !(stripHasGovernance && signal.category === 'governance'));
   const signals = selectHotSignalSet(
-    mergeHotSignals(buildLiveHotSignals(stats), hotPoolSignals(), [...nonRedundantBriefing, ...fallbackBriefing])
+    mergeHotSignals(getLiveCandidateSignals(stats), hotPoolSignals(), [...nonRedundantBriefing, ...fallbackBriefing])
   );
   if (!signals.length) {
-    hotTodaySignals = [];
-    scheduleHotSignalExpiryRefresh([]);
+    renderHotTodayState(pulseHasConfirmedStats(stats) ? 'quiet' : 'unavailable', stats);
     window.dispatchEvent(new CustomEvent('hot-signal-rendered', {
       detail: { top: null, milestone: null, count: 0 }
     }));
-    captureDailySnapshot(stats);
     return;
   }
   const previousActiveId = hotTodaySignals[hotTodayActiveIndex]?.id || '';
@@ -2869,11 +3359,13 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     ? `<span class="hot-today-memory-chip">${escapeHtml(history.chip)}</span>`
     : '';
   island.hidden = false;
+  island.dataset.pulseState = 'ready';
+  island.setAttribute('aria-busy', 'false');
   island.setAttribute('aria-live', hotTodayHasRendered ? 'off' : 'polite');
   const islandHtml = `
     <div class="hot-today-head-meta">
       ${memoryChip}
-      <a class="hot-today-clock" href="#health" data-network-route="#health"><span class="hot-today-clock-dot" aria-hidden="true"></span><span data-hot-live="clock">${escapeHtml(currentUtcTick())} UTC</span></a>
+      <a class="hot-today-clock" href="#health" data-network-route="#health"><span class="hot-today-clock-dot" aria-hidden="true"></span><span data-hot-live="clock">${escapeHtml(hotTodayClockLabel())}</span></a>
     </div>
     <div class="hot-today-strip" aria-label="Scrollable live pulse">
       ${signals.map(renderHotSignal).join('')}
@@ -2883,6 +3375,15 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   if (hotTodayHasRendered) quietlySyncHtml(content, islandHtml);
   else content.innerHTML = islandHtml;
   hotTodayHasRendered = true;
+  lastHotTodayDataState = 'ready';
+  lastHotTodayGoodAt = Math.max(
+    Date.now(),
+    ...signals.map(signal => finiteNumber(signal.observedAt) || 0)
+  );
+  if (hotTodayInitialTimer) {
+    window.clearTimeout(hotTodayInitialTimer);
+    hotTodayInitialTimer = null;
+  }
   settleMilestoneCardArrivals(island);
   wireHotTodayProgressNavigation(island);
   wireHotTodayMilestoneSharing(island);
@@ -2899,6 +3400,7 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     }
   }));
   captureDailySnapshot(stats);
+  schedulePulseHistoryLoad();
 }
 
 function rerenderCachedBriefing() {
@@ -2996,16 +3498,26 @@ function wireNetworkContextNavigation(container) {
 }
 
 function selectDrawerNetworkSignals(sentences, profile) {
+  const liveSignals = getLiveCandidateSignals(lastStats || {})
+    .filter(signal => signal.text && !signal.hotOnly)
+    .map(signal => ({
+      ...signal,
+      score: (finiteNumber(signal.score) || 0) + scoreBoostFor(signal.category, profile)
+    }));
   const briefingSignals = (Array.isArray(sentences) ? sentences : [])
     .map(normalizeSignal)
-    .filter(signal => signal.text && !signal.hotOnly);
+    .filter(signal => signal.text && !signal.hotOnly)
+    .map(signal => ({
+      ...signal,
+      score: (finiteNumber(signal.score) || 0) + scoreBoostFor(signal.category, profile)
+    }));
   const poolSignals = hotPoolSignals()
     .filter(signal => signal.text && !signal.hotOnly)
     .map(signal => ({
       ...signal,
       score: (finiteNumber(signal.score) || 0) + scoreBoostFor(signal.category, profile)
     }));
-  const merged = mergeHotSignals([], poolSignals, briefingSignals);
+  const merged = mergeHotSignals(liveSignals, poolSignals, briefingSignals);
   const notable = merged.filter(signal => signal.spectacle !== 'quiet');
   const selected = [...notable];
   for (const signal of merged) {
@@ -3016,6 +3528,23 @@ function selectDrawerNetworkSignals(sentences, profile) {
   return selected
     .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
     .slice(0, 4);
+}
+
+function renderDrawerMilestoneLine(signals = getLiveCandidateSignals(lastStats || {})) {
+  const milestone = signals.find(signal => signal.tone === 'milestone' && signal.milestoneStatus === 'crossed')
+    || signals.find(signal => signal.tone === 'milestone' && signal.milestoneStatus === 'near');
+  if (!milestone) return '';
+  const route = routeForSignal(milestone);
+  const status = milestone.milestoneStatus === 'crossed' ? 'Confirmed' : 'Approaching';
+  return `
+    <a class="network-context-milestone-line" href="${escapeHtml(route)}" data-network-route="${escapeHtml(route)}">
+      <span aria-hidden="true">✦</span>
+      <small>${escapeHtml(status)}</small>
+      <strong>${escapeHtml(milestone.title)}</strong>
+      <em>${escapeHtml(milestone.text)}</em>
+      <span aria-hidden="true">↗</span>
+    </a>
+  `;
 }
 
 function renderToDrawer(cycle, sentences) {
@@ -3060,6 +3589,7 @@ function renderToDrawer(cycle, sentences) {
             <a href="${escapeHtml(networkFeatureRoute('network'))}" data-network-route="${escapeHtml(networkFeatureRoute('network'))}" aria-label="${escapeHtml(networkFeatureLabel('network'))}">Open Network Pulse <span aria-hidden="true">↗</span></a>
           </div>
           <p class="network-context-lede" data-magic-text>${escapeHtml(lead)}</p>
+          ${renderDrawerMilestoneLine()}
           <div class="network-context-signals">
             ${signals.map((signal, index) => renderSignalCard(signal, index, data, portfolio)).join('')}
           </div>
@@ -3074,20 +3604,22 @@ function renderToDrawer(cycle, sentences) {
 
 export async function initDailyBriefing(stats, xtzPrice) {
   wirePersonalizationRefresh();
-  if (!stats?.cycle) return;
-  lastStats = stats;
+  const mergedStats = mergePulseStats(stats);
+  if (!mergedStats?.cycle) return;
   lastXtzPrice = xtzPrice;
-  const briefing = await generate(stats, xtzPrice);
+  lastLiveCandidateFingerprint = '';
+  const briefing = await generate(mergedStats, xtzPrice);
   renderToDrawer(briefing.cycle, briefing.sentences);
   try { localStorage.setItem(LS_LAST_SEEN, String(briefing.cycle)); } catch {}
 }
 
 export async function updateDailyBriefing(stats, xtzPrice) {
   wirePersonalizationRefresh();
-  if (!stats?.cycle) return;
-  lastStats = stats;
+  const mergedStats = mergePulseStats(stats);
+  if (!mergedStats?.cycle) return;
   lastXtzPrice = xtzPrice;
-  const briefing = await generate(stats, xtzPrice);
+  lastLiveCandidateFingerprint = '';
+  const briefing = await generate(mergedStats, xtzPrice);
   renderToDrawer(briefing.cycle, briefing.sentences);
   try { localStorage.setItem(LS_LAST_SEEN, String(briefing.cycle)); } catch {}
 }
@@ -3095,37 +3627,63 @@ export async function updateDailyBriefing(stats, xtzPrice) {
 export async function initHotTodayIsland(stats, xtzPrice) {
   if (hotTodayWired) return;
   hotTodayWired = true;
-  lastStats = stats || lastStats;
+  const mergedStats = mergePulseStats(stats);
   lastXtzPrice = xtzPrice ?? lastXtzPrice;
   const island = document.getElementById('hot-today-island');
-  const content = document.getElementById('hot-today-content');
-  if (!island || !content) return;
-  island.hidden = false;
-  content.innerHTML = `
-    <div class="hot-today-head-meta">
-      <span>Syncing</span>
-    </div>
-    <div class="hot-today-grid hot-today-grid-loading">
-      <span></span><span></span><span></span><span></span>
-    </div>
-  `;
+  if (!island || !document.getElementById('hot-today-content')) return;
+  renderHotTodayState('loading', mergedStats);
+  hotTodayInitialTimer = window.setTimeout(() => {
+    hotTodayInitialTimer = null;
+    if (lastHotTodayDataState === 'loading') renderHotTodayState('unavailable', mergedStats);
+  }, HOT_TODAY_INITIAL_TIMEOUT_MS);
   wireNetworkContextNavigation(island);
   wireHotTodayRealtime();
+  schedulePulseHistoryLoad();
   maybeDispatchProtocolLoreSignal();
-  if (stats?.cycle) await updateHotTodayIsland(stats, xtzPrice);
+  if (mergedStats?.cycle) await updateHotTodayIsland(mergedStats, xtzPrice);
 }
 
 export async function updateHotTodayIsland(stats, xtzPrice) {
-  if (!stats?.cycle) return;
-  lastStats = stats;
+  const mergedStats = mergePulseStats(stats);
+  if (!mergedStats?.cycle) return;
   lastXtzPrice = xtzPrice;
+  lastLiveCandidateFingerprint = '';
   maybeDispatchProtocolLoreSignal();
-  const briefing = await generate(stats, xtzPrice);
-  renderToHotIsland(briefing.cycle, briefing.sentences, stats);
+  try {
+    const briefing = await generate(mergedStats, xtzPrice);
+    renderToHotIsland(briefing.cycle, briefing.sentences, mergedStats);
+  } catch (error) {
+    console.warn('Live Pulse refresh failed; preserving the last-good surface.', error);
+    if (hotTodaySignals.length && hotTodayHasRendered) {
+      lastHotTodayDataState = 'stale';
+      document.getElementById('hot-today-island')?.setAttribute('data-pulse-state', 'stale');
+      refreshHotTodayLiveMetrics();
+    } else {
+      renderHotTodayState('unavailable', mergedStats);
+    }
+  }
 }
 
 export function getTopHotSignal() {
   return hotSignalPayload(hotTodaySignals[0]);
+}
+
+export function getDailyDeltaSignalSummaries(limit = 3) {
+  const cap = Math.max(0, Math.min(5, Number(limit) || 0));
+  return getLiveCandidateSignals(lastStats || {})
+    .filter(signal => signal.id.startsWith('daily-') && signal.text)
+    .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
+    .slice(0, cap)
+    .map(signal => ({
+      id: signal.id,
+      category: signal.category,
+      title: signal.title,
+      text: signal.text,
+      detail: signal.detail,
+      context: signal.context,
+      startedAt: signal.startedAt,
+      observedAt: signal.observedAt
+    }));
 }
 
 export function activateHotTodaySignal(categoryOrIndex) {

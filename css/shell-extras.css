@@ -599,8 +599,10 @@
 .hot-today-progress {
     display: flex;
     align-items: center;
-    gap: 0.28rem;
-    width: min(24rem, 100%);
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+    width: 100%;
     min-height: 36px;
     margin: 0.7rem auto 0;
 }
@@ -608,47 +610,58 @@
 .hot-today-progress-segment {
     appearance: none;
     position: relative;
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-width: 0;
-    min-height: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.36rem;
+    padding: 0.34rem 0.62rem;
+    border: 1px solid rgba(255, 255, 255, 0.075);
     border-radius: 999px;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-tertiary);
     cursor: pointer;
-    opacity: 0.68;
-    transition: background 0.22s ease, opacity 0.22s ease, transform 0.22s ease;
+    opacity: 0.76;
+    transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease, opacity 0.22s ease, transform 0.22s ease;
 }
 
-.hot-today-progress-segment::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    right: 0;
-    left: 0;
-    height: 4px;
-    border-radius: inherit;
-    background: color-mix(in srgb, var(--text-tertiary) 24%, transparent);
-    transform: translateY(-50%);
-    transition: background 0.22s ease, transform 0.22s ease;
+.hot-today-rail-icon {
+    flex: 0 0 auto;
+    color: var(--accent-cyan);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 900;
+    line-height: 1;
 }
 
-.hot-today-progress-segment:is(:hover, :focus-visible, .is-active)::before {
-    background: var(--accent-cyan);
+.hot-today-rail-label {
+    min-width: 0;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 800;
+    line-height: 1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .hot-today-progress-segment:is(:hover, :focus-visible, .is-active) {
+    border-color: color-mix(in srgb, var(--accent-cyan) 42%, var(--glass-border));
+    background: color-mix(in srgb, var(--accent-cyan) 9%, rgba(255, 255, 255, 0.025));
+    color: var(--text-primary);
     opacity: 1;
 }
 
 .hot-today-progress-segment:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--accent-cyan) 70%, transparent);
-    outline-offset: -2px;
+    outline-offset: 2px;
 }
 
-.hot-today-progress-segment.is-active::before {
-    transform: translateY(-50%) scaleY(1.8);
+.hot-today-progress-segment.is-active {
+    box-shadow: inset 0 -2px 0 var(--accent-cyan);
 }
 
 .hot-today-strip::-webkit-scrollbar {
@@ -1206,6 +1219,34 @@
     min-width: 0;
 }
 
+.hot-today-kicker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    min-width: 0;
+    color: var(--hot-visual-accent, var(--accent-cyan));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.56rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.hot-today-copy .hot-today-kicker > span {
+    color: inherit;
+    font-size: inherit !important;
+    line-height: inherit !important;
+}
+
+.hot-today-age {
+    flex: 0 0 auto;
+    color: var(--text-tertiary) !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+
 .hot-today-copy strong,
 .hot-today-copy span,
 .hot-today-card em {
@@ -1224,6 +1265,17 @@
     color: var(--text-secondary);
     font-size: 0.78rem;
     line-height: 1.38;
+}
+
+.hot-today-context {
+    width: fit-content;
+    padding-left: 0.42rem;
+    border-left: 2px solid color-mix(in srgb, var(--hot-visual-accent, var(--accent-cyan)) 62%, transparent);
+    color: color-mix(in srgb, var(--text-secondary) 80%, var(--hot-visual-accent, var(--accent-cyan)));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 1.3;
 }
 
 .hot-today-card em {
@@ -1503,6 +1555,11 @@
     .hot-today-card-milestone .hot-today-rank,
     .hot-today-card-milestone .hot-today-milestone-status,
     .hot-today-card-milestone .hot-today-milestone-trace > span,
+    .hot-today-card-placeholder i,
+    .hot-today-card-placeholder b,
+    .hot-today-card-placeholder > span,
+    .hot-today-card-placeholder em,
+    .hot-today-progress-loading > span,
     .top-uptime-cluster .top-continuity-time-segment {
         animation: none !important;
     }
@@ -1518,11 +1575,113 @@
     }
 }
 
-.hot-today-grid-loading span {
-    min-height: 118px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.035);
+.hot-today-card-placeholder {
+    pointer-events: none;
+}
+
+.hot-today-card-placeholder i,
+.hot-today-card-placeholder b,
+.hot-today-card-placeholder > span,
+.hot-today-card-placeholder em,
+.hot-today-progress-loading > span {
+    display: block;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.055);
     animation: pulse 2s ease-in-out infinite;
+}
+
+.hot-today-card-placeholder i {
+    width: 1.9rem;
+    height: 1.9rem;
+    grid-row: 1 / span 3;
+}
+
+.hot-today-card-placeholder b {
+    width: 46%;
+    height: 0.66rem;
+}
+
+.hot-today-card-placeholder > span {
+    width: 84%;
+    height: 0.52rem;
+}
+
+.hot-today-card-placeholder em {
+    grid-column: 2;
+    width: 62%;
+    height: 0.44rem;
+}
+
+.hot-today-progress-loading > span {
+    width: 5.5rem;
+    height: 1.8rem;
+}
+
+.hot-today-terminal {
+    min-height: 112px;
+    display: grid;
+    grid-template-columns: 2.15rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.72rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.hot-today-terminal-icon {
+    width: 2.15rem;
+    height: 2.15rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 28%, transparent);
+    border-radius: 999px;
+    color: var(--accent-cyan);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.hot-today-terminal > span:nth-child(2) {
+    min-width: 0;
+    display: grid;
+    gap: 0.25rem;
+}
+
+.hot-today-terminal strong {
+    color: var(--text-primary);
+    font-size: 0.92rem;
+}
+
+.hot-today-terminal small {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    line-height: 1.4;
+}
+
+.hot-today-terminal > a {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.62rem;
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 26%, transparent);
+    border-radius: 7px;
+    color: var(--accent-cyan);
+    font-size: 0.68rem;
+    font-weight: 850;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.hot-today-terminal-unavailable {
+    border-color: color-mix(in srgb, #f5b84b 25%, var(--glass-border));
+}
+
+.hot-today-section[data-pulse-state="stale"] .hot-today-clock-dot,
+.hot-today-terminal-unavailable .hot-today-terminal-icon {
+    background: #f5b84b;
+    border-color: color-mix(in srgb, #f5b84b 42%, transparent);
+    color: var(--bg-primary);
 }
 
 .native-explorer-overlay {
@@ -1937,6 +2096,31 @@
 
     .hot-today-progress {
         width: 100%;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        padding: 0.12rem 0 0.28rem;
+        scrollbar-width: none;
+    }
+
+    .hot-today-progress::-webkit-scrollbar {
+        display: none;
+    }
+
+    .hot-today-progress-segment {
+        flex: 0 0 auto;
+        max-width: 10rem;
+    }
+
+    .hot-today-terminal {
+        grid-template-columns: 2.15rem minmax(0, 1fr);
+        align-items: start;
+    }
+
+    .hot-today-terminal > a {
+        grid-column: 2;
+        justify-self: start;
     }
 
     .hot-today-card-anniversary {

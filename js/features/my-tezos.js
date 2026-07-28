@@ -22,6 +22,7 @@ import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
 import { fetchObjktProfile } from './objkt.js';
 import { refresh as refreshMyBakerStats } from './my-baker.js';
 import { initRewardsTracker } from './rewards-tracker.js';
+import { getDailyDeltaSignalSummaries } from './daily-briefing.js';
 import {
     activateMyTezosPortfolio,
     initMyTezosPortfolio,
@@ -70,6 +71,8 @@ const ACTIVE_VIEW_REFRESH_MS = 30000;
 const BAKING_BENJAMINS_NAME = 'Baking Benjamins';
 const _octezSoftwareCache = new Map();
 const _tezNameMemoryCache = new Map();
+let _activeOvernightCard = null;
+let _activeOvernightAddress = '';
 // Protocol eras — map block levels to protocol names
 const PROTOCOL_ERAS = [
     { name: 'Genesis', level: 0, date: '2018-06-30' },
@@ -1308,6 +1311,7 @@ function saveOvernightSnapshot(data) {
     try {
         localStorage.setItem(OVERNIGHT_KEY, JSON.stringify({
             ts: Date.now(),
+            address: data.fullAddress,
             balance: data.totalXTZ,
             staked: data.staked,
             xtzPrice: data.xtzPrice,
@@ -1323,10 +1327,12 @@ function saveOvernightSnapshot(data) {
     } catch {}
 }
 
-function getOvernightSnapshot() {
+function getOvernightSnapshot(address = '') {
     try {
         const raw = localStorage.getItem(OVERNIGHT_KEY);
-        return raw ? JSON.parse(raw) : null;
+        const snapshot = raw ? JSON.parse(raw) : null;
+        if (address && snapshot?.address !== address) return null;
+        return snapshot;
     } catch { return null; }
 }
 
@@ -1338,20 +1344,31 @@ function formatTimeSince(ms) {
     return `${mins}m`;
 }
 
+function renderOvernightBullet(bullet) {
+    const tone = ['positive', 'negative', 'neutral', 'network'].includes(bullet.tone)
+        ? bullet.tone
+        : 'neutral';
+    return `<span class="overnight-bullet overnight-bullet-${tone}"><span aria-hidden="true">·</span><span>${escapeHtml(bullet.lead || '')}${bullet.value ? `<strong>${escapeHtml(bullet.value)}</strong>` : ''}${escapeHtml(bullet.tail || '')}</span></span>`;
+}
+
 function buildOvernightCard(data, snapshot) {
     if (!snapshot || !snapshot.ts) return null;
     const elapsed = Date.now() - snapshot.ts;
     if (elapsed < 3600000) return null; // Skip if < 1 hour
 
-    const bullets = [];
+    const accountBullets = [];
 
     // Balance change (only show if we have a real previous balance to compare)
     const prevBalance = snapshot.balance;
     const balDelta = prevBalance != null && prevBalance > 0 ? data.totalXTZ - prevBalance : 0;
     if (Math.abs(balDelta) >= 0.01) {
         const sign = balDelta >= 0 ? '+' : '';
-        const color = balDelta >= 0 ? 'var(--color-success, #10b981)' : 'var(--color-error, #ef4444)';
-        bullets.push(`<span style="color:${color}"><strong>${sign}${balDelta.toFixed(2)} XTZ</strong></span> balance change`);
+        accountBullets.push({
+            lead: '',
+            value: `${sign}${balDelta.toFixed(2)} XTZ`,
+            tail: ' balance change',
+            tone: balDelta >= 0 ? 'positive' : 'negative'
+        });
     }
 
     // USD delta
@@ -1359,8 +1376,12 @@ function buildOvernightCard(data, snapshot) {
         const usdDelta = (data.totalXTZ * data.xtzPrice) - snapshot.usdValue;
         if (Math.abs(usdDelta) >= 0.01) {
             const sign = usdDelta >= 0 ? '+' : '';
-            const color = usdDelta >= 0 ? 'var(--color-success, #10b981)' : 'var(--color-error, #ef4444)';
-            bullets.push(`Portfolio <span style="color:${color}"><strong>${sign}$${Math.abs(usdDelta).toFixed(2)}</strong></span> in USD`);
+            accountBullets.push({
+                lead: 'Portfolio ',
+                value: `${sign}$${Math.abs(usdDelta).toFixed(2)}`,
+                tail: ' in USD',
+                tone: usdDelta >= 0 ? 'positive' : 'negative'
+            });
         }
     }
 
@@ -1369,8 +1390,12 @@ function buildOvernightCard(data, snapshot) {
         const pricePct = ((data.xtzPrice - snapshot.xtzPrice) / snapshot.xtzPrice) * 100;
         if (Math.abs(pricePct) >= 0.5) {
             const sign = pricePct >= 0 ? '+' : '';
-            const color = pricePct >= 0 ? 'var(--color-success, #10b981)' : 'var(--color-error, #ef4444)';
-            bullets.push(`XTZ price <span style="color:${color}"><strong>${sign}${pricePct.toFixed(1)}%</strong></span> ($${data.xtzPrice.toFixed(3)})`);
+            accountBullets.push({
+                lead: 'XTZ price ',
+                value: `${sign}${pricePct.toFixed(1)}%`,
+                tail: ` ($${data.xtzPrice.toFixed(3)})`,
+                tone: pricePct >= 0 ? 'positive' : 'negative'
+            });
         }
     }
 
@@ -1378,44 +1403,79 @@ function buildOvernightCard(data, snapshot) {
     if (data.rewardsLastCycle > 0) {
         const usd = data.xtzPrice ? ` ($${(data.rewardsLastCycle * data.xtzPrice).toFixed(2)})` : '';
         const cycle = Number.isFinite(data.latestRewardCycle) ? ` in cycle ${data.latestRewardCycle}` : '';
-        bullets.push(`Latest reward record: <strong>+${data.rewardsLastCycle.toFixed(2)} XTZ</strong>${usd}${cycle}`);
+        accountBullets.push({
+            lead: 'Latest reward record: ',
+            value: `+${data.rewardsLastCycle.toFixed(2)} XTZ`,
+            tail: `${usd}${cycle}`,
+            tone: 'positive'
+        });
     }
 
     // Baker health change
     if (snapshot.healthScore !== null && data.healthScore !== null && snapshot.healthScore !== data.healthScore) {
         const better = data.healthScore > snapshot.healthScore;
-        const color = better ? 'var(--color-success, #10b981)' : 'var(--color-error, #ef4444)';
-        bullets.push(`Baker cycle attestation power <span style="color:${color}"><strong>${better ? 'improved' : 'declined'}</strong></span> — ${data.health.icon} ${data.attestRate || ''}%`);
+        accountBullets.push({
+            lead: 'Baker cycle attestation power ',
+            value: better ? 'improved' : 'declined',
+            tail: ` — ${data.health.icon} ${data.attestRate || ''}%`,
+            tone: better ? 'positive' : 'negative'
+        });
     }
 
     // Streak milestone
     if (data.rewardStreak > 0 && data.rewardStreak > (snapshot.rewardStreak || 0)) {
-        bullets.push(`Reward streak: <strong>${data.rewardStreak} cycles</strong> 🔥`);
+        accountBullets.push({
+            lead: 'Reward streak: ',
+            value: `${data.rewardStreak} cycles`,
+            tail: ' 🔥',
+            tone: 'positive'
+        });
     }
 
-    // Calm fallback
-    if (bullets.length === 0) {
+    const networkBullets = getDailyDeltaSignalSummaries(2).map(signal => ({
+        lead: `${signal.title}: `,
+        value: '',
+        tail: `${signal.text}${signal.context ? ` ${signal.context}` : ''}`,
+        tone: 'network'
+    }));
+
+    // Calm account fallback
+    if (accountBullets.length === 0) {
         if (!data.hasRewardRole) {
-            bullets.push(`Your <strong>${fmtCompact(data.totalXTZ)} XTZ</strong> has no active baking, staking, or delegation reward role`);
+            accountBullets.push({ lead: 'Your ', value: `${fmtCompact(data.totalXTZ)} XTZ`, tail: ' has no active baking, staking, or delegation reward role', tone: 'neutral' });
         } else if (data.activeRewardEstimate && Number.isFinite(data.apyRate)) {
-            bullets.push(`Your eligible stake has a current estimate of <strong>${data.apyRate}% APY</strong>`);
+            accountBullets.push({ lead: 'Your eligible stake has a current estimate of ', value: `${data.apyRate}% APY`, tone: 'neutral' });
         } else if (data.apyBasis === 'gross-delegation-context' && Number.isFinite(data.apyRate)) {
-            bullets.push(`Gross delegation context is <strong>${data.apyRate}%</strong> before your baker’s off-chain fee and payout policy`);
+            accountBullets.push({ lead: 'Gross delegation context is ', value: `${data.apyRate}%`, tail: ' before your baker’s off-chain fee and payout policy', tone: 'neutral' });
         } else {
-            bullets.push(`Your <strong>${fmtCompact(data.totalXTZ)} XTZ</strong> is connected, but the current APY estimate is unavailable`);
+            accountBullets.push({ lead: 'Your ', value: `${fmtCompact(data.totalXTZ)} XTZ`, tail: ' is connected, but the current APY estimate is unavailable', tone: 'neutral' });
         }
     }
 
     return {
         icon: '🌙',
         title: `While you were away (${formatTimeSince(elapsed)})`,
-        body: `<div class="overnight-bullets">${bullets.map(b => `<span class="overnight-bullet">· ${b}</span>`).join('')}</div>`,
+        body: `
+            <div class="overnight-sections">
+                <section>
+                    <small>Your account since the saved snapshot</small>
+                    <div class="overnight-bullets">${accountBullets.map(renderOvernightBullet).join('')}</div>
+                </section>
+                ${networkBullets.length ? `
+                    <section>
+                        <small>Network changes since the last daily read</small>
+                        <div class="overnight-bullets">${networkBullets.map(renderOvernightBullet).join('')}</div>
+                    </section>
+                ` : ''}
+            </div>
+        `,
         accent: 'overnight',
     };
 }
 
 function buildMorningBrief(data) {
     const cards = [];
+    if (_activeOvernightCard) cards.push(_activeOvernightCard);
 
     if (data.bakerVote && !data.bakerVote.voted) {
         const v = data.bakerVote;
@@ -2699,11 +2759,15 @@ async function renderMorningBrief(address, force = false) {
         window._myTezosData = data;
         maybeQueueAnniversaryToast(data);
 
+        const overnightCard = buildOvernightCard(data, getOvernightSnapshot(data.fullAddress));
+        if (overnightCard) {
+            _activeOvernightCard = overnightCard;
+            _activeOvernightAddress = data.fullAddress;
+        } else if (_activeOvernightAddress !== data.fullAddress) {
+            _activeOvernightCard = null;
+            _activeOvernightAddress = '';
+        }
         const cards = buildMorningBrief(data);
-
-        // Overnight Report — prepend if returning user
-        const overnight = buildOvernightCard(data, getOvernightSnapshot());
-        if (overnight) cards.unshift(overnight);
         saveOvernightSnapshot(data);
 
         // Render morning brief sections in drawer

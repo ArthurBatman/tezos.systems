@@ -362,6 +362,13 @@ inline modal styles in `js/core/app.js`.
   consensus, economy, governance, network activity, ecosystem, and adjacent
   chamber signals into one categorized live card field while keeping the
   original inline stat sections available through `#section=...` deep links.
+  The homepage Live Pulse reuses its freshness-aware 7- and 30-day history
+  receipts for complete-window context, labels every rail destination, exposes
+  honest per-card observation timing, and distinguishes loading, quiet,
+  unavailable, and bounded last-good states without moving the reader during a
+  background refresh. My Tezos draws from the same live candidate set and
+  combines address-scoped account changes with daily network changes in one
+  return report.
 - Capital Chamber with direct `#capital` and `/capital/` access. Four sourced
   views organize the cross-layer capital picture without pretending their
   unlike metrics share one definition: **One System** (`?view=system`) connects
@@ -1196,7 +1203,8 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   and Network Moment capture contracts, launch-date wording, module import
   sanity, historical chart pagination and
   render-performance settings, LB-aware issuance contracts, CSS freshness,
-  lockfile/tooling, and shared hook checks.
+  lockfile/tooling, shared hook checks, and strict Live Pulse history semantics
+  for complete daily windows, ties, records, ratios, and missing coverage.
 - `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
   monthly coverage, official icon presence, RSS parsing, and conservative alias
   continuity.
@@ -1288,7 +1296,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v519`, including hero search, theme
+- Current aligned shell cache stamp: `v520`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
