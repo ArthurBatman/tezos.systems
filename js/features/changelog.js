@@ -7,6 +7,8 @@ const CHANGELOG = [
     {
         date: '2026-07-27',
         entries: [
+            { type: '🎨', text: 'Valley trees now sway at one-fifth of the grass’s travel and tempo for a barely-there canopy motion' },
+            { type: '🎨', text: 'Valley returns to its original rolling landscape with an organic three-quarter wooden bench, an opaque near mountain, and denser grass carrying from the distant slopes through the foreground' },
             { type: '🔧', text: 'Search suggestions now stay focused on navigation and lookup shortcuts instead of repeating the dashboard’s live milestone signal' },
             { type: '✨', text: 'Search now reaches reviewed apps, TezosCRP identities, protocol debates, milestones, TzKT aliases, approved explorer URLs, and checksum-verified Tezos or Etherlink identifiers' },
             { type: '🔧', text: 'Search ranking now understands natural multiword intent, offers safe spelling recovery, keeps asynchronous keyboard selection stable, leaves blank Enter inert, and never stores raw query history' },

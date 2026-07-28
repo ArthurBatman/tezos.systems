@@ -12,7 +12,12 @@ const CANVAS_ID = 'valley-background-canvas';
 // full-viewport paint cost. All readable dashboard content remains DOM-native.
 const DPR_CAP = 1;
 const FRAME_INTERVAL_MS = 1000 / 30;
-const GRASS_DENSITY_MULTIPLIER = 2;
+const GRASS_DENSITY_MULTIPLIER = 3;
+const GRASS_SWAY_DISTANCE_BASE = 0.08;
+const GRASS_SWAY_DISTANCE_WIND = 0.25;
+const GRASS_WAVE_SPEED_BASE = 0.9;
+const GRASS_WAVE_SPEED_WIND = 0.75;
+const TREE_SWAY_RATIO = 0.2;
 const EXTRA_GRASS_SEED_SALT = 0x9E3779B9;
 const MEADOW_SEED_SALT = 0x85EBCA6B;
 const TAU = Math.PI * 2;
@@ -83,11 +88,9 @@ class ValleyEffect {
         this.grass = [];
         this.grassCandidateCount = 0;
         this.pathwayPath = null;
-        this.lakePath = null;
         this.trees = [];
         this.clouds = [];
         this.seeds = [];
-        this.meadowMotes = [];
         this.paused = true;
         this.contextLost = false;
 
@@ -180,11 +183,9 @@ class ValleyEffect {
         this.grass = [];
         this.grassCandidateCount = 0;
         this.pathwayPath = null;
-        this.lakePath = null;
         this.trees = [];
         this.clouds = [];
         this.seeds = [];
-        this.meadowMotes = [];
     }
 
     pause() {
@@ -299,8 +300,11 @@ class ValleyEffect {
         this.canvas.dataset.valleyDpr = this.dpr.toFixed(2);
         this.canvas.dataset.valleyGrass = String(this.grass.length);
         this.canvas.dataset.valleyGrassCandidates = String(this.grassCandidateCount);
-        this.canvas.dataset.valleyDestination = 'wildfire-lake';
-        this.canvas.dataset.valleyMeadowMotes = String(this.meadowMotes.length);
+        this.canvas.dataset.valleyDestination = 'hilltop-bench';
+        this.canvas.dataset.valleyBench = 'three-quarter-wood';
+        this.canvas.dataset.valleyGrassProfile = 'full-depth-meadow';
+        this.canvas.dataset.valleyFrontMountain = 'opaque';
+        this.canvas.dataset.valleyTreeSwayRatio = TREE_SWAY_RATIO.toFixed(2);
     }
 
     resize() {
@@ -318,30 +322,46 @@ class ValleyEffect {
     }
 
     createGrassBlade(random, index, compact) {
-        const depth = random();
-        const baseY = lerp(this.height * 0.52, this.height * 1.035, Math.pow(depth, 0.7));
-        const perspective = clamp((baseY - (this.height * 0.5)) / (this.height * 0.52));
+        const depthLane = index % 6;
+        const depth = depthLane === 0
+            ? random() * 0.2
+            : depthLane === 1
+                ? 0.12 + (random() * 0.32)
+                : depthLane === 2
+                    ? 0.32 + (random() * 0.3)
+                    : random();
+        const baseY = lerp(this.height * 0.485, this.height * 1.035, Math.pow(depth, 1.08));
+        const perspective = clamp((baseY - (this.height * 0.47)) / (this.height * 0.565));
         return {
             x: random() * this.width,
             y: baseY + ((random() - 0.5) * this.height * 0.025),
-            length: lerp(5, compact ? 34 : 48, Math.pow(perspective, 1.3)) * lerp(0.76, 1.18, random()),
+            length: lerp(compact ? 7 : 9, compact ? 34 : 48, Math.pow(perspective, 0.92))
+                * lerp(0.76, 1.18, random()),
             phase: random() * TAU,
-            width: lerp(0.45, compact ? 1.2 : 1.55, perspective) * lerp(0.75, 1.15, random()),
+            width: lerp(0.58, compact ? 1.2 : 1.55, perspective) * lerp(0.75, 1.15, random()),
             depth: perspective,
-            seedHead: index % (compact ? 37 : 31) === 0 && perspective > 0.56
+            seedHead: index % (compact ? 37 : 31) === 0 && perspective > 0.2
+        };
+    }
+
+    getHilltop() {
+        return {
+            x: this.width * 0.59,
+            y: this.height * 0.595
         };
     }
 
     buildLandscapeGeometry() {
-        const shorelineY = this.height * 0.605;
-        const mouthX = this.width * 0.59;
+        const hilltop = this.getHilltop();
+        const pathEndY = hilltop.y;
+        const mouthX = hilltop.x;
         const bottomX = this.width * 0.42;
         const bottomHalfWidth = this.width * (this.width < 640 ? 0.24 : 0.19);
         const pathwayPath = new Path2D();
-        pathwayPath.moveTo(mouthX - (this.width * 0.018), shorelineY);
+        pathwayPath.moveTo(mouthX - (this.width * 0.012), pathEndY);
         pathwayPath.bezierCurveTo(
             this.width * 0.57,
-            this.height * 0.69,
+            this.height * 0.68,
             bottomX + (this.width * 0.12),
             this.height * 0.79,
             bottomX - bottomHalfWidth,
@@ -352,36 +372,13 @@ class ValleyEffect {
             bottomX + (this.width * 0.03),
             this.height * 0.82,
             this.width * 0.63,
-            this.height * 0.68,
-            mouthX + (this.width * 0.018),
-            shorelineY
+            this.height * 0.67,
+            mouthX + (this.width * 0.012),
+            pathEndY
         );
         pathwayPath.closePath();
 
-        const lakeHalfWidth = this.width * (this.width < 640 ? 0.39 : 0.32);
-        const farY = this.height * 0.49;
-        const lakePath = new Path2D();
-        lakePath.moveTo(mouthX - lakeHalfWidth, this.height * 0.555);
-        lakePath.bezierCurveTo(
-            mouthX - (lakeHalfWidth * 0.7),
-            farY,
-            mouthX + (lakeHalfWidth * 0.56),
-            farY,
-            mouthX + lakeHalfWidth,
-            this.height * 0.548
-        );
-        lakePath.bezierCurveTo(
-            mouthX + (lakeHalfWidth * 0.72),
-            this.height * 0.602,
-            mouthX - (lakeHalfWidth * 0.52),
-            this.height * 0.624,
-            mouthX - lakeHalfWidth,
-            this.height * 0.555
-        );
-        lakePath.closePath();
-
         this.pathwayPath = pathwayPath;
-        this.lakePath = lakePath;
     }
 
     buildScene() {
@@ -395,7 +392,6 @@ class ValleyEffect {
         const treeCount = compact ? 13 : medium ? 20 : 28;
         const cloudCount = compact ? 4 : 7;
         const seedCount = compact ? 12 : 24;
-        const meadowMoteCount = compact ? 72 : medium ? 112 : 164;
 
         this.buildLandscapeGeometry();
         const baseGrass = Array.from(
@@ -415,7 +411,7 @@ class ValleyEffect {
                 tone: index % 4
             };
         })
-            .filter((tree) => !this.ctx.isPointInPath(this.lakePath, tree.x, tree.y))
+            .filter((tree) => !this.ctx.isPointInPath(this.pathwayPath, tree.x, tree.y))
             .sort((left, right) => left.y - right.y);
 
         this.clouds = Array.from({ length: cloudCount }, () => ({
@@ -444,30 +440,8 @@ class ValleyEffect {
         const grassCandidates = [...baseGrass, ...extraGrass];
         this.grassCandidateCount = grassCandidates.length;
         this.grass = grassCandidates
-            .filter((blade) => (
-                !this.ctx.isPointInPath(this.pathwayPath, blade.x, blade.y)
-                && !this.ctx.isPointInPath(this.lakePath, blade.x, blade.y)
-            ))
+            .filter((blade) => !this.ctx.isPointInPath(this.pathwayPath, blade.x, blade.y))
             .sort((left, right) => left.depth - right.depth);
-
-        const meadowRandom = seededRandom((sceneSeed ^ MEADOW_SEED_SALT) >>> 0);
-        this.meadowMotes = [];
-        while (this.meadowMotes.length < meadowMoteCount) {
-            const depth = meadowRandom();
-            const baseY = lerp(this.height * 0.515, this.height * 0.79, Math.pow(depth, 0.82));
-            const x = meadowRandom() * this.width;
-            if (this.ctx.isPointInPath(this.pathwayPath, x, baseY)
-                || this.ctx.isPointInPath(this.lakePath, x, baseY)) continue;
-            this.meadowMotes.push({
-                x,
-                baseY,
-                lift: lerp(3, compact ? 18 : 28, meadowRandom()) * lerp(0.55, 1, depth),
-                phase: meadowRandom() * TAU,
-                speed: lerp(0.18, 0.62, meadowRandom()),
-                size: lerp(0.9, compact ? 2 : 2.7, depth) * lerp(0.78, 1.18, meadowRandom()),
-                depth
-            });
-        }
     }
 
     animate(timestamp) {
@@ -514,12 +488,10 @@ class ValleyEffect {
         this.drawClouds(ctx, time, staticFrame);
         this.drawMountains(ctx);
         this.drawHills(ctx, time);
-        this.drawWildfireMeadowHaze(ctx, time, staticFrame);
-        this.drawLake(ctx, time, staticFrame);
         this.drawPathway(ctx);
         this.drawTrees(ctx, time, staticFrame);
+        this.drawHilltopBench(ctx);
         this.drawGrass(ctx, time, staticFrame);
-        this.drawWildfireMeadow(ctx, time, staticFrame);
         this.drawSeeds(ctx, time, staticFrame);
         this.drawAtmosphere(ctx);
 
@@ -572,8 +544,8 @@ class ValleyEffect {
     drawMountains(ctx) {
         const horizon = this.height * 0.53;
         const layers = [
-            { color: '#56675A', alpha: 0.58, y: horizon - (this.height * 0.09), amp: this.height * 0.075, phase: 0.8 },
-            { color: '#445844', alpha: 0.72, y: horizon - (this.height * 0.035), amp: this.height * 0.062, phase: 2.4 }
+            { color: '#56675A', alpha: 0.66, y: horizon - (this.height * 0.09), amp: this.height * 0.075, phase: 0.8 },
+            { color: '#445844', alpha: 1, y: horizon - (this.height * 0.035), amp: this.height * 0.062, phase: 2.4 }
         ];
 
         for (const layer of layers) {
@@ -621,14 +593,15 @@ class ValleyEffect {
     }
 
     drawPathway(ctx) {
-        const shorelineY = this.height * 0.605;
-        const mouthX = this.width * 0.59;
+        const hilltop = this.getHilltop();
+        const pathEndY = hilltop.y;
+        const mouthX = hilltop.x;
         const bottomX = this.width * 0.42;
         const bottomHalfWidth = this.width * (this.width < 640 ? 0.24 : 0.19);
         if (!this.pathwayPath) return;
 
         ctx.save();
-        const earth = ctx.createLinearGradient(0, shorelineY, 0, this.height);
+        const earth = ctx.createLinearGradient(0, pathEndY, 0, this.height);
         earth.addColorStop(0, '#96815B');
         earth.addColorStop(0.3, '#746746');
         earth.addColorStop(0.68, '#514B36');
@@ -641,7 +614,7 @@ class ValleyEffect {
             const noise = (Math.sin(index * 12.9898) + 1) * 0.5;
             const progress = clamp(((index + (noise * 0.84)) / 33), 0.02, 0.98);
             const perspective = Math.pow(progress, 1.42);
-            const y = lerp(shorelineY + 3, this.height + 4, perspective);
+            const y = lerp(pathEndY + 3, this.height + 4, perspective);
             const centerX = lerp(mouthX, bottomX, progress)
                 + Math.sin((progress * 5.1) + 0.7) * this.width * 0.025;
             const pathHalfWidth = lerp(this.width * 0.005, bottomHalfWidth * 0.82, Math.pow(progress, 1.55));
@@ -658,63 +631,286 @@ class ValleyEffect {
         ctx.restore();
     }
 
+    drawHilltopBench(ctx) {
+        const hilltop = this.getHilltop();
+        const compact = this.width < 640;
+        const size = clamp(
+            Math.min(this.width, this.height) * 0.048,
+            compact ? 17 : 24,
+            compact ? 26 : 38
+        );
+        const left = -size * 0.94;
+        const right = size * 0.78;
+        const seatY = -size * 0.3;
+        const farLift = size * 0.14;
+        const depthX = size * 0.2;
+        const legGroundY = size * 0.08;
+
+        ctx.save();
+        ctx.translate(hilltop.x, hilltop.y);
+
+        const shadow = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 1.25);
+        shadow.addColorStop(0, 'rgba(20, 25, 17, 0.42)');
+        shadow.addColorStop(1, 'rgba(24, 29, 20, 0)');
+        ctx.fillStyle = shadow;
+        ctx.beginPath();
+        ctx.ellipse(0, size * 0.03, size * 1.25, size * 0.25, -0.06, 0, TAU);
+        ctx.fill();
+
+        ctx.strokeStyle = '#32291F';
+        ctx.lineWidth = Math.max(1.5, size * 0.09);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(left + (size * 0.18), seatY);
+        ctx.lineTo(left + (size * 0.13), legGroundY);
+        ctx.moveTo(right - (size * 0.08), seatY - (size * 0.04));
+        ctx.lineTo(right - (size * 0.02), legGroundY - (size * 0.02));
+        ctx.stroke();
+
+        const seat = ctx.createLinearGradient(left, seatY, right + depthX, seatY - farLift);
+        seat.addColorStop(0, '#4A3928');
+        seat.addColorStop(0.48, '#6A5033');
+        seat.addColorStop(1, '#80603A');
+        ctx.fillStyle = seat;
+        ctx.beginPath();
+        ctx.moveTo(left, seatY);
+        ctx.lineTo(right, seatY - (size * 0.05));
+        ctx.lineTo(right + depthX, seatY - farLift);
+        ctx.lineTo(left + depthX, seatY - (farLift * 0.62));
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#3B3024';
+        ctx.beginPath();
+        ctx.moveTo(left, seatY);
+        ctx.lineTo(right, seatY - (size * 0.05));
+        ctx.lineTo(right, seatY + (size * 0.07));
+        ctx.lineTo(left, seatY + (size * 0.1));
+        ctx.closePath();
+        ctx.fill();
+
+        const backLeft = left + (size * 0.12);
+        const backRight = right + (size * 0.11);
+        const backBottom = seatY - (size * 0.22);
+        const backTop = seatY - (size * 0.86);
+        ctx.strokeStyle = '#352B20';
+        ctx.lineWidth = Math.max(1.7, size * 0.095);
+        ctx.beginPath();
+        ctx.moveTo(backLeft, seatY + (size * 0.02));
+        ctx.lineTo(backLeft + (size * 0.03), backTop - (size * 0.06));
+        ctx.moveTo(backRight, seatY - (size * 0.08));
+        ctx.lineTo(backRight + (size * 0.02), backTop - (size * 0.12));
+        ctx.stroke();
+
+        const back = ctx.createLinearGradient(backLeft, backTop, backRight, backBottom);
+        back.addColorStop(0, '#58432D');
+        back.addColorStop(0.62, '#6F5233');
+        back.addColorStop(1, '#463728');
+        ctx.strokeStyle = back;
+        ctx.lineWidth = Math.max(2.4, size * 0.13);
+        ctx.lineCap = 'round';
+        for (let plank = 0; plank < 3; plank += 1) {
+            const plankY = backTop + (plank * size * 0.205);
+            const leftInset = plank === 1 ? size * 0.015 : 0;
+            const rightInset = plank === 2 ? size * 0.025 : 0;
+            ctx.beginPath();
+            ctx.moveTo(backLeft + leftInset, plankY);
+            ctx.lineTo(backRight - rightInset, plankY - (size * 0.09));
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = 'rgba(219, 170, 94, 0.34)';
+        ctx.lineWidth = Math.max(0.55, size * 0.025);
+        ctx.beginPath();
+        ctx.moveTo(left + (size * 0.08), seatY - (size * 0.015));
+        ctx.lineTo(right - (size * 0.05), seatY - (size * 0.06));
+        ctx.moveTo(backLeft + (size * 0.05), backTop + (size * 0.025));
+        ctx.lineTo(backRight - (size * 0.05), backTop - (size * 0.055));
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
     drawLake(ctx, time, staticFrame) {
-        if (!this.lakePath) return;
-        const farY = this.height * 0.49;
-        const nearY = this.height * 0.615;
-        const centerX = this.width * 0.59;
-        const lakeHalfWidth = this.width * (this.width < 640 ? 0.39 : 0.32);
+        if (!this.lakePath || !this.lakeGeometry) return;
+        const {
+            farX,
+            farY,
+            farHalfWidth,
+            midHalfWidth,
+            mouthX,
+            nearY,
+            nearHalfWidth
+        } = this.lakeGeometry;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(82, 96, 52, 0.78)';
+        ctx.lineWidth = Math.max(5, this.height * 0.011);
+        ctx.stroke(this.lakePath);
+        ctx.restore();
 
         ctx.save();
         const water = ctx.createLinearGradient(0, farY, 0, nearY);
-        water.addColorStop(0, '#7B887B');
-        water.addColorStop(0.42, '#5D726B');
-        water.addColorStop(1, '#354F4D');
+        water.addColorStop(0, '#778B81');
+        water.addColorStop(0.38, '#58736B');
+        water.addColorStop(1, '#34534F');
         ctx.fillStyle = water;
         ctx.fill(this.lakePath);
         ctx.clip(this.lakePath);
 
-        const reflection = ctx.createRadialGradient(
-            centerX + (lakeHalfWidth * 0.22),
-            this.height * 0.535,
+        const reflectedSky = ctx.createRadialGradient(
+            farX - (farHalfWidth * 0.4),
+            farY + (this.height * 0.025),
             0,
-            centerX + (lakeHalfWidth * 0.22),
-            this.height * 0.535,
-            lakeHalfWidth * 0.75
+            farX - (farHalfWidth * 0.4),
+            farY + (this.height * 0.025),
+            midHalfWidth * 1.45
         );
-        reflection.addColorStop(0, `rgba(244, 207, 139, ${0.15 + (this.current.cycle * 0.13)})`);
-        reflection.addColorStop(0.42, 'rgba(214, 182, 119, 0.08)');
-        reflection.addColorStop(1, 'rgba(214, 182, 119, 0)');
-        ctx.fillStyle = reflection;
+        reflectedSky.addColorStop(0, `rgba(252, 222, 154, ${0.18 + (this.current.cycle * 0.12)})`);
+        reflectedSky.addColorStop(0.42, 'rgba(218, 190, 125, 0.09)');
+        reflectedSky.addColorStop(1, 'rgba(107, 151, 137, 0)');
+        ctx.fillStyle = reflectedSky;
         ctx.fillRect(
-            centerX - lakeHalfWidth,
+            farX - (midHalfWidth * 1.9),
             farY,
-            lakeHalfWidth * 2,
+            midHalfWidth * 3.2,
             nearY - farY
         );
 
         ctx.lineCap = 'round';
-        for (let index = 0; index < 13; index += 1) {
+        for (let index = 0; index < 8; index += 1) {
             const noise = (Math.sin((index + 3) * 9.173) + 1) * 0.5;
-            const progress = (index + 1) / 14;
-            const y = lerp(farY + (this.height * 0.025), nearY, progress);
-            const width = lakeHalfWidth * lerp(0.16, 1.45, Math.sin(progress * Math.PI));
-            const drift = staticFrame ? 0 : Math.sin((time * 0.42) + index) * lerp(0.5, 4, progress);
+            const progress = clamp(
+                ((index + 1) / 10) + (Math.cos((index + 1) * 2.11) * 0.025),
+                0.08,
+                0.92
+            );
+            const y = lerp(farY + (this.height * 0.018), nearY, progress)
+                + ((noise - 0.5) * this.height * 0.006);
+            const centerX = lerp(farX, mouthX, progress);
+            const localHalfWidth = lerp(farHalfWidth, nearHalfWidth, Math.pow(progress, 0.88));
+            const width = localHalfWidth * lerp(0.12, 0.46, noise);
+            const drift = staticFrame ? 0 : Math.sin((time * 0.42) + index) * lerp(0.25, 1.8, progress);
+            const x = centerX + ((noise - 0.5) * localHalfWidth * 0.86) + drift;
             ctx.strokeStyle = index % 3 === 0
                 ? `rgba(246, 216, 158, ${0.08 + (this.current.energy * 0.08)})`
                 : 'rgba(198, 215, 192, 0.075)';
             ctx.lineWidth = lerp(0.45, 1.25, progress);
             ctx.beginPath();
-            ctx.moveTo(centerX - (width * noise * 0.7) + drift, y);
-            ctx.lineTo(centerX + (width * (1 - noise) * 0.7) + drift, y);
+            ctx.ellipse(
+                x,
+                y,
+                Math.max(1.5, width),
+                lerp(0.45, 1.4, progress),
+                (noise - 0.5) * 0.12,
+                0.08 * Math.PI,
+                0.92 * Math.PI
+            );
             ctx.stroke();
+        }
+
+        const reflectionOffsets = [-0.42, 0.56, -0.68, 0.24, 0.7, -0.5];
+        for (let index = 0; index < 6; index += 1) {
+            const progress = clamp(
+                ((index + 1) / 8) + (Math.sin((index + 2) * 2.37) * 0.04),
+                0.08,
+                0.9
+            );
+            const phase = (index * 1.71) + 0.4;
+            const flutter = staticFrame ? 0.64 : 0.38 + (Math.abs(Math.sin((time * 3.8) + phase)) * 0.62);
+            const y = lerp(farY + (this.height * 0.026), nearY - (this.height * 0.02), progress)
+                + (Math.cos(phase * 1.8) * this.height * 0.004);
+            const centerX = lerp(farX, mouthX, progress);
+            const localHalfWidth = lerp(farHalfWidth, nearHalfWidth, Math.pow(progress, 0.9));
+            const x = centerX + (localHalfWidth * reflectionOffsets[index]);
+            const glowRadius = lerp(1.6, 4.6, progress) * flutter;
+            const glow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius * 2.4);
+            glow.addColorStop(0, `rgba(255, 235, 170, ${0.5 + (this.current.energy * 0.22)})`);
+            glow.addColorStop(0.28, 'rgba(250, 209, 112, 0.32)');
+            glow.addColorStop(1, 'rgba(250, 209, 112, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.ellipse(x, y, glowRadius * 2.4, glowRadius, 0, 0, TAU);
+            ctx.fill();
         }
         ctx.restore();
 
         ctx.save();
-        ctx.strokeStyle = 'rgba(62, 69, 44, 0.78)';
-        ctx.lineWidth = Math.max(2, this.height * 0.006);
+        ctx.strokeStyle = 'rgba(64, 81, 47, 0.32)';
+        ctx.lineWidth = Math.max(0.9, this.height * 0.0014);
         ctx.stroke(this.lakePath);
+        ctx.strokeStyle = 'rgba(139, 142, 87, 0.22)';
+        ctx.lineWidth = Math.max(0.65, this.height * 0.0009);
+        ctx.stroke(this.lakePath);
+        ctx.restore();
+
+        this.drawSpringCascade(ctx, time, staticFrame);
+    }
+
+    drawSpringCascade(ctx, time, staticFrame) {
+        if (!this.lakeGeometry) return;
+        const { farX, farY, farHalfWidth } = this.lakeGeometry;
+        const fallTop = farY - (this.height * 0.01);
+        const shimmer = staticFrame ? 0.62 : 0.45 + (Math.sin(time * 2.1) * 0.17);
+        const sourceX = farX + (farHalfWidth * 0.62);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(70, 85, 52, 0.66)';
+        ctx.beginPath();
+        ctx.moveTo(sourceX - (farHalfWidth * 0.52), fallTop - (this.height * 0.003));
+        ctx.lineTo(sourceX + (farHalfWidth * 0.48), fallTop - (this.height * 0.006));
+        ctx.lineTo(sourceX + (farHalfWidth * 0.74), farY + (this.height * 0.002));
+        ctx.lineTo(sourceX - (farHalfWidth * 0.24), farY + (this.height * 0.006));
+        ctx.closePath();
+        ctx.fill();
+
+        const cascade = ctx.createLinearGradient(0, fallTop, 0, farY + (this.height * 0.012));
+        cascade.addColorStop(0, 'rgba(225, 232, 203, 0.08)');
+        cascade.addColorStop(0.46, `rgba(255, 225, 157, ${0.24 + (shimmer * 0.16)})`);
+        cascade.addColorStop(1, 'rgba(168, 205, 186, 0.34)');
+        ctx.strokeStyle = cascade;
+        ctx.lineCap = 'round';
+        for (let strand = 0; strand < 2; strand += 1) {
+            const offset = strand * farHalfWidth * 0.11;
+            const drift = staticFrame ? 0 : Math.sin((time * 1.7) + strand) * farHalfWidth * 0.05;
+            ctx.lineWidth = strand === 0
+                ? Math.max(1.05, farHalfWidth * 0.1)
+                : Math.max(0.6, farHalfWidth * 0.055);
+            ctx.beginPath();
+            ctx.moveTo(sourceX + offset, fallTop + (strand * this.height * 0.0015));
+            ctx.bezierCurveTo(
+                sourceX - (farHalfWidth * 0.08) + drift,
+                lerp(fallTop, farY, 0.42),
+                farX + (farHalfWidth * 0.22) - drift,
+                lerp(fallTop, farY, 0.78),
+                farX + (farHalfWidth * 0.05) + (offset * 0.16),
+                farY + (this.height * 0.008)
+            );
+            ctx.stroke();
+        }
+
+        const springGlow = ctx.createRadialGradient(
+            farX,
+            farY + (this.height * 0.01),
+            0,
+            farX,
+            farY + (this.height * 0.01),
+            farHalfWidth * 1.5
+        );
+        springGlow.addColorStop(0, `rgba(255, 224, 143, ${0.16 + (shimmer * 0.15)})`);
+        springGlow.addColorStop(1, 'rgba(255, 224, 143, 0)');
+        ctx.fillStyle = springGlow;
+        ctx.beginPath();
+        ctx.ellipse(
+            farX,
+            farY + (this.height * 0.01),
+            farHalfWidth * 1.5,
+            this.height * 0.013,
+            0,
+            0,
+            TAU
+        );
+        ctx.fill();
         ctx.restore();
     }
 
@@ -885,6 +1081,17 @@ class ValleyEffect {
         ctx.restore();
     }
 
+    getTreeSway(tree, time, staticFrame) {
+        if (staticFrame) return 0;
+        const grassWaveSpeed = GRASS_WAVE_SPEED_BASE
+            + (this.current.wind * GRASS_WAVE_SPEED_WIND);
+        const grassSwayDistance = tree.size
+            * (GRASS_SWAY_DISTANCE_BASE + (this.current.wind * GRASS_SWAY_DISTANCE_WIND));
+        return Math.sin(
+            (time * grassWaveSpeed * TREE_SWAY_RATIO) + tree.phase
+        ) * grassSwayDistance * TREE_SWAY_RATIO;
+    }
+
     drawTrees(ctx, time, staticFrame) {
         const palette = [
             ['#263A2B', '#39513A', '#53674A'],
@@ -894,20 +1101,21 @@ class ValleyEffect {
         ];
 
         for (const tree of this.trees) {
-            const sway = staticFrame ? 0 : Math.sin((time * 0.62) + tree.phase) * this.current.wind * tree.size * 0.025;
+            const sway = this.getTreeSway(tree, time, staticFrame);
             const trunkHeight = tree.size * 0.7;
             ctx.save();
             ctx.translate(tree.x, tree.y);
-            ctx.rotate(tree.lean + (sway * 0.002));
+            ctx.rotate(tree.lean);
 
             ctx.strokeStyle = '#3A2D20';
             ctx.lineWidth = Math.max(1, tree.size * 0.095);
             ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(0, tree.size * 0.18);
-            ctx.lineTo(sway * 0.25, -trunkHeight);
+            ctx.lineTo(sway, -trunkHeight);
             ctx.stroke();
 
+            ctx.translate(sway, 0);
             const colors = palette[tree.tone % palette.length];
             const crownY = -trunkHeight;
             const lobes = [
@@ -934,14 +1142,14 @@ class ValleyEffect {
     }
 
     drawGrass(ctx, time, staticFrame) {
-        const visibleFraction = 0.78 + (this.current.stake * 0.22);
+        const visibleFraction = 0.9 + (this.current.stake * 0.1);
         const visibleCount = Math.floor(this.grass.length * visibleFraction);
         const travelingPosition = staticFrame
             ? this.blockOrigin
             : ((this.blockOrigin + (time * (0.13 + (this.current.energy * 0.08)))) % 1);
         const palette = [
-            'rgba(91, 111, 64, 0.5)',
-            'rgba(104, 126, 67, 0.68)',
+            'rgba(91, 111, 64, 0.66)',
+            'rgba(104, 126, 67, 0.74)',
             'rgba(119, 137, 70, 0.8)',
             'rgba(138, 146, 74, 0.9)'
         ];
@@ -960,7 +1168,12 @@ class ValleyEffect {
                 const coherentWave = staticFrame
                     ? Math.sin(blade.x * 0.012 + blade.phase) * 0.18
                     : (
-                        Math.sin((time * (0.9 + (this.current.wind * 0.75))) + (blade.x * 0.012) + (blade.y * 0.004) + blade.phase) * 0.66
+                        Math.sin(
+                            (time * (GRASS_WAVE_SPEED_BASE + (this.current.wind * GRASS_WAVE_SPEED_WIND)))
+                            + (blade.x * 0.012)
+                            + (blade.y * 0.004)
+                            + blade.phase
+                        ) * 0.66
                         + Math.sin((time * 0.43) + (blade.x * 0.0045)) * 0.34
                     );
                 const gustDistance = Math.min(
@@ -969,7 +1182,7 @@ class ValleyEffect {
                 );
                 const gust = this.blockImpulse * Math.exp(-(gustDistance * gustDistance) / 0.0045);
                 const bend = blade.length
-                    * (0.08 + (this.current.wind * 0.25))
+                    * (GRASS_SWAY_DISTANCE_BASE + (this.current.wind * GRASS_SWAY_DISTANCE_WIND))
                     * (coherentWave + (gust * 1.6));
                 const tipX = blade.x + bend;
                 const tipY = blade.y - blade.length;

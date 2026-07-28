@@ -230,7 +230,7 @@ decorative instead of mutating readable data.
 | `bubblegum` | Pink playful theme |
 | `abyss` | Deep-ocean theme |
 | `moss` | Green organic theme |
-| `valley` | Warm painterly landscape with data-reactive wind, dense luminous meadow banks, and an earthy path ending at a reflective lake |
+| `valley` | Warm painterly landscape with gently swaying trees, dense full-depth meadow grass, and an earthy path ending at a hilltop bench |
 | `warzone` | Amber command theme |
 
 HEN is both a selectable persisted dashboard theme and a separate live-feed
@@ -1268,7 +1268,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v515`, including hero search, theme
+- Current aligned shell cache stamp: `v516`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

@@ -4676,40 +4676,51 @@ async function checkValleyThemeContracts() {
       || !/\.remove\(\)/.test(rendererSource)) {
       fail('Valley renderer must expose cleanup that removes its canvas');
     }
-    if (!/const GRASS_DENSITY_MULTIPLIER\s*=\s*2\s*;/.test(rendererSource)
+    if (!/const GRASS_DENSITY_MULTIPLIER\s*=\s*3\s*;/.test(rendererSource)
       || !/extraGrassRandom\s*=\s*seededRandom/.test(rendererSource)
       || !/grassCount\s*\*\s*\(GRASS_DENSITY_MULTIPLIER\s*-\s*1\)/.test(rendererSource)) {
-      fail('Valley must double its grass through an independently seeded bank population');
+      fail('Valley must triple its grass through an independently seeded meadow population');
+    }
+    if (!/const TREE_SWAY_RATIO\s*=\s*0\.2\s*;/.test(rendererSource)
+      || !/getTreeSway\s*\(/.test(rendererSource)
+      || !/grassWaveSpeed\s*\*\s*TREE_SWAY_RATIO/.test(rendererSource)
+      || !/grassSwayDistance\s*\*\s*TREE_SWAY_RATIO/.test(rendererSource)
+      || !/valleyTreeSwayRatio\s*=\s*TREE_SWAY_RATIO\.toFixed\(2\)/.test(rendererSource)) {
+      fail('Valley trees must sway at exactly 20% of the grass wave distance and speed');
     }
     if (!/buildLandscapeGeometry\s*\(\)/.test(rendererSource)
       || !/isPointInPath\(\s*this\.pathwayPath\s*,\s*blade\.x\s*,\s*blade\.y\s*\)/.test(rendererSource)
-      || !/isPointInPath\(\s*this\.lakePath\s*,\s*blade\.x\s*,\s*blade\.y\s*\)/.test(rendererSource)
-      || !/isPointInPath\(\s*this\.lakePath\s*,\s*tree\.x\s*,\s*tree\.y\s*\)/.test(rendererSource)
       || /clip\(\s*this\.grassBankClip/.test(rendererSource)) {
-      fail('Valley grass and trees must exclude roots from the path and lake without hard-clipping natural blade overhang');
+      fail('Valley grass must exclude roots from the path without hard-clipping natural blade overhang');
     }
-    if (!/drawWildfireMeadowHaze\s*\(/.test(rendererSource)
-      || !/drawWildfireMeadow\s*\(/.test(rendererSource)
-      || !/drawLake\s*\(/.test(rendererSource)
-      || !/valleyDestination\s*=\s*['"]wildfire-lake['"]/.test(rendererSource)
-      || !/const MEADOW_SEED_SALT/.test(rendererSource)
+    if (!/drawHilltopBench\s*\(/.test(rendererSource)
+      || !/valleyDestination\s*=\s*['"]hilltop-bench['"]/.test(rendererSource)
+      || !/valleyBench\s*=\s*['"]three-quarter-wood['"]/.test(rendererSource)
+      || !/valleyGrassProfile\s*=\s*['"]full-depth-meadow['"]/.test(rendererSource)
+      || !/valleyFrontMountain\s*=\s*['"]opaque['"]/.test(rendererSource)
+      || !/\{\s*color:\s*['"]#445844['"]\s*,\s*alpha:\s*1\s*,/.test(rendererSource)
+      || /this\.drawLake\s*\(/.test(rendererSource)
+      || /this\.drawWildfireMeadow\s*\(/.test(rendererSource)
       || !/this\.blockImpulse\s*\*\s*Math\.exp/.test(rendererSource)
       || !/earth\.addColorStop/.test(rendererSource)) {
-      fail('Valley path must read as earth, cross the data-reactive wildfire meadow, and end at a reflective lake');
+      fail('Valley must end its earthy hill path at a three-quarter wooden bench against an opaque front mountain');
     }
     if (!/grassBankState/.test(smokeSource)
-      || !/destination\s*===\s*['"]wildfire-lake['"]/.test(smokeSource)
-      || !/expectedMotes:\s*164/.test(smokeSource)
-      || !/expectedMotes:\s*72/.test(smokeSource)
-      || !/expectedMotes:\s*112/.test(smokeSource)
+      || !/destination\s*===\s*['"]hilltop-bench['"]/.test(smokeSource)
+      || !/bench\s*===\s*['"]three-quarter-wood['"]/.test(smokeSource)
+      || !/grassProfile\s*===\s*['"]full-depth-meadow['"]/.test(smokeSource)
+      || !/frontMountain\s*===\s*['"]opaque['"]/.test(smokeSource)
+      || !/treeSwayRatio\s*===\s*0\.2/.test(smokeSource)
+      || !/Math\.abs\(state\.treeSwayDistanceRatio\s*-\s*0\.2\)\s*<\s*0\.000001/.test(smokeSource)
+      || !/farGrassCount\s*>\s*state\.expectedCandidates\s*\*\s*0\.18/.test(smokeSource)
+      || !/midGrassCount\s*>\s*state\.expectedCandidates\s*\*\s*0\.15/.test(smokeSource)
       || !/rootsOnPath\s*===\s*0/.test(smokeSource)
-      || !/rootsInLake\s*===\s*0/.test(smokeSource)
-      || !/treeRootsInLake\s*===\s*0/.test(smokeSource)
+      || !/pathTouchesBench\s*===\s*true/.test(smokeSource)
       || !/pathwayEdgeChangedSamples\s*>\s*0/.test(smokeSource)
-      || !/expectedCandidates:\s*2500/.test(smokeSource)
-      || !/expectedCandidates:\s*960/.test(smokeSource)
-      || !/expectedCandidates:\s*1560/.test(smokeSource)) {
-      fail('Valley smoke must prove doubled grass, path-root exclusion, and natural overhang at every responsive density');
+      || !/expectedCandidates:\s*3750/.test(smokeSource)
+      || !/expectedCandidates:\s*1440/.test(smokeSource)
+      || !/expectedCandidates:\s*2340/.test(smokeSource)) {
+      fail('Valley smoke must prove full-depth grass, a grounded hilltop destination, path-root exclusion, and natural overhang');
     }
   }
 
@@ -8234,7 +8245,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=515'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=516'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

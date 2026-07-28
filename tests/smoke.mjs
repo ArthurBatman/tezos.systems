@@ -16476,6 +16476,7 @@ async function smokeValleyTheme(browser, baseUrl) {
 
   await page.evaluate(async () => {
     const { setTheme } = await import('/js/ui/theme.js');
+    window.__valleySmokeSetTheme = setTheme;
     setTheme('valley');
   });
   await Promise.race([
@@ -16494,10 +16495,7 @@ async function smokeValleyTheme(browser, baseUrl) {
       }
     }));
   });
-  await page.evaluate(async () => {
-    const { setTheme } = await import('/js/ui/theme.js');
-    setTheme('matrix');
-  });
+  await page.evaluate(() => window.__valleySmokeSetTheme('matrix'));
   releaseValleyImport();
   await valleyImportDelivered;
   await page.waitForTimeout(200);
@@ -16511,10 +16509,7 @@ async function smokeValleyTheme(browser, baseUrl) {
   );
   await page.unroute(valleyModulePattern);
 
-  await page.evaluate(async () => {
-    const { setTheme } = await import('/js/ui/theme.js');
-    setTheme('valley');
-  });
+  await page.evaluate(() => window.__valleySmokeSetTheme('valley'));
   await page.waitForFunction(() => {
     const canvas = document.getElementById('valley-background-canvas');
     return canvas && Number(canvas.dataset.valleyFrame) > 0;
@@ -16526,23 +16521,30 @@ async function smokeValleyTheme(browser, baseUrl) {
     `Valley did not replay the latest stats event after its delayed renderer mounted: ${bufferedDataRevision}`
   );
   const meadowState = await page.locator('#valley-background-canvas').evaluate((canvas) => ({
+    bench: canvas.dataset.valleyBench,
     destination: canvas.dataset.valleyDestination,
-    motes: Number(canvas.dataset.valleyMeadowMotes)
+    frontMountain: canvas.dataset.valleyFrontMountain,
+    grassProfile: canvas.dataset.valleyGrassProfile,
+    treeSwayRatio: Number(canvas.dataset.valleyTreeSwayRatio)
   }));
   assert(
-    meadowState.destination === 'wildfire-lake' && meadowState.motes > 0,
-    `Valley must open through the Wildfire Meadow onto its rendered lake: ${JSON.stringify(meadowState)}`
+    meadowState.destination === 'hilltop-bench'
+      && meadowState.bench === 'three-quarter-wood'
+      && meadowState.frontMountain === 'opaque'
+      && meadowState.grassProfile === 'full-depth-meadow'
+      && meadowState.treeSwayRatio === 0.2,
+    `Valley must pair its restored landscape with one-fifth-speed tree sway: ${JSON.stringify(meadowState)}`
   );
 
   const grassBankState = await page.evaluate(async () => {
     const { createValleyEffect } = await import('/js/effects/valley-effects.js');
     const viewports = [
-      { label: 'desktop', width: 1366, height: 900, expectedCandidates: 2500, expectedMotes: 164 },
-      { label: 'mobile', width: 390, height: 844, expectedCandidates: 960, expectedMotes: 72 },
-      { label: 'short landscape', width: 844, height: 390, expectedCandidates: 1560, expectedMotes: 112 }
+      { label: 'desktop', width: 1366, height: 900, expectedCandidates: 3750 },
+      { label: 'mobile', width: 390, height: 844, expectedCandidates: 1440 },
+      { label: 'short landscape', width: 844, height: 390, expectedCandidates: 2340 }
     ];
 
-    return viewports.map(({ label, width, height, expectedCandidates, expectedMotes }) => {
+    return viewports.map(({ label, width, height, expectedCandidates }) => {
       const effect = createValleyEffect();
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -16566,11 +16568,23 @@ async function smokeValleyTheme(browser, baseUrl) {
       const rootsOnPath = grass.filter((blade) => (
         effect.ctx.isPointInPath(effect.pathwayPath, blade.x, blade.y)
       )).length;
-      const rootsInLake = grass.filter((blade) => (
-        effect.ctx.isPointInPath(effect.lakePath, blade.x, blade.y)
-      )).length;
-      const treeRootsInLake = effect.trees.filter((tree) => (
-        effect.ctx.isPointInPath(effect.lakePath, tree.x, tree.y)
+      const hilltop = effect.getHilltop();
+      const pathTouchesBench = effect.ctx.isPointInPath(
+        effect.pathwayPath,
+        hilltop.x,
+        hilltop.y + 1
+      );
+      const grassWaveSpeed = 0.9 + (effect.current.wind * 0.75);
+      const grassSwayDistance = 100 * (0.08 + (effect.current.wind * 0.25));
+      const treePeakTime = Math.PI / (2 * grassWaveSpeed * 0.2);
+      const treeSwayDistanceRatio = Math.abs(effect.getTreeSway(
+        { size: 100, phase: 0 },
+        treePeakTime,
+        false
+      )) / grassSwayDistance;
+      const farGrassCount = grass.filter((blade) => blade.y < height * 0.64).length;
+      const midGrassCount = grass.filter((blade) => (
+        blade.y >= height * 0.64 && blade.y < height * 0.8
       )).length;
       let pathwayInteriorSamples = 0;
       let pathwayInteriorChangedSamples = 0;
@@ -16607,34 +16621,35 @@ async function smokeValleyTheme(browser, baseUrl) {
         bankChangedSamples,
         candidateCount: effect.grassCandidateCount,
         expectedCandidates,
-        expectedMotes,
+        farGrassCount,
         grassCount: grass.length,
         label,
-        meadowMotes: effect.meadowMotes.length,
+        midGrassCount,
+        pathTouchesBench,
         pathwayEdgeChangedSamples,
         pathwayInteriorChangedSamples,
         pathwayInteriorSamples,
-        rootsInLake,
         rootsOnPath,
-        treeRootsInLake
+        treeSwayDistanceRatio
       };
     });
   });
   assert(
     grassBankState.every((state) => (
       state.candidateCount === state.expectedCandidates
-      && state.meadowMotes === state.expectedMotes
-      && state.grassCount > state.expectedCandidates * 0.7
+      && state.grassCount > state.expectedCandidates * 0.65
       && state.grassCount < state.expectedCandidates
       && state.rootsOnPath === 0
-      && state.rootsInLake === 0
-      && state.treeRootsInLake === 0
+      && state.pathTouchesBench === true
+      && Math.abs(state.treeSwayDistanceRatio - 0.2) < 0.000001
+      && state.farGrassCount > state.expectedCandidates * 0.18
+      && state.midGrassCount > state.expectedCandidates * 0.15
       && state.pathwayInteriorSamples > 100
       && state.pathwayInteriorChangedSamples / state.pathwayInteriorSamples < 0.03
       && state.pathwayEdgeChangedSamples > 0
       && state.bankChangedSamples > 100
     )),
-    `Valley grass, trees, and wildfire motes must stay responsive while roots remain off the naturally overhung path and lake: ${JSON.stringify(grassBankState)}`
+    `Valley grass must cover every depth while roots stay off the naturally overhung path ending at the hilltop bench: ${JSON.stringify(grassBankState)}`
   );
 
   const canvasSignature = () => page.evaluate(() => {
@@ -16902,10 +16917,9 @@ async function smokeValleyTheme(browser, baseUrl) {
       && Number(canvas.dataset.valleyFrame) > previousFrame;
   }, settledHiddenFrame, { timeout: 5000 });
 
-  await page.evaluate(async () => {
-    const { setTheme } = await import('/js/ui/theme.js');
+  await page.evaluate(() => {
     for (const theme of ['valley', 'matrix', 'valley', 'clean', 'matrix', 'valley']) {
-      setTheme(theme);
+      window.__valleySmokeSetTheme(theme);
     }
   });
   await page.waitForFunction(() => (
