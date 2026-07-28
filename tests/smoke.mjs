@@ -1440,7 +1440,13 @@ async function installFeatureMocks(context, options = {}) {
     : null;
   let operatorAttestationCalls = 0;
   const myTezosLiveRefresh = Boolean(options.myTezosLiveRefresh);
+  const myTezosViewLiveRefresh = Boolean(options.myTezosViewLiveRefresh);
   const myTezosAccountDelayMs = Math.max(0, Number(options.myTezosAccountDelayMs) || 0);
+  let myTezosActivityCycles = 0;
+  let myTezosCollectionCycles = 0;
+  let myTezosPortfolioCycles = 0;
+  let myTezosXOverviewCycles = 0;
+  let myTezosXTransactionCycles = 0;
   const isDrawerOpenForRequest = async (request) => {
     if (!myTezosLiveRefresh) return false;
     try {
@@ -1710,7 +1716,9 @@ async function installFeatureMocks(context, options = {}) {
         const addresses = Array.isArray(vars.addresses) ? vars.addresses : [];
         const offset = Number(vars.offset) || 0;
         const rowLimit = Number(vars.rowLimit) || 100;
-        const primaryRows = addresses[0] ? Array.from({ length: 138 }, (_, index) => {
+        if (myTezosViewLiveRefresh && offset === 0) myTezosCollectionCycles += 1;
+        const liveCollectionRows = myTezosViewLiveRefresh ? Math.max(0, myTezosCollectionCycles - 1) : 0;
+        const primaryRows = addresses[0] ? Array.from({ length: 138 + liveCollectionRows }, (_, index) => {
           const flagged = index === 137;
           const shared = index === 0;
           const tokenId = shared ? '42' : flagged ? '99' : String(1000 + index);
@@ -1902,19 +1910,34 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}/transactions`)) {
+      myTezosXTransactionCycles += 1;
+      const cursorRequest = parsedUrl.searchParams.size > 0;
+      const liveTransaction = myTezosViewLiveRefresh && myTezosXTransactionCycles > 1 && !cursorRequest
+        ? [{
+            hash: `0xlive${String(myTezosXTransactionCycles).padStart(59, '0')}`,
+            method: 'transfer',
+            status: 'ok',
+            fee: { type: 'actual', value: '21000000000000' },
+            value: '0',
+            timestamp: new Date().toISOString(),
+            block_number: 44808890 + myTezosXTransactionCycles,
+            from: { hash: SAMPLE_ETHERLINK_ADDRESS, name: null },
+            to: { hash: '0x2222222222222222222222222222222222222222', name: 'Smoke Contract' }
+          }]
+        : [];
       return fulfillJson(route, {
-        items: [{
+        items: [...liveTransaction, {
           hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          method: 'transfer',
+          method: cursorRequest ? 'approve' : 'transfer',
           status: 'error',
           fee: { type: 'actual', value: '21000000000000' },
           value: '0',
-          timestamp: new Date(Date.now() - 300000).toISOString(),
-          block_number: 44808890,
+          timestamp: new Date(Date.now() - (cursorRequest ? 900000 : 300000)).toISOString(),
+          block_number: cursorRequest ? 44808870 : 44808890,
           from: { hash: SAMPLE_ETHERLINK_ADDRESS, name: null },
           to: { hash: '0x2222222222222222222222222222222222222222', name: 'Smoke Contract' }
         }],
-        next_page_params: null
+        next_page_params: myTezosViewLiveRefresh && !cursorRequest ? { index: '1' } : null
       });
     }
 
@@ -1971,9 +1994,10 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes(`explorer.etherlink.com/api/v2/addresses/${SAMPLE_ETHERLINK_ADDRESS}`)) {
+      myTezosXOverviewCycles += 1;
       return fulfillJson(route, {
         coin_balance: '2500000000000000000',
-        transactions_count: '42',
+        transactions_count: String(42 + (myTezosViewLiveRefresh ? myTezosXOverviewCycles - 1 : 0)),
         token_transfers_count: '7',
         gas_usage_count: '21000',
         is_contract: false,
@@ -2132,7 +2156,22 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/accounts/activity?')) {
         const lastId = Number(parsedUrl.searchParams.get('lastId')) || null;
         if (lastId) return fulfillJson(route, []);
+        myTezosActivityCycles += 1;
+        const liveRows = myTezosViewLiveRefresh && myTezosActivityCycles > 1
+          ? [{
+              id: 6000 + myTezosActivityCycles,
+              type: 'transaction',
+              timestamp: new Date().toISOString(),
+              level: 12346000 + myTezosActivityCycles,
+              status: 'applied',
+              hash: `opSmokeLiveMemory${String(myTezosActivityCycles).padStart(28, '1')}`,
+              amount: 1000000 + myTezosActivityCycles,
+              sender: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' },
+              target: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
+            }]
+          : [];
         return fulfillJson(route, [
+          ...liveRows,
           {
             id: 5004,
             type: 'token_transfer',
@@ -2610,6 +2649,7 @@ async function installFeatureMocks(context, options = {}) {
         ]);
       }
       if (url.includes('/accounts?') && url.includes('address.in=')) {
+        myTezosPortfolioCycles += 1;
         const params = new URL(url).searchParams;
         const requested = (params.get('address.in') || '').split(',').filter(Boolean);
         const accounts = new Map(sampleBakers.map((baker) => [baker.address, {
@@ -2624,7 +2664,8 @@ async function installFeatureMocks(context, options = {}) {
           unstakedBalance: 0,
           delegate: null
         }]));
-        return fulfillJson(route, requested.map((address) => accounts.get(address) || {
+        return fulfillJson(route, requested.map((address) => {
+          const account = accounts.get(address) || {
           address,
           alias: null,
           type: 'user',
@@ -2635,6 +2676,10 @@ async function installFeatureMocks(context, options = {}) {
           stakedBalance: historyStakerAddresses.has(address) ? 200000000000 : 0,
           unstakedBalance: 0,
           delegate: null
+          };
+          return myTezosViewLiveRefresh && address === SAMPLE_ADDRESS
+            ? { ...account, balance: Number(account.balance || 0) + myTezosPortfolioCycles * 1_000_000 }
+            : account;
         }));
       }
       if (url.includes('/operations/transactions?') && url.includes(`target=${ETHERLINK_FAST_CONTRACT}`)) {
@@ -9192,6 +9237,362 @@ async function smokeMyTezosTezosX(browser, baseUrl) {
   await context.close();
   assert(issues.length === 0, `my tezos tezos x browser issues:\n${issues.join('\n')}`);
   log('ok - my tezos tezos x smoke');
+}
+
+async function smokeMyTezosViewLiveRefresh(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context, { myTezosViewLiveRefresh: true });
+  await context.addInitScript(({ l1, l2 }) => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', l1);
+    localStorage.setItem('tezos-systems-saved-addresses', JSON.stringify([
+      { network: 'tezos-l1', address: l1, label: 'Live Primary', included: true, addedAt: Date.now() }
+    ]));
+    localStorage.setItem('tezos-systems-linked-etherlink-accounts-v1', JSON.stringify([
+      {
+        chainId: 42793,
+        address: l2,
+        label: 'Live L2',
+        linkedL1Addresses: [l1],
+        included: true,
+        addedAt: Date.now()
+      }
+    ]));
+    window.__MY_TEZOS_VIEW_REFRESH_MS__ = 1000;
+  }, { l1: SAMPLE_ADDRESS, l2: SAMPLE_ETHERLINK_ADDRESS });
+
+  const page = await context.newPage();
+  const activeViewRequests = [];
+  page.on('request', (request) => {
+    const url = request.url();
+    if (
+      url.includes('/accounts/activity?')
+      || (url.includes('/accounts?') && url.includes('address.in='))
+      || (url.includes('data.objkt.com/v3/graphql') && request.postData()?.includes('MyTezosCollection'))
+      || url.includes(`/addresses/${SAMPLE_ETHERLINK_ADDRESS}`)
+      || url === 'https://node.mainnet.etherlink.com/'
+    ) {
+      activeViewRequests.push(url);
+    }
+  });
+  attachIssueCollectors(page, 'my tezos active-view live refresh', issues);
+  await openMyTezosSmokeView(page, baseUrl, 'overview');
+
+  await page.waitForFunction(() => document.querySelector('#my-tezos-overview-activity-status')?.dataset.state === 'complete', null, { timeout: 15000 });
+  const overviewReceipts = Number(await page.locator('[data-transactions-total="receipts"] strong').innerText());
+  await page.waitForFunction((before) => (
+    Number(document.querySelector('[data-transactions-total="receipts"] strong')?.textContent) > before
+  ), overviewReceipts, { timeout: 10000 });
+
+  await page.locator('#my-tezos-tab-transactions').click();
+  await page.waitForFunction(() => document.querySelector('#portfolio-memory-status')?.dataset.state === 'complete', null, { timeout: 15000 });
+  await page.locator('[data-activity-filter="nft"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#portfolio-activity-list .activity-item-nft').length > 0, null, { timeout: 5000 });
+  const transactionBefore = await page.evaluate(() => {
+    const drawer = document.querySelector('#drawer-body');
+    const list = document.querySelector('#portfolio-activity-list');
+    const row = list?.querySelector('.portfolio-activity-item');
+    const filter = document.querySelector('[data-activity-filter="nft"]');
+    const text = row?.querySelector('strong')?.firstChild;
+    drawer.scrollTop = Math.min(240, Math.max(0, drawer.scrollHeight - drawer.clientHeight));
+    filter?.focus({ preventScroll: true });
+    if (text?.length) {
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, Math.min(6, text.length));
+      const selection = document.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    window.__liveTransactionRow = row;
+    window.__liveTransactionFilter = filter;
+    return {
+      receipts: Number(document.querySelector('[data-transactions-total="receipts"] strong')?.textContent) || 0,
+      scrollTop: drawer.scrollTop,
+      selection: document.getSelection()?.toString() || ''
+    };
+  });
+  try {
+    await page.waitForFunction((before) => (
+      Number(document.querySelector('[data-transactions-total="receipts"] strong')?.textContent) > before
+    ), transactionBefore.receipts, { timeout: 10000 });
+  } catch (error) {
+    const debug = await page.evaluate(() => ({
+      receipts: Number(document.querySelector('[data-transactions-total="receipts"] strong')?.textContent) || 0,
+      status: document.querySelector('#portfolio-memory-status')?.textContent || '',
+      statusState: document.querySelector('#portfolio-memory-status')?.dataset.state || '',
+      activeView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+      drawerOpen: document.querySelector('#my-tezos-drawer')?.classList.contains('open') === true,
+      visibility: document.visibilityState
+    }));
+    throw new Error(`my tezos live transactions did not advance ${JSON.stringify({ transactionBefore, debug, activeViewRequests: activeViewRequests.slice(-20) })}\n${error.message}`);
+  }
+  const transactionAfter = await page.evaluate(() => ({
+    sameRow: document.querySelector('#portfolio-activity-list .portfolio-activity-item') === window.__liveTransactionRow,
+    focused: document.activeElement === window.__liveTransactionFilter,
+    selected: document.querySelector('[data-activity-filter="nft"]')?.getAttribute('aria-pressed'),
+    activeView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+    scrollTop: document.querySelector('#drawer-body')?.scrollTop || 0,
+    selection: document.getSelection()?.toString() || ''
+  }));
+  assert(
+    transactionAfter.sameRow
+      && transactionAfter.focused
+      && transactionAfter.selected === 'true'
+      && transactionAfter.activeView === 'transactions'
+      && transactionAfter.selection === transactionBefore.selection
+      && Math.abs(transactionAfter.scrollTop - transactionBefore.scrollTop) <= 1,
+    `my tezos live transactions reset the active filter or reader state ${JSON.stringify({ transactionBefore, transactionAfter })}`
+  );
+
+  await page.locator('#my-tezos-tab-story').click();
+  await page.waitForFunction(() => document.querySelector('#portfolio-memory-status')?.dataset.state === 'complete', null, { timeout: 15000 });
+  const storyBefore = await page.evaluate(() => {
+    const drawer = document.querySelector('#drawer-body');
+    const content = document.querySelector('#my-tezos-story-content');
+    const button = document.querySelector('#my-tezos-story-transactions');
+    const text = content?.querySelector('strong')?.firstChild;
+    drawer.scrollTop = Math.min(220, Math.max(0, drawer.scrollHeight - drawer.clientHeight));
+    button?.focus({ preventScroll: true });
+    if (text?.length) {
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, Math.min(6, text.length));
+      const selection = document.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    window.__liveStoryContent = content;
+    window.__liveStoryButton = button;
+    return {
+      receipts: Number(document.querySelector('[data-transactions-total="receipts"] strong')?.textContent) || 0,
+      scrollTop: drawer.scrollTop,
+      selection: document.getSelection()?.toString() || ''
+    };
+  });
+  await page.waitForFunction((before) => (
+    Number(document.querySelector('[data-transactions-total="receipts"] strong')?.textContent) > before
+      && document.querySelector('#portfolio-memory-status')?.dataset.state === 'complete'
+  ), storyBefore.receipts, { timeout: 10000 });
+  const storyAfter = await page.evaluate(() => ({
+    sameContent: document.querySelector('#my-tezos-story-content') === window.__liveStoryContent,
+    focused: document.activeElement === window.__liveStoryButton,
+    activeView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+    scrollTop: document.querySelector('#drawer-body')?.scrollTop || 0,
+    selection: document.getSelection()?.toString() || ''
+  }));
+  assert(
+    storyAfter.sameContent
+      && storyAfter.focused
+      && storyAfter.activeView === 'story'
+      && storyAfter.selection === storyBefore.selection
+      && Math.abs(storyAfter.scrollTop - storyBefore.scrollTop) <= 1,
+    `my tezos live Story reset its view model or reader state ${JSON.stringify({ storyBefore, storyAfter })}`
+  );
+
+  await page.locator('#my-tezos-tab-portfolio').click();
+  await page.waitForFunction(() => document.querySelector('#portfolio-freshness')?.dataset.state === 'complete', null, { timeout: 15000 });
+  const portfolioBefore = await page.evaluate((address) => {
+    const drawer = document.querySelector('#drawer-body');
+    const input = document.querySelector(`[data-portfolio-label="${address}"]`);
+    const summary = document.querySelector('#portfolio-summary');
+    const row = document.querySelector(`.portfolio-wallet-row[data-address="${address}"]`);
+    input?.focus({ preventScroll: true });
+    input?.setSelectionRange(1, 5);
+    drawer.scrollTop = Math.min(220, Math.max(0, drawer.scrollHeight - drawer.clientHeight));
+    window.__livePortfolioInput = input;
+    window.__livePortfolioSummary = summary;
+    window.__livePortfolioRow = row;
+    window.__livePortfolioChart = window.Chart?.getChart(document.querySelector('#portfolio-history-chart')) || null;
+    return {
+      total: document.querySelector('[data-portfolio-total="total"] strong')?.textContent || '',
+      scrollTop: drawer.scrollTop
+    };
+  }, SAMPLE_ADDRESS);
+  await page.waitForFunction((before) => (
+    document.querySelector('[data-portfolio-total="total"] strong')?.textContent !== before
+      && document.querySelector('#portfolio-freshness')?.dataset.state === 'complete'
+  ), portfolioBefore.total, { timeout: 10000 });
+  const portfolioAfter = await page.evaluate((address) => {
+    const input = document.querySelector(`[data-portfolio-label="${address}"]`);
+    return {
+      sameSummary: document.querySelector('#portfolio-summary') === window.__livePortfolioSummary,
+      sameRow: document.querySelector(`.portfolio-wallet-row[data-address="${address}"]`) === window.__livePortfolioRow,
+      sameChart: (window.Chart?.getChart(document.querySelector('#portfolio-history-chart')) || null) === window.__livePortfolioChart,
+      focused: document.activeElement === window.__livePortfolioInput,
+      selectionStart: input?.selectionStart,
+      selectionEnd: input?.selectionEnd,
+      activeView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+      scrollTop: document.querySelector('#drawer-body')?.scrollTop || 0
+    };
+  }, SAMPLE_ADDRESS);
+  assert(
+    portfolioAfter.sameSummary
+      && portfolioAfter.sameRow
+      && portfolioAfter.sameChart
+      && portfolioAfter.focused
+      && portfolioAfter.selectionStart === 1
+      && portfolioAfter.selectionEnd === 5
+      && portfolioAfter.activeView === 'portfolio'
+      && Math.abs(portfolioAfter.scrollTop - portfolioBefore.scrollTop) <= 1,
+    `my tezos live Portfolio reset its chart, focus, or reader state ${JSON.stringify({ portfolioBefore, portfolioAfter })}`
+  );
+
+  await page.locator('#my-tezos-tab-collection').click();
+  await page.waitForFunction(() => document.querySelector('#collection-status')?.dataset.state === 'complete', null, { timeout: 30000 });
+  await page.locator('#collection-spam-toggle').click();
+  if (!await page.locator('#collection-load-more').evaluate((button) => button.hidden)) {
+    await page.locator('#collection-load-more').click();
+    await page.waitForFunction(() => document.querySelectorAll('#collection-grid .collection-asset-card').length > 100, null, { timeout: 5000 });
+  }
+  try {
+    await page.waitForFunction(() => /Flagged Smoke Asset/.test(document.querySelector('#collection-grid')?.textContent || ''), null, { timeout: 5000 });
+  } catch (error) {
+    const debug = await page.evaluate(() => ({
+      status: document.querySelector('#collection-status')?.textContent || '',
+      state: document.querySelector('#collection-status')?.dataset.state || '',
+      assets: document.querySelector('[data-collection-total="assets"] strong')?.textContent || '',
+      cards: document.querySelectorAll('#collection-grid .collection-asset-card').length,
+      toggle: document.querySelector('#collection-spam-toggle')?.textContent || '',
+      pressed: document.querySelector('#collection-spam-toggle')?.getAttribute('aria-pressed'),
+      loadMoreHidden: document.querySelector('#collection-load-more')?.hidden,
+      loadMoreText: document.querySelector('#collection-load-more')?.textContent || ''
+    }));
+    throw new Error(`my tezos live Collection fixture did not expose the retained flagged view ${JSON.stringify(debug)}\n${error.message}`);
+  }
+  const collectionBefore = await page.evaluate(() => {
+    const drawer = document.querySelector('#drawer-body');
+    const grid = document.querySelector('#collection-grid');
+    const first = grid?.querySelector('.collection-asset-card');
+    const toggle = document.querySelector('#collection-spam-toggle');
+    const text = first?.querySelector('strong')?.firstChild;
+    drawer.scrollTop = Math.min(260, Math.max(0, drawer.scrollHeight - drawer.clientHeight));
+    toggle?.focus({ preventScroll: true });
+    if (text?.length) {
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, Math.min(6, text.length));
+      const selection = document.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    window.__liveCollectionFirst = first;
+    window.__liveCollectionToggle = toggle;
+    return {
+      total: Number(document.querySelector('[data-collection-total="assets"] strong')?.textContent) || 0,
+      cards: grid?.querySelectorAll('.collection-asset-card').length || 0,
+      scrollTop: drawer.scrollTop,
+      selection: document.getSelection()?.toString() || ''
+    };
+  });
+  await page.waitForFunction(({ total, cards }) => (
+    Number(document.querySelector('[data-collection-total="assets"] strong')?.textContent) > total
+      && document.querySelectorAll('#collection-grid .collection-asset-card').length > cards
+      && document.querySelector('#collection-status')?.dataset.state === 'complete'
+  ), collectionBefore, { timeout: 15000 });
+  const collectionAfter = await page.evaluate(() => ({
+    sameFirst: document.querySelector('#collection-grid .collection-asset-card') === window.__liveCollectionFirst,
+    focused: document.activeElement === window.__liveCollectionToggle,
+    flagged: document.querySelector('#collection-spam-toggle')?.getAttribute('aria-pressed'),
+    mode: document.querySelector('[data-collection-mode="collected"]')?.getAttribute('aria-pressed'),
+    activeView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+    scrollTop: document.querySelector('#drawer-body')?.scrollTop || 0,
+    selection: document.getSelection()?.toString() || ''
+  }));
+  assert(
+    collectionAfter.sameFirst
+      && collectionAfter.focused
+      && collectionAfter.flagged === 'true'
+      && collectionAfter.mode === 'true'
+      && collectionAfter.activeView === 'collection'
+      && collectionAfter.selection === collectionBefore.selection
+      && Math.abs(collectionAfter.scrollTop - collectionBefore.scrollTop) <= 1,
+    `my tezos live Collection reset display depth, filters, or reader state ${JSON.stringify({ collectionBefore, collectionAfter })}`
+  );
+
+  await page.locator('#my-tezos-tab-tezos-x').click();
+  await page.waitForFunction(() => ['complete', 'partial'].includes(document.querySelector('#tezosx-status')?.dataset.state), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#tezosx-load-more')?.hidden === false, null, { timeout: 10000 });
+  await page.locator('#tezosx-load-more').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#tezosx-load-more')?.hidden === true
+      && /Token approval/i.test(document.querySelector('#tezosx-details')?.textContent || '')
+  ), null, { timeout: 10000 });
+  await page.locator('#tezosx-account-list details summary').click();
+  const tezosXBefore = await page.evaluate(() => {
+    const drawer = document.querySelector('#drawer-body');
+    const details = document.querySelector('#tezosx-account-list details');
+    const summary = details?.querySelector('summary');
+    const older = Array.from(document.querySelectorAll('#tezosx-details .tezosx-transaction-list a'))
+      .find((row) => /Token approval/i.test(row.textContent || ''));
+    drawer.scrollTop = Math.min(260, Math.max(0, drawer.scrollHeight - drawer.clientHeight));
+    summary?.focus({ preventScroll: true });
+    window.__liveTezosXDetails = details;
+    window.__liveTezosXSummary = summary;
+    window.__liveTezosXOlder = older;
+    return {
+      transactions: Number(document.querySelector('[data-tezosx-total="transactions"] strong')?.textContent) || 0,
+      scrollTop: drawer.scrollTop
+    };
+  });
+  await page.waitForFunction((before) => (
+    Number(document.querySelector('[data-tezosx-total="transactions"] strong')?.textContent) > before
+      && document.querySelector('#tezosx-load-more')?.hidden === true
+      && document.querySelector('#tezosx-status')?.dataset.state !== 'loading'
+  ), tezosXBefore.transactions, { timeout: 15000 });
+  const tezosXAfter = await page.evaluate(() => ({
+    sameDetails: document.querySelector('#tezosx-account-list details') === window.__liveTezosXDetails,
+    sameOlder: Array.from(document.querySelectorAll('#tezosx-details .tezosx-transaction-list a'))
+      .includes(window.__liveTezosXOlder),
+    expanded: document.querySelector('#tezosx-account-list details')?.open === true,
+    focused: document.activeElement === window.__liveTezosXSummary,
+    loadMoreHidden: document.querySelector('#tezosx-load-more')?.hidden === true,
+    activeView: document.querySelector('[data-my-tezos-view][aria-selected="true"]')?.dataset.myTezosView || '',
+    scrollTop: document.querySelector('#drawer-body')?.scrollTop || 0
+  }));
+  assert(
+    tezosXAfter.sameDetails
+      && tezosXAfter.sameOlder
+      && tezosXAfter.expanded
+      && tezosXAfter.focused
+      && tezosXAfter.loadMoreHidden
+      && tezosXAfter.activeView === 'tezos-x'
+      && Math.abs(tezosXAfter.scrollTop - tezosXBefore.scrollTop) <= 1,
+    `my tezos live Tezos X reset pagination, disclosure, or reader state ${JSON.stringify({ tezosXBefore, tezosXAfter })}`
+  );
+
+  await page.evaluate(() => {
+    window.__myTezosLiveVisibility = 'hidden';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => window.__myTezosLiveVisibility
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  // Let requests that began before the visibility transition finish draining;
+  // the assertion below covers new timer work during a full refresh interval.
+  await page.waitForTimeout(700);
+  const hiddenRequestCount = activeViewRequests.length;
+  await page.waitForTimeout(1400);
+  assert(activeViewRequests.length === hiddenRequestCount, `my tezos live views polled while hidden (${hiddenRequestCount} -> ${activeViewRequests.length})`);
+  await page.evaluate(() => {
+    window.__myTezosLiveVisibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const catchUpDeadline = Date.now() + 10000;
+  while (Date.now() < catchUpDeadline && activeViewRequests.length === hiddenRequestCount) await sleep(100);
+  assert(activeViewRequests.length > hiddenRequestCount, 'my tezos live views did not perform one visible catch-up');
+
+  await context.close();
+  assert(issues.length === 0, `my tezos active-view live refresh browser issues:\n${issues.join('\n')}`);
+  log('ok - my tezos all-view live refresh smoke');
 }
 
 async function smokeMyTezosLedgerFlowHandoff(browser, baseUrl) {
@@ -20960,6 +21361,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-memory', description: 'My Tezos persists exact per-address balance points while handing human-readable receipts to Transactions and Your Story', run: () => smokeMyTezosMemory(browser, baseUrl) },
     { name: 'my-tezos-collection', description: 'Collection aggregates included L1 NFT holdings without presenting marketplace asks as portfolio value', run: () => smokeMyTezosCollection(browser, baseUrl) },
     { name: 'my-tezos-tezosx', description: 'Tezos X links device-local Etherlink accounts with explicit L2 provenance, assets, activity, and independent inclusion', run: () => smokeMyTezosTezosX(browser, baseUrl) },
+    { name: 'my-tezos-view-live-refresh', description: 'Every active My Tezos view quietly receives visible live updates without resetting filters, pagination, charts, focus, selection, or scroll', run: () => smokeMyTezosViewLiveRefresh(browser, baseUrl) },
     { name: 'my-tezos-ledger-flow-handoff', description: 'My Tezos closes its mobile drawer before opening the address-scoped Ledger Flow Chamber', run: () => smokeMyTezosLedgerFlowHandoff(browser, baseUrl) },
     { name: 'my-tezos-circular-return', description: 'A child room continues into the relevant My Tezos tab and returns through canonical session-only context', run: () => smokeMyTezosCircularReturn(browser, baseUrl) },
     { name: 'my-tezos-subdomain-input', description: 'My Tezos connected drawer accepts Tezos Domains subdomains and saves their resolved address', run: () => smokeMyTezosSubdomainInput(browser, baseUrl) },

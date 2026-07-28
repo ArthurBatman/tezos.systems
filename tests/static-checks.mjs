@@ -530,6 +530,29 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['activateMyTezosPortfolio', "registerMyTezosView('transactions'", "import('./my-tezos-collection.mjs')", "import('./my-tezos-tezosx.mjs')"]) {
     if (!myTezos.includes(snippet)) fail(`My Tezos lazy feature registration missing: ${snippet}`);
   }
+  for (const snippet of [
+    'const ACTIVE_VIEW_REFRESH_MS = 30000',
+    'window.__MY_TEZOS_VIEW_REFRESH_MS__',
+    'refreshActiveMyTezosView',
+    "case 'collection':",
+    "case 'tezos-x':",
+    'refreshMyTezosMemory()',
+    'refreshMyTezosPortfolio()',
+    'document.visibilityState !== \'visible\''
+  ]) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos all-view live refresh contract missing: ${snippet}`);
+  }
+  for (const [source, snippet] of [
+    [memory, 'export function refreshMyTezosMemory'],
+    [collection, 'export async function refreshMyTezosCollection'],
+    [collection, 'if (!background) renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE'],
+    [collection, 'backgroundHoldings'],
+    [tezosx, 'export async function refreshMyTezosTezosX'],
+    [tezosx, 'preserveLoadedActivity'],
+    [tezosx, 'if (!background) renderLinkedAccounts()']
+  ]) {
+    if (!source.includes(snippet)) fail(`My Tezos background view-model preservation contract missing: ${snippet}`);
+  }
   for (const snippet of ["if (data.bakerAddr)", "classList.toggle('is-without-baker', withoutBaker)"]) {
     if (!myTezos.includes(snippet)) fail(`My Tezos idle-account rendering contract missing: ${snippet}`);
   }
@@ -629,6 +652,9 @@ async function checkMyTezosPortfolioContracts() {
   if (!smoke.includes("name: 'my-tezos-idle-account'")) fail('focused My Tezos idle-account browser smoke is missing');
   for (const suite of ['my-tezos-storage', 'my-tezos-memory', 'my-tezos-collection', 'my-tezos-tezosx']) {
     if (!smoke.includes(`name: '${suite}'`)) fail(`focused ${suite} browser smoke is missing`);
+  }
+  if (!smoke.includes("name: 'my-tezos-view-live-refresh'")) {
+    fail('focused My Tezos all-view live refresh browser smoke is missing');
   }
   if (!smoke.includes("name: 'my-tezos-balance-history'")) fail('focused My Tezos exact balance-history browser smoke is missing');
   pass('My Tezos storage, Portfolio Memory, Collection, Tezos X, routing, provenance, and quiet-refresh contracts checked');
@@ -2573,7 +2599,7 @@ async function checkSelectorContracts() {
     ['My Tezos Your Story tab', 'data-my-tezos-view="story"', index],
     ['My Tezos Your Story panel', 'data-my-tezos-panel="story"', index],
     ['My Tezos Story renderer', 'function renderStoryPanel(card, data)', myTezos],
-    ['My Tezos Story Memory handoff', "registerMyTezosView('story', () => activateMyTezosMemory())", myTezos],
+    ['My Tezos Story Memory handoff', "registerMyTezosView('story', () => activateMyTezosMemory({ activityOnly: true }))", myTezos],
     ['My Tezos Ledger Flow link control', 'id="my-tezos-ledger-flow-link"', index],
     ['My Tezos Ledger Flow explain card', 'drawer-ledger-flow-card', index],
     ['My Tezos Ledger Flow explain copy', 'Trace sent, received, and first-funding paths around this account.', index],
@@ -8341,7 +8367,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=518'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=519'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

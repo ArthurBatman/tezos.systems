@@ -306,7 +306,7 @@ async function persistCollectionPage(entries, result, offset) {
     });
 }
 
-async function refreshCollection({ force = false } = {}) {
+export async function refreshMyTezosCollection({ force = false, background = false } = {}) {
     if (!isVisible()) return null;
     if (refreshInFlight && !force) return refreshInFlight;
     if (refreshInFlight && force) refreshController?.abort();
@@ -326,8 +326,13 @@ async function refreshCollection({ force = false } = {}) {
         nextOffset
     };
     collectionSyncId = `objkt:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-    renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
-    setStatus('Reading Objkt holdings and completing collection coverage…', 'loading');
+    if (!background) renderedAssetLimit = MY_TEZOS_COLLECTION_PAGE_SIZE;
+    setStatus(
+        background
+            ? 'Checking Objkt quietly for collection changes…'
+            : 'Reading Objkt holdings and completing collection coverage…',
+        'loading'
+    );
     const controller = new AbortController();
     refreshController = controller;
     const pending = (async () => {
@@ -337,7 +342,10 @@ async function refreshCollection({ force = false } = {}) {
             let loadedRows = 0;
             let saved = true;
             let latestResult = null;
-            complete = false;
+            let scanComplete = false;
+            let scanNextOffset = 0;
+            const backgroundHoldings = [];
+            const backgroundProfiles = new Map(currentProfiles.map((profile) => [profile.address, profile]));
             do {
                 const result = await fetchObjktCollectionPage(entries.map((entry) => entry.address), {
                     offset,
@@ -348,34 +356,66 @@ async function refreshCollection({ force = false } = {}) {
                 pageCount += 1;
                 loadedRows += result.holdings.length;
                 if (requestGeneration !== generation || !isVisible()) return null;
-                try {
-                    await persistCollectionPage(entries, result, offset);
-                    currentRecords = (await readCachedRecords(selectedEntries()))
-                        .filter((holding) => holding.syncId === collectionSyncId);
-                    currentProfiles = (await getMyTezosMeta('collection-profiles')) || [];
-                } catch {
-                    saved = false;
-                    const incomingIds = new Set(result.holdings.map((holding) => holding.id));
-                    currentRecords = offset === 0
-                        ? result.holdings
-                        : [...currentRecords.filter((holding) => !incomingIds.has(holding.id)), ...result.holdings];
-                    const profilesByAddress = new Map(currentProfiles.map((profile) => [profile.address, profile]));
-                    result.profiles.forEach((profile) => profilesByAddress.set(profile.address, profile));
-                    currentProfiles = [...profilesByAddress.values()];
+                if (background) {
+                    backgroundHoldings.push(...result.holdings);
+                    result.profiles.forEach((profile) => backgroundProfiles.set(profile.address, profile));
+                } else {
+                    try {
+                        await persistCollectionPage(entries, result, offset);
+                        currentRecords = (await readCachedRecords(selectedEntries()))
+                            .filter((holding) => holding.syncId === collectionSyncId);
+                        currentProfiles = (await getMyTezosMeta('collection-profiles')) || [];
+                    } catch {
+                        saved = false;
+                        const incomingIds = new Set(result.holdings.map((holding) => holding.id));
+                        currentRecords = offset === 0
+                            ? result.holdings
+                            : [...currentRecords.filter((holding) => !incomingIds.has(holding.id)), ...result.holdings];
+                        const profilesByAddress = new Map(currentProfiles.map((profile) => [profile.address, profile]));
+                        result.profiles.forEach((profile) => profilesByAddress.set(profile.address, profile));
+                        currentProfiles = [...profilesByAddress.values()];
+                    }
                 }
-                nextOffset = result.nextOffset || 0;
-                complete = result.complete;
-                renderCollection();
-                const summary = collectionSummary(currentRecords.filter((record) => showSpam || !record.spam));
-                setStatus(
-                    result.complete
-                        ? `Complete Objkt coverage · ${summary.assets.toLocaleString()} collected assets · ${summary.createdAssets.toLocaleString()} created · ${saved ? 'saved on this device' : 'temporary view; storage unavailable'} · ${formatFreshnessStamp(new Date(), { source: 'Objkt' })}`
-                        : `Syncing complete Objkt coverage · ${summary.assets.toLocaleString()} collected assets loaded across ${pageCount.toLocaleString()} page${pageCount === 1 ? '' : 's'}…`,
-                    saved ? (result.complete ? 'complete' : 'partial') : 'error'
-                );
-                offset = result.nextOffset || 0;
-            } while (!complete && offset > 0 && requestGeneration === generation && isVisible());
-            return latestResult ? { ...latestResult, loadedRows, pageCount, complete } : null;
+                scanNextOffset = result.nextOffset || 0;
+                scanComplete = result.complete;
+                if (background && scanComplete) {
+                    const completeResult = {
+                        ...result,
+                        holdings: backgroundHoldings,
+                        profiles: [...backgroundProfiles.values()],
+                        nextOffset: null,
+                        complete: true
+                    };
+                    try {
+                        await persistCollectionPage(entries, completeResult, 0);
+                        currentRecords = (await readCachedRecords(selectedEntries()))
+                            .filter((holding) => holding.syncId === collectionSyncId);
+                        currentProfiles = (await getMyTezosMeta('collection-profiles')) || [];
+                    } catch {
+                        saved = false;
+                        currentRecords = backgroundHoldings.map((holding) => ({
+                            ...holding,
+                            syncId: collectionSyncId,
+                            sourceReceipt: result.receipt
+                        }));
+                        currentProfiles = [...backgroundProfiles.values()];
+                    }
+                }
+                if (!background || scanComplete) {
+                    nextOffset = scanNextOffset;
+                    complete = scanComplete;
+                    renderCollection();
+                    const summary = collectionSummary(currentRecords.filter((record) => showSpam || !record.spam));
+                    setStatus(
+                        scanComplete
+                            ? `Complete Objkt coverage · ${summary.assets.toLocaleString()} collected assets · ${summary.createdAssets.toLocaleString()} created · ${saved ? 'saved on this device' : 'temporary view; storage unavailable'} · ${formatFreshnessStamp(new Date(), { source: 'Objkt' })}`
+                            : `Syncing complete Objkt coverage · ${summary.assets.toLocaleString()} collected assets loaded across ${pageCount.toLocaleString()} page${pageCount === 1 ? '' : 's'}…`,
+                        saved ? (scanComplete ? 'complete' : 'partial') : 'error'
+                    );
+                }
+                offset = scanNextOffset;
+            } while (!scanComplete && offset > 0 && requestGeneration === generation && isVisible());
+            return latestResult ? { ...latestResult, loadedRows, pageCount, complete: scanComplete } : null;
         } catch (error) {
             if (previous.records.length) {
                 currentRecords = previous.records;
@@ -448,12 +488,12 @@ export async function activateMyTezosCollection({ force = false } = {}) {
         currentRecords = await readCachedRecords(selectedEntries());
         currentProfiles = (await getMyTezosMeta('collection-profiles')) || [];
         renderCollection();
-        if (force || !currentRecords.length) return refreshCollection({ force });
+        if (force || !currentRecords.length) return refreshMyTezosCollection({ force });
         setStatus('Saved holdings shown · checking Objkt quietly…', 'cached');
-        setTimeout(() => refreshCollection().catch(() => {}), 150);
+        setTimeout(() => refreshMyTezosCollection().catch(() => {}), 150);
     } catch (error) {
         setStatus('Collection cannot be saved on this device; loading a temporary view.', 'error');
-        return refreshCollection();
+        return refreshMyTezosCollection();
     }
     return null;
 }

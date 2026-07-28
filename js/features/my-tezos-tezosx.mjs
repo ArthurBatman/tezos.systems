@@ -155,14 +155,14 @@ function renderLinkedAccounts() {
             writeLinkedAccounts(readLinkedAccounts().map((entry) => (
                 entry.address === address ? { ...entry, included: input.checked } : entry
             )), 'tezos-x-inclusion');
-            refreshTezosX({ force: true }).catch(() => {});
+            refreshMyTezosTezosX({ force: true }).catch(() => {});
         });
     });
     target.querySelectorAll('[data-tezosx-select]').forEach((button) => {
         button.addEventListener('click', () => {
             selectedAddress = button.dataset.tezosxSelect;
             renderLinkedAccounts();
-            refreshTezosX({ force: true }).catch(() => {});
+            refreshMyTezosTezosX({ force: true }).catch(() => {});
         });
     });
     target.querySelectorAll('[data-tezosx-l1-link]').forEach((input) => {
@@ -184,7 +184,7 @@ function renderLinkedAccounts() {
             writeLinkedAccounts(readLinkedAccounts().filter((entry) => entry.address !== address), 'tezos-x-remove');
             if (selectedAddress === address) selectedAddress = '';
             renderLinkedAccounts();
-            refreshTezosX({ force: true }).catch(() => {});
+            refreshMyTezosTezosX({ force: true }).catch(() => {});
         });
     });
 }
@@ -305,14 +305,14 @@ function mergeById(existing, incoming) {
     return [...byId.values()];
 }
 
-async function refreshTezosX({ force = false, loadMore = false } = {}) {
+export async function refreshMyTezosTezosX({ force = false, loadMore = false, background = false } = {}) {
     if (!isVisible()) return null;
     if (refreshInFlight && !force) return refreshInFlight;
     if (refreshInFlight && force) refreshController?.abort();
     const entries = readLinkedAccounts();
     const included = scopedLinkedAccounts(entries).filter((entry) => entry.included !== false);
     const requestGeneration = ++generation;
-    renderLinkedAccounts();
+    if (!background) renderLinkedAccounts();
     if (!included.length) {
         accountRows = [];
         currentDetails = null;
@@ -373,16 +373,28 @@ async function refreshTezosX({ force = false, loadMore = false } = {}) {
                 transactionCursor: loadMore ? currentDetails?.nextPageParams : null
             });
             if (requestGeneration !== generation || !isVisible()) return null;
-            const storedNfts = mergeById(loadMore ? currentDetails?.nfts : [], details.nfts).map((holding) => ({
+            const retainedDetails = currentDetails?.address === selectedAddress ? currentDetails : null;
+            const preserveLoadedActivity = background && retainedDetails;
+            const detailWarnings = new Set(details.receipt?.warnings || []);
+            const storedNfts = mergeById(loadMore ? retainedDetails?.nfts : [], details.nfts).map((holding) => ({
                 ...holding,
                 sourceReceipt: details.receipt
             }));
+            const mergedTransactions = mergeById(
+                loadMore || preserveLoadedActivity ? retainedDetails?.transactions : [],
+                details.transactions
+            ).sort((left, right) => (
+                (Date.parse(right?.timestamp || '') || 0) - (Date.parse(left?.timestamp || '') || 0)
+            ));
             currentDetails = {
                 address: selectedAddress,
                 ...details,
-                transactions: mergeById(loadMore ? currentDetails?.transactions : [], details.transactions),
-                tokens: details.tokens.length ? details.tokens : currentDetails?.tokens || [],
-                nfts: storedNfts
+                nextPageParams: preserveLoadedActivity ? retainedDetails.nextPageParams : details.nextPageParams,
+                transactions: mergedTransactions,
+                tokens: details.tokens.length ? details.tokens : retainedDetails?.tokens || [],
+                nfts: background && detailWarnings.has('NFT holdings unavailable')
+                    ? retainedDetails?.nfts || []
+                    : storedNfts
             };
             if (selectedRow) {
                 selectedRow.erc20Assets = currentDetails.tokens.length;
@@ -392,15 +404,15 @@ async function refreshTezosX({ force = false, loadMore = false } = {}) {
             await Promise.all([
                 putMyTezosRecords('activityByAccount', currentDetails.transactions),
                 details.receipt.coverage.state === 'complete'
-                    ? replaceMyTezosAccountRecords('holdings', myTezosAccountKey('l2', selectedAddress), storedNfts)
-                    : putMyTezosRecords('holdings', storedNfts),
+                    ? replaceMyTezosAccountRecords('holdings', myTezosAccountKey('l2', selectedAddress), currentDetails.nfts)
+                    : putMyTezosRecords('holdings', currentDetails.nfts),
                 putMyTezosRecords('syncState', {
                     id: `blockscout:${myTezosAccountKey('l2', selectedAddress)}:account`,
                     adapter: 'blockscout',
                     accountKey: myTezosAccountKey('l2', selectedAddress),
                     stream: 'account',
-                    cursor: details.nextPageParams,
-                    complete: details.nextPageParams == null,
+                    cursor: currentDetails.nextPageParams,
+                    complete: currentDetails.nextPageParams == null,
                     updatedAt: Date.now(),
                     error: null,
                     receipt: details.receipt
@@ -432,6 +444,8 @@ async function refreshTezosX({ force = false, loadMore = false } = {}) {
                 refreshInFlight = null;
                 refreshController = null;
             }
+            const loadMoreButton = document.getElementById('tezosx-load-more');
+            if (loadMoreButton) loadMoreButton.disabled = false;
         }
     })();
     refreshInFlight = pending;
@@ -465,7 +479,7 @@ function wireTezosXControls() {
                 'success'
             );
             renderLinkedAccounts();
-            refreshTezosX({ force: true }).catch(() => {});
+            refreshMyTezosTezosX({ force: true }).catch(() => {});
         } catch (error) {
             setManagementStatus(error.message || 'Could not link that Etherlink account.', 'error');
         }
@@ -473,13 +487,13 @@ function wireTezosXControls() {
     document.getElementById('tezosx-account-scope')?.addEventListener('change', (event) => {
         selectedAddress = event.currentTarget.value || '';
         renderLinkedAccounts();
-        refreshTezosX({ force: true }).catch(() => {});
+        refreshMyTezosTezosX({ force: true }).catch(() => {});
     });
     refreshButton?.addEventListener('click', () => {
-        refreshTezosX({ force: true }).catch(() => {});
+        refreshMyTezosTezosX({ force: true }).catch(() => {});
     });
     document.getElementById('tezosx-load-more')?.addEventListener('click', () => {
-        refreshTezosX({ loadMore: true }).catch(() => {});
+        refreshMyTezosTezosX({ loadMore: true }).catch(() => {});
     });
     if (submitButton) submitButton.disabled = false;
     if (refreshButton) refreshButton.disabled = false;
@@ -493,7 +507,7 @@ export async function activateMyTezosTezosX({ force = false } = {}) {
         window.addEventListener('my-tezos-linked-l2-changed', () => {
             generation += 1;
             renderLinkedAccounts();
-            if (isVisible()) refreshTezosX({ force: true }).catch(() => {});
+            if (isVisible()) refreshMyTezosTezosX({ force: true }).catch(() => {});
         });
         window.addEventListener('my-tezos-portfolio-changed', renderLinkedAccounts);
         window.addEventListener('my-tezos-scope-changed', () => {
@@ -501,7 +515,7 @@ export async function activateMyTezosTezosX({ force = false } = {}) {
             selectedAddress = '';
             currentDetails = null;
             renderLinkedAccounts();
-            if (isVisible()) refreshTezosX({ force: true }).catch(() => {});
+            if (isVisible()) refreshMyTezosTezosX({ force: true }).catch(() => {});
         });
     }
     renderLinkedAccounts();
@@ -510,7 +524,7 @@ export async function activateMyTezosTezosX({ force = false } = {}) {
         currentDetails = await readCachedTezosX(selectedAddress);
         renderDetails();
     } catch {}
-    if (force || readLinkedAccounts().length) return refreshTezosX({ force });
+    if (force || readLinkedAccounts().length) return refreshMyTezosTezosX({ force });
     renderSummary();
     renderDetails();
     return null;

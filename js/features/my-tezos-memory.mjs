@@ -75,9 +75,9 @@ function panelVisible({ activityOnly = false } = {}) {
 
 function visibleSyncMode() {
     if (!memorySurfaceVisible()) return null;
-    return document.getElementById('my-tezos-panel-overview')?.hidden === false
-        ? 'activity'
-        : 'full';
+    return document.getElementById('my-tezos-panel-portfolio')?.hidden === false
+        ? 'full'
+        : 'activity';
 }
 
 function setStorageNotice(message = '') {
@@ -430,6 +430,10 @@ export async function activateMyTezosMemory({ force = false, activityOnly = fals
         setStorageNotice('History cannot be saved on this device. Current data remains available for this visit.');
         setStatus(error.message || 'Memory storage unavailable', 'error');
     }
+}
+
+export function refreshMyTezosMemory({ force = false } = {}) {
+    return syncMemory({ force, activityOnly: true });
 }
 
 export function initMyTezosMemory() {

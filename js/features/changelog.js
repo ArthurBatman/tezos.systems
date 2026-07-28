@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
+            { type: '✨', text: 'Every active My Tezos view now receives quiet 30-second live updates: transactions, Portfolio, Collection, Your Story, and Tezos X refresh without reloading the page or resetting filters, expanded history, charts, focus, selection, or scroll' },
             { type: '🎨', text: 'Social previews now carry the painterly Valley landscape behind high-contrast data glass, with larger titles and metric labels that remain readable in an X feed' },
             { type: '🎨', text: 'New Tezos Systems builds now use a high-contrast persistent release dock with a full-size Update & reload action and a compact Later state' },
             { type: '🔧', text: 'Long-open and cross-tab sessions now keep new builds reachable through hourly visible checks, reliable resurfacing, and a reload fallback when activation takes longer than expected' },

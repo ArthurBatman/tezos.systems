@@ -27,7 +27,10 @@ import {
     initMyTezosPortfolio,
     refreshMyTezosPortfolio
 } from './my-tezos-portfolio.js';
-import { activateMyTezosMemory } from './my-tezos-memory.mjs';
+import {
+    activateMyTezosMemory,
+    refreshMyTezosMemory
+} from './my-tezos-memory.mjs';
 import {
     initMyTezosTabs,
     registerMyTezosView,
@@ -63,6 +66,7 @@ const RIGHTS_FETCH_TIMEOUT_MS = 12000;
 const OCTEZ_VERSION_TTL_MS = 10 * 60 * 1000;
 const OPERATOR_SIGNAL_REFRESH_MS = 15000;
 const DRAWER_STATS_REFRESH_MS = 30000;
+const ACTIVE_VIEW_REFRESH_MS = 30000;
 const BAKING_BENJAMINS_NAME = 'Baking Benjamins';
 const _octezSoftwareCache = new Map();
 const _tezNameMemoryCache = new Map();
@@ -2231,6 +2235,7 @@ let _operatorSignalSeq = 0;
 let _operatorDrawerObserver = null;
 let _drawerStatsTimer = null;
 let _drawerStatsInFlight = false;
+let _activeViewRefreshTimer = null;
 
 function isDrawerOpen() {
     return document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
@@ -2244,6 +2249,32 @@ function getOperatorSignalRefreshMs() {
 function getDrawerStatsRefreshMs() {
     const override = Number(window.__MY_TEZOS_DRAWER_REFRESH_MS__);
     return Number.isFinite(override) && override >= 1000 ? override : DRAWER_STATS_REFRESH_MS;
+}
+
+function getActiveViewRefreshMs() {
+    const override = Number(window.__MY_TEZOS_VIEW_REFRESH_MS__);
+    return Number.isFinite(override) && override >= 1000 ? override : ACTIVE_VIEW_REFRESH_MS;
+}
+
+async function refreshActiveMyTezosView() {
+    if (!isDrawerOpen() || document.visibilityState !== 'visible') return null;
+    switch (activeMyTezosView()) {
+        case 'portfolio':
+            return refreshMyTezosPortfolio();
+        case 'collection': {
+            const module = await import('./my-tezos-collection.mjs');
+            return module.refreshMyTezosCollection({ background: true });
+        }
+        case 'tezos-x': {
+            const module = await import('./my-tezos-tezosx.mjs');
+            return module.refreshMyTezosTezosX({ background: true });
+        }
+        case 'overview':
+        case 'transactions':
+        case 'story':
+        default:
+            return refreshMyTezosMemory();
+    }
 }
 
 function getCurrentDrawerXtzPrice() {
@@ -2917,6 +2948,12 @@ function initDrawerLiveRefresh() {
         }, getDrawerStatsRefreshMs());
     }
 
+    if (!_activeViewRefreshTimer) {
+        _activeViewRefreshTimer = setInterval(() => {
+            refreshActiveMyTezosView().catch(() => {});
+        }, getActiveViewRefreshMs());
+    }
+
     const drawer = document.getElementById('my-tezos-drawer');
     if (drawer && !_operatorDrawerObserver) {
         _operatorDrawerObserver = new MutationObserver(() => {
@@ -2931,6 +2968,7 @@ function initDrawerLiveRefresh() {
         if (document.visibilityState === 'visible' && isDrawerOpen()) {
             refreshDrawerStats({ force: true }).catch(() => {});
             refreshOperatorSignal({ force: true }).catch(() => {});
+            refreshActiveMyTezosView().catch(() => {});
         }
     }, { once: false });
 }
@@ -3103,10 +3141,10 @@ export function initMyTezos() {
     initMyTezosScope();
     registerMyTezosView('overview', () => activateMyTezosMemory({ activityOnly: true }));
     registerMyTezosView('portfolio', () => activateMyTezosPortfolio());
-    registerMyTezosView('transactions', () => activateMyTezosMemory());
+    registerMyTezosView('transactions', () => activateMyTezosMemory({ activityOnly: true }));
     registerMyTezosView('collection', () => import('./my-tezos-collection.mjs')
         .then((module) => module.activateMyTezosCollection()));
-    registerMyTezosView('story', () => activateMyTezosMemory());
+    registerMyTezosView('story', () => activateMyTezosMemory({ activityOnly: true }));
     registerMyTezosView('tezos-x', () => import('./my-tezos-tezosx.mjs')
         .then((module) => module.activateMyTezosTezosX()));
     initMyTezosTabs();

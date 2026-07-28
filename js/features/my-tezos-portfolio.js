@@ -61,7 +61,6 @@ export {
 } from './my-tezos-portfolio-model.mjs';
 
 const HISTORY_KEY = 'tezos-systems-my-tezos-portfolio-history-v1';
-const REFRESH_MS = 30_000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
 let lastCompletePortfolio = null;
@@ -70,7 +69,6 @@ let portfolioRange = '1y';
 let portfolioRefreshInFlight = null;
 let portfolioRefreshController = null;
 let portfolioGeneration = 0;
-let portfolioTimer = null;
 let portfolioInitialized = false;
 let portfolioCompositionRefreshQueued = false;
 let exactHistoryState = {
@@ -101,11 +99,6 @@ function isPortfolioVisible() {
 function isMyTezosVisible() {
     return document.visibilityState === 'visible'
         && document.getElementById('my-tezos-drawer')?.classList.contains('open') === true;
-}
-
-function portfolioRefreshMs() {
-    const override = Number(window.__MY_TEZOS_PORTFOLIO_REFRESH_MS__);
-    return Number.isFinite(override) && override >= 1000 ? override : REFRESH_MS;
 }
 
 function formatXtz(mutez, maximumFractionDigits = 2) {
@@ -981,15 +974,9 @@ export function initMyTezosPortfolio() {
         };
         renderHistory();
     });
-
-    portfolioTimer = setInterval(() => {
-        refreshMyTezosPortfolio().catch(() => {});
-    }, portfolioRefreshMs());
 }
 
 export function destroyMyTezosPortfolioForTests() {
-    if (portfolioTimer) clearInterval(portfolioTimer);
-    portfolioTimer = null;
     if (portfolioChart) portfolioChart.destroy();
     portfolioChart = null;
     portfolioGeneration += 1;

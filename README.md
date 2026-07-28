@@ -756,7 +756,16 @@ inline modal styles in `js/core/app.js`.
   and Story surfaces. Combined mode labels those account-only facts instead of
   pretending multiple wallets have one baker, identity, or on-chain timeline.
   Transactions also exposes loaded receipt, transfer/call, NFT-interaction, and
-  in-scope wallet totals. Overview's Network Context is a two-part personalized
+  in-scope wallet totals. While the drawer and browser tab remain visible, the
+  active view quietly catches up every 30 seconds: Overview, Transactions, and
+  Story reconcile recent applied receipts; Portfolio reconciles current
+  balances; Collection publishes a complete new Objkt snapshot atomically; and
+  Tezos X merges a fresh first page without discarding already loaded older
+  activity. Hidden or closed drawers do not poll, and one catch-up runs when the
+  tab becomes visible again. These updates preserve the active tab, wallet
+  scope, filters, progressive card depth, pagination cursor, Chart.js instance,
+  nested scroll, focus, input selection, and text selection. Overview's Network
+  Context is a two-part personalized
   briefing: a full-width row
   places the wallet story and the live Tezos story in equal side-by-side panels
   on desktop, then stacks them on narrow screens. The wallet panel selects the
@@ -1206,6 +1215,9 @@ Current smoke suites:
   independent no-gap desktop stacks, and recent delegator/staker rows)
 - `my-tezos-live-signal`
 - `my-tezos-drawer-live-refresh`
+- `my-tezos-view-live-refresh` (covers timed live reconciliation across all six
+  views, hidden-tab catch-up, and preservation of filters, progressive card
+  depth, loaded L2 history, charts, focus, selection, and nested scroll)
 - `my-tezos-empty-state`
 - `my-tezos-wallet-connect`
 - `octez-connect-sdk-loader`
@@ -1276,7 +1288,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v518`, including hero search, theme
+- Current aligned shell cache stamp: `v519`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
