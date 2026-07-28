@@ -1,7 +1,7 @@
 {
   "kind": "tezos-whale-watch",
   "version": 1,
-  "generatedAt": "2026-07-27T19:59:38.874Z",
+  "generatedAt": "2026-07-28T03:40:51.221Z",
   "methodology": {
     "minimumTransferXtz": 1000,
     "minimumDormantBalanceXtz": 1000000,
@@ -19,8 +19,8 @@
     },
     "transfers24h": {
       "complete": true,
-      "pages": 2,
-      "eligibleCount": 1060
+      "pages": 1,
+      "eligibleCount": 963
     }
   },
   "dormant": {
@@ -43,36 +43,36 @@
   "awakenings": [],
   "transfers24h": {
     "window": {
-      "since": "2026-07-26T19:59:38.874Z",
-      "until": "2026-07-27T19:59:38.874Z",
+      "since": "2026-07-27T03:40:51.221Z",
+      "until": "2026-07-28T03:40:51.221Z",
       "hours": 24
     },
     "semantics": "Gross observed tez transferred by applied transaction operations. This is not economic volume and can include related internal hops.",
     "minimumXtz": 1000,
     "complete": true,
-    "operationCount": 1060,
-    "operationGroupCount": 944,
+    "operationCount": 963,
+    "operationGroupCount": 875,
     "uniqueSenders": 147,
     "uniqueTargets": 162,
-    "grossObservedMutez": 33851312488762,
+    "grossObservedMutez": 31823128699036,
     "thresholds": [
       {
         "thresholdXtz": 1000,
-        "operationCount": 1060,
-        "operationGroupCount": 944,
-        "grossObservedMutez": 33851312488762
+        "operationCount": 963,
+        "operationGroupCount": 875,
+        "grossObservedMutez": 31823128699036
       },
       {
         "thresholdXtz": 10000,
-        "operationCount": 697,
-        "operationGroupCount": 663,
-        "grossObservedMutez": 32508903071583
+        "operationCount": 624,
+        "operationGroupCount": 595,
+        "grossObservedMutez": 30550347394321
       },
       {
         "thresholdXtz": 100000,
-        "operationCount": 34,
-        "operationGroupCount": 33,
-        "grossObservedMutez": 9673410839658
+        "operationCount": 36,
+        "operationGroupCount": 35,
+        "grossObservedMutez": 10274390433658
       },
       {
         "thresholdXtz": 1000000,
@@ -174,6 +174,27 @@
             "sender": "tz1ZDN4AJMd3PrCt2QbTwNAHTvmiZYyeKrtH",
             "senderAlias": null,
             "target": "tz1eRvpN4zVQXew34bns3bT5AwPVsJPEouUS",
+            "targetAlias": null
+          }
+        ],
+        "operationCount": 1
+      },
+      {
+        "hash": "op7PtE8CM6oia3gFBTaKjgNRYHqDFdvNQVjiXttaVmrLfR3c7cd",
+        "timestamp": "2026-07-28T03:11:07.000Z",
+        "grossObservedMutez": 423679430000,
+        "operations": [
+          {
+            "id": 2796127910887424,
+            "hash": "op7PtE8CM6oia3gFBTaKjgNRYHqDFdvNQVjiXttaVmrLfR3c7cd",
+            "type": "transaction",
+            "action": null,
+            "status": "applied",
+            "timestamp": "2026-07-28T03:11:07.000Z",
+            "amountMutez": 423679430000,
+            "sender": "tz1SbuebTVyTeWu4VgeviqJGjEkeS9mnBKxv",
+            "senderAlias": null,
+            "target": "tz1T3KYkqhxVMJtkxGFty3rAcrH12Fv1ANYy",
             "targetAlias": null
           }
         ],
@@ -681,27 +702,6 @@
           }
         ],
         "operationCount": 1
-      },
-      {
-        "hash": "opT4CNsrmAx4WXWWs6izb2dpKSquML2M3h4gDLBc4bjDH1GdUT8",
-        "timestamp": "2026-07-27T13:02:49.000Z",
-        "grossObservedMutez": 187377998580,
-        "operations": [
-          {
-            "id": 2794770742116352,
-            "hash": "opT4CNsrmAx4WXWWs6izb2dpKSquML2M3h4gDLBc4bjDH1GdUT8",
-            "type": "transaction",
-            "action": null,
-            "status": "applied",
-            "timestamp": "2026-07-27T13:02:49.000Z",
-            "amountMutez": 187377998580,
-            "sender": "tz1VZ8kf5Hs6oPkjB1quSVxD4JAhoWX4j117",
-            "senderAlias": null,
-            "target": "tz1MXjdb684ByEP5qUn5J7EMub7Sr8eBziDe",
-            "targetAlias": "Coinbase 4"
-          }
-        ],
-        "operationCount": 1
       }
     ]
   },
@@ -709,12 +709,12 @@
     {
       "label": "TzKT large-account ledger",
       "url": "https://api.tzkt.io/v1/accounts",
-      "observedAt": "2026-07-27T19:59:38.874Z"
+      "observedAt": "2026-07-28T03:40:51.221Z"
     },
     {
       "label": "TzKT applied transaction ledger",
       "url": "https://api.tzkt.io/v1/operations/transactions",
-      "observedAt": "2026-07-27T19:59:38.874Z"
+      "observedAt": "2026-07-28T03:40:51.221Z"
     }
   ]
 }
