@@ -321,7 +321,7 @@
     position: absolute;
     top: -1.3rem;
     right: -0.06rem;
-    display: inline-flex;
+    display: none;
     align-items: center;
     justify-content: center;
     min-height: 1rem;
@@ -338,7 +338,13 @@
     line-height: 1;
     text-transform: uppercase;
     white-space: nowrap;
+    z-index: 2;
+    transform-origin: right center;
     transition: transform 160ms ease;
+}
+
+.top-uptime-cluster.has-milestone-signal .top-continuity-milestone-new {
+    display: inline-flex;
 }
 
 .top-uptime-cluster.is-uptime-milestone-arriving .top-continuity-milestone-outline {

@@ -1953,6 +1953,7 @@ async function checkSelectorContracts() {
     || uptimeCounterIndex < uptimeYearIndex
     || milestoneOutlineIndex < uptimeCounterIndex
     || milestoneNewIndex < milestoneOutlineIndex
+    || !index.includes('<span class="top-continuity-milestone-outline" aria-hidden="true" hidden></span>\n                                        <span class="top-continuity-milestone-new" aria-hidden="true">New</span>')
     || uptimeOriginIndex < milestoneNewIndex
     || milestonePopoverIndex < uptimeOriginIndex
     || milestoneCloseIndex < milestonePopoverIndex
@@ -2770,6 +2771,8 @@ async function checkSelectorContracts() {
     ['top continuity milestone transparent interior', 'background: transparent;', shellExtrasCss],
     ['top continuity milestone hairline border', 'border: 1px solid color-mix(in srgb, var(--uptime-badge-label) 58%, var(--uptime-badge-value));', shellExtrasCss],
     ['top continuity milestone NEW marker styles', '.top-continuity-milestone-new', shellExtrasCss],
+    ['top continuity milestone NEW marker above outline paint layer', 'z-index: 2;', shellExtrasCss],
+    ['top continuity milestone NEW marker visible for unseen signal', '.top-uptime-cluster.has-milestone-signal .top-continuity-milestone-new', shellExtrasCss],
     ['top continuity milestone NEW marker separated above outline', 'top: -1.3rem;', shellExtrasCss],
     ['top continuity milestone removes offset highlight', 'box-shadow: none;', shellExtrasCss],
     ['top continuity milestone one-shot arrival', 'uptimeMilestoneNewArrival 9s ease-out both', shellExtrasCss],
@@ -8389,7 +8392,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=522'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=523'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

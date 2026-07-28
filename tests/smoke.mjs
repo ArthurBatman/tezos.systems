@@ -5774,7 +5774,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
     const clock = document.querySelector('#top-continuity-history');
     const runtime = clock?.querySelector('.top-continuity-runtime');
     const outline = clock?.querySelector('.top-continuity-milestone-outline');
-    const marker = outline?.querySelector('.top-continuity-milestone-new');
+    const marker = clock?.querySelector('.top-continuity-milestone-new');
     const runtimeRect = runtime?.getBoundingClientRect();
     const outlineRect = outline?.getBoundingClientRect();
     const markerRect = marker?.getBoundingClientRect();
@@ -5853,6 +5853,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
       markerBoxShadow: markerStyle?.boxShadow || '',
       markerAnimation: markerStyle?.animationName || '',
       markerAnimationIterations: markerStyle?.animationIterationCount || '',
+      markerOutsideOutline: Boolean(marker && outline && !outline.contains(marker)),
       markerAttachedTopRight: Boolean(
         markerRect
         && runtimeRect
@@ -5867,6 +5868,24 @@ async function smokeCycleMilestone(browser, baseUrl) {
       popoverLinkLabel: document.querySelector('#top-continuity-milestone-link-label')?.textContent?.trim() || '',
       orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length,
       detachedInfoControls: document.querySelectorAll('.top-continuity-milestone-info').length
+    };
+  });
+  await page.waitForTimeout(1000);
+  const settledMarker = await page.evaluate(() => {
+    const clock = document.querySelector('#top-continuity-history');
+    const outline = clock?.querySelector('.top-continuity-milestone-outline');
+    const marker = clock?.querySelector('.top-continuity-milestone-new');
+    const markerRect = marker?.getBoundingClientRect();
+    const paintTarget = markerRect
+      ? document.elementFromPoint(
+          markerRect.left + (markerRect.width / 2),
+          markerRect.top + (markerRect.height / 2)
+        )
+      : null;
+    return {
+      opacity: marker ? Number.parseFloat(getComputedStyle(marker).opacity) : 0,
+      outsideOutline: Boolean(marker && outline && !outline.contains(marker)),
+      topPainted: Boolean(marker && paintTarget && (paintTarget === marker || marker.contains(paintTarget)))
     };
   });
   await page.locator('#top-continuity-history').hover();
@@ -5924,6 +5943,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && before.markerBoxShadow === 'none'
     && before.markerAnimation.includes('uptimeMilestoneNewArrival')
     && before.markerAnimationIterations === '1'
+    && before.markerOutsideOutline
     && before.markerAttachedTopRight
     && before.popoverTitle === '1,300 cycles'
     && before.popoverStatus === 'Confirmed on-chain'
@@ -5933,6 +5953,12 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && before.orbitControls === 0
     && before.detachedInfoControls === 0,
   `cycle milestone: uptime should carry the clean outlined NEW attractor without rewriting the clock or adding an offset highlight ${JSON.stringify(before)}`);
+  assert(
+    settledMarker.opacity >= 0.98
+      && settledMarker.outsideOutline
+      && settledMarker.topPainted,
+    `cycle milestone: NEW marker must remain painted above the outline after its clip-path arrival settles ${JSON.stringify(settledMarker)}`
+  );
   assert(Number.parseFloat(clockHover.opacity) >= 0.98
     && clockHover.pointerEvents === 'auto'
     && clockHover.expanded === 'true'
@@ -6016,17 +6042,34 @@ async function smokeCycleMilestone(browser, baseUrl) {
     );
   }
   await peerPage.locator('.top-continuity-milestone-outline').waitFor({ state: 'visible', timeout: 5000 });
+  await mobilePage.evaluate(() => {
+    const targets = [
+      document.querySelector('.top-continuity-milestone-outline'),
+      document.querySelector('.top-continuity-milestone-new')
+    ].filter(Boolean);
+    targets.flatMap((target) => target.getAnimations()).forEach((animation) => {
+      animation.currentTime = 1000;
+      animation.pause();
+    });
+  });
   const mobileClock = mobilePage.locator('#top-continuity-history');
   const activityTopBeforeTap = await mobilePage.locator('#header-activity-button').evaluate((element) => element.getBoundingClientRect().top);
   const beforeTap = await mobilePage.evaluate(() => {
     const clock = document.querySelector('#top-continuity-history');
     const runtime = clock?.querySelector('.top-continuity-runtime');
     const outline = clock?.querySelector('.top-continuity-milestone-outline');
-    const marker = outline?.querySelector('.top-continuity-milestone-new');
+    const marker = clock?.querySelector('.top-continuity-milestone-new');
     const runtimeRect = runtime?.getBoundingClientRect();
     const outlineRect = outline?.getBoundingClientRect();
     const markerRect = marker?.getBoundingClientRect();
     const outlineStyle = outline ? getComputedStyle(outline) : null;
+    const markerStyle = marker ? getComputedStyle(marker) : null;
+    const paintTarget = markerRect
+      ? document.elementFromPoint(
+          markerRect.left + (markerRect.width / 2),
+          markerRect.top + (markerRect.height / 2)
+        )
+      : null;
     return {
       outlineVisible: Boolean(outline && !outline.hidden && outlineStyle?.display !== 'none'),
       outlineWrapsRuntime: Boolean(
@@ -6048,7 +6091,10 @@ async function smokeCycleMilestone(browser, baseUrl) {
       outlineBackground: outlineStyle?.backgroundColor || '',
       outlineBoxShadow: outlineStyle?.boxShadow || '',
       markerText: marker?.textContent?.trim() || '',
+      markerOpacity: Number.parseFloat(markerStyle?.opacity || '0'),
       markerGap: outlineRect && markerRect ? outlineRect.top - markerRect.bottom : -999,
+      markerOutsideOutline: Boolean(marker && outline && !outline.contains(marker)),
+      markerTopPainted: Boolean(marker && paintTarget && (paintTarget === marker || marker.contains(paintTarget))),
       markerAttachedTopRight: Boolean(
         markerRect
         && runtimeRect
@@ -6067,7 +6113,10 @@ async function smokeCycleMilestone(browser, baseUrl) {
       && beforeTap.outlineBackground === 'rgba(0, 0, 0, 0)'
       && beforeTap.outlineBoxShadow === 'none'
       && beforeTap.markerText === 'New'
+      && beforeTap.markerOpacity >= 0.98
       && beforeTap.markerGap >= 1
+      && beforeTap.markerOutsideOutline
+      && beforeTap.markerTopPainted
       && beforeTap.markerAttachedTopRight
       && /mainnet age.*since 2018/i.test(beforeTap.subline)
       && beforeTap.route === '#health',
@@ -6112,7 +6161,11 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && /mainnet age.*since 2018/i.test(firstTap.subline)
     && firstTap.orbitControls === 0,
   `mobile cycle milestone: first clock tap should persist id plus crossed status, navigate immediately, retire the attractor, and leave the subline/layout untouched ${JSON.stringify(firstTap)}`);
-  await peerPage.waitForTimeout(500);
+  await peerPage.waitForFunction(() => {
+    const outline = document.querySelector('.top-continuity-milestone-outline');
+    const clock = document.querySelector('#top-continuity-history');
+    return Boolean(outline?.hidden) && !clock?.classList.contains('has-milestone-signal');
+  }, null, { timeout: 5000 });
   const peerState = await peerPage.evaluate(() => {
     const outline = document.querySelector('.top-continuity-milestone-outline');
     let stored = null;
@@ -10743,7 +10796,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const topProofMilestonePopover = document.querySelector('#top-continuity-milestone-popover');
     const topProofMilestoneOrigin = topProofHistory?.querySelector('.top-continuity-origin');
     const topProofMilestoneOutline = topProofHistory?.querySelector('.top-continuity-milestone-outline');
-    const topProofMilestoneNew = topProofMilestoneOutline?.querySelector('.top-continuity-milestone-new');
+    const topProofMilestoneNew = topProofHistory?.querySelector('.top-continuity-milestone-new');
     const topProofMilestoneLink = document.querySelector('#top-continuity-milestone-link');
     const topProofMilestoneClose = document.querySelector('#top-continuity-milestone-close');
     const topProofFirstPill = topProof?.querySelector('.top-continuity-stat');
@@ -18486,12 +18539,12 @@ async function smokeThemeSelection(browser, baseUrl) {
     assert(state.ledgerMetricOverflow <= 1, `theme ${theme} mobile: Ledger Flow metric labels should not clip (${state.ledgerMetricOverflow}px)`);
     assert(state.titleOverflow <= 1 && state.documentOverflow <= 1, `theme ${theme} mobile: typography overflow ${JSON.stringify(state)}`);
 
-    const milestoneState = await mobilePage.evaluate(() => {
+    const milestoneState = await mobilePage.evaluate(async () => {
       const cluster = document.querySelector('.top-uptime-cluster');
       const uptime = document.querySelector('#top-continuity-history');
       const runtime = uptime?.querySelector('.top-continuity-runtime');
       const outline = uptime?.querySelector('.top-continuity-milestone-outline');
-      const marker = outline?.querySelector('.top-continuity-milestone-new');
+      const marker = uptime?.querySelector('.top-continuity-milestone-new');
       const activity = document.querySelector('#header-activity-button');
       const title = document.querySelector('.title');
       if (!cluster || !uptime || !runtime || !outline || !marker || !title) return { centerDelta: 999 };
@@ -18520,14 +18573,19 @@ async function smokeThemeSelection(browser, baseUrl) {
       const activityTopBefore = activity?.getBoundingClientRect().top ?? -1;
       outline.hidden = false;
       cluster.classList.add('has-milestone-signal', 'is-milestone-crossed', 'is-uptime-milestone-arriving');
+      const activityTopAfterSignal = activity?.getBoundingClientRect().top ?? -1;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       const titleRect = title.getBoundingClientRect();
       const uptimeRect = uptime.getBoundingClientRect();
       const runtimeRect = runtime.getBoundingClientRect();
       const outlineRect = outline.getBoundingClientRect();
       const markerRect = marker.getBoundingClientRect();
-      const activityRect = activity?.getBoundingClientRect();
       const outlineStyle = getComputedStyle(outline);
       const markerStyle = getComputedStyle(marker);
+      const paintTarget = document.elementFromPoint(
+        markerRect.left + (markerRect.width / 2),
+        markerRect.top + (markerRect.height / 2)
+      );
       return {
         centerDelta: Math.abs((titleRect.left + titleRect.width / 2) - (uptimeRect.left + uptimeRect.width / 2)),
         subline: uptime.querySelector('.top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -18549,7 +18607,10 @@ async function smokeThemeSelection(browser, baseUrl) {
         outlineAnimationIterations: outlineStyle.animationIterationCount,
         outlineGrayscaleContrast: contrast(outlineStyle.borderTopColor, getComputedStyle(document.body).backgroundColor),
         markerText: marker.textContent?.trim() || '',
+        markerOpacity: Number.parseFloat(markerStyle.opacity),
         markerGap: outlineRect.top - markerRect.bottom,
+        markerOutsideOutline: !outline.contains(marker),
+        markerTopPainted: paintTarget === marker || marker.contains(paintTarget),
         markerBorderWidth: Number.parseFloat(markerStyle.borderTopWidth),
         markerBoxShadow: markerStyle.boxShadow,
         markerInsideViewport: markerRect.left >= 0 && markerRect.right <= window.innerWidth,
@@ -18559,7 +18620,7 @@ async function smokeThemeSelection(browser, baseUrl) {
         markerContrast: contrast(markerStyle.color, markerStyle.backgroundColor),
         markerAnimation: markerStyle.animationName,
         markerAnimationIterations: markerStyle.animationIterationCount,
-        activityShift: activityRect ? Math.abs(activityRect.top - activityTopBefore) : 999,
+        activityShift: activityTopAfterSignal >= 0 ? Math.abs(activityTopAfterSignal - activityTopBefore) : 999,
         orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length,
         detachedInfoControls: document.querySelectorAll('.top-continuity-milestone-info').length
       };
@@ -18579,7 +18640,10 @@ async function smokeThemeSelection(browser, baseUrl) {
         && milestoneState.outlineAnimationIterations === '1'
         && milestoneState.outlineGrayscaleContrast >= 3
         && milestoneState.markerText === 'New'
+        && milestoneState.markerOpacity >= 0.98
         && milestoneState.markerGap >= 1
+        && milestoneState.markerOutsideOutline
+        && milestoneState.markerTopPainted
         && milestoneState.markerBorderWidth === 0
         && milestoneState.markerBoxShadow === 'none'
         && milestoneState.markerInsideViewport
@@ -18618,18 +18682,31 @@ async function smokeThemeSelection(browser, baseUrl) {
       const marker = document.querySelector('.top-continuity-milestone-new');
       if (outline) outline.hidden = false;
       cluster?.classList.add('has-milestone-signal', 'is-uptime-milestone-arriving');
+      const markerRect = marker?.getBoundingClientRect();
+      const paintTarget = markerRect
+        ? document.elementFromPoint(
+            markerRect.left + (markerRect.width / 2),
+            markerRect.top + (markerRect.height / 2)
+          )
+        : null;
       return {
         beforeAnimation: getComputedStyle(document.body, '::before').animationName,
         afterAnimation: getComputedStyle(document.body, '::after').animationName,
         matrixCanvas: Boolean(document.getElementById('matrix-canvas')),
         backgroundCanvas: Boolean(document.getElementById('bg-effects-canvas')),
         outlineAnimation: outline ? getComputedStyle(outline).animationName : '',
-        markerAnimation: marker ? getComputedStyle(marker).animationName : ''
+        markerAnimation: marker ? getComputedStyle(marker).animationName : '',
+        markerOpacity: marker ? Number.parseFloat(getComputedStyle(marker).opacity) : 0,
+        markerOutsideOutline: Boolean(marker && outline && !outline.contains(marker)),
+        markerTopPainted: Boolean(marker && paintTarget && (paintTarget === marker || marker.contains(paintTarget)))
       };
     });
     assert(reducedState.beforeAnimation === 'none' && reducedState.afterAnimation === 'none'
       && !reducedState.matrixCanvas && !reducedState.backgroundCanvas
-      && reducedState.outlineAnimation === 'none' && reducedState.markerAnimation === 'none',
+      && reducedState.outlineAnimation === 'none' && reducedState.markerAnimation === 'none'
+      && reducedState.markerOpacity >= 0.98
+      && reducedState.markerOutsideOutline
+      && reducedState.markerTopPainted,
     `theme ${theme}: reduced motion must disable pseudo-element and canvas animation ${JSON.stringify(reducedState)}`);
   }
   await reducedMotionContext.close();
