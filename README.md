@@ -328,8 +328,10 @@ inline modal styles in `js/core/app.js`.
   On the September 17 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   An unseen imminent or newly crossed network milestone gives the live runtime
-  a tight, transparent theme-derived hairline with a separate `NEW` marker just
-  above its top-right corner while preserving `MAINNET AGE · SINCE 2018`.
+  a tight, transparent theme-derived hairline while preserving
+  `MAINNET AGE · SINCE 2018`: approaching thresholds use a lighter dashed
+  outline with a separate `SOON` marker, then crossed thresholds re-arm with a
+  stronger solid outline and `NEW` marker above the top-right corner.
   Hover or keyboard focus reveals an anchored event
   card on desktop. The first activation records that milestone id and status as
   seen, opens Network Pulse or the most relevant Chamber directly, and retires

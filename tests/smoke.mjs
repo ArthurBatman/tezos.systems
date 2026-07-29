@@ -5941,8 +5941,9 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && before.markerGap >= 1
     && before.markerBorderWidth === 0
     && before.markerBoxShadow === 'none'
-    && before.markerAnimation.includes('uptimeMilestoneNewArrival')
-    && before.markerAnimationIterations === '1'
+    && before.markerAnimation.includes('uptimeMilestoneNewReveal')
+    && before.markerAnimation.includes('uptimeMilestoneNewNudge')
+    && before.markerAnimationIterations.split(',').every((value) => value.trim() === '1')
     && before.markerOutsideOutline
     && before.markerAttachedTopRight
     && before.popoverTitle === '1,300 cycles'
@@ -5971,6 +5972,89 @@ async function smokeCycleMilestone(browser, baseUrl) {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-hot-signal-id="milestone-cycle-1300"]').waitFor({ state: 'visible', timeout: 10000 });
   await context.close();
+
+  const nearContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(nearContext);
+  await nearContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const nearPage = await nearContext.newPage();
+  attachIssueCollectors(nearPage, 'near cycle milestone', issues);
+  const nearResponse = await nearPage.goto(`${baseUrl}/?theme=clean`, { waitUntil: 'domcontentloaded' });
+  assert(nearResponse?.ok(), `near cycle milestone: dashboard failed with HTTP ${nearResponse?.status()}`);
+  await nearPage.locator('main').waitFor({ state: 'visible', timeout: 10000 });
+  const nearState = await nearPage.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('hot-signal-rendered', {
+      detail: {
+        milestone: {
+          id: 'milestone-cycle-1301',
+          milestoneStatus: 'near',
+          kind: 'state',
+          tone: 'milestone',
+          category: 'milestone',
+          route: '#health',
+          shortLabel: '1,301 cycles',
+          title: '1,301 cycles',
+          text: 'Tezos is approaching cycle 1,301.',
+          expiresAt: Date.now() + (3 * 24 * 60 * 60 * 1000)
+        }
+      }
+    }));
+    const cluster = document.querySelector('.top-uptime-cluster');
+    const clock = document.querySelector('#top-continuity-history');
+    const outline = clock?.querySelector('.top-continuity-milestone-outline');
+    const marker = clock?.querySelector('.top-continuity-milestone-new');
+    const outlineStyle = outline ? getComputedStyle(outline) : null;
+    const markerStyle = marker ? getComputedStyle(marker) : null;
+    const markerRect = marker?.getBoundingClientRect();
+    const paintTarget = markerRect
+      ? document.elementFromPoint(
+          markerRect.left + (markerRect.width / 2),
+          markerRect.top + (markerRect.height / 2)
+        )
+      : null;
+    return {
+      markerText: marker?.textContent?.trim() || '',
+      markerVisible: Boolean(marker && markerStyle?.display !== 'none'),
+      markerTopPainted: Boolean(marker && paintTarget && (paintTarget === marker || marker.contains(paintTarget))),
+      outlineHidden: Boolean(outline?.hidden),
+      outlineBorderStyle: outlineStyle?.borderStyle || '',
+      outlineOpacity: Number.parseFloat(outlineStyle?.opacity || '0'),
+      nearClass: Boolean(cluster?.classList.contains('is-milestone-near')),
+      crossedClass: Boolean(cluster?.classList.contains('is-milestone-crossed')),
+      historyNearClass: Boolean(clock?.classList.contains('is-milestone-near')),
+      historyCrossedClass: Boolean(clock?.classList.contains('is-milestone-crossed')),
+      status: clock?.dataset.milestoneStatus || '',
+      route: clock?.dataset.milestoneRoute || '',
+      popoverStatus: document.querySelector('#top-continuity-milestone-status')?.textContent?.trim() || '',
+      staleClasses: document.querySelectorAll('.is-milestone-celebrating, .has-milestone-near, .has-milestone-celebration').length
+    };
+  });
+  assert(
+    nearState.markerText === 'Soon'
+      && nearState.markerVisible
+      && nearState.markerTopPainted
+      && !nearState.outlineHidden
+      && nearState.outlineBorderStyle === 'dashed'
+      && nearState.outlineOpacity >= 0.6
+      && nearState.outlineOpacity <= 0.68
+      && nearState.nearClass
+      && !nearState.crossedClass
+      && !nearState.historyNearClass
+      && !nearState.historyCrossedClass
+      && nearState.status === 'near'
+      && nearState.route === '#health'
+      && nearState.popoverStatus === 'Approaching on-chain'
+      && nearState.staleClasses === 0,
+    `near cycle milestone: approaching state should render a distinct dashed SOON treatment without dead state classes ${JSON.stringify(nearState)}`
+  );
+  await nearContext.close();
 
   const mobileContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -6090,6 +6174,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
       ),
       outlineBackground: outlineStyle?.backgroundColor || '',
       outlineBoxShadow: outlineStyle?.boxShadow || '',
+      outlineBorderStyle: outlineStyle?.borderStyle || '',
       markerText: marker?.textContent?.trim() || '',
       markerOpacity: Number.parseFloat(markerStyle?.opacity || '0'),
       markerGap: outlineRect && markerRect ? outlineRect.top - markerRect.bottom : -999,
@@ -6112,6 +6197,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
       && beforeTap.outlineTightToRuntime
       && beforeTap.outlineBackground === 'rgba(0, 0, 0, 0)'
       && beforeTap.outlineBoxShadow === 'none'
+      && beforeTap.outlineBorderStyle === 'solid'
       && beforeTap.markerText === 'New'
       && beforeTap.markerOpacity >= 0.98
       && beforeTap.markerGap >= 1
@@ -19170,8 +19256,9 @@ async function smokeThemeSelection(browser, baseUrl) {
         && milestoneState.markerInsideViewport
         && milestoneState.markerAttachedTopRight
         && milestoneState.markerContrast >= 4.5
-        && milestoneState.markerAnimation.includes('uptimeMilestoneNewArrival')
-        && milestoneState.markerAnimationIterations === '1'
+        && milestoneState.markerAnimation.includes('uptimeMilestoneNewReveal')
+        && milestoneState.markerAnimation.includes('uptimeMilestoneNewNudge')
+        && milestoneState.markerAnimationIterations.split(',').every((value) => value.trim() === '1')
         && milestoneState.activityShift <= 1
         && milestoneState.orbitControls === 0
         && milestoneState.detachedInfoControls === 0,

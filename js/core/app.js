@@ -126,8 +126,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=528';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=528';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=529';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=529';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -2730,6 +2730,7 @@ function initUptimeClock() {
     const topContinuityOrigin = topContinuityHistory?.querySelector('.top-continuity-origin');
     const topContinuityArrow = topContinuityHistory?.querySelector('.top-continuity-arrow');
     const topContinuityMilestoneOutline = topContinuityHistory?.querySelector('.top-continuity-milestone-outline');
+    const topContinuityMilestoneNew = topContinuityHistory?.querySelector('.top-continuity-milestone-new');
     const topContinuityMilestonePopover = document.getElementById('top-continuity-milestone-popover');
     const topContinuityMilestoneClose = document.getElementById('top-continuity-milestone-close');
     const topContinuityMilestoneStatus = document.getElementById('top-continuity-milestone-status');
@@ -2936,19 +2937,16 @@ function initUptimeClock() {
         if (renderSignature === renderedUptimeMilestoneSignature) return;
         renderedUptimeMilestoneSignature = renderSignature;
         topContinuityHistory?.classList.toggle('has-milestone-signal', unseen);
-        topContinuityHistory?.classList.toggle('is-milestone-near', near);
-        topContinuityHistory?.classList.toggle('is-milestone-crossed', crossed);
-        topContinuityHistory?.classList.toggle('is-milestone-celebrating', crossed);
         topContinuityProof?.classList.toggle('has-milestone-signal', unseen);
         topContinuityProof?.classList.toggle('is-milestone-near', near);
         topContinuityProof?.classList.toggle('is-milestone-crossed', crossed);
-        topContinuityProof?.classList.toggle('is-milestone-celebrating', crossed);
-        topContinuityPanel?.classList.toggle('has-milestone-near', near);
-        topContinuityPanel?.classList.toggle('has-milestone-celebration', crossed);
 
         if (topContinuityHistory) {
             if (unseen) topContinuityHistory.dataset.milestoneStatus = status;
             else delete topContinuityHistory.dataset.milestoneStatus;
+        }
+        if (topContinuityMilestoneNew) {
+            topContinuityMilestoneNew.textContent = near ? 'Soon' : 'New';
         }
         setUptimeMilestonePopoverVisible(false);
         if (topContinuityMilestoneOutline) topContinuityMilestoneOutline.hidden = !unseen;

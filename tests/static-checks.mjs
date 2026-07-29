@@ -2771,20 +2771,25 @@ async function checkSelectorContracts() {
     ['top continuity arrival pending class', 'hero-arrival-pending', app],
     ['top continuity arrival completion class', 'hero-arrived', app],
     ['top continuity milestone event bridge', "window.addEventListener('hot-signal-rendered'", app],
-    ['top continuity milestone active class', 'is-milestone-celebrating', app],
     ['top continuity milestone destination resolver', 'uptimeMilestoneDestination(signal)', app],
-    ['top continuity milestone near state', "classList.toggle('is-milestone-near', near)", app],
-    ['top continuity milestone crossed state', "classList.toggle('is-milestone-crossed', crossed)", app],
+    ['top continuity milestone marker binding', "querySelector('.top-continuity-milestone-new')", app],
+    ['top continuity milestone near state', "topContinuityProof?.classList.toggle('is-milestone-near', near)", app],
+    ['top continuity milestone crossed state', "topContinuityProof?.classList.toggle('is-milestone-crossed', crossed)", app],
+    ['top continuity milestone status label', "topContinuityMilestoneNew.textContent = near ? 'Soon' : 'New';", app],
     ['top continuity nullable milestone expiry guard', "if (value == null || value === '') return null;", app],
     ['top continuity milestone clean outline', '.top-continuity-milestone-outline', shellExtrasCss],
     ['top continuity milestone transparent interior', 'background: transparent;', shellExtrasCss],
     ['top continuity milestone hairline border', 'border: 1px solid color-mix(in srgb, var(--uptime-badge-label) 58%, var(--uptime-badge-value));', shellExtrasCss],
+    ['top continuity approaching milestone dashed outline', '.top-uptime-cluster.is-milestone-near .top-continuity-milestone-outline', shellExtrasCss],
+    ['top continuity approaching milestone dashed treatment', 'border-style: dashed;', shellExtrasCss],
+    ['top continuity crossed milestone solid outline', '.top-uptime-cluster.is-milestone-crossed .top-continuity-milestone-outline', shellExtrasCss],
     ['top continuity milestone NEW marker styles', '.top-continuity-milestone-new', shellExtrasCss],
     ['top continuity milestone NEW marker above outline paint layer', 'z-index: 2;', shellExtrasCss],
     ['top continuity milestone NEW marker visible for unseen signal', '.top-uptime-cluster.has-milestone-signal .top-continuity-milestone-new', shellExtrasCss],
     ['top continuity milestone NEW marker separated above outline', 'top: -1.3rem;', shellExtrasCss],
     ['top continuity milestone removes offset highlight', 'box-shadow: none;', shellExtrasCss],
-    ['top continuity milestone one-shot arrival', 'uptimeMilestoneNewArrival 9s ease-out both', shellExtrasCss],
+    ['top continuity milestone one-shot reveal', 'uptimeMilestoneNewReveal 720ms', shellExtrasCss],
+    ['top continuity milestone delayed one-shot nudge', 'uptimeMilestoneNewNudge 420ms ease-out 5.1s 1', shellExtrasCss],
     ['top continuity milestone popover styles', '.top-continuity-milestone-popover', shellExtrasCss],
     ['top continuity mobile fixed milestone sheet', 'bottom: max(0.72rem, env(safe-area-inset-bottom));', shellExtrasCss],
     ['top continuity milestone action styles', '.top-continuity-milestone-link', shellExtrasCss],
@@ -2863,6 +2868,22 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+
+  for (const staleMilestoneState of [
+    'is-milestone-celebrating',
+    'has-milestone-near',
+    'has-milestone-celebration'
+  ]) {
+    if (app.includes(staleMilestoneState)) {
+      fail(`header milestone must not retain dead state class: ${staleMilestoneState}`);
+    }
+  }
+  if (
+    app.includes("topContinuityHistory?.classList.toggle('is-milestone-near'")
+    || app.includes("topContinuityHistory?.classList.toggle('is-milestone-crossed'")
+  ) {
+    fail('header milestone state classes belong only on the top uptime cluster');
   }
   const criticalMyTezosDrawer = loadingCss.match(/\.my-tezos-drawer\s*\{([^}]*)\}/)?.[1] || '';
   const criticalMyTezosScrim = loadingCss.match(/\.drawer-scrim\s*\{([^}]*)\}/)?.[1] || '';
