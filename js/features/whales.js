@@ -165,6 +165,7 @@ function dispatchHotWhaleSignal(tx) {
             icon: '🐋',
             text,
             detail: presentation.label,
+            valueXtz: amountXtz,
             tone: 'capital-hot',
             createdAt: tx?.timestamp ? new Date(tx.timestamp).getTime() : Date.now(),
             ttlMs: 90_000,

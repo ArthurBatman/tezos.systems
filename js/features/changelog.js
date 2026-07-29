@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
+            { type: '✨', text: 'My Tezos now ranks proven account-relevant network signals ahead of general context and explains baker, stake, account-age, APY, whale-move, creator, and explicitly linked Etherlink connections without guessing across missing data' },
             { type: '🎨', text: 'The header now leads with expanded My Tezos, followed by NFT Feed, Explore, and Setup; wider screens keep both personal and NFT destinations fully labeled' },
             { type: '🔧', text: 'The mainnet-age NEW marker now stays visibly above its outline after the arrival animation settles' },
             { type: '🎨', text: 'Unseen network milestones now use a tight transparent hairline and separate NEW marker around mainnet age, then retire after opening the relevant room and re-arm only for genuinely new milestone status' },

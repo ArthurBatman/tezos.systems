@@ -782,9 +782,13 @@ inline modal styles in `js/core/app.js`.
   on desktop, then stacks them on narrow screens. The wallet panel selects the
   account's most distinctive capital, staking, reward, baker, identity,
   collection, creator, and on-chain-history facts; the Tezos panel ranks up to
-  four live signals from the shared network pulse and explains their
-  wallet-specific relevance when a defensible connection exists. These fact
-  and signal cards retain direct routes into the matching My Tezos view or
+  four live signals from the shared network pulse in two tiers: signals with a
+  proven connection to the loaded account lead, followed by general network
+  context. Price, stake, baker, governance, collection, identity, creator,
+  account-age, active-baker-set, APY, numeric whale-move, and explicitly linked
+  Etherlink evidence can explain that relevance; missing evidence stays silent
+  and tz4 or Maxi claims are not inferred. These fact and signal cards retain
+  direct routes into the matching My Tezos view or
   first-party Chamber and reconcile in place as account, Memory, Portfolio, or
   shared hot-signal data arrives. Portfolio composition changes are immediate:
   include, exclude, add, and remove actions
@@ -1208,7 +1212,9 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   sanity, historical chart pagination and
   render-performance settings, LB-aware issuance contracts, CSS freshness,
   lockfile/tooling, shared hook checks, and strict Live Pulse history semantics
-  for complete daily windows, ties, records, ratios, and missing coverage.
+  for complete daily windows, ties, records, ratios, and missing coverage, plus
+  strict personal-signal ranking semantics for proven evidence and missing-data
+  silence.
 - `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
   monthly coverage, official icon presence, RSS parsing, and conservative alias
   continuity.
@@ -1300,7 +1306,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v524`, including hero search, theme
+- Current aligned shell cache stamp: `v525`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

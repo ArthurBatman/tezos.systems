@@ -165,20 +165,24 @@ function personalDestination(view) {
     };
 }
 
-export function hasExplicitLinkedEtherlinkAccount(activeAddress = '') {
-    if (typeof localStorage === 'undefined') return false;
+export function countExplicitLinkedEtherlinkAccounts(activeAddress = '') {
+    if (typeof localStorage === 'undefined') return 0;
     try {
         const address = String(activeAddress || localStorage.getItem(ACTIVE_ADDRESS_KEY) || '').trim();
-        if (!address) return false;
+        if (!address) return 0;
         return normalizeLinkedL2Accounts(
             JSON.parse(localStorage.getItem(LINKED_ETHERLINK_ACCOUNTS_KEY) || '[]')
-        ).some((entry) => (
+        ).filter((entry) => (
             entry.included !== false
             && entry.linkedL1Addresses.includes(address)
-        ));
+        )).length;
     } catch {
-        return false;
+        return 0;
     }
+}
+
+export function hasExplicitLinkedEtherlinkAccount(activeAddress = '') {
+    return countExplicitLinkedEtherlinkAccounts(activeAddress) > 0;
 }
 
 /**

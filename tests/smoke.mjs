@@ -7579,10 +7579,12 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
     window.__quietMyTezosGrid = grid;
     window.__quietMyTezosButton = button;
     window.__quietMyTezosJourneys = Array.from(document.querySelectorAll('#drawer-more-actions .drawer-account-journey-card'));
+    window.__quietMyTezosSignals = Array.from(document.querySelectorAll('#drawer-network .network-signal'));
     return {
       top: drawer.scrollTop,
       selection: document.getSelection()?.toString() || '',
-      journeyIds: window.__quietMyTezosJourneys.map((card) => card.dataset.myTezosJourneyDestination)
+      journeyIds: window.__quietMyTezosJourneys.map((card) => card.dataset.myTezosJourneyDestination),
+      signalCategories: window.__quietMyTezosSignals.map((card) => card.dataset.category)
     };
   });
   await page.waitForFunction(() => document.querySelector('#my-baker-results')?.dataset.quietRefreshSettled === 'true', null, { timeout: 5000 });
@@ -7594,14 +7596,19 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
       sameGrid: results.querySelector('.my-baker-grid') === window.__quietMyTezosGrid,
       sameJourneys: Array.from(document.querySelectorAll('#drawer-more-actions .drawer-account-journey-card'))
         .every((card, index) => card === window.__quietMyTezosJourneys[index]),
+      sameSignals: Array.from(document.querySelectorAll('#drawer-network .network-signal'))
+        .every((card, index) => card === window.__quietMyTezosSignals[index]),
       journeyIds: Array.from(document.querySelectorAll('#drawer-more-actions .drawer-account-journey-card'))
         .map((card) => card.dataset.myTezosJourneyDestination),
+      signalCategories: Array.from(document.querySelectorAll('#drawer-network .network-signal'))
+        .map((card) => card.dataset.category),
       focused: document.activeElement === window.__quietMyTezosButton,
       selection: document.getSelection()?.toString() || ''
     };
   });
-  assert(quietAfter.sameGrid && quietAfter.sameJourneys && quietAfter.focused, `my tezos drawer live refresh: background update replaced focused or journey nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.sameGrid && quietAfter.sameJourneys && quietAfter.sameSignals && quietAfter.focused, `my tezos drawer live refresh: background update replaced focused, journey, or relevance-ranked signal nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(JSON.stringify(quietAfter.journeyIds) === JSON.stringify(quietBefore.journeyIds), `my tezos drawer live refresh: background update reordered contextual journeys ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(JSON.stringify(quietAfter.signalCategories) === JSON.stringify(quietBefore.signalCategories), `my tezos drawer live refresh: background update reordered relevance-ranked signals ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(quietAfter.selection === quietBefore.selection, `my tezos drawer live refresh: background update lost text selection ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(Math.abs(quietAfter.top - quietBefore.top) < 1, `my tezos drawer live refresh: background update moved drawer scroll ${JSON.stringify({ quietBefore, quietAfter })}`);
 
@@ -10233,13 +10240,21 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
     serviceWorkers: 'block'
   });
   await installFeatureMocks(context);
-  await context.addInitScript((address) => {
+  await context.addInitScript(({ address, l2 }) => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
     localStorage.setItem('tezos-systems-my-baker-address', address);
-  }, SAMPLE_DELEGATOR_ADDRESS);
+    localStorage.setItem('tezos-systems-linked-etherlink-accounts-v1', JSON.stringify([{
+      chainId: 42793,
+      address: l2,
+      label: 'Personal L2',
+      linkedL1Addresses: [address],
+      included: true,
+      addedAt: Date.now()
+    }]));
+  }, { address: SAMPLE_DELEGATOR_ADDRESS, l2: SAMPLE_ETHERLINK_ADDRESS });
 
   const page = await context.newPage();
   attachIssueCollectors(page, 'my tezos proposal attribution', issues);
@@ -10295,10 +10310,28 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(storyText.includes('Created 501 NFTs') && storyText.includes('2.50 XTZ sales'), `my tezos proposal attribution: creator stats missing: ${storyText}`);
   assert(storyText.includes('Known as qa-baker.tez'), `my tezos proposal attribution: domain alias missing: ${storyText}`);
 
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+      detail: {
+        id: 'etherlink-personal-relevance-smoke',
+        category: 'etherlink',
+        title: 'Etherlink account context',
+        text: 'Etherlink account activity is available.',
+        detail: 'Explicit device-local account link',
+        score: 999,
+        kind: 'state',
+        live: true,
+        route: '/tezosx/',
+        ttlMs: 60000
+      }
+    }));
+  });
   await page.waitForFunction(() => document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-metric').length >= 4, null, { timeout: 10000 });
   await page.waitForFunction(() => (
     document.querySelectorAll('#drawer-network .network-signal').length >= 4
       && document.querySelectorAll('#drawer-network .network-personal-fact').length >= 3
+      && Array.from(document.querySelectorAll('#drawer-network .network-signal[data-category="etherlink"] .network-signal-relevance'))
+        .some((relevance) => relevance.textContent?.includes('You have 1 explicitly linked Etherlink account.'))
   ), null, { timeout: 15000 });
   const storySurface = await page.evaluate(() => ({
     metrics: document.querySelectorAll('#my-tezos-story-content .tezos-story-dossier .tezos-story-metric').length,
@@ -10310,6 +10343,11 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
     signals: document.querySelectorAll('#drawer-network .network-signal').length,
     signalLeads: document.querySelectorAll('#drawer-network .network-signal.is-network-lead').length,
     signalRelevance: document.querySelectorAll('#drawer-network .network-signal-relevance').length,
+    signalOrder: Array.from(document.querySelectorAll('#drawer-network .network-signal')).map((signal) => ({
+      category: signal.dataset.category || '',
+      personal: signal.dataset.personalRelevance === 'true',
+      relevance: signal.querySelector('.network-signal-relevance')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    })),
     personalFacts: document.querySelectorAll('#drawer-network .network-personal-fact').length,
     personalText: document.querySelector('#drawer-network .network-personal-spotlight')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     focus: document.querySelector('#drawer-network .network-context-focus')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -10342,6 +10380,22 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
   assert(storySurface.signalLeads === 1, `my tezos proposal attribution: Tezos-now signal hierarchy missing: ${JSON.stringify(storySurface)}`);
   assert(storySurface.personalFacts >= 6 && storySurface.personalText.includes('qa-baker.tez') && storySurface.personalText.includes('501'), `my tezos proposal attribution: wallet spotlight is not genuinely personal: ${JSON.stringify(storySurface)}`);
   assert(storySurface.signalRelevance >= 1, `my tezos proposal attribution: Tezos-now signals lack wallet relevance: ${JSON.stringify(storySurface)}`);
+  assert(
+    storySurface.signalOrder.some((signal) => (
+      signal.category === 'etherlink'
+        && signal.relevance.includes('You have 1 explicitly linked Etherlink account.')
+    )),
+    `my tezos proposal attribution: explicit Etherlink link did not produce truthful personal relevance ${JSON.stringify(storySurface.signalOrder)}`
+  );
+  assert(
+    storySurface.signalOrder.length === 4
+      && storySurface.signalOrder[0]?.personal
+      && storySurface.signalOrder.every((signal, index, signals) => (
+        signal.personal || !signals.slice(index + 1).some((later) => later.personal)
+      ))
+      && storySurface.signalOrder.every((signal) => !/undefined|null/i.test(signal.relevance)),
+    `my tezos proposal attribution: proven personal signals did not form a truthful first tier ${JSON.stringify(storySurface.signalOrder)}`
+  );
   assert(/Baker|Governance|Collector|Creator|Portfolio|Network/.test(storySurface.focus), `my tezos proposal attribution: network context focus chips missing: ${storySurface.focus}`);
   assert(storySurface.networkText.includes('Network Context') && storySurface.networkText.includes('Cycle'), `my tezos proposal attribution: network context header missing: ${storySurface.networkText}`);
   assert(storySurface.legacyList === 0, `my tezos proposal attribution: network context still renders legacy bullet list: ${storySurface.networkText}`);

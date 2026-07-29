@@ -10,6 +10,11 @@ import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
 import { escapeHtml } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { findSiteMapEntry } from '../core/site-map.js';
+import { countExplicitLinkedEtherlinkAccounts } from '../core/site-journey.js';
+import {
+  describePersonalSignalRelevance,
+  rankSignalsByPersonalRelevance
+} from '../core/personal-signal-relevance.mjs';
 import {
   describePulseSeries,
   getPulseDomainReceipt,
@@ -1314,6 +1319,7 @@ function makeSignal(category, score, text, options = {}) {
     startedAt: finiteNumber(options.startedAt),
     expiresAt: finiteNumber(options.expiresAt),
     share: options.share || null,
+    valueXtz: finiteNumber(options.valueXtz),
     live: options.live === true,
     hotOnly: options.hotOnly === true
   };
@@ -1658,6 +1664,7 @@ function buildSentences(stats, xtzPrice, baseline, whales, bakerStats, profile =
       detail: whales.top > 0 ? `Largest move ${whales.top.toLocaleString()} XTZ` : 'No major transfer spike',
       tone: whales.count > 10 ? 'capital-hot' : whales.count > 0 ? 'capital' : 'quiet',
       visual: 'whale',
+      valueXtz: whales.top,
       spectacle: whales.top >= 1_000_000 ? 'peacock' : whales.top >= 250_000 ? 'headliner' : whales.count > 0 ? 'curious' : 'quiet'
     });
   }
@@ -1870,6 +1877,7 @@ function normalizeSignal(signal, index = 0) {
     startedAt: finiteNumber(signal?.startedAt),
     expiresAt: finiteNumber(signal?.expiresAt),
     share: signal?.share || null,
+    valueXtz: finiteNumber(signal?.valueXtz),
     live: signal?.live === true,
     hotOnly: signal?.hotOnly === true
   };
@@ -2857,46 +2865,30 @@ function renderDeltaChip(delta, className) {
   return `<span class="${className} ${className}-${escapeHtml(delta.dir)}"><span aria-hidden="true">${arrow}</span>${escapeHtml(delta.value)}</span>`;
 }
 
-function personalSignalRelevance(signal, data, portfolio) {
-  const story = data?.story || {};
-  if (signal.category === 'price' && portfolio.total > 0) {
-    const price = finiteNumber(data?.xtzPrice) ?? finiteNumber(lastXtzPrice);
-    return price != null ? `Your current XTZ position is about ${personalUsd(portfolio.total * price)} at spot.` : '';
-  }
-  if (signal.category === 'staking' && portfolio.staked > 0) {
-    return `You have ${personalTez(portfolio.staked)} directly staked.`;
-  }
-  if (signal.category === 'baker' && data?.bakerName) {
-    return `${data.isBaker ? 'This is your operator lane.' : `Your baker is ${data.bakerName}.`}`;
-  }
-  if (signal.category === 'governance') {
-    const receipts = Math.max(0, Number(story.proposalsInjected) || 0) + Math.max(0, Number(story.bakerProposalsInjected) || 0);
-    return receipts > 0 ? `${receipts} accepted proposal receipt${receipts === 1 ? '' : 's'} already sit in your orbit.` : '';
-  }
-  if (signal.category === 'nft' && story.nftAssetsCollected > 0) {
-    return `Your collection currently counts ${compactPersonalNumber(story.nftAssetsCollected, 0)} assets.`;
-  }
-  if (signal.category === 'domains' && story.domainAlias) {
-    return `${story.domainAlias} is your on-chain identity here.`;
-  }
-  if (signal.category === 'contracts' && story.creatorStats?.totalCreated > 0) {
-    return `You have created ${compactPersonalNumber(story.creatorStats.totalCreated, 0)} assets on Tezos.`;
-  }
-  if (signal.category === 'cycle' && data?.bakerAddr) {
-    return 'Your baker rights and reward accounting advance on this cycle clock.';
-  }
-  return '';
+function personalSignalContext(data, portfolio) {
+  return {
+    data,
+    portfolio,
+    stats: lastStats || {},
+    xtzPrice: lastXtzPrice,
+    linkedEtherlinkAccounts: countExplicitLinkedEtherlinkAccounts(data?.fullAddress)
+  };
 }
 
-function renderSignalCard(signal, index, data, portfolio) {
+function personalSignalRelevance(signal, data, portfolio, context = personalSignalContext(data, portfolio)) {
+  return describePersonalSignalRelevance(signal, context);
+}
+
+function renderSignalCard(signal, index, data, portfolio, relevanceContext) {
   const label = signal.title;
   const route = routeForSignal(signal);
   const routeLabel = labelForSignal(signal);
   const routeAction = /^(?:Open|Enter)\b/i.test(routeLabel) ? routeLabel : `Open ${routeLabel}`;
-  const relevance = personalSignalRelevance(signal, data, portfolio);
+  const relevance = personalSignalRelevance(signal, data, portfolio, relevanceContext);
   const featureClass = index === 0 ? ' is-network-lead' : '';
+  const relevanceAttribute = relevance ? ' data-personal-relevance="true"' : '';
   return `
-    <a class="network-signal network-signal-${signal.tone}${featureClass}" href="${escapeHtml(route)}" data-category="${escapeHtml(signal.category)}" data-network-route="${escapeHtml(route)}" aria-label="${escapeHtml(`${routeAction}: ${signal.detail}`)}">
+    <a class="network-signal network-signal-${signal.tone}${featureClass}" href="${escapeHtml(route)}" data-category="${escapeHtml(signal.category)}" data-network-route="${escapeHtml(route)}"${relevanceAttribute} aria-label="${escapeHtml(`${routeAction}: ${signal.detail}`)}">
       <div class="network-signal-rank" aria-hidden="true">${escapeHtml(signal.icon)}</div>
       <div class="network-signal-main">
         <div class="network-signal-head">
@@ -3448,6 +3440,7 @@ function wirePersonalizationRefresh() {
     };
     rerenderCachedBriefing();
   });
+  window.addEventListener('my-tezos-linked-l2-changed', rerenderCachedBriefing);
 }
 
 function closeDrawerForNetworkRoute(route) {
@@ -3497,7 +3490,7 @@ function wireNetworkContextNavigation(container) {
   });
 }
 
-function selectDrawerNetworkSignals(sentences, profile) {
+function selectDrawerNetworkSignals(sentences, profile, data, portfolio, relevanceContext = personalSignalContext(data, portfolio)) {
   const liveSignals = getLiveCandidateSignals(lastStats || {})
     .filter(signal => signal.text && !signal.hotOnly)
     .map(signal => ({
@@ -3518,15 +3511,22 @@ function selectDrawerNetworkSignals(sentences, profile) {
       score: (finiteNumber(signal.score) || 0) + scoreBoostFor(signal.category, profile)
     }));
   const merged = mergeHotSignals(liveSignals, poolSignals, briefingSignals);
+  const personal = merged.filter(signal => personalSignalRelevance(signal, data, portfolio, relevanceContext));
   const notable = merged.filter(signal => signal.spectacle !== 'quiet');
-  const selected = [...notable];
+  const selected = [];
+  const selectedIds = new Set();
+  for (const signal of [...personal, ...notable]) {
+    if (selectedIds.has(signal.id)) continue;
+    selected.push(signal);
+    selectedIds.add(signal.id);
+  }
   for (const signal of merged) {
     if (selected.length >= 4) break;
-    if (selected.some(item => item.id === signal.id)) continue;
+    if (selectedIds.has(signal.id)) continue;
     selected.push(signal);
+    selectedIds.add(signal.id);
   }
-  return selected
-    .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
+  return rankSignalsByPersonalRelevance(selected, relevanceContext, effectiveHotScore)
     .slice(0, 4);
 }
 
@@ -3553,9 +3553,10 @@ function renderToDrawer(cycle, sentences) {
   const profile = getCurrentMyTezosProfile();
   const data = window._myTezosData || {};
   const portfolio = personalPortfolioSnapshot(data);
+  const relevanceContext = personalSignalContext(data, portfolio);
   const spotlight = buildPersonalSpotlight(data, profile, portfolio);
   const facts = buildPersonalFacts(data, profile, portfolio);
-  const signals = selectDrawerNetworkSignals(sentences, profile);
+  const signals = selectDrawerNetworkSignals(sentences, profile, data, portfolio, relevanceContext);
   const lead = getBriefingLead(profile, signals);
   const html = `
     <section class="network-context-panel">
@@ -3591,7 +3592,7 @@ function renderToDrawer(cycle, sentences) {
           <p class="network-context-lede" data-magic-text>${escapeHtml(lead)}</p>
           ${renderDrawerMilestoneLine()}
           <div class="network-context-signals">
-            ${signals.map((signal, index) => renderSignalCard(signal, index, data, portfolio)).join('')}
+            ${signals.map((signal, index) => renderSignalCard(signal, index, data, portfolio, relevanceContext)).join('')}
           </div>
         </section>
       </div>

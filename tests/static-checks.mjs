@@ -800,6 +800,7 @@ async function checkRequiredFiles() {
     'js/core/quiet-refresh.js',
     'js/core/pulse-history.mjs',
     'js/core/pulse-history-analysis.mjs',
+    'js/core/personal-signal-relevance.mjs',
     'js/core/search-catalog.js',
     'js/core/search-entities.js',
     'js/core/site-map.js',
@@ -922,6 +923,7 @@ async function checkRequiredFiles() {
     'tests/tezoscrp-check.mjs',
     'tests/ecosystem-stats-check.mjs',
     'tests/pulse-history-check.mjs',
+    'tests/personal-signal-relevance-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -4955,7 +4957,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/pulse-history-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -5336,6 +5338,7 @@ async function checkDailyBriefingPriceContracts() {
 
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
+  const siteJourney = await readText('js/core/site-journey.js');
   const shellExtras = await readText('css/shell-extras.css');
   const styles = await readText('css/styles.css');
   const requiredSiteMapRoutes = {
@@ -5424,11 +5427,17 @@ async function checkNetworkContextNavigationContracts() {
     'buildPersonalSpotlight',
     'buildPersonalFacts',
     'selectDrawerNetworkSignals',
+    'personalSignalContext',
     'personalSignalRelevance',
+    'rankSignalsByPersonalRelevance(selected, relevanceContext, effectiveHotScore)',
+    'countExplicitLinkedEtherlinkAccounts(data?.fullAddress)',
+    'data-personal-relevance="true"',
+    'valueXtz: whales.top',
     'network-context-columns',
     'network-live-column',
     "window.addEventListener('my-tezos-portfolio-ready'",
     "window.addEventListener('my-tezos-memory-ready'",
+    "window.addEventListener('my-tezos-linked-l2-changed'",
     'data-my-tezos-view-route',
     'data-network-route',
     'wireNetworkContextNavigation(container)',
@@ -5438,6 +5447,12 @@ async function checkNetworkContextNavigationContracts() {
   ];
   for (const snippet of requiredSnippets) {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
+  }
+  for (const snippet of [
+    'export function countExplicitLinkedEtherlinkAccounts',
+    'return countExplicitLinkedEtherlinkAccounts(activeAddress) > 0'
+  ]) {
+    if (!siteJourney.includes(snippet)) fail(`My Tezos explicit Etherlink link-count contract missing: ${snippet}`);
   }
   for (const snippet of [
     '.network-personal-spotlight',
@@ -5471,7 +5486,7 @@ async function checkNetworkContextNavigationContracts() {
     ['js/features/staking-chamber.js', "visual: 'staking'", "route: '/stake/'"],
     ['js/features/liquidity-baking.js', 'dispatchLiquidityBakingHotSignal', "visual: 'lb'"],
     ['js/features/maxis.js', 'dispatchMaxisHotSignals', "spectacle: 'historic'"],
-    ['js/features/whales.js', "visual: 'whale'", "spectacle: amountXtz >= 1_000_000 ? 'peacock' : 'headliner'"],
+    ['js/features/whales.js', "visual: 'whale'", "spectacle: amountXtz >= 1_000_000 ? 'peacock' : 'headliner'", 'valueXtz: amountXtz'],
     ['js/features/tezos-domains.js', "visual: 'domains'", "spectacle: 'headliner'"],
     ['js/features/tezlink.js', "visual: 'etherlink'", "transactionsToday >= 100_000 ? 'headliner' : 'curious'"]
   ];
