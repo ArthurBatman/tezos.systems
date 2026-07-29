@@ -372,7 +372,9 @@ inline modal styles in `js/core/app.js`.
   unavailable, and bounded last-good states without moving the reader during a
   background refresh. My Tezos draws from the same live candidate set and
   combines address-scoped account changes with daily network changes in one
-  return report.
+  return report. When fewer than eight stronger signals are present, Live Pulse
+  may also show one score-58 Curio per UTC day from a protocol anniversary,
+  fresh 30-day baker-address comparison, or mainnet-age fact.
 - Capital Chamber with direct `#capital` and `/capital/` access. Four sourced
   views organize the cross-layer capital picture without pretending their
   unlike metrics share one definition: **One System** (`?view=system`) connects
@@ -1219,7 +1221,8 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   lockfile/tooling, shared hook checks, and strict Live Pulse history semantics
   for complete daily windows, ties, records, ratios, and missing coverage, plus
   strict personal-signal ranking semantics for proven evidence and missing-data
-  silence.
+  silence, plus deterministic daily Curio selection, scarcity, replay, and
+  truthfulness contracts.
 - `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
   monthly coverage, official icon presence, RSS parsing, and conservative alias
   continuity.
@@ -1234,6 +1237,9 @@ Current smoke suites:
 - `tzkt-throttle`
 - `dashboard-desktop`
 - `dashboard-mobile`
+- `live-pulse-daily-curio` (covers score/rank, one-per-UTC-day replay
+  prevention, eight-signal scarcity, desktop/mobile rendering, and quiet
+  preservation of card identity, focus, selection, and rail scroll)
 - `my-tezos-baker-activity` (covers shape-correct first-read geometry,
   independent no-gap desktop stacks, and recent delegator/staker rows)
 - `my-tezos-live-signal`

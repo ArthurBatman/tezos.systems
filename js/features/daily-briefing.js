@@ -16,6 +16,12 @@ import {
   rankSignalsByPersonalRelevance
 } from '../core/personal-signal-relevance.mjs';
 import {
+  chooseDailyCurio,
+  LIVE_PULSE_CURIO_MAX_BASE_SIGNALS,
+  LIVE_PULSE_CURIO_SCORE,
+  shouldOfferDailyCurio
+} from '../core/live-pulse-curio.mjs';
+import {
   describePulseSeries,
   getPulseDomainReceipt,
   getPulseHistoryReceipt,
@@ -32,7 +38,7 @@ const LS_BRIEFING  = 'tezos-systems-briefing-cache';
 const LS_LAST_SEEN = 'tezos-systems-briefing-last-seen';
 const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
-const LS_PROTOCOL_LORE_DAY = 'tezos-systems-protocol-lore-hot-day';
+const LS_DAILY_CURIO_DAY = 'tezos-systems-live-pulse-curio-day-v1';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
 const BRIEFING_SCHEMA_VERSION = 14;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
@@ -192,7 +198,10 @@ let lastLiveCandidates = [];
 let lastLiveCandidateFingerprint = '';
 let lastHotTodayDataState = 'loading';
 let lastHotTodayGoodAt = 0;
-let protocolLoreSignalInFlight = false;
+let dailyCurioPreparation = null;
+let preparedDailyCurio = null;
+let activeDailyCurio = null;
+let lastDailyCurioDay = utcDayKey();
 let lastMilestoneStats = {};
 let generatedMilestoneCatalog = null;
 let generatedMilestoneCatalogPromise = null;
@@ -1325,7 +1334,8 @@ function makeSignal(category, score, text, options = {}) {
       ? [...new Set(options.affectedBakers.map(value => String(value || '').trim()).filter(Boolean))]
       : [],
     live: options.live === true,
-    hotOnly: options.hotOnly === true
+    hotOnly: options.hotOnly === true,
+    curio: options.curio === true
   };
 }
 
@@ -1529,43 +1539,95 @@ function dispatchNftHotSignals(pulse) {
   }
 }
 
-async function maybeDispatchProtocolLoreSignal() {
-  if (typeof window === 'undefined' || protocolLoreSignalInFlight) return;
+function freshHistoryRowsForDailyCurio(now = Date.now()) {
+  const receipt = lastPulseHistoryReceipt;
+  const latestAt = finiteNumber(receipt?.latestAt);
+  const freshnessLimitMs = finiteNumber(receipt?.freshnessLimitMs);
+  const fresh = receipt?.status !== 'unavailable'
+    && latestAt != null
+    && freshnessLimitMs != null
+    && (now - latestAt) <= freshnessLimitMs;
+  return fresh && Array.isArray(receipt?.rows) ? receipt.rows : [];
+}
+
+async function prepareDailyCurio() {
+  if (typeof window === 'undefined' || dailyCurioPreparation) return;
   const today = utcDayKey();
-  const stamp = safeLocalStorageGet(LS_PROTOCOL_LORE_DAY);
-  if (stamp === today || stamp === `${today}:none`) return;
-  protocolLoreSignalInFlight = true;
-  try {
-    const data = await loadDataAsset('protocolData');
-    const protocols = Array.isArray(data?.protocols) ? data.protocols : [];
-    const monthDay = today.slice(5);
-    const protocol = protocols.find((item) => String(item?.date || '').slice(5) === monthDay);
-    if (!protocol) {
-      safeLocalStorageSet(LS_PROTOCOL_LORE_DAY, `${today}:none`);
-      return;
+  if (preparedDailyCurio?.day === today || activeDailyCurio?.day === today) return;
+  if (safeLocalStorageGet(LS_DAILY_CURIO_DAY) === today) return;
+
+  const preparation = (async () => {
+    let protocols = [];
+    try {
+      const data = await loadDataAsset('protocolData');
+      protocols = Array.isArray(data?.protocols) ? data.protocols : [];
+    } catch {
+      // Protocol lore is optional; the Curio can still use already-loaded network facts.
     }
-    const year = Number(String(protocol.date).slice(0, 4));
-    const currentYear = new Date(`${today}T00:00:00Z`).getUTCFullYear();
-    const age = Number.isFinite(year) ? currentYear - year : 0;
-    const ageText = age > 0 ? `${age} year${age === 1 ? '' : 's'} since ` : '';
-    const endOfDay = Date.parse(`${today}T23:59:59Z`);
-    dispatchHotSignal({
-      id: `protocol-lore-${monthDay}`,
-      category: 'network',
-      kind: 'state',
-      score: 58,
-      title: 'Protocol lore day',
-      detail: protocol.headline || 'Self-amendment history',
-      text: `${ageText}${protocol.name} activated. Explore its proposal, ballots, activation, and debate record.`,
-      route: '/anthology/',
-      expiresAt: Number.isFinite(endOfDay) ? endOfDay : Date.now() + DAY_MS
+
+    if (utcDayKey() !== today) return;
+    const now = Date.now();
+    const candidate = chooseDailyCurio({
+      dayKey: today,
+      protocols,
+      historyRows: freshHistoryRowsForDailyCurio(now),
+      totalBakers: finiteNumber(lastStats?.totalBakers),
+      uptime: getTezosUptimeAnniversary(now),
+      upgradeCount: finiteNumber(lastStats?.upgradeCount)
+        ?? finiteNumber(lastStats?.protocolCount)
+        ?? CANONICAL_UPGRADE_COUNT
     });
-    safeLocalStorageSet(LS_PROTOCOL_LORE_DAY, today);
-  } catch {
-    /* Local protocol lore is nice-to-have. */
+    const endOfDay = Date.parse(`${today}T23:59:59.999Z`);
+    preparedDailyCurio = {
+      day: today,
+      signal: candidate ? makeSignal('network', LIVE_PULSE_CURIO_SCORE, candidate.text, {
+        id: candidate.id,
+        icon: candidate.icon,
+        title: candidate.title,
+        detail: candidate.detail,
+        route: candidate.route,
+        kind: 'state',
+        spectacle: 'curious',
+        hotOnly: true,
+        curio: true,
+        createdAt: now,
+        observedAt: now,
+        expiresAt: Number.isFinite(endOfDay) ? endOfDay : now + DAY_MS
+      }) : null
+    };
+    if (preparedDailyCurio.signal) scheduleHotSignalRender();
+  })();
+  dailyCurioPreparation = preparation;
+  try {
+    await preparation;
   } finally {
-    protocolLoreSignalInFlight = false;
+    if (dailyCurioPreparation === preparation) dailyCurioPreparation = null;
+    if (utcDayKey() !== today) void prepareDailyCurio();
   }
+}
+
+function appendDailyCurio(baseSignals = []) {
+  if (baseSignals.length >= LIVE_PULSE_CURIO_MAX_BASE_SIGNALS) return baseSignals;
+  const today = utcDayKey();
+  const storedDay = safeLocalStorageGet(LS_DAILY_CURIO_DAY) || '';
+  const active = activeDailyCurio?.day === today ? activeDailyCurio : null;
+  const prepared = preparedDailyCurio?.day === today ? preparedDailyCurio : null;
+  if (!shouldOfferDailyCurio({
+    baseSignalCount: baseSignals.length,
+    storedDay,
+    activeDay: active?.day || '',
+    today
+  })) return baseSignals;
+
+  const daily = active || prepared;
+  if (!daily?.signal) return baseSignals;
+  if (!active) {
+    activeDailyCurio = daily;
+    safeLocalStorageSet(LS_DAILY_CURIO_DAY, today);
+  }
+  return baseSignals.some(signal => signal.id === daily.signal.id)
+    ? baseSignals
+    : [...baseSignals, daily.signal];
 }
 
 async function fetchBakerStats(address, cycle) {
@@ -1886,7 +1948,8 @@ function normalizeSignal(signal, index = 0) {
       ? [...new Set(signal.affectedBakers.map(value => String(value || '').trim()).filter(Boolean))]
       : [],
     live: signal?.live === true,
-    hotOnly: signal?.hotOnly === true
+    hotOnly: signal?.hotOnly === true,
+    curio: signal?.curio === true
   };
 }
 
@@ -2586,9 +2649,16 @@ function prefersReducedMotion() {
 }
 
 function refreshHotTodayLiveMetrics() {
+  const now = Date.now();
+  const today = utcDayKey(now);
+  if (today !== lastDailyCurioDay) {
+    lastDailyCurioDay = today;
+    preparedDailyCurio = null;
+    activeDailyCurio = null;
+    void prepareDailyCurio();
+  }
   const island = document.getElementById('hot-today-island');
   if (!island || island.hidden) return;
-  const now = Date.now();
   setHotTodayLiveText('clock', hotTodayClockLabel(now));
   island.querySelectorAll('[data-hot-age]').forEach((element) => {
     const signal = {
@@ -3122,13 +3192,14 @@ function renderHotSignal(signal, index) {
   const data = typeof window !== 'undefined' ? window._myTezosData || {} : {};
   const personalRibbon = hotSignalPersonalRibbon(signal, data, personalPortfolioSnapshot(data));
   const personalAttribute = personalRibbon ? ' data-hot-personal="1"' : '';
+  const curioAttribute = signal.curio ? ' data-hot-curio="1"' : '';
   const personalRibbonMarkup = personalRibbon
     ? `<span class="hot-today-you">${escapeHtml(personalRibbon)}</span>`
     : '';
   const personalAriaPrefix = personalRibbon ? `${personalRibbon}. ` : '';
   const personalAriaLabel = `${personalAriaPrefix}${ariaLabel}`;
   const cardMarkup = `
-    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${personalAttribute}${milestoneAttributes} aria-label="${escapeHtml(personalAriaLabel)}">
+    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-score="${escapeHtml(String(signal.score))}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${personalAttribute}${curioAttribute}${milestoneAttributes} aria-label="${escapeHtml(personalAriaLabel)}">
       ${speciesMark}
       <span class="hot-today-rank">${escapeHtml(signal.icon)}</span>
       <span class="hot-today-copy">
@@ -3364,6 +3435,7 @@ function schedulePulseHistoryLoad() {
       // History is additive context. Current cards remain usable without it.
     }).finally(() => {
       pulseHistoryLoadInFlight = null;
+      void prepareDailyCurio();
     });
   };
   if ('requestIdleCallback' in window) window.requestIdleCallback(load, { timeout: 2500 });
@@ -3385,9 +3457,12 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   const fallbackBriefing = briefingSignals
     .filter(signal => !['cycle', 'security', 'network', 'staking'].includes(signal.category))
     .filter(signal => !(stripHasGovernance && signal.category === 'governance'));
-  const signals = selectHotSignalSet(
-    mergeHotSignals(getLiveCandidateSignals(stats), hotPoolSignals(), [...nonRedundantBriefing, ...fallbackBriefing])
+  const baseSignals = mergeHotSignals(
+    getLiveCandidateSignals(stats),
+    hotPoolSignals(),
+    [...nonRedundantBriefing, ...fallbackBriefing]
   );
+  const signals = selectHotSignalSet(appendDailyCurio(baseSignals));
   if (!signals.length) {
     renderHotTodayState(pulseHasConfirmedStats(stats) ? 'quiet' : 'unavailable', stats);
     window.dispatchEvent(new CustomEvent('hot-signal-rendered', {
@@ -3709,7 +3784,6 @@ export async function initHotTodayIsland(stats, xtzPrice) {
   wireNetworkContextNavigation(island);
   wireHotTodayRealtime();
   schedulePulseHistoryLoad();
-  maybeDispatchProtocolLoreSignal();
   if (mergedStats?.cycle) await updateHotTodayIsland(mergedStats, xtzPrice);
 }
 
@@ -3718,7 +3792,6 @@ export async function updateHotTodayIsland(stats, xtzPrice) {
   if (!mergedStats?.cycle) return;
   lastXtzPrice = xtzPrice;
   lastLiveCandidateFingerprint = '';
-  maybeDispatchProtocolLoreSignal();
   try {
     const briefing = await generate(mergedStats, xtzPrice);
     renderToHotIsland(briefing.cycle, briefing.sentences, mergedStats);

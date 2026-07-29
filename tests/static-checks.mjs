@@ -801,6 +801,7 @@ async function checkRequiredFiles() {
     'js/core/pulse-history.mjs',
     'js/core/pulse-history-analysis.mjs',
     'js/core/personal-signal-relevance.mjs',
+    'js/core/live-pulse-curio.mjs',
     'js/core/search-catalog.js',
     'js/core/search-entities.js',
     'js/core/site-map.js',
@@ -924,6 +925,7 @@ async function checkRequiredFiles() {
     'tests/ecosystem-stats-check.mjs',
     'tests/pulse-history-check.mjs',
     'tests/personal-signal-relevance-check.mjs',
+    'tests/live-pulse-curio-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -4957,7 +4959,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -5338,6 +5340,7 @@ async function checkDailyBriefingPriceContracts() {
 
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
+  const curio = await readText('js/core/live-pulse-curio.mjs');
   const myTezos = await readText('js/features/my-tezos.js');
   const siteJourney = await readText('js/core/site-journey.js');
   const shellExtras = await readText('css/shell-extras.css');
@@ -5412,7 +5415,15 @@ async function checkNetworkContextNavigationContracts() {
     'hot-today-species-mark',
     'scoreBoostFor(category, profile)',
     'fetchNftPulse',
-    'maybeDispatchProtocolLoreSignal',
+    'chooseDailyCurio',
+    'LIVE_PULSE_CURIO_MAX_BASE_SIGNALS',
+    'LIVE_PULSE_CURIO_SCORE',
+    'shouldOfferDailyCurio',
+    'LS_DAILY_CURIO_DAY',
+    'freshHistoryRowsForDailyCurio',
+    'prepareDailyCurio',
+    'appendDailyCurio',
+    'data-hot-curio="1"',
     'delta: normalizeDelta',
     'BRIEFING_SCHEMA_VERSION = 14',
     'renderHotTodayState',
@@ -5463,12 +5474,30 @@ async function checkNetworkContextNavigationContracts() {
   for (const snippet of requiredSnippets) {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
   }
+  for (const snippet of [
+    'LIVE_PULSE_CURIO_SCORE = 58',
+    'LIVE_PULSE_CURIO_MAX_BASE_SIGNALS = 8',
+    "source: 'protocol'",
+    "source: 'month'",
+    "source: 'continuity'",
+    'Active baker addresses numbered',
+    'adopted protocol upgrades',
+    'storedDay !== today'
+  ]) {
+    if (!curio.includes(snippet)) fail(`Live Pulse daily Curio contract missing snippet: ${snippet}`);
+  }
+  if (/\bfetch\s*\(|localStorage|sessionStorage/.test(curio)) {
+    fail('Live Pulse Curio selection must remain a pure projection of already-loaded data');
+  }
   if (!shellExtras.includes('.hot-today-you') || !shellExtras.includes('.hot-today-you + .hot-today-age')) {
     fail('Live Pulse personal ribbon must remain compact and preserve the age label lane');
   }
   const smoke = await readText('tests/smoke.mjs');
   if (!smoke.includes("name: 'live-pulse-personal-ribbons'")) {
     fail('smoke catalog must include the Live Pulse personal ribbon desktop/mobile suite');
+  }
+  if (!smoke.includes("name: 'live-pulse-daily-curio'")) {
+    fail('smoke catalog must include the Live Pulse daily Curio desktop/mobile suite');
   }
   for (const snippet of [
     'function renderWhileAwayNetworkCard()',

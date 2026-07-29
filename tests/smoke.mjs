@@ -7419,6 +7419,189 @@ async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
   log('ok - live pulse personal ribbons smoke');
 }
 
+async function smokeLivePulseDailyCurio(browser, baseUrl) {
+  for (const { label, viewport, theme } of [
+    { label: 'desktop', viewport: { width: 1440, height: 1000 }, theme: 'clean' },
+    { label: 'mobile', viewport: { width: 390, height: 844 }, theme: 'matrix' }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({
+      viewport,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context);
+    await context.addInitScript((activeTheme) => {
+      localStorage.setItem('tezos-systems-theme', activeTheme);
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    }, theme);
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `live pulse daily curio ${label}`, issues);
+    const response = await page.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `live pulse daily curio ${label}: dashboard failed with HTTP ${response?.status()}`);
+    await page.locator('#hot-today-island [data-hot-curio="1"]').waitFor({ state: 'attached', timeout: 15000 });
+
+    const initial = await page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('#hot-today-island [data-hot-signal-id]'));
+      const curios = cards.filter(card => card.dataset.hotCurio === '1');
+      const curio = curios[0];
+      const score = Number(curio?.dataset.hotScore);
+      const higherScoresAfterCurio = cards
+        .slice(cards.indexOf(curio) + 1)
+        .map(card => Number(card.dataset.hotScore))
+        .filter(value => Number.isFinite(value) && value > score);
+      return {
+        count: curios.length,
+        id: curio?.dataset.hotSignalId || '',
+        score,
+        spectacle: curio?.dataset.hotSpectacle || '',
+        route: curio?.getAttribute('href') || '',
+        text: curio?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        stamp: localStorage.getItem('tezos-systems-live-pulse-curio-day-v1') || '',
+        today: new Date().toISOString().slice(0, 10),
+        higherScoresAfterCurio
+      };
+    });
+    assert(
+      initial.count === 1
+        && initial.id.startsWith('curio-')
+        && initial.score === 58
+        && initial.spectacle === 'curious'
+        && ['/anthology/', '/history/'].includes(initial.route)
+        && initial.stamp === initial.today
+        && initial.higherScoresAfterCurio.length === 0
+        && !/zero (?:hard )?forks|zero chain splits|100% uptime|uninterrupted uptime/i.test(initial.text),
+      `live pulse daily curio ${label}: scarce low-rank card contract failed ${JSON.stringify(initial)}`
+    );
+
+    await page.evaluate(() => {
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      const card = document.querySelector('#hot-today-island [data-hot-curio="1"]');
+      const text = card?.querySelector('strong')?.firstChild;
+      strip.scrollLeft = Math.max(0, strip.scrollWidth - strip.clientWidth);
+      card.focus({ preventScroll: true });
+      if (text) {
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      window.__dailyCurioStrip = strip;
+      window.__dailyCurioCard = card;
+    });
+    await page.waitForTimeout(500);
+    const before = await page.evaluate(() => {
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      window.__dailyCurioRenderCount = 0;
+      window.addEventListener('hot-signal-rendered', () => {
+        window.__dailyCurioRenderCount += 1;
+      }, { once: true });
+      return {
+        left: strip.scrollLeft,
+        selection: window.getSelection()?.toString() || ''
+      };
+    });
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('governance-alert-state'));
+    });
+    await page.waitForFunction(() => window.__dailyCurioRenderCount > 0, null, { timeout: 15000 });
+    const after = await page.evaluate(() => {
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      const card = document.querySelector('#hot-today-island [data-hot-curio="1"]');
+      return {
+        count: document.querySelectorAll('#hot-today-island [data-hot-curio="1"]').length,
+        sameStrip: strip === window.__dailyCurioStrip,
+        sameCard: card === window.__dailyCurioCard,
+        focused: document.activeElement === window.__dailyCurioCard,
+        left: strip.scrollLeft,
+        selection: window.getSelection()?.toString() || ''
+      };
+    });
+    assert(
+      after.count === 1
+        && after.sameStrip
+        && after.sameCard
+        && after.focused
+        && Math.abs(after.left - before.left) <= 1
+        && after.selection === before.selection
+        && Boolean(after.selection),
+      `live pulse daily curio ${label}: quiet reconciliation moved the reader ${JSON.stringify({ before, after })}`
+    );
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('#hot-today-island .hot-today-strip').waitFor({ state: 'visible', timeout: 15000 });
+    await page.waitForTimeout(2500);
+    const reloadState = await page.evaluate(() => ({
+      count: document.querySelectorAll('#hot-today-island [data-hot-curio="1"]').length,
+      stamp: localStorage.getItem('tezos-systems-live-pulse-curio-day-v1') || '',
+      today: new Date().toISOString().slice(0, 10)
+    }));
+    assert(
+      reloadState.count === 0 && reloadState.stamp === reloadState.today,
+      `live pulse daily curio ${label}: UTC-day receipt did not prevent a second card after reload ${JSON.stringify(reloadState)}`
+    );
+
+    await context.close();
+    assert(issues.length === 0, `live pulse daily curio ${label} browser issues:\n${issues.join('\n')}`);
+  }
+
+  const scarcityIssues = [];
+  const scarcityContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(scarcityContext);
+  await scarcityContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.removeItem('tezos-systems-live-pulse-curio-day-v1');
+    window.addEventListener('DOMContentLoaded', () => {
+      ['price', 'staking', 'volume', 'contracts', 'whales', 'governance', 'ecosystem', 'nft']
+        .forEach((category, index) => {
+          window.dispatchEvent(new CustomEvent('hot-signal', {
+            detail: {
+              id: `curio-scarcity-proof-${index}`,
+              category,
+              score: 200 - index,
+              kind: 'event',
+              spectacle: 'headliner',
+              title: `Scarcity proof ${index + 1}`,
+              text: `Stronger signal ${index + 1}.`,
+              detail: 'Curio scarcity smoke',
+              ttlMs: 60000,
+              live: true
+            }
+          }));
+        });
+    }, { once: true });
+  });
+  const scarcityPage = await scarcityContext.newPage();
+  attachIssueCollectors(scarcityPage, 'live pulse daily curio scarcity', scarcityIssues);
+  const scarcityResponse = await scarcityPage.goto(`${baseUrl}/?theme=clean`, { waitUntil: 'domcontentloaded' });
+  assert(scarcityResponse?.ok(), `live pulse daily curio scarcity: dashboard failed with HTTP ${scarcityResponse?.status()}`);
+  await scarcityPage.waitForFunction(() => (
+    document.querySelectorAll('#hot-today-island [data-hot-signal-id^="curio-scarcity-proof-"]').length >= 8
+  ), null, { timeout: 15000 });
+  await scarcityPage.waitForTimeout(2500);
+  const scarcityState = await scarcityPage.evaluate(() => ({
+    stronger: document.querySelectorAll('#hot-today-island [data-hot-signal-id^="curio-scarcity-proof-"]').length,
+    curio: document.querySelectorAll('#hot-today-island [data-hot-curio="1"]').length,
+    stamp: localStorage.getItem('tezos-systems-live-pulse-curio-day-v1')
+  }));
+  assert(
+    scarcityState.stronger >= 8 && scarcityState.curio === 0 && scarcityState.stamp == null,
+    `live pulse daily curio scarcity: eight stronger signals should skip without consuming the daily receipt ${JSON.stringify(scarcityState)}`
+  );
+  await scarcityContext.close();
+  assert(scarcityIssues.length === 0, `live pulse daily curio scarcity browser issues:\n${scarcityIssues.join('\n')}`);
+  log('ok - live pulse daily Curio smoke');
+}
+
 async function smokeMyTezosIdleAccount(browser, baseUrl) {
   for (const { label, viewport } of [
     { label: 'desktop', viewport: { width: 1280, height: 900 } },
@@ -22141,6 +22324,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-empty-state', description: 'My Tezos clearly separates Octez.Connect wallet pairing from watch-only tracking and explains all six responsive views', run: () => smokeMyTezosEmptyState(browser, baseUrl) },
     { name: 'live-pulse-personal-ribbons', description: 'Evidence-only Live Pulse account ribbons preserve stronger events and quiet reading state on desktop and mobile', run: () => smokeLivePulsePersonalRibbons(browser, baseUrl) },
+    { name: 'live-pulse-daily-curio', description: 'One deterministic UTC-day Curio stays low-rank, scarce, truthful, and reading-state safe on desktop and mobile', run: () => smokeLivePulseDailyCurio(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
     { name: 'my-tezos-idle-account', description: 'My Tezos removes baker-only controls and keeps an undelegated account readable in one column', run: () => smokeMyTezosIdleAccount(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
