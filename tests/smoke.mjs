@@ -14045,6 +14045,7 @@ async function smokeEcosystemActivity(browser, baseUrl) {
       selection.removeAllRanges();
       selection.addRange(range);
     }
+    delete body.dataset.quietRefreshSettled;
     window.__ecosystemQuietFixture = {
       body,
       detail,
@@ -14052,7 +14053,11 @@ async function smokeEcosystemActivity(browser, baseUrl) {
       selectedText: getSelection()?.toString() || ''
     };
   });
-  await page.waitForFunction(() => document.querySelector('#ecosystem-chamber-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 7000 });
+  await page.waitForFunction(() => {
+    const body = document.querySelector('#ecosystem-chamber-body');
+    return body?.dataset.quietRefreshSettled === 'true'
+      && body.dataset.quietRefreshing !== 'true';
+  }, null, { timeout: 7000 });
   const quiet = await page.evaluate(() => {
     const fixture = window.__ecosystemQuietFixture;
     const body = document.querySelector('#ecosystem-chamber-body');
