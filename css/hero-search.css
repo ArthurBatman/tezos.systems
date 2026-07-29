@@ -70,9 +70,19 @@
     transition: var(--transition);
 }
 
-.header-nft-feed-btn .nav-label {
+.header-nft-feed-btn .nav-label,
+#my-tezos-btn .nav-label {
     color: inherit;
+}
+
+#my-tezos-btn .nav-label {
     display: inline;
+}
+
+@media (min-width: 1024px) {
+    .header-nft-feed-btn .nav-label {
+        display: inline;
+    }
 }
 
 .nft-feed-icon {

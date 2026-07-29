@@ -1882,7 +1882,11 @@ async function checkSelectorContracts() {
 
   const requiredSnippets = [
     ['feature launcher grouped menu', 'class="settings-dropdown feature-launcher"'],
+    ['expanded My Tezos header action', 'class="glass-button header-nav-btn header-primary-action"'],
+    ['My Tezos emoji and text label', '<span class="my-tezos-icon">👤</span> <span class="nav-label">My Tezos</span>'],
+    ['NFT Feed desktop text label', '<span class="nav-label">NFT Feed</span>'],
     ['feature launcher decorative map icon', '<span aria-hidden="true">🗺️</span> <span class="nav-label">Explore</span>'],
+    ['header Setup action', '<span aria-hidden="true">⚙️</span> <span class="nav-label">Setup</span>'],
     ['feature launcher Explore title', 'class="feature-launcher-intro-copy"'],
     ['feature launcher progressive-disclosure copy', 'Start with a live room, then open a category when you need more.'],
     ['feature launcher starter group', '<div class="dropdown-section-label">Start here</div>'],
@@ -2689,7 +2693,8 @@ async function checkSelectorContracts() {
     ['top continuity title-stack uptime launcher', 'id="top-continuity-history"', index],
     ['top continuity proof opens Protocol Anthology', 'aria-controls="protocol-history-chamber-modal"', index],
     ['header NFT feed nav action', 'class="glass-button header-nav-btn header-nft-feed-btn"', index],
-    ['header NFT feed nav label visible on mobile', '.header-nft-feed-btn .nav-label', heroSearchCss],
+    ['expanded My Tezos nav label at narrow widths', '#my-tezos-btn .nav-label', heroSearchCss],
+    ['NFT Feed nav label at desktop widths', '@media (min-width: 1024px)', heroSearchCss],
     ['header NFT feed art-frame icon', '.nft-feed-icon::before', heroSearchCss],
     ['top continuity statement wrapper', 'class="top-continuity-statement"', index],
     ['top continuity mainnet-age statement claim', 'top-continuity-claim">mainnet age', index],
@@ -2928,6 +2933,17 @@ async function checkSelectorContracts() {
   if (index.includes('live-feed-pill')) {
     fail('header NFT feed should not keep the old live-feed-pill class');
   }
+  const headerMyTezosIndex = index.indexOf('id="my-tezos-btn"');
+  const headerNftFeedIndex = index.indexOf('class="glass-button header-nav-btn header-nft-feed-btn"', headerMyTezosIndex);
+  const headerExploreIndex = index.indexOf('id="features-gear"', headerNftFeedIndex);
+  const headerSetupIndex = index.indexOf('id="settings-gear"', headerExploreIndex);
+  if (!(headerMyTezosIndex >= 0
+      && headerNftFeedIndex > headerMyTezosIndex
+      && headerExploreIndex > headerNftFeedIndex
+      && headerSetupIndex > headerExploreIndex)) {
+    fail('header actions must stay ordered My Tezos, NFT Feed, Explore, Setup');
+  }
+  pass('header action priority and responsive labels checked');
   const networkPulseMobileNavBlock = networkPulseCss.match(/@media\s*\(max-width:\s*759px\)\s*\{[\s\S]*?\.network-pulse-nav\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
   if (!networkPulseMobileNavBlock.includes('position: static') || !networkPulseMobileNavBlock.includes('flex-wrap: wrap')) {
     fail('Network Pulse mobile nav must wrap in normal flow instead of using an off-viewport scroll strip');
@@ -8392,7 +8408,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=523'",
+    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=524'",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',

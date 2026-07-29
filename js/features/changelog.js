@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-28',
         entries: [
+            { type: '🎨', text: 'The header now leads with expanded My Tezos, followed by NFT Feed, Explore, and Setup; wider screens keep both personal and NFT destinations fully labeled' },
             { type: '🔧', text: 'The mainnet-age NEW marker now stays visibly above its outline after the arrival animation settles' },
             { type: '🎨', text: 'Unseen network milestones now use a tight transparent hairline and separate NEW marker around mainnet age, then retire after opening the relevant room and re-arm only for genuinely new milestone status' },
             { type: '✨', text: 'Live Pulse now adds source-gated 7- and 30-day context, period-accurate governance, richer market context, and consensus cards only when the latest sample is genuinely exceptional' },

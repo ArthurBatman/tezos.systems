@@ -312,8 +312,10 @@ inline modal styles in `js/core/app.js`.
   animated strip with stable-width volatile numbers, compact baker names, and a
   clean whole-line transition.
   Clicking the strip opens the Network Health Chamber.
-- The header keeps the current protocol beside the Tezos Systems title, promotes
-  the live NFT feed doorway into the right-side navigation, and turns mainnet
+- The header keeps the current protocol beside the Tezos Systems title and
+  orders its right-side navigation as My Tezos, NFT Feed, Explore, then Setup.
+  My Tezos stays expanded with its emoji and label at narrow widths; desktop
+  widths keep both My Tezos and NFT Feed fully labeled. The header also turns mainnet
   age into a first-screen statement with years/days/hours/minutes plus a
   `mainnet age · since 2018` label. The counter measures elapsed time
   since launch, not an availability percentage or incident ledger. Active baker
@@ -1298,7 +1300,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v523`, including hero search, theme
+- Current aligned shell cache stamp: `v524`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
