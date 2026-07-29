@@ -7131,21 +7131,32 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   await expectCount(page, '#drawer-baker-activity .drawer-activity-row', 2, 'my tezos baker activity');
   await page.waitForFunction((address) => (
     window._myTezosData?.fullAddress === address
-      && document.querySelector('#drawer-brief .brief-section-overnight')
+      && document.querySelector('#drawer-network .network-away-card')
   ), SAMPLE_ADDRESS, { timeout: 15000 });
   const overnightState = await page.evaluate(() => ({
-    cardCount: document.querySelectorAll('#drawer-brief .brief-section-overnight').length,
-    sectionCount: document.querySelectorAll('#drawer-brief .brief-section-overnight .overnight-sections section').length,
-    text: document.querySelector('#drawer-brief .brief-section-overnight')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    accents: Array.from(document.querySelectorAll('#drawer-brief [data-brief-accent]'), (node) => node.dataset.briefAccent),
+    cardCount: document.querySelectorAll('#drawer-network .network-away-card').length,
+    sectionCount: document.querySelectorAll('#drawer-network .network-away-card .network-away-sections section').length,
+    accountBullets: document.querySelectorAll('#drawer-network [data-away-section="account"] .overnight-bullet').length,
+    networkBullets: document.querySelectorAll('#drawer-network [data-away-section="network"] .overnight-bullet').length,
+    text: document.querySelector('#drawer-network .network-away-card')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    isFirst: document.querySelector('#drawer-network .network-live-column')?.firstElementChild?.matches('[data-network-away-slot]') === true,
+    briefCards: document.querySelectorAll('#drawer-brief .brief-section-overnight').length,
     fullAddress: window._myTezosData?.fullAddress || '',
     snapshot: localStorage.getItem('tezos-systems-overnight-snapshot') || ''
   }));
   assert(
     overnightState.cardCount === 1
       && overnightState.sectionCount === 2
-      && /your account since the saved snapshot/i.test(overnightState.text)
-      && /network changes since the last daily read/i.test(overnightState.text),
+      && overnightState.accountBullets >= 1
+      && overnightState.accountBullets <= 3
+      && overnightState.networkBullets >= 1
+      && overnightState.networkBullets <= 2
+      && overnightState.isFirst
+      && overnightState.briefCards === 0
+      && /while you were away/i.test(overnightState.text)
+      && /your account/i.test(overnightState.text)
+      && /tezos network/i.test(overnightState.text)
+      && /since yesterday/i.test(overnightState.text),
     `my tezos baker activity: structured while-away account/network report did not reconcile ${JSON.stringify(overnightState)}`
   );
 
@@ -7204,8 +7215,23 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
     return window._myTezosData?.fullAddress === address
       && window._myTezosData?.bakerAddr == null
       && document.querySelector('#drawer-connected')?.classList.contains('is-without-baker')
-      && document.querySelectorAll('#drawer-baker .report-card-btn').length === 0;
+      && document.querySelectorAll('#drawer-baker .report-card-btn').length === 0
+      && document.querySelector('#drawer-network [data-away-section="network"]')
+      && !document.querySelector('#drawer-network [data-away-section="account"]');
   }, SAMPLE_IDLE_ADDRESS, { timeout: 15000 });
+  const networkOnlyAway = await page.evaluate(() => ({
+    cards: document.querySelectorAll('#drawer-network .network-away-card').length,
+    accountSections: document.querySelectorAll('#drawer-network [data-away-section="account"]').length,
+    networkSections: document.querySelectorAll('#drawer-network [data-away-section="network"]').length,
+    text: document.querySelector('#drawer-network .network-away-card')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(
+    networkOnlyAway.cards === 1
+      && networkOnlyAway.accountSections === 0
+      && networkOnlyAway.networkSections === 1
+      && /since yesterday/i.test(networkOnlyAway.text),
+    `my tezos baker activity: daily deltas did not fall back to a network-only away report ${JSON.stringify(networkOnlyAway)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `my tezos baker activity browser issues:\n${issues.join('\n')}`);
@@ -7229,6 +7255,8 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
       localStorage.setItem('tezos-welcomed', '1');
       localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
       localStorage.removeItem('tezos-systems-my-baker-address');
+      localStorage.removeItem('tezos-systems-overnight-snapshot');
+      localStorage.removeItem('tezos-systems-daily-snapshot');
     });
 
     const page = await context.newPage();
@@ -7309,6 +7337,11 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
         bakerFullWidth: fullWidth(bakerRect),
         networkFullWidth: fullWidth(networkRect),
         liveOrder: Boolean(rewardsRect && bakerRect && networkRect && bakerRect.top >= rewardsRect.bottom && networkRect.top >= bakerRect.bottom),
+        awayCards: document.querySelectorAll('#drawer-network .network-away-card').length,
+        awaySlotEmpty: (() => {
+          const slot = document.querySelector('#drawer-network [data-network-away-slot]');
+          return !slot || slot.childElementCount === 0;
+        })(),
         reportCards: document.querySelectorAll('#drawer-baker .report-card-btn').length,
         noBakerCopy: document.querySelector('#drawer-baker .drawer-no-baker')?.textContent?.replace(/\s+/g, ' ').trim() || '',
         accountStats: document.querySelector('#my-baker-results')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -7363,6 +7396,10 @@ async function smokeMyTezosIdleAccount(browser, baseUrl) {
         && state.networkFullWidth
         && state.liveOrder,
       `my tezos idle account ${label}: live sections did not collapse into one readable column ${JSON.stringify(state)}`
+    );
+    assert(
+      state.awayCards === 0 && state.awaySlotEmpty,
+      `my tezos idle account ${label}: empty evidence rendered an away-report shell ${JSON.stringify(state)}`
     );
     assert(
       state.reportCards === 0
@@ -7484,6 +7521,37 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
     localStorage.setItem('tezos-systems-my-baker-address', address);
+    localStorage.setItem('tezos-systems-overnight-snapshot', JSON.stringify({
+      ts: Date.now() - (6 * 60 * 60 * 1000),
+      address,
+      balance: 1000000,
+      staked: 500000,
+      xtzPrice: 0.2,
+      usdValue: 200000,
+      rewardsLastCycle: 0,
+      latestRewardCycle: null,
+      rewardStreak: 0,
+      bakerName: 'Smoke Baker',
+      healthScore: 90,
+      attestRate: 90,
+      apyRate: 5
+    }));
+    const yesterday = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+    localStorage.setItem('tezos-systems-daily-snapshot', JSON.stringify({
+      day: yesterday,
+      capturedAt: Date.now() - (24 * 60 * 60 * 1000),
+      stats: {
+        tz4Bakers: 1,
+        totalBakers: 1,
+        totalDelegators: 1,
+        totalStakers: 1,
+        totalBurned: 1,
+        smartContracts: 1,
+        stakeAPY: 1,
+        lbEmaPct: 1,
+        lbSubsidyDisabled: false
+      }
+    }));
     window.__MY_TEZOS_DRAWER_REFRESH_MS__ = 1000;
   }, SAMPLE_ADDRESS);
 
@@ -7525,7 +7593,8 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
         && bakerLower.includes('octez version')
         && bakerLower.includes('v25.0')
         && octezStat?.classList.contains('my-baker-octez-watch')
-        && header.includes('1,750,000 XTZ');
+        && header.includes('1,750,000 XTZ')
+        && document.querySelector('#drawer-network .network-away-card');
     }, null, { timeout: 15000 });
   } catch {
     const state = await page.evaluate(() => ({
@@ -7555,7 +7624,7 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
   assert(state.octezClass.includes('my-baker-octez-watch'), `my tezos drawer live refresh: stale same-major Octez version should be yellow/watch ${JSON.stringify(state)}`);
   assert(state.header.includes('1,750,000 XTZ'), `my tezos drawer live refresh: header kept stale balance ${JSON.stringify(state)}`);
   assert(
-    state.freshness.toLowerCase().includes('my tezos') && state.freshness.toLowerCase().includes('just now'),
+    /(?:my tezos|operator signal)/i.test(state.freshness) && state.freshness.toLowerCase().includes('just now'),
     `my tezos drawer live refresh: standardized freshness stamp missing ${JSON.stringify(state)}`
   );
 
@@ -7580,9 +7649,11 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
     window.__quietMyTezosButton = button;
     window.__quietMyTezosJourneys = Array.from(document.querySelectorAll('#drawer-more-actions .drawer-account-journey-card'));
     window.__quietMyTezosSignals = Array.from(document.querySelectorAll('#drawer-network .network-signal'));
+    window.__quietMyTezosAwayCard = document.querySelector('#drawer-network .network-away-card');
     return {
       top: drawer.scrollTop,
       selection: document.getSelection()?.toString() || '',
+      awayPresent: Boolean(window.__quietMyTezosAwayCard),
       journeyIds: window.__quietMyTezosJourneys.map((card) => card.dataset.myTezosJourneyDestination),
       signalCategories: window.__quietMyTezosSignals.map((card) => card.dataset.category)
     };
@@ -7598,6 +7669,7 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
         .every((card, index) => card === window.__quietMyTezosJourneys[index]),
       sameSignals: Array.from(document.querySelectorAll('#drawer-network .network-signal'))
         .every((card, index) => card === window.__quietMyTezosSignals[index]),
+      sameAwayCard: document.querySelector('#drawer-network .network-away-card') === window.__quietMyTezosAwayCard,
       journeyIds: Array.from(document.querySelectorAll('#drawer-more-actions .drawer-account-journey-card'))
         .map((card) => card.dataset.myTezosJourneyDestination),
       signalCategories: Array.from(document.querySelectorAll('#drawer-network .network-signal'))
@@ -7606,7 +7678,7 @@ async function smokeMyTezosDrawerLiveRefresh(browser, baseUrl) {
       selection: document.getSelection()?.toString() || ''
     };
   });
-  assert(quietAfter.sameGrid && quietAfter.sameJourneys && quietAfter.sameSignals && quietAfter.focused, `my tezos drawer live refresh: background update replaced focused, journey, or relevance-ranked signal nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietBefore.awayPresent && quietAfter.sameGrid && quietAfter.sameJourneys && quietAfter.sameSignals && quietAfter.sameAwayCard && quietAfter.focused, `my tezos drawer live refresh: background update replaced focused, journey, away-report, or relevance-ranked signal nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(JSON.stringify(quietAfter.journeyIds) === JSON.stringify(quietBefore.journeyIds), `my tezos drawer live refresh: background update reordered contextual journeys ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(JSON.stringify(quietAfter.signalCategories) === JSON.stringify(quietBefore.signalCategories), `my tezos drawer live refresh: background update reordered relevance-ranked signals ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(quietAfter.selection === quietBefore.selection, `my tezos drawer live refresh: background update lost text selection ${JSON.stringify({ quietBefore, quietAfter })}`);
@@ -17401,15 +17473,25 @@ async function smokeInfoModals(browser, baseUrl) {
 
   for (const contract of sectionHelpContracts) {
     await page.locator(contract.button).scrollIntoViewIfNeeded();
-    const sectionTopBefore = await page.locator(contract.section).evaluate((node) => node.getBoundingClientRect().top);
+    const sectionGeometryBefore = await page.evaluate(({ button, section }) => {
+      const triggerRect = document.querySelector(button)?.getBoundingClientRect();
+      const sectionRect = document.querySelector(section)?.getBoundingClientRect();
+      return {
+        top: sectionRect?.top || 0,
+        height: sectionRect?.height || 0,
+        triggerOffset: triggerRect && sectionRect ? triggerRect.top - sectionRect.top : 0
+      };
+    }, contract);
     await page.locator(contract.button).click();
     await page.locator(`${contract.panel}.is-visible`).waitFor({ state: 'visible', timeout: 5000 });
-    const helpState = await page.evaluate(({ button, panel, section, title, href, beforeTop }) => {
+    const helpState = await page.evaluate(({ button, panel, section, title, href, before }) => {
       const trigger = document.querySelector(button);
       const popover = document.querySelector(panel);
       const sectionNode = document.querySelector(section);
       const link = popover?.querySelector('a');
       const rect = popover?.getBoundingClientRect();
+      const triggerRect = trigger?.getBoundingClientRect();
+      const sectionRect = sectionNode?.getBoundingClientRect();
       return {
         active: trigger?.classList.contains('is-explaining') || false,
         ariaControls: trigger?.getAttribute('aria-controls') || '',
@@ -17420,9 +17502,13 @@ async function smokeInfoModals(browser, baseUrl) {
         parentHeader: popover?.parentElement?.classList.contains('section-header') || false,
         compact: Boolean(rect && rect.width <= 390),
         viewportContained: Boolean(rect && rect.left >= -1 && rect.right <= innerWidth + 1),
-        sectionShift: Math.abs((sectionNode?.getBoundingClientRect().top || 0) - beforeTop)
+        sectionShift: Math.abs((sectionRect?.top || 0) - before.top),
+        sectionHeightShift: Math.abs((sectionRect?.height || 0) - before.height),
+        triggerOffsetShift: Math.abs(
+          (triggerRect && sectionRect ? triggerRect.top - sectionRect.top : 0) - before.triggerOffset
+        )
       };
-    }, { ...contract, beforeTop: sectionTopBefore });
+    }, { ...contract, before: sectionGeometryBefore });
     assert(
       helpState.active
         && helpState.ariaControls === contract.panel.slice(1)
@@ -17436,7 +17522,8 @@ async function smokeInfoModals(browser, baseUrl) {
         && helpState.parentHeader
         && helpState.compact
         && helpState.viewportContained
-        && helpState.sectionShift <= 1,
+        && helpState.sectionHeightShift <= 1
+        && helpState.triggerOffsetShift <= 1,
       `section help content or geometry mismatch ${JSON.stringify(helpState)}`
     );
     await page.keyboard.press('Escape');
@@ -18628,7 +18715,18 @@ async function smokeThemeSelection(browser, baseUrl) {
       outline.hidden = false;
       cluster.classList.add('has-milestone-signal', 'is-milestone-crossed', 'is-uptime-milestone-arriving');
       const activityTopAfterSignal = activity?.getBoundingClientRect().top ?? -1;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => {
+        const startedAt = performance.now();
+        const waitForPaint = () => {
+          if (Number.parseFloat(getComputedStyle(marker).opacity) >= 0.98
+            || performance.now() - startedAt >= 5000) {
+            resolve();
+            return;
+          }
+          requestAnimationFrame(waitForPaint);
+        };
+        waitForPaint();
+      });
       const titleRect = title.getBoundingClientRect();
       const uptimeRect = uptime.getBoundingClientRect();
       const runtimeRect = runtime.getBoundingClientRect();

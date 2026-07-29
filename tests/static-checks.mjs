@@ -5338,6 +5338,7 @@ async function checkDailyBriefingPriceContracts() {
 
 async function checkNetworkContextNavigationContracts() {
   const briefing = await readText('js/features/daily-briefing.js');
+  const myTezos = await readText('js/features/my-tezos.js');
   const siteJourney = await readText('js/core/site-journey.js');
   const shellExtras = await readText('css/shell-extras.css');
   const styles = await readText('css/styles.css');
@@ -5430,6 +5431,10 @@ async function checkNetworkContextNavigationContracts() {
     'personalSignalContext',
     'personalSignalRelevance',
     'rankSignalsByPersonalRelevance(selected, relevanceContext, effectiveHotScore)',
+    'data-network-away-slot',
+    "window.dispatchEvent(new Event('my-tezos-network-context-rendered'))",
+    'const since = snapshotSinceLabel(snapshot)',
+    'referenceAt',
     'countExplicitLinkedEtherlinkAccounts(data?.fullAddress)',
     'data-personal-relevance="true"',
     'valueXtz: whales.top',
@@ -5449,6 +5454,20 @@ async function checkNetworkContextNavigationContracts() {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
   }
   for (const snippet of [
+    'function renderWhileAwayNetworkCard()',
+    'getDailyDeltaSignalSummaries(2)',
+    'accountBullets.slice(0, 3)',
+    'networkBullets.slice(0, 2)',
+    'if (!accountBullets.length && !networkBullets.length) return null;',
+    'quietlySyncHtml(slot, html)',
+    "window.addEventListener('my-tezos-network-context-rendered', renderWhileAwayNetworkCard)"
+  ]) {
+    if (!myTezos.includes(snippet)) fail(`My Tezos away-report contract missing: ${snippet}`);
+  }
+  if (myTezos.includes('cards.push(_activeOvernightCard)')) {
+    fail('My Tezos away report must render in Network Context, not the general Morning Brief');
+  }
+  for (const snippet of [
     'export function countExplicitLinkedEtherlinkAccounts',
     'return countExplicitLinkedEtherlinkAccounts(activeAddress) > 0'
   ]) {
@@ -5460,6 +5479,9 @@ async function checkNetworkContextNavigationContracts() {
     '.network-personal-fact',
     '.network-context-columns',
     '.network-live-column',
+    '.network-away-slot:empty',
+    '.network-away-card',
+    '.network-away-sections',
     '.network-context-now-heading',
     '.network-signal.is-network-lead',
     '.network-signal-relevance'

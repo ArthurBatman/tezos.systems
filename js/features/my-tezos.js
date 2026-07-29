@@ -71,7 +71,7 @@ const ACTIVE_VIEW_REFRESH_MS = 30000;
 const BAKING_BENJAMINS_NAME = 'Baking Benjamins';
 const _octezSoftwareCache = new Map();
 const _tezNameMemoryCache = new Map();
-let _activeOvernightCard = null;
+let _activeOvernightReport = null;
 let _activeOvernightAddress = '';
 // Protocol eras — map block levels to protocol names
 const PROTOCOL_ERAS = [
@@ -1432,13 +1432,6 @@ function buildOvernightCard(data, snapshot) {
         });
     }
 
-    const networkBullets = getDailyDeltaSignalSummaries(2).map(signal => ({
-        lead: `${signal.title}: `,
-        value: '',
-        tail: `${signal.text}${signal.context ? ` ${signal.context}` : ''}`,
-        tone: 'network'
-    }));
-
     // Calm account fallback
     if (accountBullets.length === 0) {
         if (!data.hasRewardRole) {
@@ -1453,29 +1446,83 @@ function buildOvernightCard(data, snapshot) {
     }
 
     return {
-        icon: '🌙',
-        title: `While you were away (${formatTimeSince(elapsed)})`,
-        body: `
-            <div class="overnight-sections">
-                <section>
-                    <small>Your account since the saved snapshot</small>
-                    <div class="overnight-bullets">${accountBullets.map(renderOvernightBullet).join('')}</div>
-                </section>
-                ${networkBullets.length ? `
-                    <section>
-                        <small>Network changes since the last daily read</small>
-                        <div class="overnight-bullets">${networkBullets.map(renderOvernightBullet).join('')}</div>
+        elapsed,
+        bullets: accountBullets.slice(0, 3)
+    };
+}
+
+function ensureDailySinceWording(signal) {
+    const text = String(signal?.text || '').trim();
+    const since = String(signal?.since || '').trim();
+    if (!text || !since || text.toLowerCase().includes(since.toLowerCase())) return text;
+    return `${text.replace(/[.\s]+$/, '')} ${since}.`;
+}
+
+function buildNetworkAwayBullets() {
+    return getDailyDeltaSignalSummaries(2).map(signal => ({
+        lead: `${signal.title}: `,
+        value: '',
+        tail: `${ensureDailySinceWording(signal)}${signal.context ? ` ${signal.context}` : ''}`,
+        tone: 'network',
+        referenceAt: signal.referenceAt
+    }));
+}
+
+function buildWhileAwayReport() {
+    const activeAddress = String(window._myTezosData?.fullAddress || localStorage.getItem(STORAGE_KEY) || '');
+    const account = activeAddress && _activeOvernightAddress === activeAddress
+        ? _activeOvernightReport
+        : null;
+    const networkBullets = buildNetworkAwayBullets();
+    const accountBullets = account?.bullets || [];
+    if (!accountBullets.length && !networkBullets.length) return null;
+    const networkReferenceAt = Number(networkBullets.find(bullet => Number.isFinite(bullet.referenceAt))?.referenceAt);
+    const elapsed = Number.isFinite(account?.elapsed)
+        ? account.elapsed
+        : Number.isFinite(networkReferenceAt)
+            ? Math.max(0, Date.now() - networkReferenceAt)
+            : 0;
+    return {
+        elapsed,
+        accountBullets: accountBullets.slice(0, 3),
+        networkBullets: networkBullets.slice(0, 2)
+    };
+}
+
+function renderWhileAwayNetworkCard() {
+    const slot = document.querySelector('#drawer-network [data-network-away-slot]');
+    if (!slot) return;
+    const report = buildWhileAwayReport();
+    const html = report ? `
+        <article class="network-away-card" data-quiet-key="network-away-card">
+            <header class="network-away-head">
+                <span class="network-away-mark" aria-hidden="true">◔</span>
+                <div>
+                    <small class="network-away-eyebrow">${escapeHtml(formatTimeSince(report.elapsed))} ago</small>
+                    <h4>While you were away</h4>
+                </div>
+            </header>
+            <div class="network-away-sections">
+                ${report.accountBullets.length ? `
+                    <section data-away-section="account">
+                        <small>Your account</small>
+                        <div class="overnight-bullets">${report.accountBullets.map(renderOvernightBullet).join('')}</div>
+                    </section>
+                ` : ''}
+                ${report.networkBullets.length ? `
+                    <section data-away-section="network">
+                        <small>Tezos network</small>
+                        <div class="overnight-bullets">${report.networkBullets.map(renderOvernightBullet).join('')}</div>
                     </section>
                 ` : ''}
             </div>
-        `,
-        accent: 'overnight',
-    };
+        </article>
+    ` : '';
+    quietlySyncHtml(slot, html);
 }
 
 function buildMorningBrief(data) {
     const cards = [];
-    if (_activeOvernightCard) cards.push(_activeOvernightCard);
 
     if (data.bakerVote && !data.bakerVote.voted) {
         const v = data.bakerVote;
@@ -2759,12 +2806,12 @@ async function renderMorningBrief(address, force = false) {
         window._myTezosData = data;
         maybeQueueAnniversaryToast(data);
 
-        const overnightCard = buildOvernightCard(data, getOvernightSnapshot(data.fullAddress));
-        if (overnightCard) {
-            _activeOvernightCard = overnightCard;
+        const overnightReport = buildOvernightCard(data, getOvernightSnapshot(data.fullAddress));
+        if (overnightReport) {
+            _activeOvernightReport = overnightReport;
             _activeOvernightAddress = data.fullAddress;
         } else if (_activeOvernightAddress !== data.fullAddress) {
-            _activeOvernightCard = null;
+            _activeOvernightReport = null;
             _activeOvernightAddress = '';
         }
         const cards = buildMorningBrief(data);
@@ -2774,6 +2821,7 @@ async function renderMorningBrief(address, force = false) {
         updateDrawerGreeting(greetingName);
         renderBakerOperatorStatus(operatorStatus, isBaker, bakerName);
         renderBriefTabs(cards, data);
+        renderWhileAwayNetworkCard();
         renderBakerActivity(bakerActivity);
         renderDelegationGuidance(data, requestSeq).catch(() => {});
 
@@ -3225,7 +3273,11 @@ export function initMyTezos() {
     });
     renderMyTezosJourneys({ place: true });
     window.addEventListener('my-tezos-view-changed', () => renderMyTezosJourneys({ place: true }));
-    window.addEventListener('my-tezos-data-ready', () => renderMyTezosJourneys());
+    window.addEventListener('my-tezos-data-ready', () => {
+        renderMyTezosJourneys();
+        renderWhileAwayNetworkCard();
+    });
+    window.addEventListener('my-tezos-network-context-rendered', renderWhileAwayNetworkCard);
     window.addEventListener('my-tezos-linked-l2-changed', () => renderMyTezosJourneys());
     window.addEventListener('my-tezos-journeys-request', () => renderMyTezosJourneys());
     document.getElementById('my-tezos-story-transactions')?.addEventListener('click', () => {
@@ -3256,6 +3308,8 @@ export function initMyTezos() {
             renderMorningBrief(newAddr, true);
         } else {
             window._myTezosData = null;
+            _activeOvernightReport = null;
+            _activeOvernightAddress = '';
             updateDrawerGreeting('');
             // Clear drawer sections
             ['drawer-operator-status', 'drawer-brief', 'drawer-network', 'drawer-rewards', 'drawer-baker-activity', 'my-tezos-delegation-guidance'].forEach(id => {

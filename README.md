@@ -781,10 +781,15 @@ inline modal styles in `js/core/app.js`.
   places the wallet story and the live Tezos story in equal side-by-side panels
   on desktop, then stacks them on narrow screens. The wallet panel selects the
   account's most distinctive capital, staking, reward, baker, identity,
-  collection, creator, and on-chain-history facts; the Tezos panel ranks up to
-  four live signals from the shared network pulse in two tiers: signals with a
-  proven connection to the loaded account lead, followed by general network
-  context. Price, stake, baker, governance, collection, identity, creator,
+  collection, creator, and on-chain-history facts. When saved evidence exists,
+  the Tezos panel leads with one quietly reconciled `While you were away` card:
+  up to three changes from the existing account snapshot plus the two
+  highest-scoring daily network deltas, retaining the daily snapshot's honest
+  `since yesterday` or named-weekday wording. Either half can stand alone, and
+  no empty card renders when both are absent. The panel then ranks up to four
+  live signals from the shared network pulse in two tiers: signals with a proven
+  connection to the loaded account lead, followed by general network context.
+  Price, stake, baker, governance, collection, identity, creator,
   account-age, active-baker-set, APY, numeric whale-move, and explicitly linked
   Etherlink evidence can explain that relevance; missing evidence stays silent
   and tz4 or Maxi claims are not inferred. These fact and signal cards retain
@@ -1306,7 +1311,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v525`, including hero search, theme
+- Current aligned shell cache stamp: `v526`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

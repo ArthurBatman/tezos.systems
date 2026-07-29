@@ -3582,6 +3582,7 @@ function renderToDrawer(cycle, sentences) {
           </div>
         </section>
         <section class="network-live-column" aria-labelledby="network-live-title">
+          <div class="network-away-slot" data-network-away-slot data-quiet-key="network-away-slot"></div>
           <div class="network-context-now-heading">
             <div>
               <span>Tezos right now</span>
@@ -3601,6 +3602,7 @@ function renderToDrawer(cycle, sentences) {
   if (container.children.length) quietlySyncHtml(container, html);
   else container.innerHTML = html;
   wireNetworkContextNavigation(container);
+  window.dispatchEvent(new Event('my-tezos-network-context-rendered'));
 }
 
 export async function initDailyBriefing(stats, xtzPrice) {
@@ -3671,6 +3673,11 @@ export function getTopHotSignal() {
 
 export function getDailyDeltaSignalSummaries(limit = 3) {
   const cap = Math.max(0, Math.min(5, Number(limit) || 0));
+  const snapshot = dailySnapshotReference();
+  const since = snapshotSinceLabel(snapshot);
+  const dayStart = snapshot?.day ? Date.parse(`${snapshot.day}T00:00:00Z`) : null;
+  const referenceAt = finiteNumber(snapshot?.capturedAt)
+    || (Number.isFinite(dayStart) ? dayStart : null);
   return getLiveCandidateSignals(lastStats || {})
     .filter(signal => signal.id.startsWith('daily-') && signal.text)
     .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
@@ -3683,7 +3690,9 @@ export function getDailyDeltaSignalSummaries(limit = 3) {
       detail: signal.detail,
       context: signal.context,
       startedAt: signal.startedAt,
-      observedAt: signal.observedAt
+      observedAt: signal.observedAt,
+      since,
+      referenceAt
     }));
 }
 

@@ -5,6 +5,12 @@
 
 const CHANGELOG = [
     {
+        date: '2026-07-29',
+        entries: [
+            { type: '✨', text: 'My Tezos Network Context now leads with one evidence-backed While you were away card, combining up to three saved account changes with the two strongest daily network deltas and disappearing completely when neither exists' }
+        ]
+    },
+    {
         date: '2026-07-28',
         entries: [
             { type: '✨', text: 'My Tezos now ranks proven account-relevant network signals ahead of general context and explains baker, stake, account-age, APY, whale-move, creator, and explicitly linked Etherlink connections without guessing across missing data' },
