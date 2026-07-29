@@ -47,6 +47,7 @@ const HOT_SIGNAL_CATEGORY_BUDGET = 2;
 const HOT_SIGNAL_MILESTONE_BUDGET = 12;
 const HOT_SIGNAL_VISIBLE_MIN = 4;
 const HOT_SIGNAL_EVENT_DECAY_PER_HOUR = 8;
+const HOT_SIGNAL_PERSONAL_BONUS = 6;
 const MILESTONE_CARD_ARRIVAL_MS = 1700;
 const HOT_HISTORY_DAYS = 7;
 const ACTIVITY_NEUTRAL_PCT = 1;
@@ -1320,6 +1321,9 @@ function makeSignal(category, score, text, options = {}) {
     expiresAt: finiteNumber(options.expiresAt),
     share: options.share || null,
     valueXtz: finiteNumber(options.valueXtz),
+    affectedBakers: Array.isArray(options.affectedBakers)
+      ? [...new Set(options.affectedBakers.map(value => String(value || '').trim()).filter(Boolean))]
+      : [],
     live: options.live === true,
     hotOnly: options.hotOnly === true
   };
@@ -1878,6 +1882,9 @@ function normalizeSignal(signal, index = 0) {
     expiresAt: finiteNumber(signal?.expiresAt),
     share: signal?.share || null,
     valueXtz: finiteNumber(signal?.valueXtz),
+    affectedBakers: Array.isArray(signal?.affectedBakers)
+      ? [...new Set(signal.affectedBakers.map(value => String(value || '').trim()).filter(Boolean))]
+      : [],
     live: signal?.live === true,
     hotOnly: signal?.hotOnly === true
   };
@@ -2488,8 +2495,59 @@ function mergeHotSignals(liveSignals, poolSignals, briefingSignals) {
   return merged;
 }
 
+function hotSignalPersonalRibbon(signal, data, portfolio) {
+  if (!data?.fullAddress) return '';
+  const category = signal?.category;
+  if (['staking', 'cycle'].includes(category) && (finiteNumber(data.staked) || 0) > 0) {
+    return 'Your stake';
+  }
+  if (category === 'baker' && (data.isBaker === true || data.bakerAddr)) {
+    return 'Your baker';
+  }
+  if (
+    ['security', 'tz4'].includes(category)
+    && data.bakerAddr
+    && Array.isArray(signal?.affectedBakers)
+    && signal.affectedBakers.includes(data.bakerAddr)
+  ) {
+    return 'Your baker';
+  }
+  if (category === 'price' && (finiteNumber(portfolio?.total) || 0) > 0) {
+    return 'Your position';
+  }
+  if (category === 'nft' && (finiteNumber(data.story?.nftAssetsCollected) || 0) > 0) {
+    return 'Your collection';
+  }
+  if (category === 'domains' && data.story?.domainAlias) {
+    return 'Your .tez name';
+  }
+  return '';
+}
+
+function compareHotSignalSelection(left, right, data, portfolio, now = Date.now()) {
+  const leftBase = effectiveHotScore(left, now);
+  const rightBase = effectiveHotScore(right, now);
+  const leftBonus = left?.spectacle !== 'quiet' && hotSignalPersonalRibbon(left, data, portfolio)
+    ? HOT_SIGNAL_PERSONAL_BONUS
+    : 0;
+  const rightBonus = right?.spectacle !== 'quiet' && hotSignalPersonalRibbon(right, data, portfolio)
+    ? HOT_SIGNAL_PERSONAL_BONUS
+    : 0;
+
+  const scoreDiff = (rightBase + rightBonus) - (leftBase + leftBonus);
+  if (Math.abs(scoreDiff) > 0.001) return scoreDiff;
+  if (left?.kind !== right?.kind) return left?.kind === 'event' ? -1 : 1;
+  return (finiteNumber(right?.createdAt) || 0) - (finiteNumber(left?.createdAt) || 0);
+}
+
 function selectHotSignalSet(signals = []) {
-  const notable = signals.filter(signal => signal.spectacle !== 'quiet');
+  const data = typeof window !== 'undefined' ? window._myTezosData || {} : {};
+  const portfolio = personalPortfolioSnapshot(data);
+  const now = Date.now();
+  const rank = (left, right) => compareHotSignalSelection(left, right, data, portfolio, now);
+  const notable = signals
+    .filter(signal => signal.spectacle !== 'quiet')
+    .sort(rank);
   if (notable.length >= HOT_SIGNAL_VISIBLE_MIN) return notable.slice(0, HOT_SIGNAL_RENDER_CAP);
   const selectedIds = new Set(notable.map(signal => signal.id));
   const selected = [...notable];
@@ -2500,7 +2558,7 @@ function selectHotSignalSet(signals = []) {
     selectedIds.add(signal.id);
   }
   return selected
-    .sort((a, b) => effectiveHotScore(b) - effectiveHotScore(a))
+    .sort(rank)
     .slice(0, HOT_SIGNAL_RENDER_CAP);
 }
 
@@ -3061,12 +3119,20 @@ function renderHotSignal(signal, index) {
   const contextMarkup = signal.context
     ? `<small class="hot-today-context">${escapeHtml(signal.context)}</small>`
     : '';
+  const data = typeof window !== 'undefined' ? window._myTezosData || {} : {};
+  const personalRibbon = hotSignalPersonalRibbon(signal, data, personalPortfolioSnapshot(data));
+  const personalAttribute = personalRibbon ? ' data-hot-personal="1"' : '';
+  const personalRibbonMarkup = personalRibbon
+    ? `<span class="hot-today-you">${escapeHtml(personalRibbon)}</span>`
+    : '';
+  const personalAriaPrefix = personalRibbon ? `${personalRibbon}. ` : '';
+  const personalAriaLabel = `${personalAriaPrefix}${ariaLabel}`;
   const cardMarkup = `
-    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${milestoneAttributes} aria-label="${escapeHtml(ariaLabel)}">
+    <a class="hot-today-card hot-today-card-${signal.tone}${spectacleClass}${milestoneClass}${milestoneArrivalClass}${activeClass}${breakingClass}" href="${escapeHtml(route)}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-visual="${escapeHtml(visual)}" data-hot-spectacle="${escapeHtml(signal.spectacle)}" data-network-route="${escapeHtml(route)}"${personalAttribute}${milestoneAttributes} aria-label="${escapeHtml(personalAriaLabel)}">
       ${speciesMark}
       <span class="hot-today-rank">${escapeHtml(signal.icon)}</span>
       <span class="hot-today-copy">
-        <small class="hot-today-kicker"><span>${escapeHtml(categoryMeta(signal.category).label)}</span><span class="hot-today-age" data-hot-age data-hot-created-at="${escapeHtml(String(signal.createdAt || ''))}" data-hot-observed-at="${escapeHtml(String(signal.observedAt || ''))}" data-hot-started-at="${escapeHtml(String(signal.startedAt || ''))}" data-hot-kind="${escapeHtml(signal.kind)}">${escapeHtml(ageLabel)}</span></small>
+        <small class="hot-today-kicker"><span>${escapeHtml(categoryMeta(signal.category).label)}</span>${personalRibbonMarkup}<span class="hot-today-age" data-hot-age data-hot-created-at="${escapeHtml(String(signal.createdAt || ''))}" data-hot-observed-at="${escapeHtml(String(signal.observedAt || ''))}" data-hot-started-at="${escapeHtml(String(signal.startedAt || ''))}" data-hot-kind="${escapeHtml(signal.kind)}">${escapeHtml(ageLabel)}</span></small>
         ${milestoneStatusMarkup}
         <strong>${escapeHtml(signal.title)}</strong>
         <span>${escapeHtml(signal.text)}</span>
@@ -3427,6 +3493,7 @@ function wirePersonalizationRefresh() {
       prices: detail.prices || null,
       timestamp: Number(detail.timestamp) || Date.now()
     };
+    scheduleHotSignalRender();
     rerenderCachedBriefing();
   });
   window.addEventListener('my-tezos-memory-ready', (event) => {

@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-29',
         entries: [
+            { type: '✨', text: 'Live Pulse now marks evidence-backed account connections such as Your stake, Your baker, Your position, Your collection, and Your .tez name, with a small bounded relevance lift that never overrules stronger network events' },
             { type: '✨', text: 'My Tezos Network Context now leads with one evidence-backed While you were away card, combining up to three saved account changes with the two strongest daily network deltas and disappearing completely when neither exists' }
         ]
     },

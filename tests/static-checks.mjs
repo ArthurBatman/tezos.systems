@@ -5376,6 +5376,16 @@ async function checkNetworkContextNavigationContracts() {
     'HOT_SIGNAL_VISIBLE_MIN = 4',
     'HOT_SIGNAL_CATEGORY_BUDGET = 2',
     'HOT_SIGNAL_EVENT_DECAY_PER_HOUR = 8',
+    'HOT_SIGNAL_PERSONAL_BONUS = 6',
+    'hotSignalPersonalRibbon',
+    "return 'Your stake';",
+    "return 'Your baker';",
+    "return 'Your position';",
+    "return 'Your collection';",
+    "return 'Your .tez name';",
+    'data-hot-personal="1"',
+    'hot-today-you',
+    "left?.spectacle !== 'quiet'",
     "if (value == null || value === '') return null;",
     'MILESTONE_MOMENT_TTL_MS',
     'advanceMilestoneTrack(momentStore',
@@ -5452,6 +5462,13 @@ async function checkNetworkContextNavigationContracts() {
   ];
   for (const snippet of requiredSnippets) {
     if (!briefing.includes(snippet)) fail(`Network Context clickable contract missing snippet: ${snippet}`);
+  }
+  if (!shellExtras.includes('.hot-today-you') || !shellExtras.includes('.hot-today-you + .hot-today-age')) {
+    fail('Live Pulse personal ribbon must remain compact and preserve the age label lane');
+  }
+  const smoke = await readText('tests/smoke.mjs');
+  if (!smoke.includes("name: 'live-pulse-personal-ribbons'")) {
+    fail('smoke catalog must include the Live Pulse personal ribbon desktop/mobile suite');
   }
   for (const snippet of [
     'function renderWhileAwayNetworkCard()',

@@ -7238,6 +7238,187 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   log('ok - my tezos baker activity smoke');
 }
 
+async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
+  for (const { label, viewport, theme } of [
+    { label: 'desktop', viewport: { width: 1440, height: 1000 }, theme: 'clean' },
+    { label: 'mobile', viewport: { width: 390, height: 844 }, theme: 'matrix' }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({
+      viewport,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context);
+    await context.addInitScript((activeTheme) => {
+      localStorage.setItem('tezos-systems-theme', activeTheme);
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+      localStorage.removeItem('tezos-systems-my-baker-address');
+    }, theme);
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `live pulse personal ribbons ${label}`, issues);
+    const response = await page.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `live pulse personal ribbons ${label}: dashboard failed with HTTP ${response?.status()}`);
+    await page.locator('#hot-today-island .hot-today-strip').waitFor({ state: 'visible', timeout: 15000 });
+    const anonymousState = await page.evaluate(() => ({
+      ribbons: document.querySelectorAll('#hot-today-island .hot-today-you').length,
+      attributes: document.querySelectorAll('#hot-today-island [data-hot-personal="1"]').length
+    }));
+    assert(
+      anonymousState.ribbons === 0 && anonymousState.attributes === 0,
+      `live pulse personal ribbons ${label}: anonymous markup gained personal decoration ${JSON.stringify(anonymousState)}`
+    );
+
+    await page.evaluate((address) => {
+      window._myTezosData = {
+        fullAddress: address,
+        staked: 200,
+        totalXTZ: 0,
+        isBaker: false,
+        bakerAddr: null,
+        story: {}
+      };
+      const createdAt = Date.now();
+      const signals = [
+        { id: 'personal-event-proof', category: 'network', score: 160, kind: 'event', title: 'Network event proof' },
+        { id: 'personal-stake-proof', category: 'staking', score: 150, kind: 'state', title: 'Stake proof' },
+        { id: 'personal-cycle-proof', category: 'cycle', score: 149, kind: 'state', title: 'Cycle proof' },
+        { id: 'personal-price-control', category: 'price', score: 154, kind: 'state', title: 'Price control' },
+        { id: 'personal-nft-control', category: 'nft', score: 147, kind: 'state', title: 'NFT control' },
+        { id: 'personal-domains-control', category: 'domains', score: 146, kind: 'state', title: 'Domains control' },
+        { id: 'personal-baker-control', category: 'baker', score: 145, kind: 'state', title: 'Baker control' }
+      ];
+      signals.forEach((signal, index) => {
+        window.dispatchEvent(new CustomEvent('hot-signal', {
+          detail: {
+            ...signal,
+            icon: '•',
+            text: `${signal.title} stays evidence-only.`,
+            detail: 'Personal ribbon smoke',
+            createdAt: createdAt - index,
+            ttlMs: 60000,
+            live: true
+          }
+        }));
+      });
+    }, SAMPLE_ADDRESS);
+    await page.waitForFunction(() => (
+      document.querySelector('#hot-today-island [data-hot-signal-id="personal-stake-proof"] .hot-today-you')?.textContent === 'Your stake'
+        && document.querySelector('#hot-today-island [data-hot-signal-id="personal-cycle-proof"] .hot-today-you')?.textContent === 'Your stake'
+    ), null, { timeout: 15000 });
+
+    const personalState = await page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('#hot-today-island [data-hot-signal-id]'));
+      const indexOf = (id) => cards.findIndex((card) => card.dataset.hotSignalId === id);
+      const ribbonCards = cards.filter((card) => card.dataset.hotPersonal === '1');
+      const geometry = ribbonCards.map((card) => {
+        const kicker = card.querySelector('.hot-today-kicker');
+        const category = kicker?.firstElementChild;
+        const ribbon = kicker?.querySelector('.hot-today-you');
+        const age = kicker?.querySelector('.hot-today-age');
+        const categoryRect = category?.getBoundingClientRect();
+        const ribbonRect = ribbon?.getBoundingClientRect();
+        const ageRect = age?.getBoundingClientRect();
+        return {
+          id: card.dataset.hotSignalId,
+          kickerOverflow: (kicker?.scrollWidth || 0) - (kicker?.clientWidth || 0),
+          categoryGap: ribbonRect && categoryRect ? ribbonRect.left - categoryRect.right : -1,
+          ageGap: ageRect && ribbonRect ? ageRect.left - ribbonRect.right : -1
+        };
+      });
+      return {
+        ribbonCount: document.querySelectorAll('#hot-today-island .hot-today-you').length,
+        attributeCount: ribbonCards.length,
+        ribbonIds: ribbonCards.map((card) => card.dataset.hotSignalId).sort(),
+        ribbonCopy: ribbonCards.map((card) => card.querySelector('.hot-today-you')?.textContent || ''),
+        ariaLabels: ribbonCards.map((card) => card.getAttribute('aria-label') || ''),
+        eventIndex: indexOf('personal-event-proof'),
+        stakingIndex: indexOf('personal-stake-proof'),
+        cycleIndex: indexOf('personal-cycle-proof'),
+        priceIndex: indexOf('personal-price-control'),
+        pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        geometry
+      };
+    });
+    assert(
+      personalState.ribbonCount === 2
+        && personalState.attributeCount === 2
+        && JSON.stringify(personalState.ribbonIds) === JSON.stringify(['personal-cycle-proof', 'personal-stake-proof'])
+        && personalState.ribbonCopy.every((copy) => copy === 'Your stake'),
+      `live pulse personal ribbons ${label}: evidence-only ribbon set drifted ${JSON.stringify(personalState)}`
+    );
+    assert(
+      personalState.eventIndex >= 0
+        && personalState.stakingIndex >= 0
+        && personalState.cycleIndex >= 0
+        && personalState.priceIndex >= 0
+        && personalState.eventIndex < personalState.stakingIndex
+        && personalState.eventIndex < personalState.cycleIndex
+        && personalState.stakingIndex < personalState.priceIndex
+        && personalState.cycleIndex < personalState.priceIndex,
+      `live pulse personal ribbons ${label}: +6 bonus did not remain bounded between the stronger event and nearby state ${JSON.stringify(personalState)}`
+    );
+    assert(
+      personalState.ariaLabels.every((labelText) => labelText.startsWith('Your stake. '))
+        && personalState.pageOverflow <= 1
+        && personalState.geometry.every((item) => item.kickerOverflow <= 1 && item.categoryGap >= 0 && item.ageGap >= 0),
+      `live pulse personal ribbons ${label}: ribbon accessibility or geometry regressed ${JSON.stringify(personalState)}`
+    );
+
+    const quietBefore = await page.evaluate(() => {
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      const card = document.querySelector('#hot-today-island [data-hot-signal-id="personal-stake-proof"]');
+      strip.scrollLeft = Math.min(160, Math.max(0, strip.scrollWidth - strip.clientWidth));
+      card.focus({ preventScroll: true });
+      window.__personalRibbonStrip = strip;
+      window.__personalRibbonCard = card;
+      return { left: strip.scrollLeft };
+    });
+    await page.evaluate(() => {
+      window._myTezosData = { ...window._myTezosData, staked: 0 };
+      window.dispatchEvent(new CustomEvent('hot-signal', {
+        detail: {
+          id: 'personal-stake-proof',
+          category: 'staking',
+          score: 150,
+          kind: 'state',
+          icon: '•',
+          title: 'Stake proof',
+          text: 'Stake proof stays evidence-only.',
+          detail: 'Personal ribbon smoke',
+          ttlMs: 60000,
+          live: true
+        }
+      }));
+    });
+    await page.waitForFunction(() => document.querySelectorAll('#hot-today-island [data-hot-personal="1"]').length === 0, null, { timeout: 15000 });
+    const quietAfter = await page.evaluate(() => {
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      return {
+        sameStrip: strip === window.__personalRibbonStrip,
+        sameCard: document.querySelector('#hot-today-island [data-hot-signal-id="personal-stake-proof"]') === window.__personalRibbonCard,
+        focused: document.activeElement === window.__personalRibbonCard,
+        left: strip.scrollLeft,
+        ribbons: document.querySelectorAll('#hot-today-island .hot-today-you').length
+      };
+    });
+    assert(
+      quietAfter.sameStrip
+        && quietAfter.sameCard
+        && quietAfter.focused
+        && Math.abs(quietAfter.left - quietBefore.left) <= 1
+        && quietAfter.ribbons === 0,
+      `live pulse personal ribbons ${label}: quiet removal moved the reader ${JSON.stringify({ quietBefore, quietAfter })}`
+    );
+
+    await context.close();
+    assert(issues.length === 0, `live pulse personal ribbons ${label} browser issues:\n${issues.join('\n')}`);
+  }
+  log('ok - live pulse personal ribbons smoke');
+}
+
 async function smokeMyTezosIdleAccount(browser, baseUrl) {
   for (const { label, viewport } of [
     { label: 'desktop', viewport: { width: 1280, height: 900 } },
@@ -21959,6 +22140,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-empty-state', description: 'My Tezos clearly separates Octez.Connect wallet pairing from watch-only tracking and explains all six responsive views', run: () => smokeMyTezosEmptyState(browser, baseUrl) },
+    { name: 'live-pulse-personal-ribbons', description: 'Evidence-only Live Pulse account ribbons preserve stronger events and quiet reading state on desktop and mobile', run: () => smokeLivePulsePersonalRibbons(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },
     { name: 'my-tezos-idle-account', description: 'My Tezos removes baker-only controls and keeps an undelegated account readable in one column', run: () => smokeMyTezosIdleAccount(browser, baseUrl) },
     { name: 'my-tezos-live-signal', description: 'My Tezos open baker drawer refreshes stale operator signal without a manual reload', run: () => smokeMyTezosBakerLiveSignal(browser, baseUrl) },
