@@ -3458,6 +3458,8 @@ async function assertChamberControlGeometry(page, label) {
       '.card-front .maxis-entry-season-meta',
       '.card-front .maxis-entry-season-pulse',
       '.card-front .maxis-entry-pulse-line',
+      '.card-front .maxis-entry-season-crowns',
+      '.card-front .maxis-entry-season-crowns > span',
       '.card-front .tezoscrp-entry-main',
       '.card-front .tezoscrp-entry-identity-strip',
       '.card-front .tezoscrp-entry-identity-strip > span',
@@ -3695,14 +3697,25 @@ async function readMaxisLauncherGeometry(page) {
     const paddingLeft = Number.parseFloat(frontStyle?.paddingLeft || '0') || 0;
     const paddingRight = Number.parseFloat(frontStyle?.paddingRight || '0') || 0;
     const identityCells = Array.from(card.querySelectorAll('.maxis-entry-identity-strip > span')).filter(visible);
+    const identityLeaders = Array.from(card.querySelectorAll('.maxis-entry-identity-leader')).filter(visible);
+    const pulseLines = Array.from(card.querySelectorAll('.maxis-entry-pulse-line')).filter(visible);
+    const seasonCrowns = Array.from(card.querySelectorAll('.maxis-entry-season-crowns > span')).filter(visible);
+    const cardBox = box(card);
+    const stageBox = box(stage);
+    const footerBox = box(card.querySelector('.chamber-entry-footer'));
     return {
-      card: box(card),
+      card: cardBox,
       pair: box(pair),
-      stage: box(stage),
+      stage: stageBox,
+      footer: footerBox,
       contentLeft: frontBox ? frontBox.left + paddingLeft : null,
       contentRight: frontBox ? frontBox.right - paddingRight : null,
       contentWidth: front ? front.clientWidth - paddingLeft - paddingRight : 0,
       identityCount: identityCells.length,
+      identityLeaderCount: identityLeaders.length,
+      pulseLineCount: pulseLines.length,
+      seasonCrownCount: seasonCrowns.length,
+      cardTail: cardBox && frontBox ? Number((cardBox.bottom - frontBox.bottom).toFixed(2)) : null,
       clippedIdentityCells: identityCells
         .filter((node) => node.scrollWidth > node.clientWidth + 1)
         .map((node) => ({
@@ -6025,7 +6038,9 @@ async function smokeCycleMilestone(browser, baseUrl) {
   await context.close();
 
   const nearContext = await browser.newContext({
-    viewport: { width: 1440, height: 1000 },
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
     serviceWorkers: 'block'
   });
   await installFeatureMocks(nearContext);
@@ -6104,6 +6119,28 @@ async function smokeCycleMilestone(browser, baseUrl) {
       && nearState.popoverStatus === 'Approaching on-chain'
       && nearState.staleClasses === 0,
     `near cycle milestone: approaching state should render a distinct dashed SOON treatment without dead state classes ${JSON.stringify(nearState)}`
+  );
+  await nearPage.locator('#top-continuity-history').tap();
+  await nearPage.waitForFunction(() => {
+    const popover = document.querySelector('#top-continuity-milestone-popover');
+    return popover
+      && popover.getAttribute('aria-hidden') === 'false'
+      && Number.parseFloat(getComputedStyle(popover).opacity) >= 0.98;
+  }, null, { timeout: 1500 });
+  const nearFirstTap = await nearPage.evaluate(() => ({
+    hash: window.location.hash,
+    chamberOpen: Boolean(document.querySelector('.chamber-overlay.active')),
+    expanded: document.querySelector('#top-continuity-history')?.getAttribute('aria-expanded') || '',
+    markerText: document.querySelector('.top-continuity-milestone-new')?.textContent?.trim() || '',
+    popoverStatus: document.querySelector('#top-continuity-milestone-status')?.textContent?.trim() || ''
+  }));
+  assert(
+    !nearFirstTap.hash
+      && !nearFirstTap.chamberOpen
+      && nearFirstTap.expanded === 'true'
+      && nearFirstTap.markerText === 'Soon'
+      && nearFirstTap.popoverStatus === 'Approaching on-chain',
+    `near cycle milestone: first mobile SOON tap must disclose the approaching milestone without opening its Chamber ${JSON.stringify(nearFirstTap)}`
   );
   await nearContext.close();
 
@@ -6260,13 +6297,90 @@ async function smokeCycleMilestone(browser, baseUrl) {
     `mobile cycle milestone: a previously seen near status must not suppress the newly crossed outlined NEW action ${JSON.stringify(beforeTap)}`
   );
   await mobileClock.tap();
-  await mobilePage.waitForFunction(() => window.location.hash === '#health' && document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 10000 });
+  await mobilePage.waitForFunction(() => {
+    const popover = document.querySelector('#top-continuity-milestone-popover');
+    return popover
+      && popover.getAttribute('aria-hidden') === 'false'
+      && Number.parseFloat(getComputedStyle(popover).opacity) >= 0.98;
+  }, null, { timeout: 1500 });
   const firstTap = await mobilePage.evaluate(() => {
     const clock = document.querySelector('#top-continuity-history');
     const popover = document.querySelector('#top-continuity-milestone-popover');
+    const milestoneLink = document.querySelector('#top-continuity-milestone-link');
+    const milestoneClose = document.querySelector('#top-continuity-milestone-close');
     const outline = document.querySelector('.top-continuity-milestone-outline');
     const activity = document.querySelector('#header-activity-button');
     const activityRect = activity?.getBoundingClientRect();
+    const popoverRect = popover?.getBoundingClientRect();
+    const linkRect = milestoneLink?.getBoundingClientRect();
+    const closeRect = milestoneClose?.getBoundingClientRect();
+    const popoverBackground = popover ? getComputedStyle(popover).backgroundColor : '';
+    const popoverBackgroundAlpha = popoverBackground.startsWith('rgba(')
+      ? Number.parseFloat(popoverBackground.split(',').pop()) || 0
+      : 1;
+    const linkHitTarget = linkRect
+      ? document.elementFromPoint(linkRect.left + (linkRect.width / 2), linkRect.top + (linkRect.height / 2))
+      : null;
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem('tezos-systems-uptime-milestone-seen-v1') || 'null'); } catch (_) {}
+    return {
+      hash: window.location.hash,
+      healthOpen: Boolean(document.querySelector('#network-health-modal.active')),
+      expanded: clock?.getAttribute('aria-expanded') || '',
+      popoverAriaHidden: popover?.getAttribute('aria-hidden') || '',
+      popoverHidden: Boolean(popover?.hidden),
+      popoverBackgroundAlpha,
+      popoverOpacity: popover ? Number.parseFloat(getComputedStyle(popover).opacity) : 0,
+      popoverText: popover?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      popoverInsideViewport: Boolean(popoverRect && popoverRect.left >= 0 && popoverRect.right <= window.innerWidth),
+      popoverPosition: popover ? getComputedStyle(popover).position : '',
+      popoverBottomGap: popoverRect ? window.innerHeight - popoverRect.bottom : -1,
+      outlineHidden: Boolean(outline?.hidden),
+      outlineDisplay: outline ? getComputedStyle(outline).display : '',
+      signalClass: Boolean(clock?.classList.contains('has-milestone-signal')),
+      storedSeen: Array.isArray(stored?.seen) ? stored.seen : [],
+      activityTop: activityRect?.top ?? -1,
+      subline: clock?.querySelector('.top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      linkText: milestoneLink?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      linkHref: milestoneLink?.getAttribute('href') || '',
+      linkVisible: Boolean(linkRect && linkRect.width > 0 && linkRect.height > 0),
+      linkOwnsHitTarget: Boolean(linkHitTarget && milestoneLink?.contains(linkHitTarget)),
+      closeVisible: Boolean(closeRect && closeRect.width > 0 && closeRect.height > 0),
+      orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length
+    };
+  });
+  assert(!firstTap.hash
+    && !firstTap.healthOpen
+    && firstTap.expanded === 'true'
+    && firstTap.popoverAriaHidden === 'false'
+    && !firstTap.popoverHidden
+    && firstTap.popoverBackgroundAlpha === 1
+    && firstTap.popoverOpacity >= 0.98
+    && /Confirmed on-chain.*Open Network Health/.test(firstTap.popoverText)
+    && firstTap.popoverInsideViewport
+    && firstTap.popoverPosition === 'fixed'
+    && firstTap.popoverBottomGap >= 0
+    && firstTap.popoverBottomGap <= 20
+    && !firstTap.outlineHidden
+    && firstTap.outlineDisplay !== 'none'
+    && firstTap.signalClass
+    && firstTap.storedSeen.includes('milestone-cycle-1300|near')
+    && !firstTap.storedSeen.includes('milestone-cycle-1300|crossed')
+    && Math.abs(firstTap.activityTop - activityTopBeforeTap) <= 1
+    && /mainnet age.*since 2018/i.test(firstTap.subline)
+    && firstTap.linkText === 'Open Network Health ↗'
+    && firstTap.linkHref === '#health'
+    && firstTap.linkVisible
+    && firstTap.linkOwnsHitTarget
+    && firstTap.closeVisible
+    && firstTap.orbitControls === 0,
+  `mobile cycle milestone: first clock tap must open the fixed explanation sheet without navigating, marking seen, or moving header content ${JSON.stringify(firstTap)}`);
+  await mobileClock.tap();
+  await mobilePage.waitForFunction(() => window.location.hash === '#health' && document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 10000 });
+  const secondTap = await mobilePage.evaluate(() => {
+    const clock = document.querySelector('#top-continuity-history');
+    const popover = document.querySelector('#top-continuity-milestone-popover');
+    const outline = document.querySelector('.top-continuity-milestone-outline');
     let stored = null;
     try { stored = JSON.parse(localStorage.getItem('tezos-systems-uptime-milestone-seen-v1') || 'null'); } catch (_) {}
     return {
@@ -6278,26 +6392,22 @@ async function smokeCycleMilestone(browser, baseUrl) {
       outlineHidden: Boolean(outline?.hidden),
       outlineDisplay: outline ? getComputedStyle(outline).display : '',
       signalClass: Boolean(clock?.classList.contains('has-milestone-signal')),
-      storedSeen: Array.isArray(stored?.seen) ? stored.seen : [],
-      activityTop: activityRect?.top ?? -1,
-      subline: clock?.querySelector('.top-continuity-subline')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-      orbitControls: document.querySelectorAll('.top-continuity-milestone-orbit').length
+      storedSeen: Array.isArray(stored?.seen) ? stored.seen : []
     };
   });
-  assert(firstTap.hash === '#health'
-    && firstTap.healthOpen
-    && firstTap.expanded !== 'true'
-    && firstTap.popoverAriaHidden === 'true'
-    && firstTap.popoverHidden
-    && firstTap.outlineHidden
-    && firstTap.outlineDisplay === 'none'
-    && !firstTap.signalClass
-    && firstTap.storedSeen.includes('milestone-cycle-1300|near')
-    && firstTap.storedSeen.includes('milestone-cycle-1300|crossed')
-    && Math.abs(firstTap.activityTop - activityTopBeforeTap) <= 1
-    && /mainnet age.*since 2018/i.test(firstTap.subline)
-    && firstTap.orbitControls === 0,
-  `mobile cycle milestone: first clock tap should persist id plus crossed status, navigate immediately, retire the attractor, and leave the subline/layout untouched ${JSON.stringify(firstTap)}`);
+  assert(
+    secondTap.hash === '#health'
+      && secondTap.healthOpen
+      && secondTap.expanded !== 'true'
+      && secondTap.popoverAriaHidden === 'true'
+      && secondTap.popoverHidden
+      && secondTap.outlineHidden
+      && secondTap.outlineDisplay === 'none'
+      && !secondTap.signalClass
+      && secondTap.storedSeen.includes('milestone-cycle-1300|near')
+      && secondTap.storedSeen.includes('milestone-cycle-1300|crossed'),
+    `mobile cycle milestone: second clock tap must mark the milestone seen, retire the attractor, and open its Chamber ${JSON.stringify(secondTap)}`
+  );
   await peerPage.waitForFunction(() => {
     const outline = document.querySelector('.top-continuity-milestone-outline');
     const clock = document.querySelector('#top-continuity-history');
@@ -12631,8 +12741,8 @@ async function smokeMaxisChamber(browser, baseUrl) {
       && desktopLauncher.stage.width >= desktopLauncher.contentWidth * 0.75,
     `tezos maxis launcher: dense desktop composition must own and use a full People row ${JSON.stringify(desktopLauncher)}`
   );
-  assert(desktopLauncher.identityCount === 10 && desktopLauncher.clippedIdentityCells.length === 0, `tezos maxis launcher: desktop identity chips clip or disappear ${JSON.stringify(desktopLauncher)}`);
-  assert(desktopLauncher.card.height >= 400 && desktopLauncher.card.height <= 430 && desktopLauncher.horizontalOverflow <= 1, `tezos maxis launcher: categorized desktop card misses its geometry baseline or overflows ${JSON.stringify(desktopLauncher)}`);
+  assert(desktopLauncher.identityCount === 10 && desktopLauncher.identityLeaderCount === 10 && desktopLauncher.seasonCrownCount === 4 && desktopLauncher.clippedIdentityCells.length === 0, `tezos maxis launcher: desktop crown holders or Season leaders clip or disappear ${JSON.stringify(desktopLauncher)}`);
+  assert(desktopLauncher.card.height >= 350 && desktopLauncher.card.height <= 375 && desktopLauncher.horizontalOverflow <= 1, `tezos maxis launcher: categorized desktop card misses its geometry baseline or overflows ${JSON.stringify(desktopLauncher)}`);
 
   await page.setViewportSize({ width: 900, height: 1000 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -12645,6 +12755,27 @@ async function smokeMaxisChamber(browser, baseUrl) {
     `tezos maxis launcher: tablet People category must give the dense card a full row ${JSON.stringify(tabletLauncher)}`
   );
   assert(tabletLauncher.horizontalOverflow <= 1, `tezos maxis launcher: tablet card overflows ${JSON.stringify(tabletLauncher)}`);
+
+  await page.setViewportSize({ width: 430, height: 932 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const widePhoneLauncher = await readMaxisLauncherGeometry(page);
+  assert(
+    widePhoneLauncher.identityCount === 10
+      && widePhoneLauncher.identityLeaderCount === 10
+      && widePhoneLauncher.pulseLineCount === 3,
+    `tezos maxis launcher: wide phone must keep every crown holder and complete Season pulse visible ${JSON.stringify(widePhoneLauncher)}`
+  );
+  assert(
+    widePhoneLauncher.card
+      && widePhoneLauncher.footer
+      && widePhoneLauncher.cardTail !== null
+      && widePhoneLauncher.cardTail <= 3
+      && widePhoneLauncher.footer.bottom <= widePhoneLauncher.card.bottom + 1
+      && widePhoneLauncher.clippedIdentityCells.length === 0
+      && widePhoneLauncher.horizontalOverflow <= 1,
+    `tezos maxis launcher: 430px wide phone retained a blank fixed-height tail or overflowed ${JSON.stringify(widePhoneLauncher)}`
+  );
+
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
@@ -13165,7 +13296,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
     const rect = document.querySelector('#maxis-entry-card')?.getBoundingClientRect();
     return { height: rect?.height || 0, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, bodyOverflow: document.body.style.overflow };
   });
-  assert(entryState.height > 0 && entryState.height <= 400 && entryState.overflow <= 1 && entryState.bodyOverflow !== 'hidden', `tezos maxis chamber: compact mobile entry/scroll restore failed ${JSON.stringify(entryState)}`);
+  assert(entryState.height > 0 && entryState.height <= 640 && entryState.overflow <= 1 && entryState.bodyOverflow !== 'hidden', `tezos maxis chamber: compact mobile entry/scroll restore failed ${JSON.stringify(entryState)}`);
 
   const maxisOpenButton = page.locator('#maxis-entry-card .chamber-expand-cue');
   await maxisOpenButton.focus();

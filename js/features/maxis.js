@@ -13,7 +13,7 @@ const CAREER_DATA_URL = '/data/maxis-careers.json';
 const L2_GOVERNANCE_DATA_URL = '/data/maxis-l2-governance.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
 const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=531';
+const MAXIS_CSS_URL = '/css/maxis.css?v=532';
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -3432,19 +3432,51 @@ function renderEntryContents(legacy, manifest, summary) {
             : seasonData
                 ? `${formatNumber(passportRecords ?? 0)} Passports · ${formatNumber(seasonLanes)} lanes`
                 : 'Season sheet not published';
+    const seasonCrownCards = [
+        'staking',
+        'collector',
+        'artist',
+        'transaction',
+        'defi',
+        'gaming',
+        'minter',
+        'delegation',
+        'liquidity',
+        'bridge',
+        'builder',
+        'governance'
+    ].map((category) => ({ category, leader: leaderForCategory(seasonData || {}, category) }))
+        .filter(({ leader }) => leader?.address)
+        .slice(0, 4);
+    const identityCards = identities.map((category) => {
+        const leader = leaderForCategory(legacyData, category);
+        const name = leaderName(leader);
+        const clock = windowLabel(leader?.windowKind || leader?.window);
+        const label = categoryLabel(category);
+        return `
+            <span data-maxis-entry-identity="${escapeHtml(category)}" aria-label="${escapeHtml(`${label}: ${name}, ${clock}`)}" title="${escapeHtml(`${label}: ${name} · ${clock}`)}">
+                <b class="maxis-entry-identity-mark" aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b>
+                <span class="maxis-entry-identity-copy">
+                    <span class="maxis-entry-identity-name">${escapeHtml(label)}</span>
+                    <strong class="maxis-entry-identity-leader">${escapeHtml(name)}</strong>
+                    <small>${escapeHtml(clock)}</small>
+                </span>
+            </span>
+        `;
+    }).join('');
     return `
         <div class="maxis-entry-season-front maxis-entry-maxis-front">
             <div class="maxis-entry-season-copy maxis-entry-maxis-copy">
                 <span class="maxis-entry-season-label">✺ Ongoing Tezos identities</span>
                 <div class="maxis-entry-season-title" id="maxis-entry-title">Tezos Maxis</div>
                 <p>Live, rolling, and all-time Tezos records for creators, builders, L1/L2 voters, stakers, transactors, and cross-lane Unicorns.</p>
-                <div class="maxis-entry-identity-strip" aria-label="Tezos Maxi identities">
-                    ${identities.map((category) => `<span data-maxis-entry-identity="${escapeHtml(category)}"><b aria-hidden="true">${CATEGORY_ICONS[category] || '•'}</b><span class="maxis-entry-identity-name">${escapeHtml(categoryLabel(category))}</span><small>${escapeHtml(windowLabel(leaderForCategory(legacyData, category)?.windowKind))}</small></span>`).join('')}
-                </div>
                 <div class="maxis-entry-season-meta">
                     <span><strong>${escapeHtml(String(identities.length || '—'))}</strong> identities</span>
                     <span><strong>${escapeHtml(String(ongoingWallets || '—'))}</strong> ranked wallets</span>
                     <span><strong>${escapeHtml(leaderName(ongoingUnicorn))}</strong> Tezos Unicorn</span>
+                </div>
+                <div class="maxis-entry-identity-strip" aria-label="Current Tezos Maxi crown holders">
+                    ${identityCards}
                 </div>
             </div>
             <aside class="maxis-entry-season-pulse" aria-label="Current protocol season pulse">
@@ -3454,6 +3486,16 @@ function renderEntryContents(legacy, manifest, summary) {
                 <div class="maxis-entry-pulse-line"><span>Boundary</span><strong>${escapeHtml(boundaryCopy)}</strong></div>
                 <div class="maxis-entry-pulse-line"><span>Season Unicorn</span><strong>${escapeHtml(unicornCopy)}</strong></div>
                 <div class="maxis-entry-pulse-line"><span>Season sheet</span><strong>${escapeHtml(sheetCopy)}</strong></div>
+                ${seasonCrownCards.length ? `
+                    <div class="maxis-entry-season-crowns" aria-label="Current protocol-season lane leaders">
+                        ${seasonCrownCards.map(({ category, leader }) => `
+                            <span title="${escapeHtml(`${categoryLabel(category)}: ${leaderName(leader)}`)}">
+                                <small>${escapeHtml(categoryLabel(category))}</small>
+                                <strong>${escapeHtml(leaderName(leader))}</strong>
+                            </span>
+                        `).join('')}
+                    </div>
+                ` : ''}
             </aside>
         </div>
     `;

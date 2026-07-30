@@ -2182,6 +2182,10 @@ async function checkSelectorContracts() {
     ['Staking uses the shared plain Chamber label', '<h2 class="stat-label">Staking Chamber</h2>', stakingChamber],
     ['Staking compact Chamber label size', 'font-size: 0.75rem;', stakingChamberCss],
     ['Maxis compact Chamber label override', '#chambers-grid .maxis-entry-season-title.chamber-entry-title', maxisCss],
+    ['Maxis launcher crown-holder names', 'maxis-entry-identity-leader', maxis],
+    ['Maxis launcher crown-holder styles', '.maxis-entry-identity-leader', maxisCss],
+    ['Maxis launcher protocol-season leaders', 'maxis-entry-season-crowns', maxis],
+    ['Maxis launcher protocol-season leader styles', '.maxis-entry-season-crowns', maxisCss],
     ['Protocol History Chamber timeline toggle target', 'protocol-timeline-toggle-btn', app],
     ['Protocol History Chamber action styles', '.protocol-history-chamber-action', heroSearchCss],
     ['Hero search mode body class', "document.body.classList.toggle('hero-search-mode'", search],
@@ -2819,8 +2823,10 @@ async function checkSelectorContracts() {
     ['top continuity milestone close wiring', "topContinuityMilestoneClose?.addEventListener('click'", app],
     ['top continuity rolling seen-state key', "tezos-systems-uptime-milestone-seen-v1", app],
     ['top continuity id-status seen identity', '`${id}|${uptimeMilestoneStatus(signal)}`', app],
-    ['top continuity first activation marks seen', 'markUptimeMilestoneSeen(milestoneSignal);', app],
-    ['top continuity first activation opens destination', 'openUptimeMilestoneDestination(milestoneSignal);', app],
+    ['top continuity touch disclosure detector', 'function uptimeMilestoneNeedsDisclosureStep()', app],
+    ['top continuity first touch opens disclosure', 'setUptimeMilestonePopoverVisible(true, { lockDisclosure: true });', app],
+    ['top continuity second activation marks seen', 'markUptimeMilestoneSeen(milestoneSignal);', app],
+    ['top continuity second activation opens destination', 'openUptimeMilestoneDestination(milestoneSignal);', app],
     ['top continuity cross-tab seen sync', 'event.key !== UPTIME_MILESTONE_SEEN_KEY', app],
     ['top continuity explicit destination action', "topContinuityMilestoneLink?.addEventListener('click'", app],
     ['milestone card DOM status styles', '.hot-today-milestone-status', shellExtrasCss],
@@ -2891,6 +2897,23 @@ async function checkSelectorContracts() {
   ];
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
+  }
+
+  const uptimeMilestoneClickStart = app.indexOf("topContinuityHistory.addEventListener('click'");
+  const uptimeMilestoneLinkStart = app.indexOf("topContinuityMilestoneLink?.addEventListener('click'", uptimeMilestoneClickStart);
+  const uptimeMilestoneClick = app.slice(uptimeMilestoneClickStart, uptimeMilestoneLinkStart);
+  const firstDisclosureIndex = uptimeMilestoneClick.indexOf('setUptimeMilestonePopoverVisible(true, { lockDisclosure: true });');
+  const seenIndex = uptimeMilestoneClick.indexOf('markUptimeMilestoneSeen(milestoneSignal);');
+  const destinationIndex = uptimeMilestoneClick.indexOf('openUptimeMilestoneDestination(milestoneSignal);');
+  if (
+    uptimeMilestoneClickStart < 0
+    || uptimeMilestoneLinkStart < 0
+    || !uptimeMilestoneClick.includes('uptimeMilestoneNeedsDisclosureStep() && !uptimeMilestoneDisclosureLocked')
+    || firstDisclosureIndex < 0
+    || seenIndex < firstDisclosureIndex
+    || destinationIndex < seenIndex
+  ) {
+    fail('mobile uptime milestone must disclose on the first tap, then mark seen and open its Chamber on the second tap');
   }
 
   for (const staleMilestoneState of [
@@ -7412,8 +7435,8 @@ async function checkTezosCrpContracts() {
   if (!/\.tezoscrp-overlay\s*\{[^}]*z-index:\s*10002\s*!important;/s.test(css)) {
     fail('TezosCRP Chamber must render above theme spectacle canvases so archive figures stay readable');
   }
-  if (!/#chambers-grid #maxis-entry-card\.maxis-entry-card\.chamber-entry-wide\s*\{[^}]*height:\s*414px !important;[^}]*min-height:\s*414px !important;/s.test(maxisCss)) {
-    fail('Maxis categorized launcher must keep its 414px half-row desktop shell');
+  if (!/#chambers-grid #maxis-entry-card\.maxis-entry-card\.chamber-entry-wide\s*\{[^}]*height:\s*360px !important;[^}]*min-height:\s*360px !important;/s.test(maxisCss)) {
+    fail('Maxis categorized launcher must keep its compact 360px desktop shell');
   }
   if (!/@media \(min-width: 900px\)\s*\{[^}]*#chambers-grid > \.chamber-category > \.chamber-category-cards > \.tezos-domains-entry-card[^}]*height:\s*298px;[^}]*min-height:\s*298px;/s.test(tezosDomainsCss)) {
     fail('Tezos Domains category launcher must keep its 298px desktop shell');

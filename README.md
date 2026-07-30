@@ -336,12 +336,14 @@ inline modal styles in `js/core/app.js`.
   `MAINNET AGE · SINCE 2018`: approaching thresholds use a lighter dashed
   outline with a separate `SOON` marker, then crossed thresholds re-arm with a
   stronger solid outline and `NEW` marker above the top-right corner.
-  Hover or keyboard focus reveals an anchored event
-  card on desktop. The first activation records that milestone id and status as
-  seen, opens Network Pulse or the most relevant Chamber directly, and retires
-  the treatment across reloads and open tabs. A later `near` to `crossed`
-  transition is new news and re-arms it. Once seen, or without an active
-  milestone, the continuity statement continues to open Protocol Anthology.
+  Hover or keyboard focus reveals an anchored event card on desktop. On phones
+  and touch-first layouts, the first tap pins that explanation without
+  navigating; a second tap on the runtime, or the card's explicit action,
+  records that milestone id and status as seen, opens Network Pulse or the most
+  relevant Chamber, and retires the treatment across reloads and open tabs. A
+  later `near` to `crossed` transition is new news and re-arms it. Once seen, or
+  without an active milestone, the continuity statement continues to open
+  Protocol Anthology.
   Clicking a stat pill opens that metric's historical stats surface.
 - The Network Health Chamber contains the fuller Mainnet Continuity panel with
   the same chain-age and upgrade-history context, explicitly separated from
@@ -458,11 +460,13 @@ inline modal styles in `js/core/app.js`.
   all-time Transaction, all-time-active Governance, live Staking, rolling
   Art/DeFi, or cross-lane Unicorn breadth. These unlike clocks are labeled
   prominently and are never blended or relabeled as one time window. The
-  full-width homepage launcher keeps the current lane holders readable and
-  treats the active protocol season as a smaller race pulse rather than
-  replacing the enduring Maxis view. At compact tablet widths, secondary copy
-  collapses before the identity strip or season pulse so the shorter launcher
-  remains contained above its footer rail.
+  full-width homepage launcher names all ten current crown holders beside their
+  lane-native clocks, discloses the ranked-wallet universe, and treats the
+  active protocol season as a smaller pulse with its boundary, Season Unicorn,
+  Passport coverage, lane count, and a compact larger-screen lane-leader board
+  rather than replacing the enduring Maxis view. Wide-phone launchers size to
+  that content instead of retaining an empty fixed-height tail; compact layouts
+  keep the complete holder and season receipts contained above the footer rail.
 - TezosCRP Recognition Hall with direct `#tezoscrp` and `/tezoscrp/` access is
   deliberately separate from Tezos Maxis. Maxis assigns objective on-chain
   crowns to wallet addresses and verified receipts; TezosCRP publishes human
@@ -1280,7 +1284,12 @@ Current smoke suites:
 - `maxis-domain-passport` (covers normalized `.tez` names, multi-label owner
   fallback, canonical resolved routes, unresolved names, KT1 rejection, and
   unchanged My Tezos state)
-- `maxis` (covers the default all-lane Maxis overview, full-width launcher composition and chip containment across desktop/tablet/mobile geometry, room-aware protocol-season selector, Maxis/Season/Passport/Champions views, scoped load failures and finalization phases, career-plus-season address progression, Champion/rank receipts, and Ledger Flow handoff)
+- `maxis` (covers the default all-lane Maxis overview, all ten launcher crown
+  holders, complete Season pulse, fixed-height-tail regression at the
+  430-pixel wide-phone breakpoint, full-width desktop/tablet/mobile containment,
+  room-aware protocol-season selector, Maxis/Season/Passport/Champions views,
+  scoped load failures and finalization phases, career-plus-season address
+  progression, Champion/rank receipts, and Ledger Flow handoff)
 - `ecosystem-activity` (covers last-completed-week ranking, the explicitly
   partial current-week pulse, L1/L2 and category filters, complete app
   directory, historical range controls, app proofbooks, quiet refresh, direct
@@ -1323,7 +1332,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v531`, including hero search, theme
+- Current aligned shell cache stamp: `v532`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

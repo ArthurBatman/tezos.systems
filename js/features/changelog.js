@@ -5,8 +5,15 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-07-30',
+        entries: [
+            { type: '🔧', text: 'On phones, the Soon or New uptime milestone now reveals its details on the first tap and opens the linked Chamber on the second tap' }
+        ]
+    },
+    {
         date: '2026-07-29',
         entries: [
+            { type: '🎨', text: 'The Maxis launcher now names all ten current crown holders and their honest clocks, adds a compact protocol-season leader board on larger screens, keeps the complete Season pulse on phones, and drops its blank fixed-height tail' },
             { type: '🔧', text: 'Whale Watch, Baker Directory, and Cycle History launchers now expose their archive, observation, or oldest-source freshness instead of leaving the shared footer blank' },
             { type: '🔧', text: 'The mainnet milestone attractor now says Soon with a lighter dashed outline while approaching, then New with a stronger solid outline after the threshold is crossed' },
             { type: '✨', text: 'Live Pulse now offers one deliberately scarce daily Curio from protocol anniversaries, a 30-day baker-address rewind, or mainnet age, while yielding completely when eight stronger signals are present' },
