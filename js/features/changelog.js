@@ -7,6 +7,7 @@ const CHANGELOG = [
     {
         date: '2026-07-29',
         entries: [
+            { type: '🔧', text: 'Whale Watch, Baker Directory, and Cycle History launchers now expose their archive, observation, or oldest-source freshness instead of leaving the shared footer blank' },
             { type: '🔧', text: 'The mainnet milestone attractor now says Soon with a lighter dashed outline while approaching, then New with a stronger solid outline after the threshold is crossed' },
             { type: '✨', text: 'Live Pulse now offers one deliberately scarce daily Curio from protocol anniversaries, a 30-day baker-address rewind, or mainnet age, while yielding completely when eight stronger signals are present' },
             { type: '✨', text: 'Live Pulse now marks evidence-backed account connections such as Your stake, Your baker, Your position, Your collection, and Your .tez name, with a small bounded relevance lift while quiet cards remain unpromoted' },

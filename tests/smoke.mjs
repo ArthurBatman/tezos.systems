@@ -3807,6 +3807,14 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
   }
   await assertChamberControlGeometry(page, label);
   await assertChamberInfoTooltipsContained(page, label);
+  await page.waitForFunction(() => [
+    'whale-watch-entry-card',
+    'baker-directory-entry-card',
+    'cycle-history-entry-card'
+  ].every((id) => {
+    const label = document.getElementById(id)?.dataset.updatedLabel?.trim() || '';
+    return label && !/refreshing/i.test(label);
+  }), null, { timeout: 15000 });
 
   const state = await page.evaluate(() => {
     const rect = (node) => {
@@ -3870,6 +3878,16 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
   assert(viewport.width >= 760 ? state.metricColumns === 2 : state.metricColumns >= 1, `${label}: unexpected live vote metric columns: ${state.metricColumns}`);
   assert(!state.tezlinkTitleClip, `${label}: Tezos X title should remain inside the card: ${JSON.stringify({ card: state.tezlinkCardBox, label: state.tezlinkLabelBox })}`);
   assert(state.footers.length >= 6 && state.footers.every((footer) => footer.updatedLabel === footer.footerText && footer.hasOpenCue), `${label}: chamber footer rail should own freshness and open cue on every card: ${JSON.stringify(state.footers)}`);
+  const requiredFreshness = state.footers.filter(({ id }) => [
+    'whale-watch-entry-card',
+    'baker-directory-entry-card',
+    'cycle-history-entry-card'
+  ].includes(id));
+  assert(
+    requiredFreshness.length === 3
+      && requiredFreshness.every(({ updatedLabel, footerText }) => updatedLabel && updatedLabel === footerText && !/refreshing/i.test(updatedLabel)),
+    `${label}: promoted data-bearing Chambers must resolve semantic non-empty launcher freshness ${JSON.stringify(requiredFreshness)}`
+  );
   assert(state.titles.length === EXPECTED_CHAMBER_ORDER.length, `${label}: expected a normalized title for every Chamber card: ${JSON.stringify(state.titles)}`);
   const referenceTitle = state.titles.find((title) => title.id === 'network-health') || state.titles[0];
   assert(state.titles.every((title) => title.title && title.surfaceWired === '1' && title.cueTag === 'BUTTON'), `${label}: every Chamber must expose the shared card surface and native Open action: ${JSON.stringify(state.titles)}`);
@@ -16501,7 +16519,9 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
       postCutoff: readRow(postCutoff),
       footer: document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent || '',
       observed: document.querySelector('#baker-directory-modal .baker-directory-receipt small')?.textContent?.trim() || '',
-      setCopy: document.querySelector('#baker-directory-panel .baker-directory-section-heading')?.textContent || ''
+      setCopy: document.querySelector('#baker-directory-panel .baker-directory-section-heading')?.textContent || '',
+      launcherFreshness: document.querySelector('#baker-directory-entry-card')?.dataset.updatedLabel || '',
+      launcherFooter: document.querySelector('#baker-directory-entry-card .chamber-entry-freshness')?.textContent?.trim() || ''
     };
   }, { og: SAMPLE_ADDRESS, veteran: SAMPLE_ADDRESS_2, postCutoff: SAMPLE_ADDRESS_3 });
 
@@ -16512,6 +16532,8 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
   assert(signalState.veteran.badges.some((badge) => badge.kind === 'veteran' && /Veteran · 2021/.test(badge.text)), `Baker Directory: end-of-2021 Veteran cutoff missing ${JSON.stringify(signalState.veteran)}`);
   assert(!signalState.postCutoff.badges.some((badge) => ['og', 'veteran'].includes(badge.kind)), `Baker Directory: post-cutoff baker received a tenure marker ${JSON.stringify(signalState.postCutoff)}`);
   assert(/^Observed TzKT · /.test(signalState.observed), `Baker Directory: source-aware observation stamp missing ${JSON.stringify(signalState)}`);
+  assert(/^(?:TzKT observed|Cached TzKT) · /.test(signalState.launcherFreshness)
+    && signalState.launcherFreshness === signalState.launcherFooter, `Baker Directory: launcher observation freshness missing ${JSON.stringify(signalState)}`);
   assert(/Complete funded set/.test(signalState.setCopy) && /governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer), `Baker Directory: set or source receipt copy drifted ${JSON.stringify(signalState)}`);
 
   await page.evaluate((address) => {
@@ -16854,6 +16876,15 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   assert(/6h schedule/.test(sourceStripText) && /window .* → .* UTC/.test(sourceStripText), `Whale Watch: exact archived window and generator cadence missing: ${sourceStripText}`);
   const launcherText = await page.locator('#whale-watch-entry-card').innerText();
   assert(/Largest · archive/i.test(launcherText) && !/Largest · 24H/i.test(launcherText), `Whale Watch: launcher largest-transfer label must name the archive: ${launcherText}`);
+  const whaleLauncherFreshness = await page.evaluate(() => ({
+    label: document.querySelector('#whale-watch-entry-card')?.dataset.updatedLabel || '',
+    footer: document.querySelector('#whale-watch-entry-card .chamber-entry-freshness')?.textContent?.trim() || ''
+  }));
+  assert(
+    /^Archive generated .+ · 6h schedule$/.test(whaleLauncherFreshness.label)
+      && whaleLauncherFreshness.label === whaleLauncherFreshness.footer,
+    `Whale Watch: launcher archive freshness missing ${JSON.stringify(whaleLauncherFreshness)}`
+  );
   const overviewText = await page.locator('#whale-watch-panel-overview').innerText();
   assert(/3/.test(overviewText) && /2 operation groups/.test(overviewText), `Whale Watch: complete operation/group counts missing: ${overviewText}`);
   assert(/Gross observed legs/i.test(overviewText) && /not economic volume/i.test(overviewText), `Whale Watch: observed-leg semantics missing: ${overviewText}`);
@@ -17008,13 +17039,17 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
     return {
       sameRow: row === window.__whaleWatchValidAwakening,
       text: row?.textContent?.replace(/\s+/g, ' ').trim() || '',
-      freshness: document.querySelector('#whale-watch-freshness')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+      freshness: document.querySelector('#whale-watch-freshness')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      launcherFreshness: document.querySelector('#whale-watch-entry-card')?.dataset.updatedLabel || '',
+      launcherFooter: document.querySelector('#whale-watch-entry-card .chamber-entry-freshness')?.textContent?.trim() || ''
     };
   });
   assert(
     mismatchedDormancyState.sameRow
       && mismatchedDormancyState.text === awakeningBeforeMismatch
       && /last-good retained.*refresh failed/i.test(mismatchedDormancyState.freshness)
+      && /^Last-good archive · .+ · refresh failed · 6h schedule$/.test(mismatchedDormancyState.launcherFreshness)
+      && mismatchedDormancyState.launcherFreshness === mismatchedDormancyState.launcherFooter
       && !/1,900 days|5 years/i.test(mismatchedDormancyState.text),
     `Whale Watch: browser validation accepted a dormantDays value that disagreed with its prior/current receipt timestamps ${JSON.stringify(mismatchedDormancyState)}`
   );
@@ -17181,7 +17216,9 @@ async function smokeCycleHistoryChamber(browser, baseUrl) {
       chartCount: modal?.querySelectorAll('[data-history-metric]').length || 0,
       sourceLedgers: modal?.querySelectorAll('.cycle-history-system-strip span').length || 0,
       sourceCadences: Array.from(modal?.querySelectorAll('.cycle-history-source-head span') || []).map((item) => item.textContent?.trim() || ''),
-      sourceCoverage: Array.from(modal?.querySelectorAll('.cycle-history-source-coverage') || []).map((item) => item.textContent?.trim() || '')
+      sourceCoverage: Array.from(modal?.querySelectorAll('.cycle-history-source-coverage') || []).map((item) => item.textContent?.trim() || ''),
+      launcherFreshness: document.querySelector('#cycle-history-entry-card')?.dataset.updatedLabel || '',
+      launcherFooter: document.querySelector('#cycle-history-entry-card .chamber-entry-freshness')?.textContent?.trim() || ''
     };
   });
   assert(directState.range === '24h' && directState.metric === 'price' && directState.select === 'price' && directState.focusedCurrent === 'true', `Cycle History: direct range/metric state failed ${JSON.stringify(directState)}`);
@@ -17189,6 +17226,11 @@ async function smokeCycleHistoryChamber(browser, baseUrl) {
   assert(directState.sourceCadences.includes('Scheduled every 2h')
     && directState.sourceCadences.filter((label) => label === 'Scheduled every 30m').length === 4
     && directState.sourceCoverage.some((label) => /observed median ~/.test(label)), `Cycle History: scheduled and observed cadence truth missing ${JSON.stringify(directState)}`);
+  assert(
+    /^History · oldest source \w+(?: · refresh delayed)?$/.test(directState.launcherFreshness)
+      && directState.launcherFreshness === directState.launcherFooter,
+    `Cycle History: launcher oldest-source freshness missing ${JSON.stringify(directState)}`
+  );
 
   await page.locator('.history-controls .time-range-btn[data-range="7d"]').click();
   await page.waitForFunction(() => document.querySelector('#history-modal')?.dataset.historyRange === '7d' && document.querySelector('#history-modal')?.getAttribute('aria-busy') !== 'true', null, { timeout: 15000 });

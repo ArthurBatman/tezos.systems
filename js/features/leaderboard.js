@@ -29,7 +29,7 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v6';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4, 5].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=529';
+const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=530';
 const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
 const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
@@ -1478,6 +1478,17 @@ function formattedObservedAt() {
     return `Observed ${formatFreshnessStamp(parsed, { source: 'TzKT' })}`;
 }
 
+function bakerDirectoryEntryFreshnessLabel() {
+    const parsed = Date.parse(leaderboardDataQuality.observedAt || '');
+    if (!Number.isFinite(parsed)) return 'TzKT freshness unavailable';
+    const source = leaderboardDataQuality.status === 'live'
+        ? 'TzKT observed'
+        : leaderboardDataQuality.status === 'cached'
+            ? 'Cached TzKT'
+            : 'Last-good TzKT';
+    return formatFreshnessStamp(parsed, { source });
+}
+
 function bakerDirectorySummary() {
     const active = bakersData.length;
     const open = bakersData.filter(({ openDelegationRoom }) => openDelegationRoom).length;
@@ -2077,6 +2088,10 @@ function updateBakerDirectoryEntryCard({ quiet = false } = {}) {
     else front.innerHTML = html;
     front.dataset.bakerDirectoryEntryRendered = '1';
     const card = front.closest('.baker-directory-entry-card');
+    if (card) {
+        card.dataset.updatedLabel = bakerDirectoryEntryFreshnessLabel();
+        card.classList.toggle('chamber-data-stale', leaderboardDataQuality.status === 'stale');
+    }
     window.syncChamberEntryFooters?.(card);
     wireBakerDirectoryEntryCard(card);
 }
@@ -2090,6 +2105,7 @@ export function ensureBakerDirectoryEntryCard() {
     card.id = 'baker-directory-entry-card';
     card.className = 'stat-card chamber-entry-card chamber-entry-wide chamber-entry-live baker-directory-entry-card';
     card.dataset.chamberEntrySize = 'wide';
+    card.dataset.updatedLabel = 'TzKT · refreshing';
     card.innerHTML = `
         <button class="card-copy-link" type="button" data-copy-hash="#leaderboard" aria-label="Copy Baker Directory direct link" title="Copy Baker Directory link">&#128279;</button>
         <div class="card-inner"><div class="card-front chamber-entry-front baker-directory-entry-front" id="baker-directory-entry-front">
@@ -2151,6 +2167,12 @@ export async function refreshBakerDirectoryChamber({ quiet = true, includeGovern
             updateBakerDirectoryEntryCard({ quiet: true });
             if (overlayOpen) renderBakerDirectoryChamber({ quiet: true });
             return bakersData;
+        }
+        const card = document.getElementById('baker-directory-entry-card');
+        if (card) {
+            card.dataset.updatedLabel = 'TzKT freshness unavailable';
+            card.classList.add('chamber-data-stale');
+            window.syncChamberEntryFooters?.(card);
         }
         if (overlayOpen && body) renderBakerDirectoryError(body, error);
         return [];

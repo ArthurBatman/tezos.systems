@@ -241,6 +241,11 @@ let cycleHistorySavedBodyOverflow = null;
 let cycleHistorySavedHtmlOverflow = null;
 let cycleHistoryFocusedBeforeOpen = null;
 let cycleHistoryOpenedFromEntryCard = false;
+let cycleHistoryEntryFreshnessRows = [];
+let cycleHistoryEntryFreshnessPromise = null;
+let cycleHistoryEntryFreshnessDeferred = false;
+let cycleHistoryEntryFreshnessWired = false;
+let cycleHistoryPendingFreshnessRows = null;
 
 function destroyChartInstance(canvasId) {
     if (chartInstances[canvasId]) {
@@ -271,6 +276,124 @@ function formatAgeLabel(ageMs) {
     if (hours < 48) return `${hours}h`;
     const days = Math.round(hours / 24);
     return `${days}d`;
+}
+
+function mergeCycleHistoryEntryFreshness(rows) {
+    const previous = new Map(cycleHistoryEntryFreshnessRows.map((row) => [row.table, row]));
+    const incoming = new Map((Array.isArray(rows) ? rows : []).map((row) => [row.table, row]));
+    return Object.keys(FRESHNESS_LABELS).map((table) => {
+        const next = incoming.get(table);
+        if (Number.isFinite(Date.parse(next?.timestamp || ''))) {
+            return { ...next, retained: false };
+        }
+        const lastGood = previous.get(table);
+        if (Number.isFinite(Date.parse(lastGood?.timestamp || ''))) {
+            return {
+                ...lastGood,
+                ok: false,
+                retained: true,
+                error: next?.error || 'Freshness refresh delayed'
+            };
+        }
+        return next || {
+            table,
+            timestamp: null,
+            ageMs: null,
+            limitMs: 0,
+            ok: false,
+            error: 'Freshness unavailable'
+        };
+    });
+}
+
+function cycleHistoryEntryFreshnessPresentation(rows = cycleHistoryEntryFreshnessRows) {
+    const now = Date.now();
+    const available = rows
+        .map((row) => ({
+            ...row,
+            timestampMs: Date.parse(row?.timestamp || '')
+        }))
+        .filter((row) => Number.isFinite(row.timestampMs));
+    if (!available.length) {
+        return { label: 'History freshness unavailable', stale: true };
+    }
+
+    const oldest = available.reduce((candidate, row) => (
+        row.timestampMs < candidate.timestampMs ? row : candidate
+    ));
+    const oldestAge = Math.max(0, now - oldest.timestampMs);
+    const missing = Object.keys(FRESHNESS_LABELS).length - available.length;
+    const delayed = rows.some((row) => row?.retained || row?.error);
+    const stale = delayed || missing > 0 || available.some((row) => (
+        Number.isFinite(Number(row.limitMs))
+        && Number(row.limitMs) > 0
+        && now - row.timestampMs > Number(row.limitMs)
+    ));
+    const label = missing > 0
+        ? `History · ${available.length}/${Object.keys(FRESHNESS_LABELS).length} sources · oldest ${formatAgeLabel(oldestAge)}`
+        : `History · oldest source ${formatAgeLabel(oldestAge)}${delayed ? ' · refresh delayed' : ''}`;
+    return { label, stale };
+}
+
+function updateCycleHistoryEntryFreshness(rows, { allowHidden = false } = {}) {
+    if (!allowHidden && document.visibilityState !== 'visible') {
+        cycleHistoryPendingFreshnessRows = rows;
+        cycleHistoryEntryFreshnessDeferred = true;
+        return;
+    }
+    cycleHistoryEntryFreshnessRows = mergeCycleHistoryEntryFreshness(rows);
+    cycleHistoryPendingFreshnessRows = null;
+    cycleHistoryEntryFreshnessDeferred = false;
+    const card = document.getElementById('cycle-history-entry-card');
+    if (!card) return;
+    const presentation = cycleHistoryEntryFreshnessPresentation();
+    card.dataset.updatedLabel = presentation.label;
+    card.classList.toggle('chamber-data-stale', presentation.stale);
+    window.syncChamberEntryFooters?.(card);
+}
+
+function refreshCycleHistoryEntryFreshness() {
+    if (document.visibilityState !== 'visible') {
+        cycleHistoryEntryFreshnessDeferred = true;
+        return Promise.resolve(cycleHistoryEntryFreshnessRows);
+    }
+    if (cycleHistoryEntryFreshnessPromise) return cycleHistoryEntryFreshnessPromise;
+    cycleHistoryEntryFreshnessPromise = fetchSupabaseHistoryFreshness()
+        .then((rows) => {
+            updateCycleHistoryEntryFreshness(rows);
+            return rows;
+        })
+        .catch((error) => {
+            debugLog(`Cycle History launcher freshness unavailable: ${error?.message || error}`);
+            updateCycleHistoryEntryFreshness([]);
+            return cycleHistoryEntryFreshnessRows;
+        })
+        .finally(() => {
+            cycleHistoryEntryFreshnessPromise = null;
+        });
+    return cycleHistoryEntryFreshnessPromise;
+}
+
+function scheduleCycleHistoryEntryFreshness() {
+    if (cycleHistoryEntryFreshnessWired) return;
+    cycleHistoryEntryFreshnessWired = true;
+    const load = () => {
+        if (document.visibilityState === 'visible') refreshCycleHistoryEntryFreshness();
+        else cycleHistoryEntryFreshnessDeferred = true;
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(load, { timeout: 2200 });
+    } else {
+        window.setTimeout(load, 0);
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || !cycleHistoryEntryFreshnessDeferred) return;
+        if (cycleHistoryPendingFreshnessRows) {
+            updateCycleHistoryEntryFreshness(cycleHistoryPendingFreshnessRows, { allowHidden: true });
+            return;
+        }
+        refreshCycleHistoryEntryFreshness();
+    });
 }
 
 function escapeAttr(value) {
@@ -1732,6 +1855,7 @@ function ensureCycleHistoryEntryCard() {
         card.id = 'cycle-history-entry-card';
         card.className = 'stat-card chamber-entry-card cycle-history-entry-card chamber-entry-adoption';
         card.dataset.chamberEntrySize = 'compact';
+        card.dataset.updatedLabel = 'History · refreshing';
         card.innerHTML = `
             <button class="card-copy-link" type="button" data-copy-hash="#history" aria-label="Copy Cycle History Chamber direct link" title="Copy Cycle History Chamber link">&#128279;</button>
             <div class="card-tooltip">
@@ -1875,6 +1999,7 @@ export function initCycleHistoryChamber() {
     ensureCycleHistoryStyles();
     decorateCycleHistoryChamber(modal);
     ensureCycleHistoryEntryCard();
+    scheduleCycleHistoryEntryFreshness();
     window.openCycleHistoryChamber = openCycleHistoryChamber;
     window.closeCycleHistoryChamber = closeCycleHistoryChamber;
     if (modal.dataset.cycleHistoryWired === '1') return true;
@@ -1942,6 +2067,7 @@ async function updateHistoryCharts(range) {
             fetchChamberHistoricalDataReceipts(normalizedRange),
             fetchSupabaseHistoryFreshness()
         ]);
+        updateCycleHistoryEntryFreshness(freshness);
         if (
             requestId !== cycleHistoryRequestId
             || !modal?.classList.contains('active')

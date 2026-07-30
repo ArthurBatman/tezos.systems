@@ -8412,7 +8412,9 @@ async function checkPromotedChamberContracts() {
     'current TzKT alias receipts',
     'does not infer exchange ownership or beneficial control',
     'Observed holdings',
-    'Holding before'
+    'Holding before',
+    'Archive generated ${ageLabel(lastArtifact.generatedAt)}',
+    'Archive freshness unavailable'
   ]) {
     if (!whale.includes(snippet)) fail(`Whale Watch quiet/truth contract missing: ${snippet}`);
   }
@@ -8460,7 +8462,9 @@ async function checkPromotedChamberContracts() {
     "if (searchInput) searchInput.value = ''",
     'leaveBakerDirectoryRoute',
     "findChamberLauncher('#baker-directory-entry-card')",
-    'bakerDirectoryFocusedBeforeOpen'
+    'bakerDirectoryFocusedBeforeOpen',
+    'bakerDirectoryEntryFreshnessLabel',
+    'TzKT freshness unavailable'
   ]) {
     if (!leaderboard.includes(snippet)) fail(`Baker Directory complete-set/quiet/truth contract missing: ${snippet}`);
   }
@@ -8523,9 +8527,16 @@ async function checkPromotedChamberContracts() {
     'focusCycleHistoryMetric',
     'openCycleHistoryChamber',
     'closeCycleHistoryChamber',
-    'uncaptured intervals are never invented'
+    'uncaptured intervals are never invented',
+    'scheduleCycleHistoryEntryFreshness',
+    "document.visibilityState !== 'visible'",
+    'cycleHistoryPendingFreshnessRows',
+    'History · oldest source'
   ]) {
     if (!history.includes(snippet)) fail(`Cycle History route/focus contract missing: ${snippet}`);
+  }
+  for (const id of ['whale-watch-entry-card', 'baker-directory-entry-card', 'cycle-history-entry-card']) {
+    if (!smoke.includes(`'${id}'`)) fail(`promoted Chamber semantic freshness smoke is missing ${id}`);
   }
   for (const selector of ['.cycle-history-entry-card', '.cycle-history-chamber', '.cycle-history-route-controls', '.chart-section.is-route-focus']) {
     if (!historyCss.includes(selector)) fail(`Cycle History CSS is missing ${selector}`);

@@ -696,8 +696,14 @@ export function updateWhaleWatchEntry({ quiet = false } = {}) {
     else front.innerHTML = entryMarkup();
     front.dataset.whaleWatchRendered = '1';
     const card = document.getElementById('whale-watch-entry-card');
-    card?.removeAttribute('data-updated-label');
-    if (artifactError && lastArtifact && card) card.dataset.updatedLabel = `Last good ${ageLabel(lastArtifact.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
+    if (card) {
+        card.dataset.updatedLabel = lastArtifact
+            ? artifactError
+                ? `Last-good archive · ${ageLabel(lastArtifact.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
+                : `Archive generated ${ageLabel(lastArtifact.generatedAt)} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
+            : 'Archive freshness unavailable';
+        card.classList.toggle('chamber-data-stale', Boolean(artifactError) || !lastArtifact);
+    }
     window.syncChamberEntryFooters?.(card);
     wireEntry(card);
 }
