@@ -4596,6 +4596,14 @@ async function smokeAppShell(browser, baseUrl) {
 
 async function smokeReleaseUpdateDock(browser, baseUrl) {
   const issues = [];
+  const versionResponse = await fetch(`${baseUrl}/version.json`);
+  assert(versionResponse.ok, `release update dock: version metadata failed with HTTP ${versionResponse.status}`);
+  const version = await versionResponse.json();
+  const latestChange = typeof version?.latestChange === 'string'
+    ? version.latestChange.replace(/\s+/g, ' ').trim().slice(0, 280)
+    : '';
+  assert(latestChange, 'release update dock: version metadata is missing latestChange');
+  const expectedHydratedDetail = `Latest: ${latestChange}`;
 
   for (const testCase of [
     {
@@ -4734,7 +4742,10 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
         onLater: () => { window.__releaseUpdateLater += 1; }
       });
     });
-    await page.waitForFunction(() => document.querySelector('.release-update-detail')?.textContent?.startsWith('Latest: New site builds now arrive through a bottom-center red System Transmission'));
+    await page.waitForFunction(
+      expected => document.querySelector('.release-update-detail')?.textContent === expected,
+      expectedHydratedDetail
+    );
     const bootstrapContext = await page.evaluate(() => ({
       detail: document.querySelector('.release-update-detail')?.textContent || '',
       meta: document.querySelector('.release-update-transmission-meta')?.textContent || ''
@@ -4914,7 +4925,7 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     };
   });
   assert(waitingState.action === 'Update & reload'
-    && waitingState.detail.startsWith('Latest: New site builds now arrive through a bottom-center red System Transmission')
+    && waitingState.detail === expectedHydratedDetail
     && /System transmission · incoming/i.test(waitingState.transmission)
     && waitingState.waiting === 'installed', `release update lifecycle: waiting worker did not produce the release transmission with current change context ${JSON.stringify(waitingState)}`);
 
