@@ -34,7 +34,7 @@ import {
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
 
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=533';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=534';
 
 const RUNTIME_QUICK_CHIPS = [
     { label: 'KT1', value: 'KT1' },
@@ -354,7 +354,7 @@ function accountActions(address, account = null, { group = 'Account actions', do
             kind: 'chamber',
             group,
             title: `Open ${domain ? label : 'account'} in Ledger Flow`,
-            detail: 'Map sent, received, and first-funding transfer paths',
+            detail: 'Map bounded sent and received tez paths with receipt context',
             badge: 'flow',
             action: 'hash',
             value: `#ledger-flow=${encodeURIComponent(address)}`
@@ -392,7 +392,7 @@ function contractActions(address, account = null) {
             kind: 'chamber',
             group: 'Contract actions',
             title: 'Open in Ledger Flow',
-            detail: 'Map sent, received, and first-funding transfer paths',
+            detail: 'Map bounded sent and received tez paths with receipt context',
             badge: 'flow',
             action: 'hash',
             value: `#ledger-flow=${encodeURIComponent(address)}`

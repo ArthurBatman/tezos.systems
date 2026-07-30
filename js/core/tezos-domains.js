@@ -3,7 +3,7 @@ const TEZOS_DOMAINS_TIMEOUT_MS = 10_000;
 const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
 const TEZOS_ADDRESS_RE = /^(?:tz[1-4]|KT1)[1-9A-HJ-NP-Za-km-z]{33}$/;
 
-function isTezosAddress(value) {
+export function isTezosAddress(value) {
     return TEZOS_ADDRESS_RE.test(String(value || '').trim());
 }
 
@@ -17,12 +17,39 @@ export function normalizeTezDomainName(value) {
     return isTezDomainName(name) ? name : '';
 }
 
-export async function resolveTezDomainAddress(value) {
+function callerAbortError(signal) {
+    if (signal?.reason instanceof Error) return signal.reason;
+    if (typeof DOMException === 'function') {
+        return new DOMException('The operation was aborted.', 'AbortError');
+    }
+    const error = new Error('The operation was aborted.');
+    error.name = 'AbortError';
+    return error;
+}
+
+/**
+ * Resolve a Tezos Domains record without losing whether the selected account
+ * came from the forward address or the domain owner fallback.
+ *
+ * @param {string} value
+ * @param {{ signal?: AbortSignal }} options
+ * @returns {Promise<{
+ *   name: string,
+ *   address: string|null,
+ *   owner: string|null,
+ *   resolvedAddress: string|null,
+ *   source: 'address'|'owner'|null
+ * }|null>}
+ */
+export async function resolveTezDomainRecord(value, { signal } = {}) {
     const name = normalizeTezDomainName(value);
     if (!name) return null;
+    if (signal?.aborted) throw callerAbortError(signal);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), TEZOS_DOMAINS_TIMEOUT_MS);
+    const abortFromCaller = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', abortFromCaller, { once: true });
     try {
         const response = await fetch(TEZOS_DOMAINS_ENDPOINT, {
             method: 'POST',
@@ -42,12 +69,29 @@ export async function resolveTezDomainAddress(value) {
             throw new Error('Tezos Domains could not complete the lookup');
         }
 
-        const domain = payload?.data?.domain || {};
-        return [domain.address, domain.owner].find(isTezosAddress) || null;
+        const domain = payload?.data?.domain;
+        if (!domain) return null;
+        const address = isTezosAddress(domain.address) ? domain.address : null;
+        const owner = isTezosAddress(domain.owner) ? domain.owner : null;
+        const resolvedAddress = [domain.address, domain.owner].find(isTezosAddress) || null;
+        return {
+            name,
+            address,
+            owner,
+            resolvedAddress,
+            source: address ? 'address' : owner ? 'owner' : null
+        };
     } catch (error) {
+        if (signal?.aborted) throw callerAbortError(signal);
         if (controller.signal.aborted) throw new Error('Tezos Domains lookup timed out');
         throw error;
     } finally {
         clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', abortFromCaller);
     }
+}
+
+export async function resolveTezDomainAddress(value, options = {}) {
+    const record = await resolveTezDomainRecord(value, options);
+    return record?.resolvedAddress || null;
 }

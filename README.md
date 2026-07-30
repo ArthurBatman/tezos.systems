@@ -605,12 +605,21 @@ inline modal styles in `js/core/app.js`.
   telemetry, network-load, and Consensus Lens panels.
 - Ledger Flow Chamber with direct `#ledger-flow` and `/ledger-flow/` access,
   plus address-scoped hashes such as `#ledger-flow=tz1...`. It resolves tz/KT
-  accounts and `.tez` names including subdomains, queries TzKT account
-  transaction history with complete cursor pagination for the selected window, and
-  renders an SVG transfer diagram with separate sent, received, and first-in
-  colors, amount-weighted connection strength, My Tezos account links, and
-  compact TzKT pills. Address-scoped My Tezos links close the profile drawer
-  before handing focus and scroll ownership to the Ledger Flow Chamber.
+  accounts and `.tez` names including subdomains, while explicitly identifying
+  a Tezos Domains owner-wallet fallback. It freezes one observation boundary,
+  counts matching applied tez transaction rows first, then loads an exact
+  window up to 20,000 rows or a clearly qualified 10,000-largest-row sample.
+  Superseded, closed, and timed-out reads are aborted; a failed refresh keeps
+  the last-good account, controls, focus, selection, and chamber scroll mounted.
+  Per-transfer thresholds, fetch time, last matching transfer, tez-only scope,
+  contract origination, and first inbound transaction are labelled separately
+  as all-time account context.
+  Desktop uses amount-weighted sent/received paths with receipt-safe directional
+  “Other” roll-ups and overlap-proof geometry; phones use a readable HTML flow
+  list instead of shrinking the SVG. The cold empty state reuses the validated
+  Whale Watch artifact for a live starting account without inventing identity.
+  Address-scoped My Tezos links close the profile drawer before handing focus
+  and scroll ownership to the Ledger Flow Chamber.
 - Tezos Domains Chamber with direct `#domains` and `/domains/` access, backed by
   the Tezos Domains GraphQL API. Its default Chambers card is a full-width
   bottom strip, not paired with any other chamber, and its chamber lookup checks
@@ -1332,7 +1341,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v533`, including hero search, theme
+- Current aligned shell cache stamp: `v534`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.

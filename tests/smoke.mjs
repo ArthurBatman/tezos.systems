@@ -124,7 +124,6 @@ const SAMPLE_ETHERLINK_ADDRESS = '0x1111111111111111111111111111111111111111';
 const SAMPLE_LEDGER_ORIGIN = 'tz1LedgerOrigin1111111111111111111111';
 const SAMPLE_LEDGER_MARKET = 'tz1LedgerMarket1111111111111111111111';
 const SAMPLE_LEDGER_SMALL = 'tz1LedgerSmall11111111111111111111111';
-const SAMPLE_LEDGER_PAGED = 'tz1LedgerPaged11111111111111111111111';
 const SAMPLE_DELEGATOR_ADDRESS = 'tz1iJP1EtP9iSkmaEKCZznDMst91oJGB9SZ5';
 const SAMPLE_REGULAR_DELEGATOR_ADDRESS = 'tz1iKT2pvdbEHuVC3zugnJfVoQZbbyUzgToW';
 const SAMPLE_SMALL_DELEGATOR_ADDRESS = 'tz1hh3pqYnm3umz3U7zJ6xkaCmpXbnKA7aAm';
@@ -1205,42 +1204,124 @@ function sampleLedgerFlowReceivedRows() {
   ];
 }
 
-function sampleLedgerFlowFirstRow() {
-  return [{
-    id: 8801,
-    hash: 'opLedgerFirstFunding111111111111111111111111111',
-    level: 458753,
-    timestamp: '2019-05-30T00:00:00Z',
-    amount: 1000000,
-    status: 'applied',
-    sender: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Genesis Fund' },
-    target: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
-  }];
+function sampleLedgerFlowContractRows() {
+  return [
+    {
+      id: 9302,
+      hash: 'opLedgerContractSent1111111111111111111111111111',
+      level: 12345650,
+      timestamp: new Date(Date.now() - 45 * 60000).toISOString(),
+      amount: 300000000,
+      status: 'applied',
+      sender: { address: SAMPLE_CONTRACT, alias: 'Smoke Contract' },
+      target: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
+    },
+    {
+      id: 9301,
+      hash: 'opLedgerContractReceived111111111111111111111111',
+      level: 12345600,
+      timestamp: new Date(Date.now() - 80 * 60000).toISOString(),
+      amount: 800000000,
+      status: 'applied',
+      sender: { address: SAMPLE_ADDRESS_2, alias: 'First Contract Buyer' },
+      target: { address: SAMPLE_CONTRACT, alias: 'Smoke Contract' }
+    }
+  ];
 }
 
-function sampleLedgerFlowPagedSentRows(cursor = '') {
-  if (cursor) {
-    return [{
-      id: 7000,
-      hash: 'opLedgerPagedHistory11111111111111111111111111',
-      level: 12000000,
-      timestamp: '2024-01-15T00:00:00Z',
-      amount: 125000000,
+let ledgerFlowSampleRows;
+
+function sampleLedgerFlowLargestRows() {
+  if (ledgerFlowSampleRows) return ledgerFlowSampleRows;
+  const counterparties = [
+    { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
+    { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' },
+    { address: SAMPLE_LEDGER_MARKET, alias: 'Smoke Market' }
+  ];
+  ledgerFlowSampleRows = Array.from({ length: 10000 }, (_, index) => {
+    const counterparty = counterparties[index % counterparties.length];
+    const received = index % 2 === 0;
+    return {
+      id: 50000 - index,
+      hash: `opLedgerLargestSample${String(index).padStart(5, '0')}111111111111111111`,
+      level: 12350000 - index,
+      timestamp: new Date(Date.now() - (index + 1) * 1000).toISOString(),
+      amount: 50000000000 - index * 1000000,
+      status: 'applied',
+      sender: received ? counterparty : { address: SAMPLE_IDLE_ADDRESS, alias: 'Idle Account' },
+      target: received ? { address: SAMPLE_IDLE_ADDRESS, alias: 'Idle Account' } : counterparty
+    };
+  });
+  return ledgerFlowSampleRows;
+}
+
+function sampleLedgerFlowRows(address) {
+  if (address === SAMPLE_ADDRESS) {
+    return [...sampleLedgerFlowSentRows(), ...sampleLedgerFlowReceivedRows()]
+      .sort((left, right) => right.id - left.id);
+  }
+  if (address === SAMPLE_CONTRACT) return sampleLedgerFlowContractRows();
+  if (address === SAMPLE_IDLE_ADDRESS) return sampleLedgerFlowLargestRows();
+  return [];
+}
+
+function sampleLedgerFlowFilteredRows(address, params) {
+  const minimum = Number(params.get('amount.ge') || 0);
+  return sampleLedgerFlowRows(address).filter((row) => Number(row.amount || 0) >= minimum);
+}
+
+function sampleLedgerFlowCount(address, params) {
+  if (address === SAMPLE_IDLE_ADDRESS) return 20001;
+  return sampleLedgerFlowFilteredRows(address, params).length;
+}
+
+function sampleLedgerFlowFirstRow(address) {
+  const fixture = {
+    [SAMPLE_ADDRESS]: {
+      id: 8801,
+      hash: 'opLedgerFirstFunding111111111111111111111111111',
+      level: 458753,
+      timestamp: '2019-05-30T00:00:00Z',
+      amount: 1000000,
+      status: 'applied',
+      sender: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Genesis Fund' },
+      target: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
+    },
+    [SAMPLE_CONTRACT]: {
+      id: 8802,
+      hash: 'opLedgerContractFirstInbound111111111111111111111',
+      level: 12000010,
+      timestamp: '2025-01-03T00:00:00Z',
+      amount: 800000000,
+      status: 'applied',
+      sender: { address: SAMPLE_ADDRESS_2, alias: 'First Contract Buyer' },
+      target: { address: SAMPLE_CONTRACT, alias: 'Smoke Contract' }
+    },
+    [SAMPLE_IDLE_ADDRESS]: {
+      id: 8803,
+      hash: 'opLedgerSampleFirstInbound11111111111111111111111',
+      level: 12000100,
+      timestamp: '2026-06-01T00:00:00Z',
+      amount: 1000000,
       status: 'applied',
       sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
-      target: { address: SAMPLE_LEDGER_PAGED, alias: 'Paged History' }
-    }];
-  }
-  return Array.from({ length: 2000 }, (_, index) => ({
-    id: 9000 - index,
-    hash: `opLedgerPage${String(index).padStart(4, '0')}111111111111111111111111111`,
-    level: 12340000 - index,
-    timestamp: new Date(Date.now() - (index + 1) * 60000).toISOString(),
-    amount: 1000000,
-    status: 'applied',
-    sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
-    target: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' }
-  }));
+      target: { address: SAMPLE_IDLE_ADDRESS, alias: 'Idle Account' }
+    }
+  }[address];
+  return fixture ? [fixture] : [];
+}
+
+function sampleLedgerFlowOriginationRow(address) {
+  if (address !== SAMPLE_CONTRACT) return [];
+  return [{
+    id: 7701,
+    level: 11999900,
+    timestamp: '2025-01-02T03:04:05Z',
+    sender: { address: SAMPLE_LEDGER_ORIGIN, alias: 'Smoke Contract Originator' },
+    originatedContract: { address: SAMPLE_CONTRACT, alias: 'Smoke Contract' },
+    contractBalance: 7500000000,
+    status: 'applied'
+  }];
 }
 
 function createStakingChamberFixture() {
@@ -1352,12 +1433,16 @@ async function installFeatureMocks(context, options = {}) {
   const historyStakerAddresses = new Set(options.historyStakerAddresses || []);
   const archivePrimaryFailure = Boolean(options.archivePrimaryFailure);
   const whaleChamberMocks = Boolean(options.whaleChamberMocks);
+  const ledgerFlowMocks = Boolean(options.ledgerFlowMocks);
   const bakerPageOffsets = [];
   let whaleLiveRequests = 0;
   let whaleFailureLane = '';
   let whaleDormancyMismatch = false;
   let bakerGovernanceFailure = '';
   const whaleCursorRequests = [];
+  const ledgerFlowRequests = [];
+  let ledgerFlowFailureTarget = '';
+  let ledgerFlowDelayTarget = '';
   const signalBakers = leaderboardSignals
     ? sampleBakers.map((baker, index) => ({
         ...baker,
@@ -2744,6 +2829,75 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/operations/transactions?') && (url.includes(`target=${ETHERLINK_SLOW_CONTRACT}`) || url.includes(`target=${ETHERLINK_SEQUENCER_CONTRACT}`))) {
         return fulfillJson(route, []);
       }
+      if (ledgerFlowMocks && parsedUrl.pathname.endsWith('/operations/transactions/count')) {
+        const txParams = parsedUrl.searchParams;
+        const target = txParams.get('anyof.sender.target') || '';
+        ledgerFlowRequests.push({
+          kind: 'count',
+          target,
+          limit: 0,
+          sort: '',
+          cursor: '',
+          url
+        });
+        if (target === ledgerFlowDelayTarget) await sleep(900);
+        if (target === ledgerFlowFailureTarget) {
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: '{"error":"smoke Ledger Flow count unavailable"}'
+          });
+        }
+        return fulfillJson(route, sampleLedgerFlowCount(target, txParams));
+      }
+      if (ledgerFlowMocks && parsedUrl.pathname.endsWith('/operations/originations')) {
+        const target = parsedUrl.searchParams.get('originatedContract') || '';
+        ledgerFlowRequests.push({
+          kind: 'origination',
+          target,
+          limit: Number(parsedUrl.searchParams.get('limit') || 0),
+          sort: parsedUrl.searchParams.get('sort.asc') || '',
+          cursor: '',
+          url
+        });
+        return fulfillJson(route, sampleLedgerFlowOriginationRow(target));
+      }
+      if (ledgerFlowMocks && parsedUrl.pathname.endsWith('/operations/transactions')) {
+        const txParams = parsedUrl.searchParams;
+        const target = txParams.get('anyof.sender.target') || '';
+        if (target) {
+          const sort = txParams.get('sort.desc') || '';
+          const cursor = txParams.get('id.lt') || '';
+          const limit = Number(txParams.get('limit') || 0);
+          ledgerFlowRequests.push({ kind: 'transfers', target, limit, sort, cursor, url });
+          if (target === ledgerFlowDelayTarget) await sleep(900);
+          if (target === ledgerFlowFailureTarget) {
+            return route.fulfill({
+              status: 503,
+              contentType: 'application/json',
+              body: '{"error":"smoke Ledger Flow rows unavailable"}'
+            });
+          }
+          let rows = sampleLedgerFlowFilteredRows(target, txParams);
+          if (cursor) rows = rows.filter((row) => Number(row.id) < Number(cursor));
+          rows.sort((left, right) => sort === 'amount'
+            ? Number(right.amount) - Number(left.amount)
+            : Number(right.id) - Number(left.id));
+          return fulfillJson(route, rows.slice(0, limit || rows.length));
+        }
+        const firstInboundTarget = txParams.get('target') || '';
+        if (firstInboundTarget && txParams.get('sort.asc') === 'id') {
+          ledgerFlowRequests.push({
+            kind: 'first-inbound',
+            target: firstInboundTarget,
+            limit: Number(txParams.get('limit') || 0),
+            sort: 'id',
+            cursor: '',
+            url
+          });
+          return fulfillJson(route, sampleLedgerFlowFirstRow(firstInboundTarget));
+        }
+      }
       if (url.includes('/operations/transactions?')) {
         const txParams = parsedUrl.searchParams;
         if (whaleChamberMocks && txParams.has('amount.ge')) {
@@ -2768,23 +2922,6 @@ async function installFeatureMocks(context, options = {}) {
             }]);
           }
           return fulfillJson(route, whaleLiveInitialRows);
-        }
-        const isLedgerFlowSender = txParams.get('sender') === SAMPLE_ADDRESS;
-        const isLedgerFlowTarget = txParams.get('target') === SAMPLE_ADDRESS;
-        const isSpecializedTxQuery = txParams.has('targetCodeHash.in')
-          || txParams.has('target.in')
-          || txParams.get('target') === ETHERLINK_FAST_CONTRACT
-          || txParams.get('target') === ETHERLINK_SLOW_CONTRACT
-          || txParams.get('target') === ETHERLINK_SEQUENCER_CONTRACT;
-        if (!isSpecializedTxQuery && isLedgerFlowSender) {
-          if (!txParams.has('timestamp.gt')) {
-            return fulfillJson(route, sampleLedgerFlowPagedSentRows(txParams.get('id.lt') || ''));
-          }
-          return fulfillJson(route, sampleLedgerFlowSentRows());
-        }
-        if (!isSpecializedTxQuery && isLedgerFlowTarget) {
-          if (txParams.get('sort.asc') === 'level') return fulfillJson(route, sampleLedgerFlowFirstRow());
-          return fulfillJson(route, sampleLedgerFlowReceivedRows());
         }
       }
       if (url.includes('/operations/transactions/count')) return fulfillJson(route, 12345);
@@ -3275,7 +3412,10 @@ async function installFeatureMocks(context, options = {}) {
     bakerPageOffsets,
     failBakerGovernance(lane = '') { bakerGovernanceFailure = lane; },
     failWhaleLane(lane = '') { whaleFailureLane = lane; },
+    failLedgerFlowTarget(target = '') { ledgerFlowFailureTarget = target; },
+    delayLedgerFlowTarget(target = '') { ledgerFlowDelayTarget = target; },
     mismatchWhaleDormancy(on = true) { whaleDormancyMismatch = Boolean(on); },
+    get ledgerFlowRequests() { return ledgerFlowRequests.map((entry) => ({ ...entry })); },
     get whaleCursorRequests() { return whaleCursorRequests.map((entry) => ({ ...entry })); },
     get whaleLiveRequests() { return whaleLiveRequests; }
   };
@@ -12319,12 +12459,14 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
   });
-  await installFeatureMocks(context);
+  const mockState = await installFeatureMocks(context, { ledgerFlowMocks: true });
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-ledger-flow-window', '30d');
+    localStorage.setItem('tezos-systems-ledger-flow-threshold-index', '0');
   });
   const page = await context.newPage();
   attachIssueCollectors(page, 'ledger flow chamber', issues);
@@ -12333,128 +12475,229 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
   assert(response?.ok(), `ledger flow chamber: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#ledger-flow-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#ledger-flow-modal.active .ledger-flow-content').waitFor({ state: 'visible', timeout: 15000 });
-  await page.waitForFunction(() => document.querySelector('#ledger-flow-modal .ledger-flow-svg'), null, { timeout: 15000 });
+  await page.waitForFunction(() => (
+    document.querySelector('#ledger-flow-modal .ledger-flow-body')?.dataset.ledgerFlowMode === 'exact'
+  ), null, { timeout: 15000 });
 
-    const state = await page.evaluate(() => {
-      const modal = document.querySelector('#ledger-flow-modal');
-      const svg = modal?.querySelector('.ledger-flow-svg');
-      const edgeWidths = Array.from(modal?.querySelectorAll('.ledger-flow-edge') || [])
-        .map((edge) => Number(edge.getAttribute('stroke-width') || 0))
-        .filter((value) => Number.isFinite(value) && value > 0);
-      const rect = svg?.getBoundingClientRect();
-      const detailText = modal?.querySelector('#ledger-flow-detail-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '';
-      const nodeBoxFitFailures = Array.from(svg?.querySelectorAll('.ledger-flow-node') || []).flatMap((node) => {
-        const box = node.querySelector('.ledger-flow-node-profile-link rect');
-        const width = Number(box?.getAttribute('width') || 0);
-        return Array.from(node.querySelectorAll('.ledger-flow-node-title, .ledger-flow-node-sub'))
-          .filter((text) => {
-            try {
-              return width > 0 && text.getComputedTextLength() > width - 24;
-            } catch {
-              return false;
-            }
-          })
-          .map((text) => `${text.textContent}:${text.getComputedTextLength().toFixed(1)}/${width}`);
-      });
-      return {
-        title: modal?.querySelector('.chamber-title')?.textContent?.trim() || '',
-        info: modal?.querySelector('.chamber-proposal-info')?.textContent?.trim() || '',
-        stats: modal?.querySelector('.ledger-flow-stats')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-        detail: detailText,
-        counterparties: modal?.querySelector('.ledger-flow-counterparty-list')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-        sentEdges: modal?.querySelectorAll('.ledger-flow-edge-sent').length || 0,
-        receivedEdges: modal?.querySelectorAll('.ledger-flow-edge-received').length || 0,
-        firstEdges: modal?.querySelectorAll('.ledger-flow-edge-first').length || 0,
-        edgeWidths,
-        minWidth: Math.min(...edgeWidths),
-        maxWidth: Math.max(...edgeWidths),
-        nodeProfileLinks: modal?.querySelectorAll('.ledger-flow-node-profile-link[href^="#my-baker="]').length || 0,
-        nodeTzktLinks: modal?.querySelectorAll('.ledger-flow-node-tzkt-link[href^="https://tzkt.io/"]').length || 0,
-        rowMyTezosLinks: modal?.querySelectorAll('.ledger-flow-counterparty-list .ledger-flow-my-tezos-link[href^="#my-baker="]').length || 0,
-        rowTzktLinks: modal?.querySelectorAll('.ledger-flow-counterparty-list .ledger-flow-tzkt-pill[href^="https://tzkt.io/"]').length || 0,
-        detailMyTezosHref: modal?.querySelector('#ledger-flow-detail-panel .ledger-flow-my-tezos-link[href^="#my-baker="]')?.getAttribute('href') || '',
-        detailTzktHref: modal?.querySelector('#ledger-flow-detail-panel .ledger-flow-tzkt-pill[href^="https://tzkt.io/"]')?.getAttribute('href') || '',
-        legacyOpenOnTzkt: /Open on TzKT/i.test(detailText),
-        nodeBoxFitFailures,
-        directHref: modal?.querySelector('a[href="/ledger-flow/"]')?.getAttribute('href') || '',
-        svgWidth: rect?.width || 0,
-        svgHeight: rect?.height || 0,
+  const state = await page.evaluate(() => {
+    const modal = document.querySelector('#ledger-flow-modal');
+    const svg = modal?.querySelector('.ledger-flow-svg');
+    const edgeWidths = Array.from(modal?.querySelectorAll('.ledger-flow-edge') || [])
+      .map((edge) => Number(edge.getAttribute('stroke-width') || 0))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const rect = svg?.getBoundingClientRect();
+    const detailText = modal?.querySelector('#ledger-flow-detail-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    const nodeBoxFitFailures = Array.from(svg?.querySelectorAll('.ledger-flow-node') || []).flatMap((node) => {
+      const box = node.querySelector('rect');
+      const width = Number(box?.getAttribute('width') || 0);
+      return Array.from(node.querySelectorAll('.ledger-flow-node-title, .ledger-flow-node-sub'))
+        .filter((text) => {
+          try {
+            return width > 0 && text.getComputedTextLength() > width - 24;
+          } catch {
+            return false;
+          }
+        })
+        .map((text) => `${text.textContent}:${text.getComputedTextLength().toFixed(1)}/${width}`);
+    });
+    return {
+      title: modal?.querySelector('.chamber-title')?.textContent?.trim() || '',
+      info: modal?.querySelector('.chamber-proposal-info')?.textContent?.trim() || '',
+      stats: modal?.querySelector('.ledger-flow-stats')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      coverage: modal?.querySelector('.ledger-flow-coverage')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      scope: modal?.querySelector('.ledger-flow-scope')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      detail: detailText,
+      counterparties: modal?.querySelector('.ledger-flow-counterparty-list')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      sentEdges: modal?.querySelectorAll('.ledger-flow-edge-sent').length || 0,
+      receivedEdges: modal?.querySelectorAll('.ledger-flow-edge-received').length || 0,
+      firstEdges: modal?.querySelectorAll('.ledger-flow-edge-first').length || 0,
+      edgeWidths,
+      minWidth: Math.min(...edgeWidths),
+      maxWidth: Math.max(...edgeWidths),
+      rowMyTezosLinks: modal?.querySelectorAll('.ledger-flow-counterparty-list .ledger-flow-my-tezos-link[href^="#my-baker="]').length || 0,
+      rowTzktLinks: modal?.querySelectorAll('.ledger-flow-counterparty-list .ledger-flow-tzkt-pill[href^="https://tzkt.io/"]').length || 0,
+      detailMyTezosHref: modal?.querySelector('#ledger-flow-detail-panel .ledger-flow-my-tezos-link[href^="#my-baker="]')?.getAttribute('href') || '',
+      detailTzktHref: modal?.querySelector('#ledger-flow-detail-panel .ledger-flow-tzkt-pill[href^="https://tzkt.io/"]')?.getAttribute('href') || '',
+      nodeBoxFitFailures,
+      directHref: modal?.querySelector('a[href="/ledger-flow/"]')?.getAttribute('href') || '',
+      svgWidth: rect?.width || 0,
+      svgHeight: rect?.height || 0,
       horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
     };
   });
   assert(state.title === 'Ledger Flow', `ledger flow chamber: title mismatch ${state.title}`);
   assert(/QA Baker/.test(state.info) && /30D/.test(state.info), `ledger flow chamber: account context missing ${state.info}`);
-  assert(/Received/.test(state.stats) && /Sent/.test(state.stats) && /First in/.test(state.stats), `ledger flow chamber: summary stats missing ${state.stats}`);
-  assert(/First funded by/.test(state.detail) && /Genesis Fund/.test(state.detail), `ledger flow chamber: first-funding detail missing ${state.detail}`);
+  assert(/Received/.test(state.stats) && /Sent/.test(state.stats) && /First value/.test(state.stats), `ledger flow chamber: summary stats missing ${state.stats}`);
+  assert(/Exact observed window/.test(state.coverage) && /All 6 matching/.test(state.coverage), `ledger flow chamber: exact coverage missing ${state.coverage}`);
+  assert(/applied tez transaction rows only/i.test(state.scope) && /Token transfers/.test(state.scope), `ledger flow chamber: scope disclosure missing ${state.scope}`);
+  assert(/First inbound from/.test(state.detail) && /Genesis Fund/.test(state.detail), `ledger flow chamber: first-inbound detail missing ${state.detail}`);
   assert(/Second Baker/.test(state.counterparties) && /Smoke Market/.test(state.counterparties) && /Dust Tester/.test(state.counterparties), `ledger flow chamber: counterparty list incomplete ${state.counterparties}`);
   assert(state.sentEdges >= 2, `ledger flow chamber: sent edges missing ${state.sentEdges}`);
   assert(state.receivedEdges >= 2, `ledger flow chamber: received edges missing ${state.receivedEdges}`);
-    assert(state.firstEdges === 1, `ledger flow chamber: first-funding edge mismatch ${state.firstEdges}`);
-    assert(state.maxWidth - state.minWidth >= 1.5, `ledger flow chamber: edge widths should reflect amount scale ${state.edgeWidths.join(', ')}`);
-    assert(state.nodeBoxFitFailures.length === 0, `ledger flow chamber: node text overflows boxes ${state.nodeBoxFitFailures.join(', ')}`);
-    assert(state.nodeProfileLinks >= 3 && state.nodeTzktLinks >= 3, `ledger flow chamber: diagram nodes missing My Tezos/TzKT links ${JSON.stringify(state)}`);
-    assert(state.rowMyTezosLinks >= 6 && state.rowTzktLinks >= 3, `ledger flow chamber: counterparty rows missing My Tezos/TzKT links ${JSON.stringify(state)}`);
-    assert(state.detailMyTezosHref.startsWith('#my-baker=') && state.detailTzktHref.includes('tzkt.io/'), `ledger flow chamber: selected path missing compact account links ${JSON.stringify(state)}`);
-    assert(!state.legacyOpenOnTzkt, `ledger flow chamber: legacy selected-path TzKT link still visible ${state.detail}`);
-    assert(state.directHref === '/ledger-flow/', `ledger flow chamber: direct route link missing ${state.directHref}`);
-    assert(state.svgWidth > 500 && state.svgHeight > 250, `ledger flow chamber: diagram dimensions too small ${state.svgWidth}x${state.svgHeight}`);
+  assert(state.firstEdges === 1, `ledger flow chamber: first-value edge mismatch ${state.firstEdges}`);
+  assert(state.maxWidth - state.minWidth >= 1.5, `ledger flow chamber: edge widths should reflect amount scale ${state.edgeWidths.join(', ')}`);
+  assert(state.nodeBoxFitFailures.length === 0, `ledger flow chamber: node text overflows boxes ${state.nodeBoxFitFailures.join(', ')}`);
+  assert(state.rowMyTezosLinks >= 3 && state.rowTzktLinks >= 3, `ledger flow chamber: counterparty rows missing account links ${JSON.stringify(state)}`);
+  assert(state.detailMyTezosHref.startsWith('#my-baker=') && state.detailTzktHref.includes('tzkt.io/'), `ledger flow chamber: selected path missing account links ${JSON.stringify(state)}`);
+  assert(state.directHref === '/ledger-flow/', `ledger flow chamber: direct route link missing ${state.directHref}`);
+  assert(state.svgWidth > 500 && state.svgHeight > 250, `ledger flow chamber: diagram dimensions too small ${state.svgWidth}x${state.svgHeight}`);
   assert(state.horizontalOverflow <= 1, `ledger flow chamber: horizontal overflow ${state.horizontalOverflow}`);
 
-  await page.locator('[data-ledger-window="all"]').click();
-  await page.waitForFunction(() => /Paged History/.test(document.querySelector('.ledger-flow-counterparty-list')?.textContent || ''), null, { timeout: 10000 });
-  const pagedState = await page.evaluate(() => ({
-    context: document.querySelector('#ledger-flow-modal .chamber-proposal-info')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    counterparties: document.querySelector('.ledger-flow-counterparty-list')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    requestReady: document.querySelector('#ledger-flow-modal .ledger-flow-body')?.dataset.ledgerFlowModel || ''
-  }));
-  assert(/ALL/.test(pagedState.context), `ledger flow chamber: all-time context missing ${JSON.stringify(pagedState)}`);
-  assert(/Paged History/.test(pagedState.counterparties) && /125\.0/.test(pagedState.counterparties), `ledger flow chamber: paginated all-time row missing ${JSON.stringify(pagedState)}`);
-  assert(pagedState.requestReady === 'ready', `ledger flow chamber: paginated all-time model did not settle ${JSON.stringify(pagedState)}`);
+  const initialExactRequests = mockState.ledgerFlowRequests.filter((entry) => entry.target === SAMPLE_ADDRESS);
+  const exactCountRequests = initialExactRequests.filter((entry) => entry.kind === 'count');
+  const exactTransferRequests = initialExactRequests.filter((entry) => entry.kind === 'transfers');
+  assert(exactCountRequests.length === 1, `ledger flow chamber: exact mode did not count first ${JSON.stringify(initialExactRequests)}`);
+  assert(exactTransferRequests.length === 1, `ledger flow chamber: exact mode exceeded its bounded transfer request ${JSON.stringify(initialExactRequests)}`);
+  assert(initialExactRequests.indexOf(exactCountRequests[0]) < initialExactRequests.indexOf(exactTransferRequests[0]), `ledger flow chamber: exact rows started before the count ${JSON.stringify(initialExactRequests)}`);
+  const exactTransferUrl = new URL(exactTransferRequests[0].url);
+  assert(exactTransferUrl.searchParams.get('anyof.sender.target') === SAMPLE_ADDRESS, `ledger flow chamber: unified direction filter missing ${exactTransferRequests[0].url}`);
+  assert(!exactTransferUrl.searchParams.has('sender') && !exactTransferUrl.searchParams.has('target'), `ledger flow chamber: exact request split direction filters ${exactTransferRequests[0].url}`);
+  assert(exactTransferRequests[0].limit === 6 && exactTransferRequests[0].sort === 'id', `ledger flow chamber: exact request was not count-bounded ${JSON.stringify(exactTransferRequests)}`);
 
-  await page.locator('.ledger-flow-counterparty-row[data-ledger-edge$=":sent"]').first().click();
+  await page.locator('.ledger-flow-row-select[data-ledger-edge$=":sent"]').first().click();
   const sentDetail = await page.locator('#ledger-flow-detail-panel').innerText();
   assert(/Sent to/i.test(sentDetail) && /Second Baker/.test(sentDetail), `ledger flow chamber: sent edge detail mismatch ${sentDetail}`);
 
-  await page.locator('#ledger-flow-threshold').evaluate((input) => {
-    input.value = '4';
+  const sliderBefore = await page.locator('#ledger-flow-threshold').evaluate((input) => {
+    const content = input.closest('.ledger-flow-content');
+    content.scrollTop = Math.min(260, Math.max(0, content.scrollHeight - content.clientHeight));
+    input.focus();
+    window.__ledgerFlowThresholdNode = input;
+    window.__ledgerFlowScrollTop = content.scrollTop;
+    input.value = '1';
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    return {
+      scrollTop: content.scrollTop,
+      maxScroll: content.scrollHeight - content.clientHeight
+    };
   });
   await page.waitForFunction(() => {
-    const text = document.querySelector('.ledger-flow-counterparty-list')?.textContent || '';
-    return !/Dust Tester/.test(text);
+    return document.querySelector('#ledger-flow-threshold-label')?.textContent === '1 XTZ';
   }, null, { timeout: 5000 });
-  const filteredState = await page.evaluate(() => ({
-    threshold: document.querySelector('#ledger-flow-threshold-label')?.textContent || '',
-    counterparties: document.querySelector('.ledger-flow-counterparty-list')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    firstEdges: document.querySelectorAll('.ledger-flow-edge-first').length
+  const sliderPreviewState = await page.evaluate(() => {
+    const input = document.querySelector('#ledger-flow-threshold');
+    const content = input?.closest('.ledger-flow-content');
+    return {
+      identity: input === window.__ledgerFlowThresholdNode,
+      focused: document.activeElement === input,
+      scrollTop: content?.scrollTop || 0,
+      coverage: document.querySelector('.ledger-flow-coverage')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(sliderPreviewState.identity && sliderPreviewState.focused, `ledger flow chamber: quiet slider preview replaced/focused away from its control ${JSON.stringify(sliderPreviewState)}`);
+  assert(Math.abs(sliderPreviewState.scrollTop - sliderBefore.scrollTop) <= 2, `ledger flow chamber: slider preview moved modal scroll ${JSON.stringify({ sliderBefore, sliderPreviewState })}`);
+  assert(/Local filter preview/.test(sliderPreviewState.coverage), `ledger flow chamber: slider preview did not qualify local filtering ${sliderPreviewState.coverage}`);
+
+  await page.locator('#ledger-flow-threshold').evaluate((input) => {
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForFunction(() => {
+    const coverage = document.querySelector('.ledger-flow-coverage');
+    return coverage?.classList.contains('is-exact')
+      && /1 XTZ or more per transfer/.test(coverage.textContent || '');
+  }, null, { timeout: 10000 });
+  const sliderSettledState = await page.evaluate(() => {
+    const input = document.querySelector('#ledger-flow-threshold');
+    const content = input?.closest('.ledger-flow-content');
+    return {
+      identity: input === window.__ledgerFlowThresholdNode,
+      focused: document.activeElement === input,
+      scrollTop: content?.scrollTop || 0,
+      threshold: document.querySelector('#ledger-flow-threshold-label')?.textContent || ''
+    };
+  });
+  assert(sliderSettledState.identity && sliderSettledState.focused, `ledger flow chamber: settled threshold reload replaced/focused away from its control ${JSON.stringify(sliderSettledState)}`);
+  assert(Math.abs(sliderSettledState.scrollTop - sliderBefore.scrollTop) <= 2, `ledger flow chamber: settled threshold reload moved modal scroll ${JSON.stringify({ sliderBefore, sliderSettledState })}`);
+  assert(sliderSettledState.threshold === '1 XTZ', `ledger flow chamber: threshold label mismatch ${sliderSettledState.threshold}`);
+
+  mockState.failLedgerFlowTarget(SAMPLE_ADDRESS_2);
+  await page.locator('#ledger-flow-input').fill(SAMPLE_ADDRESS_2);
+  await page.locator('#ledger-flow-search-form button[type="submit"]').click();
+  await page.waitForFunction(() => /still showing the last-good/i.test(document.querySelector('#ledger-flow-load-status')?.textContent || ''), null, { timeout: 10000 });
+  const lastGoodState = await page.evaluate(() => ({
+    info: document.querySelector('#ledger-flow-modal .chamber-proposal-info')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    mode: document.querySelector('#ledger-flow-modal .ledger-flow-body')?.dataset.ledgerFlowMode || '',
+    status: document.querySelector('#ledger-flow-load-status')?.textContent?.replace(/\s+/g, ' ').trim() || ''
   }));
-    assert(filteredState.threshold === '1K XTZ', `ledger flow chamber: threshold label mismatch ${filteredState.threshold}`);
-    assert(!/Dust Tester/.test(filteredState.counterparties), `ledger flow chamber: minimum amount did not hide small counterparty ${filteredState.counterparties}`);
-    assert(/Genesis Fund/.test(filteredState.counterparties) && filteredState.firstEdges === 1, `ledger flow chamber: first funding should remain visible under threshold ${JSON.stringify(filteredState)}`);
+  assert(/QA Baker/.test(lastGoodState.info) && lastGoodState.mode === 'exact', `ledger flow chamber: failed load displaced last-good view ${JSON.stringify(lastGoodState)}`);
+  assert(/Could not load/.test(lastGoodState.status), `ledger flow chamber: failed load did not explain last-good retention ${lastGoodState.status}`);
+  const expectedFailureIssue = issues.findIndex((issue) => /Ledger Flow failed/.test(issue) && /503/.test(issue));
+  if (expectedFailureIssue >= 0) issues.splice(expectedFailureIssue, 1);
+  mockState.failLedgerFlowTarget('');
 
-    const secondBakerLedgerHref = `#my-baker=${encodeURIComponent(SAMPLE_ADDRESS_2)}`;
-    await page.locator(`.ledger-flow-node-profile-link[href="${secondBakerLedgerHref}"]`).first().click();
-    await page.waitForFunction(() => (
-      !document.querySelector('#ledger-flow-modal')?.classList.contains('active')
-        && document.querySelector('#my-tezos-drawer')?.classList.contains('open')
-    ), null, { timeout: 10000 });
-    const linkedDrawerState = await page.evaluate(() => ({
-      hash: window.location.hash,
-      stored: localStorage.getItem('tezos-systems-my-baker-address') || '',
-      input: document.querySelector('#my-baker-input')?.value || ''
-    }));
-    assert(linkedDrawerState.hash === secondBakerLedgerHref, `ledger flow chamber: diagram account link did not route to My Tezos ${JSON.stringify(linkedDrawerState)}`);
-    assert(linkedDrawerState.stored === SAMPLE_ADDRESS_2, `ledger flow chamber: diagram account link did not save My Tezos target ${JSON.stringify(linkedDrawerState)}`);
-    await page.locator('#drawer-close').click();
-    await page.waitForFunction(() => !document.querySelector('#my-tezos-drawer')?.classList.contains('open'), null, { timeout: 5000 });
+  await page.locator('#ledger-flow-input').fill(SAMPLE_IDLE_ADDRESS);
+  await page.locator('#ledger-flow-search-form button[type="submit"]').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#ledger-flow-modal .ledger-flow-body')?.dataset.ledgerFlowMode === 'sample'
+  ), null, { timeout: 20000 });
+  const sampleState = await page.evaluate(() => ({
+    coverage: document.querySelector('.ledger-flow-coverage')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    stats: document.querySelector('.ledger-flow-stats')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    detail: document.querySelector('#ledger-flow-detail-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    badge: document.querySelector('#ledger-flow-modal .chamber-badge')?.textContent?.trim() || '',
+    counterpartyTitle: document.querySelector('.ledger-flow-counterparties .lb-panel-title')?.textContent?.trim() || ''
+  }));
+  assert(/Largest-row sample/.test(sampleState.coverage) && /10,000 largest/.test(sampleState.coverage) && /20,001/.test(sampleState.coverage), `ledger flow chamber: sample coverage is not explicit ${JSON.stringify(sampleState)}`);
+  assert(/Received sample/.test(sampleState.stats) && /Sent sample/.test(sampleState.stats) && /Counterparties in sample/.test(sampleState.stats), `ledger flow chamber: sample stats lack qualifiers ${sampleState.stats}`);
+  assert(/Sample amount/.test(sampleState.detail) && /Largest-row sample/.test(sampleState.detail), `ledger flow chamber: sample detail lacks qualifiers ${sampleState.detail}`);
+  assert(sampleState.badge === 'Sample' && sampleState.counterpartyTitle === 'Counterparties in Sample', `ledger flow chamber: sample surface labels mismatch ${JSON.stringify(sampleState)}`);
 
-    await page.locator('#hero-search-input').fill('ledger flow');
-  await page.waitForFunction(() => /Ledger Flow/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
+  const sampleRequests = mockState.ledgerFlowRequests.filter((entry) => entry.target === SAMPLE_IDLE_ADDRESS);
+  const sampleCountRequests = sampleRequests.filter((entry) => entry.kind === 'count');
+  const sampleTransferRequests = sampleRequests.filter((entry) => entry.kind === 'transfers');
+  assert(sampleCountRequests.length === 1, `ledger flow chamber: sample mode did not count first ${JSON.stringify(sampleRequests)}`);
+  assert(sampleTransferRequests.length === 1, `ledger flow chamber: sample mode exceeded one bounded row request ${JSON.stringify(sampleRequests)}`);
+  assert(sampleRequests.indexOf(sampleCountRequests[0]) < sampleRequests.indexOf(sampleTransferRequests[0]), `ledger flow chamber: sample rows started before the count ${JSON.stringify(sampleRequests)}`);
+  assert(sampleTransferRequests[0].limit === 10000 && sampleTransferRequests[0].sort === 'amount' && !sampleTransferRequests[0].cursor, `ledger flow chamber: sample request is not a largest-row bound ${JSON.stringify(sampleTransferRequests)}`);
 
-  const routeResponse = await page.goto(`${baseUrl}/ledger-flow/`, { waitUntil: 'domcontentloaded' });
-  assert(routeResponse?.ok(), `ledger flow route: pretty route failed with HTTP ${routeResponse?.status()}`);
-  await page.waitForFunction(() => window.location.pathname === '/ledger-flow/' && window.location.hash === '', null, { timeout: 7000 });
-  await page.locator('#ledger-flow-modal.active .ledger-flow-content').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#ledger-flow-input').fill(SAMPLE_CONTRACT);
+  await page.locator('#ledger-flow-search-form button[type="submit"]').click();
+  await page.waitForFunction(() => {
+    const body = document.querySelector('#ledger-flow-modal .ledger-flow-body');
+    return body?.dataset.ledgerFlowMode === 'exact'
+      && /Smoke Contract/.test(document.querySelector('#ledger-flow-modal .chamber-proposal-info')?.textContent || '');
+  }, null, { timeout: 15000 });
+  const originState = await page.evaluate(() => ({
+    origin: document.querySelector('.ledger-flow-origin-context')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    detail: document.querySelector('#ledger-flow-detail-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    originRequests: document.querySelectorAll('.ledger-flow-origin-row').length
+  }));
+  assert(/Origination/.test(originState.origin) && /Smoke Contract Originator/.test(originState.origin) && /7\.5K XTZ/.test(originState.origin), `ledger flow chamber: funded origination missing ${originState.origin}`);
+  assert(/First inbound transaction/.test(originState.origin) && /First Contract Buyer/.test(originState.origin), `ledger flow chamber: first inbound was not kept distinct from origination ${originState.origin}`);
+  assert(/Funded at origination by/.test(originState.detail) && /Smoke Contract Originator/.test(originState.detail), `ledger flow chamber: first-value path did not prefer funded origination ${originState.detail}`);
+  assert(mockState.ledgerFlowRequests.filter((entry) => entry.kind === 'origination' && entry.target === SAMPLE_CONTRACT).length === 1, `ledger flow chamber: contract origin request missing ${JSON.stringify(mockState.ledgerFlowRequests)}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('.ledger-flow-mobile-map').waitFor({ state: 'visible', timeout: 5000 });
+  const mobileState = await page.evaluate(() => {
+    const modal = document.querySelector('#ledger-flow-modal');
+    const mobileMap = modal?.querySelector('.ledger-flow-mobile-map');
+    const visibleSvg = Array.from(modal?.querySelectorAll('.ledger-flow-svg') || [])
+      .filter((svg) => getComputedStyle(svg).display !== 'none' && svg.getBoundingClientRect().height > 0);
+    const controls = Array.from(modal?.querySelectorAll(
+      '.ledger-flow-search button, .ledger-flow-segmented button, .ledger-flow-path-button, .ledger-flow-row-select'
+    ) || []).filter((control) => control.getClientRects().length > 0);
+    const controlHeights = controls.map((control) => control.getBoundingClientRect().height);
+    const pathTextSizes = Array.from(modal?.querySelectorAll('.ledger-flow-path-button small, .ledger-flow-path-button strong') || [])
+      .filter((node) => node.getClientRects().length > 0)
+      .map((node) => Number.parseFloat(getComputedStyle(node).fontSize));
+    const content = modal?.querySelector('.ledger-flow-content');
+    return {
+      visibleSvg: visibleSvg.length,
+      mobileDisplay: mobileMap ? getComputedStyle(mobileMap).display : '',
+      mobileWidth: mobileMap?.getBoundingClientRect().width || 0,
+      contentWidth: content?.clientWidth || 0,
+      minimumControlHeight: Math.min(...controlHeights),
+      minimumPathTextSize: Math.min(...pathTextSizes),
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      contentOverflow: (content?.scrollWidth || 0) - (content?.clientWidth || 0)
+    };
+  });
+  assert(mobileState.visibleSvg === 0 && mobileState.mobileDisplay === 'grid', `ledger flow chamber: mobile still renders the downscaled SVG ${JSON.stringify(mobileState)}`);
+  assert(mobileState.mobileWidth > 0 && mobileState.mobileWidth <= mobileState.contentWidth + 1, `ledger flow chamber: mobile flow list does not fit its panel ${JSON.stringify(mobileState)}`);
+  assert(mobileState.minimumControlHeight >= 43.5, `ledger flow chamber: mobile controls are below 44px ${JSON.stringify(mobileState)}`);
+  assert(mobileState.minimumPathTextSize >= 12, `ledger flow chamber: mobile path text is too small ${JSON.stringify(mobileState)}`);
+  assert(mobileState.documentOverflow <= 1 && mobileState.contentOverflow <= 1, `ledger flow chamber: mobile horizontal overflow ${JSON.stringify(mobileState)}`);
 
   await context.close();
   assert(issues.length === 0, `ledger flow chamber browser issues:\n${issues.join('\n')}`);
@@ -20264,6 +20507,11 @@ async function smokeRouteFormatting(browser, baseUrl) {
         ].join(', ');
         for (const node of Array.from(document.querySelectorAll(controlSelector))) {
           if (!isVisible(node)) continue;
+          // Single-line text controls intentionally pan long wallet addresses
+          // inside their fixed box; their native inner editor reports that as
+          // clipped scroll width even when the control itself fits perfectly.
+          if (node instanceof HTMLInputElement
+            && ['text', 'search', 'url', 'email', 'tel', 'password'].includes(node.type)) continue;
           const style = window.getComputedStyle(node);
           const clipsX = ['hidden', 'clip'].includes(style.overflowX);
           const clipsY = ['hidden', 'clip'].includes(style.overflowY);

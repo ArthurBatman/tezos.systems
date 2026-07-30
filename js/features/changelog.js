@@ -7,6 +7,8 @@ export const CHANGELOG = [
     {
         date: '2026-07-30',
         entries: [
+            { type: '🔧', text: 'Ledger Flow now counts before it reads, aborts superseded work, keeps last-good views mounted, and labels exact versus largest-row samples, per-transfer filters, fetch time, origination, first-inbound receipts, and its tez-only scope' },
+            { type: '🎨', text: 'Ledger Flow now reconciles long tails into receipt-safe directional Other nodes, grows desktop maps without overlap, and replaces the unreadable phone SVG with a full-size inbound and outbound flow list' },
             { type: '🔧', text: 'On phones, the Soon or New uptime milestone now reveals its details on the first tap and opens the linked Chamber on the second tap' },
             { type: '🎨', text: 'Chamber card utility rails now use smaller camera, link, info, and chart controls with clearer space between each action' }
         ]

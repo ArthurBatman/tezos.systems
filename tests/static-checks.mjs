@@ -923,6 +923,7 @@ async function checkRequiredFiles() {
     '.github/workflows/refresh-chain-comparison.yml',
     'tests/tezoscrp-check.mjs',
     'tests/ecosystem-stats-check.mjs',
+    'tests/ledger-flow-check.mjs',
     'tests/pulse-history-check.mjs',
     'tests/personal-signal-relevance-check.mjs',
     'tests/live-pulse-curio-check.mjs',
@@ -2080,6 +2081,7 @@ async function checkSelectorContracts() {
   const tz4 = await readText('js/features/tz4-adoption.js');
   const ctez = await readText('js/features/ctez.js');
   const ledgerFlow = await readText('js/features/ledger-flow.js');
+  const ledgerFlowModel = await readText('js/features/ledger-flow-model.mjs');
   const tezosDomains = await readText('js/features/tezos-domains.js');
   const maxis = await readText('js/features/maxis.js');
   const chamberAccessibility = await readText('js/ui/chamber-accessibility.js');
@@ -2419,14 +2421,31 @@ async function checkSelectorContracts() {
     ['Ledger Flow threshold slider', 'id="ledger-flow-threshold"', ledgerFlow],
     ['Ledger Flow amount-weighted edge width', 'function edgeWidth', ledgerFlow],
     ['Ledger Flow first inbound fetch', 'async function fetchFirstInbound', ledgerFlow],
-    ['Ledger Flow TzKT sender query', 'params.sender = address', ledgerFlow],
-    ['Ledger Flow TzKT target query', 'params.target = address', ledgerFlow],
-    ['Ledger Flow complete-history cursor pagination', "params['id.lt'] = cursor", ledgerFlow],
+    ['Ledger Flow TzKT count-first request', 'transactionCountUrl(transferScope(address', ledgerFlow],
+    ['Ledger Flow unified directional query', "'anyof.sender.target': address", ledgerFlow],
+    ['Ledger Flow exact row budget', 'const EXACT_ROW_LIMIT = 20000', ledgerFlow],
+    ['Ledger Flow sampled row budget', 'const SAMPLE_ROW_LIMIT = 10000', ledgerFlow],
+    ['Ledger Flow bounded exact request count', 'Math.ceil(EXACT_ROW_LIMIT / TRANSFER_PAGE_LIMIT)', ledgerFlow],
+    ['Ledger Flow largest-row sampling', "params['sort.desc'] = 'amount'", ledgerFlow],
+    ['Ledger Flow superseded-load cancellation', "abortActiveLoad('superseded')", ledgerFlow],
+    ['Ledger Flow close cancellation', "abortActiveLoad('closed')", ledgerFlow],
+    ['Ledger Flow close invalidates pending seed work', 'openGeneration !== chamberOpenGeneration', ledgerFlow],
+    ['Ledger Flow close clears delayed threshold work', 'window.clearTimeout(thresholdReloadTimer)', ledgerFlow],
+    ['Ledger Flow last-good failure copy', 'still showing the last-good', ledgerFlow],
+    ['Ledger Flow rejects missing indexed accounts', 'TzKT does not recognize this account.', ledgerFlow],
+    ['Ledger Flow discloses excluded self transfers', 'Account-to-itself rows are excluded from path totals.', ledgerFlow],
+    ['Ledger Flow contract origination fetch', 'async function fetchOrigination', ledgerFlow],
+    ['Ledger Flow funded origination receipt', 'origination?.contractBalance', ledgerFlow],
+    ['Ledger Flow honest scope disclosure', 'applied tez transaction rows only', ledgerFlow],
+    ['Ledger Flow quiet body reconciliation', 'quietlySyncHtml(container, markup)', ledgerFlow],
+    ['Ledger Flow mobile flow list', 'ledger-flow-mobile-map', ledgerFlow],
     ['Ledger Flow projected transfer fields', 'select: TRANSFER_FIELDS', ledgerFlow],
     ['Ledger Flow My Tezos counterparty links', '#my-baker=${encodeURIComponent(address)}', ledgerFlow],
     ['Ledger Flow compact TzKT pills', 'ledger-flow-tzkt-pill', ledgerFlow],
-    ['Ledger Flow SVG TzKT node pills', 'ledger-flow-node-tzkt-link', ledgerFlow],
     ['Ledger Flow label-aware node width', 'function nodeGeometry', ledgerFlow],
+    ['Ledger Flow pure accounting model', 'export function buildLedgerFlowModel', ledgerFlowModel],
+    ['Ledger Flow dynamic layout model', 'export function layoutLedgerFlowNodes', ledgerFlowModel],
+    ['Ledger Flow directional cohort key', '`cohort:${direction}`', ledgerFlowModel],
     ['Tezos Domains feature import', 'initTezosDomainsChamber', app],
     ['Tezos Domains card copy link', 'data-copy-hash="#domains"', tezosDomains],
     ['Tezos Domains direct footer link', 'Direct: /domains/', tezosDomains],
@@ -2643,7 +2662,7 @@ async function checkSelectorContracts() {
     ['My Tezos Story Memory handoff', "registerMyTezosView('story', () => activateMyTezosMemory({ activityOnly: true }))", myTezos],
     ['My Tezos Ledger Flow link control', 'id="my-tezos-ledger-flow-link"', index],
     ['My Tezos Ledger Flow explain card', 'drawer-ledger-flow-card', index],
-    ['My Tezos Ledger Flow explain copy', 'Trace sent, received, and first-funding paths around this account.', index],
+    ['My Tezos Ledger Flow explain copy', 'Trace bounded sent and received tez paths with all-time receipt context.', index],
     ['My Tezos unified account journeys', 'Explore this account', index],
     ['My Tezos shared account journey card', '.drawer-account-journey-card', styles],
     ['My Tezos contextual journey builder', 'buildMyTezosJourneyLinks', myTezos],
@@ -5031,12 +5050,13 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
     'test:smoke:strict': 'node tests/smoke.mjs --strict-external',
-    'test:smoke:live': 'node tests/smoke.mjs --base-url https://tezos.systems'
+    'test:smoke:live': 'node tests/smoke.mjs --base-url https://tezos.systems',
+    'test:ledger-flow': 'node tests/ledger-flow-check.mjs'
   };
 
   for (const [name, command] of Object.entries(expectedScripts)) {
@@ -7245,6 +7265,9 @@ async function checkMaxisContracts() {
     ['maxis Passport Tezos Domains resolver import', 'resolveTezDomainAddress', maxis],
     ['maxis Passport .tez input affordance', 'Tezos address or .tez name for Maxi Passport', maxis],
     ['shared Tezos Domains GraphQL endpoint', 'https://api.tezos.domains/graphql', tezosDomainsCore],
+    ['shared Tezos Domains address validator export', 'export function isTezosAddress', tezosDomainsCore],
+    ['shared Tezos Domains record resolver export', 'export async function resolveTezDomainRecord', tezosDomainsCore],
+    ['shared Tezos Domains resolution provenance', "source: address ? 'address' : owner ? 'owner' : null", tezosDomainsCore],
     ['shared Tezos Domains owner fallback', '[domain.address, domain.owner].find', tezosDomainsCore],
     ['maxis Passport Career section', 'maxis-passport-career', maxis],
     ['maxis Passport This Season section', 'maxis-passport-season', maxis],
@@ -8450,6 +8473,7 @@ async function checkPromotedChamberContracts() {
   }
   for (const snippet of [
     "ARTIFACT_URL = '/data/whale-watch.json'",
+    'export function getWhaleWatchArtifact',
     "const FILTER_TYPES = new Set(['all', 'transaction', 'stake', 'unstake', 'delegation'])",
     'quietlySyncHtml(body, markup)',
     'document.visibilityState !== \'visible\'',

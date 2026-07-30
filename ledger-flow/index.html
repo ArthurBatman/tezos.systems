@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Map Tezos account transfer paths with sent, received, first-funding, and amount-weighted connections.">
+    <meta name="description" content="Map bounded Tezos account transfer paths with exact or clearly sampled coverage and all-time receipt context.">
     <meta name="keywords" content="Tezos, XTZ, Etherlink, dapp analytics, active wallets, ecosystem statistics, capital markets, market structure, real-world assets, RWA, stablecoins, DeFi, NFT analytics, art economy, blockchain, proof-of-stake, baking, staking, governance, network statistics, baker dashboard">
     <meta name="author" content="Primate">
     <title>Ledger Flow - Tezos Account Transfer Diagram | tezos.systems</title>
@@ -14,13 +14,13 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://tezos.systems/ledger-flow/">
     <meta property="og:title" content="Ledger Flow - Tezos Account Transfer Diagram">
-    <meta property="og:description" content="Map Tezos account transfer paths with sent, received, first-funding, and amount-weighted connections.">
+    <meta property="og:description" content="Map bounded Tezos account transfer paths with exact or clearly sampled coverage and all-time receipt context.">
     <meta property="og:image" content="https://tezos.systems/og/ledger-flow.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Ledger Flow - Tezos Account Transfer Diagram">
-    <meta name="twitter:description" content="Map Tezos account transfer paths with sent, received, first-funding, and amount-weighted connections.">
+    <meta name="twitter:description" content="Map bounded Tezos account transfer paths with exact or clearly sampled coverage and all-time receipt context.">
     <meta name="twitter:image" content="https://tezos.systems/og/ledger-flow.png">
     <meta name="twitter:site" content="@TezCapital">
     <link rel="alternate" type="application/rss+xml" title="Tezos Systems Governance RSS" href="https://tezos.systems/feed.xml">
@@ -51,16 +51,16 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=533">
-    <link rel="stylesheet" href="/css/loading.css?v=533">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=533">
-    <link rel="stylesheet" href="/css/site-map.css?v=533">
+    <link rel="stylesheet" href="/css/styles.min.css?v=534">
+    <link rel="stylesheet" href="/css/loading.css?v=534">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=534">
+    <link rel="stylesheet" href="/css/site-map.css?v=534">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=533">
+    <link rel="modulepreload" href="/js/core/app.js?v=534">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/data-assets.js">
@@ -100,7 +100,7 @@
     "name": "Ledger Flow",
     "headline": "Ledger Flow - Tezos Account Transfer Diagram",
     "url": "https://tezos.systems/ledger-flow/",
-    "description": "Map Tezos account transfer paths with sent, received, first-funding, and amount-weighted connections.",
+    "description": "Map bounded Tezos account transfer paths with exact or clearly sampled coverage and all-time receipt context.",
     "primaryImageOfPage": "https://tezos.systems/og/ledger-flow.png",
     "isPartOf": {
       "@type": "WebSite",
@@ -157,7 +157,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=533"></script>
+    <script src="/js/core/theme-preload.js?v=534"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -357,7 +357,7 @@
                             <div class="feature-launcher-row">
                                 <a id="ledger-flow-feature-link" href="/ledger-flow/" data-site-map-entry="ledger-flow" class="glass-button feature-launcher-item feature-launcher-link" aria-label="Open Ledger Flow account transfer paths" title="Open Ledger Flow">
                                     <span class="tezos-stats-toggle-icon" aria-hidden="true">⇄</span>
-                                    <span class="feature-launcher-text"><span class="dropdown-label">Ledger Flow</span><span class="dropdown-hint">Trace sent, received, and first-funding paths around any account.</span></span>
+                                    <span class="feature-launcher-text"><span class="dropdown-label">Ledger Flow</span><span class="dropdown-hint">Trace bounded sent and received tez paths with all-time receipt context.</span></span>
                                     <span class="feature-status feature-status-tool">Tool</span>
                                 </a>
                                 <button class="feature-copy-link" type="button" data-copy-hash="#ledger-flow" aria-label="Copy Ledger Flow link" title="Copy direct link">🔗</button>
@@ -2252,7 +2252,7 @@
               <span class="drawer-account-journey-copy">
                 <span class="drawer-account-journey-kicker">Transfer paths</span>
                 <strong>Ledger Flow</strong>
-                <small>Trace sent, received, and first-funding paths around this account.</small>
+                <small>Trace bounded sent and received tez paths with all-time receipt context.</small>
               </span>
               <span class="drawer-account-journey-arrow" aria-hidden="true">↗</span>
             </a>
@@ -2563,8 +2563,8 @@
 
     <!-- Load app as module -->
     <script defer src="/js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="/js/effects/valley-loader.js?v=533"></script>
-    <script type="module" src="/js/core/app.js?v=533"></script>
+    <script type="module" src="/js/effects/valley-loader.js?v=534"></script>
+    <script type="module" src="/js/core/app.js?v=534"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

@@ -179,7 +179,7 @@ export const CHAMBER_ROUTES = [
     hash: '#ledger-flow',
     title: 'Ledger Flow - Tezos Account Transfer Diagram',
     shortTitle: 'Ledger Flow',
-    description: 'Map Tezos account transfer paths with sent, received, first-funding, and amount-weighted connections.',
+    description: 'Map bounded Tezos account transfer paths with exact or clearly sampled coverage and all-time receipt context.',
     eyebrow: 'Account Flows',
     accent: '#4dd4ff'
   },

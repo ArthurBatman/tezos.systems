@@ -255,7 +255,7 @@ export const SITE_MAP = [
         hashAliases: ['#flow'],
         group: 'Account Rooms',
         chamberCategory: 'people',
-        detail: 'Transfer paths around any Tezos account: sent, received, and first funding',
+        detail: 'Bounded sent and received tez paths with all-time receipt context',
         keywords: ['ledger flow', 'transfers', 'account flow', 'graph', 'wallet history'],
         searchChip: { label: '/flow', order: 7 },
         sitemap: { changefreq: 'hourly', priority: '0.8' }

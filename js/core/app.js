@@ -126,8 +126,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=533';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=533';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=534';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=534';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -1622,7 +1622,7 @@ const CHAMBER_INFO_COPY = {
     },
     'ledger-flow-entry-card': {
         title: 'Ledger Flow',
-        body: 'Maps sent, received, and first-funding transfer paths around any Tezos account with amount-weighted connections.',
+        body: 'Maps bounded sent and received tez paths around any Tezos account, with exact/sample coverage and separate all-time receipt context.',
         href: '/ledger-flow/',
         link: 'Open Ledger Flow ->'
     },

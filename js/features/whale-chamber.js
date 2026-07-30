@@ -227,6 +227,10 @@ async function fetchWhaleArtifact({ force = false } = {}) {
     return artifactFetch;
 }
 
+export function getWhaleWatchArtifact(options = {}) {
+    return fetchWhaleArtifact(options);
+}
+
 function isWhaleRoute() {
     return window.location.pathname.replace(/\/+$/, '') === '/whales';
 }

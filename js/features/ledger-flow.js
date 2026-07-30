@@ -1,28 +1,39 @@
 /**
  * Ledger Flow Chamber
- * Account-level transfer diagram for sent, received, and first-funding paths.
+ * Account-level diagram for bounded tez transfers and all-time account context.
  */
 
 import { API_URLS } from '../core/config.js';
+import { fetchWithRetry } from '../core/api.js';
+import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
+import {
+    isTezDomainName,
+    isTezosAddress,
+    normalizeTezDomainName,
+    resolveTezDomainRecord
+} from '../core/tezos-domains.js';
 import { escapeHtml } from '../core/utils.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { getWhaleWatchArtifact } from './whale-chamber.js';
+import { buildLedgerFlowModel, layoutLedgerFlowNodes } from './ledger-flow-model.mjs';
 
 const TZKT = API_URLS.tzkt;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=533';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=534';
 const DEFAULT_WINDOW = '30d';
-const TRANSFER_PAGE_LIMIT = 2000;
+const TRANSFER_PAGE_LIMIT = 10000;
+const EXACT_ROW_LIMIT = 20000;
+const SAMPLE_ROW_LIMIT = 10000;
+const LOAD_TIMEOUT_MS = 20000;
 const TRANSFER_FIELDS = 'id,hash,level,timestamp,amount,sender,target';
-const MAX_VISIBLE_COUNTERPARTIES = 12;
-const TEZOS_ACCOUNT_RE = /^(tz[1-4]|KT1)[0-9A-Za-z]{33}$/;
-const TEZ_DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+tez$/i;
 const NODE_MIN_WIDTH = 188;
 const NODE_MAX_WIDTH = 252;
 const NODE_HEIGHT = 62;
 const NODE_TEXT_PAD = 30;
+const NODE_MIN_GAP = 18;
 
 const WINDOW_OPTIONS = [
     { key: '24h', label: '24H', ms: 24 * 60 * 60 * 1000 },
@@ -42,12 +53,6 @@ const THRESHOLDS = [
     { label: '100K XTZ', mutez: 100000e6 }
 ];
 
-const LEDGER_FLOW_EXAMPLES = [
-    { label: 'Tezos Foundation', target: 'tezos.tez' },
-    { label: 'OBJKT', target: 'objkt.tez' },
-    { label: 'DNS contract', target: 'dns.tez' }
-];
-
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 let activeWindow = loadStoredWindow();
@@ -56,6 +61,11 @@ let activeTarget = '';
 let activeLabel = '';
 let activeData = null;
 let renderSeq = 0;
+let activeLoad = null;
+let thresholdReloadTimer = null;
+let whaleSeed = null;
+let selectedEdgeId = '';
+let chamberOpenGeneration = 0;
 
 function ensureLedgerFlowStyles() {
     if (document.getElementById('ledger-flow-css')) return;
@@ -66,32 +76,35 @@ function ensureLedgerFlowStyles() {
     document.head.appendChild(link);
 }
 
-function loadStoredWindow() {
-    let stored = '';
+function readStorage(key) {
     try {
-        stored = localStorage.getItem(WINDOW_KEY);
+        return localStorage.getItem(key) || '';
     } catch {
-        stored = '';
+        return '';
     }
+}
+
+function writeStorage(key, value) {
+    try {
+        localStorage.setItem(key, String(value));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function loadStoredWindow() {
+    const stored = readStorage(WINDOW_KEY);
     return WINDOW_OPTIONS.some((item) => item.key === stored) ? stored : DEFAULT_WINDOW;
 }
 
 function loadStoredThresholdIndex() {
-    let stored = NaN;
-    try {
-        stored = Number(localStorage.getItem(THRESHOLD_KEY));
-    } catch {
-        stored = NaN;
-    }
+    const stored = Number(readStorage(THRESHOLD_KEY));
     return Number.isFinite(stored) && stored >= 0 && stored < THRESHOLDS.length ? stored : 0;
 }
 
 function isTezosAccount(value) {
-    return TEZOS_ACCOUNT_RE.test(String(value || '').trim());
-}
-
-function isTezDomain(value) {
-    return TEZ_DOMAIN_RE.test(String(value || '').trim());
+    return isTezosAddress(String(value || '').trim());
 }
 
 function shortAddress(address) {
@@ -158,73 +171,109 @@ function transactionUrl(params) {
     return url.toString();
 }
 
-async function fetchJson(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`TzKT request failed: ${response.status}`);
-    return response.json();
+function transactionCountUrl(params) {
+    const url = new URL(`${TZKT}/operations/transactions/count`);
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+    });
+    return url.toString();
 }
 
-async function resolveForwardDomain(name) {
-    const normalized = String(name || '').trim().toLowerCase();
-    if (!isTezDomain(normalized)) return null;
-    try {
-        const response = await fetch('https://api.tezos.domains/graphql', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query: 'query ResolveDomain($name: String!) { domain(name: $name) { address owner } }',
-                variables: { name: normalized }
-            })
-        });
-        if (!response.ok) return null;
-        const data = await response.json();
-        const domain = data?.data?.domain || {};
-        return [domain.address, domain.owner].find(isTezosAccount) || null;
-    } catch {
-        return null;
-    }
+function originationUrl(params) {
+    const url = new URL(`${TZKT}/operations/originations`);
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+    });
+    return url.toString();
 }
 
-async function resolveLedgerTarget(rawTarget) {
+async function fetchJson(url, signal) {
+    return fetchWithRetry(url, {
+        signal,
+        memoryCache: false,
+        cache: 'no-store',
+        timeoutMs: 12000
+    }, 2);
+}
+
+async function resolveLedgerTarget(rawTarget, signal) {
     const target = String(rawTarget || '').trim();
-    if (!target) return { address: '', label: '' };
-    if (isTezosAccount(target)) return { address: target, label: target };
-    if (isTezDomain(target)) {
-        const domain = target.toLowerCase();
-        const address = await resolveForwardDomain(domain);
-        return { address: address || '', label: domain };
+    if (!target) return { address: '', label: '', resolution: null };
+    if (isTezosAccount(target)) {
+        return {
+            address: target,
+            label: target,
+            resolution: { name: '', address: target, source: 'address' }
+        };
     }
-    return { address: '', label: target };
+    if (isTezDomainName(target)) {
+        const domain = normalizeTezDomainName(target);
+        const record = await resolveTezDomainRecord(domain, { signal });
+        return {
+            address: record?.resolvedAddress || record?.address || '',
+            label: domain,
+            resolution: record
+        };
+    }
+    return { address: '', label: target, resolution: null };
 }
 
-function windowTimestamp(windowKey) {
+function windowTimestamp(windowKey, until = new Date().toISOString()) {
     const option = WINDOW_OPTIONS.find((item) => item.key === windowKey) || WINDOW_OPTIONS[2];
     if (!option.ms) return null;
-    return new Date(Date.now() - option.ms).toISOString();
+    return new Date(new Date(until).getTime() - option.ms).toISOString();
 }
 
-async function fetchTransfers(address, direction, windowKey) {
-    const since = windowTimestamp(windowKey);
+function transferScope(address, boundary, thresholdMutez) {
+    const params = {
+        status: 'applied',
+        'anyof.sender.target': address,
+        'timestamp.lt': boundary.until
+    };
+    if (Number(thresholdMutez || 0) > 0) params['amount.ge'] = Number(thresholdMutez);
+    else params['amount.gt'] = 0;
+    if (boundary.since) params['timestamp.gt'] = boundary.since;
+    return params;
+}
+
+async function fetchTransferCount(address, boundary, thresholdMutez, signal) {
+    const value = await fetchJson(
+        transactionCountUrl(transferScope(address, boundary, thresholdMutez)),
+        signal
+    );
+    const count = Number(value);
+    if (!Number.isSafeInteger(count) || count < 0) {
+        throw new Error('TzKT transfer count returned an invalid value');
+    }
+    return count;
+}
+
+async function fetchTransfers(address, boundary, thresholdMutez, coverage, signal) {
     const rows = [];
     let cursor = '';
+    const rowLimit = coverage.mode === 'sample' ? SAMPLE_ROW_LIMIT : coverage.totalRows;
+    const maxRequests = coverage.mode === 'sample' ? 1 : Math.ceil(EXACT_ROW_LIMIT / TRANSFER_PAGE_LIMIT);
+    let requestCount = 0;
 
-    while (true) {
+    while (rows.length < rowLimit && requestCount < maxRequests) {
+        const remaining = rowLimit - rows.length;
         const params = {
-            status: 'applied',
-            'amount.gt': 0,
-            'sort.desc': 'id',
+            ...transferScope(address, boundary, thresholdMutez),
             select: TRANSFER_FIELDS,
-            limit: TRANSFER_PAGE_LIMIT
+            limit: Math.min(TRANSFER_PAGE_LIMIT, remaining)
         };
-        if (direction === 'sent') params.sender = address;
-        else params.target = address;
-        if (since) params['timestamp.gt'] = since;
-        if (cursor) params['id.lt'] = cursor;
+        if (coverage.mode === 'sample') {
+            params['sort.desc'] = 'amount';
+        } else {
+            params['sort.desc'] = 'id';
+            if (cursor) params['id.lt'] = cursor;
+        }
 
-        const page = await fetchJson(transactionUrl(params));
+        requestCount += 1;
+        const page = await fetchJson(transactionUrl(params), signal);
         if (!Array.isArray(page)) throw new Error('TzKT transfer history returned a non-array response');
         rows.push(...page);
-        if (page.length < TRANSFER_PAGE_LIMIT) break;
+        if (coverage.mode === 'sample' || page.length < Number(params.limit)) break;
 
         const nextCursor = String(page.at(-1)?.id || '');
         if (!/^\d+$/.test(nextCursor) || nextCursor === cursor) {
@@ -233,214 +282,46 @@ async function fetchTransfers(address, direction, windowKey) {
         cursor = nextCursor;
     }
 
+    if (rows.length < Math.min(rowLimit, coverage.totalRows)) {
+        throw new Error('TzKT transfer history ended before its observed count');
+    }
     return rows;
 }
 
-async function fetchFirstInbound(address) {
+async function fetchFirstInbound(address, signal) {
     const rows = await fetchJson(transactionUrl({
         target: address,
+        'sender.ne': address,
         status: 'applied',
         'amount.gt': 0,
-        'sort.asc': 'level',
+        'sort.asc': 'id',
+        select: TRANSFER_FIELDS,
         limit: 1
-    }));
+    }), signal);
     return Array.isArray(rows) ? rows[0] || null : null;
 }
 
-async function fetchAccount(address) {
+async function fetchOrigination(address, signal) {
+    const rows = await fetchJson(originationUrl({
+        originatedContract: address,
+        status: 'applied',
+        'sort.asc': 'id',
+        select: 'id,level,timestamp,sender,originatedContract,contractBalance',
+        limit: 1
+    }), signal);
+    return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function fetchAccount(address, signal) {
     try {
-        return await fetchJson(`${TZKT}/accounts/${encodeURIComponent(address)}`);
-    } catch {
+        return await fetchJson(`${TZKT}/accounts/${encodeURIComponent(address)}`, signal);
+    } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+        if (/^HTTP 404\b/.test(String(error?.message || ''))) {
+            throw new Error('TzKT does not recognize this account.');
+        }
         return null;
     }
-}
-
-function getTxKey(tx) {
-    return tx?.id || tx?.hash || `${tx?.level || ''}:${tx?.sender?.address || ''}:${tx?.target?.address || ''}:${tx?.amount || 0}`;
-}
-
-function normalizeTx(tx, address, explicitDirection = '') {
-    const sender = tx?.sender || {};
-    const target = tx?.target || {};
-    const senderAddress = sender.address || '';
-    const targetAddress = target.address || '';
-    const amount = Number(tx?.amount || 0);
-    if (!senderAddress || !targetAddress || !Number.isFinite(amount) || amount <= 0) return null;
-
-    let direction = explicitDirection;
-    if (!direction) {
-        if (senderAddress === address && targetAddress !== address) direction = 'sent';
-        if (targetAddress === address && senderAddress !== address) direction = 'received';
-    }
-    if (!direction || senderAddress === targetAddress) return null;
-
-    const counterparty = direction === 'sent' ? target : sender;
-    return {
-        id: getTxKey(tx),
-        hash: tx.hash || '',
-        level: tx.level || 0,
-        timestamp: tx.timestamp || '',
-        amount,
-        direction,
-        sender,
-        target,
-        counterparty: {
-            address: counterparty.address || '',
-            alias: counterparty.alias || ''
-        }
-    };
-}
-
-function addCounterparty(map, tx) {
-    const address = tx.counterparty.address;
-    if (!address) return;
-    if (!map.has(address)) {
-        map.set(address, {
-            address,
-            alias: tx.counterparty.alias || '',
-            sent: 0,
-            received: 0,
-            count: 0,
-            firstFunding: false,
-            latest: tx.timestamp || ''
-        });
-    }
-    const item = map.get(address);
-    if (tx.counterparty.alias && !item.alias) item.alias = tx.counterparty.alias;
-    item[tx.direction] += tx.amount;
-    item.count += 1;
-    if (tx.timestamp && (!item.latest || new Date(tx.timestamp) > new Date(item.latest))) item.latest = tx.timestamp;
-}
-
-function buildFlowModel(data) {
-    const threshold = THRESHOLDS[thresholdIndex]?.mutez || 0;
-    const address = data.address;
-    const txById = new Map();
-    const transfers = [];
-    const counterparties = new Map();
-
-    for (const raw of data.sent || []) {
-        const tx = normalizeTx(raw, address, 'sent');
-        if (tx && !txById.has(tx.id)) {
-            txById.set(tx.id, tx);
-            transfers.push(tx);
-            addCounterparty(counterparties, tx);
-        }
-    }
-    for (const raw of data.received || []) {
-        const tx = normalizeTx(raw, address, 'received');
-        if (tx && !txById.has(tx.id)) {
-            txById.set(tx.id, tx);
-            transfers.push(tx);
-            addCounterparty(counterparties, tx);
-        }
-    }
-
-    const firstTx = data.firstInbound ? normalizeTx(data.firstInbound, address, 'received') : null;
-    if (firstTx && firstTx.counterparty.address) {
-        if (!counterparties.has(firstTx.counterparty.address)) {
-            counterparties.set(firstTx.counterparty.address, {
-                address: firstTx.counterparty.address,
-                alias: firstTx.counterparty.alias || '',
-                sent: 0,
-                received: 0,
-                count: 0,
-                firstFunding: true,
-                latest: firstTx.timestamp || ''
-            });
-        }
-        const firstCounterparty = counterparties.get(firstTx.counterparty.address);
-        firstCounterparty.firstFunding = true;
-        if (firstTx.counterparty.alias && !firstCounterparty.alias) firstCounterparty.alias = firstTx.counterparty.alias;
-    }
-
-    const ranked = [...counterparties.values()]
-        .map((item) => ({
-            ...item,
-            total: item.sent + item.received,
-            side: item.sent > item.received && !item.firstFunding ? 'right' : 'left'
-        }))
-        .sort((a, b) => {
-            if (a.firstFunding !== b.firstFunding) return a.firstFunding ? -1 : 1;
-            return b.total - a.total;
-        });
-    const windowCounterparties = ranked.filter((item) => item.total > 0);
-
-    const thresholded = ranked.filter((item) => item.total >= threshold || item.firstFunding);
-    const visibleCounterparties = thresholded.slice(0, MAX_VISIBLE_COUNTERPARTIES);
-    const visibleAddresses = new Set(visibleCounterparties.map((item) => item.address));
-    const edges = [];
-
-    visibleCounterparties.forEach((item) => {
-        if (item.received >= threshold && item.received > 0) {
-            edges.push({
-                id: `${item.address}:received`,
-                direction: 'received',
-                counterparty: item,
-                amount: item.received,
-                count: item.count
-            });
-        }
-        if (item.sent >= threshold && item.sent > 0) {
-            edges.push({
-                id: `${item.address}:sent`,
-                direction: 'sent',
-                counterparty: item,
-                amount: item.sent,
-                count: item.count
-            });
-        }
-    });
-
-    if (firstTx && visibleAddresses.has(firstTx.counterparty.address)) {
-        edges.push({
-            id: `${firstTx.counterparty.address}:first`,
-            direction: 'first',
-            counterparty: counterparties.get(firstTx.counterparty.address),
-            amount: firstTx.amount,
-            count: 1,
-            tx: firstTx
-        });
-    }
-
-    const totals = transfers.reduce((sum, tx) => {
-        sum[tx.direction] += tx.amount;
-        sum.count += 1;
-        return sum;
-    }, { sent: 0, received: 0, count: 0 });
-
-    return {
-        address,
-        label: data.label || address,
-        account: data.account,
-        transfers,
-        firstTx,
-        counterparties: ranked,
-        windowCounterparties,
-        visibleCounterparties,
-        edges,
-        hiddenCount: Math.max(0, thresholded.length - visibleCounterparties.length),
-        threshold,
-        totals,
-        latest: transfers.map((tx) => tx.timestamp).filter(Boolean).sort().pop() || data.updatedAt
-    };
-}
-
-function layoutNodes(counterparties) {
-    const left = counterparties.filter((item) => item.side !== 'right');
-    const right = counterparties.filter((item) => item.side === 'right');
-    const positions = new Map();
-    const place = (items, x) => {
-        const count = Math.max(items.length, 1);
-        const start = count === 1 ? 280 : 86;
-        const gap = count === 1 ? 0 : 388 / (count - 1);
-        items.forEach((item, index) => {
-            positions.set(item.address, { x, y: start + gap * index });
-        });
-    };
-    place(left, 175);
-    place(right, 825);
-    return positions;
 }
 
 function edgeWidth(amount, maxAmount) {
@@ -458,11 +339,17 @@ function edgeOpacity(amount, maxAmount) {
 }
 
 function nodeLabel(item) {
-    return item.alias || shortAddress(item.address);
+    return item.label || item.alias || shortAddress(item.address);
 }
 
 function nodeSubLabel(item) {
-    return item.firstFunding ? 'first funding' : `${formatCompactXTZ(item.total)} total`;
+    const sample = item.sample ? ' sample' : '';
+    if (item.isCohort) {
+        return `${formatCount(item.memberCount)} counterparties · ${formatCompactXTZ(item.total)}${sample}`;
+    }
+    if (item.isContext) return 'all-time first value';
+    if (item.isFirstValue) return `first value · ${formatCompactXTZ(item.total)}${sample}`;
+    return `${formatCompactXTZ(item.total)}${sample}`;
 }
 
 function truncate(value, max = 22) {
@@ -511,9 +398,9 @@ function addressLinkMarkup(address, options = {}) {
     return `<a class="ledger-flow-address-link ledger-flow-my-tezos-link${className}" href="${accountHref(address)}" title="Open ${escapeHtml(address)} in My Tezos">${escapeHtml(text)}</a>`;
 }
 
-function renderEdge(edge, positions, maxAmount, index) {
-    const center = { x: 500, y: 280 };
-    const pos = positions.get(edge.counterparty.address);
+function renderEdge(edge, layout, maxAmount, index) {
+    const center = layout.center;
+    const pos = layout.positions.get(edge.counterparty.key);
     if (!pos) return '';
     const from = edge.direction === 'sent' ? center : pos;
     const to = edge.direction === 'sent' ? pos : center;
@@ -523,45 +410,110 @@ function renderEdge(edge, positions, maxAmount, index) {
     const c2x = to.x + (leftToRight ? -150 : 150);
     const c1y = from.y + curve;
     const c2y = to.y + curve;
-    const width = edgeWidth(edge.amount, maxAmount).toFixed(2);
-    const opacity = edgeOpacity(edge.amount, maxAmount).toFixed(2);
-    const marker = edge.direction === 'sent' ? 'sent' : edge.direction === 'first' ? 'first' : 'received';
-    const label = `${edge.direction === 'sent' ? 'Sent' : edge.direction === 'first' ? 'First funding' : 'Received'} ${formatCompactXTZ(edge.amount)} ${edge.direction === 'sent' ? 'to' : 'from'} ${nodeLabel(edge.counterparty)}`;
+    const width = edge.direction === 'first'
+        ? '2.40'
+        : edgeWidth(edge.amount, maxAmount).toFixed(2);
+    const opacity = edge.direction === 'first'
+        ? '0.82'
+        : edgeOpacity(edge.amount, maxAmount).toFixed(2);
+    const marker = edge.direction === 'sent'
+        ? 'sent'
+        : edge.direction === 'first' || edge.isFirstValue ? 'first' : 'received';
+    const firstLabel = edge.event?.kind === 'origination' ? 'Funded at origination by' : 'First inbound from';
+    const amountLabel = edge.amount > 0 ? ` ${formatCompactXTZ(edge.amount)}` : '';
+    const label = edge.direction === 'first'
+        ? `${firstLabel}${amountLabel} ${nodeLabel(edge.counterparty)}`
+        : `${edge.direction === 'sent' ? 'Sent' : 'Received'} ${formatCompactXTZ(edge.amount)} ${edge.direction === 'sent' ? 'to' : 'from'} ${nodeLabel(edge.counterparty)}`;
+    const classes = [
+        'ledger-flow-edge',
+        `ledger-flow-edge-${edge.direction}`,
+        edge.isFirstValue ? 'ledger-flow-edge-first ledger-flow-edge-first-value is-first-value' : ''
+    ].filter(Boolean).join(' ');
     const path = `M ${from.x} ${from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${to.x} ${to.y}`;
     return `
-        <path class="ledger-flow-edge ledger-flow-edge-${edge.direction}" data-ledger-edge="${escapeHtml(edge.id)}" d="${path}" stroke-width="${width}" opacity="${opacity}" marker-end="url(#ledger-arrow-${marker})">
+        <path class="${classes}" data-ledger-edge="${escapeHtml(edge.id)}" d="${path}" stroke-width="${width}" opacity="${opacity}" marker-end="url(#ledger-arrow-${marker})">
             <title>${escapeHtml(label)}</title>
         </path>
-        <path class="ledger-flow-edge-hit" data-ledger-edge="${escapeHtml(edge.id)}" d="${path}" stroke-width="${Math.max(10, Number(width) + 5)}">
-            <title>${escapeHtml(label)}</title>
-        </path>
-        ${edge.direction === 'first' ? `<circle class="ledger-flow-first-pulse" cx="${from.x}" cy="${from.y}" r="${14 + (index % 2) * 3}"></circle>` : ''}
+        ${edge.isFirstValue ? `<circle class="ledger-flow-first-pulse" cx="${from.x}" cy="${from.y}" r="${14 + (index % 2) * 3}"></circle>` : ''}
     `;
 }
 
-function renderNode(item, positions) {
-    const pos = positions.get(item.address);
+function renderNode(item, layout) {
+    const pos = layout.positions.get(item.key);
     if (!pos) return '';
     const classes = ['ledger-flow-node'];
-    if (item.firstFunding) classes.push('is-first');
+    if (item.isFirstValue || item.isContext) classes.push('is-first');
+    if (item.isCohort) classes.push('is-cohort');
     const geometry = nodeGeometry(item);
     const x = pos.x - geometry.width / 2;
     const y = pos.y - geometry.height / 2;
     const label = fittedText(nodeLabel(item), geometry.width, 8.5);
     const sub = fittedText(nodeSubLabel(item), geometry.width, 6.2);
-    const pillX = pos.x < 500 ? geometry.width + 6 : -42;
     return `
         <g class="${classes.join(' ')}" transform="translate(${x} ${y})">
-            <a class="ledger-flow-node-profile-link" href="${accountHref(item.address)}" aria-label="Open ${escapeHtml(nodeLabel(item))} in My Tezos">
-                <rect width="${geometry.width}" height="${geometry.height}" rx="9"></rect>
-                <text class="ledger-flow-node-title" x="${geometry.width / 2}" y="25" text-anchor="middle">${escapeHtml(label)}</text>
-                <text class="ledger-flow-node-sub" x="${geometry.width / 2}" y="43" text-anchor="middle">${escapeHtml(sub)}</text>
-            </a>
-            <a class="ledger-flow-node-tzkt-link" href="${tzktAccountHref(item.address)}" target="_blank" rel="noopener" aria-label="View ${escapeHtml(nodeLabel(item))} on TzKT">
-                <rect class="ledger-flow-node-tzkt-bg" x="${pillX}" y="7" width="36" height="16" rx="3"></rect>
-                <text class="ledger-flow-node-tzkt-text" x="${pillX + 18}" y="18" text-anchor="middle">TzKT</text>
-            </a>
+            <rect width="${geometry.width}" height="${geometry.height}" rx="9"></rect>
+            <text class="ledger-flow-node-title" x="${geometry.width / 2}" y="25" text-anchor="middle">${escapeHtml(label)}</text>
+            <text class="ledger-flow-node-sub" x="${geometry.width / 2}" y="43" text-anchor="middle">${escapeHtml(sub)}</text>
         </g>
+    `;
+}
+
+function renderFlowRow(edge, model, options = {}) {
+    const counterparty = edge.counterparty;
+    const selected = selectedEdgeId === edge.id;
+    const direction = edge.direction === 'sent'
+        ? 'Out to'
+        : edge.direction === 'first'
+            ? 'All-time first value from'
+            : 'In from';
+    const amount = edge.amount > 0 ? formatCompactXTZ(edge.amount) : 'origin receipt';
+    const scope = model.coverage?.mode === 'sample' ? ' · sample' : '';
+    const links = !counterparty.isCohort && counterparty.address
+        ? accountLinksMarkup(counterparty, { wrapClass: 'ledger-flow-row-links' })
+        : '';
+    return `
+        <article class="ledger-flow-flow-row${selected ? ' is-selected' : ''}" data-quiet-key="${escapeHtml(edge.id)}">
+            <button type="button" class="ledger-flow-path-button" data-ledger-edge="${escapeHtml(edge.id)}" aria-pressed="${selected ? 'true' : 'false'}" aria-controls="${escapeHtml(options.controls || 'ledger-flow-detail-panel')}">
+                <span class="ledger-flow-path-direction">${escapeHtml(direction)}</span>
+                <strong>${escapeHtml(nodeLabel(counterparty))}</strong>
+                <small>${escapeHtml(amount)}${scope} · ${escapeHtml(formatCount(edge.count))} ${edge.count === 1 ? 'row' : 'rows'}</small>
+            </button>
+            ${links}
+        </article>
+    `;
+}
+
+function renderMobileDiagram(model) {
+    const inbound = model.edges.filter((edge) => edge.direction !== 'sent');
+    const outbound = model.edges.filter((edge) => edge.direction === 'sent');
+    const selected = model.edges.find((edge) => edge.id === selectedEdgeId) || model.edges[0] || null;
+    return `
+        <div class="ledger-flow-mobile-map" aria-label="Ledger Flow paths">
+            <section class="ledger-flow-mobile-direction" aria-labelledby="ledger-flow-mobile-inbound">
+                <h3 id="ledger-flow-mobile-inbound">Into account</h3>
+                <div class="ledger-flow-mobile-rows">
+                    ${inbound.length
+                        ? inbound.map((edge) => renderFlowRow(edge, model, { controls: 'ledger-flow-mobile-detail' })).join('')
+                        : '<p class="ledger-flow-muted">No inbound tez transfers match this view.</p>'}
+                </div>
+            </section>
+            <div class="ledger-flow-mobile-account">
+                <span>Selected account</span>
+                <strong>${escapeHtml(model.account?.alias || activeLabel || shortAddress(model.address))}</strong>
+                <small>${escapeHtml(shortAddress(model.address))}</small>
+            </div>
+            <div class="ledger-flow-mobile-inline-detail" id="ledger-flow-mobile-detail" aria-live="polite">
+                ${edgeDetail(selected, model)}
+            </div>
+            <section class="ledger-flow-mobile-direction" aria-labelledby="ledger-flow-mobile-outbound">
+                <h3 id="ledger-flow-mobile-outbound">Out of account</h3>
+                <div class="ledger-flow-mobile-rows">
+                    ${outbound.length
+                        ? outbound.map((edge) => renderFlowRow(edge, model, { controls: 'ledger-flow-mobile-detail' })).join('')
+                        : '<p class="ledger-flow-muted">No outbound tez transfers match this view.</p>'}
+                </div>
+            </section>
+        </div>
     `;
 }
 
@@ -574,10 +526,15 @@ function renderDiagram(model) {
             </div>
         `;
     }
-    const positions = layoutNodes(model.visibleCounterparties);
+    const layout = layoutLedgerFlowNodes(model.visibleCounterparties, {
+        nodeHeight: NODE_HEIGHT,
+        minimumGap: NODE_MIN_GAP
+    });
     const maxAmount = Math.max(...model.edges.map((edge) => edge.amount), 1);
+    const centerY = layout.center.y;
     return `
-        <svg class="ledger-flow-svg" viewBox="0 0 1000 560" role="img" aria-label="Ledger Flow diagram for ${escapeHtml(model.label)}">
+        ${renderMobileDiagram(model)}
+        <svg class="ledger-flow-svg" viewBox="0 0 1000 ${layout.viewHeight}" aria-hidden="true" focusable="false">
             <defs>
                 <marker id="ledger-arrow-sent" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 0 L 10 5 L 0 10 z" class="ledger-flow-arrow-sent"></path>
@@ -590,20 +547,20 @@ function renderDiagram(model) {
                 </marker>
             </defs>
             <g class="ledger-flow-grid-lines" aria-hidden="true">
-                <line x1="500" x2="500" y1="36" y2="524"></line>
-                <line x1="100" x2="900" y1="280" y2="280"></line>
+                <line x1="500" x2="500" y1="36" y2="${layout.viewHeight - 36}"></line>
+                <line x1="100" x2="900" y1="${centerY}" y2="${centerY}"></line>
             </g>
             <g class="ledger-flow-edges">
-                ${model.edges.map((edge, index) => renderEdge(edge, positions, maxAmount, index)).join('')}
+                ${model.edges.map((edge, index) => renderEdge(edge, layout, maxAmount, index)).join('')}
             </g>
-            <g class="ledger-flow-center-node" transform="translate(390 220)">
+            <g class="ledger-flow-center-node" transform="translate(390 ${centerY - 60})">
                 <rect width="220" height="120" rx="16"></rect>
                 <text class="ledger-flow-center-kicker" x="110" y="34" text-anchor="middle">selected account</text>
                 <text class="ledger-flow-center-title" x="110" y="62" text-anchor="middle">${escapeHtml(truncate(model.account?.alias || activeLabel || shortAddress(model.address), 20))}</text>
                 <text class="ledger-flow-center-address" x="110" y="86" text-anchor="middle">${escapeHtml(shortAddress(model.address))}</text>
             </g>
             <g class="ledger-flow-nodes">
-                ${model.visibleCounterparties.map((item) => renderNode(item, positions)).join('')}
+                ${model.visibleCounterparties.map((item) => renderNode(item, layout)).join('')}
             </g>
         </svg>
     `;
@@ -611,7 +568,6 @@ function renderDiagram(model) {
 
 function edgeDetail(edge, model) {
     if (!edge) {
-        const first = model.firstTx;
         const selectedAccount = {
             address: model.address,
             alias: model.account?.alias || activeLabel || shortAddress(model.address)
@@ -620,72 +576,117 @@ function edgeDetail(edge, model) {
             <div class="ledger-flow-detail-empty">
                 ${accountLinksMarkup(selectedAccount, { nameClass: 'ledger-flow-detail-name', wrapClass: 'ledger-flow-detail-account' })}
                 ${addressLinkMarkup(model.address, { text: model.address, className: 'ledger-flow-detail-address' })}
-                ${first ? `<p>First funded by ${accountLinksMarkup(first.counterparty, { wrapClass: 'ledger-flow-inline-account' })} on ${escapeHtml(formatDate(first.timestamp))} for ${escapeHtml(formatCompactXTZ(first.amount))}.</p>` : '<p>No first inbound transfer was found in the TzKT transaction history.</p>'}
+                <p>Select a path to inspect its direction, amount, row count, and latest matching receipt.</p>
             </div>
         `;
     }
     const counterparty = edge.counterparty;
-    const verb = edge.direction === 'sent' ? 'Sent to' : edge.direction === 'first' ? 'First funded by' : 'Received from';
+    const verb = edge.direction === 'sent'
+        ? 'Sent to'
+        : edge.direction === 'first'
+            ? edge.event?.kind === 'origination' ? 'Funded at origination by' : 'First inbound from'
+            : edge.isFirstValue ? 'First inbound from' : 'Received from';
+    const links = counterparty.isCohort
+        ? `<strong class="ledger-flow-detail-name">${escapeHtml(nodeLabel(counterparty))}</strong>`
+        : `
+            ${accountLinksMarkup(counterparty, { nameClass: 'ledger-flow-detail-name', wrapClass: 'ledger-flow-detail-account' })}
+            ${addressLinkMarkup(counterparty.address, { text: counterparty.address, className: 'ledger-flow-detail-address' })}
+        `;
+    const when = edge.event?.timestamp || edge.latest || '';
+    const amount = edge.amount > 0 ? formatCompactXTZ(edge.amount) : 'n/a';
+    const scope = model.coverage?.mode === 'sample' ? 'Largest-row sample' : 'Exact observed window';
     return `
         <div class="ledger-flow-detail-card" data-direction="${escapeHtml(edge.direction)}">
             <span class="ledger-flow-detail-kicker">${escapeHtml(verb)}</span>
-            ${accountLinksMarkup(counterparty, { nameClass: 'ledger-flow-detail-name', wrapClass: 'ledger-flow-detail-account' })}
-            ${addressLinkMarkup(counterparty.address, { text: counterparty.address, className: 'ledger-flow-detail-address' })}
+            ${links}
             <div class="ledger-flow-detail-metrics">
-                <span><small>Amount</small><b>${escapeHtml(formatCompactXTZ(edge.amount))}</b></span>
+                <span><small>${model.coverage?.mode === 'sample' ? 'Sample amount' : 'Amount'}</small><b>${escapeHtml(amount)}</b></span>
                 <span><small>Rows</small><b>${escapeHtml(formatCount(edge.count))}</b></span>
-                <span><small>When</small><b>${escapeHtml(edge.tx ? formatDate(edge.tx.timestamp) : formatAge(counterparty.latest))}</b></span>
+                <span><small>Latest</small><b>${escapeHtml(when ? formatAge(when) : 'n/a')}</b></span>
             </div>
+            <small class="ledger-flow-detail-scope">${escapeHtml(scope)}${counterparty.isCohort ? ` · ${formatCount(counterparty.memberCount)} counterparties` : ''}</small>
+        </div>
+    `;
+}
+
+function renderOriginContext(model) {
+    const origin = model.accountOrigin;
+    const inbound = model.firstInbound;
+    if (!origin && !inbound) {
+        return '<div class="ledger-flow-origin-empty">No origination or first inbound receipt was found.</div>';
+    }
+    const eventMarkup = (event, label) => {
+        if (!event) return '';
+        const counterparty = event.counterparty;
+        const amount = Number(event.amountMutez || 0);
+        return `
+            <div class="ledger-flow-origin-row">
+                <span>${escapeHtml(label)}</span>
+                <strong>${counterparty?.address ? accountLinksMarkup(counterparty) : 'unknown'}</strong>
+                <small>${escapeHtml(formatDate(event.timestamp))}${amount > 0 ? ` · ${escapeHtml(formatCompactXTZ(amount))}` : event.kind === 'origination' ? ' · zero initial balance' : ''}</small>
+            </div>
+        `;
+    };
+    return `
+        <div class="ledger-flow-origin-context" aria-label="All-time account context">
+            <div class="ledger-flow-origin-heading">All-time account context</div>
+            ${eventMarkup(origin, 'Origination')}
+            ${eventMarkup(inbound, 'First inbound transaction')}
         </div>
     `;
 }
 
 function renderCounterpartyRows(model) {
-    const rows = model.visibleCounterparties.map((item) => {
-        const primaryDirection = item.sent > item.received ? 'sent' : 'received';
-        const edgeId = item.firstFunding ? `${item.address}:first` : `${item.address}:${primaryDirection}`;
-        const badge = item.firstFunding ? 'first' : (item.sent && item.received ? 'both' : primaryDirection);
+    const rows = model.listEdges.map((edge) => {
+        const item = edge.counterparty;
+        const badge = item.sent && item.received ? 'both' : edge.direction;
+        const selected = selectedEdgeId === edge.id;
         return `
-            <div class="ledger-flow-counterparty-row" role="button" tabindex="0" data-ledger-edge="${escapeHtml(edgeId)}">
+            <article class="ledger-flow-counterparty-row${selected ? ' is-selected' : ''}" data-quiet-key="${escapeHtml(edge.id)}">
                 <span class="ledger-flow-row-name">
                     ${accountLinksMarkup(item)}
                     ${addressLinkMarkup(item.address)}
                 </span>
                 <span class="ledger-flow-row-amount">${escapeHtml(formatCompactXTZ(item.total, { withUnit: false }))}</span>
-                <span class="ledger-flow-row-badge" data-kind="${escapeHtml(badge)}">${escapeHtml(badge)}</span>
-            </div>
+                <span class="ledger-flow-row-badge" data-kind="${escapeHtml(badge)}">${escapeHtml(badge)}${model.coverage?.mode === 'sample' ? ' sample' : ''}</span>
+                <button type="button" class="ledger-flow-row-select" data-ledger-edge="${escapeHtml(edge.id)}" aria-pressed="${selected ? 'true' : 'false'}" aria-controls="ledger-flow-detail-panel">Show path</button>
+            </article>
         `;
     }).join('');
     return rows || '<div class="ledger-flow-muted">No counterparties match the current filter.</div>';
 }
 
 function renderStats(model) {
-    const first = model.firstTx;
+    const sample = model.coverage?.mode === 'sample';
+    const shown = model.threshold > 0;
+    const qualifier = sample ? ' sample' : shown ? ' shown' : '';
+    const firstValue = model.firstValueEvent;
     return `
         <div class="ledger-flow-stats" aria-label="Ledger Flow summary">
-            <div><span>Received</span><strong>${escapeHtml(formatCompactXTZ(model.totals.received))}</strong></div>
-            <div><span>Sent</span><strong>${escapeHtml(formatCompactXTZ(model.totals.sent))}</strong></div>
-            <div><span>Counterparties</span><strong>${escapeHtml(formatCount(model.windowCounterparties.length))}</strong></div>
-            <div><span>First in</span><strong>${first ? escapeHtml(formatCompactXTZ(first.amount)) : 'n/a'}</strong></div>
+            <div><span>Received${escapeHtml(qualifier)}</span><strong>${escapeHtml(formatCompactXTZ(model.totals.received))}</strong></div>
+            <div><span>Sent${escapeHtml(qualifier)}</span><strong>${escapeHtml(formatCompactXTZ(model.totals.sent))}</strong></div>
+            <div><span>Counterparties${sample ? ' in sample' : shown ? ' shown' : ''}</span><strong>${escapeHtml(formatCount(model.counterparties.length))}</strong></div>
+            <div><span>First value</span><strong>${firstValue?.amountMutez > 0 ? escapeHtml(formatCompactXTZ(firstValue.amountMutez)) : firstValue ? 'receipt' : 'n/a'}</strong></div>
         </div>
     `;
 }
 
 function renderWindowContext(model) {
-    if (model.totals.count > 0 || activeWindow === 'all') return '';
-    const label = WINDOW_OPTIONS.find((item) => item.key === activeWindow)?.label || activeWindow.toUpperCase();
+    const windowKey = model.coverage?.windowKey || activeWindow;
+    if (model.totals.count > 0 || windowKey === 'all') return '';
+    const label = WINDOW_OPTIONS.find((item) => item.key === windowKey)?.label || windowKey.toUpperCase();
     return `
         <div class="ledger-flow-window-empty" role="status">
             <span>No transfers were found in ${escapeHtml(label)}.</span>
-            <small>The first-funding path below is all-time context and is not counted as a current-window counterparty.</small>
+            <small>The origination and first-inbound facts below are all-time context and are not counted as current-window counterparties.</small>
             <button type="button" data-ledger-window="all">Show all time</button>
         </div>
     `;
 }
 
-function renderControls(model = null) {
+function renderControls(model = null, valueOverride = '') {
     const threshold = THRESHOLDS[thresholdIndex] || THRESHOLDS[0];
-    const value = activeLabel || activeTarget || '';
+    const value = valueOverride || activeLabel || activeTarget || '';
     return `
         <form class="ledger-flow-search" id="ledger-flow-search-form" autocomplete="off">
             <label for="ledger-flow-input">Account</label>
@@ -695,16 +696,18 @@ function renderControls(model = null) {
         <div class="ledger-flow-controls" aria-label="Ledger Flow controls">
             <div class="ledger-flow-segmented" role="group" aria-label="Time window">
                 ${WINDOW_OPTIONS.map((item) => `
-                    <button type="button" data-ledger-window="${escapeHtml(item.key)}" class="${activeWindow === item.key ? 'active' : ''}">${escapeHtml(item.label)}</button>
+                    <button type="button" data-ledger-window="${escapeHtml(item.key)}" class="${activeWindow === item.key ? 'active' : ''}" aria-pressed="${activeWindow === item.key ? 'true' : 'false'}">${escapeHtml(item.label)}</button>
                 `).join('')}
             </div>
             <label class="ledger-flow-threshold" for="ledger-flow-threshold">
-                <span>Min amount</span>
-                <input id="ledger-flow-threshold" type="range" min="0" max="${THRESHOLDS.length - 1}" step="1" value="${thresholdIndex}">
-                <strong id="ledger-flow-threshold-label">${escapeHtml(threshold.label)}</strong>
+                <span>Min transfer</span>
+                <input id="ledger-flow-threshold" type="range" min="0" max="${THRESHOLDS.length - 1}" step="1" value="${thresholdIndex}" aria-valuetext="${escapeHtml(threshold.label)}">
+                <output id="ledger-flow-threshold-label" for="ledger-flow-threshold">${escapeHtml(threshold.label)}</output>
             </label>
         </div>
-        ${model?.hiddenCount ? `<div class="ledger-flow-filter-note">${escapeHtml(formatCount(model.hiddenCount))} lower-ranked counterparties hidden from the diagram.</div>` : ''}
+        <div class="ledger-flow-load-status" id="ledger-flow-load-status" role="status" aria-live="polite"></div>
+        ${model?.rolledUpCount ? `<div class="ledger-flow-filter-note">${escapeHtml(formatCount(model.rolledUpCount))} lower-ranked counterparties reconcile into the directional “Other” nodes; the top ${escapeHtml(formatCount(model.listCounterparties.length))} are listed below.</div>` : ''}
+        ${model?.hiddenListCount ? `<div class="ledger-flow-filter-note">${escapeHtml(formatCount(model.hiddenListCount))} additional counterparties remain outside the ranked list.</div>` : ''}
     `;
 }
 
@@ -713,40 +716,83 @@ function renderLegend() {
         <div class="ledger-flow-legend" aria-label="Ledger Flow legend">
             <span><i data-kind="received"></i>Received</span>
             <span><i data-kind="sent"></i>Sent</span>
-            <span><i data-kind="first"></i>First in</span>
+            <span><i data-kind="first"></i>All-time first value</span>
         </div>
     `;
 }
 
 function renderExampleChips() {
+    if (!whaleSeed?.target) return '';
+    const label = whaleSeed.alias || shortAddress(whaleSeed.target);
+    const observed = whaleSeed.timestamp ? formatAge(whaleSeed.timestamp) : 'time unknown';
     return `
-        <div class="ledger-flow-examples" aria-label="Example Ledger Flow accounts">
-            ${LEDGER_FLOW_EXAMPLES.map((item) => `
-                <button type="button" data-ledger-example="${escapeHtml(item.target)}">
-                    <span>${escapeHtml(item.label)}</span>
-                    <strong>${escapeHtml(item.target)}</strong>
-                </button>
-            `).join('')}
+        <div class="ledger-flow-examples" aria-label="Live Ledger Flow starting point">
+            <button type="button" data-ledger-example="${escapeHtml(whaleSeed.target)}" aria-label="Map ${escapeHtml(label)}, sender of Whale Watch's largest archived 24-hour move">
+                <span>Largest archived 24h sender · ${escapeHtml(observed)}</span>
+                <strong>${escapeHtml(label)}</strong>
+                <small>${escapeHtml(shortAddress(whaleSeed.target))} · TzKT alias if named</small>
+            </button>
         </div>
     `;
 }
 
-function renderEmptyState(container) {
+function renderScopeDisclosure() {
+    return `
+        <div class="ledger-flow-scope">
+            <strong>Scope:</strong> applied tez transaction rows only. Account-to-itself rows are excluded from path totals. Token transfers, delegations, originations, tickets, and stake moves are not part of the window totals.
+            <a href="/my/?view=portfolio">View tokens in My Tezos</a>.
+        </div>
+    `;
+}
+
+function renderCoverage(model) {
+    const coverage = model.coverage || {};
+    const windowLabel = WINDOW_OPTIONS.find((item) => item.key === coverage.windowKey)?.label || String(coverage.windowKey || '').toUpperCase();
+    const selfRows = Number(model.selfTransferRows || 0);
+    const selfDisclosure = selfRows
+        ? ` ${formatCount(selfRows)} account-to-itself ${selfRows === 1 ? 'row is' : 'rows are'} excluded from the map totals.`
+        : '';
+    if (Number(coverage.thresholdMutez || 0) !== Number(model.threshold || 0)) {
+        return `
+            <div class="ledger-flow-coverage is-pending" role="note">
+                <strong>Local filter preview</strong>
+                <span>The mounted rows are filtered at ${escapeHtml(THRESHOLDS[thresholdIndex]?.label || '0 XTZ')} per transfer. Release the control to re-count this window and verify whether the result is exact or sampled.</span>
+            </div>
+        `;
+    }
+    if (coverage.mode === 'sample') {
+        return `
+            <div class="ledger-flow-coverage is-sample" role="note">
+                <strong>Largest-row sample</strong>
+                <span>${escapeHtml(formatCount(coverage.fetchedRows))} largest matching tez transaction rows of ${escapeHtml(formatCount(coverage.totalRows))} observed in ${escapeHtml(windowLabel)}. Every amount, rank, and counterparty count below describes this sample, not the complete account.${escapeHtml(selfDisclosure)}</span>
+            </div>
+        `;
+    }
+    return `
+            <div class="ledger-flow-coverage is-exact" role="note">
+                <strong>Exact observed window</strong>
+            <span>All ${escapeHtml(formatCount(coverage.totalRows))} matching tez transaction rows through ${escapeHtml(formatDate(coverage.until))}${model.threshold > 0 ? ` at ${escapeHtml(THRESHOLDS.find((item) => item.mutez === coverage.thresholdMutez)?.label || formatCompactXTZ(coverage.thresholdMutez))} or more per transfer` : ''}.${escapeHtml(selfDisclosure)}</span>
+        </div>
+    `;
+}
+
+function renderEmptyState(container, valueOverride = '') {
     container.innerHTML = `
         <div class="chamber-header lb-header ledger-flow-header chamber-anim-fade">
             <div class="chamber-title-row">
                 <h2 class="chamber-title" id="ledger-flow-title">Ledger Flow</h2>
                 <span class="chamber-badge current">Account map</span>
             </div>
-            <div class="chamber-proposal-info">Map sent, received, and first-funding paths around a Tezos account.</div>
+            <div class="chamber-proposal-info">Map bounded tez transfers with receipt-backed origination and first-inbound context.</div>
         </div>
         <section class="lb-explainer ledger-flow-explainer chamber-anim-fade">
-            ${renderControls()}
+            ${renderControls(null, valueOverride)}
             ${renderExampleChips()}
             <div class="ledger-flow-empty-panel">
                 <strong>Choose an account</strong>
-                <span>Paste a wallet, contract, or .tez name, or start with a live example.</span>
+                <span>Paste a wallet, contract, or .tez name, or start with the latest validated Whale Watch receipt.</span>
             </div>
+            ${renderScopeDisclosure()}
         </section>
         <div class="chamber-footer chamber-anim-fade">
             <span>Source: TzKT transactions</span>
@@ -757,57 +803,94 @@ function renderEmptyState(container) {
     wireLedgerFlowControls(container);
 }
 
-function renderLedgerFlow(data) {
+function applyLedgerBodyMarkup(container, markup, options = {}) {
+    const content = container.closest('.ledger-flow-content');
+    if (options.quiet && content) {
+        quietlyMutate(content, () => quietlySyncHtml(container, markup));
+    } else {
+        container.innerHTML = markup;
+    }
+}
+
+function renderLedgerFlow(data, options = {}) {
     const container = document.querySelector('#ledger-flow-modal .ledger-flow-body');
     if (!container) return;
     if (!data?.address) {
         renderEmptyState(container);
         return;
     }
-    const model = buildFlowModel(data);
-    const firstEdge = model.firstTx ? model.edges.find((edge) => edge.direction === 'first') : null;
-    const firstDetail = firstEdge || model.edges[0] || null;
-    container.innerHTML = `
+    const model = buildLedgerFlowModel(data, {
+        thresholdMutez: THRESHOLDS[thresholdIndex]?.mutez || 0
+    });
+    if (model.coverage?.mode === 'sample') {
+        [...model.visibleCounterparties, ...model.listCounterparties].forEach((item) => {
+            item.sample = true;
+        });
+    }
+    const selectableEdges = [...model.edges, ...model.listEdges];
+    if (!selectableEdges.some((edge) => edge.id === selectedEdgeId)) {
+        selectedEdgeId = selectableEdges.find((edge) => edge.isFirstValue)?.id
+            || selectableEdges[0]?.id
+            || '';
+    }
+    const firstDetail = selectableEdges.find((edge) => edge.id === selectedEdgeId) || null;
+    const windowLabel = WINDOW_OPTIONS.find((item) => item.key === model.coverage?.windowKey)?.label
+        || String(model.coverage?.windowKey || '').toUpperCase();
+    const ownerFallback = model.resolution?.source === 'owner';
+    const identity = ownerFallback
+        ? `${model.resolution.name} · owner wallet · ${shortAddress(model.address)}`
+        : `${model.account?.alias || model.label || shortAddress(model.address)} · ${shortAddress(model.address)}`;
+    const markup = `
         <div class="chamber-header lb-header ledger-flow-header chamber-anim-fade">
             <div class="chamber-title-row">
                 <h2 class="chamber-title" id="ledger-flow-title">Ledger Flow</h2>
-                <span class="chamber-badge live">TzKT</span>
+                <span class="chamber-badge ${model.coverage?.mode === 'sample' ? 'current' : 'live'}">${model.coverage?.mode === 'sample' ? 'Sample' : 'Exact'}</span>
             </div>
-            <div class="chamber-proposal-info">
-                ${escapeHtml(model.account?.alias || activeLabel || shortAddress(model.address))} · ${escapeHtml(shortAddress(model.address))} · ${escapeHtml(activeWindow.toUpperCase())}
+            <div class="chamber-proposal-info${ownerFallback ? ' is-owner-fallback' : ''}">
+                ${escapeHtml(identity)} · ${escapeHtml(windowLabel)}
             </div>
         </div>
         <section class="lb-explainer ledger-flow-explainer chamber-anim-fade">
             ${renderControls(model)}
+            ${renderCoverage(model)}
             ${renderStats(model)}
             ${renderWindowContext(model)}
             ${renderLegend()}
+            ${renderScopeDisclosure()}
         </section>
         <section class="lb-panel ledger-flow-panel ledger-flow-map-panel chamber-anim-fade" style="animation-delay:70ms">
-            <div class="lb-panel-title">Transfer Diagram</div>
+            <div class="lb-panel-title">Transfer Map</div>
             ${renderDiagram(model)}
+        </section>
+        <section class="lb-panel ledger-flow-panel ledger-flow-origin-panel chamber-anim-fade" style="animation-delay:100ms">
+            ${renderOriginContext(model)}
         </section>
         <div class="ledger-flow-lower-grid">
             <section class="lb-panel ledger-flow-panel ledger-flow-counterparties chamber-anim-fade" style="animation-delay:120ms">
-                <div class="lb-panel-title">Top Counterparties</div>
+                <div class="lb-panel-title">${model.coverage?.mode === 'sample' ? 'Counterparties in Sample' : 'Top Counterparties'}</div>
                 <div class="ledger-flow-counterparty-list">${renderCounterpartyRows(model)}</div>
             </section>
             <section class="lb-panel ledger-flow-panel ledger-flow-detail chamber-anim-fade" style="animation-delay:160ms">
                 <div class="lb-panel-title">Selected Path</div>
-                <div id="ledger-flow-detail-panel">${edgeDetail(firstDetail, model)}</div>
+                <div id="ledger-flow-detail-panel" aria-live="polite">${edgeDetail(firstDetail, model)}</div>
             </section>
         </div>
         <div class="chamber-footer chamber-anim-fade" style="animation-delay:220ms">
             <span>Source: TzKT transactions</span>
             <span class="chamber-footer-sep">·</span>
-            <span>Updated ${escapeHtml(formatAge(model.latest))}</span>
+            <span>Fetched ${escapeHtml(formatAge(model.updatedAt))}</span>
+            <span class="chamber-footer-sep">·</span>
+            <span>Last matching transfer ${escapeHtml(formatAge(model.latest))}</span>
             <span class="chamber-footer-sep">·</span>
             <a class="panel-direct-link" href="https://tzkt.io/${encodeURIComponent(model.address)}/operations/" target="_blank" rel="noopener">TzKT operations</a>
             <span class="chamber-footer-sep">·</span>
             <a class="panel-direct-link" href="/ledger-flow/" aria-label="Direct link to Ledger Flow">Direct: /ledger-flow/</a>
         </div>
     `;
+    applyLedgerBodyMarkup(container, markup, { quiet: options.quiet });
     container.dataset.ledgerFlowModel = 'ready';
+    container.dataset.ledgerFlowWindow = model.coverage?.windowKey || '';
+    container.dataset.ledgerFlowMode = model.coverage?.mode || '';
     container._ledgerFlowModel = model;
     wireLedgerFlowControls(container);
 }
@@ -815,12 +898,24 @@ function renderLedgerFlow(data) {
 function setDetailForEdge(edgeId, container) {
     const model = container?._ledgerFlowModel;
     if (!model || !edgeId) return;
-    const edge = model.edges.find((item) => item.id === edgeId);
+    const edge = [...model.edges, ...model.listEdges].find((item) => item.id === edgeId);
     if (!edge) return;
-    const panel = container.querySelector('#ledger-flow-detail-panel');
-    if (panel) panel.innerHTML = edgeDetail(edge, model);
-    container.querySelectorAll('[data-ledger-edge]').forEach((item) => {
-        item.classList.toggle('is-selected', item.dataset.ledgerEdge === edgeId);
+    selectedEdgeId = edgeId;
+    const content = container.closest('.ledger-flow-content') || container;
+    quietlyMutate(content, () => {
+        const markup = edgeDetail(edge, model);
+        const panel = container.querySelector('#ledger-flow-detail-panel');
+        const mobilePanel = container.querySelector('#ledger-flow-mobile-detail');
+        if (panel) panel.innerHTML = markup;
+        if (mobilePanel) mobilePanel.innerHTML = markup;
+        container.querySelectorAll('[data-ledger-edge]').forEach((item) => {
+            const selected = item.dataset.ledgerEdge === edgeId;
+            item.classList.toggle('is-selected', selected);
+            if (item.matches('button')) item.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+        container.querySelectorAll('[data-quiet-key]').forEach((item) => {
+            item.classList.toggle('is-selected', item.getAttribute('data-quiet-key') === edgeId);
+        });
     });
 }
 
@@ -842,8 +937,8 @@ function wireLedgerFlowControls(container) {
             const next = button.dataset.ledgerWindow;
             if (!WINDOW_OPTIONS.some((item) => item.key === next)) return;
             activeWindow = next;
-            localStorage.setItem(WINDOW_KEY, activeWindow);
-            if (activeTarget) loadLedgerFlow(activeLabel || activeTarget);
+            writeStorage(WINDOW_KEY, activeWindow);
+            if (activeTarget) loadLedgerFlow(activeTarget);
             else renderLedgerFlow(null);
         });
     });
@@ -854,9 +949,21 @@ function wireLedgerFlowControls(container) {
         threshold.addEventListener('input', () => {
             const next = Number(threshold.value);
             thresholdIndex = Number.isFinite(next) ? Math.max(0, Math.min(THRESHOLDS.length - 1, next)) : 0;
-            localStorage.setItem(THRESHOLD_KEY, String(thresholdIndex));
-            if (activeData) renderLedgerFlow(activeData);
+            writeStorage(THRESHOLD_KEY, String(thresholdIndex));
+            const label = THRESHOLDS[thresholdIndex]?.label || THRESHOLDS[0].label;
+            threshold.setAttribute('aria-valuetext', label);
+            const output = container.querySelector('#ledger-flow-threshold-label');
+            if (output) output.textContent = label;
+            if (activeData) renderLedgerFlow(activeData, { quiet: true });
             else renderLedgerFlow(null);
+        });
+        threshold.addEventListener('change', () => {
+            window.clearTimeout(thresholdReloadTimer);
+            thresholdReloadTimer = window.setTimeout(() => {
+                thresholdReloadTimer = null;
+                const overlay = document.getElementById('ledger-flow-modal');
+                if (overlay?.classList.contains('active') && activeTarget) loadLedgerFlow(activeTarget);
+            }, 120);
         });
     }
 
@@ -869,7 +976,7 @@ function wireLedgerFlowControls(container) {
                 loadLedgerFlow(example.dataset.ledgerExample);
                 return;
             }
-            const accountLink = event.target.closest('.ledger-flow-my-tezos-link, .ledger-flow-node-profile-link');
+            const accountLink = event.target.closest('.ledger-flow-my-tezos-link');
             if (accountLink) {
                 if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) closeLedgerFlowChamber();
                 return;
@@ -880,92 +987,208 @@ function wireLedgerFlowControls(container) {
             event.preventDefault();
             setDetailForEdge(target.dataset.ledgerEdge, container);
         });
-        container.addEventListener('keydown', (event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            if (event.target.closest('a')) return;
-            const target = event.target.closest('[data-ledger-edge]');
-            if (!target) return;
-            event.preventDefault();
-            setDetailForEdge(target.dataset.ledgerEdge, container);
-        });
     }
 }
 
-function renderLoading(label = 'Opening Ledger Flow...') {
+function setLoadStatus(message = '', tone = '') {
     const body = document.querySelector('#ledger-flow-modal .ledger-flow-body');
     if (!body) return;
-    body.innerHTML = `
-        <div class="chamber-loading">
-            <div class="chamber-loading-text">${escapeHtml(label)}</div>
-            <div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div>
-        </div>
-    `;
+    const content = body.closest('.ledger-flow-content') || body;
+    quietlyMutate(content, () => {
+        const busy = Boolean(message) && tone === 'loading';
+        body.setAttribute('aria-busy', busy ? 'true' : 'false');
+        body.dataset.ledgerFlowLoading = busy ? 'true' : 'false';
+        const status = body.querySelector('#ledger-flow-load-status');
+        if (status) {
+            status.textContent = message;
+            status.dataset.tone = tone;
+        }
+    });
+}
+
+function renderLoading(label = 'Opening Ledger Flow...', requestedTarget = '') {
+    const body = document.querySelector('#ledger-flow-modal .ledger-flow-body');
+    if (!body) return;
+    if (!body.querySelector('#ledger-flow-search-form')) renderEmptyState(body, requestedTarget);
+    quietlyMutate(body.closest('.ledger-flow-content') || body, () => {
+        const input = body.querySelector('#ledger-flow-input');
+        if (input && requestedTarget && input.value !== requestedTarget) input.value = requestedTarget;
+        body.querySelectorAll('[data-ledger-window]').forEach((button) => {
+            const active = button.dataset.ledgerWindow === activeWindow;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+    });
+    setLoadStatus(label, 'loading');
 }
 
 function renderError(message, detail = '') {
     const body = document.querySelector('#ledger-flow-modal .ledger-flow-body');
     if (!body) return;
-    body.innerHTML = `
-        <div class="chamber-error">
-            <div class="error-icon">!</div>
-            <div class="error-title">${escapeHtml(message)}</div>
-            ${detail ? `<div class="error-detail">${escapeHtml(detail)}</div>` : ''}
-            <button class="chamber-retry-btn" id="ledger-flow-retry">Retry</button>
-        </div>
-    `;
-    body.querySelector('#ledger-flow-retry')?.addEventListener('click', () => loadLedgerFlow(activeLabel || activeTarget));
+    if (!body.querySelector('#ledger-flow-search-form')) renderEmptyState(body);
+    setLoadStatus(`${message}${detail ? ` — ${detail}` : ''}`, 'error');
+}
+
+function abortActiveLoad(reason = 'superseded') {
+    if (!activeLoad) return;
+    window.clearTimeout(activeLoad.timeoutId);
+    activeLoad.abortReason = reason;
+    activeLoad.controller.abort();
+    activeLoad = null;
+}
+
+function accountAlias(value) {
+    return {
+        address: value?.address || '',
+        alias: value?.alias || ''
+    };
+}
+
+function buildOriginEvent(origination) {
+    const counterparty = accountAlias(origination?.sender);
+    if (!counterparty.address) return null;
+    return {
+        kind: 'origination',
+        id: origination?.id || null,
+        timestamp: origination?.timestamp || '',
+        amountMutez: Math.max(0, Number(origination?.contractBalance || 0)),
+        counterparty
+    };
+}
+
+function buildFirstInboundEvent(transaction) {
+    const counterparty = accountAlias(transaction?.sender);
+    if (!counterparty.address) return null;
+    return {
+        kind: 'first-inbound',
+        id: transaction?.id || null,
+        transactionId: transaction?.id || null,
+        timestamp: transaction?.timestamp || '',
+        amountMutez: Math.max(0, Number(transaction?.amount || 0)),
+        counterparty
+    };
 }
 
 async function loadLedgerFlow(rawTarget) {
     const body = document.querySelector('#ledger-flow-modal .ledger-flow-body');
     if (!body) return;
     const target = String(rawTarget || '').trim();
+    abortActiveLoad('superseded');
     if (!target) {
         activeTarget = '';
         activeLabel = '';
         activeData = null;
+        selectedEdgeId = '';
         renderLedgerFlow(null);
         return;
     }
 
     const seq = ++renderSeq;
-    renderLoading('Mapping account transfers...');
-    const resolved = await resolveLedgerTarget(target);
-    if (seq !== renderSeq) return;
-    if (!resolved.address) {
-        activeTarget = '';
-        activeLabel = resolved.label || target;
-        activeData = null;
-        renderError('Account not found', 'Use a tz1/tz2/tz3/tz4 wallet, KT1 contract, or resolvable .tez name.');
-        return;
-    }
-
-    activeTarget = resolved.address;
-    activeLabel = resolved.label || resolved.address;
-    localStorage.setItem(LAST_TARGET_KEY, activeLabel);
+    const previous = {
+        target: activeTarget,
+        label: activeLabel,
+        data: activeData,
+        window: activeData?.coverage?.windowKey || activeWindow
+    };
+    const requestedWindow = activeWindow;
+    const thresholdMutez = THRESHOLDS[thresholdIndex]?.mutez || 0;
+    const controller = new AbortController();
+    const load = {
+        seq,
+        controller,
+        timeoutId: 0,
+        timedOut: false,
+        abortReason: ''
+    };
+    load.timeoutId = window.setTimeout(() => {
+        load.timedOut = true;
+        load.abortReason = 'timeout';
+        controller.abort();
+    }, LOAD_TIMEOUT_MS);
+    activeLoad = load;
+    renderLoading('Mapping account transfers...', target);
 
     try {
-        const [account, sent, received, firstInbound] = await Promise.all([
-            fetchAccount(resolved.address),
-            fetchTransfers(resolved.address, 'sent', activeWindow),
-            fetchTransfers(resolved.address, 'received', activeWindow),
-            fetchFirstInbound(resolved.address)
+        const resolved = await resolveLedgerTarget(target, controller.signal);
+        if (seq !== renderSeq || controller.signal.aborted) return;
+        if (!resolved.address) {
+            throw new Error('Account not found. Use a valid tz1/tz2/tz3/tz4 wallet, KT1 contract, or resolvable .tez name.');
+        }
+
+        const until = new Date().toISOString();
+        const boundary = {
+            since: windowTimestamp(requestedWindow, until),
+            until
+        };
+        const [account, totalRows, firstInboundRaw, originationRaw] = await Promise.all([
+            fetchAccount(resolved.address, controller.signal),
+            fetchTransferCount(resolved.address, boundary, thresholdMutez, controller.signal),
+            fetchFirstInbound(resolved.address, controller.signal),
+            resolved.address.startsWith('KT1')
+                ? fetchOrigination(resolved.address, controller.signal)
+                : Promise.resolve(null)
         ]);
+        const coverage = {
+            mode: totalRows > EXACT_ROW_LIMIT ? 'sample' : 'exact',
+            totalRows,
+            fetchedRows: 0,
+            windowKey: requestedWindow,
+            since: boundary.since,
+            until: boundary.until,
+            thresholdMutez
+        };
+        const transactions = await fetchTransfers(
+            resolved.address,
+            boundary,
+            thresholdMutez,
+            coverage,
+            controller.signal
+        );
         if (seq !== renderSeq) return;
+        coverage.fetchedRows = transactions.length;
+        const accountOrigin = buildOriginEvent(originationRaw);
+        const firstInboundEvent = buildFirstInboundEvent(firstInboundRaw);
+        const firstValueEvent = accountOrigin?.amountMutez > 0 ? accountOrigin : firstInboundEvent;
+        activeTarget = resolved.address;
+        activeLabel = resolved.label || resolved.address;
         activeData = {
             address: resolved.address,
             label: resolved.label,
+            resolution: resolved.resolution,
             account,
-            sent,
-            received,
-            firstInbound,
+            transactions,
+            accountOrigin,
+            firstInboundEvent,
+            firstValueEvent,
+            coverage,
             updatedAt: new Date().toISOString()
         };
-        renderLedgerFlow(activeData);
+        writeStorage(LAST_TARGET_KEY, resolved.address);
+        renderLedgerFlow(activeData, { quiet: true });
+        setLoadStatus('');
     } catch (error) {
         console.warn('Ledger Flow failed', error);
         if (seq !== renderSeq) return;
-        renderError('Ledger Flow data is delayed', 'TzKT account transfer history did not answer in time. Try again in a moment.');
+        const abortedByNewLoad = error?.name === 'AbortError' && load.abortReason === 'superseded';
+        const abortedByClose = error?.name === 'AbortError' && load.abortReason === 'closed';
+        if (abortedByNewLoad || abortedByClose) return;
+        activeTarget = previous.target;
+        activeLabel = previous.label;
+        activeData = previous.data;
+        activeWindow = previous.window;
+        writeStorage(WINDOW_KEY, activeWindow);
+        const reason = load.timedOut
+            ? 'The bounded request timed out.'
+            : error?.message || 'TzKT did not answer.';
+        if (activeData) {
+            renderLedgerFlow(activeData, { quiet: true });
+            setLoadStatus(`Could not load ${target}; still showing the last-good ${String(activeData.coverage?.windowKey || '').toUpperCase()} view. ${reason}`, 'error');
+        } else {
+            renderError('Ledger Flow data is delayed', `${reason} Try again in a moment.`);
+        }
+    } finally {
+        window.clearTimeout(load.timeoutId);
+        if (activeLoad === load) activeLoad = null;
     }
 }
 
@@ -986,12 +1209,39 @@ function unlockPageScroll() {
 }
 
 function defaultTarget() {
-    return localStorage.getItem(LAST_TARGET_KEY)
-        || localStorage.getItem(STORAGE_KEY)
+    return readStorage(LAST_TARGET_KEY)
+        || readStorage(STORAGE_KEY)
         || '';
 }
 
+async function loadWhaleSeed() {
+    if (whaleSeed?.target) return whaleSeed;
+    try {
+        const artifact = await getWhaleWatchArtifact();
+        const operation = artifact?.transfers24h?.largestOperation;
+        const sender = String(operation?.sender || '');
+        const target = String(operation?.target || '');
+        if (String(operation?.status || '').toLowerCase() !== 'applied'
+            || !isTezosAccount(sender)
+            || !isTezosAccount(target)
+            || sender === target
+            || !(Number(operation?.amountMutez || 0) > 0)) {
+            return null;
+        }
+        whaleSeed = {
+            target: sender,
+            alias: String(operation?.senderAlias || ''),
+            timestamp: operation?.timestamp || artifact?.generatedAt || '',
+            amountMutez: Number(operation.amountMutez)
+        };
+        return whaleSeed;
+    } catch {
+        return null;
+    }
+}
+
 export async function openLedgerFlowChamber(target = '') {
+    const openGeneration = ++chamberOpenGeneration;
     ensureLedgerFlowStyles();
     let overlay = document.getElementById('ledger-flow-modal');
     if (!overlay) {
@@ -1023,7 +1273,13 @@ export async function openLedgerFlowChamber(target = '') {
     const content = overlay.querySelector('.ledger-flow-content');
     if (content) content.scrollTop = 0;
 
-    const nextTarget = String(target || '').trim() || defaultTarget();
+    let nextTarget = String(target || '').trim() || defaultTarget();
+    if (!nextTarget) {
+        renderLedgerFlow(null);
+        const seed = await loadWhaleSeed();
+        if (openGeneration !== chamberOpenGeneration || !overlay.classList.contains('active')) return;
+        nextTarget = seed?.target || '';
+    }
     if (nextTarget) {
         await loadLedgerFlow(nextTarget);
     } else {
@@ -1032,6 +1288,11 @@ export async function openLedgerFlowChamber(target = '') {
 }
 
 export function closeLedgerFlowChamber() {
+    chamberOpenGeneration += 1;
+    window.clearTimeout(thresholdReloadTimer);
+    thresholdReloadTimer = null;
+    abortActiveLoad('closed');
+    renderSeq += 1;
     const overlay = document.getElementById('ledger-flow-modal');
     if (overlay) {
         overlay.classList.remove('active');
@@ -1072,13 +1333,13 @@ function ensureLedgerFlowEntryCard() {
                         ${miniMapSvg()}
                         <div class="ledger-flow-entry-copy">
                             <div class="chamber-entry-icon">Account transfer map</div>
-                            <p class="stat-description">Sent, received, and first-funding paths around any Tezos wallet or contract.</p>
+                            <p class="stat-description">Bounded sent and received tez paths with all-time receipt context.</p>
                         </div>
                     </div>
                     <div class="chamber-entry-metrics ledger-flow-entry-metrics">
                         <div class="chamber-entry-metric" data-ledger-flow-metric="received"><span>Received</span><strong>blue</strong></div>
                         <div class="chamber-entry-metric" data-ledger-flow-metric="sent"><span>Sent</span><strong>pink</strong></div>
-                        <div class="chamber-entry-metric" data-ledger-flow-metric="first"><span>First in</span><strong>gold</strong></div>
+                        <div class="chamber-entry-metric" data-ledger-flow-metric="first"><span>First value</span><strong>gold</strong></div>
                         <div class="chamber-entry-metric"><span>Weight</span><strong>amount</strong></div>
                     </div>
                 </div>
