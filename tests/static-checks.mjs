@@ -1539,6 +1539,12 @@ async function checkCacheBustAlignment() {
   const sw = await readText('sw.js');
   const app = await readText('js/core/app.js');
   const releaseUpdate = await readText('js/ui/release-update.js');
+  const changelogSource = await readText('js/features/changelog.js');
+  const changelogModuleUrl = `data:text/javascript;base64,${Buffer.from(changelogSource).toString('base64')}`;
+  const { CHANGELOG } = await import(changelogModuleUrl);
+  const latestChangelogEntry = await readText('scripts/latest-changelog-entry.mjs');
+  const stampVersion = await readText('scripts/stamp-version.sh');
+  const version = JSON.parse(await readText('version.json'));
   const styles = await readText('css/styles.css');
   const heroSearch = await readText('js/features/search.js');
   const leaderboard = await readText('js/features/leaderboard.js');
@@ -1678,10 +1684,18 @@ async function checkCacheBustAlignment() {
     ["document.visibilityState === 'visible'", app],
     ['Update applied in another tab', app],
     ['Update ready to finish', app],
+    ['fetchReleaseUpdateMetadata', app],
+    ['version?.latestChange', app],
+    ['hydrateIncomingReleaseContext', releaseUpdate],
     ['showReleaseUpdateDock', releaseUpdate],
     ['reserveToastSafeArea(SAFE_AREA_KEY', releaseUpdate],
     ["pill.addEventListener('click'", releaseUpdate],
+    ['release-update-transmission-header', releaseUpdate],
+    ['System transmission · incoming', releaseUpdate],
     [".release-update-action", styles],
+    [".release-update-transmission-header", styles],
+    ['left: 50%', styles],
+    ['#EF233C', styles],
     ['min-height: 44px', styles],
     [".release-update-dock.is-collapsed", styles]
   ];
@@ -1690,6 +1704,15 @@ async function checkCacheBustAlignment() {
   }
   if (!shellAssetsBlock.includes("'/js/ui/release-update.js'")) {
     fail('service-worker install shell must include the dedicated release update UI');
+  }
+  const currentLatestChange = CHANGELOG[0]?.entries?.at(-1)?.text || '';
+  if (!currentLatestChange
+      || version.latestChange !== currentLatestChange
+      || !latestChangelogEntry.includes("CHANGELOG[0]")
+      || !stampVersion.includes('latest-changelog-entry.mjs')) {
+    fail('version metadata must carry the latest user-facing changelog entry for the release transmission');
+  } else {
+    pass('release transmission metadata matches the latest user-facing changelog entry');
   }
   if (app.includes('service-worker-update-toast') || app.includes('duration: 15000')) {
     fail('service-worker updates must not regress to the expiring ambient toast');
@@ -1700,7 +1723,7 @@ async function checkCacheBustAlignment() {
   if (!themeUi.includes("window.location.hash.slice(1)") || !themeUi.includes("hashParams.get('theme')")) {
     fail('theme.js runtime initialization must preserve hash theme precedence over saved preferences');
   }
-  pass('service worker uses a persistent responsive release dock, visible hourly checks, cross-tab recovery, a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
+  pass('service worker uses a bottom-center System Transmission with current release context, visible hourly checks, cross-tab recovery, a small install shell, bounded runtime cache, explicit API failures, and an offline navigation page');
 
   if (!index.includes('<meta property="og:image:width" content="1200">') || !index.includes('<meta property="og:image:height" content="630">')) {
     fail('index.html root OG image metadata must match generated og-image.png at 1200x630');

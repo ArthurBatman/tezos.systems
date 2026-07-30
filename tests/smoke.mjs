@@ -4604,6 +4604,8 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
       window.__releaseUpdateActions = 0;
       window.__releaseUpdateLater = 0;
       ui.showReleaseUpdateDock({
+        detail: 'Latest: Baker Directory now shows observation time.',
+        meta: 'Build 919 · 2026-07-30',
         onAction: () => { window.__releaseUpdateActions += 1; },
         onLater: () => { window.__releaseUpdateLater += 1; }
       });
@@ -4636,19 +4638,23 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
         actionWidth: actionRect?.width || 0,
         ariaLive: copy?.getAttribute('aria-live') || '',
         bottom: dockRect ? innerHeight - dockRect.bottom : Number.NaN,
+        cardBorder: cardStyles?.borderColor || '',
         cardBg: cardStyles?.backgroundImage || cardStyles?.backgroundColor || '',
         cardWidth: cardRect?.width || 0,
+        centerOffset: dockRect ? Math.abs(dockRect.left + (dockRect.width / 2) - (innerWidth / 2)) : Number.NaN,
+        detail: dock?.querySelector('.release-update-detail')?.textContent || '',
         dockWidth: dockRect?.width || 0,
         edge,
         focusId: document.activeElement?.id || '',
         laterHeight: laterRect?.height || 0,
+        meta: dock?.querySelector('.release-update-transmission-meta')?.textContent || '',
         mobile,
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         reducedTransition: reducedMotion ? dockStyles?.transitionDuration || '' : '',
-        right: dockRect ? innerWidth - dockRect.right : Number.NaN,
         safeBottom: rootStyles.getPropertyValue('--toast-safe-bottom').trim(),
         scrollPreserved: Math.abs(window.scrollY - (baseline?.scrollY || 0)) <= 1,
         title: dock?.querySelector('.release-update-title')?.textContent || '',
+        transmission: dock?.querySelector('.release-update-transmission-header')?.textContent?.replace(/\s+/g, ' ').trim() || '',
         zIndex: Number(dockStyles?.zIndex || 0)
       };
     }, {
@@ -4658,17 +4664,39 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     });
 
     assert(initial.activePreserved && initial.focusId === 'hero-search-input' && initial.scrollPreserved, `release update dock ${testCase.label}: appearance stole focus or scroll ${JSON.stringify(initial)}`);
-    assert(initial.title === 'New version ready' && initial.ariaLive === 'polite', `release update dock ${testCase.label}: release copy/accessibility missing ${JSON.stringify(initial)}`);
+    assert(initial.title === 'Update ready'
+      && initial.detail === 'Latest: Baker Directory now shows observation time.'
+      && initial.meta === 'Build 919 · 2026-07-30'
+      && /System transmission · incoming/i.test(initial.transmission)
+      && initial.ariaLive === 'polite', `release update dock ${testCase.label}: release copy/accessibility missing ${JSON.stringify(initial)}`);
     assert(initial.actionHeight >= 43.9 && initial.laterHeight >= 43.9, `release update dock ${testCase.label}: actions are undersized ${JSON.stringify(initial)}`);
-    assert(initial.zIndex >= 10004 && initial.cardBg !== 'none' && initial.actionBg !== initial.actionColor, `release update dock ${testCase.label}: system notice is not visually stark ${JSON.stringify(initial)}`);
+    assert(initial.zIndex >= 10004
+      && initial.cardBg !== 'none'
+      && /239, 35, 60/.test(initial.actionBg)
+      && /239, 35, 60/.test(initial.cardBorder)
+      && initial.actionBg !== initial.actionColor, `release update dock ${testCase.label}: System Transmission is not visibly red and stark ${JSON.stringify(initial)}`);
     assert(initial.safeBottom && !initial.pageOverflow, `release update dock ${testCase.label}: safe-area or overflow contract failed ${JSON.stringify(initial)}`);
-    assert(Math.abs(initial.bottom - testCase.edge) <= 2 && Math.abs(initial.right - testCase.edge) <= 2, `release update dock ${testCase.label}: dock missed its viewport edge ${JSON.stringify(initial)}`);
+    assert(Math.abs(initial.bottom - testCase.edge) <= 2 && initial.centerOffset <= 1, `release update dock ${testCase.label}: dock missed the bottom-center target ${JSON.stringify(initial)}`);
     if (testCase.viewport.width <= 600) {
       assert(initial.dockWidth >= testCase.viewport.width - 26 && initial.actionWidth >= initial.cardWidth - 30, `release update dock ${testCase.label}: mobile dock/action should span the safe width ${JSON.stringify(initial)}`);
       assert(initial.reducedTransition === '0s', `release update dock ${testCase.label}: reduced motion kept an entrance transition ${JSON.stringify(initial)}`);
     } else {
-      assert(initial.dockWidth >= 400 && initial.dockWidth <= 440.5, `release update dock ${testCase.label}: desktop dock width drifted ${JSON.stringify(initial)}`);
+      assert(initial.dockWidth >= 580 && initial.dockWidth <= 620.5, `release update dock ${testCase.label}: desktop transmission width drifted ${JSON.stringify(initial)}`);
     }
+
+    await page.evaluate(() => {
+      window.__releaseUpdateUi.showReleaseUpdateDock({
+        detail: 'Reload for the latest Tezos Systems fixes and features.',
+        onAction: () => { window.__releaseUpdateActions += 1; },
+        onLater: () => { window.__releaseUpdateLater += 1; }
+      });
+    });
+    await page.waitForFunction(() => document.querySelector('.release-update-detail')?.textContent?.startsWith('Latest: New site builds now arrive through a bottom-center red System Transmission'));
+    const bootstrapContext = await page.evaluate(() => ({
+      detail: document.querySelector('.release-update-detail')?.textContent || '',
+      meta: document.querySelector('.release-update-transmission-meta')?.textContent || ''
+    }));
+    assert(/^Build \d+ · \d{4}-\d{2}-\d{2}$/.test(bootstrapContext.meta), `release update dock ${testCase.label}: bootstrap metadata hydration failed ${JSON.stringify(bootstrapContext)}`);
 
     const later = page.locator('[data-release-update-later]');
     assert(await later.count() === 1, `release update dock ${testCase.label}: expected one Later action`);
@@ -4837,10 +4865,15 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     const registration = await navigator.serviceWorker.getRegistration();
     return {
       action: document.querySelector('[data-release-update-action]')?.textContent || '',
+      detail: document.querySelector('.release-update-detail')?.textContent || '',
+      transmission: document.querySelector('.release-update-transmission-label')?.textContent || '',
       waiting: registration.waiting?.state || ''
     };
   });
-  assert(waitingState.action === 'Update & reload' && waitingState.waiting === 'installed', `release update lifecycle: waiting worker did not produce the release dock ${JSON.stringify(waitingState)}`);
+  assert(waitingState.action === 'Update & reload'
+    && waitingState.detail.startsWith('Latest: New site builds now arrive through a bottom-center red System Transmission')
+    && /System transmission · incoming/i.test(waitingState.transmission)
+    && waitingState.waiting === 'installed', `release update lifecycle: waiting worker did not produce the release transmission with current change context ${JSON.stringify(waitingState)}`);
 
   const lifecycleAction = updatingPage.locator('[data-release-update-action]');
   await Promise.all([

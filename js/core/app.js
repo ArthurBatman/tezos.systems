@@ -126,8 +126,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=530';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=530';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=531';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=531';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -4902,12 +4902,37 @@ if (document.readyState === 'loading') {
 
 const GITHUB_MAIN_COMMIT_URL = 'https://api.github.com/repos/Primate411/tezos.systems/commits/main';
 
-async function fetchBuildMetadata() {
+async function fetchBuildMetadata({ signal } = {}) {
     try {
-        const response = await fetch('/version.json', { cache: 'no-store' });
+        const response = await fetch('/version.json', { cache: 'no-store', signal });
         return response.ok ? response.json() : null;
     } catch (_) {
         return null;
+    }
+}
+
+function releaseUpdateMetadata(version) {
+    const latestChange = typeof version?.latestChange === 'string'
+        ? version.latestChange.replace(/\s+/g, ' ').trim().slice(0, 280)
+        : '';
+    const metaParts = [];
+    if (Number.isInteger(version?.build)) metaParts.push(`Build ${version.build}`);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(version?.date || '')) metaParts.push(version.date);
+    return {
+        detail: latestChange
+            ? `Latest: ${latestChange}`
+            : 'Latest: Tezos Systems fixes and features.',
+        meta: metaParts.join(' · ') || 'Build ready'
+    };
+}
+
+async function fetchReleaseUpdateMetadata() {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 1500);
+    try {
+        return releaseUpdateMetadata(await fetchBuildMetadata({ signal: controller.signal }));
+    } finally {
+        window.clearTimeout(timeout);
     }
 }
 
@@ -5413,15 +5438,19 @@ function registerServiceWorker() {
         };
 
         const showAppliedElsewherePrompt = async ({ forceExpand = true } = {}) => {
-            const ui = await loadReleaseUpdateUi();
+            const [ui, release] = await Promise.all([
+                loadReleaseUpdateUi(),
+                fetchReleaseUpdateMetadata()
+            ]);
             const resurface = () => showAppliedElsewherePrompt({ forceExpand: true });
             ui.showReleaseUpdateDock({
                 state: 'reload',
                 title: 'Update applied in another tab',
-                detail: 'Reload this tab to finish using the new Tezos Systems build.',
+                detail: release.detail,
+                meta: release.meta,
                 actionLabel: 'Reload this tab',
                 pendingLabel: 'Reloading…',
-                pillLabel: 'Reload to update',
+                pillLabel: 'Reload transmission',
                 expanded: forceExpand || Date.now() >= deferredUntil,
                 onAction: reloadThisTab,
                 onLater: () => deferPrompt(resurface)
@@ -5447,7 +5476,10 @@ function registerServiceWorker() {
 
         const showUpdatePrompt = async (reg, { forceExpand = false } = {}) => {
             if (!reg.waiting || !navigator.serviceWorker.controller) return;
-            const ui = await loadReleaseUpdateUi();
+            const [ui, release] = await Promise.all([
+                loadReleaseUpdateUi(),
+                fetchReleaseUpdateMetadata()
+            ]);
             if (!reg.waiting || !navigator.serviceWorker.controller) return;
 
             const resurface = () => showUpdatePrompt(reg, { forceExpand: true });
@@ -5455,10 +5487,11 @@ function registerServiceWorker() {
                 ui.setReleaseUpdateDockState({
                     state: 'reload',
                     title: 'Update ready to finish',
-                    detail: 'Reload this tab to finish applying the new Tezos Systems build.',
+                    detail: release.detail,
+                    meta: release.meta,
                     actionLabel: 'Reload now',
                     pendingLabel: 'Reloading…',
-                    pillLabel: 'Reload to update',
+                    pillLabel: 'Reload transmission',
                     onAction: reloadThisTab,
                     onLater: () => {
                         reloadRequested = false;
@@ -5469,11 +5502,12 @@ function registerServiceWorker() {
 
             ui.showReleaseUpdateDock({
                 state: 'ready',
-                title: 'New version ready',
-                detail: 'Reload for the latest Tezos Systems fixes and features.',
+                title: 'Update ready',
+                detail: release.detail,
+                meta: release.meta,
                 actionLabel: 'Update & reload',
                 pendingLabel: 'Updating…',
-                pillLabel: 'Update ready',
+                pillLabel: 'Update transmission',
                 expanded: forceExpand || Date.now() >= deferredUntil,
                 onLater: () => deferPrompt(resurface),
                 onAction() {

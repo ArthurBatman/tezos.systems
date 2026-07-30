@@ -16,6 +16,7 @@ let card = null;
 let pill = null;
 let title = null;
 let detail = null;
+let releaseMeta = null;
 let actionButton = null;
 let laterButton = null;
 let currentAction = null;
@@ -23,6 +24,40 @@ let currentLater = null;
 let currentPendingLabel = 'Updating…';
 let safeAreaFrame = 0;
 let resizeObserver = null;
+
+function isGenericReleaseDetail(value) {
+    return value === 'Latest: Tezos Systems fixes and features.'
+        || value === 'Reload for the latest Tezos Systems fixes and features.'
+        || value === 'Reload this tab to finish using the new Tezos Systems build.';
+}
+
+async function hydrateIncomingReleaseContext(expectedDetail) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 1500);
+    try {
+        const response = await fetch('/version.json', {
+            cache: 'no-store',
+            signal: controller.signal
+        });
+        const version = response.ok ? await response.json() : null;
+        const latestChange = typeof version?.latestChange === 'string'
+            ? version.latestChange.replace(/\s+/g, ' ').trim().slice(0, 280)
+            : '';
+        if (!latestChange || detail?.textContent !== expectedDetail) return;
+        detail.textContent = `Latest: ${latestChange}`;
+        const metaParts = [];
+        if (Number.isInteger(version?.build)) metaParts.push(`Build ${version.build}`);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(version?.date || '')) metaParts.push(version.date);
+        if (releaseMeta?.textContent === 'Build ready' && metaParts.length) {
+            releaseMeta.textContent = metaParts.join(' · ');
+        }
+        scheduleSafeAreaReservation();
+    } catch (_) {
+        // Keep the generic release copy when metadata is unavailable.
+    } finally {
+        window.clearTimeout(timeout);
+    }
+}
 
 function scheduleSafeAreaReservation() {
     if (typeof window === 'undefined') return;
@@ -57,22 +92,35 @@ function ensureDock() {
     dock.className = 'release-update-dock';
     dock.dataset.releaseUpdateDock = '';
     dock.dataset.state = 'ready';
-    dock.setAttribute('aria-label', 'Tezos Systems update');
+    dock.setAttribute('aria-label', 'Tezos Systems update transmission');
     dock.hidden = true;
 
     pill = document.createElement('button');
     pill.className = 'release-update-pill';
     pill.type = 'button';
     pill.hidden = true;
-    pill.innerHTML = '<span class="release-update-symbol" aria-hidden="true">↻</span><span data-release-update-pill-label>Update ready</span>';
+    pill.innerHTML = '<span class="release-update-symbol" aria-hidden="true">››</span><span data-release-update-pill-label>Update transmission</span>';
 
     card = document.createElement('div');
     card.className = 'release-update-card';
 
+    const transmissionHeader = document.createElement('div');
+    transmissionHeader.className = 'release-update-transmission-header';
+    transmissionHeader.style.display = 'none';
+
+    const transmissionLabel = document.createElement('span');
+    transmissionLabel.className = 'release-update-transmission-label';
+    transmissionLabel.innerHTML = '<span aria-hidden="true">››</span> System transmission · incoming';
+
+    releaseMeta = document.createElement('span');
+    releaseMeta.className = 'release-update-transmission-meta';
+    releaseMeta.textContent = 'Build ready';
+    transmissionHeader.append(transmissionLabel, releaseMeta);
+
     const icon = document.createElement('span');
     icon.className = 'release-update-icon';
     icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '↻';
+    icon.textContent = '›';
 
     const copy = document.createElement('div');
     copy.className = 'release-update-copy';
@@ -102,7 +150,7 @@ function ensureDock() {
     laterButton.textContent = 'Later';
 
     actions.append(actionButton, laterButton);
-    card.append(icon, copy, actions);
+    card.append(transmissionHeader, icon, copy, actions);
     dock.append(card, pill);
     document.body.appendChild(dock);
 
@@ -143,6 +191,7 @@ export function setReleaseUpdateDockState({
     state = 'ready',
     title: nextTitle,
     detail: nextDetail,
+    meta: nextMeta,
     actionLabel,
     pendingLabel,
     pillLabel,
@@ -156,6 +205,7 @@ export function setReleaseUpdateDockState({
     dock.dataset.state = state;
     if (nextTitle !== undefined) title.textContent = nextTitle;
     if (nextDetail !== undefined) detail.textContent = nextDetail;
+    if (nextMeta !== undefined) releaseMeta.textContent = nextMeta;
     if (actionLabel !== undefined) actionButton.textContent = actionLabel;
     if (pendingLabel !== undefined) currentPendingLabel = pendingLabel;
     if (pillLabel !== undefined) {
@@ -173,11 +223,12 @@ export function setReleaseUpdateDockState({
 
 export function showReleaseUpdateDock({
     state = 'ready',
-    title = 'New version ready',
-    detail = 'Reload for the latest Tezos Systems fixes and features.',
+    title = 'Update ready',
+    detail = 'Latest: Tezos Systems fixes and features.',
+    meta = 'Build ready',
     actionLabel = 'Update & reload',
     pendingLabel = 'Updating…',
-    pillLabel = 'Update ready',
+    pillLabel = 'Update transmission',
     onAction,
     onLater,
     canDefer = true,
@@ -191,6 +242,7 @@ export function showReleaseUpdateDock({
         state,
         title,
         detail,
+        meta,
         actionLabel,
         pendingLabel,
         pillLabel,
@@ -201,6 +253,9 @@ export function showReleaseUpdateDock({
 
     dock.hidden = false;
     setCollapsed(!expanded);
+    if (meta === 'Build ready' && isGenericReleaseDetail(detail)) {
+        hydrateIncomingReleaseContext(detail);
+    }
     if (wasVisible) {
         dock.classList.add('is-visible');
         scheduleSafeAreaReservation();

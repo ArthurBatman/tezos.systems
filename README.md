@@ -28,8 +28,10 @@ minification, Playwright, governance refresh scripts, and shared git hooks.
   `npm run install-hooks`.
 - README sync guard: pre-commit blocks when staged changes touch
   README-documented behavior but `README.md` is not staged.
-- Version metadata: `version.json` is stamped by the pre-commit hook and shown
-  in the faint footer build marker alongside the latest GitHub `main` commit.
+- Version metadata: `version.json` is stamped by the pre-commit hook, carries
+  the latest user-facing changelog entry for the update transmission, and is
+  shown in the faint footer build marker alongside the latest GitHub `main`
+  commit.
 - Standard verification: `npm test`, which runs static checks and browser smoke
   tests.
 
@@ -136,6 +138,7 @@ tezos.systems/
 │   ├── bake-compare-pages.mjs         # Static compare-page content baker
 │   ├── build-css.mjs                  # Base/theme CSS splitter and minifier
 │   ├── update-governance-votes.mjs    # Compatibility wrapper
+│   ├── latest-changelog-entry.mjs     # Latest user-facing release-note projection
 │   ├── stamp-version.sh               # Pre-commit version metadata stamp
 │   └── generate-og-image.js           # Valley root OG social-card generator
 ├── .github/scripts/
@@ -1320,7 +1323,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v530`, including hero search, theme
+- Current aligned shell cache stamp: `v531`, including hero search, theme
   bundles, and the Baker Directory, Whale Watch, Cycle History, Ledger Flow,
   Network Pulse, Ecosystem Activity, and Staking Chamber lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
@@ -1338,6 +1341,8 @@ Important version model:
   parent/pre-commit `HEAD`.
 - `build` predicts the commit count after the commit being created and is the
   useful deployed-version handle.
+- `latestChange` projects the final entry in the newest Changelog date section
+  so the waiting-worker prompt can explain the incoming build before reloading.
 - The footer fetches `version.json` with `cache: 'no-store'` and also fetches
   the latest GitHub `main` commit at runtime.
 - `sw.js` treats `/version.json` as network-first and same-origin shell assets
@@ -1443,8 +1448,10 @@ and heartbeat affordance from the dashboard polish pass.
 
 - Service worker cache can hide changes during QA. Hard refresh or unregister
   the service worker if local behavior looks stale.
-- A newly installed service worker waits until the visible Update action is
-  accepted before taking control, preventing a mid-session HTML/module split.
+- A newly installed service worker waits in a bottom-center red System
+  Transmission that names the latest change, then takes control only after the
+  visible Update & reload action is accepted, preventing a mid-session
+  HTML/module split.
   Offline navigations deliberately render `offline.html`; the shell/runtime
   cache is an asset accelerator, not an offline copy of live telemetry.
 - `index.html` serves `css/styles.min.css`; editing only `css/styles.css` is
