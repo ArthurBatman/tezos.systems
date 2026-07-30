@@ -17706,6 +17706,9 @@ body {
 
 .chamber-entry-card {
     --chamber-control-lane: 3.65rem;
+    /* 80% of the original 32px rail controls; keep the 34px pitch so the
+       smaller buttons gain visible breathing room without shifting content. */
+    --chamber-control-size: 25.6px;
     --chamber-card-inline-padding: 1.45rem;
     --chamber-footer-clearance: 3rem;
     border: 1px solid color-mix(in srgb, var(--accent-cyan) 12%, transparent) !important;
@@ -17724,10 +17727,10 @@ body {
 #chambers-grid .chamber-entry-card > .card-info-btn,
 #chambers-grid .chamber-entry-card > .card-history-btn {
     top: 0.85rem;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
+    width: var(--chamber-control-size);
+    height: var(--chamber-control-size);
+    min-width: var(--chamber-control-size);
+    min-height: var(--chamber-control-size);
     z-index: 70;
 }
 
@@ -17740,10 +17743,12 @@ body {
 
 #chambers-grid .chamber-entry-card > .card-share-btn {
     top: 0.85rem;
+    font-size: 10.4px;
 }
 
 #chambers-grid .chamber-entry-card > .card-copy-link {
     top: calc(0.85rem + 34px);
+    font-size: 9.6px;
 }
 
 #chambers-grid .chamber-entry-card > .card-info-btn {
@@ -17752,6 +17757,17 @@ body {
 
 #chambers-grid .chamber-entry-card > .card-history-btn {
     top: calc(0.85rem + 102px);
+    font-size: 10.4px;
+}
+
+#chambers-grid .chamber-entry-card > .card-share-btn > svg {
+    width: 12px;
+    height: 12px;
+}
+
+#chambers-grid .chamber-entry-card > .card-info-btn > svg {
+    width: 12.8px;
+    height: 12.8px;
 }
 
 .chamber-entry-card::before {
@@ -18222,6 +18238,7 @@ body {
 
     #chambers-grid .chamber-entry-card {
         --chamber-control-lane: 3.85rem;
+        --chamber-control-size: 27.2px;
         --chamber-card-inline-padding: 1.25rem;
         --chamber-footer-clearance: 3.15rem;
     }
@@ -18231,10 +18248,10 @@ body {
     #chambers-grid .chamber-entry-card > .card-info-btn,
     #chambers-grid .chamber-entry-card > .card-history-btn {
         top: 0.78rem;
-        width: 34px;
-        height: 34px;
-        min-width: 34px;
-        min-height: 34px;
+        width: var(--chamber-control-size);
+        height: var(--chamber-control-size);
+        min-width: var(--chamber-control-size);
+        min-height: var(--chamber-control-size);
     }
 
     #chambers-grid .chamber-entry-card > .card-copy-link {

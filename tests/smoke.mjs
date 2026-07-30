@@ -3542,15 +3542,45 @@ async function assertChamberControlGeometry(page, label) {
       if (!infoTooltip) found.push({ card: selector, issue: 'missing-info-tooltip' });
       else if (infoTooltip.previousElementSibling !== infoControl) found.push({ card: selector, issue: 'info-tooltip-not-adjacent' });
       if (shareControl && copyControl && infoControl && historyControl) {
+        const expectedControlSize = window.innerWidth < 760 ? 27.2 : 25.6;
+        const expectedControlGap = window.innerWidth < 760 ? 8.8 : 8.4;
         const stack = [
           ['share', shareControl],
           ['copy', copyControl],
           ['info', infoControl],
           ['history', historyControl]
         ].map(([name, node]) => ({ name, box: visibleBox(node) })).filter((item) => item.box);
+        for (const control of stack) {
+          if (
+            Math.abs(control.box.width - expectedControlSize) > 0.35
+            || Math.abs(control.box.height - expectedControlSize) > 0.35
+          ) {
+            found.push({
+              card: selector,
+              issue: 'control-stack-size',
+              control: control.name,
+              expected: expectedControlSize,
+              actual: {
+                width: Number(control.box.width.toFixed(2)),
+                height: Number(control.box.height.toFixed(2))
+              }
+            });
+          }
+        }
         for (let index = 1; index < stack.length; index += 1) {
           if (stack[index].box.top <= stack[index - 1].box.top + 1) {
             found.push({ card: selector, issue: 'control-stack-order', before: stack[index - 1].name, after: stack[index].name, stack: stack.map((item) => ({ name: item.name, top: Number(item.box.top.toFixed(2)) })) });
+          }
+          const controlGap = stack[index].box.top - stack[index - 1].box.bottom;
+          if (Math.abs(controlGap - expectedControlGap) > 0.35) {
+            found.push({
+              card: selector,
+              issue: 'control-stack-gap',
+              before: stack[index - 1].name,
+              after: stack[index].name,
+              expected: expectedControlGap,
+              actual: Number(controlGap.toFixed(2))
+            });
           }
           if (Math.abs(stack[index].box.left - stack[0].box.left) > 2) {
             found.push({ card: selector, issue: 'control-stack-column', control: stack[index].name, left: Number(stack[index].box.left.toFixed(2)), expected: Number(stack[0].box.left.toFixed(2)) });

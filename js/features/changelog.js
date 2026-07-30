@@ -7,7 +7,8 @@ export const CHANGELOG = [
     {
         date: '2026-07-30',
         entries: [
-            { type: '🔧', text: 'On phones, the Soon or New uptime milestone now reveals its details on the first tap and opens the linked Chamber on the second tap' }
+            { type: '🔧', text: 'On phones, the Soon or New uptime milestone now reveals its details on the first tap and opens the linked Chamber on the second tap' },
+            { type: '🎨', text: 'Chamber card utility rails now use smaller camera, link, info, and chart controls with clearer space between each action' }
         ]
     },
     {
