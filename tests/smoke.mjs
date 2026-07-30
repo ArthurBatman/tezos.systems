@@ -18001,6 +18001,11 @@ async function smokeInfoModals(browser, baseUrl) {
     }
   ];
 
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+
   for (const contract of sectionHelpContracts) {
     await page.locator(contract.button).scrollIntoViewIfNeeded();
     const sectionGeometryBefore = await page.evaluate(({ button, section }) => {
