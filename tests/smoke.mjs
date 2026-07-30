@@ -18009,11 +18009,14 @@ async function smokeInfoModals(browser, baseUrl) {
   for (const contract of sectionHelpContracts) {
     await page.locator(contract.button).scrollIntoViewIfNeeded();
     const sectionGeometryBefore = await page.evaluate(({ button, section }) => {
-      const triggerRect = document.querySelector(button)?.getBoundingClientRect();
+      const trigger = document.querySelector(button);
+      const triggerRect = trigger?.getBoundingClientRect();
+      const headerRect = trigger?.closest('.section-header')?.getBoundingClientRect();
       const sectionRect = document.querySelector(section)?.getBoundingClientRect();
       return {
         top: sectionRect?.top || 0,
         height: sectionRect?.height || 0,
+        headerHeight: headerRect?.height || 0,
         triggerOffset: triggerRect && sectionRect ? triggerRect.top - sectionRect.top : 0
       };
     }, contract);
@@ -18026,6 +18029,7 @@ async function smokeInfoModals(browser, baseUrl) {
       const link = popover?.querySelector('a');
       const rect = popover?.getBoundingClientRect();
       const triggerRect = trigger?.getBoundingClientRect();
+      const headerRect = trigger?.closest('.section-header')?.getBoundingClientRect();
       const sectionRect = sectionNode?.getBoundingClientRect();
       return {
         active: trigger?.classList.contains('is-explaining') || false,
@@ -18037,8 +18041,10 @@ async function smokeInfoModals(browser, baseUrl) {
         parentHeader: popover?.parentElement?.classList.contains('section-header') || false,
         compact: Boolean(rect && rect.width <= 390),
         viewportContained: Boolean(rect && rect.left >= -1 && rect.right <= innerWidth + 1),
+        position: popover ? getComputedStyle(popover).position : '',
         sectionShift: Math.abs((sectionRect?.top || 0) - before.top),
         sectionHeightShift: Math.abs((sectionRect?.height || 0) - before.height),
+        headerHeightShift: Math.abs((headerRect?.height || 0) - before.headerHeight),
         triggerOffsetShift: Math.abs(
           (triggerRect && sectionRect ? triggerRect.top - sectionRect.top : 0) - before.triggerOffset
         )
@@ -18057,7 +18063,8 @@ async function smokeInfoModals(browser, baseUrl) {
         && helpState.parentHeader
         && helpState.compact
         && helpState.viewportContained
-        && helpState.sectionHeightShift <= 1
+        && helpState.position === 'absolute'
+        && helpState.headerHeightShift <= 1
         && helpState.triggerOffsetShift <= 1,
       `section help content or geometry mismatch ${JSON.stringify(helpState)}`
     );
