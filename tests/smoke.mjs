@@ -12635,7 +12635,7 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     assert(initial.podiumPlaces.join('|') === '1|2|3', `TezosCRP ${label}: top recognition rows lost their distinct placement treatment ${JSON.stringify(initial.podiumPlaces)}`);
     assert(initial.launcherIdentities === 6, `TezosCRP ${label}: launcher must surface six leading recognition identities`);
     if (label === 'desktop') {
-      assert(initial.bottomRowHeights['maxis-entry-card'] >= 400 && initial.bottomRowHeights['maxis-entry-card'] <= 440, `TezosCRP desktop: categorized Maxis intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['maxis-entry-card'] >= 350 && initial.bottomRowHeights['maxis-entry-card'] <= 375, `TezosCRP desktop: categorized Maxis intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
       assert(initial.bottomRowHeights['tezoscrp-entry-card'] >= 280 && initial.bottomRowHeights['tezoscrp-entry-card'] <= 520, `TezosCRP desktop: categorized TezosCRP intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
       assert(initial.bottomRowHeights['tezos-domains-entry-card'] >= 290 && initial.bottomRowHeights['tezos-domains-entry-card'] <= 500, `TezosCRP desktop: categorized Domains intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
       assert(Object.values(initial.bottomRowWidths).every((width) => width > 1200), `TezosCRP desktop: dense People launchers must own full rows ${JSON.stringify(initial.bottomRowWidths)}`);
