@@ -7726,8 +7726,6 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       const cards = Array.from(island?.querySelectorAll('[data-hot-signal-index]') || []);
       const releaseIndex = cards.findIndex((node) => node.dataset.hotSignalId === 'release-radar');
       const predecessors = releaseIndex > 0 ? cards.slice(0, releaseIndex) : [];
-      const gateGrid = card?.querySelector('.release-radar-gate-grid');
-      const secondary = card?.querySelector('.release-radar-secondary');
       const cardRect = card?.getBoundingClientRect();
       const stripRect = strip?.getBoundingClientRect();
       return {
@@ -7736,17 +7734,16 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         predecessorIds: predecessors.map((node) => node.dataset.hotSignalId || ''),
         score: Number(card?.dataset.hotScore || 0),
         text: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
-        gateCount: card?.querySelectorAll('.release-radar-gate').length || 0,
-        candidateCount: card?.querySelectorAll('.release-radar-candidate').length || 0,
-        excitingCount: card?.querySelectorAll('.release-radar-candidate.is-exciting').length || 0,
-        evidenceLinks: card?.querySelectorAll('.release-radar-details a').length || 0,
+        embeddedGateCount: card?.querySelectorAll('.release-radar-overlay-gate, .release-radar-gate').length || 0,
+        embeddedLaneCount: card?.querySelectorAll('.release-radar-lane').length || 0,
+        embeddedEvidenceCount: card?.querySelectorAll('.release-radar-overlay-evidence a').length || 0,
+        openButtonCount: card?.querySelectorAll('[data-release-radar-open]').length || 0,
         cardWidth: cardRect?.width || 0,
+        cardHeight: cardRect?.height || 0,
         stripWidth: stripRect?.width || 0,
         cardInsideStrip: Boolean(cardRect && stripRect && cardRect.left >= stripRect.left - 1 && cardRect.right <= stripRect.right + 1),
         cardOverflow: card ? card.scrollWidth - card.clientWidth : 999,
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
-        gateColumns: gateGrid ? getComputedStyle(gateGrid).gridTemplateColumns.split(' ').filter(Boolean).length : 0,
-        secondaryColumns: secondary ? getComputedStyle(secondary).gridTemplateColumns.split(' ').filter(Boolean).length : 0,
         priority: card?.querySelector('.release-radar-priority')?.textContent?.trim() || '',
         activeCount: island?.querySelectorAll('.hot-today-card.is-hot-active').length || 0,
         railCount: island?.querySelectorAll('[data-hot-progress-index]').length || 0,
@@ -7761,17 +7758,17 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       `release radar pulse ${label}: the important forecast left the top priority pair ${JSON.stringify(presentation)}`
     );
     assert(
-      presentation.gateCount === 6
-        && presentation.candidateCount === 2
-        && presentation.excitingCount === 1
-        && presentation.evidenceLinks >= 6
+      presentation.embeddedGateCount === 0
+        && presentation.embeddedLaneCount === 0
+        && presentation.embeddedEvidenceCount === 0
+        && presentation.openButtonCount === 1
         && /Tezos X Mainnet/.test(presentation.text)
         && /Q3 2026 forecast/.test(presentation.text)
-        && /Mainnet proposal readiness\s*Waiting/i.test(presentation.text)
-        && /EVM Node 0\.64\s*Exciting\s*HIGH · RELEASED JUL 30/i.test(presentation.text)
-        && /Octez 25\.2\s*LOW · WEEKS/i.test(presentation.text)
+        && /EVM Node 0\.64 · Jul 30/i.test(presentation.text)
+        && /3 of 6 gates materially advanced/i.test(presentation.text)
+        && /Open full radar/i.test(presentation.text)
         && /Public Tezos X Etherlink kernel proposal or final-kernel declaration/.test(presentation.text),
-      `release radar pulse ${label}: release lanes, gates, horizon, or exact blocker drifted ${JSON.stringify(presentation)}`
+      `release radar pulse ${label}: compact forecast summary or overlay action drifted ${JSON.stringify(presentation)}`
     );
     assert(
       (label === 'mobile' ? presentation.cardWidth <= presentation.stripWidth + 1 : presentation.cardInsideStrip)
@@ -7785,30 +7782,125 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       assert(
         presentation.cardWidth >= 650
           && presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.gateColumns === 3
-          && presentation.secondaryColumns === 2,
-        `release radar pulse desktop: wide priority geometry regressed ${JSON.stringify(presentation)}`
+          && presentation.cardHeight <= 370,
+        `release radar pulse desktop: compact priority geometry regressed ${JSON.stringify(presentation)}`
       );
     } else {
       assert(
         presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.gateColumns === 1
-          && presentation.secondaryColumns === 1,
+          && presentation.cardHeight <= Math.min(460, viewport.height * 0.56),
         `release radar pulse mobile: compact single-column geometry regressed ${JSON.stringify(presentation)}`
       );
     }
 
-    await page.locator('#hot-today-island').scrollIntoViewIfNeeded();
-    const summary = cardLocator.locator('.release-radar-details > summary');
-    await summary.click();
+    const openButton = cardLocator.locator('[data-release-radar-open]');
+    await openButton.click();
+    const overlayLocator = page.locator('#release-radar-overlay.active');
+    await overlayLocator.waitFor({ state: 'visible' });
+
+    const overlayPresentation = await page.evaluate(() => {
+      const overlay = document.getElementById('release-radar-overlay');
+      const dialog = overlay?.querySelector('.release-radar-overlay-content');
+      const laneGrid = overlay?.querySelector('.release-radar-lane-grid');
+      const gateGrid = overlay?.querySelector('.release-radar-overlay-gates');
+      const boundaryGrid = overlay?.querySelector('.release-radar-boundary-grid');
+      const nextGrid = overlay?.querySelector('.release-radar-next-grid');
+      const recentGrid = overlay?.querySelector('.release-radar-recent-grid');
+      const evidenceGrid = overlay?.querySelector('.release-radar-overlay-evidence');
+      const confidenceGrid = overlay?.querySelector('.release-radar-confidence-grid');
+      const rect = dialog?.getBoundingClientRect();
+      const columnCount = (node) => node
+        ? getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length
+        : 0;
+      return {
+        active: Boolean(overlay?.classList.contains('active')),
+        hidden: overlay?.getAttribute('aria-hidden'),
+        focusInside: Boolean(overlay?.contains(document.activeElement)),
+        focusedLabel: document.activeElement?.getAttribute('aria-label') || '',
+        bodyOverflow: getComputedStyle(document.body).overflow,
+        htmlOverflow: getComputedStyle(document.documentElement).overflow,
+        text: dialog?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        laneCount: overlay?.querySelectorAll('.release-radar-lane').length || 0,
+        gateCount: overlay?.querySelectorAll('.release-radar-overlay-gate').length || 0,
+        boundaryCount: boundaryGrid?.querySelectorAll(':scope > p').length || 0,
+        nextCount: nextGrid?.querySelectorAll(':scope > div').length || 0,
+        recentCount: recentGrid?.querySelectorAll('.release-radar-recent').length || 0,
+        historyCount: overlay?.querySelectorAll('.release-radar-history-list article').length || 0,
+        evidenceCount: evidenceGrid?.querySelectorAll(':scope > a').length || 0,
+        confidenceCount: confidenceGrid?.querySelectorAll(':scope > p').length || 0,
+        laneColumns: columnCount(laneGrid),
+        gateColumns: columnCount(gateGrid),
+        evidenceColumns: columnCount(evidenceGrid),
+        dialogWidth: rect?.width || 0,
+        dialogHeight: rect?.height || 0,
+        dialogInsideViewport: Boolean(rect && rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1),
+        dialogOverflowX: dialog ? dialog.scrollWidth - dialog.clientWidth : 999,
+        pageOverflow: document.documentElement.scrollWidth - innerWidth
+      };
+    });
+    assert(
+      overlayPresentation.active
+        && overlayPresentation.hidden === 'false'
+        && overlayPresentation.focusInside
+        && overlayPresentation.focusedLabel === 'Close full Release Radar'
+        && overlayPresentation.bodyOverflow === 'hidden'
+        && overlayPresentation.htmlOverflow === 'hidden'
+        && overlayPresentation.laneCount === 3
+        && overlayPresentation.gateCount === 6
+        && overlayPresentation.boundaryCount === 4
+        && overlayPresentation.nextCount === 3
+        && overlayPresentation.recentCount === 2
+        && overlayPresentation.historyCount === 4
+        && overlayPresentation.evidenceCount === 8
+        && overlayPresentation.confidenceCount === 4,
+      `release radar pulse ${label}: full intelligence overlay lost lanes or receipts ${JSON.stringify(overlayPresentation)}`
+    );
+    assert(
+      /Octez 25\.2/.test(overlayPresentation.text)
+        && /EVM Node 0\.64/.test(overlayPresentation.text)
+        && /Mainnet proposal readiness/.test(overlayPresentation.text)
+        && /Dependency boundaries/.test(overlayPresentation.text)
+        && /Status-change ledger/.test(overlayPresentation.text)
+        && /Every receipt used in the current review/.test(overlayPresentation.text)
+        && /Current daily receipt/.test(overlayPresentation.text)
+        && /Reviewed daily/.test(overlayPresentation.text),
+      `release radar pulse ${label}: expanded forecast context drifted ${JSON.stringify(overlayPresentation)}`
+    );
+    assert(
+      overlayPresentation.dialogInsideViewport
+        && overlayPresentation.dialogOverflowX <= 1
+        && overlayPresentation.pageOverflow <= 1,
+      `release radar pulse ${label}: expanded overlay escaped the viewport ${JSON.stringify(overlayPresentation)}`
+    );
+    if (label === 'desktop') {
+      assert(
+        overlayPresentation.dialogWidth >= 900
+          && overlayPresentation.laneColumns === 3
+          && overlayPresentation.gateColumns === 2
+          && overlayPresentation.evidenceColumns === 2,
+        `release radar pulse desktop: expanded grid geometry regressed ${JSON.stringify(overlayPresentation)}`
+      );
+    } else {
+      assert(
+        overlayPresentation.dialogWidth <= viewport.width
+          && overlayPresentation.laneColumns === 1
+          && overlayPresentation.gateColumns === 1
+          && overlayPresentation.evidenceColumns === 1,
+        `release radar pulse mobile: expanded grid geometry regressed ${JSON.stringify(overlayPresentation)}`
+      );
+    }
+
     const quietBefore = await page.evaluate(() => {
       const strip = document.querySelector('#hot-today-island .hot-today-strip');
       const card = document.querySelector('#hot-today-island [data-hot-signal-id="release-radar"]');
-      const details = card?.querySelector('.release-radar-details');
-      const summaryNode = details?.querySelector('summary');
-      const blocker = card?.querySelector('.release-radar-next strong')?.firstChild;
+      const overlay = document.getElementById('release-radar-overlay');
+      const dialog = overlay?.querySelector('.release-radar-overlay-content');
+      const overlayBody = overlay?.querySelector('[data-release-radar-overlay-body]');
+      const focusedLink = overlay?.querySelector('.release-radar-overlay-evidence > a');
+      const blocker = overlay?.querySelector('.release-radar-overlay-blocker strong')?.firstChild;
       strip.scrollLeft = Math.min(96, Math.max(0, strip.scrollWidth - strip.clientWidth));
-      summaryNode?.focus({ preventScroll: true });
+      if (dialog) dialog.scrollTop = Math.min(260, Math.max(0, dialog.scrollHeight - dialog.clientHeight));
+      focusedLink?.focus({ preventScroll: true });
       if (blocker?.nodeType === Node.TEXT_NODE) {
         const range = document.createRange();
         range.setStart(blocker, 0);
@@ -7819,16 +7911,22 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       }
       window.__releaseRadarStrip = strip;
       window.__releaseRadarCard = card;
-      window.__releaseRadarDetails = details;
-      window.__releaseRadarSummary = summaryNode;
+      window.__releaseRadarOverlay = overlay;
+      window.__releaseRadarDialog = dialog;
+      window.__releaseRadarOverlayBody = overlayBody;
+      window.__releaseRadarFocusedLink = focusedLink;
       return {
         left: strip.scrollLeft,
         y: window.scrollY,
-        open: Boolean(details?.open),
+        dialogTop: dialog?.scrollTop || 0,
+        active: Boolean(overlay?.classList.contains('active')),
         selection: document.getSelection()?.toString() || ''
       };
     });
-    assert(quietBefore.open && quietBefore.selection === 'Public', `release radar pulse ${label}: evidence disclosure fixture did not initialize ${JSON.stringify(quietBefore)}`);
+    assert(
+      quietBefore.active && quietBefore.dialogTop > 0 && quietBefore.selection === 'Public',
+      `release radar pulse ${label}: expanded overlay quiet-refresh fixture did not initialize ${JSON.stringify(quietBefore)}`
+    );
 
     await page.evaluate(async () => {
       const pulse = await import('/js/features/daily-briefing.js');
@@ -7850,18 +7948,24 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       const content = document.getElementById('hot-today-content');
       const card = document.querySelector('#hot-today-island [data-hot-signal-id="release-radar"]');
       const strip = document.querySelector('#hot-today-island .hot-today-strip');
-      const details = card?.querySelector('.release-radar-details');
+      const overlay = document.getElementById('release-radar-overlay');
+      const dialog = overlay?.querySelector('.release-radar-overlay-content');
+      const overlayBody = overlay?.querySelector('[data-release-radar-overlay-body]');
       const style = card ? getComputedStyle(card) : null;
       return {
         sameStrip: strip === window.__releaseRadarStrip,
         sameCard: card === window.__releaseRadarCard,
-        sameDetails: details === window.__releaseRadarDetails,
-        sameSummary: details?.querySelector('summary') === window.__releaseRadarSummary,
-        focused: document.activeElement === window.__releaseRadarSummary,
-        open: Boolean(details?.open),
+        sameOverlay: overlay === window.__releaseRadarOverlay,
+        sameDialog: dialog === window.__releaseRadarDialog,
+        sameOverlayBody: overlayBody === window.__releaseRadarOverlayBody,
+        sameFocusedLink: overlay?.querySelector('.release-radar-overlay-evidence > a') === window.__releaseRadarFocusedLink,
+        focused: document.activeElement === window.__releaseRadarFocusedLink,
+        active: Boolean(overlay?.classList.contains('active')),
+        hidden: overlay?.getAttribute('aria-hidden'),
         selection: document.getSelection()?.toString() || '',
         left: strip?.scrollLeft || 0,
         y: window.scrollY,
+        dialogTop: dialog?.scrollTop || 0,
         settled: content?.dataset.quietRefreshSettled === 'true',
         animation: style?.animationName || '',
         opacity: style?.opacity || '',
@@ -7871,13 +7975,17 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
     assert(
       quietAfter.sameStrip
         && quietAfter.sameCard
-        && quietAfter.sameDetails
-        && quietAfter.sameSummary
+        && quietAfter.sameOverlay
+        && quietAfter.sameDialog
+        && quietAfter.sameOverlayBody
+        && quietAfter.sameFocusedLink
         && quietAfter.focused
-        && quietAfter.open
+        && quietAfter.active
+        && quietAfter.hidden === 'false'
         && quietAfter.selection === quietBefore.selection
         && Math.abs(quietAfter.left - quietBefore.left) <= 1
-        && Math.abs(quietAfter.y - quietBefore.y) <= 1,
+        && Math.abs(quietAfter.y - quietBefore.y) <= 1
+        && Math.abs(quietAfter.dialogTop - quietBefore.dialogTop) <= 1,
       `release radar pulse ${label}: quiet reconciliation moved the reader ${JSON.stringify({ quietBefore, quietAfter })}`
     );
     assert(
@@ -7888,10 +7996,31 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       `release radar pulse ${label}: background refresh replayed or stranded the card animation ${JSON.stringify(quietAfter)}`
     );
 
+    await page.locator('[data-release-radar-close]').click();
+    const closed = await page.evaluate(() => {
+      const overlay = document.getElementById('release-radar-overlay');
+      const opener = document.querySelector('[data-hot-signal-id="release-radar"] [data-release-radar-open]');
+      return {
+        active: Boolean(overlay?.classList.contains('active')),
+        hidden: overlay?.getAttribute('aria-hidden'),
+        focusReturned: document.activeElement === opener,
+        bodyOverflow: document.body.style.overflow,
+        htmlOverflow: document.documentElement.style.overflow
+      };
+    });
+    assert(
+      !closed.active
+        && closed.hidden === 'true'
+        && closed.focusReturned
+        && closed.bodyOverflow === ''
+        && closed.htmlOverflow === '',
+      `release radar pulse ${label}: closing the expanded overlay did not restore the page ${JSON.stringify(closed)}`
+    );
+
     await context.close();
     assert(issues.length === 0, `release radar pulse ${label} browser issues:\n${issues.join('\n')}`);
   }
-  log('ok - important Release Radar pulse and quiet reading state');
+  log('ok - compact Release Radar pulse, full intelligence overlay, and quiet reading state');
 }
 
 async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
@@ -23334,7 +23463,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-empty-state', description: 'My Tezos clearly separates Octez.Connect wallet pairing from watch-only tracking and explains all six responsive views', run: () => smokeMyTezosEmptyState(browser, baseUrl) },
-    { name: 'release-radar-pulse', description: 'Important Tezos X and Octez release forecast leads Live Pulse with six gates, exact blockers, evidence, responsive geometry, and quiet refresh', run: () => smokeReleaseRadarPulse(browser, baseUrl) },
+    { name: 'release-radar-pulse', description: 'Compact Tezos X and Octez release forecast leads Live Pulse and opens every gate, release lane, dependency boundary, receipt, and history row without disturbing the reader', run: () => smokeReleaseRadarPulse(browser, baseUrl) },
     { name: 'live-pulse-personal-ribbons', description: 'Evidence-only Live Pulse account ribbons preserve stronger events and quiet reading state on desktop and mobile', run: () => smokeLivePulsePersonalRibbons(browser, baseUrl) },
     { name: 'live-pulse-daily-curio', description: 'One deterministic UTC-day Curio stays low-rank, scarce, truthful, and reading-state safe on desktop and mobile', run: () => smokeLivePulseDailyCurio(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },

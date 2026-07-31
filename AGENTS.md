@@ -483,7 +483,9 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
 - `data/release-radar.json`: short-lived reviewed forecast receipt for separate
   Tezos X mainnet, Octez, and EVM-node release lanes, including the six Tezos X
   readiness gates, explicit confidence/horizon semantics, exact blockers, and
-  primary evidence. Expired receipts disappear from Live Pulse.
+  primary evidence. Live Pulse keeps the default card compact and opens the
+  complete receipt in a dedicated accessible overlay. Expired receipts disappear
+  from Live Pulse.
 - `data/nakamoto-sources.json`: dated external Nakamoto reports with their
   original thresholds, windows, entity bases, and source provenance.
 

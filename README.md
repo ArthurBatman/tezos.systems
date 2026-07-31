@@ -381,11 +381,13 @@ inline modal styles in `js/core/app.js`.
   background refresh. Its high-priority Release Radar reads one reviewed daily
   same-origin forecast and keeps Octez node software, EVM-node software, Tezos X
   Previewnet, Tezos X mainnet, Etherlink governance, and L1 protocol proposals
-  explicitly separate. It highlights recent direct release artifacts, shows
-  horizons only when confidence supports them, names the exact next blocker,
-  preserves all six Tezos X gates without a fake completion percentage, and
-  marks the forecast stale before the ephemeral card expires. The browser never
-  infers readiness from GitLab merge volume. My Tezos draws from the same live candidate set and
+  explicitly separate. Its compact default card highlights the likely next
+  ship, exact blocker, supported horizon, and most exciting recent artifact;
+  the full Release Radar overlay opens every lane, all six Tezos X gates,
+  dependency boundaries, status history, primary evidence, confidence meanings,
+  and methodology without a fake completion percentage. It marks the forecast
+  stale before the ephemeral card expires, and the browser never infers readiness
+  from GitLab merge volume. My Tezos draws from the same live candidate set and
   combines address-scoped account changes with daily network changes in one
   return report. When fewer than eight stronger signals are present, Live Pulse
   may also show one score-58 Curio per UTC day from a protocol anniversary,

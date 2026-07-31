@@ -4622,6 +4622,774 @@
     font-size: 0.56rem;
 }
 
+.release-radar-compact-lead {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.82rem 0 0.72rem;
+}
+
+.release-radar-compact-lead .release-radar-lead-copy p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.release-radar-compact-signals {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.75fr);
+    gap: 0.5rem;
+}
+
+.release-radar-compact-signals > span {
+    min-width: 0;
+    display: grid;
+    gap: 0.12rem;
+    padding: 0.58rem 0.66rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.release-radar-compact-signals small,
+.release-radar-compact-footer small {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.56rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.release-radar-compact-signals strong {
+    color: var(--text-primary);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.release-radar-compact-blocker {
+    border-color: color-mix(in srgb, var(--release-radar-red) 32%, transparent) !important;
+    background: color-mix(in srgb, var(--release-radar-red) 6%, transparent) !important;
+}
+
+.release-radar-compact-blocker small {
+    color: color-mix(in srgb, var(--release-radar-red) 68%, var(--text-secondary));
+}
+
+.release-radar-compact-release {
+    border-color: color-mix(in srgb, #6ee7a2 28%, transparent) !important;
+    background: color-mix(in srgb, #6ee7a2 5%, transparent) !important;
+}
+
+.release-radar-compact-release small {
+    color: color-mix(in srgb, #6ee7a2 72%, var(--text-secondary));
+}
+
+.release-radar-compact-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    margin-top: 0.58rem;
+    padding-top: 0.58rem;
+    border-top: 1px solid color-mix(in srgb, var(--hot-visual-accent) 18%, transparent);
+}
+
+.release-radar-compact-footer > span {
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    line-height: 1.35;
+    text-transform: uppercase;
+}
+
+.release-radar-compact-footer > span strong {
+    color: var(--text-primary);
+}
+
+.release-radar-open {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 0.46rem 0.72rem;
+    border: 1px solid color-mix(in srgb, var(--hot-visual-accent) 58%, transparent);
+    border-radius: 7px;
+    background: linear-gradient(115deg, color-mix(in srgb, var(--release-radar-red) 18%, transparent), color-mix(in srgb, var(--hot-visual-accent) 15%, transparent));
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.64rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.release-radar-open:is(:hover, :focus-visible) {
+    border-color: color-mix(in srgb, var(--hot-visual-accent) 82%, var(--text-primary));
+    background: linear-gradient(115deg, color-mix(in srgb, var(--release-radar-red) 28%, transparent), color-mix(in srgb, var(--hot-visual-accent) 23%, transparent));
+    box-shadow: 0 0 20px color-mix(in srgb, var(--hot-visual-accent) 14%, transparent);
+    outline: none;
+}
+
+.release-radar-overlay {
+    --release-radar-overlay-accent: #ffbd52;
+    --release-radar-overlay-red: #ff4d62;
+    z-index: 10060;
+    padding: clamp(0.5rem, 2vw, 1.5rem);
+}
+
+.release-radar-overlay-content {
+    width: min(1180px, calc(100vw - 2rem)) !important;
+    max-width: 1180px !important;
+    padding: 0 !important;
+    border-color: color-mix(in srgb, var(--release-radar-overlay-accent) 30%, var(--glass-border)) !important;
+    border-radius: 18px !important;
+    background:
+        radial-gradient(circle at 94% 0%, color-mix(in srgb, var(--release-radar-overlay-red) 13%, transparent), transparent 30%),
+        radial-gradient(circle at 0% 20%, color-mix(in srgb, var(--release-radar-overlay-accent) 8%, transparent), transparent 32%),
+        linear-gradient(160deg, color-mix(in srgb, var(--bg-secondary) 96%, #100b14), color-mix(in srgb, var(--bg-primary) 98%, #050509)) !important;
+}
+
+.release-radar-overlay-close {
+    position: sticky;
+    top: 0.8rem;
+    float: right;
+    z-index: 6;
+    margin: 0.8rem 0.8rem 0 0;
+    border-color: color-mix(in srgb, var(--release-radar-overlay-red) 48%, var(--glass-border));
+    background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+    color: var(--text-primary);
+    backdrop-filter: blur(12px);
+}
+
+.release-radar-overlay-body {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1.1rem, 2.5vw, 2rem);
+}
+
+.release-radar-overlay-header {
+    padding: 0 3.5rem 1rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--release-radar-overlay-accent) 24%, transparent);
+}
+
+.release-radar-overlay-brandline,
+.release-radar-overlay-receipt,
+.release-radar-overlay-section-head,
+.release-radar-lane-head,
+.release-radar-lane-meta,
+.release-radar-overlay-blocker,
+.release-radar-recent > span {
+    display: flex;
+    align-items: center;
+}
+
+.release-radar-overlay-brandline {
+    gap: 0.62rem;
+}
+
+.release-radar-overlay-mark {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-red) 68%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--release-radar-overlay-red) 12%, transparent);
+    color: color-mix(in srgb, var(--release-radar-overlay-red) 78%, white);
+}
+
+.release-radar-overlay-brandline > span:nth-child(2) {
+    display: grid;
+    gap: 0.05rem;
+}
+
+.release-radar-overlay-brandline small,
+.release-radar-overlay-kicker,
+.release-radar-overlay-section-head small,
+.release-radar-overlay-forecast small,
+.release-radar-overlay-blocker small,
+.release-radar-lane small,
+.release-radar-next-grid small,
+.release-radar-recent small,
+.release-radar-history-list small,
+.release-radar-overlay-evidence > a > span,
+.release-radar-overlay-receipt small {
+    color: color-mix(in srgb, var(--release-radar-overlay-accent) 78%, var(--text-secondary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.61rem;
+    font-weight: 900;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.release-radar-overlay-brandline > span:nth-child(2) > strong {
+    color: var(--text-primary);
+    font-family: var(--font-display, 'Orbitron', sans-serif);
+    font-size: 1.08rem;
+}
+
+.release-radar-overlay-priority {
+    margin-left: auto;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-red) 58%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--release-radar-overlay-red) 10%, transparent);
+    color: color-mix(in srgb, var(--release-radar-overlay-red) 74%, white);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 950;
+}
+
+.release-radar-overlay-header h2 {
+    max-width: 900px;
+    margin: 0.78rem 0 0.32rem;
+    color: var(--text-primary);
+    font-family: var(--font-display, 'Orbitron', sans-serif);
+    font-size: clamp(1.55rem, 4vw, 2.65rem);
+    line-height: 1.04;
+}
+
+.release-radar-overlay-header > p,
+.release-radar-overlay-section-head > p,
+.release-radar-overlay-hero p,
+.release-radar-lane p,
+.release-radar-overlay-gate p,
+.release-radar-recent p,
+.release-radar-history-list p,
+.release-radar-overlay-evidence p,
+.release-radar-overlay-method li,
+.release-radar-boundary-grid p {
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.release-radar-overlay-header > p {
+    max-width: 78ch;
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.release-radar-overlay-receipt {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+}
+
+.release-radar-overlay-receipt > span {
+    display: grid;
+    gap: 0.08rem;
+    min-width: 150px;
+    padding: 0.44rem 0.56rem;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.release-radar-overlay-receipt strong {
+    color: var(--text-primary);
+    font-size: 0.65rem;
+}
+
+.release-radar-overlay-stale {
+    padding: 0.68rem 0.78rem;
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-red) 42%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--release-radar-overlay-red) 8%, transparent);
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.release-radar-overlay-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 0.36fr);
+    gap: 1rem;
+    padding: clamp(0.9rem, 2vw, 1.25rem);
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-accent) 24%, transparent);
+    border-radius: 12px;
+    background: linear-gradient(130deg, color-mix(in srgb, var(--release-radar-overlay-accent) 6%, transparent), color-mix(in srgb, var(--release-radar-overlay-red) 5%, transparent));
+}
+
+.release-radar-overlay-hero h3 {
+    margin: 0.14rem 0 0.32rem;
+    color: var(--text-primary);
+    font-family: var(--font-display, 'Orbitron', sans-serif);
+    font-size: clamp(1.35rem, 3vw, 2.1rem);
+}
+
+.release-radar-overlay-hero p {
+    max-width: 76ch;
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.release-radar-overlay-highlight {
+    display: block;
+    margin-top: 0.62rem;
+    color: color-mix(in srgb, var(--release-radar-overlay-accent) 82%, var(--text-primary));
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
+.release-radar-overlay-forecast {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.42rem;
+}
+
+.release-radar-overlay-forecast > span {
+    display: grid;
+    gap: 0.08rem;
+    padding: 0.54rem 0.62rem;
+    border-left: 2px solid currentColor;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.release-radar-overlay-forecast strong {
+    color: var(--text-primary);
+    font-size: 0.72rem;
+}
+
+.release-radar-overlay-blocker {
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.78rem 0.88rem;
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-red) 38%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--release-radar-overlay-red) 7%, transparent);
+}
+
+.release-radar-overlay-blocker > span {
+    display: grid;
+    gap: 0.12rem;
+}
+
+.release-radar-overlay-blocker strong {
+    color: var(--text-primary);
+    font-size: 0.86rem;
+}
+
+.release-radar-overlay-blocker a,
+.release-radar-lane-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    min-height: 36px;
+    padding: 0.42rem 0.64rem;
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-accent) 50%, transparent);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--release-radar-overlay-accent) 9%, transparent);
+    color: color-mix(in srgb, var(--release-radar-overlay-accent) 82%, var(--text-primary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+
+.release-radar-overlay-section {
+    display: grid;
+    gap: 0.7rem;
+    padding-top: 0.22rem;
+}
+
+.release-radar-overlay-section-head {
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.48rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.release-radar-overlay-section-head > span {
+    display: grid;
+    gap: 0.08rem;
+}
+
+.release-radar-overlay-section-head h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-display, 'Orbitron', sans-serif);
+    font-size: 1rem;
+}
+
+.release-radar-overlay-section-head > p {
+    max-width: 62ch;
+    margin: 0;
+    font-size: 0.68rem;
+    text-align: right;
+}
+
+.release-radar-lane-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.62rem;
+}
+
+.release-radar-lane {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 0.5rem;
+    padding: 0.78rem;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.release-radar-lane.is-exciting {
+    border-color: color-mix(in srgb, var(--release-radar-overlay-red) 36%, transparent);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--release-radar-overlay-red) 7%, transparent), color-mix(in srgb, var(--release-radar-overlay-accent) 5%, transparent));
+}
+
+.release-radar-lane-head {
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.release-radar-lane-head > span,
+.release-radar-recent > span {
+    min-width: 0;
+    display: grid;
+    gap: 0.08rem;
+}
+
+.release-radar-lane-head strong,
+.release-radar-recent strong {
+    color: var(--text-primary);
+    font-size: 0.82rem;
+}
+
+.release-radar-lane-head em,
+.release-radar-recent em {
+    padding: 0.16rem 0.36rem;
+    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-red) 44%, transparent);
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--release-radar-overlay-red) 76%, white);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    font-style: normal;
+    font-weight: 950;
+    text-transform: uppercase;
+}
+
+.release-radar-lane-meta {
+    flex-wrap: wrap;
+    gap: 0.26rem;
+}
+
+.release-radar-lane-meta > span {
+    padding: 0.18rem 0.34rem;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    font-weight: 850;
+    text-transform: uppercase;
+}
+
+.release-radar-lane p {
+    margin: 0;
+    font-size: 0.69rem;
+}
+
+.release-radar-lane-highlight {
+    color: color-mix(in srgb, var(--release-radar-overlay-accent) 78%, var(--text-primary));
+    font-size: 0.66rem;
+    line-height: 1.4;
+}
+
+.release-radar-lane-next,
+.release-radar-lane-recent {
+    display: grid;
+    gap: 0.12rem;
+    padding-top: 0.42rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.release-radar-lane-next span,
+.release-radar-lane-recent a {
+    color: var(--text-primary);
+    font-size: 0.65rem;
+    line-height: 1.4;
+}
+
+.release-radar-lane-recent a {
+    color: color-mix(in srgb, var(--release-radar-overlay-accent) 76%, var(--text-primary));
+}
+
+.release-radar-lane-link {
+    align-self: end;
+    margin-top: auto;
+}
+
+.release-radar-overlay-gates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.release-radar-overlay-gate {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto 0.7rem minmax(0, 1fr);
+    gap: 0.48rem;
+    align-items: start;
+    padding: 0.68rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.022);
+}
+
+.release-radar-overlay-gate-number {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 900;
+}
+
+.release-radar-overlay-gate-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    margin-top: 0.08rem;
+    border-radius: 999px;
+    background: var(--text-tertiary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-tertiary) 10%, transparent);
+}
+
+.release-radar-overlay-gate:is(.release-radar-overlay-gate-active, .release-radar-overlay-gate-validating, .release-radar-overlay-gate-ready, .release-radar-overlay-gate-complete) .release-radar-overlay-gate-dot {
+    background: #45e0c8;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #45e0c8 13%, transparent), 0 0 12px color-mix(in srgb, #45e0c8 28%, transparent);
+}
+
+.release-radar-overlay-gate:is(.release-radar-overlay-gate-not_started, .release-radar-overlay-gate-blocked) {
+    border-color: color-mix(in srgb, var(--release-radar-overlay-red) 24%, transparent);
+}
+
+.release-radar-overlay-gate:is(.release-radar-overlay-gate-not_started, .release-radar-overlay-gate-blocked) .release-radar-overlay-gate-dot {
+    background: var(--release-radar-overlay-red);
+}
+
+.release-radar-overlay-gate > span:last-child {
+    min-width: 0;
+    display: grid;
+    gap: 0.08rem;
+}
+
+.release-radar-overlay-gate strong {
+    color: var(--text-primary);
+    font-size: 0.74rem;
+}
+
+.release-radar-overlay-gate p {
+    margin: 0.1rem 0 0;
+    font-size: 0.66rem;
+}
+
+.release-radar-boundary-grid,
+.release-radar-next-grid,
+.release-radar-recent-grid,
+.release-radar-confidence-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.46rem;
+}
+
+.release-radar-boundary-grid p,
+.release-radar-next-grid > div,
+.release-radar-confidence-grid p {
+    min-width: 0;
+    margin: 0;
+    padding: 0.62rem 0.68rem;
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.022);
+    font-size: 0.68rem;
+}
+
+.release-radar-boundary-grid p {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5rem;
+}
+
+.release-radar-boundary-grid p > span {
+    color: var(--release-radar-overlay-red);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    font-weight: 950;
+}
+
+.release-radar-next-grid > div {
+    display: grid;
+    gap: 0.14rem;
+}
+
+.release-radar-next-grid strong {
+    color: var(--text-primary);
+    font-size: 0.7rem;
+    line-height: 1.42;
+}
+
+.release-radar-recent {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.32rem 0.58rem;
+    padding: 0.68rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.022);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.release-radar-recent.is-exciting {
+    border-color: color-mix(in srgb, var(--release-radar-overlay-red) 34%, transparent);
+    background: color-mix(in srgb, var(--release-radar-overlay-red) 5%, transparent);
+}
+
+.release-radar-recent time {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+}
+
+.release-radar-recent p {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 0.67rem;
+}
+
+.release-radar-empty {
+    color: var(--text-tertiary);
+    font-size: 0.7rem;
+}
+
+.release-radar-history-list {
+    display: grid;
+    gap: 0.34rem;
+}
+
+.release-radar-history-list article {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.24fr) minmax(0, 1fr);
+    gap: 0.65rem;
+    padding: 0.58rem 0.66rem;
+    border-left: 2px solid color-mix(in srgb, var(--release-radar-overlay-accent) 38%, transparent);
+    background: rgba(255, 255, 255, 0.018);
+}
+
+.release-radar-history-list time,
+.release-radar-overlay-evidence time {
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.57rem;
+}
+
+.release-radar-history-list article > span {
+    display: grid;
+    gap: 0.08rem;
+}
+
+.release-radar-history-list strong {
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.64rem;
+    text-transform: uppercase;
+}
+
+.release-radar-history-list p {
+    margin: 0.08rem 0 0;
+    font-size: 0.68rem;
+}
+
+.release-radar-overlay-evidence {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.46rem;
+}
+
+.release-radar-overlay-evidence > a {
+    min-width: 0;
+    display: grid;
+    gap: 0.14rem;
+    padding: 0.62rem 0.68rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.release-radar-overlay-evidence > a:is(:hover, :focus-visible),
+.release-radar-recent:is(:hover, :focus-visible),
+.release-radar-lane-link:is(:hover, :focus-visible),
+.release-radar-overlay-blocker a:is(:hover, :focus-visible) {
+    border-color: color-mix(in srgb, var(--release-radar-overlay-accent) 58%, transparent);
+    background: color-mix(in srgb, var(--release-radar-overlay-accent) 7%, transparent);
+    outline: none;
+}
+
+.release-radar-overlay-evidence strong {
+    color: var(--text-primary);
+    font-size: 0.72rem;
+}
+
+.release-radar-overlay-evidence p {
+    margin: 0.08rem 0 0;
+    font-size: 0.64rem;
+}
+
+.release-radar-confidence-grid p {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.5rem;
+}
+
+.release-radar-confidence-grid strong {
+    color: var(--release-radar-overlay-accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+}
+
+.release-radar-confidence-grid span {
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    line-height: 1.42;
+}
+
+.release-radar-overlay-method ul {
+    margin: 0;
+    padding-left: 1.15rem;
+}
+
+.release-radar-overlay-method li {
+    font-size: 0.68rem;
+}
+
+.release-radar-overlay-method li + li {
+    margin-top: 0.26rem;
+}
+
+.release-radar-overlay-source {
+    margin: 0;
+    padding: 0.58rem 0.66rem;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.59rem;
+    line-height: 1.45;
+}
+
+.release-radar-overlay-source strong {
+    color: var(--text-primary);
+}
+
 @media (max-width: 720px) {
     .hot-today-card-release,
     .hot-today-card-release.is-spectacle-peacock,
@@ -4679,6 +5447,40 @@
         justify-self: end;
     }
 
+    .release-radar-compact-lead {
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+        padding-block: 0.72rem 0.58rem;
+    }
+
+    .release-radar-compact-lead .release-radar-lead-copy h3 {
+        font-size: 1.18rem;
+    }
+
+    .release-radar-compact-lead .release-radar-lead-copy p {
+        font-size: 0.7rem;
+        -webkit-line-clamp: 2;
+    }
+
+    .release-radar-compact-signals {
+        grid-template-columns: 1fr;
+        gap: 0.34rem;
+    }
+
+    .release-radar-compact-signals > span {
+        padding: 0.46rem 0.52rem;
+    }
+
+    .release-radar-compact-footer {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.48rem;
+    }
+
+    .release-radar-open {
+        width: 100%;
+    }
+
     .release-radar-gate-heading {
         display: grid;
         gap: 0.16rem;
@@ -4712,6 +5514,83 @@
         align-items: flex-start;
         flex-direction: column;
         gap: 0.2rem;
+    }
+
+    .release-radar-overlay {
+        padding: 0.35rem;
+    }
+
+    .release-radar-overlay-content {
+        width: calc(100vw - 0.7rem) !important;
+        max-height: calc(100dvh - 0.7rem) !important;
+        border-radius: 13px !important;
+    }
+
+    .release-radar-overlay-body {
+        gap: 0.8rem;
+        padding: 0.82rem;
+    }
+
+    .release-radar-overlay-close {
+        top: 0.5rem;
+        margin: 0.5rem 0.5rem 0 0;
+    }
+
+    .release-radar-overlay-header {
+        padding-right: 2.5rem;
+    }
+
+    .release-radar-overlay-brandline {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .release-radar-overlay-priority {
+        width: fit-content;
+        margin-left: 0;
+    }
+
+    .release-radar-overlay-header h2 {
+        font-size: 1.48rem;
+    }
+
+    .release-radar-overlay-receipt {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .release-radar-overlay-receipt > span {
+        min-width: 0;
+    }
+
+    .release-radar-overlay-hero,
+    .release-radar-lane-grid,
+    .release-radar-overlay-gates,
+    .release-radar-boundary-grid,
+    .release-radar-next-grid,
+    .release-radar-recent-grid,
+    .release-radar-overlay-evidence,
+    .release-radar-confidence-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .release-radar-overlay-blocker,
+    .release-radar-overlay-section-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .release-radar-overlay-blocker a {
+        width: 100%;
+    }
+
+    .release-radar-overlay-section-head > p {
+        text-align: left;
+    }
+
+    .release-radar-history-list article {
+        grid-template-columns: 1fr;
+        gap: 0.24rem;
     }
 }
 

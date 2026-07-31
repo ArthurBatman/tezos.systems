@@ -96,20 +96,28 @@ for (const snippet of [
   "loadDataAsset('releaseRadar'",
   "document.visibilityState !== 'visible'",
   'releaseRadarSignals()',
-  'detailsWasOpen',
+  'openReleaseRadarOverlay',
+  'syncOpenReleaseRadarOverlay',
+  'activateChamberDialog',
+  'data-release-radar-open',
+  'Dependency boundaries',
+  'Every receipt used in the current review',
   'quietlySyncHtml(content, islandHtml)',
   'FORECAST STALE',
   'No credible near-term release signal detected',
-  'No percentage implied'
+  'no completion percentage implied'
 ]) {
   assert(briefing.includes(snippet), `Release Radar Live Pulse contract is missing ${snippet}`);
 }
 assert(dataAssets.includes("releaseRadar: '/data/release-radar.json'"), 'Release Radar must load as a same-origin no-store data asset');
 for (const snippet of [
   '.hot-today-card.hot-today-card-release',
-  '.release-radar-gate-grid',
-  '.release-radar-candidate.is-exciting',
-  '.release-radar-details',
+  '.release-radar-compact-lead',
+  '.release-radar-open',
+  '.release-radar-overlay-content',
+  '.release-radar-lane.is-exciting',
+  '.release-radar-overlay-gates',
+  '.release-radar-overlay-evidence',
   '[data-quiet-refresh-settled="true"] .hot-today-card',
   '@media (max-width: 720px)'
 ]) {

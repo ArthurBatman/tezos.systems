@@ -11,6 +11,7 @@ import { escapeHtml } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { findSiteMapEntry } from '../core/site-map.js';
 import { countExplicitLinkedEtherlinkAccounts } from '../core/site-journey.js';
+import { activateChamberDialog, deactivateChamberDialog } from '../ui/chamber-accessibility.js';
 import {
   describePersonalSignalRelevance,
   rankSignalsByPersonalRelevance
@@ -213,6 +214,8 @@ let releaseRadarLoadInFlight = null;
 let releaseRadarFetchedAt = 0;
 let lastReleaseRadarSnapshot = null;
 let lastReleaseRadarSignal = null;
+let releaseRadarSavedBodyOverflow = null;
+let releaseRadarSavedHtmlOverflow = null;
 let dailyCurioPreparation = null;
 let preparedDailyCurio = null;
 let activeDailyCurio = null;
@@ -3251,7 +3254,10 @@ function hotTodayClockLabel(now = Date.now()) {
 }
 
 function releaseRadarDateLabel(timestamp, { includeTime = false } = {}) {
-  const parsed = Date.parse(String(timestamp || ''));
+  const raw = String(timestamp ?? '').trim();
+  const parsed = typeof timestamp === 'number' && Number.isFinite(timestamp)
+    ? timestamp
+    : raw ? Date.parse(raw) : NaN;
   if (!Number.isFinite(parsed)) return '--';
   const options = includeTime
     ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }
@@ -3279,6 +3285,327 @@ function releaseRadarGateStatusLabel(status) {
   })[status] || 'Waiting';
 }
 
+function releaseRadarMateriallyAdvanced(candidate) {
+  return candidate?.gates?.filter((gate) => (
+    ['active', 'validating', 'ready', 'complete'].includes(gate.status)
+  )).length || 0;
+}
+
+function releaseRadarCandidateKindLabel(kind) {
+  return ({
+    tezos_x_launch: 'Tezos X launch',
+    octez_release: 'Octez L1 node',
+    evm_node_release: 'EVM operator node',
+    previewnet_deployment: 'Previewnet deployment',
+    l1_protocol_proposal: 'L1 protocol proposal'
+  })[kind] || 'Release lane';
+}
+
+function releaseRadarLifecycleLabel(candidate) {
+  if (candidate?.lifecycle === 'released') return 'Released';
+  if (candidate?.lifecycle === 'no_signal') return 'No credible signal';
+  return 'Forecast';
+}
+
+function releaseRadarExternalAttributes(url) {
+  return /^https:\/\//i.test(String(url || '')) ? ' target="_blank" rel="noopener"' : '';
+}
+
+function releaseRadarOverlayRevision(signal) {
+  const radar = signal?.releaseRadar;
+  return radar ? `${radar.updatedAt}|${radar.sourceState}|${radar.stale ? 'stale' : 'fresh'}` : '';
+}
+
+function renderReleaseRadarOverlayMarkup(signal) {
+  const radar = signal?.releaseRadar;
+  const main = radar?.candidates?.find((candidate) => candidate.id === radar.mainCandidateId)
+    || radar?.candidates?.[0];
+  if (!radar || !main) return '';
+  const materiallyAdvanced = releaseRadarMateriallyAdvanced(main);
+  const evidence = radar.candidates.flatMap((candidate) => (
+    candidate.evidence.map((row) => ({ ...row, candidate: candidate.label }))
+  ));
+  const history = radar.candidates.flatMap((candidate) => (
+    candidate.history.map((row) => ({ ...row, candidate: candidate.label }))
+  )).sort((left, right) => Date.parse(right.observedAt) - Date.parse(left.observedAt));
+  const recentReleases = radar.candidates.flatMap((candidate) => {
+    const rows = [];
+    if (candidate.lifecycle === 'released' && candidate.releasedAt) {
+      rows.push({
+        label: candidate.label,
+        releasedAt: candidate.releasedAt,
+        url: candidate.route || candidate.evidence[0]?.url || '',
+        summary: candidate.highlight || candidate.summary,
+        lane: releaseRadarCandidateKindLabel(candidate.kind),
+        exciting: candidate.id === radar.excitingCandidateId
+      });
+    }
+    if (candidate.recentRelease) {
+      rows.push({
+        ...candidate.recentRelease,
+        lane: `${candidate.label} release line`,
+        exciting: false
+      });
+    }
+    return rows;
+  }).sort((left, right) => Date.parse(right.releasedAt) - Date.parse(left.releasedAt));
+  const confidenceMeanings = [
+    ['High', 'Direct artifact: tag, release candidate, submitted proposal, approved vote, or scheduled activation.'],
+    ['Medium', 'Coordinated evidence strongly implies preparation, but the formal artifact is still absent.'],
+    ['Low', 'Early branch naming, backport work, or isolated evidence suggests a candidate, not a date.'],
+    ['None', 'No credible near-term release signal is visible in the reviewed evidence.']
+  ];
+  const boundaryNotes = [
+    'An Octez release is L1 node software; it is not a Tezos X mainnet launch signal by itself.',
+    'An EVM-node release advances operator and Previewnet readiness; it does not start Etherlink governance.',
+    'Previewnet is a public proving ground, not production activation or a promised mainnet date.',
+    'The initial Tezos X kernel path and a Tezos L1 protocol proposal are tracked as separate lanes.'
+  ];
+
+  return `
+    <header class="release-radar-overlay-header" data-quiet-key="release-radar-overlay-header">
+      <div class="release-radar-overlay-brandline">
+        <span class="release-radar-overlay-mark" aria-hidden="true">◉</span>
+        <span><small>Full release intelligence</small><strong>Release Radar</strong></span>
+        <span class="release-radar-overlay-priority">${radar.stale ? 'FORECAST STALE' : radar.noCredibleSignal ? 'NO NEAR-TERM SIGNAL' : 'EVERYONE WATCH'}</span>
+      </div>
+      <h2 id="release-radar-overlay-title">What may ship next—and what still blocks it</h2>
+      <p>The reviewed decision board for Tezos X, Octez, and the EVM node. Every lane stays separate so a software tag cannot masquerade as mainnet readiness.</p>
+      <div class="release-radar-overlay-receipt" aria-label="Release Radar review receipt">
+        <span><small>Reviewed</small><strong>${escapeHtml(releaseRadarDateLabel(radar.updatedAt, { includeTime: true }))}</strong></span>
+        <span><small>Freshness</small><strong>${radar.stale ? 'Stale — recheck horizons' : radar.sourceState === 'last-good' ? 'Last-good receipt' : 'Current daily receipt'}</strong></span>
+        <span><small>Turns stale</small><strong>${escapeHtml(releaseRadarDateLabel(radar.staleAtMs, { includeTime: true }))}</strong></span>
+        <span><small>Review window ends</small><strong>${escapeHtml(releaseRadarDateLabel(radar.expiresAt, { includeTime: true }))}</strong></span>
+      </div>
+    </header>
+
+    ${radar.stale ? `
+      <div class="release-radar-overlay-stale" role="status" data-quiet-key="release-radar-overlay-stale">
+        This receipt is outside its freshness window. The evidence remains visible, but forecasts should be treated as unreviewed until the next daily tracker receipt.
+      </div>
+    ` : ''}
+
+    <section class="release-radar-overlay-hero" aria-labelledby="release-radar-overlay-main-title" data-quiet-key="release-radar-overlay-hero">
+      <div>
+        <span class="release-radar-overlay-kicker">Likely next major ship</span>
+        <h3 id="release-radar-overlay-main-title">${escapeHtml(main.label)}</h3>
+        <p>${escapeHtml(main.summary)}</p>
+        ${main.highlight ? `<strong class="release-radar-overlay-highlight">${escapeHtml(main.highlight)}</strong>` : ''}
+      </div>
+      <div class="release-radar-overlay-forecast release-radar-confidence-${escapeHtml(main.confidence)}">
+        <span><small>Confidence</small><strong>${escapeHtml(main.confidence.toUpperCase())}</strong></span>
+        <span><small>Horizon</small><strong>${escapeHtml(main.horizon || 'No supported ETA')}</strong></span>
+        <span><small>Current stage</small><strong>${escapeHtml(main.stage || releaseRadarLifecycleLabel(main))}</strong></span>
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-blocker" aria-label="Exact launch blocker" data-quiet-key="release-radar-overlay-blocker">
+      <span><small>Exact blocker / next signal</small><strong>${escapeHtml(main.nextSignal)}</strong></span>
+      <a href="${escapeHtml(main.route || '/tezosx/')}">Open Tezos X <span aria-hidden="true">↗</span></a>
+    </section>
+
+    <section class="release-radar-overlay-section" aria-labelledby="release-radar-lanes-title" data-quiet-key="release-radar-overlay-lanes">
+      <div class="release-radar-overlay-section-head">
+        <span><small>Independent clocks</small><h3 id="release-radar-lanes-title">Release lanes</h3></span>
+        <p>Forecasts, released artifacts, and activation paths are shown independently.</p>
+      </div>
+      <div class="release-radar-lane-grid">
+        ${radar.candidates.map((candidate) => {
+          const primaryUrl = candidate.route || candidate.evidence[0]?.url || '';
+          const exciting = candidate.id === radar.excitingCandidateId;
+          return `
+            <article class="release-radar-lane${exciting ? ' is-exciting' : ''}" data-quiet-key="release-radar-lane-${escapeHtml(candidate.id)}">
+              <div class="release-radar-lane-head">
+                <span><small>${escapeHtml(releaseRadarCandidateKindLabel(candidate.kind))}</small><strong>${escapeHtml(candidate.label)}</strong></span>
+                ${exciting ? '<em>Exciting</em>' : ''}
+              </div>
+              <div class="release-radar-lane-meta">
+                <span>${escapeHtml(releaseRadarLifecycleLabel(candidate))}</span>
+                <span class="release-radar-confidence-${escapeHtml(candidate.confidence)}">${escapeHtml(releaseRadarConfidenceLabel(candidate))}</span>
+                ${candidate.stage ? `<span>${escapeHtml(candidate.stage)}</span>` : ''}
+              </div>
+              <p>${escapeHtml(candidate.summary)}</p>
+              ${candidate.highlight ? `<strong class="release-radar-lane-highlight">${escapeHtml(candidate.highlight)}</strong>` : ''}
+              <div class="release-radar-lane-next"><small>Next confirming signal</small><span>${escapeHtml(candidate.nextSignal)}</span></div>
+              ${candidate.recentRelease ? `<div class="release-radar-lane-recent"><small>Latest tagged release</small><a href="${escapeHtml(candidate.recentRelease.url)}" target="_blank" rel="noopener">${escapeHtml(candidate.recentRelease.label)} · ${escapeHtml(releaseRadarDateLabel(candidate.recentRelease.releasedAt))}</a></div>` : ''}
+              ${primaryUrl ? `<a class="release-radar-lane-link" href="${escapeHtml(primaryUrl)}"${releaseRadarExternalAttributes(primaryUrl)}>Open lane receipt <span aria-hidden="true">↗</span></a>` : ''}
+            </article>
+          `;
+        }).join('')}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section" aria-labelledby="release-radar-gates-title" data-quiet-key="release-radar-overlay-gates">
+      <div class="release-radar-overlay-section-head">
+        <span><small>Dependency chain</small><h3 id="release-radar-gates-title">Tezos X mainnet gates</h3></span>
+        <p><strong>${escapeHtml(`${materiallyAdvanced} of ${main.gates.length}`)}</strong> materially advanced · gates are not equally weighted · no completion percentage implied.</p>
+      </div>
+      <div class="release-radar-overlay-gates">
+        ${main.gates.map((gate, gateIndex) => `
+          <article class="release-radar-overlay-gate release-radar-overlay-gate-${escapeHtml(gate.status)}" data-quiet-key="release-radar-overlay-gate-${escapeHtml(gate.id)}">
+            <span class="release-radar-overlay-gate-number">${String(gateIndex + 1).padStart(2, '0')}</span>
+            <span class="release-radar-overlay-gate-dot" aria-hidden="true"></span>
+            <span><small>${escapeHtml(releaseRadarGateStatusLabel(gate.status))}</small><strong>${escapeHtml(gate.label)}</strong><p>${escapeHtml(gate.detail)}</p></span>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section release-radar-overlay-boundaries" aria-labelledby="release-radar-boundaries-title" data-quiet-key="release-radar-overlay-boundaries">
+      <div class="release-radar-overlay-section-head">
+        <span><small>Do not collapse these</small><h3 id="release-radar-boundaries-title">Dependency boundaries</h3></span>
+        <p>The radar is deliberately strict about what each signal can prove.</p>
+      </div>
+      <div class="release-radar-boundary-grid">
+        ${boundaryNotes.map((note, index) => `<p data-quiet-key="release-radar-boundary-${index}"><span aria-hidden="true">${String(index + 1).padStart(2, '0')}</span>${escapeHtml(note)}</p>`).join('')}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section" aria-labelledby="release-radar-next-signals-title" data-quiet-key="release-radar-overlay-next-signals">
+      <div class="release-radar-overlay-section-head">
+        <span><small>What would change the board</small><h3 id="release-radar-next-signals-title">Next confirming signals</h3></span>
+        <p>Concrete artifacts that would move confidence, status, or timing.</p>
+      </div>
+      <div class="release-radar-next-grid">
+        ${radar.candidates.map((candidate) => `
+          <div data-quiet-key="release-radar-next-${escapeHtml(candidate.id)}"><small>${escapeHtml(candidate.label)}</small><strong>${escapeHtml(candidate.nextSignal)}</strong></div>
+        `).join('')}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section" aria-labelledby="release-radar-recent-title" data-quiet-key="release-radar-overlay-recent">
+      <div class="release-radar-overlay-section-head">
+        <span><small>Confirmed artifacts</small><h3 id="release-radar-recent-title">Recent releases</h3></span>
+        <p>Tagged releases are shown separately from forecasts and launch readiness.</p>
+      </div>
+      <div class="release-radar-recent-grid">
+        ${recentReleases.map((release, index) => `
+          <a class="release-radar-recent${release.exciting ? ' is-exciting' : ''}" href="${escapeHtml(release.url)}" target="_blank" rel="noopener" data-quiet-key="release-radar-recent-${index}">
+            <span><small>${escapeHtml(release.lane)}</small><strong>${escapeHtml(release.label)}</strong></span>
+            ${release.exciting ? '<em>Exciting</em>' : ''}
+            <time datetime="${escapeHtml(release.releasedAt)}">${escapeHtml(releaseRadarDateLabel(release.releasedAt))}</time>
+            <p>${escapeHtml(release.summary)}</p>
+          </a>
+        `).join('') || '<p class="release-radar-empty">No confirmed release falls inside the current radar window.</p>'}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section" aria-labelledby="release-radar-history-title" data-quiet-key="release-radar-overlay-history">
+      <div class="release-radar-overlay-section-head">
+        <span><small>Momentum and regression</small><h3 id="release-radar-history-title">Status-change ledger</h3></span>
+        <p>Why the tracker moved—or deliberately held—its confidence.</p>
+      </div>
+      <div class="release-radar-history-list">
+        ${history.map((row, index) => `
+          <article data-quiet-key="release-radar-history-${index}">
+            <time datetime="${escapeHtml(row.observedAt)}">${escapeHtml(releaseRadarDateLabel(row.observedAt, { includeTime: true }))}</time>
+            <span><small>${escapeHtml(row.candidate)}</small><strong>${escapeHtml(row.previousConfidence ? `${row.previousConfidence} → ${row.confidence || row.previousConfidence}` : row.confidence || 'Observed')}</strong><p>${escapeHtml(row.reason)}</p></span>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section" aria-labelledby="release-radar-evidence-title" data-quiet-key="release-radar-overlay-evidence">
+      <div class="release-radar-overlay-section-head">
+        <span><small>Primary-source ledger</small><h3 id="release-radar-evidence-title">Evidence</h3></span>
+        <p>Every receipt used in the current review, with observation time and interpretation.</p>
+      </div>
+      <div class="release-radar-overlay-evidence">
+        ${evidence.map((row, index) => `
+          <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener" data-quiet-key="release-radar-evidence-${index}">
+            <span>${escapeHtml(row.candidate)}</span>
+            <strong>${escapeHtml(row.label)}</strong>
+            <time datetime="${escapeHtml(row.observedAt)}">Observed ${escapeHtml(releaseRadarDateLabel(row.observedAt, { includeTime: true }))}</time>
+            ${row.note ? `<p>${escapeHtml(row.note)}</p>` : ''}
+          </a>
+        `).join('')}
+      </div>
+    </section>
+
+    <section class="release-radar-overlay-section release-radar-overlay-method" aria-labelledby="release-radar-method-title" data-quiet-key="release-radar-overlay-method">
+      <div class="release-radar-overlay-section-head">
+        <span><small>How to read the forecast</small><h3 id="release-radar-method-title">Confidence and methodology</h3></span>
+        <p>No merge-volume scoring, fake completion math, or silent browser inference.</p>
+      </div>
+      <div class="release-radar-confidence-grid">
+        ${confidenceMeanings.map(([label, meaning]) => `<p data-quiet-key="release-radar-confidence-${label.toLowerCase()}"><strong>${label}</strong><span>${escapeHtml(meaning)}</span></p>`).join('')}
+      </div>
+      <ul>${radar.methodology.map((line, index) => `<li data-quiet-key="release-radar-method-${index}">${escapeHtml(line)}</li>`).join('')}</ul>
+      <p class="release-radar-overlay-source"><strong>${escapeHtml(radar.sourceRun.label)}</strong> · ${escapeHtml(radar.sourceRun.cadence)} · ${escapeHtml(radar.sourceRun.method)}</p>
+    </section>
+  `;
+}
+
+function ensureReleaseRadarOverlay() {
+  let overlay = document.getElementById('release-radar-overlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'release-radar-overlay';
+  overlay.className = 'modal-overlay chamber-overlay release-radar-overlay';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = `
+    <div class="modal-content modal-large chamber-content release-radar-overlay-content" role="dialog" aria-modal="true" aria-labelledby="release-radar-overlay-title" tabindex="-1">
+      <button class="modal-close chamber-close release-radar-overlay-close" type="button" data-release-radar-close aria-label="Close full Release Radar">&times;</button>
+      <div class="chamber-body release-radar-overlay-body" data-release-radar-overlay-body></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-release-radar-close]')?.addEventListener('click', closeReleaseRadarOverlay);
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) closeReleaseRadarOverlay();
+  });
+  return overlay;
+}
+
+function renderReleaseRadarOverlay(signal, { quiet = false } = {}) {
+  const overlay = ensureReleaseRadarOverlay();
+  const body = overlay.querySelector('[data-release-radar-overlay-body]');
+  if (!body) return overlay;
+  const markup = renderReleaseRadarOverlayMarkup(signal);
+  if (quiet && body.childElementCount) quietlySyncHtml(body, markup);
+  else body.innerHTML = markup;
+  overlay.dataset.releaseRadarRevision = releaseRadarOverlayRevision(signal);
+  return overlay;
+}
+
+function closeReleaseRadarOverlay() {
+  const overlay = document.getElementById('release-radar-overlay');
+  if (!overlay?.classList.contains('active')) return;
+  overlay.classList.remove('active');
+  deactivateChamberDialog(overlay);
+  document.body.style.overflow = releaseRadarSavedBodyOverflow || '';
+  document.documentElement.style.overflow = releaseRadarSavedHtmlOverflow || '';
+  releaseRadarSavedBodyOverflow = null;
+  releaseRadarSavedHtmlOverflow = null;
+}
+
+function openReleaseRadarOverlay(signal = lastReleaseRadarSignal) {
+  if (!signal?.releaseRadar) return;
+  const overlay = renderReleaseRadarOverlay(signal);
+  const content = overlay.querySelector('.release-radar-overlay-content');
+  releaseRadarSavedBodyOverflow = document.body.style.overflow;
+  releaseRadarSavedHtmlOverflow = document.documentElement.style.overflow;
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+  if (content) content.scrollTop = 0;
+  overlay.classList.add('active');
+  activateChamberDialog(overlay, {
+    close: closeReleaseRadarOverlay,
+    dialogSelector: '.release-radar-overlay-content',
+    titleId: 'release-radar-overlay-title',
+    label: 'Full Release Radar',
+    initialFocusSelector: '.release-radar-overlay-close'
+  });
+}
+
+function syncOpenReleaseRadarOverlay() {
+  const overlay = document.getElementById('release-radar-overlay');
+  if (!overlay?.classList.contains('active') || !lastReleaseRadarSignal?.releaseRadar) return;
+  const revision = releaseRadarOverlayRevision(lastReleaseRadarSignal);
+  if (overlay.dataset.releaseRadarRevision === revision) return;
+  renderReleaseRadarOverlay(lastReleaseRadarSignal, { quiet: true });
+}
+
 function renderReleaseRadarCard(signal, index) {
   const radar = signal.releaseRadar;
   const main = radar?.candidates?.find((candidate) => candidate.id === radar.mainCandidateId)
@@ -3289,25 +3616,10 @@ function renderReleaseRadarCard(signal, index) {
   const spectacleClass = ` is-spectacle-${safeCssToken(signal.spectacle)}`;
   const staleClass = radar.stale ? ' is-release-radar-stale' : '';
   const ageLabel = signalAgeLabel(signal);
-  const route = routeForSignal(signal);
-  const detailsWasOpen = Boolean(document.querySelector(
-    `[data-release-radar-details="${safeCssToken(signal.id)}"][open]`
-  ));
-  const materiallyAdvanced = main.gates.filter((gate) => (
-    ['active', 'validating', 'ready', 'complete'].includes(gate.status)
-  )).length;
-  const otherCandidates = radar.candidates
-    .filter((candidate) => candidate.id !== main.id)
-    .sort((left, right) => {
-      if (left.id === radar.excitingCandidateId) return -1;
-      if (right.id === radar.excitingCandidateId) return 1;
-      return 0;
-    });
-  const evidence = radar.candidates.flatMap((candidate) => (
-    candidate.evidence.slice(0, 2).map((row) => ({ ...row, candidate: candidate.label }))
-  ));
-  const history = [...main.history]
-    .sort((left, right) => Date.parse(right.observedAt) - Date.parse(left.observedAt))[0];
+  const materiallyAdvanced = releaseRadarMateriallyAdvanced(main);
+  const exciting = radar.candidates.find((candidate) => candidate.id === radar.excitingCandidateId)
+    || radar.candidates.find((candidate) => candidate.lifecycle === 'released')
+    || radar.candidates.find((candidate) => candidate.id !== main.id);
 
   return `
     <article class="hot-today-card hot-today-card-release${spectacleClass}${activeClass}${staleClass}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-score="${escapeHtml(String(signal.score))}" data-hot-visual="release" data-hot-spectacle="${escapeHtml(signal.spectacle)}" aria-label="${escapeHtml(`Priority Release Radar. ${main.label}: ${main.summary}`)}">
@@ -3328,7 +3640,7 @@ function renderReleaseRadarCard(signal, index) {
         </div>
       ` : ''}
 
-      <div class="release-radar-lead">
+      <div class="release-radar-compact-lead">
         <div class="release-radar-lead-copy">
           <span>${radar.noCredibleSignal ? 'No credible near-term release signal detected' : 'Likely next major ship'}</span>
           <h3>${escapeHtml(main.label)}</h3>
@@ -3341,60 +3653,17 @@ function renderReleaseRadarCard(signal, index) {
         </div>
       </div>
 
-      <div class="release-radar-gates" aria-label="${escapeHtml(`${materiallyAdvanced} of ${main.gates.length} Tezos X gates materially advanced`)}">
-        <div class="release-radar-gate-heading">
-          <span>${escapeHtml(`${materiallyAdvanced} of ${main.gates.length} gates materially advanced`)}</span>
-          <small>No percentage implied</small>
-        </div>
-        <div class="release-radar-gate-grid">
-          ${main.gates.map((gate) => `
-            <span class="release-radar-gate release-radar-gate-${escapeHtml(gate.status)}" title="${escapeHtml(gate.detail)}">
-              <i aria-hidden="true"></i>
-              <span><strong>${escapeHtml(gate.label)}</strong><small>${escapeHtml(releaseRadarGateStatusLabel(gate.status))}</small></span>
-            </span>
-          `).join('')}
-        </div>
+      <div class="release-radar-compact-signals">
+        <span class="release-radar-compact-blocker"><small>Blocking signal</small><strong>${escapeHtml(main.nextSignal)}</strong></span>
+        ${exciting ? `<span class="release-radar-compact-release"><small>${exciting.id === radar.excitingCandidateId ? 'Just shipped · exciting' : 'Adjacent release lane'}</small><strong>${escapeHtml(exciting.label)}${exciting.releasedAt ? ` · ${escapeHtml(releaseRadarDateLabel(exciting.releasedAt))}` : exciting.horizon ? ` · ${escapeHtml(exciting.horizon)}` : ''}</strong></span>` : ''}
       </div>
 
-      <div class="release-radar-secondary" aria-label="Adjacent release lanes">
-        ${otherCandidates.map((candidate) => {
-          const exciting = candidate.id === radar.excitingCandidateId;
-          return `
-            <a class="release-radar-candidate${exciting ? ' is-exciting' : ''}" href="${escapeHtml(candidate.route || candidate.evidence[0]?.url || route)}" target="_blank" rel="noopener">
-              <span class="release-radar-candidate-head">
-                <strong>${escapeHtml(candidate.label)}</strong>
-                ${exciting ? '<em>Exciting</em>' : ''}
-              </span>
-              <span class="release-radar-candidate-status release-radar-confidence-${escapeHtml(candidate.confidence)}">${escapeHtml(releaseRadarConfidenceLabel(candidate))}</span>
-              <p>${escapeHtml(candidate.highlight || candidate.summary)}</p>
-              ${candidate.recentRelease ? `<small>Latest release: ${escapeHtml(candidate.recentRelease.label)} · ${escapeHtml(releaseRadarDateLabel(candidate.recentRelease.releasedAt))}</small>` : ''}
-            </a>
-          `;
-        }).join('')}
+      <div class="release-radar-compact-footer">
+        <span><strong>${escapeHtml(`${materiallyAdvanced} of ${main.gates.length}`)}</strong> gates materially advanced <small>· no percentage implied</small></span>
+        <button class="release-radar-open" type="button" data-release-radar-open="${escapeHtml(signal.id)}" aria-haspopup="dialog" aria-controls="release-radar-overlay">
+          Open full radar <span aria-hidden="true">↗</span>
+        </button>
       </div>
-
-      <div class="release-radar-next">
-        <span><small>Exact blocker / next signal</small><strong>${escapeHtml(main.nextSignal)}</strong></span>
-        <a href="${escapeHtml(route)}" data-network-route="${escapeHtml(route)}">Open Tezos X <span aria-hidden="true">↗</span></a>
-      </div>
-
-      <details class="release-radar-details" data-release-radar-details="${safeCssToken(signal.id)}" data-quiet-key="release-radar-details"${detailsWasOpen ? ' open' : ''}>
-        <summary>Evidence &amp; methodology <span>${escapeHtml(`Updated ${releaseRadarDateLabel(radar.updatedAt, { includeTime: true })}`)}</span></summary>
-        <div class="release-radar-details-body">
-          ${history ? `<p class="release-radar-change"><strong>Why the status moved:</strong> ${escapeHtml(history.reason)}</p>` : ''}
-          <div class="release-radar-evidence">
-            ${evidence.map((row) => `
-              <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">
-                <span>${escapeHtml(row.candidate)}</span>
-                <strong>${escapeHtml(row.label)}</strong>
-                <small>${escapeHtml(releaseRadarDateLabel(row.observedAt, { includeTime: true }))}${row.note ? ` · ${escapeHtml(row.note)}` : ''}</small>
-              </a>
-            `).join('')}
-          </div>
-          <ul>${radar.methodology.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
-          <p class="release-radar-source">${escapeHtml(radar.sourceRun.label)} · ${escapeHtml(radar.sourceRun.cadence)} · ${escapeHtml(radar.sourceRun.method)}</p>
-        </div>
-      </details>
     </article>
   `;
 }
@@ -3526,6 +3795,21 @@ function wireHotTodayMilestoneSharing(island) {
     const index = Number(button.dataset.hotMilestoneShare);
     const signal = Number.isInteger(index) ? hotTodaySignals[index] : null;
     shareHotTodayMilestone(signal, button);
+  });
+}
+
+function wireReleaseRadarActions(island) {
+  if (!island || island.dataset.releaseRadarWired === 'true') return;
+  island.dataset.releaseRadarWired = 'true';
+  island.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-release-radar-open]');
+    if (!button || !island.contains(button)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const signalId = button.dataset.releaseRadarOpen || 'release-radar';
+    const signal = hotTodaySignals.find((candidate) => candidate.id === signalId)
+      || lastReleaseRadarSignal;
+    openReleaseRadarOverlay(signal);
   });
 }
 
@@ -3767,8 +4051,10 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   settleMilestoneCardArrivals(island);
   wireHotTodayProgressNavigation(island);
   wireHotTodayMilestoneSharing(island);
+  wireReleaseRadarActions(island);
   wireNetworkContextNavigation(island);
   wireHotTodayRealtime();
+  syncOpenReleaseRadarOverlay();
   refreshHotTodayLiveMetrics();
   applyHotTodayActive(hotTodayActiveIndex, { scroll: false });
   const milestoneSignal = getMilestoneHotSignal(hotTodaySignals);
