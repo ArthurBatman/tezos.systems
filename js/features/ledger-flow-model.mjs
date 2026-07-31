@@ -6,8 +6,9 @@
  */
 
 const DEFAULT_MAX_LIST_ROWS = 12;
-const DEFAULT_MAX_DIAGRAM_NODES = 12;
-const DEFAULT_INDIVIDUAL_NODE_BUDGET = 10;
+const DEFAULT_DIRECTION_NODE_BUDGET = 4;
+const TIMELINE_HOUR_MS = 60 * 60 * 1000;
+const TIMELINE_DAY_MS = 24 * TIMELINE_HOUR_MS;
 
 function transactionKey(tx) {
     return tx?.id
@@ -49,8 +50,13 @@ export function normalizeLedgerTransaction(tx, address) {
 
 function latestTimestamp(current, candidate) {
     if (!candidate) return current || '';
-    if (!current) return candidate;
-    return Date.parse(candidate) > Date.parse(current) ? candidate : current;
+    const candidateTime = Date.parse(candidate);
+    if (!Number.isFinite(candidateTime)) {
+        return Number.isFinite(Date.parse(current || '')) ? current : '';
+    }
+    const currentTime = Date.parse(current || '');
+    if (!Number.isFinite(currentTime)) return candidate;
+    return candidateTime > currentTime ? candidate : current;
 }
 
 function addCounterparty(map, tx) {
@@ -91,6 +97,10 @@ function totalsFor(transfers) {
         totals.count += 1;
         return totals;
     }, { sent: 0, received: 0, count: 0 });
+}
+
+function latestForCounterparty(item) {
+    return latestTimestamp(item?.sentLatest || '', item?.receivedLatest || '');
 }
 
 function directionCohort(direction, members) {
@@ -172,28 +182,130 @@ function firstValueMatchesShownTransfer(event, transfers) {
     return transfers.some((tx) => String(tx.transactionId) === String(transactionId));
 }
 
-function selectedIndividuals(ranked, firstValueEvent, firstValueIsShown, options) {
-    if (ranked.length <= options.maxDiagramNodes) return [...ranked];
+function directionalIndividual(item, direction, { firstValue = false } = {}) {
+    const inbound = direction === 'received';
+    const amount = Number(item?.[direction] || 0);
+    const count = Number(item?.[`${direction}Count`] || 0);
+    return {
+        ...item,
+        key: `individual:${direction}:${item.address}`,
+        sent: inbound ? 0 : amount,
+        received: inbound ? amount : 0,
+        sentCount: inbound ? 0 : count,
+        receivedCount: inbound ? count : 0,
+        sentLatest: inbound ? '' : item.sentLatest,
+        receivedLatest: inbound ? item.receivedLatest : '',
+        total: amount,
+        count,
+        side: inbound ? 'left' : 'right',
+        isDirectional: true,
+        diagramDirection: direction,
+        isFirstValue: firstValue
+    };
+}
 
-    const selected = ranked.slice(0, options.individualNodeBudget);
-    if (!firstValueIsShown) return selected;
-    const address = firstValueEvent?.counterparty?.address || '';
-    if (!address || selected.some((item) => item.address === address)) return selected;
-    const pinned = ranked.find((item) => item.address === address);
+function selectedForDirection(ranked, direction, budget, pinnedAddress = '') {
+    const selected = ranked
+        .filter((item) => Number(item?.[direction] || 0) > 0)
+        .sort((left, right) => (
+            Number(right?.[direction] || 0) - Number(left?.[direction] || 0)
+            || Number(right?.[`${direction}Count`] || 0) - Number(left?.[`${direction}Count`] || 0)
+            || left.address.localeCompare(right.address)
+        ))
+        .slice(0, budget);
+    if (!pinnedAddress || selected.some((item) => item.address === pinnedAddress)) return selected;
+    const pinned = ranked.find((item) => (
+        item.address === pinnedAddress && Number(item?.[direction] || 0) > 0
+    ));
     if (!pinned) return selected;
-    selected[selected.length - 1] = pinned;
+    if (selected.length < budget) selected.push(pinned);
+    else selected[selected.length - 1] = pinned;
     return selected;
 }
 
+export function ledgerCounterpartyKind(item) {
+    const address = String(item?.address || '');
+    if (address.startsWith('KT1')) return 'contract';
+    if (String(item?.alias || '').trim()) return 'aliased';
+    return 'unaliased';
+}
+
+function buildCounterpartyComposition(counterparties) {
+    const definitions = [
+        ['contract', 'Contracts'],
+        ['aliased', 'TzKT-aliased addresses'],
+        ['unaliased', 'Unaliased addresses']
+    ];
+    const buckets = new Map(definitions.map(([key, label]) => [key, {
+        key,
+        label,
+        memberCount: 0,
+        sent: 0,
+        received: 0,
+        sentCount: 0,
+        receivedCount: 0,
+        total: 0,
+        count: 0
+    }]));
+    for (const item of counterparties) {
+        const bucket = buckets.get(ledgerCounterpartyKind(item));
+        bucket.memberCount += 1;
+        bucket.sent += Number(item.sent || 0);
+        bucket.received += Number(item.received || 0);
+        bucket.sentCount += Number(item.sentCount || 0);
+        bucket.receivedCount += Number(item.receivedCount || 0);
+        bucket.total = bucket.sent + bucket.received;
+        bucket.count = bucket.sentCount + bucket.receivedCount;
+    }
+    return definitions
+        .map(([key]) => buckets.get(key))
+        .filter((bucket) => bucket.memberCount > 0);
+}
+
+export function filterLedgerCounterparties(counterparties, options = {}) {
+    const query = String(options.query || '').trim().toLowerCase();
+    const sort = ['total', 'received', 'sent', 'count', 'latest'].includes(options.sort)
+        ? options.sort
+        : 'total';
+    const rows = [...(Array.isArray(counterparties) ? counterparties : [])]
+        .filter((item) => {
+            if (!query) return true;
+            const address = String(item?.address || '').toLowerCase();
+            const alias = String(item?.alias || '').toLowerCase();
+            return address.startsWith(query) || alias.includes(query);
+        });
+
+    rows.sort((left, right) => {
+        let delta = 0;
+        if (sort === 'latest') {
+            delta = (Date.parse(latestForCounterparty(right)) || 0)
+                - (Date.parse(latestForCounterparty(left)) || 0);
+        } else {
+            delta = Number(right?.[sort] || 0) - Number(left?.[sort] || 0);
+        }
+        return delta || String(left?.address || '').localeCompare(String(right?.address || ''));
+    });
+    return rows;
+}
+
 export function buildLedgerFlowModel(data, options = {}) {
-    const threshold = Math.max(0, Number(options.thresholdMutez || 0));
+    const requestedThreshold = Number(options.thresholdMutez ?? 0);
+    const requestedListRows = Number(options.maxListRows ?? DEFAULT_MAX_LIST_ROWS);
+    const requestedNodeBudget = Number(
+        options.directionNodeBudget
+        ?? options.individualNodeBudget
+        ?? DEFAULT_DIRECTION_NODE_BUDGET
+    );
+    const threshold = Number.isFinite(requestedThreshold)
+        ? Math.max(0, requestedThreshold)
+        : 0;
     const settings = {
-        maxListRows: Math.max(1, Number(options.maxListRows || DEFAULT_MAX_LIST_ROWS)),
-        maxDiagramNodes: Math.max(2, Number(options.maxDiagramNodes || DEFAULT_MAX_DIAGRAM_NODES)),
-        individualNodeBudget: Math.max(
-            1,
-            Number(options.individualNodeBudget || DEFAULT_INDIVIDUAL_NODE_BUDGET)
-        )
+        maxListRows: Number.isFinite(requestedListRows)
+            ? Math.max(1, Math.floor(requestedListRows))
+            : DEFAULT_MAX_LIST_ROWS,
+        directionNodeBudget: Number.isFinite(requestedNodeBudget)
+            ? Math.max(1, Math.floor(requestedNodeBudget))
+            : DEFAULT_DIRECTION_NODE_BUDGET
     };
     const address = data?.address || '';
     const seenRows = new Set();
@@ -230,43 +342,61 @@ export function buildLedgerFlowModel(data, options = {}) {
 
     const firstValueEvent = data?.firstValueEvent || null;
     const firstValueIsShown = firstValueMatchesShownTransfer(firstValueEvent, shownTransfers);
-    const individuals = selectedIndividuals(ranked, firstValueEvent, firstValueIsShown, settings);
-    const individualAddresses = new Set(individuals.map((item) => item.address));
-    const rolledUp = ranked.filter((item) => !individualAddresses.has(item.address));
+    const firstValueAddress = firstValueEvent?.counterparty?.address || '';
+    const receivedIndividuals = selectedForDirection(
+        ranked,
+        'received',
+        settings.directionNodeBudget,
+        firstValueIsShown ? firstValueAddress : ''
+    );
+    const sentIndividuals = selectedForDirection(
+        ranked,
+        'sent',
+        settings.directionNodeBudget
+    );
+    const receivedAddresses = new Set(receivedIndividuals.map((item) => item.address));
+    const sentAddresses = new Set(sentIndividuals.map((item) => item.address));
+    const receivedRolledUp = ranked.filter((item) => (
+        item.received > 0 && !receivedAddresses.has(item.address)
+    ));
+    const sentRolledUp = ranked.filter((item) => (
+        item.sent > 0 && !sentAddresses.has(item.address)
+    ));
     const receivedCohort = directionCohort(
         'received',
-        rolledUp.filter((item) => item.received > 0)
+        receivedRolledUp
     );
     const sentCohort = directionCohort(
         'sent',
-        rolledUp.filter((item) => item.sent > 0)
+        sentRolledUp
     );
-    const diagramNodes = [...individuals, receivedCohort, sentCohort].filter(Boolean);
+    const diagramNodes = [
+        ...receivedIndividuals.map((item) => directionalIndividual(item, 'received', {
+            firstValue: firstValueIsShown && item.address === firstValueAddress
+        })),
+        receivedCohort,
+        ...sentIndividuals.map((item) => directionalIndividual(item, 'sent')),
+        sentCohort
+    ].filter(Boolean);
 
-    if (firstValueIsShown) {
-        const firstAddress = firstValueEvent?.counterparty?.address || '';
-        const node = diagramNodes.find((item) => !item.isCohort && item.address === firstAddress);
-        if (node) node.isFirstValue = true;
-    } else {
+    if (!firstValueIsShown) {
         const originNode = contextNode(firstValueEvent);
         if (originNode) diagramNodes.push(originNode);
     }
 
     const edges = [];
-    const firstValueAddress = firstValueEvent?.counterparty?.address || '';
     for (const item of diagramNodes) {
         if (item.isContext) continue;
-        const received = edgeFor(
+        const direction = item.diagramDirection || (item.received > 0 ? 'received' : 'sent');
+        const edge = edgeFor(
             item,
-            'received',
-            firstValueIsShown ? firstValueEvent?.transactionId : null,
+            direction,
+            direction === 'received' && firstValueIsShown
+                ? firstValueEvent?.transactionId
+                : null,
             firstValueAddress
         );
-        const sent = edgeFor(item, 'sent', null);
-        if (received) {
-            edges.push(received);
-        }
-        if (sent) edges.push(sent);
+        if (edge) edges.push(edge);
     }
     if (!firstValueIsShown) {
         const node = diagramNodes.find((item) => item.isContext);
@@ -284,16 +414,21 @@ export function buildLedgerFlowModel(data, options = {}) {
         }
     }
 
+    const counterpartyEdges = ranked.flatMap((item) => [
+        edgeFor(
+            item,
+            'received',
+            firstValueIsShown ? firstValueEvent?.transactionId : null,
+            firstValueAddress
+        ),
+        edgeFor(item, 'sent', null)
+    ].filter(Boolean));
     const listCounterparties = ranked.slice(0, settings.maxListRows);
     const listEdges = listCounterparties.map((item) => {
         const direction = item.received >= item.sent ? 'received' : 'sent';
-        return edges.find((edge) => edge.counterparty.address === item.address && edge.direction === direction)
-            || edgeFor(
-                item,
-                direction,
-                firstValueIsShown ? firstValueEvent?.transactionId : null,
-                firstValueAddress
-            );
+        return counterpartyEdges.find((edge) => (
+            edge.counterparty.address === item.address && edge.direction === direction
+        ));
     }).filter(Boolean);
 
     const latest = allTransfers.reduce(
@@ -316,15 +451,309 @@ export function buildLedgerFlowModel(data, options = {}) {
         totals: totalsFor(shownTransfers),
         fullLoadedTotals: totalsFor(allTransfers),
         counterparties: ranked,
+        counterpartyEdges,
+        composition: buildCounterpartyComposition(ranked),
         listCounterparties,
         listEdges,
         visibleCounterparties: diagramNodes,
         edges,
-        rolledUpCount: rolledUp.length,
+        rolledUpCount: new Set([
+            ...receivedRolledUp.map((item) => item.address),
+            ...sentRolledUp.map((item) => item.address)
+        ]).size,
         hiddenListCount: Math.max(0, ranked.length - settings.maxListRows),
         selfTransferRows,
         threshold,
         latest
+    };
+}
+
+function safeWholeNumber(value) {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+        ? value
+        : null;
+}
+
+function validDate(value) {
+    return Number.isFinite(Date.parse(value || ''));
+}
+
+function validWhaleOperation(operation, transferWindow, isValidAddress) {
+    const sender = String(operation?.sender || '');
+    const target = String(operation?.target || '');
+    const amountMutez = safeWholeNumber(operation?.amountMutez);
+    const timestamp = Date.parse(operation?.timestamp || '');
+    const since = Date.parse(transferWindow?.since || '');
+    const until = Date.parse(transferWindow?.until || '');
+    return String(operation?.status || '').toLowerCase() === 'applied'
+        && Boolean(operation?.hash)
+        && isValidAddress(sender)
+        && isValidAddress(target)
+        && sender !== target
+        && amountMutez > 0
+        && Number.isFinite(timestamp)
+        && Number.isFinite(since)
+        && Number.isFinite(until)
+        && timestamp >= since
+        && timestamp <= until;
+}
+
+export function buildLedgerFlowEntryProjection(artifact, options = {}) {
+    const isValidAddress = typeof options.isValidAddress === 'function'
+        ? options.isValidAddress
+        : (value) => /^(?:tz[1-4]|KT1)[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || ''));
+    const transfers = artifact?.transfers24h || null;
+    const coverage = artifact?.coverage?.transfers24h || null;
+    const minimumXtz = safeWholeNumber(transfers?.minimumXtz);
+    const operationCount = safeWholeNumber(transfers?.operationCount);
+    const uniqueSenders = safeWholeNumber(transfers?.uniqueSenders);
+    const uniqueTargets = safeWholeNumber(transfers?.uniqueTargets);
+    const grossObservedMutez = safeWholeNumber(transfers?.grossObservedMutez);
+    const flowStories = Array.isArray(transfers?.topFlowStories)
+        ? transfers.topFlowStories
+        : [];
+    const metricsValid = artifact?.kind === 'tezos-whale-watch'
+        && Number(artifact?.version) === 1
+        && validDate(artifact?.generatedAt)
+        && transfers?.complete === true
+        && coverage?.complete === true
+        && operationCount !== null
+        && uniqueSenders !== null
+        && uniqueTargets !== null
+        && grossObservedMutez !== null
+        && minimumXtz !== null
+        && operationCount === safeWholeNumber(coverage?.eligibleCount)
+        && minimumXtz === safeWholeNumber(artifact?.methodology?.minimumTransferXtz)
+        && Number(transfers?.window?.hours) === 24
+        && validDate(transfers?.window?.since)
+        && validDate(transfers?.window?.until)
+        && Date.parse(transfers.window.until) > Date.parse(transfers.window.since)
+        && Boolean(String(transfers?.semantics || '').trim());
+
+    const aliasByAddress = new Map();
+    const rememberAliases = (operation) => {
+        if (operation?.sender && operation?.senderAlias) {
+            aliasByAddress.set(String(operation.sender), String(operation.senderAlias));
+        }
+        if (operation?.target && operation?.targetAlias) {
+            aliasByAddress.set(String(operation.target), String(operation.targetAlias));
+        }
+    };
+    rememberAliases(transfers?.largestOperation);
+    flowStories.forEach((story) => (
+        (Array.isArray(story?.operations) ? story.operations : []).forEach(rememberAliases)
+    ));
+
+    let hero = null;
+    if (metricsValid && validWhaleOperation(
+        transfers?.largestOperation,
+        transfers.window,
+        isValidAddress
+    )) {
+        const operation = transfers.largestOperation;
+        hero = {
+            sender: {
+                address: String(operation.sender),
+                alias: String(operation.senderAlias || '')
+            },
+            target: {
+                address: String(operation.target),
+                alias: String(operation.targetAlias || '')
+            },
+            amountMutez: Number(operation.amountMutez),
+            timestamp: operation.timestamp,
+            hash: operation.hash
+        };
+    }
+
+    const stories = [];
+    const usedStoryAddresses = new Set(hero
+        ? [hero.sender.address, hero.target.address]
+        : []);
+    if (metricsValid) {
+        for (const story of flowStories) {
+            const operations = Array.isArray(story?.operations) ? story.operations : [];
+            for (const operation of operations) {
+                if (!validWhaleOperation(operation, transfers.window, isValidAddress)) continue;
+                const candidates = [
+                    [operation.target, operation.targetAlias],
+                    [operation.sender, operation.senderAlias]
+                ];
+                const candidate = candidates.find(([address]) => (
+                    isValidAddress(address) && !usedStoryAddresses.has(String(address))
+                ));
+                if (!candidate) continue;
+                const [address, alias] = candidate;
+                usedStoryAddresses.add(String(address));
+                stories.push({
+                    address: String(address),
+                    alias: String(alias || aliasByAddress.get(String(address)) || ''),
+                    amountMutez: Number(operation.amountMutez),
+                    timestamp: operation.timestamp,
+                    hash: operation.hash
+                });
+                break;
+            }
+            if (stories.length >= 3) break;
+        }
+    }
+
+    const resumeAddress = String(options.resumeAddress || '');
+    const resume = isValidAddress(resumeAddress)
+        ? {
+            address: resumeAddress,
+            alias: aliasByAddress.get(resumeAddress) || '',
+            source: options.resumeSource === 'my-tezos' ? 'my-tezos' : 'ledger-flow-last-target'
+        }
+        : null;
+
+    return {
+        source: metricsValid ? {
+            kind: artifact.kind,
+            version: Number(artifact.version),
+            generatedAt: artifact.generatedAt,
+            windowSince: transfers.window.since,
+            windowUntil: transfers.window.until,
+            complete: true
+        } : null,
+        hero,
+        metrics: metricsValid ? {
+            minimumXtz,
+            operationCount,
+            uniqueSenders,
+            uniqueTargets,
+            grossObservedMutez,
+            semantics: String(transfers.semantics)
+        } : null,
+        stories,
+        resume
+    };
+}
+
+function nextUtcBucketBoundary(timestamp, unit) {
+    const date = new Date(timestamp);
+    if (unit === 'hour') {
+        return Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+            date.getUTCHours() + 1
+        );
+    }
+    const midnight = Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate()
+    );
+    if (unit === 'day') return midnight + TIMELINE_DAY_MS;
+    const daysUntilMonday = (8 - date.getUTCDay()) % 7 || 7;
+    return midnight + daysUntilMonday * TIMELINE_DAY_MS;
+}
+
+function timelineBucketIndex(buckets, timestamp, until) {
+    if (timestamp === until) return buckets.length - 1;
+    let low = 0;
+    let high = buckets.length - 1;
+    while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const bucket = buckets[middle];
+        const start = Date.parse(bucket.start);
+        const end = Date.parse(bucket.end);
+        if (timestamp < start) high = middle - 1;
+        else if (timestamp >= end) low = middle + 1;
+        else return middle;
+    }
+    return -1;
+}
+
+export function buildLedgerFlowTimeline(model) {
+    const coverage = model?.coverage || {};
+    const windowKey = String(coverage.windowKey || '');
+    if (coverage.mode === 'sample') {
+        return { available: false, reason: 'sample', windowKey, buckets: [] };
+    }
+    if (windowKey === 'all') {
+        return { available: false, reason: 'all-window', windowKey, buckets: [] };
+    }
+    const config = {
+        '24h': { unit: 'hour', bucketMs: TIMELINE_HOUR_MS },
+        '7d': { unit: 'day', bucketMs: TIMELINE_DAY_MS },
+        '30d': { unit: 'day', bucketMs: TIMELINE_DAY_MS },
+        '1y': { unit: 'week', bucketMs: 7 * TIMELINE_DAY_MS }
+    }[windowKey];
+    const since = Date.parse(coverage.since || '');
+    const until = Date.parse(coverage.until || '');
+    if (!config || !Number.isFinite(since) || !Number.isFinite(until) || until <= since) {
+        return { available: false, reason: 'unbounded', windowKey, buckets: [] };
+    }
+
+    const buckets = [];
+    let cursor = since;
+    while (cursor < until && buckets.length < 1000) {
+        const boundary = nextUtcBucketBoundary(cursor, config.unit);
+        const endMs = Math.min(until, Math.max(cursor + 1, boundary));
+        buckets.push({
+            index: buckets.length,
+            start: new Date(cursor).toISOString(),
+            end: new Date(endMs).toISOString(),
+            sent: 0,
+            received: 0,
+            sentCount: 0,
+            receivedCount: 0,
+            count: 0
+        });
+        cursor = endMs;
+    }
+    if (!buckets.length || cursor !== until) {
+        return { available: false, reason: 'unbounded', windowKey, buckets: [] };
+    }
+    let ignoredRows = 0;
+    for (const transfer of model?.transfers || []) {
+        const timestamp = Date.parse(transfer?.timestamp || '');
+        if (!Number.isFinite(timestamp) || timestamp < since || timestamp > until) {
+            ignoredRows += 1;
+            continue;
+        }
+        const index = timelineBucketIndex(buckets, timestamp, until);
+        const bucket = buckets[index];
+        const direction = transfer?.direction;
+        if (!bucket || !['sent', 'received'].includes(direction)) {
+            ignoredRows += 1;
+            continue;
+        }
+        bucket[direction] += Number(transfer.amount || 0);
+        bucket[`${direction}Count`] += 1;
+        bucket.count += 1;
+    }
+    if (ignoredRows > 0) {
+        return {
+            available: false,
+            reason: 'invalid-rows',
+            windowKey,
+            buckets: [],
+            ignoredRows
+        };
+    }
+    const totals = buckets.reduce((value, bucket) => ({
+        sent: value.sent + bucket.sent,
+        received: value.received + bucket.received,
+        count: value.count + bucket.count
+    }), { sent: 0, received: 0, count: 0 });
+    return {
+        available: true,
+        reason: '',
+        windowKey,
+        unit: config.unit,
+        bucketMs: config.bucketMs,
+        partialEndpoints: (
+            Date.parse(buckets[0].end) - Date.parse(buckets[0].start) !== config.bucketMs
+            || Date.parse(buckets.at(-1).end) - Date.parse(buckets.at(-1).start) !== config.bucketMs
+        ),
+        since: new Date(since).toISOString(),
+        until: new Date(until).toISOString(),
+        buckets,
+        totals,
+        ignoredRows
     };
 }
 
@@ -336,6 +765,14 @@ export function layoutLedgerFlowNodes(nodes, options = {}) {
     const minimumHeight = Math.max(1, Number(options.minimumHeight || 560));
     const left = nodes.filter((item) => item.side !== 'right');
     const right = nodes.filter((item) => item.side === 'right');
+    const directionalCount = left.length + right.length;
+    const imbalance = directionalCount
+        ? (left.length - right.length) / directionalCount
+        : 0;
+    const centerX = Math.max(340, Math.min(660, 500 + imbalance * 160));
+    const columnGap = left.length && right.length ? 320 : 360;
+    const leftX = Math.max(150, centerX - columnGap);
+    const rightX = Math.min(850, centerX + columnGap);
     const largestColumn = Math.max(left.length, right.length, 1);
     const requiredHeight = topPadding
         + bottomPadding
@@ -354,12 +791,13 @@ export function layoutLedgerFlowNodes(nodes, options = {}) {
         });
     };
 
-    place(left, 180);
-    place(right, 820);
+    place(left, leftX);
+    place(right, rightX);
     return {
         positions,
         viewHeight,
-        center: { x: 500, y: viewHeight / 2 },
+        center: { x: centerX, y: viewHeight / 2 },
+        columns: { left: leftX, right: rightX },
         minimumGap
     };
 }

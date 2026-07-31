@@ -12,17 +12,27 @@ import {
     normalizeTezDomainName,
     resolveTezDomainRecord
 } from '../core/tezos-domains.js';
-import { escapeHtml } from '../core/utils.js';
+import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
-import { getWhaleWatchArtifact } from './whale-chamber.js';
-import { buildLedgerFlowModel, layoutLedgerFlowNodes } from './ledger-flow-model.mjs';
+import {
+    getWhaleWatchArtifact,
+    peekWhaleWatchArtifactState,
+    subscribeWhaleWatchArtifact
+} from './whale-chamber.js';
+import {
+    buildLedgerFlowEntryProjection,
+    buildLedgerFlowModel,
+    buildLedgerFlowTimeline,
+    filterLedgerCounterparties,
+    layoutLedgerFlowNodes
+} from './ledger-flow-model.mjs';
 
 const TZKT = API_URLS.tzkt;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=534';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=535';
 const DEFAULT_WINDOW = '30d';
 const TRANSFER_PAGE_LIMIT = 10000;
 const EXACT_ROW_LIMIT = 20000;
@@ -34,6 +44,9 @@ const NODE_MAX_WIDTH = 252;
 const NODE_HEIGHT = 62;
 const NODE_TEXT_PAD = 30;
 const NODE_MIN_GAP = 18;
+const DESKTOP_DIRECTION_PREVIEW = 4;
+const COUNTERPARTY_PAGE_SIZE = 25;
+const MOBILE_DIRECTION_PREVIEW = 5;
 
 const WINDOW_OPTIONS = [
     { key: '24h', label: '24H', ms: 24 * 60 * 60 * 1000 },
@@ -66,6 +79,17 @@ let thresholdReloadTimer = null;
 let whaleSeed = null;
 let selectedEdgeId = '';
 let chamberOpenGeneration = 0;
+let whaleArtifactState = null;
+let whaleArtifactUnsubscribe = null;
+let ledgerEntryProjection = null;
+let entryResumeListenersReady = false;
+let counterpartyQuery = '';
+let counterpartySort = 'total';
+let counterpartyVisibleCount = COUNTERPARTY_PAGE_SIZE;
+const mobileExpandedDirections = {
+    received: false,
+    sent: false
+};
 
 function ensureLedgerFlowStyles() {
     if (document.getElementById('ledger-flow-css')) return;
@@ -152,7 +176,8 @@ function formatDate(value) {
 function formatAge(value) {
     if (!value) return 'time unknown';
     const diff = Date.now() - new Date(value).getTime();
-    if (!Number.isFinite(diff) || diff < 0) return 'just now';
+    if (!Number.isFinite(diff)) return 'time unknown';
+    if (diff < 0) return 'just now';
     const minutes = Math.floor(diff / 60000);
     if (minutes < 1) return 'just now';
     if (minutes < 60) return `${minutes}m ago`;
@@ -483,36 +508,74 @@ function renderFlowRow(edge, model, options = {}) {
     `;
 }
 
+function renderDirectionRatio(model) {
+    const received = Number(model.totals.received || 0);
+    const sent = Number(model.totals.sent || 0);
+    const gross = received + sent;
+    const receivedPercent = gross > 0 ? (received / gross) * 100 : 0;
+    const sentPercent = gross > 0 ? 100 - receivedPercent : 0;
+    const ratioLabel = gross > 0
+        ? `Received ${receivedPercent.toFixed(1)} percent and sent ${sentPercent.toFixed(1)} percent of mapped tez`
+        : 'No matching window tez to compare by direction';
+    return `
+        <div class="ledger-flow-direction-ratio" role="img" aria-label="${escapeHtml(ratioLabel)}">
+            <div class="ledger-flow-direction-ratio-labels">
+                <span><i data-kind="received"></i>In ${escapeHtml(formatCompactXTZ(received))}</span>
+                <span>Out ${escapeHtml(formatCompactXTZ(sent))}<i data-kind="sent"></i></span>
+            </div>
+            <div class="ledger-flow-direction-ratio-track" aria-hidden="true">
+                <i data-kind="received" style="width:${receivedPercent.toFixed(2)}%"></i>
+                <i data-kind="sent" style="width:${sentPercent.toFixed(2)}%"></i>
+            </div>
+        </div>
+    `;
+}
+
+function renderMobileDirection(edges, model, direction) {
+    const inbound = direction === 'received';
+    const label = inbound ? 'Into account' : 'Out of account';
+    const visible = edges.slice(0, MOBILE_DIRECTION_PREVIEW);
+    const hidden = edges.slice(MOBILE_DIRECTION_PREVIEW);
+    return `
+        <section class="ledger-flow-mobile-direction" aria-labelledby="ledger-flow-mobile-${escapeHtml(direction)}">
+            <h3 id="ledger-flow-mobile-${escapeHtml(direction)}">${escapeHtml(label)}</h3>
+            <div class="ledger-flow-mobile-rows">
+                ${visible.length
+                    ? visible.map((edge) => renderFlowRow(edge, model, { controls: 'ledger-flow-mobile-detail' })).join('')
+                    : `<p class="ledger-flow-muted">No ${inbound ? 'inbound' : 'outbound'} tez transfers match this view.</p>`}
+            </div>
+            ${hidden.length ? `
+                <details class="ledger-flow-mobile-more" data-ledger-mobile-direction="${escapeHtml(direction)}" data-quiet-key="mobile-more:${escapeHtml(direction)}"${mobileExpandedDirections[direction] ? ' open' : ''}>
+                    <summary>Show ${escapeHtml(formatCount(hidden.length))} more ${inbound ? 'incoming' : 'outgoing'} ${hidden.length === 1 ? 'path' : 'paths'}</summary>
+                    <div class="ledger-flow-mobile-rows">
+                        ${hidden.map((edge) => renderFlowRow(edge, model, { controls: 'ledger-flow-mobile-detail' })).join('')}
+                    </div>
+                </details>
+            ` : ''}
+        </section>
+    `;
+}
+
 function renderMobileDiagram(model) {
     const inbound = model.edges.filter((edge) => edge.direction !== 'sent');
     const outbound = model.edges.filter((edge) => edge.direction === 'sent');
-    const selected = model.edges.find((edge) => edge.id === selectedEdgeId) || model.edges[0] || null;
+    const selected = [...model.edges, ...model.counterpartyEdges]
+        .find((edge) => edge.id === selectedEdgeId)
+        || model.edges[0]
+        || null;
     return `
         <div class="ledger-flow-mobile-map" aria-label="Ledger Flow paths">
-            <section class="ledger-flow-mobile-direction" aria-labelledby="ledger-flow-mobile-inbound">
-                <h3 id="ledger-flow-mobile-inbound">Into account</h3>
-                <div class="ledger-flow-mobile-rows">
-                    ${inbound.length
-                        ? inbound.map((edge) => renderFlowRow(edge, model, { controls: 'ledger-flow-mobile-detail' })).join('')
-                        : '<p class="ledger-flow-muted">No inbound tez transfers match this view.</p>'}
-                </div>
-            </section>
             <div class="ledger-flow-mobile-account">
                 <span>Selected account</span>
                 <strong>${escapeHtml(model.account?.alias || activeLabel || shortAddress(model.address))}</strong>
                 <small>${escapeHtml(shortAddress(model.address))}</small>
             </div>
+            ${renderDirectionRatio(model)}
             <div class="ledger-flow-mobile-inline-detail" id="ledger-flow-mobile-detail" aria-live="polite">
                 ${edgeDetail(selected, model)}
             </div>
-            <section class="ledger-flow-mobile-direction" aria-labelledby="ledger-flow-mobile-outbound">
-                <h3 id="ledger-flow-mobile-outbound">Out of account</h3>
-                <div class="ledger-flow-mobile-rows">
-                    ${outbound.length
-                        ? outbound.map((edge) => renderFlowRow(edge, model, { controls: 'ledger-flow-mobile-detail' })).join('')
-                        : '<p class="ledger-flow-muted">No outbound tez transfers match this view.</p>'}
-                </div>
-            </section>
+            ${renderMobileDirection(inbound, model, 'received')}
+            ${renderMobileDirection(outbound, model, 'sent')}
         </div>
     `;
 }
@@ -532,6 +595,12 @@ function renderDiagram(model) {
     });
     const maxAmount = Math.max(...model.edges.map((edge) => edge.amount), 1);
     const centerY = layout.center.y;
+    const mapStartX = model.visibleCounterparties.some((item) => item.side !== 'right')
+        ? Math.max(60, layout.columns.left - 120)
+        : layout.center.x - 130;
+    const mapEndX = model.visibleCounterparties.some((item) => item.side === 'right')
+        ? Math.min(940, layout.columns.right + 120)
+        : layout.center.x + 130;
     return `
         ${renderMobileDiagram(model)}
         <svg class="ledger-flow-svg" viewBox="0 0 1000 ${layout.viewHeight}" aria-hidden="true" focusable="false">
@@ -547,13 +616,13 @@ function renderDiagram(model) {
                 </marker>
             </defs>
             <g class="ledger-flow-grid-lines" aria-hidden="true">
-                <line x1="500" x2="500" y1="36" y2="${layout.viewHeight - 36}"></line>
-                <line x1="100" x2="900" y1="${centerY}" y2="${centerY}"></line>
+                <line x1="${layout.center.x}" x2="${layout.center.x}" y1="36" y2="${layout.viewHeight - 36}"></line>
+                <line x1="${mapStartX}" x2="${mapEndX}" y1="${centerY}" y2="${centerY}"></line>
             </g>
             <g class="ledger-flow-edges">
                 ${model.edges.map((edge, index) => renderEdge(edge, layout, maxAmount, index)).join('')}
             </g>
-            <g class="ledger-flow-center-node" transform="translate(390 ${centerY - 60})">
+            <g class="ledger-flow-center-node" transform="translate(${layout.center.x - 110} ${centerY - 60})">
                 <rect width="220" height="120" rx="16"></rect>
                 <text class="ledger-flow-center-kicker" x="110" y="34" text-anchor="middle">selected account</text>
                 <text class="ledger-flow-center-title" x="110" y="62" text-anchor="middle">${escapeHtml(truncate(model.account?.alias || activeLabel || shortAddress(model.address), 20))}</text>
@@ -594,13 +663,17 @@ function edgeDetail(edge, model) {
         `;
     const when = edge.event?.timestamp || edge.latest || '';
     const amount = edge.amount > 0 ? formatCompactXTZ(edge.amount) : 'n/a';
-    const scope = model.coverage?.mode === 'sample' ? 'Largest-row sample' : 'Exact observed window';
+    const scope = edge.direction === 'first'
+        ? 'All-time first-value context'
+        : model.coverage?.mode === 'sample'
+            ? 'Largest-row sample'
+            : 'Exact observed window';
     return `
         <div class="ledger-flow-detail-card" data-direction="${escapeHtml(edge.direction)}">
             <span class="ledger-flow-detail-kicker">${escapeHtml(verb)}</span>
             ${links}
             <div class="ledger-flow-detail-metrics">
-                <span><small>${model.coverage?.mode === 'sample' ? 'Sample amount' : 'Amount'}</small><b>${escapeHtml(amount)}</b></span>
+                <span><small>${edge.direction === 'first' ? 'First value' : model.coverage?.mode === 'sample' ? 'Sample amount' : 'Amount'}</small><b>${escapeHtml(amount)}</b></span>
                 <span><small>Rows</small><b>${escapeHtml(formatCount(edge.count))}</b></span>
                 <span><small>Latest</small><b>${escapeHtml(when ? formatAge(when) : 'n/a')}</b></span>
             </div>
@@ -636,24 +709,90 @@ function renderOriginContext(model) {
     `;
 }
 
-function renderCounterpartyRows(model) {
-    const rows = model.listEdges.map((edge) => {
-        const item = edge.counterparty;
-        const badge = item.sent && item.received ? 'both' : edge.direction;
-        const selected = selectedEdgeId === edge.id;
+function counterpartyEdgesFor(model, address) {
+    return model.counterpartyEdges.filter((edge) => edge.counterparty.address === address);
+}
+
+function renderCounterpartyRow(item, model) {
+    const edges = counterpartyEdgesFor(model, item.address);
+    const latest = [item.sentLatest, item.receivedLatest]
+        .filter(Boolean)
+        .sort((left, right) => Date.parse(right) - Date.parse(left))[0] || '';
+    const actions = edges.map((edge) => {
+        const direction = edge.direction === 'received' ? 'Inspect inbound' : 'Inspect outbound';
         return `
-            <article class="ledger-flow-counterparty-row${selected ? ' is-selected' : ''}" data-quiet-key="${escapeHtml(edge.id)}">
-                <span class="ledger-flow-row-name">
-                    ${accountLinksMarkup(item)}
-                    ${addressLinkMarkup(item.address)}
-                </span>
-                <span class="ledger-flow-row-amount">${escapeHtml(formatCompactXTZ(item.total, { withUnit: false }))}</span>
-                <span class="ledger-flow-row-badge" data-kind="${escapeHtml(badge)}">${escapeHtml(badge)}${model.coverage?.mode === 'sample' ? ' sample' : ''}</span>
-                <button type="button" class="ledger-flow-row-select" data-ledger-edge="${escapeHtml(edge.id)}" aria-pressed="${selected ? 'true' : 'false'}" aria-controls="ledger-flow-detail-panel">Show path</button>
-            </article>
+            <button type="button" class="ledger-flow-row-select" data-ledger-edge="${escapeHtml(edge.id)}" aria-pressed="${selectedEdgeId === edge.id ? 'true' : 'false'}" aria-controls="ledger-flow-detail-panel ledger-flow-mobile-detail">${escapeHtml(direction)}</button>
         `;
     }).join('');
-    return rows || '<div class="ledger-flow-muted">No counterparties match the current filter.</div>';
+    const selected = edges.some((edge) => selectedEdgeId === edge.id);
+    return `
+        <article class="ledger-flow-counterparty-row${selected ? ' is-selected' : ''}" data-quiet-key="counterparty:${escapeHtml(item.address)}">
+            <span class="ledger-flow-row-name">
+                ${accountLinksMarkup(item)}
+                ${item.alias ? addressLinkMarkup(item.address) : ''}
+            </span>
+            <span class="ledger-flow-row-directions">
+                <small data-kind="received">In <b>${escapeHtml(formatCompactXTZ(item.received))}</b></small>
+                <small data-kind="sent">Out <b>${escapeHtml(formatCompactXTZ(item.sent))}</b></small>
+            </span>
+            <span class="ledger-flow-row-receipts">${escapeHtml(formatCount(item.count))} ${item.count === 1 ? 'row' : 'rows'} · ${escapeHtml(latest ? formatAge(latest) : 'time unknown')}</span>
+            <span class="ledger-flow-row-actions">${actions}</span>
+        </article>
+    `;
+}
+
+function counterpartyResults(model) {
+    return filterLedgerCounterparties(model.counterparties, {
+        query: counterpartyQuery,
+        sort: counterpartySort
+    });
+}
+
+function renderCounterpartyResults(model) {
+    const rows = counterpartyResults(model);
+    const visible = rows.slice(0, counterpartyVisibleCount);
+    const remaining = Math.max(0, rows.length - visible.length);
+    const queryCopy = counterpartyQuery
+        ? ` matching “${counterpartyQuery}”`
+        : '';
+    return `
+        <div class="ledger-flow-counterparty-status" role="status">
+            Showing ${escapeHtml(formatCount(visible.length))} of ${escapeHtml(formatCount(rows.length))}${escapeHtml(queryCopy)} · ${escapeHtml(formatCount(model.counterparties.length))} loaded total. The map above keeps the ${escapeHtml(formatCount(DESKTOP_DIRECTION_PREVIEW))} largest paths per direction and reconciles the rest into “Other”.
+        </div>
+        <div class="ledger-flow-counterparty-list">
+            ${visible.length
+                ? visible.map((item) => renderCounterpartyRow(item, model)).join('')
+                : '<div class="ledger-flow-muted">No loaded counterparty matches that alias or address prefix.</div>'}
+        </div>
+        ${remaining ? `<button type="button" class="ledger-flow-show-more" data-ledger-counterparty-more>Show ${escapeHtml(formatCount(Math.min(COUNTERPARTY_PAGE_SIZE, remaining)))} more</button>` : ''}
+    `;
+}
+
+function renderCounterpartyExplorer(model) {
+    const sortOptions = [
+        ['total', 'Total tez'],
+        ['received', 'Received'],
+        ['sent', 'Sent'],
+        ['count', 'Row count'],
+        ['latest', 'Most recent']
+    ];
+    return `
+        <div class="ledger-flow-counterparty-controls">
+            <label for="ledger-flow-counterparty-query">
+                <span>Find counterparty</span>
+                <input id="ledger-flow-counterparty-query" type="search" value="${escapeHtml(counterpartyQuery)}" placeholder="Alias or address prefix" autocomplete="off" spellcheck="false">
+            </label>
+            <label for="ledger-flow-counterparty-sort">
+                <span>Sort</span>
+                <select id="ledger-flow-counterparty-sort">
+                    ${sortOptions.map(([value, label]) => `<option value="${escapeHtml(value)}"${counterpartySort === value ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}
+                </select>
+            </label>
+        </div>
+        <div id="ledger-flow-counterparty-results">
+            ${renderCounterpartyResults(model)}
+        </div>
+    `;
 }
 
 function renderStats(model) {
@@ -668,6 +807,115 @@ function renderStats(model) {
             <div><span>Counterparties${sample ? ' in sample' : shown ? ' shown' : ''}</span><strong>${escapeHtml(formatCount(model.counterparties.length))}</strong></div>
             <div><span>First value</span><strong>${firstValue?.amountMutez > 0 ? escapeHtml(formatCompactXTZ(firstValue.amountMutez)) : firstValue ? 'receipt' : 'n/a'}</strong></div>
         </div>
+    `;
+}
+
+function directionShape(model, direction) {
+    const total = Number(model.totals?.[direction] || 0);
+    if (!(total > 0)) return null;
+    const category = [...model.composition]
+        .sort((left, right) => Number(right?.[direction] || 0) - Number(left?.[direction] || 0))[0];
+    const topCounterparty = [...model.counterparties]
+        .filter((item) => Number(item?.[direction] || 0) > 0)
+        .sort((left, right) => (
+            Number(right?.[direction] || 0) - Number(left?.[direction] || 0)
+            || left.address.localeCompare(right.address)
+        ))[0];
+    return {
+        category,
+        categoryPercent: category ? (Number(category[direction] || 0) / total) * 100 : 0,
+        topCounterparty,
+        topPercent: topCounterparty ? (Number(topCounterparty[direction] || 0) / total) * 100 : 0
+    };
+}
+
+function renderShapeSummary(model) {
+    const sample = model.coverage?.mode === 'sample';
+    const directions = [
+        ['received', 'Inbound'],
+        ['sent', 'Outbound']
+    ];
+    const items = directions.map(([direction, label]) => {
+        const shape = directionShape(model, direction);
+        if (!shape) {
+            return `<div><span>${escapeHtml(label)}</span><strong>No matching tez</strong></div>`;
+        }
+        const topLabel = nodeLabel(shape.topCounterparty);
+        return `
+            <div>
+                <span>${escapeHtml(label)}${sample ? ' sample' : ''}</span>
+                <strong>${escapeHtml(shape.categoryPercent.toFixed(1))}% of ${escapeHtml(label.toLowerCase())} tez ${direction === 'received' ? 'from' : 'to'} ${escapeHtml(shape.category.label.toLowerCase())}</strong>
+                <small>Largest counterparty: ${escapeHtml(topLabel)} · ${escapeHtml(shape.topPercent.toFixed(1))}% of ${escapeHtml(label.toLowerCase())} tez</small>
+            </div>
+        `;
+    }).join('');
+    return `
+        <div class="ledger-flow-shape" aria-label="Receipt-proven account shape">
+            ${items}
+            <p>${sample ? 'Within the largest-row sample. ' : ''}Categories use only contract address form and aliases returned with TzKT transfer rows; they do not infer ownership or business type.</p>
+        </div>
+    `;
+}
+
+function timelineBoundaryLabel(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return '';
+    return date.toLocaleString('en-US', {
+        timeZone: 'UTC',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+}
+
+function renderTimeline(model) {
+    const timeline = buildLedgerFlowTimeline(model);
+    if (!timeline.available) {
+        const copy = timeline.reason === 'sample'
+            ? 'Time profile hidden: the largest-row sample cannot represent activity over time.'
+            : timeline.reason === 'all-window'
+                ? 'Choose 24H, 7D, 30D, or 1Y for a bounded time profile.'
+                : timeline.reason === 'invalid-rows'
+                    ? `Time profile hidden: ${formatCount(timeline.ignoredRows)} loaded ${timeline.ignoredRows === 1 ? 'row has' : 'rows have'} invalid or out-of-window time receipts.`
+                : 'Time profile unavailable for this window.';
+        return `<div class="ledger-flow-timeline-unavailable">${escapeHtml(copy)}</div>`;
+    }
+    const maximum = Math.max(
+        ...timeline.buckets.map((bucket) => Math.max(bucket.received, bucket.sent)),
+        1
+    );
+    const bars = timeline.buckets.map((bucket) => {
+        const receivedHeight = bucket.received > 0
+            ? Math.max(4, (bucket.received / maximum) * 100)
+            : 0;
+        const sentHeight = bucket.sent > 0
+            ? Math.max(4, (bucket.sent / maximum) * 100)
+            : 0;
+        const title = `${timelineBoundaryLabel(bucket.start)}–${timelineBoundaryLabel(bucket.end)} UTC · received ${formatCompactXTZ(bucket.received)} · sent ${formatCompactXTZ(bucket.sent)} · ${formatCount(bucket.count)} rows`;
+        return `
+            <li title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
+                <i data-kind="received" style="height:${receivedHeight.toFixed(2)}%"></i>
+                <i data-kind="sent" style="height:${sentHeight.toFixed(2)}%"></i>
+            </li>
+        `;
+    }).join('');
+    return `
+        <section class="ledger-flow-timeline" aria-labelledby="ledger-flow-timeline-title">
+            <div class="ledger-flow-timeline-heading">
+                <div>
+                    <span id="ledger-flow-timeline-title">Flow over time</span>
+                    <small>${escapeHtml(timeline.unit === 'hour' ? 'Hourly' : timeline.unit === 'day' ? 'Daily' : 'Monday-to-Monday weekly')} UTC calendar buckets · exact window${timeline.partialEndpoints ? ' · partial endpoints' : ''}</small>
+                </div>
+                <div class="ledger-flow-timeline-legend"><i data-kind="received"></i>In <i data-kind="sent"></i>Out</div>
+            </div>
+            <ol class="ledger-flow-timeline-bars">${bars}</ol>
+            <div class="ledger-flow-timeline-axis">
+                <span>${escapeHtml(timelineBoundaryLabel(timeline.since))} UTC</span>
+                <span>${escapeHtml(timelineBoundaryLabel(timeline.until))} UTC</span>
+            </div>
+        </section>
     `;
 }
 
@@ -706,8 +954,6 @@ function renderControls(model = null, valueOverride = '') {
             </label>
         </div>
         <div class="ledger-flow-load-status" id="ledger-flow-load-status" role="status" aria-live="polite"></div>
-        ${model?.rolledUpCount ? `<div class="ledger-flow-filter-note">${escapeHtml(formatCount(model.rolledUpCount))} lower-ranked counterparties reconcile into the directional “Other” nodes; the top ${escapeHtml(formatCount(model.listCounterparties.length))} are listed below.</div>` : ''}
-        ${model?.hiddenListCount ? `<div class="ledger-flow-filter-note">${escapeHtml(formatCount(model.hiddenListCount))} additional counterparties remain outside the ranked list.</div>` : ''}
     `;
 }
 
@@ -820,14 +1066,15 @@ function renderLedgerFlow(data, options = {}) {
         return;
     }
     const model = buildLedgerFlowModel(data, {
-        thresholdMutez: THRESHOLDS[thresholdIndex]?.mutez || 0
+        thresholdMutez: THRESHOLDS[thresholdIndex]?.mutez || 0,
+        directionNodeBudget: DESKTOP_DIRECTION_PREVIEW
     });
     if (model.coverage?.mode === 'sample') {
         [...model.visibleCounterparties, ...model.listCounterparties].forEach((item) => {
             item.sample = true;
         });
     }
-    const selectableEdges = [...model.edges, ...model.listEdges];
+    const selectableEdges = [...model.edges, ...model.counterpartyEdges];
     if (!selectableEdges.some((edge) => edge.id === selectedEdgeId)) {
         selectedEdgeId = selectableEdges.find((edge) => edge.isFirstValue)?.id
             || selectableEdges[0]?.id
@@ -854,6 +1101,7 @@ function renderLedgerFlow(data, options = {}) {
             ${renderControls(model)}
             ${renderCoverage(model)}
             ${renderStats(model)}
+            ${renderShapeSummary(model)}
             ${renderWindowContext(model)}
             ${renderLegend()}
             ${renderScopeDisclosure()}
@@ -861,14 +1109,15 @@ function renderLedgerFlow(data, options = {}) {
         <section class="lb-panel ledger-flow-panel ledger-flow-map-panel chamber-anim-fade" style="animation-delay:70ms">
             <div class="lb-panel-title">Transfer Map</div>
             ${renderDiagram(model)}
+            ${renderTimeline(model)}
         </section>
         <section class="lb-panel ledger-flow-panel ledger-flow-origin-panel chamber-anim-fade" style="animation-delay:100ms">
             ${renderOriginContext(model)}
         </section>
         <div class="ledger-flow-lower-grid">
             <section class="lb-panel ledger-flow-panel ledger-flow-counterparties chamber-anim-fade" style="animation-delay:120ms">
-                <div class="lb-panel-title">${model.coverage?.mode === 'sample' ? 'Counterparties in Sample' : 'Top Counterparties'}</div>
-                <div class="ledger-flow-counterparty-list">${renderCounterpartyRows(model)}</div>
+                <div class="lb-panel-title">${model.coverage?.mode === 'sample' ? 'Counterparties in Sample' : 'Loaded Counterparties'}</div>
+                ${renderCounterpartyExplorer(model)}
             </section>
             <section class="lb-panel ledger-flow-panel ledger-flow-detail chamber-anim-fade" style="animation-delay:160ms">
                 <div class="lb-panel-title">Selected Path</div>
@@ -893,12 +1142,20 @@ function renderLedgerFlow(data, options = {}) {
     container.dataset.ledgerFlowMode = model.coverage?.mode || '';
     container._ledgerFlowModel = model;
     wireLedgerFlowControls(container);
+    const mountedThreshold = container.querySelector('#ledger-flow-threshold');
+    if (mountedThreshold) {
+        const label = THRESHOLDS[thresholdIndex]?.label || THRESHOLDS[0].label;
+        mountedThreshold.value = String(thresholdIndex);
+        mountedThreshold.setAttribute('aria-valuetext', label);
+        const output = container.querySelector('#ledger-flow-threshold-label');
+        if (output) output.textContent = label;
+    }
 }
 
 function setDetailForEdge(edgeId, container) {
     const model = container?._ledgerFlowModel;
     if (!model || !edgeId) return;
-    const edge = [...model.edges, ...model.listEdges].find((item) => item.id === edgeId);
+    const edge = [...model.edges, ...model.counterpartyEdges].find((item) => item.id === edgeId);
     if (!edge) return;
     selectedEdgeId = edgeId;
     const content = container.closest('.ledger-flow-content') || container;
@@ -916,6 +1173,21 @@ function setDetailForEdge(edgeId, container) {
         container.querySelectorAll('[data-quiet-key]').forEach((item) => {
             item.classList.toggle('is-selected', item.getAttribute('data-quiet-key') === edgeId);
         });
+        container.querySelectorAll('.ledger-flow-counterparty-row').forEach((row) => {
+            row.classList.toggle('is-selected', Boolean(
+                row.querySelector(`[data-ledger-edge="${CSS.escape(edgeId)}"]`)
+            ));
+        });
+    });
+}
+
+function updateCounterpartyResults(container) {
+    const model = container?._ledgerFlowModel;
+    const results = container?.querySelector('#ledger-flow-counterparty-results');
+    if (!model || !results) return;
+    const content = container.closest('.ledger-flow-content') || container;
+    quietlyMutate(content, () => {
+        quietlySyncHtml(results, renderCounterpartyResults(model));
     });
 }
 
@@ -967,6 +1239,38 @@ function wireLedgerFlowControls(container) {
         });
     }
 
+    const counterpartyInput = container.querySelector('#ledger-flow-counterparty-query');
+    if (counterpartyInput && !counterpartyInput.dataset.ledgerFlowWired) {
+        counterpartyInput.dataset.ledgerFlowWired = '1';
+        counterpartyInput.addEventListener('input', () => {
+            counterpartyQuery = counterpartyInput.value.slice(0, 96);
+            counterpartyVisibleCount = COUNTERPARTY_PAGE_SIZE;
+            updateCounterpartyResults(container);
+        });
+    }
+
+    const counterpartySelect = container.querySelector('#ledger-flow-counterparty-sort');
+    if (counterpartySelect && !counterpartySelect.dataset.ledgerFlowWired) {
+        counterpartySelect.dataset.ledgerFlowWired = '1';
+        counterpartySelect.addEventListener('change', () => {
+            if (!['total', 'received', 'sent', 'count', 'latest'].includes(counterpartySelect.value)) return;
+            counterpartySort = counterpartySelect.value;
+            counterpartyVisibleCount = COUNTERPARTY_PAGE_SIZE;
+            updateCounterpartyResults(container);
+        });
+    }
+
+    container.querySelectorAll('[data-ledger-mobile-direction]').forEach((details) => {
+        if (details.dataset.ledgerFlowWired) return;
+        details.dataset.ledgerFlowWired = '1';
+        details.addEventListener('toggle', () => {
+            const direction = details.dataset.ledgerMobileDirection;
+            if (direction in mobileExpandedDirections) {
+                mobileExpandedDirections[direction] = details.open;
+            }
+        });
+    });
+
     if (!container.dataset.ledgerFlowEdgeWired) {
         container.dataset.ledgerFlowEdgeWired = '1';
         container.addEventListener('click', (event) => {
@@ -974,6 +1278,13 @@ function wireLedgerFlowControls(container) {
             if (example) {
                 event.preventDefault();
                 loadLedgerFlow(example.dataset.ledgerExample);
+                return;
+            }
+            const showMore = event.target.closest('[data-ledger-counterparty-more]');
+            if (showMore) {
+                event.preventDefault();
+                counterpartyVisibleCount += COUNTERPARTY_PAGE_SIZE;
+                updateCounterpartyResults(container);
                 return;
             }
             const accountLink = event.target.closest('.ledger-flow-my-tezos-link');
@@ -1088,7 +1399,12 @@ async function loadLedgerFlow(rawTarget) {
         target: activeTarget,
         label: activeLabel,
         data: activeData,
-        window: activeData?.coverage?.windowKey || activeWindow
+        window: activeData?.coverage?.windowKey || activeWindow,
+        thresholdIndex: (() => {
+            const value = Number(activeData?.coverage?.thresholdMutez);
+            const index = THRESHOLDS.findIndex((item) => item.mutez === value);
+            return index >= 0 ? index : thresholdIndex;
+        })()
     };
     const requestedWindow = activeWindow;
     const thresholdMutez = THRESHOLDS[thresholdIndex]?.mutez || 0;
@@ -1149,6 +1465,14 @@ async function loadLedgerFlow(rawTarget) {
         const accountOrigin = buildOriginEvent(originationRaw);
         const firstInboundEvent = buildFirstInboundEvent(firstInboundRaw);
         const firstValueEvent = accountOrigin?.amountMutez > 0 ? accountOrigin : firstInboundEvent;
+        if (resolved.address !== previous.target) {
+            counterpartyQuery = '';
+            counterpartySort = 'total';
+            counterpartyVisibleCount = COUNTERPARTY_PAGE_SIZE;
+            mobileExpandedDirections.received = false;
+            mobileExpandedDirections.sent = false;
+            selectedEdgeId = '';
+        }
         activeTarget = resolved.address;
         activeLabel = resolved.label || resolved.address;
         activeData = {
@@ -1164,6 +1488,7 @@ async function loadLedgerFlow(rawTarget) {
             updatedAt: new Date().toISOString()
         };
         writeStorage(LAST_TARGET_KEY, resolved.address);
+        updateLedgerFlowEntry(whaleArtifactState || peekWhaleWatchArtifactState());
         renderLedgerFlow(activeData, { quiet: true });
         setLoadStatus('');
     } catch (error) {
@@ -1176,7 +1501,9 @@ async function loadLedgerFlow(rawTarget) {
         activeLabel = previous.label;
         activeData = previous.data;
         activeWindow = previous.window;
+        thresholdIndex = previous.thresholdIndex;
         writeStorage(WINDOW_KEY, activeWindow);
+        writeStorage(THRESHOLD_KEY, String(thresholdIndex));
         const reason = load.timedOut
             ? 'The bounded request timed out.'
             : error?.message || 'TzKT did not answer.';
@@ -1315,6 +1642,188 @@ function miniMapSvg() {
     `;
 }
 
+function storedEntryResume() {
+    const lastTarget = readStorage(LAST_TARGET_KEY);
+    if (isTezosAccount(lastTarget)) {
+        return { address: lastTarget, source: 'ledger-flow-last-target' };
+    }
+    const myTezos = readStorage(STORAGE_KEY);
+    if (isTezosAccount(myTezos)) {
+        return { address: myTezos, source: 'my-tezos' };
+    }
+    return { address: '', source: '' };
+}
+
+function entryFreshnessLabel(state, projection) {
+    const schedule = state?.scheduleLabel || '6h schedule';
+    if (projection?.source?.generatedAt) {
+        const source = state?.phase === 'last-good' || state?.refreshFailed
+            ? 'Last good'
+            : 'Archive generated';
+        const failure = state?.refreshFailed ? ' · refresh failed' : '';
+        return `${formatFreshnessStamp(projection.source.generatedAt, { source })}${failure} · ${schedule}`;
+    }
+    if (state?.phase === 'unavailable') return `Archive unavailable · refresh failed · ${schedule}`;
+    return `Awaiting shared archive · ${schedule}`;
+}
+
+function entryEntityMarkup(entity) {
+    const alias = String(entity?.alias || '').trim();
+    const label = alias || shortAddress(entity?.address);
+    const detail = alias ? shortAddress(entity?.address) : 'Unaliased address';
+    return `
+        <span class="ledger-flow-entry-path-node" title="${escapeHtml(entity?.address || '')}">
+            <strong>${escapeHtml(label)}</strong>
+            <small>${escapeHtml(detail)}</small>
+        </span>
+    `;
+}
+
+function entryHeroMarkup(projection) {
+    const hero = projection?.hero;
+    if (!hero) {
+        return `
+            <div class="ledger-flow-entry-hero is-fallback" aria-label="Ledger Flow archive preview awaiting shared data">
+                <span class="ledger-flow-entry-kicker">Latest loaded 24h archive</span>
+                ${miniMapSvg()}
+                <strong>Waiting for Whale Watch receipts</strong>
+            </div>
+        `;
+    }
+    const senderLabel = hero.sender.alias || shortAddress(hero.sender.address);
+    const targetLabel = hero.target.alias || shortAddress(hero.target.address);
+    return `
+        <a class="ledger-flow-entry-hero" href="#ledger-flow=${encodeURIComponent(hero.sender.address)}" aria-label="Map ${escapeHtml(senderLabel)}, sender of the largest move in the latest loaded 24-hour Whale Watch archive">
+            <span class="ledger-flow-entry-kicker">Largest loaded 24h move</span>
+            <span class="ledger-flow-entry-path">
+                ${entryEntityMarkup(hero.sender)}
+                <span class="ledger-flow-entry-path-edge">
+                    <i aria-hidden="true"></i>
+                    <strong>${escapeHtml(formatCompactXTZ(hero.amountMutez))}</strong>
+                    <small>${escapeHtml(formatAge(hero.timestamp))}</small>
+                </span>
+                ${entryEntityMarkup(hero.target)}
+            </span>
+            <small class="ledger-flow-entry-path-caption">${escapeHtml(senderLabel)} → ${escapeHtml(targetLabel)} · open the sender map</small>
+        </a>
+    `;
+}
+
+function entryResumeMarkup(projection) {
+    const resume = projection?.resume;
+    if (!resume) return '';
+    const label = resume.alias || shortAddress(resume.address);
+    const kicker = resume.source === 'my-tezos' ? 'Map your account' : 'Resume last map';
+    return `
+        <a class="ledger-flow-entry-resume" data-share-exclude href="#ledger-flow=${encodeURIComponent(resume.address)}">
+            <span>${escapeHtml(kicker)}</span>
+            <strong>${escapeHtml(label)}</strong>
+            <small>${escapeHtml(shortAddress(resume.address))}</small>
+        </a>
+    `;
+}
+
+function entryStoryMarkup(projection) {
+    const stories = projection?.stories?.slice(0, 2) || [];
+    if (!stories.length) return '';
+    return `
+        <div class="ledger-flow-entry-stories" aria-label="Loaded Whale Watch paths to explore">
+            ${stories.map((story) => {
+                const label = story.alias || shortAddress(story.address);
+                return `
+                    <a href="#ledger-flow=${encodeURIComponent(story.address)}">
+                        <span>Explore loaded path</span>
+                        <strong>${escapeHtml(label)}</strong>
+                        <small>${escapeHtml(formatCompactXTZ(story.amountMutez))} · ${escapeHtml(formatAge(story.timestamp))}</small>
+                    </a>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function entryMetricsMarkup(projection) {
+    const metrics = projection?.metrics;
+    const values = metrics ? [
+        ['24h moves', formatCount(metrics.operationCount), `≥${formatCount(metrics.minimumXtz)} XTZ`],
+        ['Senders', formatCount(metrics.uniqueSenders), 'distinct addresses'],
+        ['Recipients', formatCount(metrics.uniqueTargets), 'distinct addresses'],
+        ['Gross observed', formatCompactXTZ(metrics.grossObservedMutez), 'not economic volume']
+    ] : [
+        ['24h moves', '—', 'awaiting archive'],
+        ['Senders', '—', 'awaiting archive'],
+        ['Recipients', '—', 'awaiting archive'],
+        ['Gross observed', '—', 'awaiting archive']
+    ];
+    return `
+        <div class="chamber-entry-metrics ledger-flow-entry-metrics"${metrics ? ` title="${escapeHtml(metrics.semantics)}"` : ''}>
+            ${values.map(([label, value, detail], index) => `
+                <div class="chamber-entry-metric" data-ledger-flow-metric="${index}">
+                    <span>${escapeHtml(label)}</span>
+                    <strong>${escapeHtml(value)}</strong>
+                    <small>${escapeHtml(detail)}</small>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function ledgerFlowEntryLiveMarkup(projection, state) {
+    const archiveState = projection?.metrics
+        ? state?.refreshFailed ? 'Last-good archive retained' : 'Complete generated archive'
+        : state?.phase === 'unavailable' ? 'Shared archive unavailable' : 'Awaiting shared archive';
+    return `
+        <div class="ledger-flow-entry-deck">
+            <div class="ledger-flow-entry-copy">
+                <div class="chamber-entry-icon">Follow the tez</div>
+                <p class="stat-description">Bounded account paths, complete counterparty discovery, and receipt-backed first-value context.</p>
+                <span class="ledger-flow-entry-state">${escapeHtml(archiveState)}</span>
+            </div>
+            ${entryHeroMarkup(projection)}
+            <div class="ledger-flow-entry-actions${projection?.resume ? '' : ' is-resume-empty'}">
+                ${entryResumeMarkup(projection)}
+                ${entryStoryMarkup(projection)}
+            </div>
+        </div>
+        ${entryMetricsMarkup(projection)}
+    `;
+}
+
+function openLedgerFlowEntryHero() {
+    return openLedgerFlowChamber(ledgerEntryProjection?.hero?.sender?.address || '');
+}
+
+function updateLedgerFlowEntry(state = peekWhaleWatchArtifactState()) {
+    whaleArtifactState = state;
+    const resume = storedEntryResume();
+    const projection = buildLedgerFlowEntryProjection(state?.artifact, {
+        resumeAddress: resume.address,
+        resumeSource: resume.source,
+        isValidAddress: isTezosAccount
+    });
+    ledgerEntryProjection = projection;
+    whaleSeed = projection.hero
+        ? {
+            target: projection.hero.sender.address,
+            alias: projection.hero.sender.alias,
+            timestamp: projection.hero.timestamp,
+            amountMutez: projection.hero.amountMutez
+        }
+        : null;
+    const card = document.getElementById('ledger-flow-entry-card');
+    const live = card?.querySelector('#ledger-flow-entry-live');
+    if (!card || !live) return;
+    quietlyMutate(card, () => {
+        quietlySyncHtml(live, ledgerFlowEntryLiveMarkup(projection, state));
+    });
+    card.dataset.updatedLabel = entryFreshnessLabel(state, projection);
+    card.dataset.shareValue = projection.metrics
+        ? `${formatCount(projection.metrics.operationCount)} moves ≥${formatCount(projection.metrics.minimumXtz)} XTZ · loaded 24h`
+        : 'Account transfer map';
+    card.classList.toggle('chamber-data-stale', Boolean(state?.refreshFailed) || !projection.metrics);
+    window.syncChamberEntryFooters?.(card);
+}
+
 function ensureLedgerFlowEntryCard() {
     const grid = document.getElementById('chambers-grid');
     if (!grid) return null;
@@ -1323,30 +1832,21 @@ function ensureLedgerFlowEntryCard() {
         card = document.createElement('div');
         card.id = 'ledger-flow-entry-card';
         card.className = 'stat-card chamber-entry-card chamber-entry-wide ledger-flow-entry-card chamber-entry-adoption';
-        card.dataset.updatedLabel = 'TzKT account transfers';
+        card.dataset.updatedLabel = 'Awaiting shared archive · 6h schedule';
+        card.dataset.shareValue = 'Account transfer map';
         card.innerHTML = `
             <button class="card-copy-link" type="button" data-copy-hash="#ledger-flow" aria-label="Copy Ledger Flow direct link" title="Copy Ledger Flow link">🔗</button>
             <div class="card-inner">
                 <div class="card-front ledger-flow-entry-front">
                     <h2 class="stat-label" id="ledger-flow-entry-title">Ledger Flow</h2>
-                    <div class="ledger-flow-entry-main">
-                        ${miniMapSvg()}
-                        <div class="ledger-flow-entry-copy">
-                            <div class="chamber-entry-icon">Account transfer map</div>
-                            <p class="stat-description">Bounded sent and received tez paths with all-time receipt context.</p>
-                        </div>
-                    </div>
-                    <div class="chamber-entry-metrics ledger-flow-entry-metrics">
-                        <div class="chamber-entry-metric" data-ledger-flow-metric="received"><span>Received</span><strong>blue</strong></div>
-                        <div class="chamber-entry-metric" data-ledger-flow-metric="sent"><span>Sent</span><strong>pink</strong></div>
-                        <div class="chamber-entry-metric" data-ledger-flow-metric="first"><span>First value</span><strong>gold</strong></div>
-                        <div class="chamber-entry-metric"><span>Weight</span><strong>amount</strong></div>
+                    <div class="ledger-flow-entry-live" id="ledger-flow-entry-live">
+                        ${ledgerFlowEntryLiveMarkup(null, { phase: 'idle' })}
                     </div>
                 </div>
                 <div class="card-back" aria-hidden="true">
                     <h2 class="stat-label">Ledger Flow</h2>
                     <div class="stat-value">Graph</div>
-                    <p class="stat-description">Open account transfer paths.</p>
+                    <p class="stat-description">Received paths are blue, sent paths are pink, and all-time first-value context is gold. Line weight follows observed tez.</p>
                 </div>
             </div>
         `;
@@ -1354,7 +1854,7 @@ function ensureLedgerFlowEntryCard() {
     }
 
     wireChamberLauncher(card, {
-        open: openLedgerFlowChamber,
+        open: openLedgerFlowEntryHero,
         label: 'Open Ledger Flow Chamber',
         titleSelector: '#ledger-flow-entry-title, .stat-label'
     });
@@ -1363,8 +1863,29 @@ function ensureLedgerFlowEntryCard() {
     return card;
 }
 
+function bindLedgerFlowEntryResumeUpdates() {
+    if (entryResumeListenersReady) return;
+    entryResumeListenersReady = true;
+    const refresh = () => updateLedgerFlowEntry(
+        whaleArtifactState || peekWhaleWatchArtifactState()
+    );
+    window.addEventListener('my-baker-updated', refresh);
+    window.addEventListener('storage', (event) => {
+        if (event.key !== null && ![STORAGE_KEY, LAST_TARGET_KEY].includes(event.key)) return;
+        refresh();
+    });
+}
+
 export function initLedgerFlowChamber() {
     ensureLedgerFlowStyles();
     window.openLedgerFlowChamber = openLedgerFlowChamber;
     ensureLedgerFlowEntryCard();
+    bindLedgerFlowEntryResumeUpdates();
+    if (!whaleArtifactUnsubscribe) {
+        whaleArtifactUnsubscribe = subscribeWhaleWatchArtifact((state) => {
+            updateLedgerFlowEntry(state);
+        });
+    } else {
+        updateLedgerFlowEntry(peekWhaleWatchArtifactState());
+    }
 }

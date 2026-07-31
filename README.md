@@ -614,10 +614,17 @@ inline modal styles in `js/core/app.js`.
   Per-transfer thresholds, fetch time, last matching transfer, tez-only scope,
   contract origination, and first inbound transaction are labelled separately
   as all-time account context.
-  Desktop uses amount-weighted sent/received paths with receipt-safe directional
-  “Other” roll-ups and overlap-proof geometry; phones use a readable HTML flow
-  list instead of shrinking the SVG. The cold empty state reuses the validated
-  Whale Watch artifact for a live starting account without inventing identity.
+  Desktop caps each direction at four named paths plus a receipt-safe “Other”
+  roll-up, then exposes every loaded counterparty through local alias/address
+  search, factual sorting, and progressive rows. Exact bounded windows add a
+  passive UTC time profile and receipt-proven contract, aliased-address, and
+  unaliased-address composition without inferring ownership or business type.
+  Phones lead with the selected account, direction ratio, and selected path,
+  then reveal at most five paths per direction before an explicit disclosure.
+  The dashboard card passively reuses the validated Whale Watch artifact for
+  its complete 24-hour metrics and largest observed move, with no added request;
+  any browser-local last account is a private resume action excluded from
+  sharing.
   Address-scoped My Tezos links close the profile drawer before handing focus
   and scroll ownership to the Ledger Flow Chamber.
 - Tezos Domains Chamber with direct `#domains` and `/domains/` access, backed by

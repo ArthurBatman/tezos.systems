@@ -7,6 +7,9 @@ export const CHANGELOG = [
     {
         date: '2026-07-30',
         entries: [
+            { type: '✨', text: 'Ledger Flow now exposes every loaded counterparty through local search, five factual sorts, progressive rows, receipt-proven address composition, and exact-window flow-over-time strips' },
+            { type: '🎨', text: 'Ledger Flow now caps each desktop direction at four named paths plus Other, while phones lead with the selected account, direction ratio, and selected receipt before progressively revealing more paths' },
+            { type: '🔧', text: 'The Ledger Flow launcher now reuses Whale Watch’s complete 24-hour archive for a real largest-move map, observed metrics, and source-aware freshness without adding a request; browser-local resume details stay out of shares' },
             { type: '🔧', text: 'Ledger Flow now counts before it reads, aborts superseded work, keeps last-good views mounted, and labels exact versus largest-row samples, per-transfer filters, fetch time, origination, first-inbound receipts, and its tez-only scope' },
             { type: '🎨', text: 'Ledger Flow now reconciles long tails into receipt-safe directional Other nodes, grows desktop maps without overlap, and replaces the unreadable phone SVG with a full-size inbound and outbound flow list' },
             { type: '🔧', text: 'On phones, the Soon or New uptime milestone now reveals its details on the first tap and opens the linked Chamber on the second tap' },

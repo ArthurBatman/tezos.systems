@@ -459,7 +459,9 @@ function getChamberShareRoute(card) {
 function getChamberShareSummary(card) {
     const front = card.querySelector(':scope .card-front');
     const title = getCardTitle(card);
-    const value = compactShareText(front?.querySelector('.stat-value')) || title;
+    const value = String(card.dataset.shareValue || '').trim()
+        || compactShareText(front?.querySelector('.stat-value'))
+        || title;
     const detailLines = [];
     const highlightLines = [];
 
@@ -588,8 +590,14 @@ function cloneChamberPanel(card) {
         '.card-info-btn',
         '.card-tooltip',
         '.card-history-btn',
-        '.card-back'
+        '.card-back',
+        '[data-share-exclude]'
     ].join(',')).forEach((node) => node.remove());
+    clone.querySelectorAll('.ledger-flow-entry-actions').forEach((actions) => {
+        if (!actions.querySelector('.ledger-flow-entry-resume')) {
+            actions.classList.add('is-resume-empty');
+        }
+    });
     clone.querySelectorAll('.chamber-entry-footer > :not(.chamber-entry-freshness)')
         .forEach((node) => node.remove());
     clone.classList.remove('chamber-entry-live', 'chamber-entry-risk', 'chamber-data-stale');

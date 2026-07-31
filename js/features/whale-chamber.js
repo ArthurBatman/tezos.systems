@@ -72,6 +72,48 @@ let lastGiantMonitor = 0;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 let whaleWatchFocusedBeforeOpen = null;
+const artifactSubscribers = new Set();
+
+function whaleWatchArtifactPhase() {
+    if (lastArtifact) return artifactError ? 'last-good' : 'ready';
+    if (artifactFetch) return 'loading';
+    return artifactError ? 'unavailable' : 'idle';
+}
+
+export function peekWhaleWatchArtifactState() {
+    return Object.freeze({
+        phase: whaleWatchArtifactPhase(),
+        artifact: lastArtifact,
+        refreshing: Boolean(artifactFetch),
+        refreshFailed: Boolean(artifactError),
+        error: artifactError || '',
+        fetchedAt: lastArtifactRead || null,
+        scheduleLabel: GENERATED_PROOFBOOK_SCHEDULE_LABEL
+    });
+}
+
+function publishWhaleWatchArtifactState() {
+    if (!artifactSubscribers.size) return;
+    const state = peekWhaleWatchArtifactState();
+    [...artifactSubscribers].forEach((listener) => {
+        try {
+            listener(state);
+        } catch (error) {
+            console.warn('Whale Watch artifact subscriber failed', error);
+        }
+    });
+}
+
+export function subscribeWhaleWatchArtifact(listener) {
+    if (typeof listener !== 'function') return () => {};
+    artifactSubscribers.add(listener);
+    try {
+        listener(peekWhaleWatchArtifactState());
+    } catch (error) {
+        console.warn('Whale Watch artifact subscriber failed', error);
+    }
+    return () => artifactSubscribers.delete(listener);
+}
 
 function number(value, fallback = 0) {
     const parsed = Number(value);
@@ -223,7 +265,11 @@ async function fetchWhaleArtifact({ force = false } = {}) {
             if (lastArtifact) return lastArtifact;
             throw error;
         })
-        .finally(() => { artifactFetch = null; });
+        .finally(() => {
+            artifactFetch = null;
+            publishWhaleWatchArtifactState();
+        });
+    publishWhaleWatchArtifactState();
     return artifactFetch;
 }
 
