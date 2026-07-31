@@ -7,6 +7,7 @@ export const DATA_ASSET_URLS = Object.freeze({
     protocolData: '/data/protocol-data.json?v=2',
     governanceVotes: '/data/governance-votes.json',
     governanceReport: '/data/governance-refresh-report.json?v=1',
+    releaseRadar: '/data/release-radar.json',
     searchCatalog: '/data/search-catalog.json?v=1'
 });
 

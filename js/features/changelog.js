@@ -5,6 +5,16 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-07-31',
+        entries: [
+            { type: '✨', text: 'Live Pulse now leads with a reviewed Release Radar for Tezos X, Octez, and EVM-node releases, including honest confidence, supported horizons, recent highlights, exact evidence, and the next blocking signal' },
+            { type: '🔧', text: 'Tezos X readiness now keeps runtime, Previewnet, tooling, proposal, Etherlink governance, and production rollout separate, so an Octez or EVM-node release can never masquerade as mainnet progress' },
+            { type: '🔧', text: 'Milestone refreshes now fall back to the official Octez archive when the primary RPC has pruned an exact historical cycle-boundary block' },
+            { type: '🎨', text: 'The priority Release Radar uses a wider desktop and compact mobile briefing card with a visible blocker, six-gate maturity map, exciting-release treatment, and expandable methodology' },
+            { type: '⚡', text: 'Release forecasts load from one same-origin daily receipt, preserve bounded last-good data, refresh only in visible tabs, turn visibly stale, and disappear after their review window expires' }
+        ]
+    },
+    {
         date: '2026-07-30',
         entries: [
             { type: '✨', text: 'Ledger Flow now exposes every loaded counterparty through local search, five factual sorts, progressive rows, receipt-proven address composition, and exact-window flow-over-time strips' },

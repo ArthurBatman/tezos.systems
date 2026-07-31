@@ -20,6 +20,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_FILE = path.join(ROOT, 'data/milestone-catalog.json');
 const TZKT = 'https://api.tzkt.io/v1';
 const OCTEZ = 'https://eu.rpc.tez.capital';
+const OCTEZ_ARCHIVE = 'https://tezos-mainnet.octez.io';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAINNET_START = Date.parse('2018-09-17T00:00:00Z');
 
@@ -150,7 +151,13 @@ async function exactCycleMilestoneMoment(geometry, thresholds, now) {
     blocksPerCycle: geometry?.blocksPerCycle
   });
   if (!targetLevel) return null;
-  const header = await fetchJson(OCTEZ, `/chains/main/blocks/${targetLevel}/header`);
+  const headerPath = `/chains/main/blocks/${targetLevel}/header`;
+  let header;
+  try {
+    header = await fetchJson(OCTEZ, headerPath);
+  } catch {
+    header = await fetchJson(OCTEZ_ARCHIVE, headerPath);
+  }
   const createdAt = Date.parse(header?.timestamp || '');
   if (Number(header?.level) !== Number(targetLevel) || !Number.isFinite(createdAt)) return null;
   const moment = {

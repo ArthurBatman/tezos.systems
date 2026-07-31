@@ -29,6 +29,10 @@ import {
   readCachedPulseDomainReceipt,
   readCachedPulseHistoryReceipt
 } from '../core/pulse-history.mjs';
+import {
+  buildReleaseRadarSignal,
+  normalizeReleaseRadarSnapshot
+} from '../core/release-radar.mjs';
 import { cycleMilestoneStartLevel, generatedMilestoneAnchor, generatedMilestoneMoments, mergedMilestoneThresholds, milestoneBaseThresholds } from './milestone-catalog.mjs';
 import { advanceMilestoneTrack, claimMilestoneArrival, deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS, normalizeMilestoneStore, qualifyMilestoneNearState } from './milestone-lifecycle.mjs';
 import { fetchXTZPrice } from './price.js';
@@ -40,6 +44,7 @@ const LS_HOT_HISTORY = 'tezos-systems-hot-history';
 const LS_DAILY_SNAPSHOT = 'tezos-systems-daily-snapshot';
 const LS_DAILY_CURIO_DAY = 'tezos-systems-live-pulse-curio-day-v1';
 const LS_MILESTONE_MOMENTS = 'tezos-systems-milestone-moments';
+const LS_RELEASE_RADAR_LAST_GOOD = 'tezos-systems-release-radar-last-good-v1';
 const BRIEFING_SCHEMA_VERSION = 14;
 const PRICE_FETCH_TIMEOUT_MS = 2500;
 const NFT_FETCH_TIMEOUT_MS = 2500;
@@ -65,6 +70,8 @@ const MILESTONE_NEAR_LEAD_DAYS = 14;
 const MILESTONE_NEAR_MAX_DAYS = 30;
 const MILESTONE_RATE_MIN_SAMPLE_MS = HOUR_MS;
 const MILESTONE_RATE_MAX_SAMPLE_MS = 14 * DAY_MS;
+const RELEASE_RADAR_REFRESH_MS = 15 * 60 * 1000;
+const RELEASE_RADAR_LAST_GOOD_MAX_AGE_MS = 7 * DAY_MS;
 const OBJKT_GRAPHQL_ENDPOINT = 'https://data.objkt.com/v3/graphql';
 const OBJKT_SALES_SAMPLE_LIMIT = 500;
 const PULSE_RETAIN_FIELD_CATEGORIES = Object.freeze({
@@ -100,6 +107,7 @@ const CATEGORY_META = {
   anniversary: { label: 'Anniversary', icon: '∞', tone: 'anniversary', visual: 'anniversary', detail: 'Tezos mainnet anniversary' },
   milestone: { label: 'Milestone', icon: 'M', tone: 'milestone', visual: 'milestone', detail: 'Round-number network marker' },
   moment: { label: 'Milestone', icon: '✦', tone: 'growth', visual: 'moment', detail: 'Network milestone' },
+  release: { label: 'Releases', icon: '◉', tone: 'release', visual: 'release', detail: 'Tezos release forecast' },
   network: { label: 'Network', icon: '🌐', tone: 'network', visual: 'network', detail: 'Daily Tezos pulse' }
 };
 
@@ -119,7 +127,8 @@ const NETWORK_FEATURE_SITE_MAP_IDS = {
   tz4: 'tz4',
   etherlink: 'tezosx',
   ledger: 'ledger-flow',
-  maxis: 'maxis'
+  maxis: 'maxis',
+  release: 'tezosx'
 };
 
 const NETWORK_FEATURE_FALLBACK_ROUTES = {
@@ -138,6 +147,7 @@ const NETWORK_FEATURE_FALLBACK_ROUTES = {
   security: '#health',
   milestone: '#hot-today',
   maxis: '#maxis',
+  release: '#tezosx',
   network: '#pulse'
 };
 
@@ -160,6 +170,7 @@ const NETWORK_FEATURE_FALLBACK_LABELS = {
   etherlink: 'Open Tezos X',
   ledger: 'Open Ledger Flow',
   maxis: 'Open Tezos Maxis',
+  release: 'Open Tezos X',
   anniversary: 'Open Protocol Anthology',
   milestone: 'Open live Tezos milestones',
   moment: 'Open live Tezos pulse',
@@ -198,6 +209,10 @@ let lastLiveCandidates = [];
 let lastLiveCandidateFingerprint = '';
 let lastHotTodayDataState = 'loading';
 let lastHotTodayGoodAt = 0;
+let releaseRadarLoadInFlight = null;
+let releaseRadarFetchedAt = 0;
+let lastReleaseRadarSnapshot = null;
+let lastReleaseRadarSignal = null;
 let dailyCurioPreparation = null;
 let preparedDailyCurio = null;
 let activeDailyCurio = null;
@@ -1333,6 +1348,7 @@ function makeSignal(category, score, text, options = {}) {
     affectedBakers: Array.isArray(options.affectedBakers)
       ? [...new Set(options.affectedBakers.map(value => String(value || '').trim()).filter(Boolean))]
       : [],
+    releaseRadar: options.releaseRadar || null,
     live: options.live === true,
     hotOnly: options.hotOnly === true,
     curio: options.curio === true
@@ -1344,6 +1360,85 @@ function withTimeout(promise, timeoutMs) {
     promise,
     new Promise(resolve => setTimeout(() => resolve(null), timeoutMs))
   ]);
+}
+
+function readReleaseRadarLastGood() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_RELEASE_RADAR_LAST_GOOD) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function writeReleaseRadarLastGood(snapshot) {
+  try {
+    localStorage.setItem(LS_RELEASE_RADAR_LAST_GOOD, JSON.stringify(snapshot));
+  } catch { /* storage full */ }
+}
+
+function releaseRadarSignals() {
+  return lastReleaseRadarSignal ? [lastReleaseRadarSignal] : [];
+}
+
+async function loadReleaseRadarSignal({ force = false } = {}) {
+  if (typeof window === 'undefined') return null;
+  if (document.visibilityState !== 'visible') return lastReleaseRadarSignal;
+  const now = Date.now();
+  if (!force && lastReleaseRadarSignal && now - releaseRadarFetchedAt < RELEASE_RADAR_REFRESH_MS) {
+    return lastReleaseRadarSignal;
+  }
+  if (releaseRadarLoadInFlight) return releaseRadarLoadInFlight;
+
+  releaseRadarLoadInFlight = (async () => {
+    let snapshot = null;
+    let sourceState = 'fresh';
+    try {
+      const raw = await loadDataAsset('releaseRadar', {
+        force: force || releaseRadarFetchedAt > 0
+      });
+      snapshot = normalizeReleaseRadarSnapshot(raw, { now });
+      writeReleaseRadarLastGood(raw);
+    } catch (error) {
+      const cached = readReleaseRadarLastGood();
+      if (cached) {
+        const candidate = normalizeReleaseRadarSnapshot(cached, { now });
+        const cacheAge = now - candidate.updatedAtMs;
+        if (cacheAge <= RELEASE_RADAR_LAST_GOOD_MAX_AGE_MS && candidate.expiresAtMs > now) {
+          snapshot = candidate;
+          sourceState = 'last-good';
+        }
+      }
+      if (!snapshot && lastReleaseRadarSnapshot
+          && now - lastReleaseRadarSnapshot.updatedAtMs <= RELEASE_RADAR_LAST_GOOD_MAX_AGE_MS
+          && lastReleaseRadarSnapshot.expiresAtMs > now) {
+        snapshot = lastReleaseRadarSnapshot;
+        sourceState = 'last-good';
+      }
+      if (!snapshot) throw error;
+    }
+
+    releaseRadarFetchedAt = Date.now();
+    const previousFingerprint = lastReleaseRadarSignal
+      ? `${lastReleaseRadarSignal.observedAt}|${lastReleaseRadarSignal.releaseRadar?.sourceState}`
+      : '';
+    lastReleaseRadarSnapshot = snapshot;
+    lastReleaseRadarSignal = buildReleaseRadarSignal(snapshot, { now, sourceState });
+    const nextFingerprint = lastReleaseRadarSignal
+      ? `${lastReleaseRadarSignal.observedAt}|${lastReleaseRadarSignal.releaseRadar?.sourceState}`
+      : '';
+    if (previousFingerprint !== nextFingerprint && lastStats?.cycle) {
+      scheduleHotSignalRender();
+      rerenderCachedBriefing();
+    }
+    return lastReleaseRadarSignal;
+  })().catch((error) => {
+    console.warn('Release Radar refresh failed; preserving the last-good forecast.', error);
+    return lastReleaseRadarSignal;
+  }).finally(() => {
+    releaseRadarLoadInFlight = null;
+  });
+
+  return releaseRadarLoadInFlight;
 }
 
 function hotHistoryDay(timestamp = Date.now()) {
@@ -1947,6 +2042,7 @@ function normalizeSignal(signal, index = 0) {
     affectedBakers: Array.isArray(signal?.affectedBakers)
       ? [...new Set(signal.affectedBakers.map(value => String(value || '').trim()).filter(Boolean))]
       : [],
+    releaseRadar: signal?.releaseRadar || null,
     live: signal?.live === true,
     hotOnly: signal?.hotOnly === true,
     curio: signal?.curio === true
@@ -3154,7 +3250,157 @@ function hotTodayClockLabel(now = Date.now()) {
     : `Live · ${currentUtcTick()} UTC`;
 }
 
+function releaseRadarDateLabel(timestamp, { includeTime = false } = {}) {
+  const parsed = Date.parse(String(timestamp || ''));
+  if (!Number.isFinite(parsed)) return '--';
+  const options = includeTime
+    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' }
+    : { month: 'short', day: 'numeric', timeZone: 'America/New_York' };
+  return `${new Date(parsed).toLocaleString('en-US', options)}${includeTime ? ' ET' : ''}`;
+}
+
+function releaseRadarConfidenceLabel(candidate) {
+  if (!candidate) return 'NO SIGNAL';
+  if (candidate.lifecycle === 'released') {
+    return `${candidate.confidence} · released ${releaseRadarDateLabel(candidate.releasedAt)}`.toUpperCase();
+  }
+  return [candidate.confidence, candidate.horizon].filter(Boolean).join(' · ').toUpperCase();
+}
+
+function releaseRadarGateStatusLabel(status) {
+  return ({
+    not_started: 'Waiting',
+    signal_detected: 'Signal',
+    active: 'Active',
+    validating: 'Validating',
+    ready: 'Ready',
+    blocked: 'Blocked',
+    complete: 'Complete'
+  })[status] || 'Waiting';
+}
+
+function renderReleaseRadarCard(signal, index) {
+  const radar = signal.releaseRadar;
+  const main = radar?.candidates?.find((candidate) => candidate.id === radar.mainCandidateId)
+    || radar?.candidates?.[0];
+  if (!radar || !main) return '';
+  const activeIndex = hotTodaySignals.length ? hotTodayActiveIndex % hotTodaySignals.length : 0;
+  const activeClass = index === activeIndex ? ' is-hot-active' : '';
+  const spectacleClass = ` is-spectacle-${safeCssToken(signal.spectacle)}`;
+  const staleClass = radar.stale ? ' is-release-radar-stale' : '';
+  const ageLabel = signalAgeLabel(signal);
+  const route = routeForSignal(signal);
+  const detailsWasOpen = Boolean(document.querySelector(
+    `[data-release-radar-details="${safeCssToken(signal.id)}"][open]`
+  ));
+  const materiallyAdvanced = main.gates.filter((gate) => (
+    ['active', 'validating', 'ready', 'complete'].includes(gate.status)
+  )).length;
+  const otherCandidates = radar.candidates
+    .filter((candidate) => candidate.id !== main.id)
+    .sort((left, right) => {
+      if (left.id === radar.excitingCandidateId) return -1;
+      if (right.id === radar.excitingCandidateId) return 1;
+      return 0;
+    });
+  const evidence = radar.candidates.flatMap((candidate) => (
+    candidate.evidence.slice(0, 2).map((row) => ({ ...row, candidate: candidate.label }))
+  ));
+  const history = [...main.history]
+    .sort((left, right) => Date.parse(right.observedAt) - Date.parse(left.observedAt))[0];
+
+  return `
+    <article class="hot-today-card hot-today-card-release${spectacleClass}${activeClass}${staleClass}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-score="${escapeHtml(String(signal.score))}" data-hot-visual="release" data-hot-spectacle="${escapeHtml(signal.spectacle)}" aria-label="${escapeHtml(`Priority Release Radar. ${main.label}: ${main.summary}`)}">
+      <div class="release-radar-topline">
+        <div class="release-radar-brand">
+          <span class="release-radar-mark" aria-hidden="true">◉</span>
+          <span><small>Priority signal</small><strong>Release Radar</strong></span>
+        </div>
+        <div class="release-radar-freshness">
+          <span class="release-radar-priority">${radar.stale ? 'FORECAST STALE' : radar.noCredibleSignal ? 'NO NEAR-TERM SIGNAL' : 'EVERYONE WATCH'}</span>
+          <span class="hot-today-age" data-hot-age data-hot-created-at="${escapeHtml(String(signal.createdAt || ''))}" data-hot-observed-at="${escapeHtml(String(signal.observedAt || ''))}" data-hot-started-at="" data-hot-kind="state">${escapeHtml(ageLabel)}</span>
+        </div>
+      </div>
+
+      ${radar.stale ? `
+        <div class="release-radar-stale-note" role="status">
+          Last reviewed ${escapeHtml(releaseRadarDateLabel(radar.updatedAt, { includeTime: true }))}. Treat horizons as stale until the next tracker receipt.
+        </div>
+      ` : ''}
+
+      <div class="release-radar-lead">
+        <div class="release-radar-lead-copy">
+          <span>${radar.noCredibleSignal ? 'No credible near-term release signal detected' : 'Likely next major ship'}</span>
+          <h3>${escapeHtml(main.label)}</h3>
+          <p>${escapeHtml(main.summary)}</p>
+        </div>
+        <div class="release-radar-confidence release-radar-confidence-${escapeHtml(main.confidence)}">
+          <small>Confidence</small>
+          <strong>${escapeHtml(main.confidence.toUpperCase())}</strong>
+          ${main.horizon ? `<span>${escapeHtml(main.horizon)}</span>` : ''}
+        </div>
+      </div>
+
+      <div class="release-radar-gates" aria-label="${escapeHtml(`${materiallyAdvanced} of ${main.gates.length} Tezos X gates materially advanced`)}">
+        <div class="release-radar-gate-heading">
+          <span>${escapeHtml(`${materiallyAdvanced} of ${main.gates.length} gates materially advanced`)}</span>
+          <small>No percentage implied</small>
+        </div>
+        <div class="release-radar-gate-grid">
+          ${main.gates.map((gate) => `
+            <span class="release-radar-gate release-radar-gate-${escapeHtml(gate.status)}" title="${escapeHtml(gate.detail)}">
+              <i aria-hidden="true"></i>
+              <span><strong>${escapeHtml(gate.label)}</strong><small>${escapeHtml(releaseRadarGateStatusLabel(gate.status))}</small></span>
+            </span>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="release-radar-secondary" aria-label="Adjacent release lanes">
+        ${otherCandidates.map((candidate) => {
+          const exciting = candidate.id === radar.excitingCandidateId;
+          return `
+            <a class="release-radar-candidate${exciting ? ' is-exciting' : ''}" href="${escapeHtml(candidate.route || candidate.evidence[0]?.url || route)}" target="_blank" rel="noopener">
+              <span class="release-radar-candidate-head">
+                <strong>${escapeHtml(candidate.label)}</strong>
+                ${exciting ? '<em>Exciting</em>' : ''}
+              </span>
+              <span class="release-radar-candidate-status release-radar-confidence-${escapeHtml(candidate.confidence)}">${escapeHtml(releaseRadarConfidenceLabel(candidate))}</span>
+              <p>${escapeHtml(candidate.highlight || candidate.summary)}</p>
+              ${candidate.recentRelease ? `<small>Latest release: ${escapeHtml(candidate.recentRelease.label)} · ${escapeHtml(releaseRadarDateLabel(candidate.recentRelease.releasedAt))}</small>` : ''}
+            </a>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="release-radar-next">
+        <span><small>Exact blocker / next signal</small><strong>${escapeHtml(main.nextSignal)}</strong></span>
+        <a href="${escapeHtml(route)}" data-network-route="${escapeHtml(route)}">Open Tezos X <span aria-hidden="true">↗</span></a>
+      </div>
+
+      <details class="release-radar-details" data-release-radar-details="${safeCssToken(signal.id)}" data-quiet-key="release-radar-details"${detailsWasOpen ? ' open' : ''}>
+        <summary>Evidence &amp; methodology <span>${escapeHtml(`Updated ${releaseRadarDateLabel(radar.updatedAt, { includeTime: true })}`)}</span></summary>
+        <div class="release-radar-details-body">
+          ${history ? `<p class="release-radar-change"><strong>Why the status moved:</strong> ${escapeHtml(history.reason)}</p>` : ''}
+          <div class="release-radar-evidence">
+            ${evidence.map((row) => `
+              <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">
+                <span>${escapeHtml(row.candidate)}</span>
+                <strong>${escapeHtml(row.label)}</strong>
+                <small>${escapeHtml(releaseRadarDateLabel(row.observedAt, { includeTime: true }))}${row.note ? ` · ${escapeHtml(row.note)}` : ''}</small>
+              </a>
+            `).join('')}
+          </div>
+          <ul>${radar.methodology.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+          <p class="release-radar-source">${escapeHtml(radar.sourceRun.label)} · ${escapeHtml(radar.sourceRun.cadence)} · ${escapeHtml(radar.sourceRun.method)}</p>
+        </div>
+      </details>
+    </article>
+  `;
+}
+
 function renderHotSignal(signal, index) {
+  if (signal.releaseRadar) return renderReleaseRadarCard(signal, index);
   const route = routeForSignal(signal);
   const routeLabel = labelForSignal(signal);
   const activeIndex = hotTodaySignals.length ? hotTodayActiveIndex % hotTodaySignals.length : 0;
@@ -3295,6 +3541,7 @@ function wireHotTodayRealtime() {
       if (document.visibilityState === 'visible') {
         refreshHotTodayLiveMetrics();
         schedulePulseHistoryLoad();
+        void loadReleaseRadarSignal();
       }
     });
   }
@@ -3458,7 +3705,7 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
     .filter(signal => !['cycle', 'security', 'network', 'staking'].includes(signal.category))
     .filter(signal => !(stripHasGovernance && signal.category === 'governance'));
   const baseSignals = mergeHotSignals(
-    getLiveCandidateSignals(stats),
+    [...releaseRadarSignals(), ...getLiveCandidateSignals(stats)],
     hotPoolSignals(),
     [...nonRedundantBriefing, ...fallbackBriefing]
   );
@@ -3633,7 +3880,7 @@ function wireNetworkContextNavigation(container) {
 }
 
 function selectDrawerNetworkSignals(sentences, profile, data, portfolio, relevanceContext = personalSignalContext(data, portfolio)) {
-  const liveSignals = getLiveCandidateSignals(lastStats || {})
+  const liveSignals = [...releaseRadarSignals(), ...getLiveCandidateSignals(lastStats || {})]
     .filter(signal => signal.text && !signal.hotOnly)
     .map(signal => ({
       ...signal,
@@ -3749,6 +3996,7 @@ function renderToDrawer(cycle, sentences) {
 
 export async function initDailyBriefing(stats, xtzPrice) {
   wirePersonalizationRefresh();
+  void loadReleaseRadarSignal();
   const mergedStats = mergePulseStats(stats);
   if (!mergedStats?.cycle) return;
   lastXtzPrice = xtzPrice;
@@ -3784,10 +4032,12 @@ export async function initHotTodayIsland(stats, xtzPrice) {
   wireNetworkContextNavigation(island);
   wireHotTodayRealtime();
   schedulePulseHistoryLoad();
+  await withTimeout(loadReleaseRadarSignal(), 2500);
   if (mergedStats?.cycle) await updateHotTodayIsland(mergedStats, xtzPrice);
 }
 
 export async function updateHotTodayIsland(stats, xtzPrice) {
+  void loadReleaseRadarSignal();
   const mergedStats = mergePulseStats(stats);
   if (!mergedStats?.cycle) return;
   lastXtzPrice = xtzPrice;

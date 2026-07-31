@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "kind": "tezos-release-radar",
+  "updatedAt": "2026-07-31T15:48:00.000Z",
+  "staleAfterHours": 36,
+  "expiresAt": "2026-08-14T15:48:00.000Z",
+  "sourceRun": {
+    "label": "Daily Tezos development tracker",
+    "cadence": "Reviewed daily",
+    "method": "Agent-reviewed forecast from primary release, roadmap, and governance evidence"
+  },
+  "candidates": [
+    {
+      "id": "tezos-x-mainnet",
+      "label": "Tezos X Mainnet",
+      "kind": "tezos_x_launch",
+      "lifecycle": "forecast",
+      "confidence": "medium",
+      "horizon": "Q3 2026 forecast",
+      "stage": "Validating",
+      "summary": "Previewnet and required operator software are advancing; mainnet still waits for a public Tezos X Etherlink kernel proposal.",
+      "nextSignal": "Public Tezos X Etherlink kernel proposal or final-kernel declaration",
+      "route": "/tezosx/",
+      "highlight": "EVM node 0.64 removes one concrete tooling dependency, but it does not start mainnet governance.",
+      "excitement": "medium",
+      "gates": [
+        {
+          "id": "runtime",
+          "label": "Runtime hardening",
+          "status": "active",
+          "detail": "Cross-runtime correctness, gas, receipts, identity, and security work remain active."
+        },
+        {
+          "id": "previewnet",
+          "label": "Previewnet stability",
+          "status": "validating",
+          "detail": "The public EVM plus Michelson Previewnet is live and remains the proving ground before mainnet."
+        },
+        {
+          "id": "tooling",
+          "label": "Node and tooling compatibility",
+          "status": "ready",
+          "detail": "EVM node 0.64, explicitly required for the Previewnet upgrade, was tagged on July 30."
+        },
+        {
+          "id": "proposal",
+          "label": "Mainnet proposal readiness",
+          "status": "not_started",
+          "detail": "No public Tezos X mainnet kernel proposal or activation package is visible yet."
+        },
+        {
+          "id": "governance",
+          "label": "Etherlink governance",
+          "status": "not_started",
+          "detail": "Baker approval cannot begin until the mainnet kernel proposal is submitted."
+        },
+        {
+          "id": "rollout",
+          "label": "Production rollout",
+          "status": "not_started",
+          "detail": "Operator and ecosystem activation remains downstream of approval and scheduling."
+        }
+      ],
+      "evidence": [
+        {
+          "label": "Tezos X roadmap update",
+          "url": "https://spotlight.tezos.com/tezos-x-from-roadmap-to-reality/",
+          "observedAt": "2026-07-31T15:30:00.000Z",
+          "note": "Official roadmap separates Previewnet testing, Etherlink governance, mainnet, and later RISC-V work."
+        },
+        {
+          "label": "Tezos X Previewnet launch",
+          "url": "https://spotlight.tezos.com/introducing-tezos-x-previewnet/",
+          "observedAt": "2026-07-31T15:31:00.000Z",
+          "note": "Previewnet is public; the post says the mainnet step follows testing through an Etherlink proposal."
+        },
+        {
+          "label": "EVM node 0.64 release request",
+          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22648",
+          "observedAt": "2026-07-31T15:32:00.000Z",
+          "note": "The merged request explicitly identifies 0.64 as a requirement for the Tezos X Previewnet upgrade."
+        },
+        {
+          "label": "Current Etherlink FAST governance storage",
+          "url": "https://tzkt.io/KT19oUVQPnVLuUBYXrBVd46WJnNAMpqkKSwo/storage/",
+          "observedAt": "2026-07-31T15:44:00.000Z",
+          "note": "The current proposal window had no winning candidate in the reviewed storage receipt."
+        }
+      ],
+      "history": [
+        {
+          "observedAt": "2026-07-30T16:45:09.000Z",
+          "previousConfidence": "medium",
+          "confidence": "medium",
+          "reason": "EVM node 0.64 shipped and advanced tooling compatibility; confidence did not rise because the public mainnet proposal is still absent."
+        }
+      ]
+    },
+    {
+      "id": "octez-v25-2",
+      "label": "Octez 25.2",
+      "kind": "octez_release",
+      "lifecycle": "forecast",
+      "confidence": "low",
+      "horizon": "weeks",
+      "stage": "Backport cluster",
+      "summary": "A named 25.2 backport cluster is active, but there is no release tag or public release artifact yet.",
+      "nextSignal": "Release version bump, candidate packaging, or octez-v25.2 tag",
+      "route": "https://gitlab.com/tezos/tezos/-/merge_requests/22623",
+      "highlight": "This is a release signal, not a date: the active work can still change before packaging.",
+      "gates": [],
+      "evidence": [
+        {
+          "label": "25.2 DAL backport cluster",
+          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22623",
+          "observedAt": "2026-07-31T15:40:25.000Z",
+          "note": "The open merge request explicitly targets Octez 25.2."
+        },
+        {
+          "label": "Canonical Octez tags",
+          "url": "https://gitlab.com/tezos/tezos/-/tags",
+          "observedAt": "2026-07-31T15:41:00.000Z",
+          "note": "25.1 remains the newest tagged Octez release in the reviewed tag list."
+        }
+      ],
+      "history": [
+        {
+          "observedAt": "2026-07-28T14:26:52.000Z",
+          "confidence": "low",
+          "reason": "A merge request named for 25.2 opened against the v25 release branch, creating the first credible near-term signal."
+        }
+      ],
+      "recentRelease": {
+        "label": "Octez 25.1",
+        "releasedAt": "2026-07-20T18:47:47.000Z",
+        "url": "https://gitlab.com/tezos/tezos/-/tags/octez-v25.1",
+        "summary": "Latest tagged Octez L1 node release."
+      }
+    },
+    {
+      "id": "evm-node-v0-64",
+      "label": "EVM Node 0.64",
+      "kind": "evm_node_release",
+      "lifecycle": "released",
+      "confidence": "high",
+      "horizon": "",
+      "stage": "Tagged",
+      "summary": "EVM node 0.64 was tagged on July 30 after its release request merged with a passing pipeline.",
+      "nextSignal": "Previewnet deployment using the 0.64 artifact",
+      "route": "https://gitlab.com/tezos/tezos/-/tags/octez-evm-node-v0.64",
+      "highlight": "Exciting: the operator release explicitly required for the next Tezos X Previewnet upgrade has shipped.",
+      "excitement": "high",
+      "releasedAt": "2026-07-30T14:45:09.000Z",
+      "gates": [],
+      "evidence": [
+        {
+          "label": "EVM node 0.64 tag",
+          "url": "https://gitlab.com/tezos/tezos/-/tags/octez-evm-node-v0.64",
+          "observedAt": "2026-07-31T15:32:00.000Z",
+          "note": "Protected canonical tag at commit 12a44fed."
+        },
+        {
+          "label": "EVM node 0.64 release request",
+          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22648",
+          "observedAt": "2026-07-31T15:32:00.000Z",
+          "note": "Merged July 30 with a passing pipeline and an explicit Tezos X Previewnet requirement."
+        }
+      ],
+      "history": [
+        {
+          "observedAt": "2026-07-30T14:36:38.000Z",
+          "confidence": "high",
+          "reason": "Direct release preparation and an explicit Previewnet dependency produced a high-confidence days horizon."
+        },
+        {
+          "observedAt": "2026-07-30T14:45:09.000Z",
+          "previousConfidence": "high",
+          "confidence": "high",
+          "reason": "The canonical protected tag replaced the forecast with a confirmed release."
+        }
+      ]
+    }
+  ],
+  "methodology": [
+    "Octez, the EVM node, Tezos X Previewnet, Tezos X mainnet, and Tezos L1 protocol proposals are tracked as separate release lanes.",
+    "Confidence comes from direct artifacts and coordinated evidence, never raw merge volume or a fake completion percentage.",
+    "Q3 2026 is an agent forecast, not a scheduled activation date; Etherlink governance timing begins only after a public proposal exists.",
+    "The browser renders this reviewed daily artifact and marks it stale; it does not infer release readiness from GitLab activity."
+  ]
+}

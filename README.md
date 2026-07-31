@@ -378,7 +378,14 @@ inline modal styles in `js/core/app.js`.
   receipts for complete-window context, labels every rail destination, exposes
   honest per-card observation timing, and distinguishes loading, quiet,
   unavailable, and bounded last-good states without moving the reader during a
-  background refresh. My Tezos draws from the same live candidate set and
+  background refresh. Its high-priority Release Radar reads one reviewed daily
+  same-origin forecast and keeps Octez node software, EVM-node software, Tezos X
+  Previewnet, Tezos X mainnet, Etherlink governance, and L1 protocol proposals
+  explicitly separate. It highlights recent direct release artifacts, shows
+  horizons only when confidence supports them, names the exact next blocker,
+  preserves all six Tezos X gates without a fake completion percentage, and
+  marks the forecast stale before the ephemeral card expires. The browser never
+  infers readiness from GitLab merge volume. My Tezos draws from the same live candidate set and
   combines address-scoped account changes with daily network changes in one
   return report. When fewer than eight stronger signals are present, Live Pulse
   may also show one score-58 Curio per UTC day from a protocol anniversary,
@@ -1211,6 +1218,7 @@ npm run refresh:maxis-l2-governance
 npm run check:maxis-l2-governance
 npm run refresh:tezoscrp
 npm run check:tezoscrp
+npm run check:release-radar
 npm run routes:chambers
 npm run og:chambers
 npm run bake:compare
@@ -1248,7 +1256,8 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   for complete daily windows, ties, records, ratios, and missing coverage, plus
   strict personal-signal ranking semantics for proven evidence and missing-data
   silence, plus deterministic daily Curio selection, scarcity, replay, and
-  truthfulness contracts.
+  truthfulness contracts, plus Release Radar schema, six-gate separation,
+  confidence/horizon, expiry, last-good, and priority-card contracts.
 - `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
   monthly coverage, official icon presence, RSS parsing, and conservative alias
   continuity.

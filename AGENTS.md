@@ -60,6 +60,9 @@ the highest-risk gotchas.
 - `js/core/config.js`: endpoints, refresh intervals, constants, Supabase anon
   config, chain comparison data.
 - `js/core/storage.js`: localStorage/sessionStorage wrappers.
+- `js/core/release-radar.mjs`: validated, expiring Release Radar receipt schema
+  and Live Pulse signal builder. The browser renders reviewed evidence; it does
+  not infer release readiness from repository activity.
 - `js/core/site-map.js`: canonical destination, search, sitemap/crawl, nested
   view, alias, and semantic-relations graph used by the command bar, dashboard
   map, standalone pages, XML sitemap, share/copy routes, and journey
@@ -226,7 +229,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v535`
+- Service worker cache name: `tezos-systems-v536`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -477,6 +480,10 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   recency, then raw address. It is an ongoing career surface and an independent
   Passport career card, not a new v2 protocol-season lane.
 - `data/tweets.json`: share-copy templates used by the share system.
+- `data/release-radar.json`: short-lived reviewed forecast receipt for separate
+  Tezos X mainnet, Octez, and EVM-node release lanes, including the six Tezos X
+  readiness gates, explicit confidence/horizon semantics, exact blockers, and
+  primary evidence. Expired receipts disappear from Live Pulse.
 - `data/nakamoto-sources.json`: dated external Nakamoto reports with their
   original thresholds, windows, entity bases, and source provenance.
 
@@ -585,8 +592,9 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   `--force` bypasses both gates. Preserve unexpired `recentCrossings` receipts
   across refreshes so every visitor shares the same 72-hour celebration window;
   block-height milestones use their target block timestamp and every 100th
-  cycle uses its exact Octez boundary timestamp. Cycle 1250 remains a curated
-  landmark.
+  cycle uses its exact Octez boundary timestamp, falling back to the official
+  Octez archive when the primary RPC has pruned that historical level. Cycle
+  1250 remains a curated landmark.
 - `scripts/refresh-nakamoto-sources.mjs`: refreshes reproducible Chainspect and
   Edinburgh EDI rows server-side, preserves manual/secondary reports and
   last-known-good data, and validates locally with `--check` during pre-commit.

@@ -7692,6 +7692,208 @@ async function smokeMyTezosBakerActivity(browser, baseUrl) {
   log('ok - my tezos baker activity smoke');
 }
 
+async function smokeReleaseRadarPulse(browser, baseUrl) {
+  for (const { label, viewport, theme } of [
+    { label: 'desktop', viewport: { width: 1440, height: 1000 }, theme: 'clean' },
+    { label: 'mobile', viewport: { width: 390, height: 844 }, theme: 'matrix' }
+  ]) {
+    const issues = [];
+    const context = await browser.newContext({
+      viewport,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(context);
+    await context.addInitScript((activeTheme) => {
+      localStorage.setItem('tezos-systems-theme', activeTheme);
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    }, theme);
+
+    const page = await context.newPage();
+    attachIssueCollectors(page, `release radar pulse ${label}`, issues);
+    const response = await page.goto(`${baseUrl}/?theme=${theme}`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `release radar pulse ${label}: dashboard failed with HTTP ${response?.status()}`);
+    const cardLocator = page.locator('#hot-today-island [data-hot-signal-id="release-radar"]');
+    await cardLocator.waitFor({ state: 'visible', timeout: 15000 });
+    await cardLocator.scrollIntoViewIfNeeded();
+
+    const presentation = await page.evaluate(() => {
+      const island = document.getElementById('hot-today-island');
+      const strip = island?.querySelector('.hot-today-strip');
+      const card = island?.querySelector('[data-hot-signal-id="release-radar"]');
+      const first = island?.querySelector('[data-hot-signal-index="0"]');
+      const cards = Array.from(island?.querySelectorAll('[data-hot-signal-index]') || []);
+      const releaseIndex = cards.findIndex((node) => node.dataset.hotSignalId === 'release-radar');
+      const predecessors = releaseIndex > 0 ? cards.slice(0, releaseIndex) : [];
+      const gateGrid = card?.querySelector('.release-radar-gate-grid');
+      const secondary = card?.querySelector('.release-radar-secondary');
+      const cardRect = card?.getBoundingClientRect();
+      const stripRect = strip?.getBoundingClientRect();
+      return {
+        firstId: first?.dataset.hotSignalId || '',
+        releaseIndex,
+        predecessorIds: predecessors.map((node) => node.dataset.hotSignalId || ''),
+        score: Number(card?.dataset.hotScore || 0),
+        text: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        gateCount: card?.querySelectorAll('.release-radar-gate').length || 0,
+        candidateCount: card?.querySelectorAll('.release-radar-candidate').length || 0,
+        excitingCount: card?.querySelectorAll('.release-radar-candidate.is-exciting').length || 0,
+        evidenceLinks: card?.querySelectorAll('.release-radar-details a').length || 0,
+        cardWidth: cardRect?.width || 0,
+        stripWidth: stripRect?.width || 0,
+        cardInsideStrip: Boolean(cardRect && stripRect && cardRect.left >= stripRect.left - 1 && cardRect.right <= stripRect.right + 1),
+        cardOverflow: card ? card.scrollWidth - card.clientWidth : 999,
+        pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        gateColumns: gateGrid ? getComputedStyle(gateGrid).gridTemplateColumns.split(' ').filter(Boolean).length : 0,
+        secondaryColumns: secondary ? getComputedStyle(secondary).gridTemplateColumns.split(' ').filter(Boolean).length : 0,
+        priority: card?.querySelector('.release-radar-priority')?.textContent?.trim() || '',
+        activeCount: island?.querySelectorAll('.hot-today-card.is-hot-active').length || 0,
+        railCount: island?.querySelectorAll('[data-hot-progress-index]').length || 0,
+        cardCount: island?.querySelectorAll('[data-hot-signal-index]').length || 0
+      };
+    });
+    assert(
+      presentation.releaseIndex >= 0
+        && presentation.releaseIndex <= 1
+        && presentation.score >= 170
+        && presentation.priority === 'EVERYONE WATCH',
+      `release radar pulse ${label}: the important forecast left the top priority pair ${JSON.stringify(presentation)}`
+    );
+    assert(
+      presentation.gateCount === 6
+        && presentation.candidateCount === 2
+        && presentation.excitingCount === 1
+        && presentation.evidenceLinks >= 6
+        && /Tezos X Mainnet/.test(presentation.text)
+        && /Q3 2026 forecast/.test(presentation.text)
+        && /Mainnet proposal readiness\s*Waiting/i.test(presentation.text)
+        && /EVM Node 0\.64\s*Exciting\s*HIGH · RELEASED JUL 30/i.test(presentation.text)
+        && /Octez 25\.2\s*LOW · WEEKS/i.test(presentation.text)
+        && /Public Tezos X Etherlink kernel proposal or final-kernel declaration/.test(presentation.text),
+      `release radar pulse ${label}: release lanes, gates, horizon, or exact blocker drifted ${JSON.stringify(presentation)}`
+    );
+    assert(
+      (label === 'mobile' ? presentation.cardWidth <= presentation.stripWidth + 1 : presentation.cardInsideStrip)
+        && presentation.cardOverflow <= 1
+        && presentation.pageOverflow <= 1
+        && presentation.activeCount === 1
+        && presentation.railCount === presentation.cardCount,
+      `release radar pulse ${label}: card or labeled rail escaped its viewport ${JSON.stringify(presentation)}`
+    );
+    if (label === 'desktop') {
+      assert(
+        presentation.cardWidth >= 650
+          && presentation.cardWidth <= presentation.stripWidth + 1
+          && presentation.gateColumns === 3
+          && presentation.secondaryColumns === 2,
+        `release radar pulse desktop: wide priority geometry regressed ${JSON.stringify(presentation)}`
+      );
+    } else {
+      assert(
+        presentation.cardWidth <= presentation.stripWidth + 1
+          && presentation.gateColumns === 1
+          && presentation.secondaryColumns === 1,
+        `release radar pulse mobile: compact single-column geometry regressed ${JSON.stringify(presentation)}`
+      );
+    }
+
+    await page.locator('#hot-today-island').scrollIntoViewIfNeeded();
+    const summary = cardLocator.locator('.release-radar-details > summary');
+    await summary.click();
+    const quietBefore = await page.evaluate(() => {
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      const card = document.querySelector('#hot-today-island [data-hot-signal-id="release-radar"]');
+      const details = card?.querySelector('.release-radar-details');
+      const summaryNode = details?.querySelector('summary');
+      const blocker = card?.querySelector('.release-radar-next strong')?.firstChild;
+      strip.scrollLeft = Math.min(96, Math.max(0, strip.scrollWidth - strip.clientWidth));
+      summaryNode?.focus({ preventScroll: true });
+      if (blocker?.nodeType === Node.TEXT_NODE) {
+        const range = document.createRange();
+        range.setStart(blocker, 0);
+        range.setEnd(blocker, Math.min(6, blocker.length));
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      window.__releaseRadarStrip = strip;
+      window.__releaseRadarCard = card;
+      window.__releaseRadarDetails = details;
+      window.__releaseRadarSummary = summaryNode;
+      return {
+        left: strip.scrollLeft,
+        y: window.scrollY,
+        open: Boolean(details?.open),
+        selection: document.getSelection()?.toString() || ''
+      };
+    });
+    assert(quietBefore.open && quietBefore.selection === 'Public', `release radar pulse ${label}: evidence disclosure fixture did not initialize ${JSON.stringify(quietBefore)}`);
+
+    await page.evaluate(async () => {
+      const pulse = await import('/js/features/daily-briefing.js');
+      await pulse.updateHotTodayIsland({
+        cycle: window.__lastStats?.cycle || 1308,
+        blockLevel: window.__lastStats?.blockLevel || 14301500,
+        activeBakers: window.__lastStats?.activeBakers || 199,
+        totalSupply: window.__lastStats?.totalSupply || 1070000000,
+        _quality: {
+          status: 'fresh',
+          observedAt: new Date().toISOString(),
+          unavailableCategories: [],
+          staleCategories: []
+        }
+      }, 0.202);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    const quietAfter = await page.evaluate(() => {
+      const content = document.getElementById('hot-today-content');
+      const card = document.querySelector('#hot-today-island [data-hot-signal-id="release-radar"]');
+      const strip = document.querySelector('#hot-today-island .hot-today-strip');
+      const details = card?.querySelector('.release-radar-details');
+      const style = card ? getComputedStyle(card) : null;
+      return {
+        sameStrip: strip === window.__releaseRadarStrip,
+        sameCard: card === window.__releaseRadarCard,
+        sameDetails: details === window.__releaseRadarDetails,
+        sameSummary: details?.querySelector('summary') === window.__releaseRadarSummary,
+        focused: document.activeElement === window.__releaseRadarSummary,
+        open: Boolean(details?.open),
+        selection: document.getSelection()?.toString() || '',
+        left: strip?.scrollLeft || 0,
+        y: window.scrollY,
+        settled: content?.dataset.quietRefreshSettled === 'true',
+        animation: style?.animationName || '',
+        opacity: style?.opacity || '',
+        transform: style?.transform || ''
+      };
+    });
+    assert(
+      quietAfter.sameStrip
+        && quietAfter.sameCard
+        && quietAfter.sameDetails
+        && quietAfter.sameSummary
+        && quietAfter.focused
+        && quietAfter.open
+        && quietAfter.selection === quietBefore.selection
+        && Math.abs(quietAfter.left - quietBefore.left) <= 1
+        && Math.abs(quietAfter.y - quietBefore.y) <= 1,
+      `release radar pulse ${label}: quiet reconciliation moved the reader ${JSON.stringify({ quietBefore, quietAfter })}`
+    );
+    assert(
+      quietAfter.settled
+        && quietAfter.animation === 'none'
+        && quietAfter.opacity === '1'
+        && quietAfter.transform === 'none',
+      `release radar pulse ${label}: background refresh replayed or stranded the card animation ${JSON.stringify(quietAfter)}`
+    );
+
+    await context.close();
+    assert(issues.length === 0, `release radar pulse ${label} browser issues:\n${issues.join('\n')}`);
+  }
+  log('ok - important Release Radar pulse and quiet reading state');
+}
+
 async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
   for (const { label, viewport, theme } of [
     { label: 'desktop', viewport: { width: 1440, height: 1000 }, theme: 'clean' },
@@ -23132,6 +23334,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
     { name: 'my-tezos-empty-state', description: 'My Tezos clearly separates Octez.Connect wallet pairing from watch-only tracking and explains all six responsive views', run: () => smokeMyTezosEmptyState(browser, baseUrl) },
+    { name: 'release-radar-pulse', description: 'Important Tezos X and Octez release forecast leads Live Pulse with six gates, exact blockers, evidence, responsive geometry, and quiet refresh', run: () => smokeReleaseRadarPulse(browser, baseUrl) },
     { name: 'live-pulse-personal-ribbons', description: 'Evidence-only Live Pulse account ribbons preserve stronger events and quiet reading state on desktop and mobile', run: () => smokeLivePulsePersonalRibbons(browser, baseUrl) },
     { name: 'live-pulse-daily-curio', description: 'One deterministic UTC-day Curio stays low-rank, scarce, truthful, and reading-state safe on desktop and mobile', run: () => smokeLivePulseDailyCurio(browser, baseUrl) },
     { name: 'my-tezos-baker-activity', description: 'My Tezos connected baker drawer lists recent delegators and stakers', run: () => smokeMyTezosBakerActivity(browser, baseUrl) },

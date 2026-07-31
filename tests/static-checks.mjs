@@ -5062,7 +5062,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -5862,6 +5862,8 @@ async function checkMilestoneCatalogContracts() {
     assert.ok(generator.includes('recentCrossings'));
     assert.ok(generator.includes('MILESTONE_MOMENT_TTL_MS'));
     assert.ok(generator.includes("const OCTEZ = 'https://eu.rpc.tez.capital'"));
+    assert.ok(generator.includes("const OCTEZ_ARCHIVE = 'https://tezos-mainnet.octez.io'"));
+    assert.ok(generator.includes('fetchJson(OCTEZ_ARCHIVE, headerPath)'));
     assert.ok(generator.includes('exactCycleMilestoneMoment'));
     assert.ok(generator.includes('Octez mainnet head and cycle with TzKT indexed statistics'));
     assert.ok(orchestrator.includes("MILESTONE_TARGETS = ['data/milestone-catalog.json']"));
