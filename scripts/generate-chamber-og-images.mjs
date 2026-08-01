@@ -73,6 +73,12 @@ function routeDetails(route, report) {
       chips: ['Tezos + Etherlink', 'markets + RWA', 'art economy'],
       body: 'Read cross-layer capital, XTZ market structure, ecosystem assets, real-world proofbooks, and Tezos art activity with visible source and coverage boundaries.'
     },
+    minerals: {
+      kicker: 'Critical Minerals Intelligence',
+      value: '60 materials. Native clocks.',
+      chips: ['2025 federal list', '10 Pink Sheet products', 'xCo + xNi + RARE'],
+      body: 'Explore form-specific supply and market receipts beside bounded Etherlink token state, with raw qualifiers, grouped context, issuer claims, and unavailable evidence kept distinct.'
+    },
     uranium: {
       kicker: 'xU3O8 Market Intelligence',
       value: 'Token tape. Physical receipts.',

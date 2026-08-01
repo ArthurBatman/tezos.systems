@@ -800,6 +800,7 @@ async function checkRequiredFiles() {
     'css/whale-chamber.css',
     'css/network-pulse.css',
     'css/capital.css',
+    'css/minerals-chamber.css',
     'css/uranium-chamber.css',
     'css/metals-chamber.css',
     'css/staking-chamber.css',
@@ -831,6 +832,7 @@ async function checkRequiredFiles() {
     'js/features/governance-alerts.js',
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
+    'js/features/minerals-chamber.js',
     'js/features/uranium-chamber.js',
     'js/features/metals-chamber.js',
     'js/features/ecosystem-chamber.js',
@@ -856,6 +858,12 @@ async function checkRequiredFiles() {
     'og/stake.png',
     'capital/index.html',
     'og/capital.png',
+    'minerals/index.html',
+    'og/minerals.png',
+    'assets/minerals/minerals-core.webp',
+    'assets/minerals/minerals-core-640.webp',
+    'assets/minerals/minerals-launcher.webp',
+    'assets/minerals/minerals-launcher-480.webp',
     'uranium/index.html',
     'og/uranium.png',
     'assets/uranium/uranium-core.webp',
@@ -896,6 +904,7 @@ async function checkRequiredFiles() {
     'scripts/refresh-nakamoto-sources.mjs',
     'scripts/refresh-chain-comparison.mjs',
     'scripts/refresh-capital-data.mjs',
+    'scripts/refresh-minerals-data.mjs',
     'scripts/refresh-uranium-data.mjs',
     'scripts/refresh-metals-data.mjs',
     'scripts/generate-capital-entry-summary.mjs',
@@ -928,6 +937,8 @@ async function checkRequiredFiles() {
     'data/governance-refresh-report.json',
     'data/capital-snapshot.json',
     'data/capital-entry-summary.json',
+    'data/minerals-snapshot.json',
+    'data/minerals-entry-summary.json',
     'data/uranium-snapshot.json',
     'data/uranium-entry-summary.json',
     'data/metals-snapshot.json',
@@ -961,6 +972,7 @@ async function checkRequiredFiles() {
     'tests/live-pulse-curio-check.mjs',
     'tests/uranium-check.mjs',
     'tests/metals-check.mjs',
+    'tests/minerals-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -2377,7 +2389,7 @@ async function checkSelectorContracts() {
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
     ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
     ['Staking Chamber share route', 'siteMapCanonicalRoute', share],
-    ['Staking Chamber Capital category membership', "entryIds: Object.freeze(['capital', 'uranium', 'metals', 'whales', 'staking-chamber'])", siteMap],
+    ['Staking Chamber Capital category membership', "entryIds: Object.freeze(['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber'])", siteMap],
     ['Staking Chamber category-aware desktop geometry', '#chambers-grid .staking-entry-card', stakingChamberCss],
     ['Chamber info tooltip viewport positioning', 'positionChamberInfoTooltip(button)', app],
     ['Chamber info tooltip bounded height', '--card-tooltip-max-height', stakingChamberCss],
@@ -5097,7 +5109,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -7709,7 +7721,7 @@ async function checkLiveNumberMotionContracts() {
 }
 
 async function checkQuietRefreshContracts() {
-  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, uranium, metals, ecosystem, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
+  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, minerals, uranium, metals, ecosystem, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
     readText('js/core/quiet-refresh.js'),
     readText('js/core/app.js'),
     readText('js/features/daily-briefing.js'),
@@ -7717,6 +7729,7 @@ async function checkQuietRefreshContracts() {
     readText('js/features/my-baker.js'),
     readText('js/features/tezlink.js'),
     readText('js/features/capital-chamber.js'),
+    readText('js/features/minerals-chamber.js'),
     readText('js/features/uranium-chamber.js'),
     readText('js/features/metals-chamber.js'),
     readText('js/features/ecosystem-chamber.js'),
@@ -7744,7 +7757,7 @@ async function checkQuietRefreshContracts() {
   if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
     fail('headline and heavy dashboard timers must both defer while the tab is hidden');
   }
-  const quietSurfaces = [myTezos, myBaker, tezlink, capital, uranium, metals, ecosystem, etherlink, domains, tz4, whales, giants, health, lb];
+  const quietSurfaces = [myTezos, myBaker, tezlink, capital, minerals, uranium, metals, ecosystem, etherlink, domains, tz4, whales, giants, health, lb];
   if (quietSurfaces.some((source) => !source.includes('quiet-refresh.js'))) {
     fail('every audited live surface must import the shared quiet refresh contract');
   }
@@ -8098,7 +8111,7 @@ async function checkCapitalContracts() {
     ['Capital Chamber hash route', "hash === 'capital'", app],
     ['Capital Chamber close cleanup', 'closeCapitalChamber', app],
     ['Capital Chamber routed overlay', "'capital-modal': { entryIds: ['capital']", app],
-    ['Capital Chamber category membership', "entryIds: Object.freeze(['capital', 'uranium', 'metals', 'whales', 'staking-chamber'])", siteMap]
+    ['Capital Chamber category membership', "entryIds: Object.freeze(['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber'])", siteMap]
   ];
   for (const [label, needle, source] of routeContracts) {
     if (!source.includes(needle)) fail(`${label} contract is missing`);
@@ -8409,7 +8422,7 @@ async function checkChamberCategoryContracts() {
       key: 'capital',
       label: 'Capital',
       question: 'Where is value sitting and moving?',
-      entryIds: ['capital', 'uranium', 'metals', 'whales', 'staking-chamber']
+      entryIds: ['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber']
     },
     {
       key: 'ecosystem',
@@ -8450,6 +8463,7 @@ async function checkChamberCategoryContracts() {
     health: 'standard',
     tezosx: 'standard',
     capital: 'featured',
+    minerals: 'featured',
     uranium: 'featured',
     metals: 'featured',
     ecosystem: 'featured',
@@ -8478,9 +8492,9 @@ async function checkChamberCategoryContracts() {
   assert.deepEqual(
     categorizedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
     expectedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
-    'site-map Chamber facets must define exactly one category for each of the 20 entry points'
+    'site-map Chamber facets must define exactly one category for each of the 21 entry points'
   );
-  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 20);
+  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 21);
 
   const metadataSource = siteMapSource
     .split('export const CHAMBER_CATEGORY_META = Object.freeze([')[1]
@@ -8564,7 +8578,7 @@ async function checkChamberCategoryContracts() {
     'infinite Chamber perimeter animation must be reserved for explicit risk/watch state'
   );
 
-  pass('seven responsive Chamber categories, 20 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
+  pass('seven responsive Chamber categories, 21 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
 }
 
 async function checkPromotedChamberContracts() {

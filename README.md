@@ -47,6 +47,7 @@ tezos.systems/
 │   ├── loading.css                    # Critical first-paint skeleton states
 │   ├── network-health.css             # Lazy Network Health detail-panel styles
 │   ├── capital.css                    # Lazy Capital Chamber styles
+│   ├── minerals-chamber.css           # Lazy Critical Minerals atlas/market styles
 │   ├── uranium-chamber.css            # Lazy Uranium market/proofbook styles
 │   ├── ecosystem.css                  # Lazy Ecosystem Activity Chamber styles
 │   ├── leaderboard.css                # Lazy Baker Directory Chamber styles
@@ -81,6 +82,8 @@ tezos.systems/
 │   ├── chain-comparison-verification.json # Monthly double-check receipts for static comparison numbers
 │   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
 │   ├── capital-entry-summary.json     # Compact integrity-checked Capital launcher projection
+│   ├── minerals-snapshot.json         # Generated critical-minerals atlas, supply, and market proofbook
+│   ├── minerals-entry-summary.json    # Compact integrity-checked Critical Minerals launcher projection
 │   ├── uranium-snapshot.json          # Generated xU3O8 market, physical-evidence, and chain proofbook
 │   ├── uranium-entry-summary.json     # Compact integrity-checked Uranium launcher projection
 │   ├── metals-snapshot.json           # Generated eight-metal market, supply, and receipt proofbook
@@ -109,7 +112,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ capital/ uranium/ metals/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ minerals/ uranium/ metals/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -127,6 +130,7 @@ tezos.systems/
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
+│   ├── refresh-minerals-data.mjs      # Critical Minerals snapshot and launcher generator/checker
 │   ├── refresh-metals-data.mjs        # Precious Metals snapshot and launcher generator/checker
 │   ├── refresh-ecosystem-stats.mjs    # Complete weekly L1/L2 dapp history generator/checker
 │   ├── generate-ecosystem-entry-summary.mjs # Compact Ecosystem launcher projection
@@ -438,6 +442,32 @@ inline modal styles in `js/core/app.js`.
   Comprehensive community/X/podcast composites remain explicitly unavailable
   until licensed coverage and a versioned deduplication/sentiment methodology
   exist.
+- Critical Minerals Chamber with direct `#minerals`, `#critical-minerals`,
+  `#strategic-minerals`, and `/minerals/` access. **Atlas** preserves the
+  canonical 60-item final 2025 U.S. critical-minerals list rather than merging
+  it with adjacent commodity or commercial product catalogs. **Supply** keeps
+  the 2021–2025 USGS Mineral Commodity Summaries observations in their exact
+  material forms, units, reporting periods, and raw qualifiers; categorical or
+  bounded values such as `E`, `NA`, `W`, `s`, `>75`, and `<50` are never
+  coerced into invented point estimates. Rare-earth and platinum-group
+  statistics remain group context where the source does not publish a
+  reproducible element-level value.
+
+  **Markets** exposes only the ten exact critical-mineral products covered by
+  the World Bank Pink Sheet monthly workbook, with its product identities,
+  units, and monthly clocks visible. Thermal coal is not substituted for
+  metallurgical coal, and absent USGS chapters remain explicitly unavailable.
+  **Etherlink** keeps Metals.io-attributed xCo, xNi, and RARE product statements
+  separate from Blockscout token metadata, counters, bounded holder-address and
+  latest-transfer pages, and verified proxy lineage. Issuer claims and RARE
+  basket composition are not independent backing, custody, entitlement, or
+  reserve proof; chain supply, addresses, and transfers do not prove people,
+  ownership, liquidity, price, reserves, redemption, or execution. xU3O8 and
+  VNXAU remain in their dedicated Chambers, and the room exposes no execution
+  action. **Proofbook** exposes every source receipt, transformation, gap, and
+  non-inference boundary. The compact launcher
+  reads an integrity-checked projection; the complete atlas loads only after the
+  room opens and retains last-good state through quiet refreshes.
 - Uranium Chamber with direct `#uranium` and `/uranium/` access. **Core Sample**
   connects the xU3O8 token, the separately dated Cameco contract-balance
   statement, the non-executable Uranium.io uranium reference, and Etherlink
@@ -989,6 +1019,7 @@ Useful deep links include:
 - `#chambers`
 - `#pulse`
 - `#capital`
+- `#minerals`, `#critical-minerals`, or `#strategic-minerals`
 - `#uranium`, `#xu3o8`, or `#u3o8`
 - `#metals`
 - `#ecosystem`
@@ -1007,7 +1038,7 @@ Useful deep links include:
 - `#ctez`
 
 Public share routes are also available at `/chambers/`, `/my/`, `/chamber/`, `/pulse/`,
-`/capital/`, `/uranium/`, `/metals/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
+`/capital/`, `/minerals/`, `/uranium/`, `/metals/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
 `/tezoscrp/`, `/health/`, `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`,
 `/ledger-flow/`, `/domains/`, and `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -1032,16 +1063,21 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | OBJKT APIs | HEN mode's live Teia + OBJKT feed, My Tezos summary-first Collection holdings and profiles, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
 | DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories plus Uranium.io protocol context; DefiLlama currently indexes Tezos X as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; Capital's current counters, daily activity, transaction fees, average user fees, and gas-price history; Uranium's xU3O8 supply, indexed addresses, controls, and bounded transfer receipts; and Metals' VNXAU contract state, kept separate from custody or backing evidence |
+| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; Capital's current counters, daily activity, transaction fees, average user fees, and gas-price history; Uranium's xU3O8 supply; Metals' VNXAU contract state; and Critical Minerals' bounded xCo, xNi, and RARE token metadata, counters, holder-address, latest-transfer, and verified-proxy receipts, all kept separate from custody or backing evidence |
 | Kraken public API and official listing notice | XU3O8/USD pair identity, status, ticker, OHLC, book levels, and bounded public trade receipts; a market venue, not backing or redemption proof |
 | Uranium.io issuer documentation, oracle, and proof-of-reserves page | Issuer-confirmed xU3O8 contract and terms, indicative USD/lb uranium reference, and the dated Cameco contract-balance statement |
+| Federal Register 90 FR 50494 | Canonical final 2025 U.S. critical-minerals list of 60 entries; list membership is taxonomy, not evidence of a current price, reserve, or investable product |
+| USGS Mineral Commodity Summaries 2026 and data release DOI `10.5066/P1WKQ63T` | Form-specific 2021–2025 U.S. and world production, import-reliance, annual-price, and related supply receipts with raw qualifiers, codes, group context, units, and unavailable fields preserved |
+| World Bank Commodity Price Data (Pink Sheet) | Monthly history for the exact ten matching critical-mineral products only; product forms and units remain source-native, and thermal coal is never substituted for metallurgical coal |
 | IMF Primary Commodity Price System | Completed-month gold, silver, platinum, and palladium USD-per-troy-ounce averages plus the precious-metals index; these are comparable monthly observations, not live or executable quotes |
 | Gold API public price endpoints | Generator-only indicative-current gold, silver, platinum, and palladium observations with independent clocks; undisclosed upstream inputs mean these are not benchmarks, official fixings, dealer quotes, or executable prices |
 | U.S. Geological Survey precious-metals publications | The complete eight-metal taxonomy plus source-bounded annual specialist-PGM context; grouped observations remain grouped and unavailable osmium pricing remains unavailable |
-| VNX and Metals.io documentation | VNXAU token identity, issuer terms, operational notices, and dated agreed-upon-procedures receipts; issuer material is attributed evidence, not an independent audit or proof of present cross-chain backing, liquidity, or redeemability |
+| VNX and Metals.io documentation | VNXAU token identity, issuer terms, operational notices, and dated agreed-upon-procedures receipts, plus attributed xCo, xNi, and RARE product statements and issuer-described RARE basket composition; issuer material is not an independent audit or proof of backing, custody, commodity entitlement, liquidity, reserves, redemption, or execution |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed Capital snapshot; full room data waits for an explicit Chamber open |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
+| `data/minerals-entry-summary.json` | Compact integrity-checked Critical Minerals launcher projection; the complete taxonomy, supply, market, Etherlink, and proof ledger waits for an explicit room open |
+| `data/minerals-snapshot.json` | Same-origin generated Critical Minerals dataset with stable content and source hashes, canonical 60-item membership, form-specific USGS observations and raw qualifiers, a bounded World Bank monthly subset, explicit gaps, and separate xCo, xNi, and RARE issuer/chain receipts |
 | `data/uranium-entry-summary.json` | Compact integrity-checked xU3O8 launcher projection; the complete market, chain, and physical-evidence proofbook waits for an explicit room open |
 | `data/uranium-snapshot.json` | Same-origin generated Uranium dataset with separate market, physical-reference, custody-document, protocol, and Etherlink clocks plus stable content and source receipts |
 | `data/metals-entry-summary.json` | Compact integrity-checked Precious Metals launcher projection; the complete eight-metal market, annual-context, and VNXAU receipt ledger waits for an explicit room open |
@@ -1080,6 +1116,7 @@ pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
 the Maxis artifact family plus its launcher projection,
 `data/capital-snapshot.json` plus its launcher projection,
+`data/minerals-snapshot.json` plus its launcher projection,
 `data/uranium-snapshot.json` plus its launcher projection,
 `data/metals-snapshot.json` plus its launcher projection,
 `data/ecosystem-stats.json` plus its launcher projection,
@@ -1135,6 +1172,17 @@ exist. Scheduled/full generated runs refresh and optionally stage the snapshot;
 normal pre-commit runs validate the committed artifact without contacting every
 provider. The browser consumes that artifact and never silently upgrades stale
 or partial coverage into a current, comprehensive claim.
+`npm run refresh:minerals` rebuilds the Critical Minerals snapshot and compact
+launcher projection from the final 2025 U.S. critical-minerals list, USGS
+Mineral Commodity Summaries 2026 and its 2021–2025 data release, and the exact
+matching World Bank Pink Sheet monthly products, plus reviewed Metals.io product
+statements and Etherlink Blockscout receipts. `npm run check:minerals`
+validates the committed 60-item taxonomy, schema, hashes, payload budgets,
+source forms, units, clocks, raw qualifiers, bounded ten-product market subset,
+group-context rules, explicit unavailable values, reviewed xCo/xNi/RARE
+contracts, and product-versus-chain non-inference boundaries without contacting
+those providers. Scheduled/full generated runs refresh and optionally stage both
+artifacts; normal pre-commit runs only validate them.
 `npm run refresh:uranium` rebuilds the Uranium snapshot and compact launcher
 projection from public Kraken, CoinGecko, Blockscout, DefiLlama, Uranium.io,
 and custody-document receipts. While the Markets view is open in a visible tab,

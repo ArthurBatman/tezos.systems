@@ -22,6 +22,7 @@ const OVERLAY_ENTRY_IDS = Object.freeze({
     'ctez-modal': 'ctez',
     'history-modal': 'history',
     'capital-modal': 'capital',
+    'minerals-modal': 'minerals',
     'uranium-modal': 'uranium',
     'metals-modal': 'metals',
     'ecosystem-activity-modal': 'ecosystem',

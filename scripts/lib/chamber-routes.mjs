@@ -64,6 +64,16 @@ export const CHAMBER_ROUTES = [
     accent: '#f49ad1'
   },
   {
+    slug: 'minerals',
+    hash: '#minerals',
+    title: 'Critical Minerals - Strategic Supply and Market Atlas',
+    shortTitle: 'Critical Minerals',
+    description: 'Explore the canonical 60-item 2025 U.S. critical-minerals list with source-native USGS supply and annual-price receipts, a bounded World Bank monthly market subset, and separate xCo, xNi, and RARE Etherlink receipts.',
+    eyebrow: 'Strategic Materials Intelligence',
+    accent: '#d9895b',
+    secondaryAccent: '#3d7ee8'
+  },
+  {
     slug: 'uranium',
     hash: '#uranium',
     title: 'Uranium - xU3O8 Markets and Dated Physical Evidence',

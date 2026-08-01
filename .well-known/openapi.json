@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tezos Systems Public Data",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "Read-only Tezos Systems metadata, generated research artifacts, and public browser datasets. Artifact fields disclose their own sources and observation times where applicable."
   },
   "servers": [
@@ -157,6 +157,34 @@
         "summary": "Get the compact Capital launcher projection",
         "description": "The exact subset of the reviewed Capital snapshot rendered by the closed dashboard card.",
         "x-refresh-cadence": "After every Capital snapshot refresh",
+        "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/minerals-snapshot.json": {
+      "get": {
+        "operationId": "getMineralsSnapshot",
+        "summary": "Get the complete Critical Minerals Chamber snapshot",
+        "description": "The canonical 60-item 2025 U.S. critical-minerals taxonomy; form-specific 2021–2025 USGS production, import-reliance, and annual-price receipts; a bounded ten-product World Bank monthly market subset; and separate Metals.io-attributed xCo, xNi, and RARE product statements plus bounded Etherlink token-state receipts.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying Federal Register, USGS, World Bank, Metals.io, and Blockscout facts and data retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/minerals-entry-summary.json": {
+      "get": {
+        "operationId": "getMineralsEntrySummary",
+        "summary": "Get the compact Critical Minerals launcher projection",
+        "description": "The integrity-checked taxonomy, supply, market-coverage, Etherlink-product, and source-clock headline subset rendered before the complete Critical Minerals room opens.",
+        "x-refresh-cadence": "After every Critical Minerals snapshot refresh",
         "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
         "responses": {
           "200": {

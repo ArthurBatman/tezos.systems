@@ -723,8 +723,8 @@ assert.deepEqual(
   'site-map Uranium intents must cover every route view'
 );
 const capitalCategory = siteMapModule.CHAMBER_CATEGORY_META.find(({ key }) => key === 'capital');
-assert.deepEqual(capitalCategory?.entryIds, ['capital', 'uranium', 'metals', 'whales', 'staking-chamber'],
-  'Uranium and Precious Metals must bridge Capital and Whale Watch');
+assert.deepEqual(capitalCategory?.entryIds, ['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber'],
+  'Critical Minerals, Uranium, and Precious Metals must bridge Capital and Whale Watch');
 for (const target of siteMapModule.SITE_MAP_RELATIONS.uranium) {
   assert(siteMapModule.SITE_MAP_RELATIONS[target]?.includes('uranium'), `Uranium relation ${target} must be reciprocal`);
 }

@@ -99,6 +99,26 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.9' }
     },
     {
+        id: 'minerals',
+        title: 'Critical Minerals',
+        href: '/minerals/',
+        hash: '#minerals',
+        hashAliases: ['#critical-minerals', '#strategic-minerals'],
+        group: 'Live Rooms',
+        chamberCategory: 'capital',
+        detail: 'A 60-mineral strategic atlas with source-native supply and market evidence plus bounded xCo, xNi, and RARE Etherlink receipts',
+        keywords: ['critical minerals', 'strategic minerals', 'mineral supply', 'mineral markets', 'mineral security', 'supply chains', 'import reliance', 'world production', 'reserves', 'rare earths', 'lithium', 'cobalt', 'nickel', 'copper', 'graphite', 'gallium', 'germanium', 'potash', 'phosphate rock', 'etherlink minerals', 'tokenized minerals', 'xco', 'xni', 'rare token', 'strategic metals basket', 'metals.io'],
+        searchIntents: [
+            { id: 'minerals-atlas', title: 'Critical Minerals Atlas', href: '/minerals/?view=atlas', detail: 'Explore the canonical 60-mineral U.S. critical-minerals taxonomy without turning group-level evidence into element-level facts', keywords: ['critical minerals atlas', 'critical minerals list', '60 critical minerals', 'strategic mineral taxonomy', 'rare earth elements'], directory: true },
+            { id: 'minerals-supply', title: 'Critical Minerals Supply', href: '/minerals/?view=supply', detail: 'Inspect 2021–2025 U.S. and world supply observations while preserving USGS units, qualifiers, groupings, and reporting periods', keywords: ['critical minerals supply', 'world mineral production', 'us mineral production', 'mineral reserves', 'import reliance', 'mineral concentration'], directory: true },
+            { id: 'minerals-markets', title: 'Critical Minerals Markets', href: '/minerals/?view=markets', detail: 'Compare only the exact public commodity series covered by the World Bank Pink Sheet, with product, unit, and monthly clocks visible', keywords: ['critical minerals markets', 'mineral prices', 'world bank pink sheet', 'copper price', 'nickel price', 'potash price', 'phosphate rock price'], directory: true },
+            { id: 'minerals-etherlink', title: 'Critical Minerals on Etherlink', href: '/minerals/?view=etherlink', detail: 'Inspect bounded xCo, xNi, and RARE product and chain receipts while keeping issuer claims, basket composition, and indexed token state separate', keywords: ['critical minerals etherlink', 'etherlink minerals', 'tokenized minerals', 'xco', 'xni', 'rare token', 'strategic metals basket', 'metals.io', 'onchain mineral receipts'], directory: true },
+            { id: 'minerals-proofbook', title: 'Critical Minerals Proofbook', href: '/minerals/?view=proofbook', detail: 'Read the source ledger, natural clocks, raw USGS qualifiers, explicit gaps, and non-inference boundaries behind the atlas', keywords: ['critical minerals proofbook', 'mineral data sources', 'usgs mcs 2026', 'mineral methodology', 'mineral evidence'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'monthly', priority: '0.9' }
+    },
+    {
         id: 'uranium',
         title: 'Uranium',
         href: '/uranium/',
@@ -515,7 +535,7 @@ export const CHAMBER_CATEGORY_META = Object.freeze([
         key: 'capital',
         label: 'Capital',
         question: 'Where is value sitting and moving?',
-        entryIds: Object.freeze(['capital', 'uranium', 'metals', 'whales', 'staking-chamber'])
+        entryIds: Object.freeze(['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber'])
     }),
     Object.freeze({
         key: 'ecosystem',
@@ -567,16 +587,17 @@ export const SITE_MAP_RELATIONS = {
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
     pulse: ['ecosystem', 'capital', 'health', 'hot-today'],
-    capital: ['uranium', 'metals', 'price', 'ledger-flow'],
-    uranium: ['metals', 'capital', 'tezosx', 'price'],
-    metals: ['uranium', 'capital', 'tezosx', 'price'],
+    capital: ['minerals', 'uranium', 'metals', 'ledger-flow'],
+    minerals: ['uranium', 'metals', 'capital', 'tezosx'],
+    uranium: ['minerals', 'metals', 'tezosx', 'price'],
+    metals: ['minerals', 'uranium', 'tezosx', 'price'],
     ecosystem: ['capital', 'tezosx', 'history', 'maxis'],
     'staking-chamber': ['leaderboard', 'ledger-flow', 'staking', 'calculator'],
     maxis: ['tezoscrp', 'ledger-flow', 'domains', 'hen'],
     tezoscrp: ['maxis', 'anthology', 'hen', 'feed'],
     health: ['pulse', 'tz4', 'leaderboard', 'staking-chamber'],
     'liquidity-baking': ['chamber', 'pulse', 'staking', 'health'],
-    tezosx: ['uranium', 'l2-governance', 'pulse', 'compare'],
+    tezosx: ['minerals', 'uranium', 'l2-governance', 'pulse'],
     'l2-governance': ['tezosx', 'chamber', 'anthology', 'pulse'],
     tz4: ['health', 'bakers-guide', 'pulse', 'staking-chamber'],
     'ledger-flow': ['my-tezos', 'whales', 'domains', 'ctez'],

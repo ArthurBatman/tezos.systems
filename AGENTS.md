@@ -48,6 +48,7 @@ the highest-risk gotchas.
 - `css/styles.css`: source styles and theme rules.
 - `css/styles.min.css`: served stylesheet.
 - `css/network-health.css`: lazy Network Health Consensus Lens and Nakamoto panel styles.
+- `css/minerals-chamber.css`: lazy Critical Minerals atlas, supply, market, and proofbook styles.
 - `css/tezoscrp.css`: lazy TezosCRP Recognition Hall styles.
 - `css/hen-mode.css`: HEN overlay styles.
 - `css/landing.css`: landing and SEO page styles.
@@ -98,6 +99,9 @@ the highest-risk gotchas.
     reviewed Etherlink contracts; raw wallet cohorts remain generator-only.
     The reviewed exchange slice follows Etherlink's official directory and
     freezes first-party Curve, Hanji, Oku, and IguanaDEX deployment receipts.
+  - Critical Minerals retains only bounded xCo, xNi, and RARE token metadata,
+    counters, holder-address/latest-transfer pages, and verified proxy lineage;
+    addresses are not people and chain state is not backing or market evidence.
 - Octez RPC: `https://eu.rpc.tez.capital`
 - Official Octez mainnet RPC: `https://tezos-mainnet.octez.io`
   - current-cycle baking-power distribution for live one-third and two-thirds
@@ -107,6 +111,18 @@ the highest-risk gotchas.
     validation/application delay, source count, and operations-report context
   - Teztale is by Nomadic Labs; keep visible credit when surfacing its data
 - CoinGecko: XTZ price data
+- Federal Register 90 FR 50494
+  - canonical final 2025 U.S. critical-minerals list of 60 entries; membership
+    is taxonomy, not proof of a price, reserve, chain asset, or investable product
+- U.S. Geological Survey Mineral Commodity Summaries 2026 and data release
+  DOI `10.5066/P1WKQ63T`
+  - form-specific 2021–2025 supply, import-reliance, annual-price, and world-
+    production receipts; preserve exact units, periods, raw qualifiers/codes,
+    group context, and unavailable values rather than coercing point estimates
+- World Bank Commodity Price Data (Pink Sheet) monthly workbook
+  - bounded Critical Minerals history for its exact ten matching products;
+    preserve product forms and units, and never substitute thermal coal for
+    metallurgical coal
 - IMF Primary Commodity Price System monthly workbook
   - canonical comparable Precious Metals history for gold, silver, platinum,
     and palladium is completed-month USD per troy ounce, never a live close
@@ -118,8 +134,10 @@ the highest-risk gotchas.
   - eight-metal taxonomy plus source-bounded annual specialist PGM context;
     grouped observations stay grouped and missing osmium pricing stays missing
 - VNX and Metals.io documentation
-  - issuer terms, operational notices, and dated VNXAU procedure receipts are
-    attributed claims, not independent proof of current backing or execution
+  - issuer terms, operational notices, and dated VNXAU procedure receipts plus
+    xCo, xNi, and RARE product statements and issuer-described RARE composition
+    are attributed claims, not independent proof of backing, custody, commodity
+    entitlement, liquidity, reserves, redemption, or execution
 - Tezos Domains GraphQL: reverse/domain lookups
 - OBJKT GraphQL: NFT/profile mode
 - Supabase REST: historical snapshots using a public anon key from
@@ -175,6 +193,8 @@ Licensing boundaries:
   - `#theme=...`
   - `#section=...`
   - `#price`
+  - `#minerals` (Critical Minerals Chamber; aliases `#critical-minerals` and
+    `#strategic-minerals`; pretty route `/minerals/`)
   - `#metals` (Precious Metals Chamber; pretty route `/metals/`)
   - `#staking` (Staking Chamber; pretty route `/stake/`)
 
@@ -243,7 +263,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v544`
+- Service worker cache name: `tezos-systems-v545`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -369,6 +389,18 @@ Stamping gotchas:
   filters and lexicographic factual ordering, never a blended quality score.
 - Market tools: `price.js`, `price-intelligence.js`, `calculator.js`,
   `comparison.js`
+- Critical Minerals Chamber: `js/features/minerals-chamber.js`; `/minerals/`
+  preserves the canonical final 2025 U.S. 60-item taxonomy, form-specific
+  2021–2025 USGS observations, raw qualifiers, source-native units and clocks,
+  group-only REE/PGM context, explicit gaps, and a bounded ten-product World
+  Bank monthly market subset. Its Etherlink view keeps Metals.io-attributed xCo,
+  xNi, and RARE product statements and RARE composition separate from bounded
+  Blockscout token metadata, counters, holder-address, latest-transfer, and
+  verified-proxy receipts. Do not infer backing, custody, entitlement, people,
+  ownership, liquidity, price, reserves, redemption, or execution; do not fold
+  xU3O8, VNXAU, commercial catalogs, token contracts, or thermal-coal prices into
+  the taxonomy; provide no execution action; and do not infer element-level
+  values from grouped observations.
 - Precious Metals Chamber: `js/features/metals-chamber.js`; `/metals/` covers
   gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium.
   IMF gold/silver/platinum/palladium history is completed-month data; any
@@ -460,6 +492,13 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   published.
 - `data/ecosystem-entry-summary.json`: compact integrity-checked launcher
   projection generated from the complete Ecosystem artifact.
+- `data/minerals-snapshot.json`: generated canonical 60-item Critical Minerals
+  atlas, form-specific USGS supply and annual-price receipts, bounded World Bank
+  monthly market history, separate xCo/xNi/RARE product and chain receipts,
+  explicit gaps, and stable content/source hashes.
+- `data/minerals-entry-summary.json`: compact integrity-checked Critical
+  Minerals launcher projection. The complete source and methodology ledger
+  loads only after the room opens.
 - `data/metals-snapshot.json`: generated eight-metal market, annual-context,
   and VNXAU receipt ledger. It keeps completed-month IMF observations,
   indicative current references, USGS reporting periods, issuer
@@ -581,6 +620,14 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   receipt-to-receipt awakening intervals. `npm run check:whales` validates the
   committed artifact without network access; scheduled/full generated runs
   refresh it, while normal pre-commit checks it.
+- `scripts/refresh-minerals-data.mjs`: rebuilds
+  `data/minerals-snapshot.json` and `data/minerals-entry-summary.json` from the
+  final 2025 federal list, USGS MCS 2026/data-release receipts, and the bounded
+  World Bank monthly subset plus reviewed Metals.io/Blockscout receipts through
+  `npm run refresh:minerals`. `npm run check:minerals` validates taxonomy,
+  hashes, payload budgets, forms, units, qualifiers, clocks, group context,
+  market membership, explicit gaps, contracts, and product-versus-chain
+  non-inference boundaries without network access.
 - `scripts/refresh-metals-data.mjs`: rebuilds `data/metals-snapshot.json` and
   `data/metals-entry-summary.json` from the reviewed IMF, USGS,
   token-market, issuer, and chain receipts through `npm run refresh:metals`.

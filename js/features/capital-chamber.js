@@ -956,9 +956,9 @@ function renderAssets(snapshot) {
         </div>
         <nav class="capital-pathways" aria-label="Continue through assets and flows">
             <a class="capital-pathway" href="/tezosx/">Tezos X<small>Etherlink token and activity detail</small></a>
+            <a class="capital-pathway" href="/minerals/">Critical Minerals<small>Strategic supply, market, and source receipts</small></a>
             <a class="capital-pathway" href="/uranium/">Uranium<small>xU3O8 markets and receipt-bounded custody evidence</small></a>
             <a class="capital-pathway" href="/metals/">Precious Metals<small>Eight-metal markets and VNXAU chain receipts</small></a>
-            <a class="capital-pathway" href="/ledger-flow/">Ledger Flow<small>On-chain movement and provenance</small></a>
             <a class="capital-pathway" href="/#price">Price Intelligence<small>Focused XTZ market context</small></a>
         </nav>
         ${sourceBar(snapshot, ['defillama', 'defillamaRwa', 'coingeckoRwa', 'uraniumIssuer', 'etherlinkBlockscoutRwa'], 'Third-party registry discovery is labelled separately from issuer-confirmed proof')}
