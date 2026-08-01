@@ -60,7 +60,7 @@ export const HISTORY_START = '2024-01-01';
 // from source by scripts/refresh-chain-comparison.mjs and must carry two checks
 // in data/chain-comparison-verification.json before this date can advance.
 export const CHAIN_COMPARISON = {
-    lastUpdated: '2026-07-26',
+    lastUpdated: '2026-08-01',
     verification: {
         numericClaims: 10,
         checksPerClaim: 2,
