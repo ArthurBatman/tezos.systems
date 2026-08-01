@@ -16,6 +16,61 @@
     box-shadow: 0 18px 55px rgba(0, 0, 0, .24), 0 0 32px rgba(108, 255, 42, .05) inset;
 }
 
+/* Keep Uranium visibly emerald across every site theme. The shared live-card
+   and theme selectors are intentionally strong, so this launcher needs one
+   equally explicit visual owner instead of inheriting a muted generic card. */
+#chambers-grid .chamber-entry-card.uranium-entry-card {
+    --chamber-live-color: #42ff91;
+    padding: 0 !important;
+    border: 1px solid rgba(82, 255, 145, .72) !important;
+    border-radius: 18px !important;
+    background:
+        radial-gradient(circle at 72% 28%, rgba(0, 255, 128, .34), transparent 24%),
+        radial-gradient(circle at 16% 8%, rgba(102, 255, 164, .16), transparent 39%),
+        radial-gradient(ellipse at 50% 118%, rgba(0, 230, 118, .2), transparent 55%),
+        linear-gradient(145deg, #073320 0%, #041c12 47%, #020b07 100%) !important;
+    box-shadow:
+        0 0 0 1px rgba(175, 255, 202, .1) inset,
+        0 0 34px rgba(0, 255, 128, .34),
+        0 0 72px rgba(0, 230, 118, .12),
+        0 18px 52px rgba(0, 0, 0, .38),
+        inset 0 0 52px rgba(0, 230, 118, .12) !important;
+}
+
+#chambers-grid .chamber-entry-card.uranium-entry-card:hover {
+    border-color: rgba(116, 255, 166, .92) !important;
+    box-shadow:
+        0 0 0 1px rgba(193, 255, 215, .14) inset,
+        0 0 42px rgba(0, 255, 128, .31),
+        0 20px 58px rgba(0, 0, 0, .42),
+        inset 0 0 58px rgba(0, 230, 118, .15) !important;
+}
+
+#chambers-grid .uranium-entry-card > :is(.card-copy-link, .card-share-btn, .card-info-btn, .card-history-btn) {
+    color: #86ffb2;
+    border-color: rgba(90, 255, 151, .3);
+    background: rgba(2, 20, 12, .72);
+    box-shadow: 0 0 15px rgba(0, 230, 118, .08), inset 0 0 12px rgba(0, 230, 118, .05);
+}
+
+#chambers-grid .uranium-entry-card .uranium-entry-title-line .stat-label {
+    color: #ddffe8 !important;
+    text-shadow: 0 0 14px rgba(91, 255, 146, .24) !important;
+}
+
+#chambers-grid .uranium-entry-card .uranium-entry-value {
+    color: #f1fff5 !important;
+    text-shadow: 0 0 12px rgba(131, 255, 169, .38), 0 0 28px rgba(0, 230, 118, .18) !important;
+}
+
+#chambers-grid .uranium-entry-card .uranium-entry-delta.is-flat { color: #c5ead1; }
+#chambers-grid .uranium-entry-card .uranium-entry-delta span,
+#chambers-grid .uranium-entry-card .uranium-entry-freshness { color: #83b795; }
+#chambers-grid .uranium-entry-card .uranium-entry-kpis small { color: #7eb691; }
+#chambers-grid .uranium-entry-card .uranium-entry-kpis strong { color: #eafff0; }
+#chambers-grid .uranium-entry-card .stat-description { color: #b7d7c2 !important; }
+#chambers-grid .uranium-entry-card .chamber-entry-freshness { color: #83b795; }
+
 .uranium-entry-card::before,
 .uranium-entry-card::after {
     content: '';
@@ -24,7 +79,7 @@
 }
 
 .uranium-entry-card::before {
-    z-index: -1;
+    z-index: 0;
     inset: -30%;
     opacity: .6;
     background: repeating-radial-gradient(circle at 72% 46%, transparent 0 58px, rgba(147, 255, 72, .055) 59px 60px, transparent 61px 82px);
@@ -130,6 +185,7 @@
 
 .uranium-entry-art {
     position: relative;
+    isolation: isolate;
     grid-area: art;
     align-self: stretch;
     min-width: 0;
@@ -561,6 +617,8 @@
     min-height: 0;
     border-radius: 12px;
     background: radial-gradient(circle at 50% 45%, rgba(0, 230, 118, .08), transparent 64%);
+    border: 1px solid rgba(107, 255, 161, .22);
+    box-shadow: 0 0 24px rgba(0, 255, 128, .17), inset 0 0 18px rgba(0, 230, 118, .08);
 }
 .uranium-core-stage.is-entry img {
     object-fit: cover;
@@ -1039,21 +1097,67 @@ html[data-theme="clean"] .uranium-chart-provenance { color: #58715d; }
 @media (max-width: 700px) {
     #chambers-grid .uranium-entry-card,
     #chambers-grid .uranium-entry-card.chamber-entry-wide,
-    #chambers-grid .uranium-entry-card[data-chamber-layout] { min-height: 304px !important; height: auto !important; }
+    #chambers-grid .uranium-entry-card[data-chamber-layout] { min-height: 286px !important; height: auto !important; }
     .uranium-entry-front {
+        align-content: start;
+        padding: 1.1rem 12px var(--chamber-footer-clearance) 20px !important;
         grid-template:
-            "copy art" 126px
-            "kpis kpis" 42px
-            "chart chart" 46px /
-            minmax(0, 1fr) minmax(112px, .42fr);
-        gap: 7px 9px;
+            "title art rail" clamp(76px, 24vw, 92px)
+            "value value rail" min-content
+            "delta delta rail" min-content
+            "kpis kpis kpis" 44px
+            "chart chart chart" 50px /
+            minmax(0, 1fr) clamp(76px, 24vw, 92px) 30px;
+        gap: 6px;
     }
-    .uranium-entry-copy { align-self: start; }
-    .uranium-entry-value { margin-top: 8px; font-size: clamp(2.1rem, 10vw, 2.75rem); }
+    .uranium-entry-copy { display: contents; }
+    .uranium-entry-title-line { grid-area: title; align-self: start; gap: 5px; }
+    .uranium-entry-live { display: none; }
+    #chambers-grid .uranium-entry-card .uranium-entry-value {
+        grid-area: value;
+        align-self: end;
+        margin-top: 0;
+        font-size: clamp(2rem, 9.4vw, 2.35rem) !important;
+        transform: none !important;
+        transition: none !important;
+        white-space: nowrap !important;
+    }
+    .uranium-entry-delta {
+        grid-area: delta;
+        align-self: start;
+        margin-top: 0;
+        gap: 4px;
+        font-size: 9px;
+        white-space: nowrap;
+    }
+    .uranium-entry-copy .stat-description { display: none; }
+    .uranium-entry-freshness { display: none; }
+    .uranium-entry-art { grid-area: art; min-height: clamp(76px, 24vw, 92px); }
     .uranium-entry-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .uranium-entry-kpis > span { padding: 6px 7px; }
-    .uranium-entry-kpis strong { font-size: 9px; }
-    .uranium-entry-chart { height: 46px; }
+    .uranium-entry-kpis small { font-size: 7px; }
+    .uranium-entry-kpis strong { font-size: 10px; }
+    .uranium-entry-chart {
+        height: 50px;
+        border-color: rgba(91, 255, 146, .24);
+        background: linear-gradient(90deg, rgba(0, 230, 118, .13), rgba(2, 10, 6, .34));
+        box-shadow: inset 0 0 18px rgba(0, 230, 118, .06);
+    }
+    #chambers-grid .uranium-entry-card .chamber-entry-footer {
+        position: absolute;
+        right: var(--chamber-card-inline-padding);
+        bottom: .58rem;
+        left: var(--chamber-card-inline-padding);
+        margin-top: 0;
+        padding-inline: 0;
+        border-color: rgba(92, 255, 149, .16);
+    }
+    .uranium-entry-card .chamber-expand-cue {
+        color: #87ffb3;
+        border-color: rgba(90, 255, 151, .38);
+        background: rgba(2, 20, 12, .78);
+        box-shadow: 0 0 16px rgba(0, 230, 118, .09);
+    }
     .uranium-core-stage.is-entry { min-height: 0; }
     .uranium-overlay { padding: 0; }
     .uranium-content { flex: 0 0 100vw; width: 100vw; height: 100dvh; max-height: 100dvh !important; padding: 0 !important; border: 0; border-radius: 0; }
@@ -1108,18 +1212,8 @@ html[data-theme="clean"] .uranium-chart-provenance { color: #58715d; }
 }
 
 @media (max-width: 500px) {
-    .uranium-entry-front {
-        padding-top: 1.1rem !important;
-        grid-template:
-            "copy art" 122px
-            "kpis kpis" 42px
-            "chart chart" 44px /
-            minmax(0, 1fr) minmax(96px, .4fr);
-    }
     .uranium-entry-kpis > span { padding-inline: 7px; }
-    .uranium-entry-kpis strong { font-size: 9px; }
-    .uranium-entry-chart { height: 44px; }
-    .uranium-entry-value { font-size: 2.35rem; }
+    .uranium-entry-chip { padding-inline: 6px; font-size: 8px; }
     .uranium-metric-grid,
     .uranium-metric-grid.is-market { grid-template-columns: 1fr 1fr; }
     .uranium-control-grid { grid-template-columns: 1fr 1fr; }

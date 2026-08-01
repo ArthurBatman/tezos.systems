@@ -31,10 +31,11 @@ const REQUIRED_SOURCES = [
 ];
 
 const readText = (file) => fs.readFile(path.join(ROOT, file), 'utf8');
-const [snapshotText, entryText, feature, sha256Source, generator, siteMapSource, wayfinder, ogGenerator] = await Promise.all([
+const [snapshotText, entryText, feature, uraniumCss, sha256Source, generator, siteMapSource, wayfinder, ogGenerator] = await Promise.all([
   readText(SNAPSHOT_PATH),
   readText(ENTRY_PATH),
   readText('js/features/uranium-chamber.js'),
+  readText('css/uranium-chamber.css'),
   readText('js/core/sha256.js'),
   readText('scripts/refresh-uranium-data.mjs'),
   readText('js/core/site-map.js'),
@@ -667,6 +668,28 @@ assert(feature.includes('Polished translucent light-green mineral specimen with 
   'launcher artwork must describe an inanimate polished green specimen');
 assert(feature.includes("launcherPicture('is-entry')"),
   'compact Uranium launcher must use its own non-mascot art path');
+assert(feature.includes('<small>U₃O₈ oracle</small>')
+  && feature.includes('<small>Dated ratio</small>')
+  && feature.includes('<small>Holders</small>'),
+  'compact Uranium launcher must retain short, semantic mobile metric labels');
+assert(feature.includes("renderPriceChart(snapshot.market?.priceHistoryUsd, '30D', true)"),
+  'compact Uranium launcher must retain its labeled 30-day market pulse');
+assert(uraniumCss.includes('#chambers-grid .chamber-entry-card.uranium-entry-card')
+  && uraniumCss.includes('rgba(0, 255, 128, .34)')
+  && uraniumCss.includes('color: #f1fff5 !important;'),
+  'compact Uranium launcher must keep its theme-independent emerald glow and bright price');
+const mobileCss = sourceBlock(uraniumCss, '@media (max-width: 700px)', '@media (max-width: 500px)');
+assert(mobileCss.includes('"title art rail"')
+  && mobileCss.includes('"value value rail"')
+  && mobileCss.includes('"delta delta rail"')
+  && mobileCss.includes('"kpis kpis kpis"')
+  && mobileCss.includes('"chart chart chart"'),
+  'mobile Uranium launcher must give copy, art, metrics, and chart separate grid rows');
+assert(mobileCss.includes('.uranium-entry-copy { display: contents; }')
+  && mobileCss.includes('.uranium-entry-copy .stat-description { display: none; }')
+  && mobileCss.includes('.uranium-entry-freshness { display: none; }')
+  && mobileCss.includes('transition: none !important;'),
+  'mobile Uranium launcher must prevent copy collisions and responsive price-size lag');
 for (const asset of [
   'assets/uranium/uranium-core-640.webp',
   'assets/uranium/uranium-core.webp',

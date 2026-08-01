@@ -15762,9 +15762,146 @@ async function smokeUraniumChamber(browser, baseUrl) {
     && launcherVisualState.objectFit === 'cover',
   `uranium chamber: compact launcher did not use the dedicated inanimate specimen ${JSON.stringify(launcherVisualState)}`);
   assert(launcherVisualState.card?.height <= 360 && launcherVisualState.front?.height <= 320
-    && launcherVisualState.art?.height <= 180 && launcherVisualState.image?.height === launcherVisualState.art?.height
+    && launcherVisualState.art?.height <= 180
+    && Math.abs((launcherVisualState.image?.height || 0) - launcherVisualState.art.height) <= 2
     && launcherVisualState.chart?.height <= 64 && /30D/i.test(launcherVisualState.chartText),
   `uranium chamber: compact launcher regained oversized art or whitespace ${JSON.stringify(launcherVisualState)}`);
+
+  const mobileLauncherCases = [
+    { width: 320, theme: 'clean' },
+    { width: 375, theme: 'valley' },
+    { width: 390, theme: 'matrix' },
+    { width: 375, theme: 'hen' },
+    { width: 390, theme: 'clean' }
+  ];
+  const mobileLauncherStates = [];
+  for (const { width, theme } of mobileLauncherCases) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.evaluate(async (activeTheme) => {
+      document.body.dataset.theme = activeTheme;
+      const capital = document.querySelector('.chamber-category[data-chamber-category="capital"]');
+      if (capital) capital.open = true;
+      await document.fonts?.ready;
+    }, theme);
+    mobileLauncherStates.push(await page.evaluate(() => {
+      const selectors = {
+        title: '.uranium-entry-title-line',
+        value: '.uranium-entry-value',
+        delta: '.uranium-entry-delta',
+        description: '.uranium-entry-copy .stat-description',
+        freshness: '.uranium-entry-freshness',
+        art: '.uranium-entry-art',
+        kpis: '.uranium-entry-kpis',
+        chart: '.uranium-entry-chart',
+        footer: '#uranium-entry-front > .chamber-entry-footer',
+        footerFreshness: '#uranium-entry-front > .chamber-entry-footer .chamber-entry-freshness',
+        footerCue: '#uranium-entry-front > .chamber-entry-footer .chamber-expand-cue'
+      };
+      const nodes = Object.fromEntries(Object.entries(selectors).map(([key, selector]) => [key, document.querySelector(selector)]));
+      const bounds = (element) => {
+        const rect = element?.getBoundingClientRect();
+        return rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height } : null;
+      };
+      const rects = Object.fromEntries(Object.entries(nodes).map(([key, node]) => [key, bounds(node)]));
+      const overlapArea = (a, b) => {
+        if (!a || !b || a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) return 0;
+        return Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+          * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      };
+      const visibleCopyKeys = ['title', 'value', 'delta', 'description', 'freshness']
+        .filter((key) => rects[key]?.width > 0 && rects[key]?.height > 0);
+      const firstRowBottom = Math.max(rects.art?.bottom || 0, ...visibleCopyKeys.map((key) => rects[key].bottom));
+      const front = document.querySelector('#uranium-entry-front');
+      const card = document.querySelector('#uranium-entry-card');
+      const cardStyle = card ? getComputedStyle(card) : null;
+      const valueStyle = nodes.value ? getComputedStyle(nodes.value) : null;
+      const titleStyle = nodes.title ? getComputedStyle(nodes.title.querySelector('.stat-label')) : null;
+      const kpiValueStyle = nodes.kpis ? getComputedStyle(nodes.kpis.querySelector('strong')) : null;
+      const borderChannels = cardStyle?.borderTopColor?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
+      const valueChannels = valueStyle?.color?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
+      const titleChannels = titleStyle?.color?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
+      const kpiValueChannels = kpiValueStyle?.color?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
+      const cardBounds = bounds(card);
+      return {
+        width: innerWidth,
+        theme: document.body.dataset.theme,
+        cardHeight: cardBounds?.height || 0,
+        cardFitsViewport: Boolean(cardBounds && cardBounds.left >= -1 && cardBounds.right <= innerWidth + 1),
+        pageOverflowX: document.documentElement.scrollWidth - innerWidth,
+        frontOverflowY: front ? front.scrollHeight - front.clientHeight : Infinity,
+        firstToKpis: rects.kpis ? rects.kpis.top - firstRowBottom : -Infinity,
+        kpisToChart: rects.kpis && rects.chart ? rects.chart.top - rects.kpis.bottom : -Infinity,
+        chartToFooter: rects.chart && rects.footer ? rects.footer.top - rects.chart.bottom : -Infinity,
+        overlaps: visibleCopyKeys.flatMap((key) => ['kpis', 'chart', 'footer'].map((target) => ({
+          pair: `${key}/${target}`,
+          area: overlapArea(rects[key], rects[target])
+        }))),
+        horizontalOverflow: ['title', 'value', 'delta'].map((key) => ({
+          key,
+          overflow: (nodes[key]?.scrollWidth || 0) - (nodes[key]?.clientWidth || 0)
+        })),
+        contained: [...visibleCopyKeys, 'art', 'kpis', 'chart', 'footer', 'footerFreshness', 'footerCue'].every((key) => (
+          !rects[key] || !bounds(front)
+            || (rects[key].left >= bounds(front).left - 1 && rects[key].right <= bounds(front).right + 1
+              && rects[key].top >= bounds(front).top - 1 && rects[key].bottom <= bounds(front).bottom + 1)
+        )),
+        descriptionVisible: rects.description?.width > 0 && rects.description?.height > 0,
+        footerFreshnessText: nodes.footerFreshness?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        footerFreshnessOverflow: (nodes.footerFreshness?.scrollWidth || 0) - (nodes.footerFreshness?.clientWidth || 0),
+        footerFreshnessCueOverlap: overlapArea(rects.footerFreshness, rects.footerCue),
+        metricText: nodes.kpis?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        highContrastMint: valueChannels.length === 3
+          && titleChannels.length === 3
+          && kpiValueChannels.length === 3
+          && valueChannels.every((channel) => channel >= 230)
+          && titleChannels.every((channel) => channel >= 210)
+          && kpiValueChannels.every((channel) => channel >= 225),
+        emeraldGlow: Boolean(cardStyle
+          && /radial-gradient/i.test(cardStyle.backgroundImage)
+          && cardStyle.boxShadow !== 'none'
+          && borderChannels.length === 3
+          && borderChannels[1] > borderChannels[0]
+          && borderChannels[1] > borderChannels[2])
+      };
+    }));
+  }
+  mobileLauncherStates.forEach((state, index) => {
+    const expected = mobileLauncherCases[index];
+    assert(state.width === expected.width && state.theme === expected.theme
+      && state.cardHeight > 0 && state.cardHeight <= 340
+      && state.cardFitsViewport
+      && state.pageOverflowX <= 1
+      && state.frontOverflowY <= 1
+      && state.firstToKpis >= 4
+      && state.kpisToChart >= 4
+      && state.chartToFooter >= 4
+      && state.overlaps.every(({ area }) => area <= 1)
+      && state.horizontalOverflow.every(({ overflow }) => overflow <= 1)
+      && state.contained
+      && !state.descriptionVisible
+      && state.footerFreshnessOverflow <= 1
+      && state.footerFreshnessCueOverlap <= 1
+      && /Kraken online|Kraken WebSocket|token market/i.test(state.footerFreshnessText)
+      && /U₃O₈ oracle/i.test(state.metricText)
+      && /Dated ratio/i.test(state.metricText)
+      && /Holders/i.test(state.metricText)
+      && state.highContrastMint
+      && state.emeraldGlow,
+    `uranium chamber: mobile glowing launcher geometry regressed ${JSON.stringify(state)}`);
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const cleanDesktopLauncher = await page.evaluate(() => {
+    document.body.dataset.theme = 'clean';
+    const card = document.querySelector('#uranium-entry-card');
+    const description = card?.querySelector('.stat-description');
+    const channels = description ? getComputedStyle(description).color.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [] : [];
+    return {
+      padding: card ? getComputedStyle(card).padding : '',
+      readableDescription: channels.length === 3 && channels.every((channel) => channel >= 175)
+    };
+  });
+  assert(cleanDesktopLauncher.padding === '0px' && cleanDesktopLauncher.readableDescription,
+    `uranium chamber: clean-theme desktop shell or description contrast regressed ${JSON.stringify(cleanDesktopLauncher)}`);
 
   const response = await page.goto(`${baseUrl}/?uranium-smoke=expanded#xu3o8`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `uranium chamber: hash route failed with HTTP ${response?.status()}`);

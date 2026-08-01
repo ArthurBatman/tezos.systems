@@ -34,7 +34,7 @@ import {
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
 import { findBakersByName } from './leaderboard.js';
 
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=542';
+const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=543';
 
 const RUNTIME_QUICK_CHIPS = [
     { label: 'KT1', value: 'KT1' },

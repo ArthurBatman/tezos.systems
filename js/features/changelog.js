@@ -5,6 +5,12 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-01',
+        entries: [
+            { type: '🎨', text: 'The mobile Uranium launcher now keeps a vivid emerald glow in every theme, separates its specimen, price, metrics, 30-day pulse, and controls into collision-free rows, and removes the empty lower band' }
+        ]
+    },
+    {
         date: '2026-07-31',
         entries: [
             { type: '✨', text: 'Uranium Chamber now unifies xU3O8 token markets, Kraken price discovery, the indicative uranium reference, physical custody receipts, Uranium.io context, and Etherlink state across four source-bounded views at /uranium/' },

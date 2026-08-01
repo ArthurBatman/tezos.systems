@@ -16,7 +16,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=542';
+const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=543';
 const URANIUM_SNAPSHOT_URL = '/data/uranium-snapshot.json';
 const URANIUM_ENTRY_SUMMARY_URL = '/data/uranium-entry-summary.json';
 const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2';
@@ -1433,19 +1433,22 @@ function entryMarkup(snapshot) {
     const kraken = krakenModel(snapshot);
     const physical = physicalModel(snapshot);
     const chain = chainModel(snapshot);
+    const marketFreshnessSource = kraken.status === 'online'
+        ? 'Kraken online'
+        : (kraken.sourceKind === 'direct' ? 'Kraken WebSocket' : 'token market');
     return `
         <div class="uranium-entry-copy">
             <div class="uranium-entry-title-line"><h2 class="stat-label" id="uranium-entry-title">Uranium</h2><span class="uranium-entry-chip">xU3O8</span><span class="uranium-entry-live ${statusClass(kraken.status)}">Kraken ${escapeHtml(kraken.status)}</span></div>
             <div class="stat-value uranium-entry-value">${escapeHtml(formatUsd(kraken.last ?? coin.price, { digits: 3 }))}</div>
             <div class="uranium-entry-delta ${directionClass(kraken.change24h)}">${escapeHtml(formatPct(kraken.change24h, { signed: true }))} <span>Kraken 24h</span></div>
             <div class="stat-description">Physical uranium meets Etherlink price discovery</div>
-            <div class="uranium-entry-freshness">${escapeHtml(formatFreshnessStamp(kraken.observedAt || coin.updatedAt || snapshot.generatedAt, { source: kraken.sourceKind === 'direct' ? 'Kraken WebSocket' : 'token market' }))}</div>
+            <div class="uranium-entry-freshness">${escapeHtml(formatFreshnessStamp(kraken.observedAt || coin.updatedAt || snapshot.generatedAt, { source: marketFreshnessSource }))}</div>
         </div>
         <div class="uranium-entry-art">${launcherPicture('is-entry')}</div>
         <div class="uranium-entry-kpis">
-            <span><small>Uranium oracle</small><strong>${escapeHtml(formatUsd(physical.oraclePrice))}/lb</strong></span>
-            <span><small>Dated representation</small><strong>${escapeHtml(formatNumber(physical.ouncesPerToken, 3))} oz/token</strong></span>
-            <span><small>Indexed holders</small><strong>${escapeHtml(formatNumber(chain.holders))}</strong></span>
+            <span><small>U₃O₈ oracle</small><strong>${escapeHtml(formatUsd(physical.oraclePrice))}/lb</strong></span>
+            <span><small>Dated ratio</small><strong>${escapeHtml(formatNumber(physical.ouncesPerToken, 3))} oz/token</strong></span>
+            <span><small>Holders</small><strong>${escapeHtml(formatNumber(chain.holders))}</strong></span>
         </div>
         <div class="uranium-entry-chart">${renderPriceChart(snapshot.market?.priceHistoryUsd, '30D', true)}</div>
     `;
@@ -1464,7 +1467,9 @@ function updateEntry(snapshot, { quiet = false } = {}) {
     else front.innerHTML = markup;
     front.dataset.uraniumRendered = '1';
     const card = document.getElementById('uranium-entry-card');
-    delete card?.dataset.updatedLabel;
+    const currentFreshness = front.querySelector('.uranium-entry-freshness')?.textContent?.trim() || '';
+    if (card && currentFreshness) card.dataset.updatedLabel = currentFreshness;
+    else delete card?.dataset.updatedLabel;
     window.syncChamberEntryFooters?.(card);
     wireEntry(card);
 }

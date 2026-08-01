@@ -453,8 +453,10 @@ inline modal styles in `js/core/app.js`.
   current contract controls. **Proofbook** (`?view=proofbook`) shows the dated
   physical balance, transparent reserve-pounds-to-token-supply arithmetic,
   custody, redemption, fees, rights, source clocks, and unavailable claims.
-  The compact launcher uses its own polished, inanimate light-green specimen;
-  the expanded room retains its playful mascot and explicit caveat that
+  The compact launcher uses its own polished, inanimate light-green specimen,
+  a theme-independent emerald glow, short current-market metrics, and a labeled
+  30-day pulse in a collision-free mobile layout. The expanded room retains its
+  playful mascot and explicit caveat that
   physical U3O8 is yellowcake concentrate, not a luminous rock. The launcher
   reads a compact integrity-checked projection; the complete proofbook loads
   only after the room opens and follows the quiet-refresh and last-good
