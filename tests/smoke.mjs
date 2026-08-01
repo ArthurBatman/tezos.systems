@@ -7766,13 +7766,13 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         && /Tezos X Mainnet/.test(presentation.text)
         && /Q3 2026 forecast/.test(presentation.text)
         && /EVM Node 0\.64 · Jul 30/i.test(presentation.text)
-        && /3 of 6 gates materially advanced/i.test(presentation.text)
-        && /Open full radar/i.test(presentation.text)
+        && !/gates materially advanced/i.test(presentation.text)
+        && /Full radar/i.test(presentation.text)
         && /Public Tezos X Etherlink kernel proposal or final-kernel declaration/.test(presentation.text),
       `release radar pulse ${label}: compact forecast summary or overlay action drifted ${JSON.stringify(presentation)}`
     );
     assert(
-      (label === 'mobile' ? presentation.cardWidth <= presentation.stripWidth + 1 : presentation.cardInsideStrip)
+      presentation.cardWidth <= presentation.stripWidth + 1
         && presentation.cardOverflow <= 1
         && presentation.pageOverflow <= 1
         && presentation.activeCount === 1
@@ -7781,15 +7781,16 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
     );
     if (label === 'desktop') {
       assert(
-        presentation.cardWidth >= 650
+        presentation.cardWidth >= 420
+          && presentation.cardWidth <= 600
           && presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.cardHeight <= 370,
+          && presentation.cardHeight <= 190,
         `release radar pulse desktop: compact priority geometry regressed ${JSON.stringify(presentation)}`
       );
     } else {
       assert(
         presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.cardHeight <= Math.min(460, viewport.height * 0.56),
+          && presentation.cardHeight <= Math.min(280, viewport.height * 0.4),
         `release radar pulse mobile: compact single-column geometry regressed ${JSON.stringify(presentation)}`
       );
     }
@@ -7890,6 +7891,19 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         `release radar pulse mobile: expanded grid geometry regressed ${JSON.stringify(overlayPresentation)}`
       );
     }
+
+    await page.evaluate(() => new Promise((resolve) => {
+      let previousY = window.scrollY;
+      let stableFrames = 0;
+      const observe = () => {
+        const currentY = window.scrollY;
+        stableFrames = Math.abs(currentY - previousY) <= 1 ? stableFrames + 1 : 0;
+        previousY = currentY;
+        if (stableFrames >= 2) resolve();
+        else requestAnimationFrame(observe);
+      };
+      requestAnimationFrame(observe);
+    }));
 
     const quietBefore = await page.evaluate(() => {
       const strip = document.querySelector('#hot-today-island .hot-today-strip');

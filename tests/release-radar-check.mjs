@@ -112,7 +112,8 @@ for (const snippet of [
 assert(dataAssets.includes("releaseRadar: '/data/release-radar.json'"), 'Release Radar must load as a same-origin no-store data asset');
 for (const snippet of [
   '.hot-today-card.hot-today-card-release',
-  '.release-radar-compact-lead',
+  '.release-radar-pulse-row',
+  '.release-radar-pulse-signals',
   '.release-radar-open',
   '.release-radar-overlay-content',
   '.release-radar-lane.is-exciting',

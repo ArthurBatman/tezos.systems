@@ -3616,7 +3616,6 @@ function renderReleaseRadarCard(signal, index) {
   const spectacleClass = ` is-spectacle-${safeCssToken(signal.spectacle)}`;
   const staleClass = radar.stale ? ' is-release-radar-stale' : '';
   const ageLabel = signalAgeLabel(signal);
-  const materiallyAdvanced = releaseRadarMateriallyAdvanced(main);
   const exciting = radar.candidates.find((candidate) => candidate.id === radar.excitingCandidateId)
     || radar.candidates.find((candidate) => candidate.lifecycle === 'released')
     || radar.candidates.find((candidate) => candidate.id !== main.id);
@@ -3640,29 +3639,23 @@ function renderReleaseRadarCard(signal, index) {
         </div>
       ` : ''}
 
-      <div class="release-radar-compact-lead">
-        <div class="release-radar-lead-copy">
+      <div class="release-radar-pulse-row">
+        <div class="release-radar-pulse-copy">
           <span>${radar.noCredibleSignal ? 'No credible near-term release signal detected' : 'Likely next major ship'}</span>
-          <h3>${escapeHtml(main.label)}</h3>
-          <p>${escapeHtml(main.summary)}</p>
+          <strong>${escapeHtml(main.label)}</strong>
         </div>
-        <div class="release-radar-confidence release-radar-confidence-${escapeHtml(main.confidence)}">
-          <small>Confidence</small>
-          <strong>${escapeHtml(main.confidence.toUpperCase())}</strong>
-          ${main.horizon ? `<span>${escapeHtml(main.horizon)}</span>` : ''}
+        <div class="release-radar-pulse-forecast">
+          <strong>${main.horizon ? escapeHtml(main.horizon) : 'Horizon pending'}</strong>
+          <span class="release-radar-confidence-${escapeHtml(main.confidence)}">${escapeHtml(main.confidence.toUpperCase())} confidence</span>
         </div>
-      </div>
-
-      <div class="release-radar-compact-signals">
-        <span class="release-radar-compact-blocker"><small>Blocking signal</small><strong>${escapeHtml(main.nextSignal)}</strong></span>
-        ${exciting ? `<span class="release-radar-compact-release"><small>${exciting.id === radar.excitingCandidateId ? 'Just shipped · exciting' : 'Adjacent release lane'}</small><strong>${escapeHtml(exciting.label)}${exciting.releasedAt ? ` · ${escapeHtml(releaseRadarDateLabel(exciting.releasedAt))}` : exciting.horizon ? ` · ${escapeHtml(exciting.horizon)}` : ''}</strong></span>` : ''}
-      </div>
-
-      <div class="release-radar-compact-footer">
-        <span><strong>${escapeHtml(`${materiallyAdvanced} of ${main.gates.length}`)}</strong> gates materially advanced <small>· no percentage implied</small></span>
-        <button class="release-radar-open" type="button" data-release-radar-open="${escapeHtml(signal.id)}" aria-haspopup="dialog" aria-controls="release-radar-overlay">
-          Open full radar <span aria-hidden="true">↗</span>
+        <button class="release-radar-open" type="button" data-release-radar-open="${escapeHtml(signal.id)}" aria-haspopup="dialog" aria-controls="release-radar-overlay" aria-label="Open full Release Radar">
+          Full radar <span aria-hidden="true">↗</span>
         </button>
+      </div>
+
+      <div class="release-radar-pulse-signals">
+        <span class="release-radar-pulse-blocker"><small>Waiting on</small><strong title="${escapeHtml(main.nextSignal)}">${escapeHtml(main.nextSignal)}</strong></span>
+        ${exciting ? `<span class="release-radar-pulse-release"><small>${exciting.id === radar.excitingCandidateId ? 'Shipped · exciting' : 'Adjacent lane'}</small><strong>${escapeHtml(exciting.label)}${exciting.releasedAt ? ` · ${escapeHtml(releaseRadarDateLabel(exciting.releasedAt))}` : exciting.horizon ? ` · ${escapeHtml(exciting.horizon)}` : ''}</strong></span>` : ''}
       </div>
     </article>
   `;
