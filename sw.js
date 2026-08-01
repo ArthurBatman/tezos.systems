@@ -6,7 +6,7 @@
  * so installing an update does not download the whole site.
  */
 
-const CACHE_NAME = 'tezos-systems-v537';
+const CACHE_NAME = 'tezos-systems-v539';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CURRENT_CACHES = new Set([CACHE_NAME, RUNTIME_CACHE]);
 
@@ -44,6 +44,14 @@ const API_HOSTS = new Set([
     'data.objkt.com',
     'explorer.etherlink.com',
     'node.mainnet.etherlink.com'
+]);
+
+// Generated Uranium market artifacts are always requested from the network.
+// The Chamber itself retains and labels its in-memory last-good snapshot; the
+// service worker must not make an older JSON response look like a fresh fetch.
+const NETWORK_ONLY_DATA_PATHS = new Set([
+    '/data/uranium-entry-summary.json',
+    '/data/uranium-snapshot.json'
 ]);
 
 const CDN_HOSTS = new Set([
@@ -175,6 +183,11 @@ self.addEventListener('fetch', (event) => {
                 .catch(() => caches.match(request)
                     .then((response) => response || new Response('Version unavailable', { status: 503, statusText: 'Service Unavailable' })))
         );
+        return;
+    }
+
+    if (url.origin === self.location.origin && NETWORK_ONLY_DATA_PATHS.has(url.pathname)) {
+        event.respondWith(apiNetworkFirst(request, event));
         return;
     }
 

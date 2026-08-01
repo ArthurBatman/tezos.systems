@@ -65,6 +65,7 @@ import { initLedgerFlowChamber } from '../features/ledger-flow.js';
 import { initTezosDomainsChamber } from '../features/tezos-domains.js';
 import { initNetworkPulseChamber } from '../features/network-pulse.js';
 import { initCapitalChamber } from '../features/capital-chamber.js';
+import { initUraniumChamber } from '../features/uranium-chamber.js';
 import { initEcosystemChamber } from '../features/ecosystem-chamber.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
@@ -126,8 +127,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=537';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=537';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=539';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=539';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -327,6 +328,7 @@ async function init() {
     safe('tz4AdoptionChamber', initTz4AdoptionChamber);
     safe('networkPulseChamber', initNetworkPulseChamber);
     safe('capitalChamber', initCapitalChamber);
+    safe('uraniumChamber', initUraniumChamber);
     safe('ecosystemChamber', initEcosystemChamber);
     safe('stakingChamber', initStakingChamber);
     safe('ctezChamber', initCtezChamber);
@@ -1528,6 +1530,7 @@ const CHAMBER_CARD_TARGETS = Object.freeze({
     health: { selector: '[data-stat="network-health"]', layout: 'standard' },
     tezosx: { selector: '#tezlink-entry-card', layout: 'standard' },
     capital: { selector: '#capital-entry-card', layout: 'featured' },
+    uranium: { selector: '#uranium-entry-card', layout: 'featured' },
     whales: { selector: '#whale-watch-entry-card', layout: 'wide' },
     'staking-chamber': { selector: '#staking-entry-card', layout: 'compact' },
     ecosystem: { selector: '#ecosystem-entry-card', layout: 'featured' },
@@ -1559,6 +1562,12 @@ const CHAMBER_INFO_COPY = {
         body: 'Cross-layer Tezos and Etherlink intelligence for network activity, markets, ecosystem assets, real-world assets, and the art economy.',
         href: '/capital/',
         link: 'Open Capital Chamber ->'
+    },
+    'uranium-entry-card': {
+        title: 'Uranium',
+        body: 'Receipt-backed xU3O8 markets, Etherlink token activity, and separately dated physical-uranium custody and reserve evidence.',
+        href: '/uranium/',
+        link: 'Open Uranium Chamber ->'
     },
     'ecosystem-entry-card': {
         title: 'Ecosystem Activity',
@@ -5636,6 +5645,7 @@ function initOfflineIndicator() {
 //   #chamber           → open Tezos L1 Governance modal
 //   #pulse             -> open Network Pulse Chamber
 //   #capital           -> open Capital Chamber
+//   #uranium           -> open Uranium Chamber (#xu3o8, #u3o8, and #uranium-market are aliases)
 //   #ecosystem         -> open Ecosystem Activity Chamber
 //   #staking           -> open Staking Chamber
 //   #tezosx           -> open Tezos X Chamber
@@ -5658,6 +5668,7 @@ function initOfflineIndicator() {
 //   /chamber/          → open Tezos L1 Governance modal without hash redirect
 //   /pulse/            -> open Network Pulse Chamber
 //   /capital/          -> open Capital Chamber
+//   /uranium/          -> open Uranium Chamber
 //   /ecosystem/        -> open Ecosystem Activity Chamber
 //   /whales/           -> open Whale Watch Chamber
 //   /stake/            -> open Staking Chamber
@@ -5941,6 +5952,7 @@ function applyDeepLink() {
             import('../features/network-health.js').then((module) => module.closeNetworkHealthChamber?.()),
             import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
             import('../features/capital-chamber.js').then((module) => module.closeCapitalChamber?.()),
+            import('../features/uranium-chamber.js').then((module) => module.closeUraniumChamber?.()),
             import('../features/ecosystem-chamber.js').then((module) => module.closeEcosystemChamber?.()),
             import('../features/staking-chamber.js').then((module) => module.closeStakingChamber?.()),
             import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
@@ -5990,6 +6002,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
                     'Failed to open Capital Chamber'
+                );
+                break;
+            case 'uranium':
+                openHashModal(
+                    () => import('../features/uranium-chamber.js').then(({ openUraniumChamber }) => openUraniumChamber()),
+                    'Failed to open Uranium Chamber'
                 );
                 break;
             case 'ecosystem':
@@ -6187,6 +6205,17 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
             'Failed to open Capital Chamber'
+        );
+    }
+
+    // #uranium / #xu3o8 / #u3o8 / #uranium-market
+    if (params.has('uranium') || hash === 'uranium'
+        || params.has('xu3o8') || hash === 'xu3o8'
+        || params.has('u3o8') || hash === 'u3o8'
+        || params.has('uranium-market') || hash === 'uranium-market') {
+        openHashModal(
+            () => import('../features/uranium-chamber.js').then(({ openUraniumChamber }) => openUraniumChamber()),
+            'Failed to open Uranium Chamber'
         );
     }
 
@@ -6436,6 +6465,7 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'protocol-history-chamber-modal': { entryIds: ['anthology'], hashes: ['protocol-history', 'protocol'] },
     'network-pulse-modal': { entryIds: ['pulse'], hashes: ['pulse', 'network-pulse'] },
     'capital-modal': { entryIds: ['capital'], hashes: ['capital'] },
+    'uranium-modal': { entryIds: ['uranium'], hashes: ['uranium', 'xu3o8', 'u3o8', 'uranium-market'] },
     'ecosystem-activity-modal': { entryIds: ['ecosystem'], hashes: ['ecosystem'] },
     'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants'] },
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },

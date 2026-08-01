@@ -32,7 +32,7 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=537';
+const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=539';
 const DEFAULT_WINDOW = '30d';
 const TRANSFER_PAGE_LIMIT = 10000;
 const EXACT_ROW_LIMIT = 20000;
@@ -1492,11 +1492,10 @@ async function loadLedgerFlow(rawTarget) {
         renderLedgerFlow(activeData, { quiet: true });
         setLoadStatus('');
     } catch (error) {
-        console.warn('Ledger Flow failed', error);
-        if (seq !== renderSeq) return;
         const abortedByNewLoad = error?.name === 'AbortError' && load.abortReason === 'superseded';
         const abortedByClose = error?.name === 'AbortError' && load.abortReason === 'closed';
-        if (abortedByNewLoad || abortedByClose) return;
+        if (seq !== renderSeq || abortedByNewLoad || abortedByClose) return;
+        console.warn('Ledger Flow failed', error);
         activeTarget = previous.target;
         activeLabel = previous.label;
         activeData = previous.data;

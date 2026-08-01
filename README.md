@@ -47,6 +47,7 @@ tezos.systems/
 │   ├── loading.css                    # Critical first-paint skeleton states
 │   ├── network-health.css             # Lazy Network Health detail-panel styles
 │   ├── capital.css                    # Lazy Capital Chamber styles
+│   ├── uranium-chamber.css            # Lazy Uranium market/proofbook styles
 │   ├── ecosystem.css                  # Lazy Ecosystem Activity Chamber styles
 │   ├── leaderboard.css                # Lazy Baker Directory Chamber styles
 │   ├── whale-chamber.css              # Lazy Whale Watch Chamber styles
@@ -80,6 +81,8 @@ tezos.systems/
 │   ├── chain-comparison-verification.json # Monthly double-check receipts for static comparison numbers
 │   ├── capital-snapshot.json          # Generated, source-receipted Capital snapshot
 │   ├── capital-entry-summary.json     # Compact integrity-checked Capital launcher projection
+│   ├── uranium-snapshot.json          # Generated xU3O8 market, physical-evidence, and chain proofbook
+│   ├── uranium-entry-summary.json     # Compact integrity-checked Uranium launcher projection
 │   ├── ecosystem-apps.json            # Reviewed L1/L2 app and contract-discovery manifest
 │   ├── ecosystem-stats.json           # Complete generated weekly dapp activity ledger
 │   ├── ecosystem-entry-summary.json   # Compact integrity-checked Ecosystem launcher projection
@@ -104,7 +107,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ capital/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ uranium/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -432,6 +435,22 @@ inline modal styles in `js/core/app.js`.
   Comprehensive community/X/podcast composites remain explicitly unavailable
   until licensed coverage and a versioned deduplication/sentiment methodology
   exist.
+- Uranium Chamber with direct `#uranium` and `/uranium/` access. **Core Sample**
+  connects the xU3O8 token, the separately dated Cameco contract-balance
+  statement, the non-executable Uranium.io uranium reference, and Etherlink
+  state without treating one as proof of another. **Markets**
+  (`?view=markets`) leads with Kraken's public XU3O8/USD pair, bounded book and
+  trade receipts, attributed venues, CoinGecko history, and an explicitly
+  derived premium or discount to the indicative physical reference.
+  **On-chain** (`?view=onchain`) keeps indexed addresses distinct from people,
+  separates the xU3O8 token from the Uranium.io app contract, and discloses
+  current contract controls. **Proofbook** (`?view=proofbook`) shows the dated
+  physical balance, transparent reserve-pounds-to-token-supply arithmetic,
+  custody, redemption, fees, rights, source clocks, and unavailable claims.
+  The glowing green specimen is intentionally stylized artwork: physical U3O8
+  is yellowcake concentrate, not a luminous rock. The launcher reads a compact
+  integrity-checked projection; the complete proofbook loads only after the
+  room opens and follows the quiet-refresh and last-good contracts.
 - Ecosystem Activity with direct `#ecosystem` and `/ecosystem/` access. It
   ranks the disclosed Tezos L1 and Etherlink app universe by distinct
   source-native wallet addresses in the last completed Monday-to-Monday UTC
@@ -936,6 +955,7 @@ Useful deep links include:
 - `#chambers`
 - `#pulse`
 - `#capital`
+- `#uranium`, `#xu3o8`, or `#u3o8`
 - `#ecosystem`
 - `#staking`
 - `#maxis`
@@ -952,7 +972,7 @@ Useful deep links include:
 - `#ctez`
 
 Public share routes are also available at `/chambers/`, `/my/`, `/chamber/`, `/pulse/`,
-`/capital/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
+`/capital/`, `/uranium/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
 `/tezoscrp/`, `/health/`, `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`,
 `/ledger-flow/`, `/domains/`, and `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -972,16 +992,19 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
 | Official Tezos, Ethereum, Solana, Cardano, and Algorand documentation plus source-native RPC samples | Monthly chain-comparison refresh; each published static number requires two distinct checks |
 | `data/chain-comparison-verification.json` | Same-origin monthly receipt ledger with the displayed value, observed source values, source hashes, check type, and fail-closed policy for every static comparison number |
-| CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, and public RWA token mappings |
+| CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, public RWA token mappings, and attributed xU3O8 venue/history context |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
 | OBJKT APIs | HEN mode's live Teia + OBJKT feed, My Tezos summary-first Collection holdings and profiles, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
-| DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories; DefiLlama currently indexes Tezos X as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; and Capital's current counters, daily activity, transaction fees, average user fees, gas-price history, and xU3O8 token receipts |
-| Uranium.io issuer documentation | Issuer-confirmed xU3O8 contract and decimals used by the Capital proofbook |
+| DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories plus Uranium.io protocol context; DefiLlama currently indexes Tezos X as Etherlink |
+| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; Capital's current counters, daily activity, transaction fees, average user fees, and gas-price history; and Uranium's xU3O8 supply, indexed addresses, controls, and bounded transfer receipts |
+| Kraken public API and official listing notice | XU3O8/USD pair identity, status, ticker, OHLC, book levels, and bounded public trade receipts; a market venue, not backing or redemption proof |
+| Uranium.io issuer documentation, oracle, and proof-of-reserves page | Issuer-confirmed xU3O8 contract and terms, indicative USD/lb uranium reference, and the dated Cameco contract-balance statement |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed Capital snapshot; full room data waits for an explicit Chamber open |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
+| `data/uranium-entry-summary.json` | Compact integrity-checked xU3O8 launcher projection; the complete market, chain, and physical-evidence proofbook waits for an explicit room open |
+| `data/uranium-snapshot.json` | Same-origin generated Uranium dataset with separate market, physical-reference, custody-document, protocol, and Etherlink clocks plus stable content and source receipts |
 | `data/ecosystem-apps.json` | Reviewed app identity, layer, start-time, contract-discovery, and proof manifest for the disclosed ranking universe |
 | `data/ecosystem-stats.json` | Same-origin generated weekly active-wallet and interaction history with stable content hash, frozen contract receipts, last-completed-week rankings, and a separate partial current-week pulse |
 | `data/ecosystem-entry-summary.json` | Compact, integrity-checked Ecosystem launcher projection; the complete weekly and per-app history waits for an explicit room open |
@@ -1016,6 +1039,7 @@ pretty Chamber route pages, `sitemap.xml`, root and per-Chamber share images,
 crawlable compare content, generated CSS bundles, the milestone catalog, and
 the Maxis artifact family plus its launcher projection,
 `data/capital-snapshot.json` plus its launcher projection,
+`data/uranium-snapshot.json` plus its launcher projection,
 `data/ecosystem-stats.json` plus its launcher projection,
 `data/whale-watch.json`, and the canonical `llms.txt` discovery document; manual full runs
 also check the official Tezos Commons feed for a new TezosCRP period. It also refreshes
@@ -1069,6 +1093,13 @@ exist. Scheduled/full generated runs refresh and optionally stage the snapshot;
 normal pre-commit runs validate the committed artifact without contacting every
 provider. The browser consumes that artifact and never silently upgrades stale
 or partial coverage into a current, comprehensive claim.
+`npm run refresh:uranium` rebuilds the Uranium snapshot and compact launcher
+projection from public Kraken, CoinGecko, Blockscout, DefiLlama, Uranium.io,
+and custody-document receipts. `npm run check:uranium` validates the committed
+schema, hashes, payload budgets, source clocks, contracts, physical statement,
+derived arithmetic, and market/physical-evidence boundaries without contacting those
+providers. Scheduled/full generated runs refresh and optionally stage both
+artifacts; normal pre-commit runs only validate them.
 `npm run refresh:ecosystem -- --backfill` exhaustively pages the aliased TzKT
 smart-contract and asset catalogs, resolves and freezes the reviewed contract
 universe, reconstructs every completed UTC week from the earliest declared app
@@ -1107,7 +1138,7 @@ the same orchestrator in
 commit mode so fast-moving generated outputs update with each normal commit.
 `.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
 every six hours and commits only when generated outputs change. Capital,
-Ecosystem Activity, Maxis, and Whale Watch surface that configured schedule
+Uranium, Ecosystem Activity, Maxis, and Whale Watch surface that configured schedule
 beside the artifact's actual generation or source-observation age; Capital also
 preserves the CoinGecko quote time and last-good status in its compact launcher.
 `.github/workflows/refresh-chain-comparison.yml` runs on the first day of each

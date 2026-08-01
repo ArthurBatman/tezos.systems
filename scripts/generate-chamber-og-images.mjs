@@ -73,6 +73,12 @@ function routeDetails(route, report) {
       chips: ['Tezos + Etherlink', 'markets + RWA', 'art economy'],
       body: 'Read cross-layer capital, XTZ market structure, ecosystem assets, real-world proofbooks, and Tezos art activity with visible source and coverage boundaries.'
     },
+    uranium: {
+      kicker: 'xU3O8 Market Intelligence',
+      value: 'Token tape. Physical receipts.',
+      chips: ['Kraken USD tape', 'Etherlink token state', 'dated reserve evidence'],
+      body: 'Follow xU3O8 prices, depth, and token state beside separately dated Cameco reserve evidence, custody terms, and derived physical-uranium ratios without mistaking one layer for the other.'
+    },
     ecosystem: {
       kicker: 'Dapp Intelligence',
       value: 'Weekly activity, through history',
@@ -189,7 +195,7 @@ function renderCard(route, report) {
     overflow: hidden;
     background:
       radial-gradient(circle at 20% 15%, ${route.accent}33 0, transparent 32%),
-      radial-gradient(circle at 88% 22%, #7c3aed2e 0, transparent 28%),
+      radial-gradient(circle at 88% 22%, ${route.secondaryAccent || '#7c3aed'}2e 0, transparent 28%),
       linear-gradient(135deg, #06111f 0%, #070b1a 48%, #12091d 100%);
     color: #eaf0ff;
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

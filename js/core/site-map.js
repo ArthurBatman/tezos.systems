@@ -99,6 +99,25 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.9' }
     },
     {
+        id: 'uranium',
+        title: 'Uranium',
+        href: '/uranium/',
+        hash: '#uranium',
+        hashAliases: ['#xu3o8', '#u3o8', '#uranium-market'],
+        group: 'Live Rooms',
+        chamberCategory: 'capital',
+        detail: 'xU3O8 markets and Etherlink token activity beside separately dated physical-uranium custody and reserve evidence',
+        keywords: ['uranium', 'uranium market', 'uranium price', 'physical uranium', 'yellowcake', 'u3o8', 'xu3o8', 'xU3O8', 'tokenized uranium', 'real world asset', 'rwa', 'kraken', 'etherlink', 'archax', 'cameco', 'redstone', 'proof of reserves'],
+        searchIntents: [
+            { id: 'uranium-overview', title: 'Uranium Overview', href: '/uranium/?view=overview', detail: 'Connect the xU3O8 market to its separately dated physical-uranium claim, sources, and risks', keywords: ['uranium overview', 'xu3o8 overview', 'tokenized uranium overview'], directory: true },
+            { id: 'uranium-markets', title: 'xU3O8 Markets', href: '/uranium/?view=markets', detail: 'Inspect Kraken USD and other attributed venue prices, spreads, depth, trades, and freshness', keywords: ['xu3o8 markets', 'kraken xu3o8', 'uranium token price', 'uranium order book', 'uranium liquidity'], directory: true },
+            { id: 'uranium-onchain', title: 'xU3O8 On-chain', href: '/uranium/?view=onchain', detail: 'Inspect Etherlink supply, indexed holder addresses, transfers, and current token control state', keywords: ['xu3o8 onchain', 'xu3o8 contract', 'uranium holders', 'uranium transfers', 'etherlink uranium'], directory: true },
+            { id: 'uranium-proofbook', title: 'Uranium Proofbook', href: '/uranium/?view=proofbook', detail: 'Read dated Cameco reserve evidence, custody and redemption terms, the indicative oracle, and derived ounces per token', keywords: ['uranium proofbook', 'uranium proof of reserves', 'cameco uranium', 'archax uranium', 'uranium custody', 'uranium redemption'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'hourly', priority: '0.9' }
+    },
+    {
         id: 'ecosystem',
         title: 'Ecosystem Activity',
         href: '/ecosystem/',
@@ -477,7 +496,7 @@ export const CHAMBER_CATEGORY_META = Object.freeze([
         key: 'capital',
         label: 'Capital',
         question: 'Where is value sitting and moving?',
-        entryIds: Object.freeze(['capital', 'whales', 'staking-chamber'])
+        entryIds: Object.freeze(['capital', 'uranium', 'whales', 'staking-chamber'])
     }),
     Object.freeze({
         key: 'ecosystem',
@@ -529,21 +548,22 @@ export const SITE_MAP_RELATIONS = {
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
     pulse: ['ecosystem', 'capital', 'health', 'hot-today'],
-    capital: ['ecosystem', 'tezosx', 'price', 'ledger-flow'],
+    capital: ['uranium', 'ecosystem', 'price', 'ledger-flow'],
+    uranium: ['capital', 'tezosx', 'price', 'whales'],
     ecosystem: ['capital', 'tezosx', 'history', 'maxis'],
     'staking-chamber': ['leaderboard', 'ledger-flow', 'staking', 'calculator'],
     maxis: ['tezoscrp', 'ledger-flow', 'domains', 'hen'],
     tezoscrp: ['maxis', 'anthology', 'hen', 'feed'],
     health: ['pulse', 'tz4', 'leaderboard', 'staking-chamber'],
     'liquidity-baking': ['chamber', 'pulse', 'staking', 'health'],
-    tezosx: ['l2-governance', 'pulse', 'compare', 'health'],
+    tezosx: ['uranium', 'l2-governance', 'pulse', 'compare'],
     'l2-governance': ['tezosx', 'chamber', 'anthology', 'pulse'],
     tz4: ['health', 'bakers-guide', 'pulse', 'staking-chamber'],
     'ledger-flow': ['my-tezos', 'whales', 'domains', 'ctez'],
     domains: ['my-tezos', 'ledger-flow', 'maxis', 'hen'],
     ctez: ['my-tezos', 'ledger-flow', 'staking', 'pulse'],
-    price: ['live-compare', 'history', 'pulse', 'snapshot'],
-    whales: ['ledger-flow', 'capital', 'staking-chamber', 'history'],
+    price: ['uranium', 'live-compare', 'history', 'snapshot'],
+    whales: ['uranium', 'ledger-flow', 'capital', 'history'],
     'hot-today': ['pulse', 'health', 'staking-chamber', 'maxis'],
     staking: ['staking-chamber', 'calculator', 'bakers-guide', 'ledger-flow'],
     'governance-guide': ['chamber', 'anthology', 'feed', 'my-tezos'],

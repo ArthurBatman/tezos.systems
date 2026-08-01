@@ -165,6 +165,34 @@
         }
       }
     },
+    "/data/uranium-snapshot.json": {
+      "get": {
+        "operationId": "getUraniumSnapshot",
+        "summary": "Get the complete Uranium Chamber snapshot",
+        "description": "xU3O8 token markets, Kraken public-tape context, an indicative physical-uranium reference, dated custody evidence, Uranium.io protocol context, and Etherlink token receipts kept on separate source clocks.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying venue, issuer, chain, document, and API facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/uranium-entry-summary.json": {
+      "get": {
+        "operationId": "getUraniumEntrySummary",
+        "summary": "Get the compact Uranium launcher projection",
+        "description": "The integrity-checked market, physical-reference, reserve-date, and Etherlink headline subset rendered before the complete Uranium room opens.",
+        "x-refresh-cadence": "After every Uranium snapshot refresh",
+        "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
     "/data/ecosystem-apps.json": {
       "get": {
         "operationId": "getEcosystemAppManifest",

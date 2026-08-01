@@ -64,6 +64,16 @@ export const CHAMBER_ROUTES = [
     accent: '#f49ad1'
   },
   {
+    slug: 'uranium',
+    hash: '#uranium',
+    title: 'Uranium - xU3O8 Markets and Dated Physical Evidence',
+    shortTitle: 'Uranium',
+    description: 'Inspect xU3O8 token markets and Etherlink state alongside issuer-described beneficial co-ownership terms and separately dated Cameco custody-balance evidence for physical U3O8.',
+    eyebrow: 'Emerald Market Intelligence',
+    accent: '#8cff65',
+    secondaryAccent: '#18d97f'
+  },
+  {
     slug: 'ecosystem',
     hash: '#ecosystem',
     title: 'Ecosystem Activity - Tezos and Etherlink Dapp Stats',

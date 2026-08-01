@@ -7,6 +7,10 @@ export const CHANGELOG = [
     {
         date: '2026-07-31',
         entries: [
+            { type: '✨', text: 'Uranium Chamber now unifies xU3O8 token markets, Kraken price discovery, the indicative uranium reference, physical custody receipts, Uranium.io context, and Etherlink state across four source-bounded views at /uranium/' },
+            { type: '🔧', text: 'Uranium integrity receipts now verify through a deterministic browser fallback on plain-HTTP LAN previews, so phones can open the Chamber without Web Crypto while corrupted artifacts still fail closed' },
+            { type: '🔧', text: 'Uranium market, venue, on-chain, and physical-representation claims now keep independent clocks and explicit boundaries, so a listing, wallet transfer, or dated custody statement can never impersonate another kind of evidence' },
+            { type: '🎨', text: 'Uranium launches through a cinematic glowing-core specimen and emerald commodities-terminal interface, with the artwork plainly labeled as stylized rather than a literal depiction of U3O8 yellowcake' },
             { type: '✨', text: 'Live Pulse now leads with a reviewed Release Radar for Tezos X, Octez, and EVM-node releases, including honest confidence, supported horizons, recent highlights, exact evidence, and the next blocking signal' },
             { type: '🔧', text: 'Tezos X readiness now keeps runtime, Previewnet, tooling, proposal, Etherlink governance, and production rollout separate, so an Octez or EVM-node release can never masquerade as mainnet progress' },
             { type: '🔧', text: 'Milestone refreshes now fall back to the official Octez archive when the primary RPC has pruned an exact historical cycle-boundary block' },

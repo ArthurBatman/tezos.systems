@@ -74,6 +74,7 @@ const browserRoutes = [
   '/chamber/',
   '/pulse/',
   '/capital/',
+  '/uranium/',
   '/ecosystem/',
   '/whales/',
   '/leaderboard/',
@@ -190,8 +191,8 @@ const EXPECTED_CHAMBER_CATEGORIES = [
     key: 'capital',
     label: 'Capital',
     question: 'Where is value sitting and moving?',
-    cards: ['capital-entry-card', 'whale-watch-entry-card', 'staking-entry-card'],
-    layouts: ['featured', 'wide', 'compact']
+    cards: ['capital-entry-card', 'uranium-entry-card', 'whale-watch-entry-card', 'staking-entry-card'],
+    layouts: ['featured', 'featured', 'wide', 'compact']
   },
   {
     key: 'ecosystem',
@@ -6880,7 +6881,7 @@ async function smokeStakingChamber(browser, baseUrl) {
     !cardState.wide
       && cardState.layout === 'compact'
       && cardState.category === 'capital'
-      && cardState.pairOrder.join(',') === 'capital-entry-card,whale-watch-entry-card,staking-entry-card'
+      && cardState.pairOrder.join(',') === 'capital-entry-card,uranium-entry-card,whale-watch-entry-card,staking-entry-card'
       && cardState.cardWidth > cardState.gridWidth * 0.3
       && cardState.cardWidth < cardState.gridWidth * 0.36
       && cardState.whaleWidth > cardState.cardWidth * 1.9,
@@ -15382,7 +15383,11 @@ async function smokeCapitalChamber(browser, baseUrl) {
   await mobilePage.waitForFunction(() => /Art/i.test(document.querySelector('#capital-modal .capital-tab[aria-selected="true"]')?.textContent || '')
     && /30D source window/i.test(document.querySelector('#capital-modal .capital-range-static')?.textContent || '')
     && document.querySelector('#capital-chamber-body')?.dataset.capitalRendered === '1', null, { timeout: 10000 });
-  await mobilePage.waitForTimeout(450);
+  await mobilePage.waitForFunction(() => (
+    document.querySelector('#capital-modal .capital-content')
+      ?.getAnimations()
+      .every((animation) => animation.playState === 'finished')
+  ), null, { timeout: 2000 });
   const mobileState = await mobilePage.evaluate(() => {
     const modal = document.querySelector('#capital-modal .capital-content');
     const body = document.querySelector('#capital-chamber-body');
@@ -15411,6 +15416,343 @@ async function smokeCapitalChamber(browser, baseUrl) {
   await context.close();
   assert(issues.length === 0, `capital chamber browser issues:\n${issues.join('\n')}`);
   log('ok - Capital Chamber source, views, quality, quiet refresh, and direct-route smoke');
+}
+
+async function smokeUraniumChamber(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+
+  let entryRequests = 0;
+  let snapshotRequests = 0;
+  let entryFixture = null;
+  let snapshotFixture = null;
+
+  await context.route('**/data/uranium-entry-summary.json*', async (route) => {
+    entryRequests += 1;
+    if (!entryFixture) {
+      const response = await route.fetch();
+      entryFixture = await response.json();
+    }
+    return fulfillJson(route, JSON.parse(JSON.stringify(entryFixture)));
+  });
+
+  await context.route('**/data/uranium-snapshot.json*', async (route) => {
+    snapshotRequests += 1;
+    if (!snapshotFixture) {
+      const response = await route.fetch();
+      snapshotFixture = await response.json();
+    }
+    const snapshot = JSON.parse(JSON.stringify(snapshotFixture));
+    if (snapshotRequests > 1) {
+      const revision = snapshotRequests - 1;
+      const observedAt = new Date(Date.parse(snapshotFixture.generatedAt) + revision * 60_000).toISOString();
+      const nextPrice = Number(snapshotFixture.market.kraken.ticker.lastPriceUsd) + revision * 0.01;
+      snapshot.generatedAt = observedAt;
+      snapshot.market.coin.currentPriceUsd = nextPrice;
+      snapshot.market.coin.lastUpdated = observedAt;
+      snapshot.market.kraken.ticker.lastUsd = nextPrice;
+      snapshot.market.kraken.ticker.lastPriceUsd = nextPrice;
+      snapshot.market.kraken.ticker.observedAt = observedAt;
+      snapshot.market.kraken.orderBook.observedAt = observedAt;
+      snapshot.sources.krakenMarket.status = 'stale';
+      snapshot.sources.krakenMarket.checkedAt = observedAt;
+      snapshot.sources.krakenMarket.error = 'Mocked upstream failure after a retained last-good receipt.';
+      const { contentHash: ignoredContentHash, ...unsigned } = snapshot;
+      snapshot.contentHash = stableTestHash(unsigned);
+    }
+    return fulfillJson(route, snapshot);
+  });
+
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    window.__URANIUM_CHAMBER_REFRESH_MS__ = 123457;
+    window.__uraniumSmokeVisibility = 'visible';
+    const nativeSetInterval = window.setInterval.bind(window);
+    window.setInterval = (callback, delay, ...args) => {
+      const timer = nativeSetInterval(callback, delay, ...args);
+      if (Number(delay) === window.__URANIUM_CHAMBER_REFRESH_MS__) {
+        window.__uraniumSmokeTimerTick = () => callback(...args);
+      }
+      return timer;
+    };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => window.__uraniumSmokeVisibility
+    });
+  });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'uranium chamber', issues);
+  const response = await page.goto(`${baseUrl}/#xu3o8`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `uranium chamber: hash route failed with HTTP ${response?.status()}`);
+  await page.locator('#uranium-modal.active .uranium-content').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => (
+    document.querySelector('#uranium-chamber-body')?.dataset.uraniumRendered === '1'
+      && document.querySelectorAll('#uranium-modal .uranium-tab').length === 4
+  ), null, { timeout: 10000 });
+
+  const shellState = await page.evaluate(() => {
+    const modal = document.querySelector('#uranium-modal');
+    const content = modal?.querySelector('.uranium-content');
+    const tabs = Array.from(modal?.querySelectorAll('.uranium-tab') || []);
+    const panel = modal?.querySelector('#uranium-view-panel');
+    return {
+      hash: location.hash,
+      role: content?.getAttribute('role') || '',
+      modal: content?.getAttribute('aria-modal') || '',
+      labelledBy: content?.getAttribute('aria-labelledby') || '',
+      focusInside: Boolean(content?.contains(document.activeElement)),
+      tabListRole: modal?.querySelector('.uranium-tabs')?.getAttribute('role') || '',
+      tabRoles: tabs.map((tab) => tab.getAttribute('role') || ''),
+      tabIds: tabs.map((tab) => tab.dataset.uraniumView || ''),
+      selected: tabs.filter((tab) => tab.getAttribute('aria-selected') === 'true').map((tab) => tab.dataset.uraniumView),
+      panelRole: panel?.getAttribute('role') || '',
+      panelLabelledBy: panel?.getAttribute('aria-labelledby') || '',
+      text: panel?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(shellState.hash === '#xu3o8', `uranium chamber: alias hash was not retained ${JSON.stringify(shellState)}`);
+  assert(shellState.role === 'dialog' && shellState.modal === 'true' && shellState.labelledBy === 'uranium-title' && shellState.focusInside,
+    `uranium chamber: dialog semantics or initial focus missing ${JSON.stringify(shellState)}`);
+  assert(shellState.tabListRole === 'tablist' && shellState.tabRoles.every((role) => role === 'tab')
+    && JSON.stringify(shellState.tabIds) === JSON.stringify(['overview', 'markets', 'onchain', 'proofbook'])
+    && JSON.stringify(shellState.selected) === JSON.stringify(['overview'])
+    && shellState.panelRole === 'tabpanel' && shellState.panelLabelledBy === 'uranium-tab-overview',
+  `uranium chamber: view semantics missing ${JSON.stringify(shellState)}`);
+  assert(/xU3O8/i.test(shellState.text) && /token market/i.test(shellState.text)
+    && /physical/i.test(shellState.text) && /Etherlink/i.test(shellState.text)
+    && /Uranium\.io describes/i.test(shellState.text) && /Dated statement/i.test(shellState.text),
+    `uranium chamber: overview boundaries missing ${shellState.text}`);
+
+  await page.evaluate(() => {
+    window.__uraniumSmokeVisibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction(() => typeof window.__uraniumSmokeTimerTick === 'function', null, { timeout: 3000 });
+  const requestsBeforeHiddenTick = snapshotRequests;
+  await page.evaluate(() => window.__uraniumSmokeTimerTick());
+  await page.waitForTimeout(50);
+  assert(snapshotRequests === requestsBeforeHiddenTick,
+    `uranium chamber: hidden tab polled the full snapshot ${JSON.stringify({ requestsBeforeHiddenTick, snapshotRequests })}`);
+
+  await page.locator('#uranium-tab-markets').click();
+  const marketsState = await page.evaluate(() => {
+    const panel = document.querySelector('#uranium-view-panel');
+    return {
+      selected: document.querySelector('#uranium-tab-markets')?.getAttribute('aria-selected'),
+      labelledBy: panel?.getAttribute('aria-labelledby') || '',
+      text: panel?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      bookRows: panel?.querySelectorAll('.uranium-book-row').length || 0,
+      tradeRows: panel?.querySelectorAll('.uranium-table tbody tr').length || 0,
+      price: panel?.querySelector('.uranium-live-quote strong')?.textContent?.trim() || ''
+    };
+  });
+  assert(marketsState.selected === 'true' && marketsState.labelledBy === 'uranium-tab-markets'
+    && /Kraken listing/i.test(marketsState.text) && /Public order book/i.test(marketsState.text)
+    && marketsState.bookRows > 0 && marketsState.tradeRows > 0 && /^\$/.test(marketsState.price),
+  `uranium chamber: Markets view is incomplete ${JSON.stringify(marketsState)}`);
+
+  await page.locator('#uranium-tab-onchain').click();
+  const onchainState = await page.evaluate(() => {
+    const panel = document.querySelector('#uranium-view-panel');
+    return {
+      selected: document.querySelector('#uranium-tab-onchain')?.getAttribute('aria-selected'),
+      text: panel?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      holders: panel?.querySelectorAll('.uranium-chain-grid .uranium-table tbody tr').length || 0,
+      contracts: Array.from(panel?.querySelectorAll('.uranium-address-compare code') || []).map((node) => node.textContent?.trim() || '')
+    };
+  });
+  assert(onchainState.selected === 'true' && /Etherlink mainnet/i.test(onchainState.text)
+    && /address is not necessarily a person/i.test(onchainState.text) && /different/i.test(onchainState.text)
+    && onchainState.holders > 0 && onchainState.contracts.length === 2 && onchainState.contracts[0] !== onchainState.contracts[1],
+  `uranium chamber: On-chain identity boundaries are incomplete ${JSON.stringify(onchainState)}`);
+
+  await page.locator('#uranium-tab-proofbook').click();
+  const proofbookState = await page.evaluate(() => {
+    const panel = document.querySelector('#uranium-view-panel');
+    const text = panel?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    return {
+      selected: document.querySelector('#uranium-tab-proofbook')?.getAttribute('aria-selected'),
+      text,
+      evidenceClockHeader: Array.from(panel?.querySelectorAll('th') || []).some((node) => node.textContent?.trim() === 'Evidence clock'),
+      clocks: Array.from(panel?.querySelectorAll('.uranium-source-clock') || []).map((node) => node.textContent?.replace(/\s+/g, ' ').trim() || '')
+    };
+  });
+  assert(proofbookState.selected === 'true' && proofbookState.evidenceClockHeader
+    && proofbookState.clocks.some((text) => /Statement as at/i.test(text))
+    && proofbookState.clocks.some((text) => /Announced live/i.test(text))
+    && proofbookState.clocks.some((text) => /Reviewed/i.test(text))
+    && /Issuer documents name/i.test(proofbookState.text) && /not independent legal conclusions/i.test(proofbookState.text),
+  `uranium chamber: Proofbook clocks or issuer attribution are incomplete ${JSON.stringify(proofbookState)}`);
+
+  await page.locator('#uranium-tab-markets').click();
+  const quietBefore = await page.evaluate(() => {
+    const body = document.querySelector('#uranium-chamber-body');
+    const header = body?.querySelector('.uranium-header');
+    const panel = body?.querySelector('#uranium-view-panel');
+    const focus = body?.querySelector('#uranium-tab-markets');
+    const quote = panel?.querySelector('.uranium-live-quote strong');
+    const textNode = panel?.querySelector('.uranium-market-lockup p')?.firstChild;
+    if (!body || !header || !panel || !focus || !quote || !textNode) throw new Error('uranium quiet-refresh fixture is incomplete');
+    body.scrollTop = Math.min(320, Math.max(0, body.scrollHeight - body.clientHeight));
+    focus.focus({ preventScroll: true });
+    const selection = document.getSelection();
+    selection.removeAllRanges();
+    const range = document.createRange();
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, Math.min(10, textNode.textContent.length));
+    selection.addRange(range);
+    delete body.dataset.quietRefreshSettled;
+    window.__uraniumQuietHeader = header;
+    window.__uraniumQuietPanel = panel;
+    window.__uraniumQuietFocus = focus;
+    window.__uraniumQuietQuote = quote;
+    return {
+      top: body.scrollTop,
+      selection: selection.toString(),
+      price: quote.textContent?.trim() || ''
+    };
+  });
+  assert(quietBefore.top > 0 && quietBefore.selection.length > 0,
+    `uranium chamber: quiet-refresh fixture did not exercise scroll and selection ${JSON.stringify(quietBefore)}`);
+
+  const requestsBeforeResume = snapshotRequests;
+  await page.evaluate(() => {
+    window.__uraniumSmokeVisibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction(() => document.querySelector('#uranium-chamber-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 6000 });
+  const requestDeadline = Date.now() + 6000;
+  while (snapshotRequests <= requestsBeforeResume && Date.now() < requestDeadline) await page.waitForTimeout(25);
+  assert(snapshotRequests === requestsBeforeResume + 1,
+    `uranium chamber: visibility resume did not perform exactly one catch-up ${JSON.stringify({ requestsBeforeResume, snapshotRequests })}`);
+  await page.waitForTimeout(80);
+
+  const quietAfter = await page.evaluate(() => {
+    const body = document.querySelector('#uranium-chamber-body');
+    const header = body?.querySelector('.uranium-header');
+    const panel = body?.querySelector('#uranium-view-panel');
+    const focus = body?.querySelector('#uranium-tab-markets');
+    const quote = panel?.querySelector('.uranium-live-quote strong');
+    const headerStyle = header ? getComputedStyle(header) : null;
+    const tabStyle = focus ? getComputedStyle(focus) : null;
+    return {
+      sameHeader: header === window.__uraniumQuietHeader,
+      samePanel: panel === window.__uraniumQuietPanel,
+      sameFocus: focus === window.__uraniumQuietFocus,
+      sameQuote: quote === window.__uraniumQuietQuote,
+      focused: document.activeElement === window.__uraniumQuietFocus,
+      selected: focus?.getAttribute('aria-selected') || '',
+      selection: document.getSelection()?.toString() || '',
+      top: body?.scrollTop || 0,
+      price: quote?.textContent?.trim() || '',
+      marketStatus: panel?.querySelector('.uranium-live-quote .uranium-status')?.textContent?.trim() || '',
+      freshness: body?.querySelector('#uranium-freshness')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      settled: body?.dataset.quietRefreshSettled === 'true' && !body?.dataset.quietRefreshing,
+      animation: headerStyle?.animationName || '',
+      opacity: headerStyle?.opacity || '',
+      transform: headerStyle?.transform || '',
+      transitionsSettled: (tabStyle?.transitionDuration || '').split(',').every((duration) => Number.parseFloat(duration) === 0)
+    };
+  });
+  assert(quietAfter.sameHeader && quietAfter.samePanel && quietAfter.sameFocus && quietAfter.sameQuote && quietAfter.focused,
+    `uranium chamber: quiet refresh replaced keyed or focused nodes ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.selected === 'true' && quietAfter.selection === quietBefore.selection,
+    `uranium chamber: quiet refresh lost the selected view or text selection ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(Math.abs(quietAfter.top - quietBefore.top) < 1,
+    `uranium chamber: quiet refresh moved nested scroll ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.price !== quietBefore.price,
+    `uranium chamber: mocked fresh quote was not reconciled ${JSON.stringify({ quietBefore, quietAfter })}`);
+  assert(quietAfter.marketStatus === 'stale' && /Kraken .*stale/i.test(quietAfter.freshness),
+    `uranium chamber: retained last-good Kraken data stayed falsely green ${JSON.stringify(quietAfter)}`);
+  assert(quietAfter.settled && quietAfter.animation === 'none' && quietAfter.opacity === '1'
+    && quietAfter.transform === 'none' && quietAfter.transitionsSettled,
+  `uranium chamber: quiet refresh replayed or stranded animation state ${JSON.stringify(quietAfter)}`);
+
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#uranium-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await context.close();
+  assert(entryRequests > 0 && snapshotRequests >= 2,
+    `uranium chamber: mocked entry/full receipts were not both exercised ${JSON.stringify({ entryRequests, snapshotRequests })}`);
+  assert(issues.length === 0, `uranium chamber browser issues:\n${issues.join('\n')}`);
+
+  const lanIssues = [];
+  const lanContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(lanContext);
+  await lanContext.addInitScript(() => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    Object.defineProperty(globalThis.crypto, 'subtle', {
+      configurable: true,
+      value: undefined
+    });
+  });
+  const lanPage = await lanContext.newPage();
+  lanPage.on('console', (message) => {
+    if (!['warning', 'warn', 'error'].includes(message.type()) || !/Uranium Chamber/i.test(message.text())) return;
+    lanIssues.push(`uranium chamber LAN HTTP console ${message.type()}: ${message.text()}`);
+  });
+  lanPage.on('pageerror', (error) => {
+    lanIssues.push(`uranium chamber LAN HTTP pageerror: ${error.message}`);
+  });
+  lanPage.on('requestfailed', (request) => {
+    if (!/\/data\/uranium-(?:entry-summary|snapshot)\.json/.test(request.url())) return;
+    lanIssues.push(`uranium chamber LAN HTTP request failed: ${request.failure()?.errorText || 'failed'} ${request.url()}`);
+  });
+  const lanResponse = await lanPage.goto(`${baseUrl}/uranium/`, { waitUntil: 'domcontentloaded' });
+  assert(lanResponse?.ok(), `uranium chamber LAN HTTP: pretty route failed with HTTP ${lanResponse?.status()}`);
+  await lanPage.locator('#uranium-modal.active .uranium-content').waitFor({ state: 'visible', timeout: 15000 });
+  await lanPage.waitForFunction(() => (
+    document.querySelector('#uranium-chamber-body')?.dataset.uraniumRendered === '1'
+      && document.querySelectorAll('#uranium-modal .uranium-tab').length === 4
+      && performance.getEntriesByType('resource').some(({ name }) => name.includes('/data/uranium-entry-summary.json'))
+      && performance.getEntriesByType('resource').some(({ name }) => name.includes('/data/uranium-snapshot.json'))
+  ), null, { timeout: 10000 });
+  const lanState = await lanPage.evaluate(() => {
+    const modal = document.querySelector('#uranium-modal .uranium-content');
+    const body = document.querySelector('#uranium-chamber-body');
+    const rect = modal?.getBoundingClientRect();
+    const resources = performance.getEntriesByType('resource').map(({ name }) => name);
+    return {
+      protocol: location.protocol,
+      subtleAvailable: Boolean(globalThis.crypto?.subtle),
+      rendered: body?.dataset.uraniumRendered === '1',
+      retryButtons: body?.querySelectorAll('[data-uranium-retry]').length || 0,
+      text: body?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      modal: rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null,
+      tabsContained: Array.from(document.querySelectorAll('#uranium-modal .uranium-tab')).every((tab) => {
+        const tabRect = tab.getBoundingClientRect();
+        return tabRect.left >= -1 && tabRect.right <= innerWidth + 1;
+      }),
+      nestedScroll: Boolean(body && body.scrollHeight > body.clientHeight),
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      loadedEntryArtifact: resources.some((name) => name.includes('/data/uranium-entry-summary.json')),
+      loadedSnapshotArtifact: resources.some((name) => name.includes('/data/uranium-snapshot.json'))
+    };
+  });
+  assert(lanState.protocol === 'http:' && !lanState.subtleAvailable,
+    `uranium chamber LAN HTTP: no-SubtleCrypto fixture was not active ${JSON.stringify(lanState)}`);
+  assert(lanState.rendered && lanState.retryButtons === 0 && /xU3O8/i.test(lanState.text)
+    && lanState.loadedEntryArtifact && lanState.loadedSnapshotArtifact,
+  `uranium chamber LAN HTTP: real integrity-checked artifacts did not render ${JSON.stringify(lanState)}`);
+  assert(lanState.modal && lanState.modal.left >= -1 && lanState.modal.right <= 391
+    && lanState.modal.top >= -1 && lanState.modal.bottom <= 845
+    && lanState.tabsContained && lanState.nestedScroll && lanState.pageOverflow <= 1,
+  `uranium chamber LAN HTTP: mobile room escaped the 390x844 viewport ${JSON.stringify(lanState)}`);
+  await lanContext.close();
+  assert(lanIssues.length === 0, `uranium chamber LAN HTTP browser issues:\n${lanIssues.join('\n')}`);
+  log('ok - Uranium Chamber views, LAN HTTP integrity fallback, hidden gating, and quiet-refresh reading state');
 }
 
 async function smokeEcosystemActivity(browser, baseUrl) {
@@ -23337,7 +23679,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   assert(refreshState.selection === refreshState.expectedSelection && refreshState.selection.length > 0, `Chamber organization lost reader selection: ${JSON.stringify(refreshState)}`);
   assert(refreshState.scrollDelta <= 1, `Chamber organization moved page scroll: ${JSON.stringify(refreshState)}`);
   assert(refreshState.openCategories.join(',') === 'network,capital,people', `background refresh reset disclosure state: ${JSON.stringify(refreshState)}`);
-  assert(refreshState.categoryCount === 7 && refreshState.cardCount === 18, `late card organization duplicated categories or entries: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.categoryCount === 7 && refreshState.cardCount === 19, `late card organization duplicated categories or entries: ${JSON.stringify(refreshState)}`);
   assert(refreshState.passiveAnimations.length === 0, `ordinary freshness/live cards still animate their perimeter: ${JSON.stringify(refreshState.passiveAnimations)}`);
 
   response = await page.goto(`${baseUrl}/history/?theme=matrix`, { waitUntil: 'domcontentloaded' });
@@ -23459,6 +23801,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'launcher-projections', description: 'Capital, Ecosystem Activity, and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
+    { name: 'uranium-chamber', description: 'Uranium Chamber opens its xU3O8 routes, verifies real artifacts without SubtleCrypto on mobile LAN HTTP, gates hidden polling, and preserves quiet reading state', run: () => smokeUraniumChamber(browser, baseUrl) },
     { name: 'ecosystem-activity', description: 'Completed-week dapp rankings, partial pulse, full history, app proofbooks, direct routing, responsive layout, and quiet refresh', run: () => smokeEcosystemActivity(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },
