@@ -7,10 +7,10 @@
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    min-height: 340px;
+    min-height: 286px;
     border-color: color-mix(in srgb, var(--uranium) 36%, var(--border-color, #334155));
     background:
-        radial-gradient(circle at 75% 50%, rgba(126, 255, 55, .18), transparent 29%),
+        radial-gradient(circle at 86% 38%, rgba(0, 230, 118, .16), transparent 24%),
         radial-gradient(circle at 3% 100%, rgba(30, 169, 90, .14), transparent 42%),
         linear-gradient(135deg, rgba(8, 18, 13, .98), rgba(5, 12, 10, .98));
     box-shadow: 0 18px 55px rgba(0, 0, 0, .24), 0 0 32px rgba(108, 255, 42, .05) inset;
@@ -46,10 +46,13 @@
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(230px, .85fr);
-    grid-template-rows: minmax(0, 1fr) auto 68px;
-    gap: 6px 18px;
+    grid-template:
+        "copy kpis art" 150px
+        "chart chart chart" 50px /
+        minmax(260px, 1.18fr) minmax(180px, .72fr) minmax(190px, .58fr);
+    gap: 9px 16px;
     height: 100%;
+    min-height: inherit;
 }
 
 .uranium-entry-copy {
@@ -57,6 +60,7 @@
     z-index: 2;
     align-self: center;
     min-width: 0;
+    grid-area: copy;
 }
 
 .uranium-entry-title-line {
@@ -92,9 +96,9 @@
 .uranium-entry-live.is-bad { color: #ff9aa9; border-color: rgba(255, 113, 132, .34); }
 
 .uranium-entry-value {
-    margin-top: 14px;
+    margin-top: 10px;
     color: #f1ffe7;
-    font-size: clamp(2.45rem, 5vw, 4rem);
+    font-size: clamp(2.35rem, 4vw, 3.45rem);
     line-height: .96;
     letter-spacing: -.075em;
     text-shadow: 0 0 25px rgba(157, 255, 74, .13);
@@ -113,17 +117,23 @@
 .uranium-entry-delta.is-flat { color: #d2ddd5; }
 
 .uranium-entry-freshness {
-    margin-top: 6px;
+    margin-top: 5px;
     color: #687d6f;
     font: 500 9px/1.35 "JetBrains Mono", monospace;
 }
 
+.uranium-entry-copy .stat-description {
+    margin-top: 7px;
+    font-size: .82rem;
+    line-height: 1.35;
+}
+
 .uranium-entry-art {
     position: relative;
-    grid-row: 1 / span 2;
-    grid-column: 2;
+    grid-area: art;
+    align-self: stretch;
     min-width: 0;
-    min-height: 210px;
+    min-height: 0;
 }
 
 .uranium-entry-art::before {
@@ -138,14 +148,15 @@
 
 .uranium-entry-kpis {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-column: 1 / -1;
-    gap: 7px;
+    grid-area: kpis;
+    grid-template-columns: 1fr;
+    align-self: center;
+    gap: 5px;
 }
 
 .uranium-entry-kpis > span {
     min-width: 0;
-    padding: 8px 10px;
+    padding: 7px 9px;
     border: 1px solid rgba(157, 255, 74, .13);
     border-radius: 9px;
     background: rgba(2, 10, 6, .52);
@@ -173,14 +184,26 @@
 }
 
 .uranium-entry-chart {
-    grid-column: 1 / -1;
+    grid-area: chart;
     min-width: 0;
-    height: 68px;
-    padding: 4px 7px;
+    height: 50px;
+    padding: 3px 7px;
     overflow: hidden;
     border: 1px solid rgba(157, 255, 74, .12);
     border-radius: 9px;
     background: linear-gradient(90deg, rgba(157, 255, 74, .055), rgba(2, 10, 6, .24));
+}
+
+#chambers-grid .uranium-entry-card,
+#chambers-grid .uranium-entry-card[data-chamber-layout] {
+    height: auto !important;
+    min-height: 286px !important;
+}
+
+#chambers-grid .uranium-entry-card > .card-inner,
+#chambers-grid .uranium-entry-card > .card-inner > .uranium-entry-front {
+    height: auto !important;
+    min-height: 0;
 }
 
 .uranium-overlay {
@@ -533,8 +556,17 @@
     backdrop-filter: blur(6px);
 }
 
-.uranium-core-stage.is-entry { height: 100%; min-height: 210px; }
-.uranium-core-stage.is-entry img { object-fit: contain; filter: saturate(1.08) contrast(1.04); }
+.uranium-core-stage.is-entry {
+    height: 100%;
+    min-height: 0;
+    border-radius: 12px;
+    background: radial-gradient(circle at 50% 45%, rgba(0, 230, 118, .08), transparent 64%);
+}
+.uranium-core-stage.is-entry img {
+    object-fit: cover;
+    object-position: center 53%;
+    filter: saturate(1.06) contrast(1.04);
+}
 .uranium-core-stage.is-entry figcaption { display: none; }
 
 .uranium-panel,
@@ -720,18 +752,86 @@
 .uranium-range button[aria-pressed="true"] { color: #d8ffca; background: rgba(157, 255, 74, .11); box-shadow: 0 0 12px rgba(157, 255, 74, .06) inset; }
 
 .uranium-chart { position: relative; min-width: 0; }
-.uranium-chart svg { display: block; width: 100%; height: 260px; overflow: visible; }
-.uranium-chart.is-compact svg { height: 58px; }
+.uranium-chart svg { display: block; width: 100%; height: 320px; overflow: visible; }
+.uranium-chart.is-compact,
+.uranium-chart.is-compact svg { height: 100%; }
+.uranium-chart.is-interactive { margin-top: 12px; padding-top: 74px; }
 .uranium-chart-grid { stroke: rgba(157, 255, 74, .08); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .uranium-chart-area { opacity: .85; }
 .uranium-chart-line { fill: none; stroke: #9dff4a; stroke-width: 2.2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px rgba(157, 255, 74, .3)); }
 .uranium-chart-end { fill: #07100a; stroke: #c6ff8f; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .uranium-chart text { fill: #687c6f; font: 8px "JetBrains Mono", monospace; }
 
-.uranium-chart-summary { position: absolute; z-index: 2; top: 12px; left: 68px; display: grid; gap: 3px; pointer-events: none; }
+.uranium-chart-summary { position: absolute; z-index: 2; top: 0; left: 0; display: grid; gap: 3px; max-width: calc(100% - 330px); pointer-events: none; }
 .uranium-chart-summary span { color: #697c6f; font: 650 8px/1.2 "JetBrains Mono", monospace; text-transform: uppercase; }
 .uranium-chart-summary strong { color: #dfffd1; font: 720 1rem/1.1 "JetBrains Mono", monospace; }
-.uranium-chart-summary small { color: #64766a; font: 500 8px/1.2 "JetBrains Mono", monospace; }
+.uranium-chart-summary small { color: #64766a; font: 500 8px/1.35 "JetBrains Mono", monospace; }
+
+.uranium-chart-readout {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    display: grid;
+    justify-items: end;
+    min-width: 300px;
+    max-width: 48%;
+    padding: 8px 10px;
+    border: 1px solid rgba(157, 255, 74, .13);
+    border-radius: 8px;
+    background: rgba(2, 9, 5, .78);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .17);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+}
+
+.uranium-chart-readout time { color: #6f8275; font: 650 8px/1.3 "JetBrains Mono", monospace; text-transform: uppercase; }
+.uranium-chart-readout strong { margin-top: 3px; color: #e6ffdc; font: 730 1.05rem/1.05 "JetBrains Mono", monospace; letter-spacing: -.035em; }
+.uranium-chart-readout span,
+.uranium-chart-readout small { color: #8b9d90; font: 500 8px/1.35 "JetBrains Mono", monospace; text-align: right; }
+.uranium-chart-readout small { color: #677a6d; }
+
+.uranium-chart-volume-axis { stroke: rgba(157, 255, 74, .12); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.uranium-chart-volume-bar { fill: rgba(117, 245, 204, .2); }
+.uranium-chart-crosshair line { stroke: rgba(222, 255, 204, .5); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.uranium-chart-crosshair circle { fill: #061009; stroke: #e0ffcd; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.uranium-chart-hitbox { cursor: crosshair; }
+.uranium-chart-hitbox:focus-visible { stroke: #d6ffbf; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.uranium-chart-event line { stroke: rgba(255, 198, 109, .44); stroke-width: 1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+.uranium-chart-event text { fill: #ffc66d; font-size: 7px; }
+
+.uranium-chart-provenance {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 14px;
+    margin: 2px 2px 0 72px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(157, 255, 74, .08);
+    color: #6d7f72;
+    font: 500 8px/1.35 "JetBrains Mono", monospace;
+}
+
+.uranium-chart-provenance b { color: #adc1b1; font-weight: 700; }
+.uranium-chart-provenance em { margin-left: 2px; font-style: normal; }
+.uranium-chart-provenance > span:nth-child(2) { text-align: right; }
+.uranium-chart-provenance small { grid-column: 1 / -1; color: #607166; }
+
+.uranium-chart-compact-meta {
+    position: absolute;
+    z-index: 2;
+    top: 2px;
+    left: 4px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(2, 9, 5, .68);
+    pointer-events: none;
+}
+
+.uranium-chart-compact-meta span { color: #789080; font: 650 7px/1.2 "JetBrains Mono", monospace; letter-spacing: .05em; text-transform: uppercase; }
+.uranium-chart-compact-meta strong { font: 720 8px/1.2 "JetBrains Mono", monospace; }
 
 .uranium-chart-empty {
     display: grid;
@@ -887,6 +987,13 @@ html[data-theme="clean"] .uranium-contract-card { border-color: rgba(44, 130, 55
 html[data-theme="clean"] .uranium-table { color: #46634d; }
 html[data-theme="clean"] .uranium-table th { color: #54715a; background: rgba(50, 132, 60, .06); }
 html[data-theme="clean"] .uranium-table td { border-color: rgba(44, 130, 55, .1); }
+html[data-theme="clean"] .uranium-chart-readout,
+html[data-theme="clean"] .uranium-chart-compact-meta { border-color: rgba(44, 130, 55, .16); background: rgba(248, 255, 249, .88); }
+html[data-theme="clean"] .uranium-chart-readout strong { color: #173e22; }
+html[data-theme="clean"] .uranium-chart-readout span,
+html[data-theme="clean"] .uranium-chart-readout small,
+html[data-theme="clean"] .uranium-chart-readout time,
+html[data-theme="clean"] .uranium-chart-provenance { color: #58715d; }
 
 @media (max-width: 1120px) {
     .uranium-metric-grid.is-market { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -914,10 +1021,40 @@ html[data-theme="clean"] .uranium-table td { border-color: rgba(44, 130, 55, .1)
 }
 
 @media (min-width: 760px) and (max-width: 1179px) {
-    #chambers-grid .uranium-entry-card.chamber-entry-wide { min-height: 400px; height: auto; }
+    #chambers-grid .uranium-entry-card,
+    #chambers-grid .uranium-entry-card.chamber-entry-wide,
+    #chambers-grid .uranium-entry-card[data-chamber-layout] { min-height: 318px !important; height: auto !important; }
+    .uranium-entry-front {
+        grid-template:
+            "copy art" 140px
+            "kpis kpis" 43px
+            "chart chart" 48px /
+            minmax(0, 1fr) minmax(170px, .54fr);
+        gap: 7px 14px;
+    }
+    .uranium-entry-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .uranium-entry-chart { height: 48px; }
 }
 
 @media (max-width: 700px) {
+    #chambers-grid .uranium-entry-card,
+    #chambers-grid .uranium-entry-card.chamber-entry-wide,
+    #chambers-grid .uranium-entry-card[data-chamber-layout] { min-height: 304px !important; height: auto !important; }
+    .uranium-entry-front {
+        grid-template:
+            "copy art" 126px
+            "kpis kpis" 42px
+            "chart chart" 46px /
+            minmax(0, 1fr) minmax(112px, .42fr);
+        gap: 7px 9px;
+    }
+    .uranium-entry-copy { align-self: start; }
+    .uranium-entry-value { margin-top: 8px; font-size: clamp(2.1rem, 10vw, 2.75rem); }
+    .uranium-entry-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .uranium-entry-kpis > span { padding: 6px 7px; }
+    .uranium-entry-kpis strong { font-size: 9px; }
+    .uranium-entry-chart { height: 46px; }
+    .uranium-core-stage.is-entry { min-height: 0; }
     .uranium-overlay { padding: 0; }
     .uranium-content { flex: 0 0 100vw; width: 100vw; height: 100dvh; max-height: 100dvh !important; padding: 0 !important; border: 0; border-radius: 0; }
     .uranium-header { padding: 14px 48px 0 13px; }
@@ -940,8 +1077,24 @@ html[data-theme="clean"] .uranium-table td { border-color: rgba(44, 130, 55, .1)
     .uranium-panel-head > .uranium-status,
     .uranium-panel-head > .uranium-range { margin-top: 9px; }
     .uranium-price-panel { overflow: hidden; }
-    .uranium-chart svg { height: 210px; }
-    .uranium-chart-summary { left: 12px; }
+    .uranium-chart.is-interactive { padding-top: 0; }
+    .uranium-chart.is-interactive svg { height: 240px; margin-top: 10px; }
+    .uranium-chart.is-interactive text { font-size: 10px; }
+    .uranium-chart.is-interactive .uranium-chart-event text { font-size: 9px; }
+    .uranium-chart-summary { position: static; max-width: none; }
+    .uranium-chart-readout {
+        position: static;
+        justify-items: start;
+        min-width: 0;
+        max-width: none;
+        margin-top: 8px;
+        pointer-events: none;
+    }
+    .uranium-chart-readout span,
+    .uranium-chart-readout small { text-align: left; }
+    .uranium-chart-provenance { grid-template-columns: 1fr; margin: 8px 0 0; }
+    .uranium-chart-provenance > span:nth-child(2) { text-align: left; }
+    .uranium-chart-provenance small { grid-column: auto; }
     .uranium-order-book { grid-template-columns: 1fr; }
     .uranium-table { min-width: 560px; }
     .uranium-app-boundary { grid-template-columns: 1fr; }
@@ -955,15 +1108,18 @@ html[data-theme="clean"] .uranium-table td { border-color: rgba(44, 130, 55, .1)
 }
 
 @media (max-width: 500px) {
-    .uranium-entry-front { grid-template-columns: 1fr; grid-template-rows: auto 145px auto 58px; }
-    .uranium-entry-copy { grid-column: 1; grid-row: 1; }
-    .uranium-entry-art { grid-column: 1; grid-row: 2; min-height: 145px; }
-    .uranium-core-stage.is-entry { min-height: 145px; }
-    .uranium-entry-kpis { grid-row: 3; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .uranium-entry-front {
+        padding-top: 1.1rem !important;
+        grid-template:
+            "copy art" 122px
+            "kpis kpis" 42px
+            "chart chart" 44px /
+            minmax(0, 1fr) minmax(96px, .4fr);
+    }
     .uranium-entry-kpis > span { padding-inline: 7px; }
     .uranium-entry-kpis strong { font-size: 9px; }
-    .uranium-entry-chart { grid-row: 4; height: 58px; }
-    .uranium-entry-value { font-size: 2.8rem; }
+    .uranium-entry-chart { height: 44px; }
+    .uranium-entry-value { font-size: 2.35rem; }
     .uranium-metric-grid,
     .uranium-metric-grid.is-market { grid-template-columns: 1fr 1fr; }
     .uranium-control-grid { grid-template-columns: 1fr 1fr; }

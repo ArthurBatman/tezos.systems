@@ -18,7 +18,9 @@ export const CHANGELOG = [
             { type: '🎨', text: 'Release Radar now keeps Live Pulse compact while a dedicated full-screen briefing opens all three release lanes, six Tezos X gates, dependency boundaries, recent artifacts, status history, evidence, and methodology' },
             { type: '🎨', text: 'Release Radar now fits a modestly oversized priority card with the next ship, horizon, confidence, complete blocker, and latest exciting release visible before opening the full briefing' },
             { type: '🎨', text: 'Uranium now greets the market through a cute cartoon rock mascot with a vivid emerald-energy glow, while its caption keeps the artwork clearly separate from literal U3O8 yellowcake' },
-            { type: '🔧', text: 'Your Story now uses one properly sized Show changes action and carries its unseen-only filter into Transactions instead of repeating a narrow duplicate inside the recent chapter' }
+            { type: '🔧', text: 'Your Story now uses one properly sized Show changes action and carries its unseen-only filter into Transactions instead of repeating a narrow duplicate inside the recent chapter' },
+            { type: '🎨', text: 'The compact Uranium launcher now uses a polished light-emerald specimen instead of a character, with a much shallower layout and a labeled 30-day pulse; the playful mascot remains inside the expanded room' },
+            { type: '✨', text: 'Uranium Markets now separates live Kraken ticker and intraday candles from listing-bounded and CoinGecko daily history, with 24H through 1Y ranges, price and volume, visible axes, exact-point inspection, and honest source coverage' }
         ]
     },
     {

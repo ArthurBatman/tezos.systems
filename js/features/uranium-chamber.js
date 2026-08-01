@@ -16,10 +16,12 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=539';
+const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=542';
 const URANIUM_SNAPSHOT_URL = '/data/uranium-snapshot.json';
 const URANIUM_ENTRY_SUMMARY_URL = '/data/uranium-entry-summary.json';
+const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
+const DEFAULT_KRAKEN_RECONNECT_MS = 30 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STALE_AFTER_MS = 8 * 60 * 60 * 1000;
 
@@ -47,10 +49,11 @@ const SOURCE_STATUS_LABELS = Object.freeze({
 });
 
 const RANGES = Object.freeze([
-    { id: '7D', label: '7D', days: 7 },
-    { id: '30D', label: '30D', days: 30 },
-    { id: '90D', label: '90D', days: 90 },
-    { id: '1Y', label: '1Y', days: 365 }
+    { id: '24H', label: '24H', days: 1, source: 'kraken', intervalMinutes: 5 },
+    { id: '7D', label: '7D', days: 7, source: 'kraken', intervalMinutes: 15 },
+    { id: '30D', label: '30D', days: 30, source: 'coinGecko', intervalMinutes: 1440 },
+    { id: '90D', label: '90D', days: 90, source: 'coinGecko', intervalMinutes: 1440 },
+    { id: '1Y', label: '1Y', days: 365, source: 'coinGecko', intervalMinutes: 1440 }
 ]);
 const RANGE_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
 
@@ -61,6 +64,13 @@ let lastEntrySummary = null;
 let lastRefreshError = '';
 let activeFetch = null;
 let activeEntryFetch = null;
+let liveKrakenMarket = null;
+let liveKrakenError = '';
+let krakenSocket = null;
+let krakenHistorySocket = null;
+let krakenReconnectTimer = null;
+let krakenHistoryReconnectTimer = null;
+let krakenReconcileTimer = null;
 let uraniumCssReady = null;
 let chamberTimer = null;
 let visibilityReady = false;
@@ -68,6 +78,8 @@ let refreshDeferred = false;
 let entryRefreshDeferred = false;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
+const chartLookupState = new Map();
+const chartSeriesRegistry = new Map();
 
 function numeric(value) {
     if (value === null || value === undefined || value === '') return null;
@@ -366,6 +378,233 @@ function fetchUraniumEntrySummary() {
     return activeEntryFetch;
 }
 
+function krakenWebSocketAllowed() {
+    if (typeof WebSocket !== 'function') return false;
+    const policy = document.querySelector('meta[http-equiv="Content-Security-Policy" i]')?.content || '';
+    if (!policy) return true;
+    const connectSource = policy.split(';').map((part) => part.trim()).find((part) => part.startsWith('connect-src')) || '';
+    return connectSource.includes('wss://ws.kraken.com') || /(?:^|\s)\*(?:\s|$)/.test(connectSource);
+}
+
+function krakenReconnectInterval() {
+    const override = numeric(window.__URANIUM_KRAKEN_RECONNECT_MS__);
+    return override !== null && override >= 1000 ? override : DEFAULT_KRAKEN_RECONNECT_MS;
+}
+
+function normalizeKrakenSocketCandle(row) {
+    const timestamp = firstText(row?.interval_begin, row?.timestamp);
+    return {
+        date: timestamp.slice(0, 10),
+        timestamp,
+        openUsd: firstNumeric(row?.open),
+        highUsd: firstNumeric(row?.high),
+        lowUsd: firstNumeric(row?.low),
+        closeUsd: firstNumeric(row?.close),
+        vwapUsd: firstNumeric(row?.vwap),
+        volume: firstNumeric(row?.volume),
+        trades: firstNumeric(row?.trades)
+    };
+}
+
+function reconcileLiveKrakenDom() {
+    krakenReconcileTimer = null;
+    if (!lastSnapshot || document.visibilityState !== 'visible') return;
+    updateEntry(lastSnapshot, { quiet: true });
+    if (document.getElementById('uranium-modal')?.classList.contains('active')) {
+        renderBody(lastSnapshot, { quiet: true });
+    }
+}
+
+function scheduleLiveKrakenReconcile() {
+    if (krakenReconcileTimer || document.visibilityState !== 'visible') return;
+    krakenReconcileTimer = window.setTimeout(reconcileLiveKrakenDom, 200);
+}
+
+function retainKrakenSocketError(message) {
+    liveKrakenError = firstText(message, 'Kraken WebSocket unavailable.');
+    if (liveKrakenMarket) {
+        liveKrakenMarket = { ...liveKrakenMarket, status: 'stale', checkedAt: new Date().toISOString(), error: liveKrakenError };
+        scheduleLiveKrakenReconcile();
+    }
+}
+
+function retainKrakenHistoryError(message) {
+    liveKrakenMarket = {
+        ...(liveKrakenMarket || {}),
+        intervalStatuses: { ...(liveKrakenMarket?.intervalStatuses || {}), 15: 'stale' },
+        historyError: firstText(message, 'Kraken 15-minute history unavailable.'),
+        checkedAt: new Date().toISOString()
+    };
+    scheduleLiveKrakenReconcile();
+}
+
+function ingestKrakenSocketMessage(message) {
+    if (!message || typeof message !== 'object') return false;
+    if (message.success === false) {
+        retainKrakenSocketError(firstText(message.error, 'Kraken subscription failed.'));
+        return false;
+    }
+    if (!['ticker', 'ohlc'].includes(message.channel) || !Array.isArray(message.data)) return false;
+    const checkedAt = new Date().toISOString();
+    if (message.channel === 'ticker') {
+        const row = message.data.find((item) => item?.symbol === 'XU3O8/USD') || message.data[0];
+        if (!row) return false;
+        const volume24hTokens = firstNumeric(row.volume);
+        const vwapUsd24h = firstNumeric(row.vwap);
+        liveKrakenMarket = {
+            ...(liveKrakenMarket || {}),
+            status: 'ok',
+            checkedAt,
+            error: '',
+            ticker: {
+                observedAt: firstText(row.timestamp, checkedAt),
+                lastUsd: firstNumeric(row.last),
+                lastPriceUsd: firstNumeric(row.last),
+                highUsd24h: firstNumeric(row.high),
+                lowUsd24h: firstNumeric(row.low),
+                vwapUsd24h,
+                volume24h: volume24hTokens,
+                volume24hTokens,
+                volume24hUsd: volume24hTokens !== null && vwapUsd24h !== null ? volume24hTokens * vwapUsd24h : null,
+                change24hPct: firstNumeric(row.change_pct),
+                trades24h: firstNumeric(row.trades),
+                askUsd: firstNumeric(row.ask),
+                bidUsd: firstNumeric(row.bid)
+            }
+        };
+        liveKrakenError = '';
+    } else {
+        const nextByInterval = { ...(liveKrakenMarket?.ohlcByInterval || {}) };
+        const intervalStatuses = { ...(liveKrakenMarket?.intervalStatuses || {}) };
+        for (const row of message.data.filter((item) => item?.symbol === 'XU3O8/USD' || !item?.symbol)) {
+            const candle = normalizeKrakenSocketCandle(row);
+            const interval = String(firstNumeric(row?.interval, 5));
+            if (!candle.timestamp || candle.closeUsd === null) continue;
+            intervalStatuses[interval] = 'ok';
+            const previous = Array.isArray(nextByInterval[interval]) ? [...nextByInterval[interval]] : [];
+            const existingIndex = previous.findIndex((item) => item.timestamp === candle.timestamp);
+            if (existingIndex >= 0) previous[existingIndex] = candle;
+            else previous.push(candle);
+            previous.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+            nextByInterval[interval] = previous.slice(-720);
+        }
+        liveKrakenMarket = {
+            ...(liveKrakenMarket || {}),
+            status: 'ok',
+            checkedAt,
+            error: '',
+            ohlcByInterval: nextByInterval,
+            intervalStatuses
+        };
+        liveKrakenError = '';
+    }
+    scheduleLiveKrakenReconcile();
+    return true;
+}
+
+function stopKrakenStream({ reconnect = false } = {}) {
+    if (krakenReconnectTimer) window.clearTimeout(krakenReconnectTimer);
+    if (krakenHistoryReconnectTimer) window.clearTimeout(krakenHistoryReconnectTimer);
+    krakenReconnectTimer = null;
+    krakenHistoryReconnectTimer = null;
+    if (krakenReconcileTimer) window.clearTimeout(krakenReconcileTimer);
+    krakenReconcileTimer = null;
+    const sockets = [krakenSocket, krakenHistorySocket].filter(Boolean);
+    krakenSocket = null;
+    krakenHistorySocket = null;
+    for (const socket of sockets) {
+        socket.__uraniumIntentionalClose = !reconnect;
+        if (socket.readyState === WebSocket.CONNECTING) continue;
+        try { socket.close(1000, 'Uranium Chamber paused'); } catch { /* already closed */ }
+    }
+}
+
+function krakenStreamAllowed() {
+    return krakenWebSocketAllowed()
+        && document.visibilityState === 'visible'
+        && document.getElementById('uranium-modal')?.classList.contains('active');
+}
+
+function startKrakenPrimaryStream() {
+    if (!krakenStreamAllowed()
+        || krakenSocket?.readyState === WebSocket.OPEN
+        || krakenSocket?.readyState === WebSocket.CONNECTING) return;
+    const socket = new WebSocket(KRAKEN_WS_URL);
+    krakenSocket = socket;
+    socket.addEventListener('open', () => {
+        if (socket !== krakenSocket || !krakenStreamAllowed()) {
+            socket.__uraniumIntentionalClose = true;
+            try { socket.close(1000, 'Uranium Chamber paused'); } catch { /* already closed */ }
+            return;
+        }
+        socket.send(JSON.stringify({ method: 'subscribe', params: { channel: 'ticker', symbol: ['XU3O8/USD'], event_trigger: 'bbo', snapshot: true }, req_id: 1 }));
+        socket.send(JSON.stringify({ method: 'subscribe', params: { channel: 'ohlc', symbol: ['XU3O8/USD'], interval: 5, snapshot: true }, req_id: 2 }));
+    });
+    socket.addEventListener('message', (event) => {
+        if (socket !== krakenSocket) return;
+        try {
+            ingestKrakenSocketMessage(JSON.parse(event.data));
+        } catch {
+            retainKrakenSocketError('Kraken WebSocket returned an unreadable update.');
+        }
+    });
+    socket.addEventListener('error', () => retainKrakenSocketError('Kraken WebSocket connection failed.'));
+    socket.addEventListener('close', () => {
+        if (socket !== krakenSocket) return;
+        krakenSocket = null;
+        if (socket.__uraniumIntentionalClose) return;
+        retainKrakenSocketError('Kraken WebSocket disconnected; retaining the last good quote.');
+        if (krakenStreamAllowed()) {
+            krakenReconnectTimer = window.setTimeout(startKrakenPrimaryStream, krakenReconnectInterval());
+        }
+    });
+}
+
+function startKrakenHistoryStream() {
+    if (!krakenStreamAllowed()
+        || krakenHistorySocket?.readyState === WebSocket.OPEN
+        || krakenHistorySocket?.readyState === WebSocket.CONNECTING) return;
+    const socket = new WebSocket(KRAKEN_WS_URL);
+    krakenHistorySocket = socket;
+    socket.addEventListener('open', () => {
+        if (socket !== krakenHistorySocket || !krakenStreamAllowed()) {
+            socket.__uraniumIntentionalClose = true;
+            try { socket.close(1000, 'Uranium Chamber paused'); } catch { /* already closed */ }
+            return;
+        }
+        socket.send(JSON.stringify({ method: 'subscribe', params: { channel: 'ohlc', symbol: ['XU3O8/USD'], interval: 15, snapshot: true }, req_id: 3 }));
+    });
+    socket.addEventListener('message', (event) => {
+        if (socket !== krakenHistorySocket) return;
+        try {
+            const message = JSON.parse(event.data);
+            if (message?.success === false) {
+                retainKrakenHistoryError(firstText(message.error, 'Kraken 15-minute history subscription failed.'));
+                return;
+            }
+            ingestKrakenSocketMessage(message);
+        } catch {
+            retainKrakenHistoryError('Kraken 15-minute history returned an unreadable update.');
+        }
+    });
+    socket.addEventListener('error', () => retainKrakenHistoryError('Kraken 15-minute history connection failed.'));
+    socket.addEventListener('close', () => {
+        if (socket !== krakenHistorySocket) return;
+        krakenHistorySocket = null;
+        if (socket.__uraniumIntentionalClose) return;
+        retainKrakenHistoryError('Kraken 15-minute history disconnected; retaining the last good chart.');
+        if (krakenStreamAllowed()) {
+            krakenHistoryReconnectTimer = window.setTimeout(startKrakenHistoryStream, krakenReconnectInterval());
+        }
+    });
+}
+
+function startKrakenStream() {
+    if (!krakenStreamAllowed()) return;
+    startKrakenPrimaryStream();
+    startKrakenHistoryStream();
+}
+
 function coinModel(snapshot) {
     const coin = snapshot?.market?.coin || {};
     const ticker = snapshot?.market?.kraken?.ticker || {};
@@ -379,12 +618,23 @@ function coinModel(snapshot) {
 }
 
 function krakenModel(snapshot) {
-    const kraken = snapshot?.market?.kraken || {};
+    const generated = snapshot?.market?.kraken || {};
+    const live = liveKrakenMarket;
+    const generatedIntervals = {
+        ...(generated.ohlcByInterval || {}),
+        ...(Array.isArray(generated.ohlc5m) ? { 5: generated.ohlc5m } : {}),
+        ...(Array.isArray(generated.ohlc15m) ? { 15: generated.ohlc15m } : {})
+    };
+    const kraken = {
+        ...generated,
+        ticker: live?.ticker || generated.ticker,
+        orderBook: live?.orderBook || generated.orderBook
+    };
     const ticker = kraken.ticker || {};
     const pair = kraken.pair || {};
     const book = kraken.orderBook || {};
     const receipt = sourceReceiptFor(snapshot, 'krakenMarket');
-    const receiptStatus = sourceStatus(snapshot, 'krakenMarket');
+    const receiptStatus = live?.ticker ? live.status : sourceStatus(snapshot, 'krakenMarket');
     const venueStatus = firstText(pair.status, kraken.status, 'unavailable');
     const bids = Array.isArray(book.bids) ? book.bids : [];
     const asks = Array.isArray(book.asks) ? book.asks : [];
@@ -398,12 +648,17 @@ function krakenModel(snapshot) {
         status: receiptStatus === 'ok' ? venueStatus : receiptStatus,
         venueStatus,
         sourceStatus: receiptStatus,
-        sourceCheckedAt: firstText(receipt.checkedAt),
+        sourceCheckedAt: firstText(live?.checkedAt, receipt.checkedAt),
+        sourceKind: live?.ticker ? 'direct' : 'generated',
+        sourceError: firstText(liveKrakenError, live?.error),
         minimumOrder: firstNumeric(pair.orderMinimum, pair.ordermin, kraken.orderMinimum),
         tickSize: firstNumeric(pair.tickSizeUsd, pair.tickSize, kraken.tickSizeUsd),
         last: firstNumeric(ticker.lastPriceUsd, ticker.lastUsd, ticker.last, ticker.close),
         change24h: firstNumeric(ticker.change24hPct, ticker.priceChange24hPct,
             ticker.openUsd ? ((firstNumeric(ticker.lastUsd, ticker.last) / ticker.openUsd) - 1) * 100 : null),
+        high24h: firstNumeric(ticker.highUsd24h, ticker.high24h, ticker.high),
+        low24h: firstNumeric(ticker.lowUsd24h, ticker.low24h, ticker.low),
+        vwap24h: firstNumeric(ticker.vwapUsd24h, ticker.vwap24h, ticker.vwap),
         volume24h: firstNumeric(ticker.volume24hUsd, ticker.vwapVolumeUsd, ticker.volumeUsd,
             ticker.volume24h && ticker.vwapUsd24h ? ticker.volume24h * ticker.vwapUsd24h : null),
         volume24hTokens: firstNumeric(ticker.volume24hTokens, ticker.volume24h),
@@ -413,11 +668,13 @@ function krakenModel(snapshot) {
         spreadPct,
         bids,
         asks,
-        observedAt: firstText(book.observedAt, ticker.observedAt, snapshot?.market?.clock?.krakenRetrievedAt, snapshot?.market?.clock?.observedAt),
-        firstTradeAt: firstText(kraken.firstTradeAt, kraken.firstTrade?.timestamp),
-        firstTrade: kraken.firstTrade || {},
-        recentTrades: Array.isArray(kraken.recentTrades) ? kraken.recentTrades : [],
-        ohlc: Array.isArray(kraken.ohlc) ? kraken.ohlc : (Array.isArray(kraken.ohlcDaily) ? kraken.ohlcDaily : [])
+        observedAt: firstText(live?.ticker?.observedAt, ticker.observedAt, book.observedAt, snapshot?.market?.clock?.krakenRetrievedAt, snapshot?.market?.clock?.observedAt),
+        bookObservedAt: firstText(book.observedAt, snapshot?.market?.clock?.krakenRetrievedAt),
+        firstTradeAt: firstText(generated.firstTradeAt, generated.firstTrade?.timestamp),
+        firstTrade: generated.firstTrade || {},
+        recentTrades: Array.isArray(generated.recentTrades) ? generated.recentTrades : [],
+        ohlc: Array.isArray(generated.ohlc) ? generated.ohlc : (Array.isArray(generated.ohlcDaily) ? generated.ohlcDaily : []),
+        ohlcByInterval: { ...generatedIntervals, ...(live?.ohlcByInterval || {}) }
     };
 }
 
@@ -474,16 +731,65 @@ function protocolModel(snapshot) {
     };
 }
 
-function normalizeHistory(rows) {
-    return (Array.isArray(rows) ? rows : []).map((row) => ({
-        date: firstText(row?.date, row?.timestamp),
-        timestamp: Date.parse(firstText(row?.date, row?.timestamp)),
-        value: firstNumeric(row?.value, row?.priceUsd, row?.close, row?.[4])
-    })).filter((row) => Number.isFinite(row.timestamp) && row.value !== null).sort((a, b) => a.timestamp - b.timestamp);
+function intervalLabel(minutes) {
+    if (minutes === 1440) return 'daily';
+    if (minutes === 60) return 'hourly';
+    return `${formatNumber(minutes)}m`;
 }
 
-function historyForRange(rows, rangeId = currentRange) {
-    const points = normalizeHistory(rows);
+function formatChartTimestamp(value, intervalMinutes = 1440) {
+    const timestamp = numeric(value);
+    if (timestamp === null) return 'Unavailable';
+    const options = intervalMinutes >= 1440
+        ? { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }
+        : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC', timeZoneName: 'short' };
+    return new Date(timestamp).toLocaleString('en-US', options);
+}
+
+function formatAxisUsd(value) {
+    const number = numeric(value);
+    if (number === null) return '—';
+    return `$${number.toFixed(number < 10 ? 3 : 2)}`;
+}
+
+function normalizeHistory(rows, { kind = 'coinGecko', intervalMinutes = 1440 } = {}) {
+    const points = (Array.isArray(rows) ? rows : []).map((row) => {
+        const timestampText = firstText(row?.timestamp, row?.date);
+        const timestamp = Date.parse(timestampText);
+        const openUsd = firstNumeric(row?.openUsd, row?.open, row?.[1]);
+        const highUsd = firstNumeric(row?.highUsd, row?.high, row?.[2]);
+        const lowUsd = firstNumeric(row?.lowUsd, row?.low, row?.[3]);
+        const closeUsd = firstNumeric(row?.closeUsd, row?.close, row?.priceUsd, row?.value, row?.[4]);
+        const volumeTokens = firstNumeric(row?.volumeTokens, row?.volume, row?.[6]);
+        const vwapUsd = firstNumeric(row?.vwapUsd, row?.vwap, row?.[5]);
+        return {
+            date: firstText(row?.date, timestampText),
+            timestamp,
+            value: closeUsd,
+            openUsd,
+            highUsd: highUsd ?? closeUsd,
+            lowUsd: lowUsd ?? closeUsd,
+            closeUsd,
+            vwapUsd,
+            volumeTokens,
+            volumeUsd: firstNumeric(row?.volumeUsd, volumeTokens !== null && vwapUsd !== null ? volumeTokens * vwapUsd : null),
+            marketCapUsd: firstNumeric(row?.marketCapUsd),
+            trades: firstNumeric(row?.trades),
+            complete: row?.complete,
+            kind,
+            intervalMinutes
+        };
+    }).filter((row) => Number.isFinite(row.timestamp) && row.value !== null).sort((a, b) => a.timestamp - b.timestamp);
+    return points.map((point, index) => ({
+        ...point,
+        complete: typeof point.complete === 'boolean'
+            ? point.complete
+            : index < points.length - 1
+    }));
+}
+
+function historyForRange(rows, rangeId = currentRange, options = {}) {
+    const points = normalizeHistory(rows, options);
     const days = RANGE_BY_ID.get(rangeId)?.days;
     if (!points.length || !days) return points;
     const cutoff = points.at(-1).timestamp - (days * DAY_MS);
@@ -496,10 +802,106 @@ function downsample(points, maximum = 240) {
     return Array.from({ length: maximum }, (_, index) => points[Math.round(index * step)]);
 }
 
-function renderPriceChart(rows, rangeId = currentRange, compact = false) {
-    const points = downsample(historyForRange(rows, rangeId), compact ? 90 : 240);
-    if (points.length < 2) return `<div class="uranium-chart-empty">No ${escapeHtml(rangeId)} token-price history is available in this snapshot.</div>`;
-    const values = points.map(({ value }) => value);
+function marketEventMarkers(snapshot) {
+    const kraken = krakenModel(snapshot);
+    const listingAt = firstText(kraken.firstTradeAt, snapshot?.identity?.krakenListing?.announcedLiveDate);
+    return Number.isFinite(Date.parse(listingAt || ''))
+        ? [{ id: 'kraken-usd-live', timestamp: Date.parse(listingAt), label: 'Kraken USD live' }]
+        : [];
+}
+
+function mergeOhlcRows(...collections) {
+    const rows = new Map();
+    for (const row of collections.flatMap((collection) => Array.isArray(collection) ? collection : [])) {
+        const timestamp = firstText(row?.timestamp, row?.interval_begin, row?.date);
+        if (timestamp) rows.set(timestamp, row);
+    }
+    return [...rows.values()].sort((a, b) => Date.parse(firstText(a?.timestamp, a?.interval_begin, a?.date)) - Date.parse(firstText(b?.timestamp, b?.interval_begin, b?.date)));
+}
+
+function marketSeriesForRange(snapshot, rangeId = currentRange) {
+    const range = RANGE_BY_ID.get(rangeId) || RANGE_BY_ID.get('30D');
+    if (range.source === 'kraken') {
+        const kraken = krakenModel(snapshot);
+        const generated = snapshot?.market?.kraken || {};
+        const generatedRows = generated.ohlcByInterval?.[String(range.intervalMinutes)]
+            || (range.intervalMinutes === 5 ? generated.ohlc5m : range.intervalMinutes === 15 ? generated.ohlc15m : [])
+            || [];
+        const socketRows = liveKrakenMarket?.ohlcByInterval?.[String(range.intervalMinutes)] || [];
+        const intervalRows = mergeOhlcRows(generatedRows, socketRows);
+        const useInterval = intervalRows.length >= 2;
+        const rows = useInterval ? intervalRows : kraken.ohlc;
+        const intervalMinutes = useInterval ? range.intervalMinutes : 1440;
+        const sourceLabel = useInterval
+            ? generatedRows.length && socketRows.length
+                ? 'Kraken generated history + direct WebSocket update'
+                : socketRows.length
+                    ? 'Kraken direct WebSocket snapshot'
+                    : 'Kraken generated intraday snapshot'
+            : 'Kraken generated snapshot';
+        const liveIntervalStatus = liveKrakenMarket?.intervalStatuses?.[String(range.intervalMinutes)];
+        const points = historyForRange(rows, range.id, { kind: 'kraken', intervalMinutes });
+        return {
+            id: `kraken-${range.id}`,
+            rangeId: range.id,
+            points,
+            kind: 'kraken',
+            intervalMinutes,
+            sourceLabel,
+            status: socketRows.length
+                ? liveIntervalStatus || kraken.status
+                : liveIntervalStatus === 'stale' ? 'stale' : sourceStatus(snapshot, 'krakenMarket'),
+            requestedCoverage: range.label,
+            note: useInterval
+                ? `Direct XU3O8/USD ${intervalLabel(intervalMinutes)} candles; the final interval is still forming.`
+                : `Direct intraday candles are unavailable; showing the ${intervalLabel(intervalMinutes)} Kraken history actually retained.`,
+            events: marketEventMarkers(snapshot)
+        };
+    }
+    return {
+        id: `coingecko-${range.id}`,
+        rangeId: range.id,
+        points: historyForRange(snapshot?.market?.priceHistoryUsd, range.id, { kind: 'coinGecko', intervalMinutes: 1440 }),
+        kind: 'coinGecko',
+        intervalMinutes: 1440,
+        sourceLabel: 'CoinGecko cross-venue aggregate',
+        status: sourceStatus(snapshot, 'coinGecko'),
+        requestedCoverage: range.label,
+        note: 'Daily USD observations with attributed 24h volume and market cap; not Kraken closing prices.',
+        events: marketEventMarkers(snapshot)
+    };
+}
+
+function chartPointDetail(point, series) {
+    const time = formatChartTimestamp(point?.timestamp, series.intervalMinutes);
+    const price = formatUsd(point?.value, { digits: 3 });
+    if (series.kind === 'kraken') {
+        const ohlc = `Open ${formatUsd(point?.openUsd, { digits: 3 })} · High ${formatUsd(point?.highUsd, { digits: 3 })} · Low ${formatUsd(point?.lowUsd, { digits: 3 })} · Close ${price}`;
+        const activity = `${formatNumber(point?.volumeTokens, 3)} xU3O8 · ${formatNumber(point?.trades)} trades${point?.complete ? '' : ' · interval forming'}`;
+        return { time, price, primary: ohlc, secondary: activity, aria: `${time}. ${ohlc}. ${activity}.` };
+    }
+    const activity = `24h volume ${formatUsd(point?.volumeUsd, { compact: true })} · market cap ${formatUsd(point?.marketCapUsd, { compact: true })}${point?.complete ? '' : ' · latest partial observation'}`;
+    return { time, price, primary: `Price ${price}`, secondary: activity, aria: `${time}. Price ${price}. ${activity}.` };
+}
+
+function renderPriceChart(input, rangeId = currentRange, compact = false) {
+    const series = Array.isArray(input)
+        ? {
+            id: `entry-${rangeId}`,
+            rangeId,
+            points: historyForRange(input, rangeId, { kind: 'coinGecko', intervalMinutes: 1440 }),
+            kind: 'coinGecko',
+            intervalMinutes: 1440,
+            sourceLabel: 'CoinGecko aggregate',
+            status: 'ok',
+            requestedCoverage: rangeId,
+            note: '',
+            events: []
+        }
+        : input;
+    const points = compact ? downsample(series?.points || [], 90) : (series?.points || []);
+    if (points.length < 2) return `<div class="uranium-chart-empty">No ${escapeHtml(series?.rangeId || rangeId)} token-price history is available in this snapshot.</div>`;
+    const values = points.flatMap((point) => [point.lowUsd ?? point.value, point.highUsd ?? point.value]);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const span = Math.max(max - min, Math.abs(max || 1) * .025);
@@ -507,28 +909,77 @@ function renderPriceChart(rows, rangeId = currentRange, compact = false) {
     const ceiling = max + (span * .08);
     const first = points[0];
     const latest = points.at(-1);
-    const width = compact ? 520 : 1000;
-    const height = compact ? 84 : 260;
-    const left = compact ? 4 : 58;
-    const right = compact ? width - 4 : width - 18;
-    const top = compact ? 6 : 20;
-    const bottom = compact ? height - 7 : height - 42;
+    const width = compact ? 520 : Math.max(360, Math.min(1000, Math.round(window.innerWidth - 44)));
+    const height = compact ? 84 : 320;
+    const narrowChart = !compact && width < 560;
+    const left = compact ? 4 : narrowChart ? 56 : 78;
+    const right = compact ? width - 4 : width - (narrowChart ? 10 : 18);
+    const top = compact ? 6 : 48;
+    const bottom = compact ? height - 7 : 220;
+    const volumeTop = compact ? bottom : 242;
+    const volumeBottom = compact ? bottom : 282;
     const x = (time) => left + (((time - first.timestamp) / Math.max(1, latest.timestamp - first.timestamp)) * (right - left));
     const y = (value) => bottom - (((value - floor) / Math.max(Number.EPSILON, ceiling - floor)) * (bottom - top));
     const path = points.map((point, index) => `${index ? 'L' : 'M'}${x(point.timestamp).toFixed(2)},${y(point.value).toFixed(2)}`).join(' ');
     const change = first.value ? ((latest.value / first.value) - 1) * 100 : null;
-    const label = `xU3O8 USD ${rangeId} history from ${formatDate(first.date)} to ${formatDate(latest.date)}. First ${formatUsd(first.value)}, latest ${formatUsd(latest.value)}, high ${formatUsd(max)}, low ${formatUsd(min)}, change ${formatPct(change, { signed: true })}.`;
+    const label = `xU3O8 USD ${series.rangeId || rangeId} history from ${formatChartTimestamp(first.timestamp, series.intervalMinutes)} to ${formatChartTimestamp(latest.timestamp, series.intervalMinutes)}. First ${formatUsd(first.value)}, latest ${formatUsd(latest.value)}, high ${formatUsd(max)}, low ${formatUsd(min)}, return ${formatPct(change, { signed: true })}. Source: ${series.sourceLabel}.`;
+    if (compact) {
+        return `
+            <div class="uranium-chart is-compact" role="img" aria-label="${escapeHtml(label)}">
+                <div class="uranium-chart-compact-meta"><span>${escapeHtml(series.rangeId || rangeId)} · CoinGecko</span><strong class="${directionClass(change)}">${escapeHtml(formatPct(change, { signed: true }))}</strong></div>
+                <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <defs><linearGradient id="uranium-chart-fill-compact" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8dff45" stop-opacity=".35"></stop><stop offset="1" stop-color="#8dff45" stop-opacity="0"></stop></linearGradient></defs>
+                    <path class="uranium-chart-area" d="${path} L${right},${bottom} L${left},${bottom} Z" fill="url(#uranium-chart-fill-compact)"></path>
+                    <path class="uranium-chart-line" d="${path}"></path>
+                    <circle class="uranium-chart-end" cx="${x(latest.timestamp).toFixed(2)}" cy="${y(latest.value).toFixed(2)}" r="3"></circle>
+                </svg>
+            </div>
+        `;
+    }
+
+    const chartId = `uranium-chart-${series.id}`;
+    const storedTime = chartLookupState.get(series.rangeId);
+    const selectedIndex = Number.isFinite(storedTime)
+        ? points.reduce((best, point, index) => Math.abs(point.timestamp - storedTime) < Math.abs(points[best].timestamp - storedTime) ? index : best, 0)
+        : points.length - 1;
+    const selected = points[selectedIndex];
+    const selectedDetail = chartPointDetail(selected, series);
+    const maxVolume = Math.max(0, ...points.map((point) => point.volumeUsd ?? point.volumeTokens ?? 0));
+    const barStep = (right - left) / Math.max(1, points.length);
+    const barWidth = Math.max(.8, Math.min(8, barStep * .72));
+    const priceTicks = Array.from({ length: 4 }, (_, index) => ceiling - ((ceiling - floor) * (index / 3)));
+    const totalVolumeTokens = series.kind === 'kraken' ? points.reduce((sum, point) => sum + (point.volumeTokens || 0), 0) : null;
+    const totalTrades = series.kind === 'kraken' ? points.reduce((sum, point) => sum + (point.trades || 0), 0) : null;
+    const context = series.kind === 'kraken'
+        ? `${formatNumber(totalVolumeTokens, 2)} xU3O8 volume · ${formatNumber(totalTrades)} trades`
+        : `Latest 24h volume ${formatUsd(latest.volumeUsd, { compact: true })} · market cap ${formatUsd(latest.marketCapUsd, { compact: true })}`;
+    const actualCoverage = `${formatChartTimestamp(first.timestamp, series.intervalMinutes)} → ${formatChartTimestamp(latest.timestamp, series.intervalMinutes)} · ${formatNumber(points.length)} ${intervalLabel(series.intervalMinutes)} observations`;
+    const coordinates = points.map((point) => ({ x: x(point.timestamp), y: y(point.value) }));
+    chartSeriesRegistry.set(chartId, { ...series, points, coordinates, left, right, top, bottom });
+    const markerMarkup = (series.events || []).filter((event) => event.timestamp >= first.timestamp && event.timestamp <= latest.timestamp).map((event) => {
+        const markerX = x(event.timestamp);
+        const labelX = Math.max(left + 52, Math.min(right - 52, markerX));
+        return `<g class="uranium-chart-event" data-uranium-event="${escapeHtml(event.id)}"><line x1="${markerX.toFixed(2)}" y1="${top}" x2="${markerX.toFixed(2)}" y2="${volumeBottom}"></line><text x="${labelX.toFixed(2)}" y="${top - 9}" text-anchor="middle">${escapeHtml(event.label)}</text></g>`;
+    }).join('');
     return `
-        <div class="uranium-chart${compact ? ' is-compact' : ''}" role="img" aria-label="${escapeHtml(label)}">
-            ${compact ? '' : `<div class="uranium-chart-summary"><span>${escapeHtml(rangeId)} token price</span><strong class="${directionClass(change)}">${escapeHtml(formatPct(change, { signed: true }))}</strong><small>${escapeHtml(formatUsd(min))} low · ${escapeHtml(formatUsd(max))} high</small></div>`}
-            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-                <defs><linearGradient id="uranium-chart-fill${compact ? '-compact' : ''}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8dff45" stop-opacity=".35"></stop><stop offset="1" stop-color="#8dff45" stop-opacity="0"></stop></linearGradient></defs>
-                ${compact ? '' : [top, top + ((bottom - top) / 3), top + (((bottom - top) / 3) * 2), bottom].map((gridY) => `<line class="uranium-chart-grid" x1="${left}" y1="${gridY}" x2="${right}" y2="${gridY}"></line>`).join('')}
-                <path class="uranium-chart-area" d="${path} L${right},${bottom} L${left},${bottom} Z" fill="url(#uranium-chart-fill${compact ? '-compact' : ''})"></path>
+        <div class="uranium-chart is-interactive" data-uranium-chart="${escapeHtml(chartId)}" data-quiet-key="${escapeHtml(chartId)}">
+            <div class="uranium-chart-summary" aria-hidden="true"><span>${escapeHtml(series.rangeId)} return</span><strong class="${directionClass(change)}">${escapeHtml(formatPct(change, { signed: true }))}</strong><small>${escapeHtml(formatUsd(first.value, { digits: 3 }))} start · ${escapeHtml(formatUsd(latest.value, { digits: 3 }))} latest · ${escapeHtml(formatUsd(min, { digits: 3 }))} low · ${escapeHtml(formatUsd(max, { digits: 3 }))} high</small><small>${escapeHtml(context)}</small></div>
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="group" aria-label="${escapeHtml(label)}">
+                <defs><linearGradient id="${escapeHtml(chartId)}-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8dff45" stop-opacity=".35"></stop><stop offset="1" stop-color="#8dff45" stop-opacity="0"></stop></linearGradient></defs>
+                ${priceTicks.map((tick) => { const tickY = y(tick); return `<g class="uranium-chart-axis"><line class="uranium-chart-grid" x1="${left}" y1="${tickY.toFixed(2)}" x2="${right}" y2="${tickY.toFixed(2)}"></line><text x="${left - 10}" y="${(tickY + 3).toFixed(2)}" text-anchor="end">${escapeHtml(formatAxisUsd(tick))}</text></g>`; }).join('')}
+                <line class="uranium-chart-volume-axis" x1="${left}" y1="${volumeBottom}" x2="${right}" y2="${volumeBottom}"></line>
+                ${points.map((point, index) => { const volume = point.volumeUsd ?? point.volumeTokens ?? 0; const barHeight = maxVolume ? (volume / maxVolume) * (volumeBottom - volumeTop) : 0; return `<rect class="uranium-chart-volume-bar" x="${(coordinates[index].x - (barWidth / 2)).toFixed(2)}" y="${(volumeBottom - barHeight).toFixed(2)}" width="${barWidth.toFixed(2)}" height="${Math.max(.5, barHeight).toFixed(2)}"></rect>`; }).join('')}
+                <path class="uranium-chart-area" d="${path} L${right},${bottom} L${left},${bottom} Z" fill="url(#${escapeHtml(chartId)}-fill)"></path>
                 <path class="uranium-chart-line" d="${path}"></path>
-                <circle class="uranium-chart-end" cx="${x(latest.timestamp).toFixed(2)}" cy="${y(latest.value).toFixed(2)}" r="${compact ? 3 : 4}"></circle>
-                ${compact ? '' : `<text x="${left}" y="${height - 12}">${escapeHtml(formatDate(first.date))}</text><text x="${right}" y="${height - 12}" text-anchor="end">${escapeHtml(formatDate(latest.date))}</text>`}
+                ${markerMarkup}
+                <circle class="uranium-chart-end" cx="${x(latest.timestamp).toFixed(2)}" cy="${y(latest.value).toFixed(2)}" r="4"></circle>
+                <g class="uranium-chart-crosshair" data-uranium-chart-crosshair><line x1="${coordinates[selectedIndex].x.toFixed(2)}" y1="${top}" x2="${coordinates[selectedIndex].x.toFixed(2)}" y2="${volumeBottom}"></line><circle cx="${coordinates[selectedIndex].x.toFixed(2)}" cy="${coordinates[selectedIndex].y.toFixed(2)}" r="5"></circle></g>
+                <text x="${left}" y="306">${escapeHtml(formatChartTimestamp(first.timestamp, series.intervalMinutes))}</text><text x="${right}" y="306" text-anchor="end">${escapeHtml(formatChartTimestamp(latest.timestamp, series.intervalMinutes))}</text>
+                <rect class="uranium-chart-hitbox" data-uranium-chart-hitbox x="${left}" y="${top}" width="${right - left}" height="${volumeBottom - top}" fill="transparent" tabindex="0" role="slider" aria-label="Explore xU3O8 ${escapeHtml(series.rangeId)} price history" aria-valuemin="0" aria-valuemax="${points.length - 1}" aria-valuenow="${selectedIndex}" aria-valuetext="${escapeHtml(selectedDetail.aria)}"></rect>
             </svg>
+            <div class="uranium-chart-readout" data-uranium-chart-readout><time data-uranium-chart-time>${escapeHtml(selectedDetail.time)}</time><strong data-uranium-chart-price>${escapeHtml(selectedDetail.price)}</strong><span data-uranium-chart-primary>${escapeHtml(selectedDetail.primary)}</span><small data-uranium-chart-secondary>${escapeHtml(selectedDetail.secondary)}</small></div>
+            <div class="uranium-chart-provenance"><span><b>${escapeHtml(series.sourceLabel)}</b> · ${escapeHtml(intervalLabel(series.intervalMinutes))} · <em class="uranium-status ${statusClass(series.status)}">${escapeHtml(series.status)}</em></span><span>${escapeHtml(actualCoverage)}</span><small>${escapeHtml(series.note)}</small></div>
+            <p class="sr-only">${escapeHtml(label)}</p>
         </div>
     `;
 }
@@ -549,6 +1000,17 @@ function heroPicture(className = '') {
                 <img src="/assets/uranium/uranium-core.webp" width="1280" height="853" loading="lazy" decoding="async" alt="Cute cartoon uranium-rock mascot glowing with vivid emerald-green energy.">
             </picture>
             <figcaption>Stylized uranium mascot · physical U3O8 is yellowcake concentrate, not a glowing rock.</figcaption>
+        </figure>
+    `;
+}
+
+function launcherPicture(className = '') {
+    return `
+        <figure class="uranium-core-stage ${className}">
+            <picture>
+                <source srcset="/assets/uranium/uranium-launcher-480.webp 480w, /assets/uranium/uranium-launcher.webp 960w" sizes="(max-width: 700px) 34vw, 240px" type="image/webp">
+                <img src="/assets/uranium/uranium-launcher.webp" width="960" height="960" loading="lazy" decoding="async" alt="Polished translucent light-green mineral specimen with a bright emerald inner glow.">
+            </picture>
         </figure>
     `;
 }
@@ -669,7 +1131,7 @@ function renderMarkets(snapshot) {
     const coin = coinModel(snapshot);
     const kraken = krakenModel(snapshot);
     const physical = physicalModel(snapshot);
-    const history = snapshot.market?.priceHistoryUsd || [];
+    const history = marketSeriesForRange(snapshot, currentRange);
     return `
         <section class="uranium-market-lead">
             <div class="uranium-market-lockup"><span class="uranium-eyebrow">Kraken listing · public USD book</span><h3>${escapeHtml(kraken.pair)}</h3><p>Kraken says trading went live July 30, 2026. Its public tape adds a direct dollar book, OHLC, spread, depth, and trade receipts; it does not add reserve or redemption proof.</p></div>
@@ -684,8 +1146,8 @@ function renderMarkets(snapshot) {
             ${renderMetric('Market cap', formatUsd(coin.marketCap, { compact: true }), 'Token market, not reserve value')}
         </section>
         <section class="uranium-panel uranium-price-panel">
-            <div class="uranium-panel-head"><div><span class="uranium-eyebrow">Token price · attributed daily history</span><h4>xU3O8 / USD</h4></div>${renderRangeControl()}</div>
-            ${renderPriceChart(history)}
+            <div class="uranium-panel-head"><div><span class="uranium-eyebrow">Token price · source-separated history</span><h4>xU3O8 / USD</h4></div>${renderRangeControl()}</div>
+            ${renderPriceChart(history, currentRange)}
         </section>
         <section class="uranium-grid uranium-market-grid">
             <article class="uranium-panel">
@@ -975,11 +1437,11 @@ function entryMarkup(snapshot) {
         <div class="uranium-entry-copy">
             <div class="uranium-entry-title-line"><h2 class="stat-label" id="uranium-entry-title">Uranium</h2><span class="uranium-entry-chip">xU3O8</span><span class="uranium-entry-live ${statusClass(kraken.status)}">Kraken ${escapeHtml(kraken.status)}</span></div>
             <div class="stat-value uranium-entry-value">${escapeHtml(formatUsd(kraken.last ?? coin.price, { digits: 3 }))}</div>
-            <div class="uranium-entry-delta ${directionClass(coin.change24h)}">${escapeHtml(formatPct(coin.change24h, { signed: true }))} <span>24h</span></div>
+            <div class="uranium-entry-delta ${directionClass(kraken.change24h)}">${escapeHtml(formatPct(kraken.change24h, { signed: true }))} <span>Kraken 24h</span></div>
             <div class="stat-description">Physical uranium meets Etherlink price discovery</div>
-            <div class="uranium-entry-freshness">${escapeHtml(formatFreshnessStamp(coin.updatedAt || snapshot.generatedAt, { source: 'token market' }))}</div>
+            <div class="uranium-entry-freshness">${escapeHtml(formatFreshnessStamp(kraken.observedAt || coin.updatedAt || snapshot.generatedAt, { source: kraken.sourceKind === 'direct' ? 'Kraken WebSocket' : 'token market' }))}</div>
         </div>
-        <div class="uranium-entry-art">${heroPicture('is-entry')}</div>
+        <div class="uranium-entry-art">${launcherPicture('is-entry')}</div>
         <div class="uranium-entry-kpis">
             <span><small>Uranium oracle</small><strong>${escapeHtml(formatUsd(physical.oraclePrice))}/lb</strong></span>
             <span><small>Dated representation</small><strong>${escapeHtml(formatNumber(physical.ouncesPerToken, 3))} oz/token</strong></span>
@@ -1031,10 +1493,18 @@ function routeView() {
     return VIEW_IDS.has(value) ? value : '';
 }
 
+function routeRange() {
+    if (!isUraniumRoute()) return '';
+    const value = new URL(window.location.href).searchParams.get('range')?.toUpperCase() || '';
+    return RANGE_BY_ID.has(value) ? value : '';
+}
+
 function updateRouteView() {
     if (!isUraniumRoute()) return;
     const url = new URL(window.location.href);
     url.searchParams.set('view', currentView);
+    if (currentView === 'markets') url.searchParams.set('range', currentRange);
+    else url.searchParams.delete('range');
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -1048,6 +1518,53 @@ async function copyText(button, value) {
     } catch {
         button.textContent = 'Copy failed';
     }
+}
+
+function updateChartLookup(chart, requestedIndex) {
+    const chartId = chart?.dataset?.uraniumChart;
+    const series = chartSeriesRegistry.get(chartId);
+    if (!chart || !series?.points?.length) return;
+    const index = Math.max(0, Math.min(series.points.length - 1, Math.round(requestedIndex)));
+    const point = series.points[index];
+    const coordinate = series.coordinates[index];
+    const detail = chartPointDetail(point, series);
+    chartLookupState.set(series.rangeId, point.timestamp);
+    const crosshair = chart.querySelector('[data-uranium-chart-crosshair]');
+    const line = crosshair?.querySelector('line');
+    const circle = crosshair?.querySelector('circle');
+    if (line) {
+        line.setAttribute('x1', coordinate.x.toFixed(2));
+        line.setAttribute('x2', coordinate.x.toFixed(2));
+    }
+    if (circle) {
+        circle.setAttribute('cx', coordinate.x.toFixed(2));
+        circle.setAttribute('cy', coordinate.y.toFixed(2));
+    }
+    const hitbox = chart.querySelector('[data-uranium-chart-hitbox]');
+    hitbox?.setAttribute('aria-valuenow', String(index));
+    hitbox?.setAttribute('aria-valuetext', detail.aria);
+    const values = {
+        '[data-uranium-chart-time]': detail.time,
+        '[data-uranium-chart-price]': detail.price,
+        '[data-uranium-chart-primary]': detail.primary,
+        '[data-uranium-chart-secondary]': detail.secondary
+    };
+    for (const [selector, value] of Object.entries(values)) {
+        const node = chart.querySelector(selector);
+        if (node) node.textContent = value;
+    }
+}
+
+function chartIndexFromPointer(hitbox, clientX) {
+    const chart = hitbox?.closest('[data-uranium-chart]');
+    const series = chartSeriesRegistry.get(chart?.dataset?.uraniumChart);
+    const bounds = hitbox?.getBoundingClientRect();
+    if (!series?.points?.length || !bounds?.width) return null;
+    const ratio = Math.max(0, Math.min(1, (clientX - bounds.left) / bounds.width));
+    const targetX = series.left + (ratio * (series.right - series.left));
+    return series.coordinates.reduce((best, coordinate, index) => (
+        Math.abs(coordinate.x - targetX) < Math.abs(series.coordinates[best].x - targetX) ? index : best
+    ), 0);
 }
 
 function bindBodyEvents(body) {
@@ -1064,7 +1581,9 @@ function bindBodyEvents(body) {
         const rangeButton = event.target.closest('[data-uranium-range]');
         if (rangeButton && RANGE_BY_ID.has(rangeButton.dataset.uraniumRange)) {
             currentRange = rangeButton.dataset.uraniumRange;
+            updateRouteView();
             renderBody(lastSnapshot);
+            document.querySelector(`[data-uranium-range="${currentRange}"]`)?.focus({ preventScroll: true });
             return;
         }
         const copyButton = event.target.closest('[data-uranium-copy]');
@@ -1074,7 +1593,36 @@ function bindBodyEvents(body) {
         }
         if (event.target.closest('[data-uranium-retry]')) refreshUraniumChamber({ quiet: false });
     });
+    body.addEventListener('pointermove', (event) => {
+        const hitbox = event.target.closest('[data-uranium-chart-hitbox]');
+        if (!hitbox) return;
+        const index = chartIndexFromPointer(hitbox, event.clientX);
+        if (index !== null) updateChartLookup(hitbox.closest('[data-uranium-chart]'), index);
+    });
+    body.addEventListener('pointerdown', (event) => {
+        const hitbox = event.target.closest('[data-uranium-chart-hitbox]');
+        if (!hitbox) return;
+        const index = chartIndexFromPointer(hitbox, event.clientX);
+        if (index !== null) updateChartLookup(hitbox.closest('[data-uranium-chart]'), index);
+    });
     body.addEventListener('keydown', (event) => {
+        const chartHitbox = event.target.closest('[data-uranium-chart-hitbox]');
+        if (chartHitbox && ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
+            event.preventDefault();
+            const chart = chartHitbox.closest('[data-uranium-chart]');
+            const series = chartSeriesRegistry.get(chart?.dataset?.uraniumChart);
+            if (!series?.points?.length) return;
+            const current = Number(chartHitbox.getAttribute('aria-valuenow')) || 0;
+            const page = Math.max(1, Math.round(series.points.length / 10));
+            const next = event.key === 'Home' ? 0
+                : event.key === 'End' ? series.points.length - 1
+                    : event.key === 'ArrowLeft' ? current - 1
+                        : event.key === 'ArrowRight' ? current + 1
+                            : event.key === 'PageUp' ? current + page
+                                : current - page;
+            updateChartLookup(chart, next);
+            return;
+        }
         const activeTab = event.target.closest('[role="tab"][data-uranium-view]');
         if (!activeTab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
@@ -1139,12 +1687,14 @@ function stopRefreshTimer() {
 
 function startRefreshTimer() {
     stopRefreshTimer();
+    startKrakenStream();
     chamberTimer = window.setInterval(() => {
         if (document.visibilityState !== 'visible') {
             refreshDeferred = true;
             return;
         }
         refreshUraniumChamber({ quiet: true });
+        startKrakenStream();
     }, refreshInterval());
 }
 
@@ -1152,12 +1702,16 @@ function bindVisibilityRefresh() {
     if (visibilityReady) return;
     visibilityReady = true;
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
+        if (document.visibilityState !== 'visible') {
+            stopKrakenStream();
+            return;
+        }
         if (entryRefreshDeferred) {
             entryRefreshDeferred = false;
             refreshUraniumEntry({ quiet: false });
         }
         const overlayOpen = document.getElementById('uranium-modal')?.classList.contains('active');
+        if (overlayOpen) startKrakenStream();
         if (!refreshDeferred && !overlayOpen) return;
         refreshDeferred = false;
         refreshUraniumChamber({ quiet: true });
@@ -1218,7 +1772,7 @@ function ensureEntryCard() {
         <button class="card-copy-link" type="button" data-copy-hash="#uranium" aria-label="Copy Uranium Chamber direct link" title="Copy Uranium Chamber link">&#128279;</button>
         <div class="card-inner"><div class="card-front chamber-entry-front uranium-entry-front" id="uranium-entry-front">
             <div class="uranium-entry-copy"><div class="uranium-entry-title-line"><h2 class="stat-label" id="uranium-entry-title">Uranium</h2><span class="uranium-entry-chip">xU3O8</span></div><div class="stat-value uranium-entry-value">Loading core</div><div class="stat-description">Physical uranium meets Etherlink price discovery</div></div>
-            <div class="uranium-entry-art">${heroPicture('is-entry')}</div>
+            <div class="uranium-entry-art">${launcherPicture('is-entry')}</div>
             <div class="uranium-entry-kpis"><span><small>Proofbook</small><strong>Verifying</strong></span></div>
         </div></div>
     `;
@@ -1230,11 +1784,14 @@ export async function openUraniumChamber() {
     await ensureUraniumCss();
     const route = routeView();
     if (route) currentView = route;
+    const range = routeRange();
+    if (range) currentRange = range;
     const overlay = ensureOverlay();
     const body = overlay.querySelector('.uranium-body');
     overlay.classList.add('active');
     lockPageScroll();
-    if (lastSnapshot) renderBody(lastSnapshot);
+    const paintedSnapshot = Boolean(lastSnapshot);
+    if (paintedSnapshot) renderBody(lastSnapshot);
     else renderLoading(body);
     body.scrollTop = 0;
     activateChamberDialog(overlay, {
@@ -1244,12 +1801,16 @@ export async function openUraniumChamber() {
         label: 'Uranium Chamber',
         initialFocusSelector: '.chamber-close'
     });
-    await refreshUraniumChamber({ quiet: false });
-    if (overlay.classList.contains('active')) startRefreshTimer();
+    await refreshUraniumChamber({ quiet: paintedSnapshot });
+    if (overlay.classList.contains('active')) {
+        startRefreshTimer();
+        startKrakenStream();
+    }
 }
 
 export function closeUraniumChamber() {
     stopRefreshTimer();
+    stopKrakenStream();
     const overlay = document.getElementById('uranium-modal');
     overlay?.classList.remove('active');
     deactivateChamberDialog(overlay);

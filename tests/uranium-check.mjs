@@ -597,6 +597,11 @@ for (const view of viewIds) {
 }
 assert(feature.includes("searchParams.get('view')"), 'pretty route must read the Uranium view query');
 assert(feature.includes("url.searchParams.set('view', currentView)"), 'view changes must preserve the pretty Uranium route');
+assert(feature.includes("searchParams.get('range')") && feature.includes("url.searchParams.set('range', currentRange)"),
+  'Uranium historical ranges must be directly addressable on the pretty route');
+const rangeBlock = sourceBlock(feature, 'const RANGES = Object.freeze([', 'const RANGE_BY_ID');
+assert.deepEqual([...rangeBlock.matchAll(/id: '([^']+)'/g)].map((match) => match[1]), ['24H', '7D', '30D', '90D', '1Y'],
+  'Uranium price-history ranges drifted');
 assert(feature.includes("import { quietlySyncHtml } from '../core/quiet-refresh.js';"), 'Uranium must use shared quiet reconciliation');
 assert(feature.includes("quietlySyncHtml(body, markup)"), 'Uranium body background render must reconcile quietly');
 assert(feature.includes("quietlySyncHtml(front, markup)"), 'Uranium launcher background render must reconcile quietly');
@@ -612,10 +617,30 @@ assert(!refreshBlock.includes('innerHTML'), 'Uranium timed refresh path must not
 assert(feature.includes('Last good ${ageLabel(lastSnapshot.generatedAt)} · refresh failed'),
   'Uranium must expose retained last-good freshness after failure');
 assert(feature.includes("document.addEventListener('visibilitychange'"), 'Uranium must perform one visibility catch-up');
-assert(feature.includes("const receiptStatus = sourceStatus(snapshot, 'krakenMarket')"),
-  'Kraken rendering must read its independent source receipt status');
+assert(feature.includes("const receiptStatus = live?.ticker ? live.status : sourceStatus(snapshot, 'krakenMarket')"),
+  'Kraken rendering must prefer a validated live ticker and otherwise read its independent generated receipt status');
 assert(feature.includes("status: receiptStatus === 'ok' ? venueStatus : receiptStatus"),
   'retained Kraken pair status must never override a stale or unavailable source receipt');
+const socketBlock = sourceBlock(feature, 'function krakenStreamAllowed()', 'function coinModel(');
+assert(feature.includes("const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2'"),
+  'live Uranium market context must use Kraken public WebSocket rather than browser-blocked REST');
+assert(socketBlock.includes("document.visibilityState === 'visible'")
+  && socketBlock.includes("channel: 'ticker'") && socketBlock.includes("channel: 'ohlc'")
+  && socketBlock.includes('interval: 5') && socketBlock.includes('interval: 15'),
+  'Kraken WebSocket must be visible-room gated and subscribe to ticker plus 5- and 15-minute OHLC');
+assert(!feature.includes("fetch('https://api.kraken.com") && !feature.includes('KRAKEN_MARKET_API'),
+  'browser code must not attempt the CORS-blocked Kraken REST API');
+assert(feature.includes('stopKrakenStream();') && feature.includes("document.addEventListener('visibilitychange'"),
+  'Kraken WebSocket must close while the tab is hidden');
+assert(feature.includes('volumeUsd: firstNumeric(row?.volumeUsd') && feature.includes('marketCapUsd: firstNumeric(row?.marketCapUsd)'),
+  'historical normalization must retain CoinGecko volume and market-cap context');
+for (const hook of ['data-uranium-chart-hitbox', 'data-uranium-chart-crosshair', 'uranium-chart-volume-bar',
+  'uranium-chart-readout', 'uranium-chart-provenance', 'Kraken USD live']) {
+  assert(feature.includes(hook), `Uranium history explorer is missing ${hook}`);
+}
+assert(feature.includes("sourceLabel: 'CoinGecko cross-venue aggregate'")
+  && feature.includes("kind: 'kraken'") && feature.includes('actualCoverage'),
+  'price history must disclose distinct Kraken and CoinGecko series with actual returned coverage');
 assert(feature.includes("sourceInventory(snapshot).filter(({ status }) => status !== 'ok')"),
   'Chamber freshness must surface degraded per-source receipts');
 assert(feature.includes("label: 'Statement as at'") && feature.includes("label: 'Announced live'")
@@ -632,11 +657,22 @@ assert(generator.includes('maxReviewAgeDays: 30'), 'issuer semantics review must
 
 assert(feature.includes('/assets/uranium/uranium-core-640.webp'), 'responsive local Uranium WebP is missing');
 assert(feature.includes('/assets/uranium/uranium-core.webp'), 'full local Uranium WebP is missing');
+assert(feature.includes('/assets/uranium/uranium-launcher-480.webp'), 'compact launcher Uranium WebP is missing');
+assert(feature.includes('/assets/uranium/uranium-launcher.webp'), 'full launcher Uranium WebP is missing');
 assert(feature.includes('Cute cartoon uranium-rock mascot glowing with vivid emerald-green energy.'),
-  'Uranium artwork must identify itself as a stylized illustration');
+  'expanded Uranium artwork must identify itself as a stylized illustration');
 assert(feature.includes('physical U3O8 is yellowcake concentrate, not a glowing rock.'),
   'Uranium artwork must not present the glowing rock as literal U3O8');
-for (const asset of ['assets/uranium/uranium-core-640.webp', 'assets/uranium/uranium-core.webp']) {
+assert(feature.includes('Polished translucent light-green mineral specimen with a bright emerald inner glow.'),
+  'launcher artwork must describe an inanimate polished green specimen');
+assert(feature.includes("launcherPicture('is-entry')"),
+  'compact Uranium launcher must use its own non-mascot art path');
+for (const asset of [
+  'assets/uranium/uranium-core-640.webp',
+  'assets/uranium/uranium-core.webp',
+  'assets/uranium/uranium-launcher-480.webp',
+  'assets/uranium/uranium-launcher.webp'
+]) {
   const bytes = await fs.readFile(path.join(ROOT, asset));
   assert(bytes.length > 10_000 && bytes.length < 2 * 1024 * 1024, `${asset} is outside its local image budget`);
   assert.equal(bytes.subarray(0, 4).toString('ascii'), 'RIFF', `${asset} is not a RIFF WebP`);

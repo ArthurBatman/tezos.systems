@@ -15511,11 +15511,147 @@ async function smokeCapitalChamber(browser, baseUrl) {
 }
 
 async function smokeUraniumChamber(browser, baseUrl) {
+  const installMockKrakenWebSocket = async (targetContext) => {
+    await targetContext.addInitScript(() => {
+      const state = {
+        created: 0,
+        opened: 0,
+        closed: 0,
+        urls: [],
+        outbound: [],
+        subscriptions: [],
+        inbound: []
+      };
+      const sockets = [];
+
+      class MockWebSocket extends EventTarget {
+        constructor(url) {
+          super();
+          this.url = String(url);
+          this.readyState = 0;
+          this.bufferedAmount = 0;
+          this.extensions = '';
+          this.protocol = '';
+          this.binaryType = 'blob';
+          this.__uraniumIntentionalClose = false;
+          this.__subscriptions = [];
+          sockets.push(this);
+          state.created += 1;
+          state.urls.push(this.url);
+          queueMicrotask(() => {
+            if (this.readyState !== 0) return;
+            this.readyState = 1;
+            state.opened += 1;
+            this.dispatchEvent(new Event('open'));
+          });
+        }
+
+        send(payload) {
+          if (this.readyState !== 1) throw new DOMException('Mock WebSocket is not open.', 'InvalidStateError');
+          const text = String(payload);
+          let parsed = text;
+          try { parsed = JSON.parse(text); } catch { /* retain raw payload */ }
+          state.outbound.push(parsed);
+          if (parsed?.method === 'subscribe') {
+            state.subscriptions.push(parsed);
+            this.__subscriptions.push(parsed.params || {});
+          }
+        }
+
+        close(code = 1000, reason = '') {
+          if (this.readyState === 2 || this.readyState === 3) return;
+          this.readyState = 2;
+          this.readyState = 3;
+          state.closed += 1;
+          const event = new Event('close');
+          Object.defineProperties(event, {
+            code: { value: code },
+            reason: { value: reason },
+            wasClean: { value: true }
+          });
+          this.dispatchEvent(event);
+        }
+
+        __emit(payload) {
+          if (this.readyState !== 1) return false;
+          state.inbound.push({
+            channel: payload?.channel || '',
+            type: payload?.type || '',
+            rows: Array.isArray(payload?.data) ? payload.data.length : 0
+          });
+          this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(payload) }));
+          return true;
+        }
+      }
+
+      Object.assign(MockWebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+      Object.assign(MockWebSocket.prototype, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+
+      const activeSocket = (channel, interval = null) => [...sockets].reverse().find((socket) => (
+        socket.readyState === MockWebSocket.OPEN
+          && socket.__subscriptions.some((subscription) => subscription.channel === channel
+            && (interval === null || subscription.interval === interval))
+      ));
+      const ohlcRows = [
+        { symbol: 'XU3O8/USD', interval: 5, interval_begin: '2026-07-31T20:20:00.000Z', open: 5.560, high: 5.575, low: 5.555, close: 5.570, vwap: 5.566, volume: 18.25, trades: 4 },
+        { symbol: 'XU3O8/USD', interval: 5, interval_begin: '2026-07-31T20:25:00.000Z', open: 5.570, high: 5.590, low: 5.568, close: 5.584, vwap: 5.579, volume: 23.5, trades: 6 },
+        { symbol: 'XU3O8/USD', interval: 5, interval_begin: '2026-07-31T20:30:00.000Z', open: 5.584, high: 5.603, low: 5.580, close: 5.598, vwap: 5.592, volume: 31.75, trades: 8 },
+        { symbol: 'XU3O8/USD', interval: 5, interval_begin: '2026-07-31T20:35:00.000Z', open: 5.598, high: 5.615, low: 5.594, close: 5.608, vwap: 5.604, volume: 27.1, trades: 7 }
+      ];
+      const ohlc15mRows = [
+        { symbol: 'XU3O8/USD', interval: 15, interval_begin: '2026-07-31T18:45:00.000Z', open: 5.510, high: 5.535, low: 5.502, close: 5.528, vwap: 5.521, volume: 41.2, trades: 9 },
+        { symbol: 'XU3O8/USD', interval: 15, interval_begin: '2026-07-31T19:00:00.000Z', open: 5.528, high: 5.548, low: 5.520, close: 5.540, vwap: 5.536, volume: 38.6, trades: 8 },
+        { symbol: 'XU3O8/USD', interval: 15, interval_begin: '2026-07-31T19:15:00.000Z', open: 5.540, high: 5.562, low: 5.534, close: 5.556, vwap: 5.551, volume: 52.8, trades: 11 },
+        { symbol: 'XU3O8/USD', interval: 15, interval_begin: '2026-07-31T19:30:00.000Z', open: 5.556, high: 5.574, low: 5.548, close: 5.568, vwap: 5.563, volume: 49.4, trades: 10 },
+        { symbol: 'XU3O8/USD', interval: 15, interval_begin: '2026-07-31T19:45:00.000Z', open: 5.568, high: 5.588, low: 5.560, close: 5.580, vwap: 5.575, volume: 57.1, trades: 13 },
+        { symbol: 'XU3O8/USD', interval: 15, interval_begin: '2026-07-31T20:00:00.000Z', open: 5.580, high: 5.612, low: 5.574, close: 5.602, vwap: 5.594, volume: 63.9, trades: 15 }
+      ];
+      window.__uraniumWebSocketState = state;
+      window.__emitUraniumKrakenOhlcSnapshot = (includeLatest = false) => activeSocket('ohlc', 5)?.__emit({
+        channel: 'ohlc',
+        type: 'snapshot',
+        data: includeLatest ? [...ohlcRows, { symbol: 'XU3O8/USD', interval: 5, interval_begin: '2026-07-31T20:40:00.000Z', open: 5.608, high: 5.620, low: 5.604, close: 5.612, vwap: 5.613, volume: 35.4, trades: 9 }] : ohlcRows
+      }) || false;
+      window.__emitUraniumKrakenOhlc15mSnapshot = () => activeSocket('ohlc', 15)?.__emit({
+        channel: 'ohlc',
+        type: 'snapshot',
+        data: ohlc15mRows
+      }) || false;
+      window.__emitUraniumKrakenFormingCandle = () => activeSocket('ohlc', 5)?.__emit({
+        channel: 'ohlc',
+        type: 'update',
+        data: [{ symbol: 'XU3O8/USD', interval: 5, interval_begin: '2026-07-31T20:40:00.000Z', open: 5.608, high: 5.624, low: 5.604, close: 5.618, vwap: 5.616, volume: 39.8, trades: 11 }]
+      }) || false;
+      window.__emitUraniumKrakenTickerSnapshot = () => activeSocket('ticker')?.__emit({
+        channel: 'ticker',
+        type: 'snapshot',
+        data: [{
+          symbol: 'XU3O8/USD',
+          timestamp: '2026-07-31T20:40:02.000Z',
+          bid: 5.610,
+          bid_qty: 120.5,
+          ask: 5.614,
+          ask_qty: 98.25,
+          last: 5.612,
+          volume: 1184.75,
+          vwap: 5.581,
+          low: 5.458,
+          high: 5.620,
+          change: 0.152,
+          change_pct: 2.7839,
+          trades: 88
+        }]
+      }) || false;
+      window.WebSocket = MockWebSocket;
+    });
+  };
+
   const issues = [];
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
   });
+  await installMockKrakenWebSocket(context);
   await installFeatureMocks(context);
 
   let entryRequests = 0;
@@ -15582,7 +15718,50 @@ async function smokeUraniumChamber(browser, baseUrl) {
 
   const page = await context.newPage();
   attachIssueCollectors(page, 'uranium chamber', issues);
-  const response = await page.goto(`${baseUrl}/#xu3o8`, { waitUntil: 'domcontentloaded' });
+  const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(launcherResponse?.ok(), `uranium chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.waitForFunction(() => document.querySelector('#uranium-entry-front')?.dataset.uraniumRendered === '1', null, { timeout: 10000 });
+  const launcherSocketState = await page.evaluate(() => ({
+    modalOpen: document.querySelector('#uranium-modal')?.classList.contains('active') || false,
+    created: window.__uraniumWebSocketState?.created || 0,
+    opened: window.__uraniumWebSocketState?.opened || 0
+  }));
+  assert(!launcherSocketState.modalOpen && launcherSocketState.created === 0 && launcherSocketState.opened === 0,
+    `uranium chamber: collapsed launcher opened a Kraken socket ${JSON.stringify(launcherSocketState)}`);
+  const launcherVisualState = await page.evaluate(() => {
+    const card = document.querySelector('#uranium-entry-card');
+    const front = document.querySelector('#uranium-entry-front');
+    const art = front?.querySelector('.uranium-entry-art');
+    const image = art?.querySelector('img');
+    const chart = front?.querySelector('.uranium-entry-chart');
+    const rect = (element) => {
+      const bounds = element?.getBoundingClientRect();
+      return bounds ? { width: bounds.width, height: bounds.height } : null;
+    };
+    return {
+      card: rect(card),
+      front: rect(front),
+      art: rect(art),
+      chart: rect(chart),
+      image: rect(image),
+      imageLoaded: Boolean(image?.complete && image.naturalWidth > 0),
+      currentSrc: image?.currentSrc || '',
+      alt: image?.alt || '',
+      objectFit: image ? getComputedStyle(image).objectFit : '',
+      chartText: chart?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  assert(launcherVisualState.imageLoaded
+    && /\/assets\/uranium\/uranium-launcher(?:-480)?\.webp(?:$|\?)/.test(launcherVisualState.currentSrc)
+    && launcherVisualState.alt === 'Polished translucent light-green mineral specimen with a bright emerald inner glow.'
+    && launcherVisualState.objectFit === 'cover',
+  `uranium chamber: compact launcher did not use the dedicated inanimate specimen ${JSON.stringify(launcherVisualState)}`);
+  assert(launcherVisualState.card?.height <= 360 && launcherVisualState.front?.height <= 320
+    && launcherVisualState.art?.height <= 180 && launcherVisualState.image?.height === launcherVisualState.art?.height
+    && launcherVisualState.chart?.height <= 64 && /30D/i.test(launcherVisualState.chartText),
+  `uranium chamber: compact launcher regained oversized art or whitespace ${JSON.stringify(launcherVisualState)}`);
+
+  const response = await page.goto(`${baseUrl}/?uranium-smoke=expanded#xu3o8`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `uranium chamber: hash route failed with HTTP ${response?.status()}`);
   await page.locator('#uranium-modal.active .uranium-content').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForFunction(() => (
@@ -15607,7 +15786,9 @@ async function smokeUraniumChamber(browser, baseUrl) {
       selected: tabs.filter((tab) => tab.getAttribute('aria-selected') === 'true').map((tab) => tab.dataset.uraniumView),
       panelRole: panel?.getAttribute('role') || '',
       panelLabelledBy: panel?.getAttribute('aria-labelledby') || '',
-      text: panel?.textContent?.replace(/\s+/g, ' ').trim() || ''
+      text: panel?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      roomArt: panel?.querySelector('.uranium-core-stage.is-room img')?.getAttribute('src') || '',
+      roomArtAlt: panel?.querySelector('.uranium-core-stage.is-room img')?.alt || ''
     };
   });
   assert(shellState.hash === '#xu3o8', `uranium chamber: alias hash was not retained ${JSON.stringify(shellState)}`);
@@ -15622,17 +15803,50 @@ async function smokeUraniumChamber(browser, baseUrl) {
     && /physical/i.test(shellState.text) && /Etherlink/i.test(shellState.text)
     && /Uranium\.io describes/i.test(shellState.text) && /Dated statement/i.test(shellState.text),
     `uranium chamber: overview boundaries missing ${shellState.text}`);
+  assert(shellState.roomArt === '/assets/uranium/uranium-core.webp' && /mascot/i.test(shellState.roomArtAlt),
+    `uranium chamber: expanded-room fun artwork was replaced with the compact specimen ${JSON.stringify(shellState)}`);
+
+  await page.waitForFunction(() => (
+    window.__uraniumWebSocketState?.opened === 2
+      && window.__uraniumWebSocketState?.subscriptions?.length === 3
+  ), null, { timeout: 3000 });
+  const initialSocketState = await page.evaluate(() => ({
+    ...window.__uraniumWebSocketState,
+    active: document.querySelector('#uranium-modal')?.classList.contains('active') || false,
+    visibility: document.visibilityState
+  }));
+  const tickerSubscription = initialSocketState.subscriptions.find(({ params }) => params?.channel === 'ticker');
+  const ohlcSubscriptions = initialSocketState.subscriptions.filter(({ params }) => params?.channel === 'ohlc');
+  assert(initialSocketState.created === 2 && initialSocketState.opened === 2 && initialSocketState.closed === 0
+    && initialSocketState.urls.every((url) => url === 'wss://ws.kraken.com/v2')
+    && initialSocketState.active && initialSocketState.visibility === 'visible',
+  `uranium chamber: expanded visible room did not own the two source-specific Kraken sockets ${JSON.stringify(initialSocketState)}`);
+  assert(tickerSubscription?.params?.snapshot === true && tickerSubscription?.params?.event_trigger === 'bbo'
+    && JSON.stringify(tickerSubscription?.params?.symbol) === JSON.stringify(['XU3O8/USD'])
+    && ohlcSubscriptions.length === 2
+    && ohlcSubscriptions.every(({ params }) => params?.snapshot === true
+      && JSON.stringify(params?.symbol) === JSON.stringify(['XU3O8/USD']))
+    && JSON.stringify(ohlcSubscriptions.map(({ params }) => params.interval).sort((a, b) => a - b)) === JSON.stringify([5, 15]),
+  `uranium chamber: Kraken v2 subscriptions drifted ${JSON.stringify(initialSocketState.subscriptions)}`);
+  const initialOhlcEmitted = await page.evaluate(() => window.__emitUraniumKrakenOhlcSnapshot());
+  assert(initialOhlcEmitted, 'uranium chamber: deterministic Kraken 5m OHLC snapshot was not accepted by the mock socket');
+  const initial15mOhlcEmitted = await page.evaluate(() => window.__emitUraniumKrakenOhlc15mSnapshot());
+  assert(initial15mOhlcEmitted, 'uranium chamber: deterministic Kraken 15m OHLC snapshot was not accepted by the mock socket');
 
   await page.evaluate(() => {
     window.__uraniumSmokeVisibility = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
   });
+  await page.waitForFunction(() => window.__uraniumWebSocketState?.closed === 2, null, { timeout: 3000 });
   await page.waitForFunction(() => typeof window.__uraniumSmokeTimerTick === 'function', null, { timeout: 3000 });
   const requestsBeforeHiddenTick = snapshotRequests;
   await page.evaluate(() => window.__uraniumSmokeTimerTick());
   await page.waitForTimeout(50);
   assert(snapshotRequests === requestsBeforeHiddenTick,
     `uranium chamber: hidden tab polled the full snapshot ${JSON.stringify({ requestsBeforeHiddenTick, snapshotRequests })}`);
+  const hiddenSocketState = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
+  assert(hiddenSocketState.opened === 2 && hiddenSocketState.closed === 2,
+    `uranium chamber: hidden room did not close both Kraken sockets ${JSON.stringify(hiddenSocketState)}`);
 
   await page.locator('#uranium-tab-markets').click();
   const marketsState = await page.evaluate(() => {
@@ -15650,6 +15864,87 @@ async function smokeUraniumChamber(browser, baseUrl) {
     && /Kraken listing/i.test(marketsState.text) && /Public order book/i.test(marketsState.text)
     && marketsState.bookRows > 0 && marketsState.tradeRows > 0 && /^\$/.test(marketsState.price),
   `uranium chamber: Markets view is incomplete ${JSON.stringify(marketsState)}`);
+
+  const rangeExpectations = [
+    { id: '24H', source: /Kraken direct WebSocket snapshot/i, cadence: /\b5m\b/i, minimumObservations: 4, eventMarker: false },
+    { id: '7D', source: /Kraken direct WebSocket snapshot/i, cadence: /\b15m\b/i, minimumObservations: 6, eventMarker: false },
+    { id: '30D', source: /CoinGecko cross-venue aggregate/i, cadence: /\bdaily\b/i, minimumObservations: 20, eventMarker: true },
+    { id: '90D', source: /CoinGecko cross-venue aggregate/i, cadence: /\bdaily\b/i, minimumObservations: 70, eventMarker: true },
+    { id: '1Y', source: /CoinGecko cross-venue aggregate/i, cadence: /\bdaily\b/i, minimumObservations: 300, eventMarker: true }
+  ];
+  const rangeStates = {};
+  for (const expectation of rangeExpectations) {
+    await page.locator(`[data-uranium-range="${expectation.id}"]`).click();
+    await page.waitForFunction((rangeId) => (
+      document.querySelector(`[data-uranium-range="${rangeId}"]`)?.getAttribute('aria-pressed') === 'true'
+        && Boolean(document.querySelector('#uranium-view-panel .uranium-chart.is-interactive'))
+    ), expectation.id, { timeout: 3000 });
+    const state = await page.evaluate(() => {
+      const panel = document.querySelector('#uranium-view-panel');
+      const chart = panel?.querySelector('.uranium-chart.is-interactive');
+      const hitbox = chart?.querySelector('[data-uranium-chart-hitbox]');
+      const provenance = chart?.querySelector('.uranium-chart-provenance')?.textContent?.replace(/\s+/g, ' ').trim() || '';
+      return {
+        rangeLabels: Array.from(panel?.querySelectorAll('[data-uranium-range]') || []).map((button) => button.textContent?.trim() || ''),
+        selectedRange: panel?.querySelector('[data-uranium-range][aria-pressed="true"]')?.dataset.uraniumRange || '',
+        axisLabels: Array.from(chart?.querySelectorAll('.uranium-chart-axis text') || []).map((node) => node.textContent?.trim() || ''),
+        volumeBars: chart?.querySelectorAll('.uranium-chart-volume-bar').length || 0,
+        provenance,
+        observationCount: Number(hitbox?.getAttribute('aria-valuemax') || -1) + 1,
+        readout: chart?.querySelector('.uranium-chart-readout')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        readoutPrice: chart?.querySelector('[data-uranium-chart-price]')?.textContent?.trim() || '',
+        readoutPrimary: chart?.querySelector('[data-uranium-chart-primary]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        readoutSecondary: chart?.querySelector('[data-uranium-chart-secondary]')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        eventMarkers: Array.from(chart?.querySelectorAll('.uranium-chart-event') || []).map((marker) => marker.textContent?.replace(/\s+/g, ' ').trim() || ''),
+        sliderRole: hitbox?.getAttribute('role') || '',
+        sliderValueText: hitbox?.getAttribute('aria-valuetext') || ''
+      };
+    });
+    rangeStates[expectation.id] = state;
+    assert(JSON.stringify(state.rangeLabels) === JSON.stringify(['24H', '7D', '30D', '90D', '1Y'])
+      && state.selectedRange === expectation.id,
+    `uranium chamber: range control drifted for ${expectation.id} ${JSON.stringify(state)}`);
+    assert(expectation.source.test(state.provenance) && expectation.cadence.test(state.provenance)
+      && /→/.test(state.provenance) && /observations/i.test(state.provenance)
+      && state.observationCount >= expectation.minimumObservations,
+    `uranium chamber: ${expectation.id} source or actual coverage is incomplete ${JSON.stringify(state)}`);
+    assert(state.axisLabels.length === 4 && state.axisLabels.every((label) => /^\$\d/.test(label))
+      && state.volumeBars >= state.observationCount && state.sliderRole === 'slider',
+    `uranium chamber: ${expectation.id} price axis, volume, or lookup semantics are incomplete ${JSON.stringify(state)}`);
+    assert(/^\$\d/.test(state.readoutPrice) && state.readout.length > state.readoutPrice.length
+      && state.readoutPrimary.length > 0 && state.readoutSecondary.length > 0 && state.sliderValueText.length > 0,
+    `uranium chamber: ${expectation.id} historical readout is incomplete ${JSON.stringify(state)}`);
+    assert(expectation.eventMarker === state.eventMarkers.some((label) => /Kraken USD live/i.test(label)),
+      `uranium chamber: ${expectation.id} event marker visibility is dishonest ${JSON.stringify(state)}`);
+  }
+
+  const lookupBefore = await page.evaluate(() => {
+    const hitbox = document.querySelector('#uranium-view-panel [data-uranium-chart-hitbox]');
+    hitbox?.focus({ preventScroll: true });
+    return {
+      now: hitbox?.getAttribute('aria-valuenow') || '',
+      text: hitbox?.getAttribute('aria-valuetext') || '',
+      readout: hitbox?.closest('[data-uranium-chart]')?.querySelector('.uranium-chart-readout')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    };
+  });
+  await page.keyboard.press('Home');
+  const lookupAfter = await page.evaluate(() => {
+    const hitbox = document.querySelector('#uranium-view-panel [data-uranium-chart-hitbox]');
+    return {
+      now: hitbox?.getAttribute('aria-valuenow') || '',
+      text: hitbox?.getAttribute('aria-valuetext') || '',
+      readout: hitbox?.closest('[data-uranium-chart]')?.querySelector('.uranium-chart-readout')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      focused: document.activeElement === hitbox
+    };
+  });
+  assert(Number(lookupBefore.now) > 0 && lookupAfter.now === '0' && lookupAfter.focused
+    && lookupAfter.text !== lookupBefore.text && lookupAfter.readout !== lookupBefore.readout,
+  `uranium chamber: exact keyboard history lookup did not update the slider and visible readout ${JSON.stringify({ lookupBefore, lookupAfter })}`);
+
+  await page.locator('[data-uranium-range="24H"]').click();
+  const hiddenMarketsSocketState = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
+  assert(hiddenMarketsSocketState.opened === 2 && hiddenMarketsSocketState.closed === 2,
+    `uranium chamber: hidden Markets interactions reopened Kraken WebSocket ${JSON.stringify(hiddenMarketsSocketState)}`);
 
   await page.locator('#uranium-tab-onchain').click();
   const onchainState = await page.evaluate(() => {
@@ -15721,6 +16016,10 @@ async function smokeUraniumChamber(browser, baseUrl) {
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await page.waitForFunction(() => document.querySelector('#uranium-chamber-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 6000 });
+  await page.waitForFunction(() => (
+    window.__uraniumWebSocketState?.opened === 4
+      && window.__uraniumWebSocketState?.subscriptions?.length === 6
+  ), null, { timeout: 3000 });
   const requestDeadline = Date.now() + 6000;
   while (snapshotRequests <= requestsBeforeResume && Date.now() < requestDeadline) await page.waitForTimeout(25);
   assert(snapshotRequests === requestsBeforeResume + 1,
@@ -15762,12 +16061,138 @@ async function smokeUraniumChamber(browser, baseUrl) {
     `uranium chamber: quiet refresh moved nested scroll ${JSON.stringify({ quietBefore, quietAfter })}`);
   assert(quietAfter.price !== quietBefore.price,
     `uranium chamber: mocked fresh quote was not reconciled ${JSON.stringify({ quietBefore, quietAfter })}`);
-  assert(quietAfter.marketStatus === 'stale' && /Kraken .*stale/i.test(quietAfter.freshness),
+  assert(quietAfter.marketStatus === 'stale' && /(Kraken .*stale|sources? degraded)/i.test(quietAfter.freshness),
     `uranium chamber: retained last-good Kraken data stayed falsely green ${JSON.stringify(quietAfter)}`);
   assert(quietAfter.settled && quietAfter.animation === 'none' && quietAfter.opacity === '1'
     && quietAfter.transform === 'none' && quietAfter.transitionsSettled,
   `uranium chamber: quiet refresh replayed or stranded animation state ${JSON.stringify(quietAfter)}`);
 
+  const liveEmitState = await page.evaluate(() => ({
+    ticker: window.__emitUraniumKrakenTickerSnapshot(),
+    ohlc: window.__emitUraniumKrakenOhlcSnapshot(true)
+  }));
+  assert(liveEmitState.ticker && liveEmitState.ohlc,
+    `uranium chamber: deterministic Kraken v2 ticker/OHLC messages were not emitted ${JSON.stringify(liveEmitState)}`);
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('#uranium-view-panel');
+    return panel?.querySelector('.uranium-live-quote strong')?.textContent?.trim() === '$5.612'
+      && /Kraken direct WebSocket snapshot/i.test(panel?.querySelector('.uranium-chart-provenance')?.textContent || '')
+      && Number(panel?.querySelector('[data-uranium-chart-hitbox]')?.getAttribute('aria-valuemax') || -1) >= 4;
+  }, null, { timeout: 3000 });
+  await page.waitForFunction(() => {
+    const body = document.querySelector('#uranium-chamber-body');
+    return body?.dataset.quietRefreshSettled === 'true' && !body.dataset.quietRefreshing;
+  }, null, { timeout: 3000 });
+  const liveAfter = await page.evaluate(() => {
+    const body = document.querySelector('#uranium-chamber-body');
+    const header = body?.querySelector('.uranium-header');
+    const panel = body?.querySelector('#uranium-view-panel');
+    const focus = body?.querySelector('#uranium-tab-markets');
+    const quote = panel?.querySelector('.uranium-live-quote strong');
+    return {
+      sameHeader: header === window.__uraniumQuietHeader,
+      samePanel: panel === window.__uraniumQuietPanel,
+      sameFocus: focus === window.__uraniumQuietFocus,
+      sameQuote: quote === window.__uraniumQuietQuote,
+      focused: document.activeElement === window.__uraniumQuietFocus,
+      selected: focus?.getAttribute('aria-selected') || '',
+      selection: document.getSelection()?.toString() || '',
+      top: body?.scrollTop || 0,
+      price: quote?.textContent?.trim() || '',
+      status: panel?.querySelector('.uranium-live-quote .uranium-status')?.textContent?.trim() || '',
+      provenance: panel?.querySelector('.uranium-chart-provenance')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      inbound: window.__uraniumWebSocketState?.inbound || [],
+      opened: window.__uraniumWebSocketState?.opened || 0,
+      closed: window.__uraniumWebSocketState?.closed || 0,
+      settled: body?.dataset.quietRefreshSettled === 'true' && !body?.dataset.quietRefreshing
+    };
+  });
+  assert(liveAfter.sameHeader && liveAfter.samePanel && liveAfter.sameFocus && liveAfter.sameQuote && liveAfter.focused
+    && liveAfter.selected === 'true' && liveAfter.selection === quietBefore.selection
+    && Math.abs(liveAfter.top - quietBefore.top) < 1 && liveAfter.settled,
+  `uranium chamber: live ticker/OHLC reconciliation disturbed quiet reading state ${JSON.stringify({ quietBefore, liveAfter })}`);
+  assert(liveAfter.price === '$5.612' && liveAfter.status === 'online'
+    && /Kraken direct WebSocket snapshot/i.test(liveAfter.provenance)
+    && /\b5m\b/i.test(liveAfter.provenance)
+    && liveAfter.inbound.some(({ channel, type, rows }) => channel === 'ticker' && type === 'snapshot' && rows === 1)
+    && liveAfter.inbound.filter(({ channel, type }) => channel === 'ohlc' && type === 'snapshot').length === 3,
+  `uranium chamber: official-shape live Kraken receipt was not presented ${JSON.stringify(liveAfter)}`);
+  const formingCandleEmitted = await page.evaluate(() => window.__emitUraniumKrakenFormingCandle());
+  assert(formingCandleEmitted, 'uranium chamber: forming Kraken candle update was not emitted');
+  await page.waitForFunction(() => (
+    document.querySelector('#uranium-view-panel [data-uranium-chart-price]')?.textContent?.trim() === '$5.618'
+      && document.querySelector('#uranium-chamber-body')?.dataset.quietRefreshSettled === 'true'
+      && !document.querySelector('#uranium-chamber-body')?.dataset.quietRefreshing
+  ), null, { timeout: 3000 });
+  const formingCandleState = await page.evaluate(() => ({
+    samePanel: document.querySelector('#uranium-view-panel') === window.__uraniumQuietPanel,
+    focused: document.activeElement === window.__uraniumQuietFocus,
+    selection: document.getSelection()?.toString() || '',
+    top: document.querySelector('#uranium-chamber-body')?.scrollTop || 0,
+    quote: document.querySelector('#uranium-view-panel .uranium-live-quote strong')?.textContent?.trim() || '',
+    chartPrice: document.querySelector('#uranium-view-panel [data-uranium-chart-price]')?.textContent?.trim() || '',
+    chartDetail: document.querySelector('#uranium-view-panel [data-uranium-chart-secondary]')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+  }));
+  assert(formingCandleState.samePanel && formingCandleState.focused
+    && formingCandleState.selection === quietBefore.selection
+    && Math.abs(formingCandleState.top - quietBefore.top) < 1
+    && formingCandleState.quote === '$5.612' && formingCandleState.chartPrice === '$5.618'
+    && /interval forming/i.test(formingCandleState.chartDetail),
+  `uranium chamber: forming-candle reconciliation froze or disturbed reading state ${JSON.stringify(formingCandleState)}`);
+
+  const socketsBeforeSecondHide = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
+  await page.evaluate(() => {
+    window.__uraniumSmokeVisibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction((closed) => window.__uraniumWebSocketState?.closed === closed + 2,
+    socketsBeforeSecondHide.closed, { timeout: 3000 });
+  const socketsAfterSecondHide = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
+  assert(socketsAfterSecondHide.opened === socketsBeforeSecondHide.opened
+    && socketsAfterSecondHide.closed === socketsBeforeSecondHide.closed + 2,
+  `uranium chamber: visibility hide did not pause both live sockets ${JSON.stringify({ socketsBeforeSecondHide, socketsAfterSecondHide })}`);
+
+  await page.evaluate(() => {
+    window.__uraniumSmokeVisibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction((opened) => window.__uraniumWebSocketState?.opened === opened + 2,
+    socketsAfterSecondHide.opened, { timeout: 3000 });
+  const socketsBeforeClose = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
+
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('#uranium-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await page.waitForFunction((closed) => window.__uraniumWebSocketState?.closed === closed + 2,
+    socketsBeforeClose.closed, { timeout: 3000 });
+  const socketsAfterClose = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
+  assert(socketsAfterClose.opened === socketsBeforeClose.opened
+    && socketsAfterClose.closed === socketsBeforeClose.closed + 2,
+  `uranium chamber: closing the expanded room did not close both live sockets ${JSON.stringify({ socketsBeforeClose, socketsAfterClose })}`);
+
+  const deepLinkResponse = await page.goto(`${baseUrl}/uranium/?view=markets&range=90D`, { waitUntil: 'domcontentloaded' });
+  assert(deepLinkResponse?.ok(), `uranium chamber: ranged deep link failed with HTTP ${deepLinkResponse?.status()}`);
+  await page.locator('#uranium-modal.active .uranium-content').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => document.querySelector('#uranium-chamber-body')?.dataset.uraniumRendered === '1', null, { timeout: 10000 });
+  const deepLinkState = await page.evaluate(() => ({
+    path: location.pathname,
+    view: new URL(location.href).searchParams.get('view'),
+    range: new URL(location.href).searchParams.get('range'),
+    selectedView: document.querySelector('#uranium-tab-markets')?.getAttribute('aria-selected') || '',
+    selectedRange: document.querySelector('[data-uranium-range][aria-pressed="true"]')?.dataset.uraniumRange || '',
+    provenance: document.querySelector('.uranium-chart-provenance')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    socket: { ...window.__uraniumWebSocketState }
+  }));
+  assert(deepLinkState.path === '/uranium/' && deepLinkState.view === 'markets' && deepLinkState.range === '90D'
+    && deepLinkState.selectedView === 'true' && deepLinkState.selectedRange === '90D'
+    && /CoinGecko cross-venue aggregate/i.test(deepLinkState.provenance),
+  `uranium chamber: direct route did not preserve the historical range ${JSON.stringify(deepLinkState)}`);
+  await page.locator('[data-uranium-range="1Y"]').click();
+  const rangeRouteState = await page.evaluate(() => ({
+    range: new URL(location.href).searchParams.get('range'),
+    selectedRange: document.querySelector('[data-uranium-range][aria-pressed="true"]')?.dataset.uraniumRange || ''
+  }));
+  assert(rangeRouteState.range === '1Y' && rangeRouteState.selectedRange === '1Y',
+    `uranium chamber: range selection did not update the bookmarkable URL ${JSON.stringify(rangeRouteState)}`);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#uranium-modal')?.classList.contains('active'), null, { timeout: 5000 });
   await context.close();
@@ -15780,6 +16205,7 @@ async function smokeUraniumChamber(browser, baseUrl) {
     viewport: { width: 390, height: 844 },
     serviceWorkers: 'block'
   });
+  await installMockKrakenWebSocket(lanContext);
   await installFeatureMocks(lanContext);
   await lanContext.addInitScript(() => {
     localStorage.setItem('tezos-toured', '1');
@@ -15842,9 +16268,49 @@ async function smokeUraniumChamber(browser, baseUrl) {
     && lanState.modal.top >= -1 && lanState.modal.bottom <= 845
     && lanState.tabsContained && lanState.nestedScroll && lanState.pageOverflow <= 1,
   `uranium chamber LAN HTTP: mobile room escaped the 390x844 viewport ${JSON.stringify(lanState)}`);
+  await lanPage.locator('#uranium-tab-markets').click();
+  await lanPage.waitForFunction(() => Boolean(document.querySelector('#uranium-view-panel .uranium-chart.is-interactive')), null, { timeout: 3000 });
+  const mobileMarketsState = await lanPage.evaluate(() => {
+    const panel = document.querySelector('#uranium-view-panel .uranium-price-panel');
+    const chart = panel?.querySelector('.uranium-chart.is-interactive');
+    const svg = chart?.querySelector('svg');
+    const readout = chart?.querySelector('.uranium-chart-readout');
+    const provenance = chart?.querySelector('.uranium-chart-provenance');
+    const eventLabel = chart?.querySelector('.uranium-chart-event text');
+    const rect = (element) => {
+      const bounds = element?.getBoundingClientRect();
+      return bounds ? { left: bounds.left, right: bounds.right, width: bounds.width, height: bounds.height } : null;
+    };
+    const panelRect = rect(panel);
+    const contained = (element) => {
+      const bounds = rect(element);
+      return Boolean(bounds && panelRect && bounds.left >= panelRect.left - 1 && bounds.right <= panelRect.right + 1);
+    };
+    return {
+      panel: panelRect,
+      chart: rect(chart),
+      svg: rect(svg),
+      viewBoxWidth: svg?.viewBox?.baseVal?.width || 0,
+      rangesContained: Array.from(panel?.querySelectorAll('[data-uranium-range]') || []).every(contained),
+      readoutContained: contained(readout),
+      provenanceContained: contained(provenance),
+      eventLabelContained: contained(eventLabel),
+      axisWidths: Array.from(chart?.querySelectorAll('.uranium-chart-axis text') || []).map((label) => label.getBoundingClientRect().width),
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(mobileMarketsState.panel && mobileMarketsState.chart && mobileMarketsState.svg
+    && mobileMarketsState.chart.width <= mobileMarketsState.panel.width + 1
+    && mobileMarketsState.svg.width <= mobileMarketsState.panel.width + 1
+    && mobileMarketsState.viewBoxWidth >= 350 && mobileMarketsState.viewBoxWidth <= 400
+    && mobileMarketsState.rangesContained && mobileMarketsState.readoutContained
+    && mobileMarketsState.provenanceContained && mobileMarketsState.eventLabelContained
+    && mobileMarketsState.axisWidths.length === 4 && mobileMarketsState.axisWidths.every((width) => width >= 18)
+    && mobileMarketsState.pageOverflow <= 1,
+  `uranium chamber LAN HTTP: mobile Markets chart is clipped or unreadable ${JSON.stringify(mobileMarketsState)}`);
   await lanContext.close();
   assert(lanIssues.length === 0, `uranium chamber LAN HTTP browser issues:\n${lanIssues.join('\n')}`);
-  log('ok - Uranium Chamber views, LAN HTTP integrity fallback, hidden gating, and quiet-refresh reading state');
+  log('ok - Uranium Chamber ranges, direct Kraken stream, LAN HTTP integrity fallback, hidden gating, and quiet-refresh reading state');
 }
 
 async function smokeEcosystemActivity(browser, baseUrl) {
@@ -23893,7 +24359,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'launcher-projections', description: 'Capital, Ecosystem Activity, and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },
-    { name: 'uranium-chamber', description: 'Uranium Chamber opens its xU3O8 routes, verifies real artifacts without SubtleCrypto on mobile LAN HTTP, gates hidden polling, and preserves quiet reading state', run: () => smokeUraniumChamber(browser, baseUrl) },
+    { name: 'uranium-chamber', description: 'Uranium Chamber preserves ranged chart history, deterministic Kraken live receipts, direct routing, hidden gating, and quiet reading state', run: () => smokeUraniumChamber(browser, baseUrl) },
     { name: 'ecosystem-activity', description: 'Completed-week dapp rankings, partial pulse, full history, app proofbooks, direct routing, responsive layout, and quiet refresh', run: () => smokeEcosystemActivity(browser, baseUrl) },
     { name: 'staking-chamber', description: 'Narrow >10K stake/unstake tape, canonical ratio, complete cursor archive, mover trail, pretty route, and mobile geometry', run: () => smokeStakingChamber(browser, baseUrl) },
     { name: 'my-tezos-cold-start', description: 'My Tezos remains off-screen while its lazy styles are delayed, then preserves normal desktop and mobile open/close behavior', run: () => smokeMyTezosColdStart(browser, baseUrl) },

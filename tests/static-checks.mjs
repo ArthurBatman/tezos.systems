@@ -858,6 +858,8 @@ async function checkRequiredFiles() {
     'og/uranium.png',
     'assets/uranium/uranium-core.webp',
     'assets/uranium/uranium-core-640.webp',
+    'assets/uranium/uranium-launcher.webp',
+    'assets/uranium/uranium-launcher-480.webp',
     'ecosystem/index.html',
     'og/ecosystem.png',
     'history/index.html',
@@ -1818,6 +1820,7 @@ async function checkCsp() {
     'https://*.papers.tech',
     'wss://*.papers.tech',
     'wss://relay.walletconnect.com',
+    'wss://ws.kraken.com',
     'api.llama.fi',
     'explorer.etherlink.com',
     'node.mainnet.etherlink.com'

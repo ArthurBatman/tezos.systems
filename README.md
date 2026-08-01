@@ -440,17 +440,25 @@ inline modal styles in `js/core/app.js`.
   statement, the non-executable Uranium.io uranium reference, and Etherlink
   state without treating one as proof of another. **Markets**
   (`?view=markets`) leads with Kraken's public XU3O8/USD pair, bounded book and
-  trade receipts, attributed venues, CoinGecko history, and an explicitly
-  derived premium or discount to the indicative physical reference.
+  trade receipts, and an inspectable price-and-volume explorer. The current
+  24-hour view uses Kraken's public WebSocket 5-minute candles and ticker while
+  the 7-day view uses its separate 15-minute Kraken snapshot; 30-day through
+  1-year history uses separately labeled CoinGecko daily aggregates. Exact
+  point lookup, visible axes, actual coverage, and source clocks keep those
+  series from being silently spliced together. Markets also retains attributed
+  venues and an explicitly derived premium or discount to the indicative
+  physical reference.
   **On-chain** (`?view=onchain`) keeps indexed addresses distinct from people,
   separates the xU3O8 token from the Uranium.io app contract, and discloses
   current contract controls. **Proofbook** (`?view=proofbook`) shows the dated
   physical balance, transparent reserve-pounds-to-token-supply arithmetic,
   custody, redemption, fees, rights, source clocks, and unavailable claims.
-  The glowing green specimen is intentionally stylized artwork: physical U3O8
-  is yellowcake concentrate, not a luminous rock. The launcher reads a compact
-  integrity-checked projection; the complete proofbook loads only after the
-  room opens and follows the quiet-refresh and last-good contracts.
+  The compact launcher uses its own polished, inanimate light-green specimen;
+  the expanded room retains its playful mascot and explicit caveat that
+  physical U3O8 is yellowcake concentrate, not a luminous rock. The launcher
+  reads a compact integrity-checked projection; the complete proofbook loads
+  only after the room opens and follows the quiet-refresh and last-good
+  contracts.
 - Ecosystem Activity with direct `#ecosystem` and `/ecosystem/` access. It
   ranks the disclosed Tezos L1 and Etherlink app universe by distinct
   source-native wallet addresses in the last completed Monday-to-Monday UTC
@@ -1096,7 +1104,10 @@ provider. The browser consumes that artifact and never silently upgrades stale
 or partial coverage into a current, comprehensive claim.
 `npm run refresh:uranium` rebuilds the Uranium snapshot and compact launcher
 projection from public Kraken, CoinGecko, Blockscout, DefiLlama, Uranium.io,
-and custody-document receipts. `npm run check:uranium` validates the committed
+and custody-document receipts. While the Markets view is open in a visible tab,
+Kraken's public WebSocket adds a current ticker plus separate 5- and 15-minute
+OHLC snapshots; the generated receipt remains the labeled last-good fallback.
+`npm run check:uranium` validates the committed
 schema, hashes, payload budgets, source clocks, contracts, physical statement,
 derived arithmetic, and market/physical-evidence boundaries without contacting those
 providers. Scheduled/full generated runs refresh and optionally stage both
