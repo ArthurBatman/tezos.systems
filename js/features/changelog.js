@@ -16,7 +16,8 @@ export const CHANGELOG = [
             { type: '🔧', text: 'Milestone refreshes now fall back to the official Octez archive when the primary RPC has pruned an exact historical cycle-boundary block' },
             { type: '⚡', text: 'Release forecasts load from one same-origin daily receipt, preserve bounded last-good data, refresh only in visible tabs, turn visibly stale, and disappear after their review window expires' },
             { type: '🎨', text: 'Release Radar now keeps Live Pulse compact while a dedicated full-screen briefing opens all three release lanes, six Tezos X gates, dependency boundaries, recent artifacts, status history, evidence, and methodology' },
-            { type: '🎨', text: 'Uranium now greets the market through a cute cartoon rock mascot with a vivid emerald-energy glow, while its caption keeps the artwork clearly separate from literal U3O8 yellowcake' }
+            { type: '🎨', text: 'Uranium now greets the market through a cute cartoon rock mascot with a vivid emerald-energy glow, while its caption keeps the artwork clearly separate from literal U3O8 yellowcake' },
+            { type: '🔧', text: 'Your Story now uses one properly sized Show changes action and carries its unseen-only filter into Transactions instead of repeating a narrow duplicate inside the recent chapter' }
         ]
     },
     {

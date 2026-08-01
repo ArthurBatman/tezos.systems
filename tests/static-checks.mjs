@@ -602,6 +602,16 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['syncExactBalanceHistory', 'seriesByAddress', 'aggregateCoverage', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed']) {
     if (!memory.includes(snippet)) fail(`My Tezos Memory contract missing: ${snippet}`);
   }
+  if ((index.match(/id="my-tezos-story-transactions"/g) || []).length !== 1
+      || memory.includes('data-memory-show-unseen')) {
+    fail('My Tezos Story must expose one Show changes action without an injected duplicate');
+  }
+  for (const snippet of ['export function prepareMyTezosChangesView()', 'unseen.length > 0']) {
+    if (!memory.includes(snippet)) fail(`My Tezos Story changes handoff missing: ${snippet}`);
+  }
+  if (!myTezos.includes('prepareMyTezosChangesView();')) {
+    fail('My Tezos Story action no longer prepares the unseen Transactions view');
+  }
   if (!styles.includes('.portfolio-history-empty[hidden]')) {
     fail('Completed exact-history charts must remove the hidden loading placeholder from layout');
   }

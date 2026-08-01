@@ -813,7 +813,8 @@ inline modal styles in `js/core/app.js`.
   or signature. Both paths keep data in this browser and explain the six views
   plus the Ledger Flow and Maxi Passport handoffs before setup. Your Story separates the account's
   on-chain identity, protocol-era milestones, share surface, and browser-local
-  recent chapter from the live Overview. Overview shows the three newest applied
+  recent chapter from the live Overview. Its single Show changes action opens
+  the unseen receipt lane when new indexed activity exists. Overview shows the three newest applied
   account receipts with a direct handoff to the complete Transactions view, and
   one shared wallet-scope control now governs all six tabs. It defaults to all
   included L1 wallets, keeps current total, spendable, and staked XTZ visible

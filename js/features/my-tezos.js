@@ -30,6 +30,7 @@ import {
 } from './my-tezos-portfolio.js';
 import {
     activateMyTezosMemory,
+    prepareMyTezosChangesView,
     refreshMyTezosMemory
 } from './my-tezos-memory.mjs';
 import {
@@ -3281,7 +3282,11 @@ export function initMyTezos() {
     window.addEventListener('my-tezos-linked-l2-changed', () => renderMyTezosJourneys());
     window.addEventListener('my-tezos-journeys-request', () => renderMyTezosJourneys());
     document.getElementById('my-tezos-story-transactions')?.addEventListener('click', () => {
+        prepareMyTezosChangesView();
         setMyTezosView('transactions', { routeMode: 'push' });
+        requestAnimationFrame(() => {
+            document.getElementById('portfolio-activity-title')?.scrollIntoView({ block: 'nearest' });
+        });
     });
     // Create minibar under price bar
     createMinibar();

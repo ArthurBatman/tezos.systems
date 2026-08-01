@@ -129,17 +129,8 @@ function renderWhileAway(activities, { baselineCreated = false } = {}) {
         <div class="portfolio-memory-delta">
             <strong>${unseen.length} change${unseen.length === 1 ? '' : 's'} since your last visit</strong>
             <div>${chips}</div>
-            <button type="button" class="glass-button" data-memory-show-unseen>Show changes</button>
         </div>
     `);
-    target.querySelector('[data-memory-show-unseen]')?.addEventListener('click', () => {
-        const nextFilter = unseen.some((activity) => activity.kind.startsWith('nft-')) ? 'nft' : 'transfers';
-        setActivityFilter(nextFilter, { onlyUnseen: true });
-        window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'transactions' } }));
-        requestAnimationFrame(() => {
-            document.getElementById('portfolio-activity-title')?.scrollIntoView({ block: 'nearest' });
-        });
-    });
 }
 
 function activityRowHtml(activity) {
@@ -220,6 +211,16 @@ function setActivityFilter(filter, { onlyUnseen = false } = {}) {
         button.setAttribute('aria-pressed', String(active));
     });
     renderActivity(currentActivities);
+}
+
+export function prepareMyTezosChangesView() {
+    const lastSeen = Number(localStorage.getItem(LAST_SEEN_KEY)) || 0;
+    const unseen = lastSeen
+        ? currentActivities.filter((activity) => activity.timestamp > lastSeen)
+        : [];
+    const nextFilter = unseen.some((activity) => activity.kind.startsWith('nft-')) ? 'nft' : 'transfers';
+    setActivityFilter(nextFilter, { onlyUnseen: unseen.length > 0 });
+    return unseen.length;
 }
 
 function renderMemory(entries, history, activities, { status = 'cached', baselineCreated = false } = {}) {

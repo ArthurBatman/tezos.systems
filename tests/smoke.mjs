@@ -10450,6 +10450,29 @@ async function smokeMyTezosMemory(browser, baseUrl) {
     await page.locator('#my-tezos-panel-portfolio #portfolio-while-away').count() === 0,
     'my tezos memory: browser-local recent chapter remained in Portfolio'
   );
+  const storyAction = await page.evaluate(() => {
+    const chapter = document.querySelector('.my-tezos-recent-chapter');
+    const button = document.querySelector('#my-tezos-story-transactions');
+    const rect = button?.getBoundingClientRect();
+    const style = button ? getComputedStyle(button) : null;
+    return {
+      actionCount: chapter?.querySelectorAll('button').length || 0,
+      injectedActions: document.querySelectorAll('[data-memory-show-unseen]').length,
+      width: rect?.width || 0,
+      height: rect?.height || 0,
+      whiteSpace: style?.whiteSpace || '',
+      textOverflow: button ? button.scrollWidth - button.clientWidth : Infinity
+    };
+  });
+  assert(
+    storyAction.actionCount === 1
+      && storyAction.injectedActions === 0
+      && storyAction.width >= 160
+      && storyAction.height >= 38
+      && storyAction.whiteSpace === 'nowrap'
+      && storyAction.textOverflow <= 1,
+    `my tezos memory: Story changes action is duplicated or collapsed ${JSON.stringify(storyAction)}`
+  );
   await page.locator('#my-tezos-story-transactions').click();
   await page.waitForFunction(() => (
     document.querySelector('#my-tezos-tab-transactions')?.getAttribute('aria-selected') === 'true'
@@ -10549,6 +10572,46 @@ async function smokeMyTezosMemory(browser, baseUrl) {
       )),
     `my tezos memory: independent exact coverage state missing ${JSON.stringify(memoryState.sync)}`
   );
+
+  await page.locator('#my-tezos-tab-story').click();
+  await page.evaluate(() => {
+    localStorage.setItem('tezos-systems-my-tezos-memory-last-seen-v1', String(Date.now() - 90 * 60 * 1000));
+    window.dispatchEvent(new CustomEvent('my-tezos-portfolio-changed', { detail: { source: 'story-changes-action-smoke' } }));
+  });
+  await page.waitForFunction(() => (
+    document.querySelector('#portfolio-memory-status')?.dataset.state === 'complete'
+      && /change(?:s)? since your last visit/i.test(document.querySelector('#portfolio-while-away')?.textContent || '')
+  ), null, { timeout: 15000 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileStoryAction = await page.evaluate(() => {
+    const chapter = document.querySelector('.my-tezos-recent-chapter');
+    const button = document.querySelector('#my-tezos-story-transactions');
+    const rect = button?.getBoundingClientRect();
+    return {
+      actionCount: chapter?.querySelectorAll('button').length || 0,
+      injectedActions: document.querySelectorAll('[data-memory-show-unseen]').length,
+      width: rect?.width || 0,
+      chapterWidth: chapter?.getBoundingClientRect().width || 0,
+      textOverflow: button ? button.scrollWidth - button.clientWidth : Infinity,
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(
+    mobileStoryAction.actionCount === 1
+      && mobileStoryAction.injectedActions === 0
+      && mobileStoryAction.width >= mobileStoryAction.chapterWidth - 34
+      && mobileStoryAction.textOverflow <= 1
+      && mobileStoryAction.pageOverflow <= 1,
+    `my tezos memory: mobile Story changes action is duplicated, narrow, or overflowing ${JSON.stringify(mobileStoryAction)}`
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.locator('#my-tezos-story-transactions').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#my-tezos-tab-transactions')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('[data-activity-filter="nft"]')?.getAttribute('aria-pressed') === 'true'
+      && document.querySelectorAll('#portfolio-activity-list .activity-item-nft').length >= 1
+      && document.querySelectorAll('#portfolio-activity-list .activity-item-transfer').length === 0
+  ), null, { timeout: 10000 });
 
   await context.close();
   assert(issues.length === 0, `my tezos memory browser issues:\n${issues.join('\n')}`);
