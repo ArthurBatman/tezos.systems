@@ -13893,9 +13893,19 @@ async function smokeMaxisChamber(browser, baseUrl) {
     `tezos maxis chamber: compact rank actions are detached from their standing or open outside the visible chamber ${JSON.stringify(compactActionGeometry)}`
   );
 
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const gapReceiptToggle = page.locator('[data-maxis-board] .maxis-row-menu-toggle').nth(1);
   await gapReceiptToggle.focus();
+  await page.waitForFunction(() => (
+    document.activeElement === document.querySelectorAll('[data-maxis-board] .maxis-row-menu-toggle')[1]
+  ));
   await page.keyboard.press('Enter');
+  await page.waitForFunction(() => {
+    const toggle = document.querySelectorAll('[data-maxis-board] .maxis-row-menu-toggle')[1];
+    const controlledId = toggle?.getAttribute('aria-controls') || '';
+    return toggle?.getAttribute('aria-expanded') === 'true'
+      && Boolean(controlledId && document.getElementById(controlledId));
+  });
   const rowActions = await page.evaluate(() => {
     const group = document.querySelector('.maxis-row-actions[role="group"]');
     const toggle = document.querySelector('.maxis-row-menu-toggle[aria-expanded="true"]');
@@ -14037,6 +14047,11 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.locator('[data-maxis-view="season"]').click();
   await page.locator(`[data-maxis-lane="${artifact.readyCategory}"]`).click();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => (
+    document.querySelector('.maxis-protocol-hero')
+      ?.getAnimations()
+      .every((animation) => animation.playState === 'finished')
+  ), null, { timeout: 2000 });
   const mobileState = await page.evaluate(() => {
     const heights = (selector) => Array.from(document.querySelectorAll(selector)).filter((node) => node.getClientRects().length).map((node) => Math.round(node.getBoundingClientRect().height));
     const content = document.querySelector('.maxis-content')?.getBoundingClientRect();
