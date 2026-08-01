@@ -6,7 +6,7 @@
  * so installing an update does not download the whole site.
  */
 
-const CACHE_NAME = 'tezos-systems-v543';
+const CACHE_NAME = 'tezos-systems-v544';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CURRENT_CACHES = new Set([CACHE_NAME, RUNTIME_CACHE]);
 
@@ -46,10 +46,12 @@ const API_HOSTS = new Set([
     'node.mainnet.etherlink.com'
 ]);
 
-// Generated Uranium market artifacts are always requested from the network.
-// The Chamber itself retains and labels its in-memory last-good snapshot; the
-// service worker must not make an older JSON response look like a fresh fetch.
+// Generated market artifacts are always requested from the network. Each
+// Chamber retains and labels its in-memory last-good snapshot; the service
+// worker must not make an older JSON response look like a fresh fetch.
 const NETWORK_ONLY_DATA_PATHS = new Set([
+    '/data/metals-entry-summary.json',
+    '/data/metals-snapshot.json',
     '/data/uranium-entry-summary.json',
     '/data/uranium-snapshot.json'
 ]);

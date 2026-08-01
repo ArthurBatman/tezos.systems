@@ -38,6 +38,7 @@ const MAXIS_CAREER_TARGETS = ['data/maxis-careers.json'];
 const MAXIS_L2_GOVERNANCE_TARGETS = ['data/maxis-l2-governance.json'];
 const CAPITAL_TARGETS = ['data/capital-snapshot.json'];
 const URANIUM_TARGETS = ['data/uranium-snapshot.json', 'data/uranium-entry-summary.json'];
+const METALS_TARGETS = ['data/metals-snapshot.json', 'data/metals-entry-summary.json'];
 const ECOSYSTEM_TARGETS = ['data/ecosystem-stats.json'];
 const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json', 'data/ecosystem-entry-summary.json'];
 const WHALE_WATCH_TARGETS = ['data/whale-watch.json'];
@@ -61,6 +62,7 @@ const GENERATED_TARGETS = unique([
   ...MAXIS_L2_GOVERNANCE_TARGETS,
   ...CAPITAL_TARGETS,
   ...URANIUM_TARGETS,
+  ...METALS_TARGETS,
   ...ECOSYSTEM_TARGETS,
   ...LAUNCHER_PROJECTION_TARGETS,
   ...WHALE_WATCH_TARGETS,
@@ -240,6 +242,8 @@ async function main() {
     ran.push('capital-check');
     nodeScript('scripts/refresh-uranium-data.mjs', ['--check']);
     ran.push('uranium-check');
+    nodeScript('scripts/refresh-metals-data.mjs', ['--check']);
+    ran.push('metals-check');
     nodeScript('scripts/refresh-ecosystem-stats.mjs', ['--check']);
     ran.push('ecosystem-check');
     nodeScript('scripts/generate-launcher-projections.mjs', ['--check']);
@@ -266,6 +270,9 @@ async function main() {
     nodeScript('scripts/refresh-uranium-data.mjs');
     ran.push('uranium');
     if (shouldStage) stageTargets(URANIUM_TARGETS);
+    nodeScript('scripts/refresh-metals-data.mjs');
+    ran.push('metals');
+    if (shouldStage) stageTargets(METALS_TARGETS);
     nodeScript('scripts/refresh-ecosystem-stats.mjs');
     ran.push('ecosystem');
     if (shouldStage) stageTargets(ECOSYSTEM_TARGETS);

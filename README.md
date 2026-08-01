@@ -83,6 +83,8 @@ tezos.systems/
 │   ├── capital-entry-summary.json     # Compact integrity-checked Capital launcher projection
 │   ├── uranium-snapshot.json          # Generated xU3O8 market, physical-evidence, and chain proofbook
 │   ├── uranium-entry-summary.json     # Compact integrity-checked Uranium launcher projection
+│   ├── metals-snapshot.json           # Generated eight-metal market, supply, and receipt proofbook
+│   ├── metals-entry-summary.json      # Compact integrity-checked Precious Metals launcher projection
 │   ├── ecosystem-apps.json            # Reviewed L1/L2 app and contract-discovery manifest
 │   ├── ecosystem-stats.json           # Complete generated weekly dapp activity ledger
 │   ├── ecosystem-entry-summary.json   # Compact integrity-checked Ecosystem launcher projection
@@ -107,7 +109,7 @@ tezos.systems/
 ├── widgets/                           # Standalone embeddable widgets, shared runtime, and builder
 ├── staking/ governance/ bakers/ hen/ compare/
 │                                      # SEO and standalone pages
-├── chamber/ pulse/ capital/ uranium/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
+├── chamber/ pulse/ capital/ uranium/ metals/ ecosystem/ whales/ stake/ leaderboard/ history/ maxis/ tezoscrp/ health/ tezosx/ l2chamber/ tz4/ lb/ ledger-flow/ domains/ ctez/
 │                                      # Pretty share/OG routes into live Chambers
 ├── og/                                # Generated per-chamber OG images
 ├── feed.xml                           # Generated Tezos governance RSS feed
@@ -125,6 +127,7 @@ tezos.systems/
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
+│   ├── refresh-metals-data.mjs        # Precious Metals snapshot and launcher generator/checker
 │   ├── refresh-ecosystem-stats.mjs    # Complete weekly L1/L2 dapp history generator/checker
 │   ├── generate-ecosystem-entry-summary.mjs # Compact Ecosystem launcher projection
 │   ├── refresh-whale-watch-data.mjs   # Complete large-transfer/dormancy snapshot generator
@@ -461,6 +464,26 @@ inline modal styles in `js/core/app.js`.
   reads a compact integrity-checked projection; the complete proofbook loads
   only after the room opens and follows the quiet-refresh and last-good
   contracts.
+- Precious Metals Chamber with direct `#metals` and `/metals/` access. Its
+  complete assay covers gold, silver, platinum, palladium, rhodium, ruthenium,
+  iridium, and osmium without filling unsupported values with zero. Comparable
+  gold, silver, platinum, and palladium history uses IMF Primary Commodity
+  Price System completed-month USD-per-troy-ounce averages. Separately sourced
+  indicative current observations keep their own observation and retrieval
+  clocks; they are never relabeled as an IMF close, executable spot quote, or
+  continuous market price. Annual USGS specialist-PGM context retains its
+  source-native units, aggregation, and reporting date; unsupported osmium
+  pricing remains unavailable.
+
+  The on-chain receipt lane keeps VNXAU venue quotes, Tezos and Etherlink
+  contract state, issuer terms, dated operational notices, and dated
+  agreed-upon-procedures evidence separate. A token transfer or supply value is
+  not evidence of custody, ownership, liquidity, redemption, or execution; an
+  issuer claim is not an independent audit; and a report that predates or omits
+  a chain cannot prove that chain's present backing. The Chamber contains no
+  buy, sell, swap, bridge, or redeem action. Its compact launcher reads an
+  integrity-checked projection while the complete source ledger loads only
+  after the room opens and retains per-source last-good state.
 - Ecosystem Activity with direct `#ecosystem` and `/ecosystem/` access. It
   ranks the disclosed Tezos L1 and Etherlink app universe by distinct
   source-native wallet addresses in the last completed Monday-to-Monday UTC
@@ -967,6 +990,7 @@ Useful deep links include:
 - `#pulse`
 - `#capital`
 - `#uranium`, `#xu3o8`, or `#u3o8`
+- `#metals`
 - `#ecosystem`
 - `#staking`
 - `#maxis`
@@ -983,7 +1007,7 @@ Useful deep links include:
 - `#ctez`
 
 Public share routes are also available at `/chambers/`, `/my/`, `/chamber/`, `/pulse/`,
-`/capital/`, `/uranium/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
+`/capital/`, `/uranium/`, `/metals/`, `/ecosystem/`, `/whales/`, `/stake/`, `/leaderboard/`, `/history/`, `/maxis/`,
 `/tezoscrp/`, `/health/`, `/tezosx/`, `/l2chamber/`, `/tz4/`, `/lb/`,
 `/ledger-flow/`, `/domains/`, and `/ctez/`.
 These routes carry unique Open Graph metadata and hydrate the corresponding
@@ -1003,19 +1027,25 @@ The governance SEO page also funnels high-intent searches into `/chamber/`,
 | `data/nakamoto-sources.json` | Same-origin dated ledger of Chainspect, Edinburgh EDI, CoinClear, and explicitly marked Chainspect-derived historical reports; scheduled server-side refresh avoids third-party browser CORS limits |
 | Official Tezos, Ethereum, Solana, Cardano, and Algorand documentation plus source-native RPC samples | Monthly chain-comparison refresh; each published static number requires two distinct checks |
 | `data/chain-comparison-verification.json` | Same-origin monthly receipt ledger with the displayed value, observed source values, source hashes, check type, and fail-closed policy for every static comparison number |
-| CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, public RWA token mappings, and attributed xU3O8 venue/history context |
+| CoinGecko | XTZ price, market cap, 24h change, volume, USD/BTC/ETH histories, exchange ticker snapshots, public RWA token mappings, and attributed xU3O8 and VNXAU token-market context; token quotes are not commodity benchmarks or backing receipts |
 | Tezos Domains GraphQL | Domain/reverse-record lookups plus live events, auctions, offers, buy offers, and 30-day expiration pressure |
 | OBJKT APIs | HEN mode's live Teia + OBJKT feed, My Tezos summary-first Collection holdings and profiles, Maxis 30-day buyer/artist ranks, and Capital's source-bounded art-economy history |
 | Supabase REST | Historical Tezos snapshots via public anon client config |
 | DefiLlama `https://api.llama.fi` | Tezos and Etherlink TVL, protocol, stablecoin, and public RWA registry histories plus Uranium.io protocol context; DefiLlama currently indexes Tezos X as Etherlink |
-| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; Capital's current counters, daily activity, transaction fees, average user fees, and gas-price history; and Uranium's xU3O8 supply, indexed addresses, controls, and bounded transfer receipts |
+| Etherlink Blockscout `https://explorer.etherlink.com/api` plus `/api/v2` and stats service | Ecosystem Activity's successful inbound transaction histories for reviewed app contracts; My Tezos account-linked L2 counters, assets, and receipts; Tezos X chamber transaction, address, gas, and block stats; Capital's current counters, daily activity, transaction fees, average user fees, and gas-price history; Uranium's xU3O8 supply, indexed addresses, controls, and bounded transfer receipts; and Metals' VNXAU contract state, kept separate from custody or backing evidence |
 | Kraken public API and official listing notice | XU3O8/USD pair identity, status, ticker, OHLC, book levels, and bounded public trade receipts; a market venue, not backing or redemption proof |
 | Uranium.io issuer documentation, oracle, and proof-of-reserves page | Issuer-confirmed xU3O8 contract and terms, indicative USD/lb uranium reference, and the dated Cameco contract-balance statement |
+| IMF Primary Commodity Price System | Completed-month gold, silver, platinum, and palladium USD-per-troy-ounce averages plus the precious-metals index; these are comparable monthly observations, not live or executable quotes |
+| Gold API public price endpoints | Generator-only indicative-current gold, silver, platinum, and palladium observations with independent clocks; undisclosed upstream inputs mean these are not benchmarks, official fixings, dealer quotes, or executable prices |
+| U.S. Geological Survey precious-metals publications | The complete eight-metal taxonomy plus source-bounded annual specialist-PGM context; grouped observations remain grouped and unavailable osmium pricing remains unavailable |
+| VNX and Metals.io documentation | VNXAU token identity, issuer terms, operational notices, and dated agreed-upon-procedures receipts; issuer material is attributed evidence, not an independent audit or proof of present cross-chain backing, liquidity, or redeemability |
 | GitLab public API | Capital's 28-day canonical Octez `master`-branch commit activity |
 | `data/capital-entry-summary.json` | Compact, integrity-checked launcher projection generated from the reviewed Capital snapshot; full room data waits for an explicit Chamber open |
 | `data/capital-snapshot.json` | Same-origin generated Capital dataset with stable content hash and per-source URLs, endpoint receipts, status, timestamps, coverage, truncation, and unavailable-methodology records |
 | `data/uranium-entry-summary.json` | Compact integrity-checked xU3O8 launcher projection; the complete market, chain, and physical-evidence proofbook waits for an explicit room open |
 | `data/uranium-snapshot.json` | Same-origin generated Uranium dataset with separate market, physical-reference, custody-document, protocol, and Etherlink clocks plus stable content and source receipts |
+| `data/metals-entry-summary.json` | Compact integrity-checked Precious Metals launcher projection; the complete eight-metal market, annual-context, and VNXAU receipt ledger waits for an explicit room open |
+| `data/metals-snapshot.json` | Same-origin generated Precious Metals dataset with stable content and source hashes, completed-month IMF observations, separately clocked indicative references, USGS annual context, and chain-scoped VNXAU receipts |
 | `data/ecosystem-apps.json` | Reviewed app identity, layer, start-time, contract-discovery, and proof manifest for the disclosed ranking universe |
 | `data/ecosystem-stats.json` | Same-origin generated weekly active-wallet and interaction history with stable content hash, frozen contract receipts, last-completed-week rankings, and a separate partial current-week pulse |
 | `data/ecosystem-entry-summary.json` | Compact, integrity-checked Ecosystem launcher projection; the complete weekly and per-app history waits for an explicit room open |
@@ -1051,6 +1081,7 @@ crawlable compare content, generated CSS bundles, the milestone catalog, and
 the Maxis artifact family plus its launcher projection,
 `data/capital-snapshot.json` plus its launcher projection,
 `data/uranium-snapshot.json` plus its launcher projection,
+`data/metals-snapshot.json` plus its launcher projection,
 `data/ecosystem-stats.json` plus its launcher projection,
 `data/whale-watch.json`, and the canonical `llms.txt` discovery document; manual full runs
 also check the official Tezos Commons feed for a new TezosCRP period. It also refreshes
@@ -1114,6 +1145,17 @@ schema, hashes, payload budgets, source clocks, contracts, physical statement,
 derived arithmetic, and market/physical-evidence boundaries without contacting those
 providers. Scheduled/full generated runs refresh and optionally stage both
 artifacts; normal pre-commit runs only validate them.
+`npm run refresh:metals` rebuilds the Precious Metals snapshot and compact
+launcher projection from IMF, USGS, token-market, VNX issuer,
+and Tezos/Etherlink contract receipts. IMF completed-month observations and
+indicative current references retain separate clocks and cannot substitute for
+one another. `npm run check:metals` validates the committed eight-metal
+taxonomy, schema, hashes, payload budgets, units, clocks, unavailable-value
+semantics, contracts, and VNXAU evidence boundaries without contacting those
+providers. A failed source preserves only that source's last-good section as
+stale; it cannot make another source appear current or turn missing data into
+zero. Scheduled/full generated runs refresh and optionally stage both artifacts;
+normal pre-commit runs only validate them.
 `npm run refresh:ecosystem -- --backfill` exhaustively pages the aliased TzKT
 smart-contract and asset catalogs, resolves and freezes the reviewed contract
 universe, reconstructs every completed UTC week from the earliest declared app

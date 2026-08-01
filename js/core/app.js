@@ -66,6 +66,7 @@ import { initTezosDomainsChamber } from '../features/tezos-domains.js';
 import { initNetworkPulseChamber } from '../features/network-pulse.js';
 import { initCapitalChamber } from '../features/capital-chamber.js';
 import { initUraniumChamber } from '../features/uranium-chamber.js';
+import { initMetalsChamber } from '../features/metals-chamber.js';
 import { initEcosystemChamber } from '../features/ecosystem-chamber.js';
 import { initMaxisChamber } from '../features/maxis.js';
 import { initStakingChamber } from '../features/staking-chamber.js';
@@ -127,8 +128,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=543';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=543';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=544';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=544';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -329,6 +330,7 @@ async function init() {
     safe('networkPulseChamber', initNetworkPulseChamber);
     safe('capitalChamber', initCapitalChamber);
     safe('uraniumChamber', initUraniumChamber);
+    safe('metalsChamber', initMetalsChamber);
     safe('ecosystemChamber', initEcosystemChamber);
     safe('stakingChamber', initStakingChamber);
     safe('ctezChamber', initCtezChamber);
@@ -1531,6 +1533,7 @@ const CHAMBER_CARD_TARGETS = Object.freeze({
     tezosx: { selector: '#tezlink-entry-card', layout: 'standard' },
     capital: { selector: '#capital-entry-card', layout: 'featured' },
     uranium: { selector: '#uranium-entry-card', layout: 'featured' },
+    metals: { selector: '#metals-entry-card', layout: 'featured' },
     whales: { selector: '#whale-watch-entry-card', layout: 'wide' },
     'staking-chamber': { selector: '#staking-entry-card', layout: 'compact' },
     ecosystem: { selector: '#ecosystem-entry-card', layout: 'featured' },
@@ -1568,6 +1571,12 @@ const CHAMBER_INFO_COPY = {
         body: 'Receipt-backed xU3O8 markets, Etherlink token activity, and separately dated physical-uranium custody and reserve evidence.',
         href: '/uranium/',
         link: 'Open Uranium Chamber ->'
+    },
+    'metals-entry-card': {
+        title: 'Precious Metals',
+        body: 'The canonical eight precious metals, comparable source-specific market observations, and a separate VNXAU Tezos and Etherlink receipt lane.',
+        href: '/metals/',
+        link: 'Open Precious Metals Chamber ->'
     },
     'ecosystem-entry-card': {
         title: 'Ecosystem Activity',
@@ -5669,6 +5678,7 @@ function initOfflineIndicator() {
 //   /pulse/            -> open Network Pulse Chamber
 //   /capital/          -> open Capital Chamber
 //   /uranium/          -> open Uranium Chamber
+//   /metals/           -> open Precious Metals Chamber
 //   /ecosystem/        -> open Ecosystem Activity Chamber
 //   /whales/           -> open Whale Watch Chamber
 //   /stake/            -> open Staking Chamber
@@ -5953,6 +5963,7 @@ function applyDeepLink() {
             import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
             import('../features/capital-chamber.js').then((module) => module.closeCapitalChamber?.()),
             import('../features/uranium-chamber.js').then((module) => module.closeUraniumChamber?.()),
+            import('../features/metals-chamber.js').then((module) => module.closeMetalsChamber?.()),
             import('../features/ecosystem-chamber.js').then((module) => module.closeEcosystemChamber?.()),
             import('../features/staking-chamber.js').then((module) => module.closeStakingChamber?.()),
             import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
@@ -6008,6 +6019,12 @@ function applyDeepLink() {
                 openHashModal(
                     () => import('../features/uranium-chamber.js').then(({ openUraniumChamber }) => openUraniumChamber()),
                     'Failed to open Uranium Chamber'
+                );
+                break;
+            case 'metals':
+                openHashModal(
+                    () => import('../features/metals-chamber.js').then(({ openMetalsChamber }) => openMetalsChamber()),
+                    'Failed to open Precious Metals Chamber'
                 );
                 break;
             case 'ecosystem':
@@ -6216,6 +6233,16 @@ function applyDeepLink() {
         openHashModal(
             () => import('../features/uranium-chamber.js').then(({ openUraniumChamber }) => openUraniumChamber()),
             'Failed to open Uranium Chamber'
+        );
+    }
+
+    // #metals / #precious-metals / #metals-market
+    if (params.has('metals') || hash === 'metals'
+        || params.has('precious-metals') || hash === 'precious-metals'
+        || params.has('metals-market') || hash === 'metals-market') {
+        openHashModal(
+            () => import('../features/metals-chamber.js').then(({ openMetalsChamber }) => openMetalsChamber()),
+            'Failed to open Precious Metals Chamber'
         );
     }
 
@@ -6466,6 +6493,7 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'network-pulse-modal': { entryIds: ['pulse'], hashes: ['pulse', 'network-pulse'] },
     'capital-modal': { entryIds: ['capital'], hashes: ['capital'] },
     'uranium-modal': { entryIds: ['uranium'], hashes: ['uranium', 'xu3o8', 'u3o8', 'uranium-market'] },
+    'metals-modal': { entryIds: ['metals'], hashes: ['metals', 'precious-metals', 'metals-market'] },
     'ecosystem-activity-modal': { entryIds: ['ecosystem'], hashes: ['ecosystem'] },
     'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants'] },
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },

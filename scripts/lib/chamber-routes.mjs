@@ -74,6 +74,16 @@ export const CHAMBER_ROUTES = [
     secondaryAccent: '#18d97f'
   },
   {
+    slug: 'metals',
+    hash: '#metals',
+    title: 'Precious Metals - Eight-Metal Markets and VNXAU Receipts',
+    shortTitle: 'Precious Metals',
+    description: 'Compare the canonical eight precious metals on source-separated market clocks, then inspect receipt-bounded VNXAU activity across Tezos and Etherlink without inferring backing from token activity.',
+    eyebrow: 'Eight-Metal Intelligence',
+    accent: '#f0c96a',
+    secondaryAccent: '#9fb4c7'
+  },
+  {
     slug: 'ecosystem',
     hash: '#ecosystem',
     title: 'Ecosystem Activity - Tezos and Etherlink Dapp Stats',

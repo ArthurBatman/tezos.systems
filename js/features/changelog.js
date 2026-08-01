@@ -7,6 +7,7 @@ export const CHANGELOG = [
     {
         date: '2026-08-01',
         entries: [
+            { type: '✨', text: 'Precious Metals Chamber now brings gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium to /metals/, with completed-month and indicative clocks kept separate and VNXAU token activity never presented as backing or an execution signal' },
             { type: '🎨', text: 'The mobile Uranium launcher now keeps a vivid emerald glow in every theme, separates its specimen, price, metrics, 30-day pulse, and controls into collision-free rows, and removes the empty lower band' }
         ]
     },

@@ -107,6 +107,19 @@ the highest-risk gotchas.
     validation/application delay, source count, and operations-report context
   - Teztale is by Nomadic Labs; keep visible credit when surfacing its data
 - CoinGecko: XTZ price data
+- IMF Primary Commodity Price System monthly workbook
+  - canonical comparable Precious Metals history for gold, silver, platinum,
+    and palladium is completed-month USD per troy ounce, never a live close
+- Gold API public price endpoints
+  - generator-only indicative-current observations for gold, silver, platinum,
+    and palladium; upstream inputs and weighting are undisclosed, so never call
+    these a benchmark, official fixing, dealer quote, or executable price
+- U.S. Geological Survey precious-metals publications
+  - eight-metal taxonomy plus source-bounded annual specialist PGM context;
+    grouped observations stay grouped and missing osmium pricing stays missing
+- VNX and Metals.io documentation
+  - issuer terms, operational notices, and dated VNXAU procedure receipts are
+    attributed claims, not independent proof of current backing or execution
 - Tezos Domains GraphQL: reverse/domain lookups
 - OBJKT GraphQL: NFT/profile mode
 - Supabase REST: historical snapshots using a public anon key from
@@ -162,6 +175,7 @@ Licensing boundaries:
   - `#theme=...`
   - `#section=...`
   - `#price`
+  - `#metals` (Precious Metals Chamber; pretty route `/metals/`)
   - `#staking` (Staking Chamber; pretty route `/stake/`)
 
 ## Quiet Live Refresh Contract
@@ -229,7 +243,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v536`
+- Service worker cache name: `tezos-systems-v544`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -355,6 +369,17 @@ Stamping gotchas:
   filters and lexicographic factual ordering, never a blended quality score.
 - Market tools: `price.js`, `price-intelligence.js`, `calculator.js`,
   `comparison.js`
+- Precious Metals Chamber: `js/features/metals-chamber.js`; `/metals/` covers
+  gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium.
+  IMF gold/silver/platinum/palladium history is completed-month data; any
+  separately sourced indicative current observation keeps its own clock and is
+  not an executable spot quote or IMF close. Preserve source-native aggregation
+  for USGS PGM data and render unavailable osmium pricing as unavailable, never
+  zero. Keep VNXAU venue quotes, Tezos and Etherlink contract state, issuer
+  terms, operational notices, and dated agreed-upon-procedures evidence
+  independent. Never infer custody, ownership, liquidity, redemption,
+  cross-chain backing, or execution from token activity or issuer material, and
+  provide no buy/sell/swap/bridge/redeem action.
 - Whale Watch Chamber: `js/features/whale-chamber.js`, with shared operation
   semantics in `whales.js` and local dormant-account monitoring in
   `sleeping-giants.js`. `/whales/` unifies the generated complete 24-hour
@@ -435,6 +460,14 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   published.
 - `data/ecosystem-entry-summary.json`: compact integrity-checked launcher
   projection generated from the complete Ecosystem artifact.
+- `data/metals-snapshot.json`: generated eight-metal market, annual-context,
+  and VNXAU receipt ledger. It keeps completed-month IMF observations,
+  indicative current references, USGS reporting periods, issuer
+  evidence dates, and chain observations on separate source clocks with stable
+  content and source hashes.
+- `data/metals-entry-summary.json`: compact integrity-checked Precious Metals
+  launcher projection. The complete source and methodology ledger loads only
+  after the room opens.
 - `data/maxis-leaders.json`: canonical lane-native-clock Maxis snapshot. It
   intentionally mixes explicitly labeled all-time, all-time-active, live,
   rolling, and cross-lane clocks rather than pretending every crown shares one
@@ -548,6 +581,13 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   receipt-to-receipt awakening intervals. `npm run check:whales` validates the
   committed artifact without network access; scheduled/full generated runs
   refresh it, while normal pre-commit checks it.
+- `scripts/refresh-metals-data.mjs`: rebuilds `data/metals-snapshot.json` and
+  `data/metals-entry-summary.json` from the reviewed IMF, USGS,
+  token-market, issuer, and chain receipts through `npm run refresh:metals`.
+  `npm run check:metals` validates the eight-metal taxonomy, hashes, units,
+  payload budgets, independent clocks, unavailable values, contracts, and
+  non-inference boundaries without network access. Failed sources preserve only
+  their own last-good section as stale.
 - `scripts/refresh-ecosystem-stats.mjs`: exhaustively pages aliased TzKT
   contracts, resolves and freezes the reviewed contract universe, reconstructs
   complete weekly Tezos/Etherlink active-wallet and interaction history, and

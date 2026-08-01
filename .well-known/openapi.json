@@ -193,6 +193,34 @@
         }
       }
     },
+    "/data/metals-snapshot.json": {
+      "get": {
+        "operationId": "getMetalsSnapshot",
+        "summary": "Get the complete Precious Metals Chamber snapshot",
+        "description": "The canonical eight-metal taxonomy, source-separated public market observations where available, Metals.io listing status, and receipt-bounded VNXAU activity across Tezos and Etherlink.",
+        "x-refresh-cadence": "Scheduled generated refresh",
+        "x-license-boundary": "Underlying venue, issuer, chain, document, and API facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
+    "/data/metals-entry-summary.json": {
+      "get": {
+        "operationId": "getMetalsEntrySummary",
+        "summary": "Get the compact Precious Metals launcher projection",
+        "description": "The integrity-checked market, eight-metal coverage, source-clock, and VNXAU headline subset rendered before the complete Precious Metals room opens.",
+        "x-refresh-cadence": "After every Precious Metals snapshot refresh",
+        "x-license-boundary": "Derived facts retain their source terms; original projection structure and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
     "/data/ecosystem-apps.json": {
       "get": {
         "operationId": "getEcosystemAppManifest",

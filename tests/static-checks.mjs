@@ -801,6 +801,7 @@ async function checkRequiredFiles() {
     'css/network-pulse.css',
     'css/capital.css',
     'css/uranium-chamber.css',
+    'css/metals-chamber.css',
     'css/staking-chamber.css',
     'css/network-health.css',
     'css/maxis.css',
@@ -831,6 +832,7 @@ async function checkRequiredFiles() {
     'js/features/staking-chamber.js',
     'js/features/capital-chamber.js',
     'js/features/uranium-chamber.js',
+    'js/features/metals-chamber.js',
     'js/features/ecosystem-chamber.js',
     'js/features/whale-chamber.js',
     'js/features/tezoscrp.js',
@@ -860,6 +862,12 @@ async function checkRequiredFiles() {
     'assets/uranium/uranium-core-640.webp',
     'assets/uranium/uranium-launcher.webp',
     'assets/uranium/uranium-launcher-480.webp',
+    'metals/index.html',
+    'og/metals.png',
+    'assets/metals/metals-core.webp',
+    'assets/metals/metals-core-640.webp',
+    'assets/metals/metals-launcher.webp',
+    'assets/metals/metals-launcher-480.webp',
     'ecosystem/index.html',
     'og/ecosystem.png',
     'history/index.html',
@@ -889,6 +897,7 @@ async function checkRequiredFiles() {
     'scripts/refresh-chain-comparison.mjs',
     'scripts/refresh-capital-data.mjs',
     'scripts/refresh-uranium-data.mjs',
+    'scripts/refresh-metals-data.mjs',
     'scripts/generate-capital-entry-summary.mjs',
     'scripts/refresh-ecosystem-stats.mjs',
     'scripts/generate-ecosystem-entry-summary.mjs',
@@ -921,6 +930,8 @@ async function checkRequiredFiles() {
     'data/capital-entry-summary.json',
     'data/uranium-snapshot.json',
     'data/uranium-entry-summary.json',
+    'data/metals-snapshot.json',
+    'data/metals-entry-summary.json',
     'data/ecosystem-apps.json',
     'data/ecosystem-stats.json',
     'data/ecosystem-entry-summary.json',
@@ -949,6 +960,7 @@ async function checkRequiredFiles() {
     'tests/personal-signal-relevance-check.mjs',
     'tests/live-pulse-curio-check.mjs',
     'tests/uranium-check.mjs',
+    'tests/metals-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -2365,7 +2377,7 @@ async function checkSelectorContracts() {
     ['Staking Chamber site-map route', "href: '/stake/'", siteMap],
     ['Staking Chamber hero-search manifest source', 'siteMapSearchChips()', search],
     ['Staking Chamber share route', 'siteMapCanonicalRoute', share],
-    ['Staking Chamber Capital category membership', "entryIds: Object.freeze(['capital', 'uranium', 'whales', 'staking-chamber'])", siteMap],
+    ['Staking Chamber Capital category membership', "entryIds: Object.freeze(['capital', 'uranium', 'metals', 'whales', 'staking-chamber'])", siteMap],
     ['Staking Chamber category-aware desktop geometry', '#chambers-grid .staking-entry-card', stakingChamberCss],
     ['Chamber info tooltip viewport positioning', 'positionChamberInfoTooltip(button)', app],
     ['Chamber info tooltip bounded height', '--card-tooltip-max-height', stakingChamberCss],
@@ -5085,7 +5097,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/uranium-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -7697,7 +7709,7 @@ async function checkLiveNumberMotionContracts() {
 }
 
 async function checkQuietRefreshContracts() {
-  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, uranium, ecosystem, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
+  const [quiet, app, daily, myTezos, myBaker, tezlink, capital, uranium, metals, ecosystem, etherlink, domains, tz4, whales, giants, hen, health, lb, styles, smoke] = await Promise.all([
     readText('js/core/quiet-refresh.js'),
     readText('js/core/app.js'),
     readText('js/features/daily-briefing.js'),
@@ -7706,6 +7718,7 @@ async function checkQuietRefreshContracts() {
     readText('js/features/tezlink.js'),
     readText('js/features/capital-chamber.js'),
     readText('js/features/uranium-chamber.js'),
+    readText('js/features/metals-chamber.js'),
     readText('js/features/ecosystem-chamber.js'),
     readText('js/features/etherlink-governance.js'),
     readText('js/features/tezos-domains.js'),
@@ -7731,7 +7744,7 @@ async function checkQuietRefreshContracts() {
   if ((app.match(/document\.visibilityState === 'visible'\) refreshInBackground/g) || []).length < 2) {
     fail('headline and heavy dashboard timers must both defer while the tab is hidden');
   }
-  const quietSurfaces = [myTezos, myBaker, tezlink, capital, uranium, ecosystem, etherlink, domains, tz4, whales, giants, health, lb];
+  const quietSurfaces = [myTezos, myBaker, tezlink, capital, uranium, metals, ecosystem, etherlink, domains, tz4, whales, giants, health, lb];
   if (quietSurfaces.some((source) => !source.includes('quiet-refresh.js'))) {
     fail('every audited live surface must import the shared quiet refresh contract');
   }
@@ -7761,6 +7774,211 @@ async function checkQuietRefreshContracts() {
   }
   if (!smoke.includes("name: 'quiet-refresh'")) fail('smoke catalog must include the quiet-refresh browsing-state suite');
   pass('quiet background refresh scroll, focus, selection, animation, and hidden-tab contracts checked');
+}
+
+async function checkMetalsIntegrationContracts() {
+  const [
+    snapshotText,
+    entryText,
+    feature,
+    css,
+    generator,
+    packageText,
+    generatedSurfaces,
+    siteMap,
+    app,
+    routeHtml,
+    ogGenerator,
+    sw,
+    openApiText,
+    smoke
+  ] = await Promise.all([
+    readText('data/metals-snapshot.json'),
+    readText('data/metals-entry-summary.json'),
+    readText('js/features/metals-chamber.js'),
+    readText('css/metals-chamber.css'),
+    readText('scripts/refresh-metals-data.mjs'),
+    readText('package.json'),
+    readText('scripts/refresh-generated-surfaces.mjs'),
+    readText('js/core/site-map.js'),
+    readText('js/core/app.js'),
+    readText('metals/index.html'),
+    readText('scripts/generate-chamber-og-images.mjs'),
+    readText('sw.js'),
+    readText('.well-known/openapi.json'),
+    readText('tests/smoke.mjs')
+  ]);
+  const snapshot = JSON.parse(snapshotText);
+  const entry = JSON.parse(entryText);
+  const packageJson = JSON.parse(packageText);
+  const openApi = JSON.parse(openApiText);
+  const expectedMetals = ['gold', 'silver', 'platinum', 'palladium', 'rhodium', 'ruthenium', 'iridium', 'osmium'];
+  const expectedSymbols = ['Au', 'Ag', 'Pt', 'Pd', 'Rh', 'Ru', 'Ir', 'Os'];
+  const metalIds = (snapshot.metals || []).map((row) => row.id);
+  const metalSymbols = (snapshot.metals || []).map((row) => row.symbol);
+
+  const { contentHash: snapshotHash, ...unsignedSnapshot } = snapshot;
+  const { contentHash: entryHash, ...unsignedEntry } = entry;
+  if (snapshot.schemaVersion !== 1
+      || stableJsonHash(unsignedSnapshot) !== snapshotHash
+      || JSON.stringify(metalIds) !== JSON.stringify(expectedMetals)
+      || JSON.stringify(metalSymbols) !== JSON.stringify(expectedSymbols)
+      || JSON.stringify(snapshot.taxonomy?.includedSymbols) !== JSON.stringify(expectedSymbols)) {
+    fail('Precious Metals snapshot must retain one valid stable receipt for the canonical ordered eight-metal assay');
+  }
+  if (entry.schemaVersion !== 1
+      || stableJsonHash(unsignedEntry) !== entryHash
+      || entry.source?.path !== 'data/metals-snapshot.json'
+      || entry.source?.contentHash !== snapshot.contentHash
+      || !Array.isArray(entry.metals)
+      || entry.metals.length !== expectedMetals.length) {
+    fail('Precious Metals launcher projection must match the complete snapshot receipt and retain all eight availability rows');
+  }
+
+  const route = CHAMBER_ROUTES.find(({ slug }) => slug === 'metals');
+  if (!route
+      || route.hash !== '#metals'
+      || routeUrl(route) !== 'https://tezos.systems/metals/'
+      || !/eight/i.test(route.title)
+      || !/without inferring backing/i.test(route.description)) {
+    fail('Precious Metals canonical route metadata must retain its eight-metal and non-backing identity');
+  }
+  for (const [label, snippet, source] of [
+    ['site-map destination', "id: 'metals'", siteMap],
+    ['site-map canonical route', "href: '/metals/'", siteMap],
+    ['site-map Assay view', "href: '/metals/?view=assay'", siteMap],
+    ['site-map Markets view', "href: '/metals/?view=markets'", siteMap],
+    ['site-map VNXAU view', "href: '/metals/?view=vnxau'", siteMap],
+    ['site-map Proofbook view', "href: '/metals/?view=proofbook'", siteMap],
+    ['app feature import', 'initMetalsChamber', app],
+    ['app pretty-route opener', "case 'metals':", app],
+    ['app hash alias', "params.has('precious-metals')", app],
+    ['app modal cleanup', 'closeMetalsChamber', app],
+    ['app routed overlay', "'metals-modal': { entryIds: ['metals']", app],
+    ['app featured launcher target', "metals: { selector: '#metals-entry-card', layout: 'featured' }", app],
+    ['explicit OG content', 'metals: {', ogGenerator]
+  ]) {
+    if (!source.includes(snippet)) fail(`Precious Metals ${label} contract is missing`);
+  }
+  if (!routeHtml.includes('data-chamber-route="metals"')
+      || !routeHtml.includes('<link rel="canonical" href="https://tezos.systems/metals/">')
+      || !routeHtml.includes('/og/metals.png')
+      || !routeHtml.includes('Precious Metals')) {
+    fail('Precious Metals generated route must retain its identity, canonical URL, title, and dedicated OG image');
+  }
+
+  const snapshotOperation = openApi.paths?.['/data/metals-snapshot.json']?.get;
+  const entryOperation = openApi.paths?.['/data/metals-entry-summary.json']?.get;
+  if (snapshotOperation?.operationId !== 'getMetalsSnapshot'
+      || entryOperation?.operationId !== 'getMetalsEntrySummary'
+      || !/complete Precious Metals/i.test(snapshotOperation?.summary || '')
+      || !/compact Precious Metals/i.test(entryOperation?.summary || '')) {
+    fail('OpenAPI must expose distinct complete and compact Precious Metals read-only artifacts');
+  }
+  for (const dataPath of ['/data/metals-entry-summary.json', '/data/metals-snapshot.json']) {
+    if (!sw.includes(`'${dataPath}'`)) fail(`service worker network-only data inventory is missing ${dataPath}`);
+  }
+  if (!sw.includes('NETWORK_ONLY_DATA_PATHS.has(url.pathname)')) {
+    fail('Precious Metals generated receipts must use the service worker network-only data branch');
+  }
+
+  if (packageJson.scripts?.['refresh:metals'] !== 'node scripts/refresh-metals-data.mjs'
+      || packageJson.scripts?.['check:metals'] !== 'node scripts/refresh-metals-data.mjs --check'
+      || packageJson.scripts?.['test:metals'] !== 'node tests/metals-check.mjs') {
+    fail('package scripts must expose Precious Metals refresh, offline validation, and focused data checks');
+  }
+  for (const snippet of [
+    "const METALS_TARGETS = ['data/metals-snapshot.json', 'data/metals-entry-summary.json']",
+    "nodeScript('scripts/refresh-metals-data.mjs', ['--check'])",
+    "nodeScript('scripts/refresh-metals-data.mjs')",
+    'stageTargets(METALS_TARGETS)'
+  ]) {
+    if (!generatedSurfaces.includes(snippet)) fail(`generated-surface orchestration is missing Precious Metals contract ${snippet}`);
+  }
+  if (!generator.includes('data/metals-snapshot.json')
+      || !generator.includes('data/metals-entry-summary.json')
+      || !generator.includes('--check')) {
+    fail('Precious Metals generator must own both bounded artifacts and an offline check mode');
+  }
+
+  for (const snippet of [
+    "const METALS_SNAPSHOT_URL = '/data/metals-snapshot.json'",
+    "const METALS_ENTRY_SUMMARY_URL = '/data/metals-entry-summary.json'",
+    "['XAU', 'XAG', 'XPT', 'XPD', 'XRH', 'XRU', 'XIR', 'XOS']",
+    "{ id: 'assay'",
+    "{ id: 'markets'",
+    "{ id: 'vnxau'",
+    "{ id: 'proofbook'",
+    'quietlySyncHtml(body, markup)',
+    'quietlySyncHtml(front, markup)',
+    'document.visibilityState',
+    'visibilitychange',
+    '__METALS_CHAMBER_REFRESH_MS__',
+    '__METALS_ENTRY_REFRESH_MS__',
+    'Last good',
+    'No backing ratio or present redemption claim is calculated here.'
+  ]) {
+    if (!feature.includes(snippet)) fail(`Precious Metals browser truth/refresh contract is missing ${snippet}`);
+  }
+  const entryMarkupBlock = feature.match(/function entryMarkup\(snapshot\)[\s\S]*?(?=\nfunction wireEntry\()/)?.[0] || '';
+  const entryTimerBlock = feature.match(/function startEntryRefreshTimer\(\)[\s\S]*?(?=\nfunction bindVisibilityRefresh\()/)?.[0] || '';
+  const visibilityBlock = feature.match(/function bindVisibilityRefresh\(\)[\s\S]*?(?=\nasync function refreshMetalsEntry\()/)?.[0] || '';
+  const entryRefreshBlock = feature.match(/async function refreshMetalsEntry\([\s\S]*?(?=\nasync function refreshMetalsChamber\()/)?.[0] || '';
+  if (!entry.sourceStatuses?.imfPcps || !entry.sourceStatuses?.blockscoutVnxau
+      || !entryMarkupBlock.includes("retainedSourceState(snapshot, 'imfPcps'")
+      || !entryMarkupBlock.includes("retainedSourceState(snapshot, 'blockscoutVnxau'")
+      || !entryMarkupBlock.includes('IMF last-good history')
+      || !entryMarkupBlock.includes('VNXAU last-good holder addresses')) {
+    fail('Precious Metals compact launcher must retain independent IMF and Blockscout receipts with explicit last-good labels');
+  }
+  if (!entryTimerBlock.includes("document.visibilityState !== 'visible'")
+      || !entryTimerBlock.includes('entryRefreshDeferred = true')
+      || !entryTimerBlock.includes("classList.contains('active')")
+      || !entryTimerBlock.includes('refreshMetalsEntry({ quiet: true })')
+      || !visibilityBlock.includes('entryRefreshDeferred && !overlayOpen')
+      || !visibilityBlock.includes('refreshMetalsEntry({ quiet: true })')) {
+    fail('Precious Metals compact timer must be room-aware, visibility-gated, and perform one compact catch-up');
+  }
+  if (!entryRefreshBlock.includes('markEntryRefreshFailure(error, { quiet })')
+      || entryRefreshBlock.includes('refreshMetalsChamber')
+      || entryRefreshBlock.includes('METALS_SNAPSHOT_URL')) {
+    fail('Precious Metals compact-summary failure must retain or mark the launcher without falling back to the full snapshot');
+  }
+  for (const smokeContract of [
+    '__METALS_ENTRY_REFRESH_MS__',
+    'compact failure fetched the full room or remained in verification',
+    'hidden launcher timer polled or mutated the closed card',
+    'catch-up hid stale IMF/Blockscout clocks behind fresh Gold'
+  ]) {
+    if (!smoke.includes(smokeContract)) fail(`Precious Metals smoke is missing compact-launcher contract ${smokeContract}`);
+  }
+  if (/fetch\(\s*['"`]https?:/i.test(feature)
+      || /data-metals-(?:buy|sell|trade|swap|bridge|redeem)|tradeUrl/i.test(feature)) {
+    fail('Precious Metals browser must stay on same-origin generated receipts and expose no execution CTA contract');
+  }
+  for (const selector of [
+    '.metals-entry-card',
+    '.metals-content',
+    '.metals-body',
+    '.metals-tabs',
+    '.metals-tab',
+    '.metals-metal-switch',
+    '.metals-assay-grid',
+    '.metals-clock-pair',
+    '.metals-chain-grid',
+    '.metals-proof-grid'
+  ]) {
+    if (!css.includes(selector)) fail(`Precious Metals CSS is missing ${selector}`);
+  }
+  const entryPerimeterBlock = css.match(/\.metals-entry-card::before\s*\{[^}]*\}/)?.[0] || '';
+  if (!entryPerimeterBlock || /\banimation\s*:/.test(entryPerimeterBlock)) {
+    fail('Precious Metals ordinary launcher perimeter must remain static; continuous attention is risk-only');
+  }
+  if (!smoke.includes("name: 'metals-chamber'")) {
+    fail('smoke catalog must include the focused Precious Metals Chamber suite');
+  }
+
+  pass('Precious Metals route, artifacts, compact-only timers/failures, source clocks, and quiet-refresh integration contracts checked');
 }
 
 async function checkCapitalContracts() {
@@ -7880,7 +8098,7 @@ async function checkCapitalContracts() {
     ['Capital Chamber hash route', "hash === 'capital'", app],
     ['Capital Chamber close cleanup', 'closeCapitalChamber', app],
     ['Capital Chamber routed overlay', "'capital-modal': { entryIds: ['capital']", app],
-    ['Capital Chamber category membership', "entryIds: Object.freeze(['capital', 'uranium', 'whales', 'staking-chamber'])", siteMap]
+    ['Capital Chamber category membership', "entryIds: Object.freeze(['capital', 'uranium', 'metals', 'whales', 'staking-chamber'])", siteMap]
   ];
   for (const [label, needle, source] of routeContracts) {
     if (!source.includes(needle)) fail(`${label} contract is missing`);
@@ -8191,7 +8409,7 @@ async function checkChamberCategoryContracts() {
       key: 'capital',
       label: 'Capital',
       question: 'Where is value sitting and moving?',
-      entryIds: ['capital', 'uranium', 'whales', 'staking-chamber']
+      entryIds: ['capital', 'uranium', 'metals', 'whales', 'staking-chamber']
     },
     {
       key: 'ecosystem',
@@ -8233,6 +8451,7 @@ async function checkChamberCategoryContracts() {
     tezosx: 'standard',
     capital: 'featured',
     uranium: 'featured',
+    metals: 'featured',
     ecosystem: 'featured',
     whales: 'wide',
     'staking-chamber': 'compact',
@@ -8259,9 +8478,9 @@ async function checkChamberCategoryContracts() {
   assert.deepEqual(
     categorizedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
     expectedEntries.toSorted((left, right) => left.id.localeCompare(right.id)),
-    'site-map Chamber facets must define exactly one category for each of the 19 entry points'
+    'site-map Chamber facets must define exactly one category for each of the 20 entry points'
   );
-  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 19);
+  assert.equal(new Set(categorizedEntries.map(({ id }) => id)).size, 20);
 
   const metadataSource = siteMapSource
     .split('export const CHAMBER_CATEGORY_META = Object.freeze([')[1]
@@ -8345,7 +8564,7 @@ async function checkChamberCategoryContracts() {
     'infinite Chamber perimeter animation must be reserved for explicit risk/watch state'
   );
 
-  pass('seven responsive Chamber categories, 19 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
+  pass('seven responsive Chamber categories, 20 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
 }
 
 async function checkPromotedChamberContracts() {
@@ -8749,6 +8968,7 @@ async function main() {
   await checkEcosystemActivityContracts();
   await checkLiveNumberMotionContracts();
   await checkQuietRefreshContracts();
+  await checkMetalsIntegrationContracts();
   checkMilestoneLifecycleBehavior();
   await checkMilestoneCatalogContracts();
   await checkVisitStreakBehavior();

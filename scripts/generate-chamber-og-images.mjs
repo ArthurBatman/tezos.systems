@@ -79,6 +79,12 @@ function routeDetails(route, report) {
       chips: ['Kraken USD tape', 'Etherlink token state', 'dated reserve evidence'],
       body: 'Follow xU3O8 prices, depth, and token state beside separately dated Cameco reserve evidence, custody terms, and derived physical-uranium ratios without mistaking one layer for the other.'
     },
+    metals: {
+      kicker: 'Precious Metals Intelligence',
+      value: 'Eight metals. Honest clocks.',
+      chips: ['gold + silver', 'six platinum-group metals', 'VNXAU chain receipts'],
+      body: 'Compare the canonical eight-metal assay, source-separated public market observations where available, and a receipt-bounded VNXAU lane across Tezos and Etherlink without treating chain activity as proof of backing.'
+    },
     ecosystem: {
       kicker: 'Dapp Intelligence',
       value: 'Weekly activity, through history',

@@ -118,6 +118,25 @@ export const SITE_MAP = [
         sitemap: { changefreq: 'hourly', priority: '0.9' }
     },
     {
+        id: 'metals',
+        title: 'Precious Metals',
+        href: '/metals/',
+        hash: '#metals',
+        hashAliases: ['#precious-metals', '#metals-market'],
+        group: 'Live Rooms',
+        chamberCategory: 'capital',
+        detail: 'All eight canonical precious metals, source-separated market clocks, and a receipt-bounded VNXAU Tezos and Etherlink lane',
+        keywords: ['precious metals', 'metals market', 'gold', 'silver', 'platinum', 'palladium', 'rhodium', 'ruthenium', 'iridium', 'osmium', 'pgm', 'platinum group metals', 'vnx gold', 'vnxau', 'tokenized gold', 'etherlink gold', 'tezos gold'],
+        searchIntents: [
+            { id: 'metals-assay', title: 'Precious Metals Assay', href: '/metals/?view=assay', detail: 'Compare the canonical eight-metal taxonomy and see which prices have comparable public observations', keywords: ['precious metals assay', 'eight precious metals', 'metal taxonomy'], directory: true },
+            { id: 'metals-markets', title: 'Precious Metals Market Ledger', href: '/metals/?view=markets', detail: 'Inspect indicative current quotes and completed-month gold, silver, platinum, and palladium history on separate clocks', keywords: ['gold price', 'silver price', 'platinum price', 'palladium price', 'precious metals history'], directory: true },
+            { id: 'metals-vnxau', title: 'VNXAU on Tezos and Etherlink', href: '/metals/?view=vnxau', detail: 'Inspect VNX Gold market, contract, supply, holder-address, transfer, and dated issuer-evidence receipts without a backing inference', keywords: ['vnxau', 'vnx gold', 'etherlink gold', 'tezos gold', 'tokenized gold'], directory: true },
+            { id: 'metals-proofbook', title: 'Precious Metals Proofbook', href: '/metals/?view=proofbook', detail: 'Read source clocks, evidence boundaries, unavailable claims, and the Metals.io precious-metal listing status', keywords: ['metals proofbook', 'precious metals sources', 'vnxau evidence', 'metals methodology'], directory: true }
+        ],
+        fresh: true,
+        sitemap: { changefreq: 'hourly', priority: '0.9' }
+    },
+    {
         id: 'ecosystem',
         title: 'Ecosystem Activity',
         href: '/ecosystem/',
@@ -496,7 +515,7 @@ export const CHAMBER_CATEGORY_META = Object.freeze([
         key: 'capital',
         label: 'Capital',
         question: 'Where is value sitting and moving?',
-        entryIds: Object.freeze(['capital', 'uranium', 'whales', 'staking-chamber'])
+        entryIds: Object.freeze(['capital', 'uranium', 'metals', 'whales', 'staking-chamber'])
     }),
     Object.freeze({
         key: 'ecosystem',
@@ -548,8 +567,9 @@ export const SITE_MAP_RELATIONS = {
     anthology: ['chamber', 'governance-guide', 'health', 'pulse'],
     chamber: ['anthology', 'liquidity-baking', 'l2-governance', 'governance-guide'],
     pulse: ['ecosystem', 'capital', 'health', 'hot-today'],
-    capital: ['uranium', 'ecosystem', 'price', 'ledger-flow'],
-    uranium: ['capital', 'tezosx', 'price', 'whales'],
+    capital: ['uranium', 'metals', 'price', 'ledger-flow'],
+    uranium: ['metals', 'capital', 'tezosx', 'price'],
+    metals: ['uranium', 'capital', 'tezosx', 'price'],
     ecosystem: ['capital', 'tezosx', 'history', 'maxis'],
     'staking-chamber': ['leaderboard', 'ledger-flow', 'staking', 'calculator'],
     maxis: ['tezoscrp', 'ledger-flow', 'domains', 'hen'],
@@ -562,7 +582,7 @@ export const SITE_MAP_RELATIONS = {
     'ledger-flow': ['my-tezos', 'whales', 'domains', 'ctez'],
     domains: ['my-tezos', 'ledger-flow', 'maxis', 'hen'],
     ctez: ['my-tezos', 'ledger-flow', 'staking', 'pulse'],
-    price: ['uranium', 'live-compare', 'history', 'snapshot'],
+    price: ['metals', 'uranium', 'live-compare', 'snapshot'],
     whales: ['uranium', 'ledger-flow', 'capital', 'history'],
     'hot-today': ['pulse', 'health', 'staking-chamber', 'maxis'],
     staking: ['staking-chamber', 'calculator', 'bakers-guide', 'ledger-flow'],

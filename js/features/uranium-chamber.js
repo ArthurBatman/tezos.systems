@@ -16,7 +16,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=543';
+const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=544';
 const URANIUM_SNAPSHOT_URL = '/data/uranium-snapshot.json';
 const URANIUM_ENTRY_SUMMARY_URL = '/data/uranium-entry-summary.json';
 const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2';
@@ -1362,8 +1362,8 @@ function renderProof(snapshot) {
         <section class="uranium-panel"><div class="uranium-panel-head"><div><span class="uranium-eyebrow">Source ledger</span><h4>Receipts and independent clocks</h4></div><span class="uranium-status is-neutral">Generated ${escapeHtml(ageLabel(snapshot.generatedAt))}</span></div>${renderSources(snapshot)}</section>
         ${renderUnavailable(snapshot.unavailable)}
         <nav class="uranium-pathways" aria-label="Continue through related Tezos Chambers">
+            <a href="/metals/">Precious Metals<small>Compare gold, silver, six PGMs, and VNXAU receipts</small></a>
             <a href="/capital/">Capital Chamber<small>Place xU3O8 inside the wider Tezos capital system</small></a>
-            <a href="/ecosystem/">Ecosystem Activity<small>Inspect reviewed app activity without ownership inference</small></a>
             <a href="/stake/">Staking Chamber<small>Compare explicit Tezos staking flows</small></a>
             <a href="/whales/">Whale Watch<small>Follow receipt-backed large movements</small></a>
         </nav>
