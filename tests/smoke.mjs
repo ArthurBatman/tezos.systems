@@ -15721,6 +15721,11 @@ async function smokeUraniumChamber(browser, baseUrl) {
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `uranium chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
   await page.waitForFunction(() => document.querySelector('#uranium-entry-front')?.dataset.uraniumRendered === '1', null, { timeout: 10000 });
+  await page.locator('#uranium-entry-front .uranium-entry-art img').scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => {
+    const image = document.querySelector('#uranium-entry-front .uranium-entry-art img');
+    return Boolean(image?.complete && image.naturalWidth > 0 && image.currentSrc);
+  }, null, { timeout: 10000 });
   const launcherSocketState = await page.evaluate(() => ({
     modalOpen: document.querySelector('#uranium-modal')?.classList.contains('active') || false,
     created: window.__uraniumWebSocketState?.created || 0,
@@ -16259,8 +16264,9 @@ async function smokeUraniumChamber(browser, baseUrl) {
       loadedSnapshotArtifact: resources.some((name) => name.includes('/data/uranium-snapshot.json'))
     };
   });
-  assert(lanState.protocol === 'http:' && !lanState.subtleAvailable,
-    `uranium chamber LAN HTTP: no-SubtleCrypto fixture was not active ${JSON.stringify(lanState)}`);
+  const expectedPreviewProtocol = new URL(baseUrl).protocol;
+  assert(lanState.protocol === expectedPreviewProtocol && !lanState.subtleAvailable,
+    `uranium chamber no-SubtleCrypto preview: fallback fixture was not active ${JSON.stringify(lanState)}`);
   assert(lanState.rendered && lanState.retryButtons === 0 && /xU3O8/i.test(lanState.text)
     && lanState.loadedEntryArtifact && lanState.loadedSnapshotArtifact,
   `uranium chamber LAN HTTP: real integrity-checked artifacts did not render ${JSON.stringify(lanState)}`);
