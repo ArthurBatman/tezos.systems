@@ -17,7 +17,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const METALS_CSS_URL = '/css/metals-chamber.css?v=545';
+const METALS_CSS_URL = '/css/metals-chamber.css?v=546';
 const METALS_SNAPSHOT_URL = '/data/metals-snapshot.json';
 const METALS_ENTRY_SUMMARY_URL = '/data/metals-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;

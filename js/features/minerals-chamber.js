@@ -17,7 +17,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const MINERALS_CSS_URL = '/css/minerals-chamber.css?v=545';
+const MINERALS_CSS_URL = '/css/minerals-chamber.css?v=546';
 const MINERALS_SNAPSHOT_URL = '/data/minerals-snapshot.json';
 const MINERALS_ENTRY_SUMMARY_URL = '/data/minerals-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;

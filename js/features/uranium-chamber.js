@@ -16,7 +16,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 
-const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=545';
+const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=546';
 const URANIUM_SNAPSHOT_URL = '/data/uranium-snapshot.json';
 const URANIUM_ENTRY_SUMMARY_URL = '/data/uranium-entry-summary.json';
 const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2';

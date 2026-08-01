@@ -736,7 +736,23 @@
     .minerals-unavailable-grid,
     .minerals-pathways { grid-template-columns: 1fr; }
     .minerals-group-context-card dl { grid-template-columns: 1fr; }
-    .minerals-entry-front { grid-template-columns: minmax(0, 1.12fr) minmax(105px, .88fr); }
+    .minerals-entry-front {
+        align-content: start;
+        grid-template:
+            "copy art" auto
+            "kpis kpis" auto
+            "chart chart" 48px /
+            minmax(0, 1fr) clamp(76px, 24vw, 92px);
+        gap: 12px 10px;
+    }
+    .minerals-entry-copy { align-self: start; }
+    .minerals-entry-freshness { display: none; }
+    .minerals-entry-art {
+        align-self: start;
+        width: 100%;
+        height: clamp(76px, 24vw, 92px);
+        min-height: 0;
+    }
     .minerals-entry-value { font-size: 2.75rem; }
     .minerals-entry-delta { max-width: 100%; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .minerals-entry-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }

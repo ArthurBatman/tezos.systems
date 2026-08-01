@@ -129,8 +129,8 @@ import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=545';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=545';
+const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=546';
+const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=546';
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;

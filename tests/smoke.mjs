@@ -16850,6 +16850,81 @@ async function smokeMineralsChamber(browser, baseUrl) {
     });
     const mobilePage = await mobileContext.newPage();
     attachIssueCollectors(mobilePage, `minerals chamber ${viewport.width}px`, mobileIssues);
+    const launcherMobileResponse = await mobilePage.goto(`${baseUrl}/?minerals-launcher-width=${viewport.width}`, { waitUntil: 'domcontentloaded' });
+    assert(launcherMobileResponse?.ok(), `minerals chamber ${viewport.width}px: dashboard launcher failed with HTTP ${launcherMobileResponse?.status()}`);
+    await mobilePage.waitForFunction(() => (
+      document.querySelector('#minerals-entry-front')?.dataset.mineralsRendered === '1'
+        && Boolean(document.querySelector('#minerals-entry-front > .chamber-entry-footer'))
+    ), null, { timeout: 10000 });
+    await mobilePage.evaluate(async () => {
+      const capital = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
+      if (capital) capital.open = true;
+      await document.fonts?.ready;
+    });
+    await mobilePage.locator('#minerals-entry-card').scrollIntoViewIfNeeded();
+    await mobilePage.waitForFunction(() => (
+      Array.from(document.querySelectorAll('#minerals-entry-front img')).every((image) => image.complete)
+    ), null, { timeout: 10000 });
+    const launcherGeometry = await mobilePage.evaluate(() => {
+      const card = document.querySelector('#minerals-entry-card');
+      const front = document.querySelector('#minerals-entry-front');
+      const copy = front?.querySelector('.minerals-entry-copy');
+      const art = front?.querySelector('.minerals-entry-art');
+      const kpis = front?.querySelector('.minerals-entry-kpis');
+      const chart = front?.querySelector('.minerals-entry-chart');
+      const footer = front?.querySelector(':scope > .chamber-entry-footer');
+      const rect = (node) => {
+        const bounds = node?.getBoundingClientRect();
+        return bounds ? {
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          width: bounds.width,
+          height: bounds.height
+        } : null;
+      };
+      const intersects = (first, second) => Boolean(first && second
+        && Math.min(first.right, second.right) - Math.max(first.left, second.left) > 1
+        && Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top) > 1);
+      const cardRect = rect(card);
+      const frontRect = rect(front);
+      const copyRect = rect(copy);
+      const artRect = rect(art);
+      const kpisRect = rect(kpis);
+      const chartRect = rect(chart);
+      const footerRect = rect(footer);
+      const layers = [copyRect, artRect, kpisRect, chartRect, footerRect].filter(Boolean);
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        card: cardRect,
+        front: frontRect,
+        copy: copyRect,
+        art: artRect,
+        kpis: kpisRect,
+        chart: chartRect,
+        footer: footerRect,
+        copyOverlapsKpis: intersects(copyRect, kpisRect),
+        artOverlapsKpis: intersects(artRect, kpisRect),
+        kpisOverlapChart: intersects(kpisRect, chartRect),
+        kpisOverlapFooter: intersects(kpisRect, footerRect),
+        layersContained: Boolean(frontRect && layers.every((layer) => (
+          layer.left >= frontRect.left - 1 && layer.right <= frontRect.right + 1
+        ))),
+        frontOverflow: front ? front.scrollWidth - front.clientWidth : Infinity,
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      };
+    });
+    assert(launcherGeometry.card && launcherGeometry.front && launcherGeometry.copy && launcherGeometry.art
+      && launcherGeometry.kpis && launcherGeometry.chart && launcherGeometry.footer,
+    `minerals chamber ${viewport.width}px: dashboard launcher layers are incomplete ${JSON.stringify(launcherGeometry)}`);
+    assert(!launcherGeometry.copyOverlapsKpis && !launcherGeometry.artOverlapsKpis
+      && !launcherGeometry.kpisOverlapChart && !launcherGeometry.kpisOverlapFooter,
+    `minerals chamber ${viewport.width}px: copy, art, KPIs, chart, or footer overlap ${JSON.stringify(launcherGeometry)}`);
+    assert(launcherGeometry.card.left >= -1 && launcherGeometry.card.right <= viewport.width + 1
+      && launcherGeometry.layersContained && launcherGeometry.frontOverflow <= 1 && launcherGeometry.pageOverflow <= 1,
+    `minerals chamber ${viewport.width}px: dashboard launcher escaped horizontally ${JSON.stringify(launcherGeometry)}`);
+
     const mobileResponse = await mobilePage.goto(`${baseUrl}/minerals/?view=atlas`, { waitUntil: 'domcontentloaded' });
     assert(mobileResponse?.ok(), `minerals chamber ${viewport.width}px: route failed with HTTP ${mobileResponse?.status()}`);
     await mobilePage.locator('#minerals-modal.active .minerals-content').waitFor({ state: 'visible', timeout: 10000 });

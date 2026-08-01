@@ -9,7 +9,8 @@ export const CHANGELOG = [
         entries: [
             { type: '✨', text: 'Critical Minerals Chamber now maps the official 60-item U.S. critical-minerals list at /minerals/, preserving form-specific USGS supply, raw qualifiers, bounded World Bank markets, explicit gaps, and separately evidenced xCo, xNi, and RARE Etherlink receipts across five views' },
             { type: '✨', text: 'Precious Metals Chamber now brings gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium to /metals/, with completed-month and indicative clocks kept separate and VNXAU token activity never presented as backing or an execution signal' },
-            { type: '🎨', text: 'The mobile Uranium launcher now keeps a vivid emerald glow in every theme, separates its specimen, price, metrics, 30-day pulse, and controls into collision-free rows, and removes the empty lower band' }
+            { type: '🎨', text: 'The mobile Uranium launcher now keeps a vivid emerald glow in every theme, separates its specimen, price, metrics, 30-day pulse, and controls into collision-free rows, and removes the empty lower band' },
+            { type: '🎨', text: 'The mobile Critical Minerals launcher now gives its headline, specimen, receipt metrics, and market pulse distinct collision-free rows at narrow widths' }
         ]
     },
     {
