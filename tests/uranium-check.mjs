@@ -632,7 +632,7 @@ assert(generator.includes('maxReviewAgeDays: 30'), 'issuer semantics review must
 
 assert(feature.includes('/assets/uranium/uranium-core-640.webp'), 'responsive local Uranium WebP is missing');
 assert(feature.includes('/assets/uranium/uranium-core.webp'), 'full local Uranium WebP is missing');
-assert(feature.includes('Stylized illustration of a dark mineral specimen with glowing green crystalline veins.'),
+assert(feature.includes('Cute cartoon uranium-rock mascot glowing with vivid emerald-green energy.'),
   'Uranium artwork must identify itself as a stylized illustration');
 assert(feature.includes('physical U3O8 is yellowcake concentrate, not a glowing rock.'),
   'Uranium artwork must not present the glowing rock as literal U3O8');

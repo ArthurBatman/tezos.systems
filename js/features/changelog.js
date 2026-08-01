@@ -15,7 +15,8 @@ export const CHANGELOG = [
             { type: '🔧', text: 'Tezos X readiness now keeps runtime, Previewnet, tooling, proposal, Etherlink governance, and production rollout separate, so an Octez or EVM-node release can never masquerade as mainnet progress' },
             { type: '🔧', text: 'Milestone refreshes now fall back to the official Octez archive when the primary RPC has pruned an exact historical cycle-boundary block' },
             { type: '⚡', text: 'Release forecasts load from one same-origin daily receipt, preserve bounded last-good data, refresh only in visible tabs, turn visibly stale, and disappear after their review window expires' },
-            { type: '🎨', text: 'Release Radar now keeps Live Pulse compact while a dedicated full-screen briefing opens all three release lanes, six Tezos X gates, dependency boundaries, recent artifacts, status history, evidence, and methodology' }
+            { type: '🎨', text: 'Release Radar now keeps Live Pulse compact while a dedicated full-screen briefing opens all three release lanes, six Tezos X gates, dependency boundaries, recent artifacts, status history, evidence, and methodology' },
+            { type: '🎨', text: 'Uranium now greets the market through a cute cartoon rock mascot with a vivid emerald-energy glow, while its caption keeps the artwork clearly separate from literal U3O8 yellowcake' }
         ]
     },
     {

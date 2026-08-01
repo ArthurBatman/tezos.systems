@@ -546,9 +546,9 @@ function heroPicture(className = '') {
         <figure class="uranium-core-stage ${className}">
             <picture>
                 <source srcset="/assets/uranium/uranium-core-640.webp 640w, /assets/uranium/uranium-core.webp 1280w" sizes="(max-width: 700px) 92vw, 46vw" type="image/webp">
-                <img src="/assets/uranium/uranium-core.webp" width="1280" height="853" loading="lazy" decoding="async" alt="Stylized illustration of a dark mineral specimen with glowing green crystalline veins.">
+                <img src="/assets/uranium/uranium-core.webp" width="1280" height="853" loading="lazy" decoding="async" alt="Cute cartoon uranium-rock mascot glowing with vivid emerald-green energy.">
             </picture>
-            <figcaption>Stylized core sample · physical U3O8 is yellowcake concentrate, not a glowing rock.</figcaption>
+            <figcaption>Stylized uranium mascot · physical U3O8 is yellowcake concentrate, not a glowing rock.</figcaption>
         </figure>
     `;
 }
