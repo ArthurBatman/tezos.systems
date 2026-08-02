@@ -7936,6 +7936,16 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       const predecessors = releaseIndex > 0 ? cards.slice(0, releaseIndex) : [];
       const cardRect = card?.getBoundingClientRect();
       const stripRect = strip?.getBoundingClientRect();
+      const priority = card?.querySelector('.release-radar-priority');
+      const priorityRect = priority?.getBoundingClientRect();
+      const priorityRange = priority ? document.createRange() : null;
+      priorityRange?.selectNodeContents(priority);
+      const priorityLineCenters = priorityRange
+        ? Array.from(priorityRange.getClientRects())
+          .filter((rect) => rect.width > 0)
+          .map((rect) => (rect.left + rect.right) / 2)
+        : [];
+      const priorityCenter = priorityRect ? (priorityRect.left + priorityRect.right) / 2 : 0;
       return {
         firstId: first?.dataset.hotSignalId || '',
         releaseIndex,
@@ -7954,6 +7964,11 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
         priority: card?.querySelector('.release-radar-priority')?.textContent?.trim() || '',
         priorityTitle: card?.querySelector('.release-radar-priority')?.getAttribute('title') || '',
+        priorityTextAlign: priority ? getComputedStyle(priority).textAlign : '',
+        priorityLineCount: priorityLineCenters.length,
+        priorityMaxCenterDrift: priorityLineCenters.length
+          ? Math.max(...priorityLineCenters.map((center) => Math.abs(center - priorityCenter)))
+          : 999,
         compactWarningCount: card?.querySelectorAll('.release-radar-stale-note, [role="status"]').length || 0,
         activeCount: island?.querySelectorAll('.hot-today-card.is-hot-active').length || 0,
         railCount: island?.querySelectorAll('[data-hot-progress-index]').length || 0,
@@ -7988,6 +8003,9 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       presentation.cardWidth <= presentation.stripWidth + 1
         && presentation.cardOverflow <= 1
         && presentation.pageOverflow <= 1
+        && presentation.priorityTextAlign === 'center'
+        && presentation.priorityLineCount >= 1
+        && presentation.priorityMaxCenterDrift <= 1
         && presentation.activeCount === 1
         && presentation.railCount === presentation.cardCount,
       `release radar pulse ${label}: card or labeled rail escaped its viewport ${JSON.stringify(presentation)}`

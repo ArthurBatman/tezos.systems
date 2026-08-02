@@ -7,6 +7,7 @@ export const CHANGELOG = [
     {
         date: '2026-08-02',
         entries: [
+            { type: '🎨', text: 'Release Radar now centers its wrapped Review due receipt on narrow cards' },
             { type: '🔧', text: 'The mobile live-block ticker now keeps the complete head level visible and lets the baker name yield space first instead of ellipsizing the block number' },
             { type: '🎨', text: 'Release Radar now marks an overdue forecast review with a quiet Review due receipt instead of an alarm-style stale banner, while retaining the review age and full timing caveat' },
             { type: '🔧', text: 'Mainnet age and its anniversary pulse now count calendar time from Mainnet Block 1 on June 30, 2018' },
