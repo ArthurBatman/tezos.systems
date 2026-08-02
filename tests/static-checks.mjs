@@ -4140,6 +4140,18 @@ async function checkChamberEfficiencyContracts() {
     || !mainStyles.includes('#chambers-grid .health-entry-card.chamber-entry-wide {\n        min-height: 318px;')) {
     fail('render-blocking mobile Network shell floors must exactly match the hydrated Pulse, Health, and Tezos X floors');
   }
+  for (const snippet of [
+    "window.addEventListener('wheel', markReaderScrollIntent, scrollIntentOptions)",
+    "window.addEventListener('touchmove', markReaderScrollIntent, scrollIntentOptions)",
+    'if (readerScrollIntent || document.activeElement !== head) return',
+    'restoreBrowserShift();\n                clearScrollIntentListeners();',
+    'const simulatedAnchoringShift = 369',
+    'afterReaderScroll.restoreCallsAfterIntent === 0'
+  ]) {
+    if (!(app.includes(snippet) || smoke.includes(snippet))) {
+      fail(`mobile Chamber disclosure scroll preservation is missing contract: ${snippet}`);
+    }
+  }
   const styleGatedModules = [
     ['capital-chamber.js', 'await ensureCapitalCss()'],
     ['ecosystem-chamber.js', 'await ensureEcosystemCss()'],

@@ -2621,6 +2621,24 @@ function wireChamberCategory(category) {
     head.addEventListener('click', (event) => {
         const scrollX = window.scrollX;
         const scrollY = window.scrollY;
+        let readerScrollIntent = false;
+        const markReaderScrollIntent = () => { readerScrollIntent = true; };
+        const markReaderKeyIntent = (keyEvent) => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar'].includes(keyEvent.key)) {
+                markReaderScrollIntent();
+            }
+        };
+        const scrollIntentOptions = { capture: true, passive: true };
+        window.addEventListener('wheel', markReaderScrollIntent, scrollIntentOptions);
+        window.addEventListener('touchmove', markReaderScrollIntent, scrollIntentOptions);
+        window.addEventListener('pointerdown', markReaderScrollIntent, scrollIntentOptions);
+        window.addEventListener('keydown', markReaderKeyIntent, true);
+        const clearScrollIntentListeners = () => {
+            window.removeEventListener('wheel', markReaderScrollIntent, true);
+            window.removeEventListener('touchmove', markReaderScrollIntent, true);
+            window.removeEventListener('pointerdown', markReaderScrollIntent, true);
+            window.removeEventListener('keydown', markReaderKeyIntent, true);
+        };
         const restoreScroll = () => {
             const html = document.documentElement;
             const previousBehavior = html.style.scrollBehavior;
@@ -2628,16 +2646,19 @@ function wireChamberCategory(category) {
             window.scrollTo(scrollX, scrollY);
             html.style.scrollBehavior = previousBehavior;
         };
+        const restoreBrowserShift = () => {
+            if (readerScrollIntent || document.activeElement !== head) return;
+            if (window.scrollX !== scrollX || window.scrollY !== scrollY) restoreScroll();
+        };
         event.preventDefault();
         category.open = !category.open;
         category.getBoundingClientRect();
         if (window.scrollX !== scrollX || window.scrollY !== scrollY) restoreScroll();
         requestAnimationFrame(() => {
-            const shift = Math.max(Math.abs(window.scrollX - scrollX), Math.abs(window.scrollY - scrollY));
-            if (document.activeElement === head && shift > 0 && shift <= 128) restoreScroll();
+            restoreBrowserShift();
             requestAnimationFrame(() => {
-                const settledShift = Math.max(Math.abs(window.scrollX - scrollX), Math.abs(window.scrollY - scrollY));
-                if (document.activeElement === head && settledShift > 0 && settledShift <= 128) restoreScroll();
+                restoreBrowserShift();
+                clearScrollIntentListeners();
             });
         });
     });

@@ -8,6 +8,7 @@ export const CHANGELOG = [
         date: '2026-08-02',
         entries: [
             { type: '🔧', text: 'Mainnet age and its anniversary pulse now count calendar time from Mainnet Block 1 on June 30, 2018' },
+            { type: '🔧', text: 'Mobile Chamber category toggles now repair large browser anchoring shifts without overriding an immediate reader scroll' },
             { type: '🔧', text: 'Capital, Ecosystem Activity, and Maxis receipts now verify on plain-HTTP LAN previews, so phone launchers and full rooms no longer report healthy generated data as unavailable' },
             { type: '🔧', text: 'My Tezos now reserves its async greeting line and quietly reconciles identity updates, keeping the drawer fixed under the reader on phones and desktops' },
             { type: '🔧', text: 'Lazy Chamber launchers now retain keyboard focus and retry transient module failures, while Liquidity Baking throttle retries preserve the exact canonical or incremental block window' },

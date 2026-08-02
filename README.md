@@ -1503,7 +1503,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v550`, including hero search, theme
+- Current aligned shell cache stamp: `v551`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, Uranium, Precious Metals, and Critical Minerals lazy CSS
   loaders.

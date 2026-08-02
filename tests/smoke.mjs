@@ -4085,7 +4085,20 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     });
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const beforeToggle = await page.evaluate(() => ({ scrollY: window.scrollY, active: document.activeElement?.className || '' }));
-    await capitalHead.click();
+    const simulatedAnchoringShift = 369;
+    await page.evaluate((shift) => {
+      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+      head?.addEventListener('click', () => {
+        requestAnimationFrame(() => window.scrollBy(0, shift));
+      }, { once: true });
+    }, simulatedAnchoringShift);
+    const activationScrollY = await page.evaluate(() => {
+      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+      head?.focus({ preventScroll: true });
+      const scrollY = window.scrollY;
+      head?.click();
+      return scrollY;
+    });
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const afterToggle = await page.evaluate(() => {
       const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
@@ -4096,7 +4109,60 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       };
     });
     assert(afterToggle.open && afterToggle.focused, `${label}: mobile disclosure toggle must remain focused and open ${JSON.stringify(afterToggle)}`);
-    assert(Math.abs(afterToggle.scrollY - beforeToggle.scrollY) <= 2, `${label}: mobile disclosure toggle moved page scroll ${JSON.stringify({ beforeToggle, afterToggle })}`);
+    assert(Math.abs(afterToggle.scrollY - activationScrollY) <= 4, `${label}: mobile disclosure toggle did not repair a ${simulatedAnchoringShift}px browser anchor shift ${JSON.stringify({ beforeToggle, activationScrollY, afterToggle })}`);
+    await page.evaluate(() => {
+      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+      const nativeScrollTo = window.scrollTo;
+      window.__chamberCategoryScrollProbe = {
+        nativeScrollTo,
+        readerIntent: false,
+        restoreCallsAfterIntent: 0,
+        targetY: Math.max(0, window.scrollY - 240),
+        appliedY: window.scrollY
+      };
+      window.scrollTo = function (...args) {
+        if (window.__chamberCategoryScrollProbe?.readerIntent) {
+          window.__chamberCategoryScrollProbe.restoreCallsAfterIntent += 1;
+        }
+        return nativeScrollTo.apply(window, args);
+      };
+      head?.addEventListener('click', () => {
+        const probe = window.__chamberCategoryScrollProbe;
+        probe.readerIntent = true;
+        window.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+        const html = document.documentElement;
+        const previousBehavior = html.style.scrollBehavior;
+        html.style.scrollBehavior = 'auto';
+        probe.nativeScrollTo.call(window, window.scrollX, probe.targetY);
+        html.style.scrollBehavior = previousBehavior;
+        probe.appliedY = window.scrollY;
+      }, { once: true });
+      head?.focus({ preventScroll: true });
+      head?.click();
+    });
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const afterReaderScroll = await page.evaluate(() => {
+      const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
+      const probe = window.__chamberCategoryScrollProbe;
+      const state = {
+        scrollY: window.scrollY,
+        open: category?.open || false,
+        focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head'),
+        restoreCallsAfterIntent: probe?.restoreCallsAfterIntent ?? -1,
+        targetY: probe?.targetY ?? -1,
+        appliedY: probe?.appliedY ?? -1
+      };
+      if (probe?.nativeScrollTo) window.scrollTo = probe.nativeScrollTo;
+      delete window.__chamberCategoryScrollProbe;
+      return state;
+    });
+    assert(
+      !afterReaderScroll.open
+        && afterReaderScroll.focused
+        && Math.abs(afterReaderScroll.appliedY - afterReaderScroll.targetY) <= 2
+        && afterReaderScroll.restoreCallsAfterIntent === 0,
+      `${label}: delayed disclosure restore overwrote immediate reader scroll ${JSON.stringify(afterReaderScroll)}`
+    );
     await page.evaluate(() => {
       document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
         category.open = true;
