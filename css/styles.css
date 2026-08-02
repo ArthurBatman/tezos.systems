@@ -2778,7 +2778,10 @@ body::before {
 
 .main-content {
     max-width: var(--page-col);
-    margin: 0 auto;
+    /* Reserve the Hot Today island's collapsed top margin before its first
+       data render. Without this fixed margin the main shell moves 14px when
+       the initially-hidden island becomes visible. */
+    margin: 2rem auto 0;
     padding: 0 2rem;
 }
 
@@ -18060,7 +18063,7 @@ body {
     }
 
     #chambers-grid .chamber-entry-card[data-chamber-layout="wide"] {
-        min-height: 300px;
+        min-height: 320px;
     }
 
     #chambers-grid .chamber-entry-card .card-front {
@@ -18132,6 +18135,7 @@ body {
     ) > .chamber-category-cards > .chamber-entry-card[data-chamber-layout="compact"] {
         grid-column: span 1 !important;
     }
+
 }
 
 @media (min-width: 760px) and (max-width: 1040px) {
@@ -18275,6 +18279,17 @@ body {
     #chambers-grid .chamber-entry-card.chamber-entry-wide {
         height: auto !important;
         min-height: 236px;
+    }
+
+    /* Reserve the final promoted-card geometry before either feature module
+       hydrates. This keeps their static footers inside the shell and avoids a
+       layout shift when the lazy Whale/Baker styles arrive. */
+    #chambers-grid #whale-watch-entry-card[data-chamber-layout="wide"] {
+        min-height: 310px;
+    }
+
+    #chambers-grid #baker-directory-entry-card[data-chamber-layout="wide"] {
+        min-height: 340px;
     }
 
     /* Rich Chamber launchers must be allowed to establish their own mobile

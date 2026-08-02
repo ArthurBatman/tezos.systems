@@ -5,8 +5,20 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-02',
+        entries: [
+            { type: '🔧', text: 'Capital, Ecosystem Activity, and Maxis receipts now verify on plain-HTTP LAN previews, so phone launchers and full rooms no longer report healthy generated data as unavailable' },
+            { type: '🔧', text: 'My Tezos now reserves its async greeting line and quietly reconciles identity updates, keeping the drawer fixed under the reader on phones and desktops' },
+            { type: '🔧', text: 'Lazy Chamber launchers now retain keyboard focus and retry transient module failures, while Liquidity Baking throttle retries preserve the exact canonical or incremental block window' }
+        ]
+    },
+    {
         date: '2026-08-01',
         entries: [
+            { type: '⚡', text: 'Chamber-only modules now load on route, intent, or visibility, while the directory arrives with stable launcher geometry and near-zero layout shift instead of eagerly executing every room' },
+            { type: '⚡', text: 'Chamber styles now ship as versioned minified room bundles, and large generated snapshots refresh through compact receipt checks before any full artifact is transferred again' },
+            { type: '⚡', text: 'Liquidity Baking and tz4 Adoption now update incrementally instead of repeatedly downloading a 2,500-block window or the complete consensus-key history' },
+            { type: '🔧', text: 'Baker Directory governance badges now use a compact integrity-checked active-baker receipt, and broken launcher summaries fail closed until the corresponding room is explicitly opened' },
             { type: '✨', text: 'Critical Minerals Chamber now maps the official 60-item U.S. critical-minerals list at /minerals/, preserving form-specific USGS supply, raw qualifiers, bounded World Bank markets, explicit gaps, and separately evidenced xCo, xNi, and RARE Etherlink receipts across five views' },
             { type: '✨', text: 'Precious Metals Chamber now brings gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium to /metals/, with completed-month and indicative clocks kept separate and VNXAU token activity never presented as backing or an execution signal' },
             { type: '🎨', text: 'The mobile Uranium launcher now keeps a vivid emerald glow in every theme, separates its specimen, price, metrics, 30-day pulse, and controls into collision-free rows, and removes the empty lower band' },

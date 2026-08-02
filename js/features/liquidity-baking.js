@@ -8,11 +8,14 @@ import { loadDataAsset } from '../core/data-assets.js';
 import { escapeHtml, formatFreshnessStamp, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
+export { fetchBakerLiquidityBakingVote } from '../core/liquidity-baking-vote.js';
 
 const TZKT = API_URLS.tzkt;
 const LB_THRESHOLD = 1000000000;
 const LB_EMA_DENOMINATOR = 2000000000;
 const LB_MODAL_BLOCK_LIMIT = 2500;
+const LB_INCREMENTAL_BLOCK_LIMIT = 32;
+const LB_INCREMENTAL_OVERLAP_LEVELS = 4;
 const LB_ENTRY_BLOCK_LIMIT = 5;
 const LB_ENTRY_VOTE_LIMIT = 5;
 const LB_LIVE_REFRESH_MS = 6000;
@@ -27,7 +30,6 @@ const LB_LORE_PROTOCOLS = ['Granada', 'Ithaca', 'Jakarta'];
 
 let _lbCache = null;
 let _lbCacheTime = 0;
-const _bakerVoteCache = new Map();
 let _savedBodyOverflow = null;
 let _savedHtmlOverflow = null;
 let _lbLiveTimer = null;
@@ -450,19 +452,109 @@ function renderEntryVoteTape(blocks = []) {
     return rows.map(renderEntryVoteRow).join('');
 }
 
-async function fetchBlocks(limit) {
-    const url = `${TZKT}/blocks?sort.desc=level&limit=${limit}&select=level,timestamp,producer,lbToggle,lbToggleEma`;
+function retryDelayMs(response, retryAttempt) {
+    const retryAfter = response?.headers?.get?.('retry-after');
+    if (retryAfter) {
+        const seconds = Number(retryAfter);
+        if (Number.isFinite(seconds)) return Math.min(30_000, Math.max(0, seconds * 1000));
+        const retryAt = Date.parse(retryAfter);
+        if (Number.isFinite(retryAt)) return Math.min(30_000, Math.max(0, retryAt - Date.now()));
+    }
+    return 900 * (retryAttempt + 1);
+}
+
+async function fetchBlocks(limit, { minLevel = null, retryAttempt = 0 } = {}) {
+    const params = new URLSearchParams({
+        'sort.desc': 'level',
+        limit: String(limit),
+        select: 'level,hash,timestamp,producer,lbToggle,lbToggleEma'
+    });
+    if (minLevel !== null && minLevel !== '' && Number.isFinite(Number(minLevel))) {
+        params.set('level.ge', String(Math.max(0, Math.trunc(Number(minLevel)))));
+    }
+    const url = `${TZKT}/blocks?${params}`;
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
-        if ((response.status === 429 || response.status === 503 || response.status === 504) && limit > 500) {
-            await new Promise((resolve) => setTimeout(resolve, 900));
-            return fetchBlocks(Math.max(500, Math.floor(limit / 2)));
+        if ((response.status === 429 || response.status === 503 || response.status === 504) && retryAttempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response, retryAttempt)));
+            // Keep the requested window exact. Reducing the limit here can turn
+            // a successful retry into a partial canonical sample.
+            return fetchBlocks(limit, { minLevel, retryAttempt: retryAttempt + 1 });
         }
         throw new Error(`TzKT blocks HTTP ${response.status}`);
     }
     const blocks = await response.json();
-    if (!Array.isArray(blocks)) return [];
+    if (!Array.isArray(blocks) || !blocks.length) {
+        throw new Error('TzKT blocks returned an empty or malformed page');
+    }
     return blocks;
+}
+
+async function fetchCanonicalBlockWindow() {
+    const blocks = await fetchBlocks(LB_MODAL_BLOCK_LIMIT);
+    if (blocks.length < LB_MODAL_BLOCK_LIMIT) {
+        throw new Error(`TzKT returned only ${blocks.length} of ${LB_MODAL_BLOCK_LIMIT} required Liquidity Baking blocks`);
+    }
+    return blocks;
+}
+
+function mergeBlockWindow(previousBlocks = [], incomingBlocks = [], limit = LB_MODAL_BLOCK_LIMIT, replaceFromLevel = null) {
+    const byLevel = new Map();
+    const withoutLevel = new Map();
+    const retained = replaceFromLevel !== null && replaceFromLevel !== '' && Number.isFinite(Number(replaceFromLevel))
+        ? previousBlocks.filter((block) => {
+            const level = Number(block?.level);
+            return !Number.isFinite(level) || level < Number(replaceFromLevel);
+        })
+        : previousBlocks;
+    for (const block of [...retained, ...incomingBlocks]) {
+        const level = Number(block?.level);
+        if (Number.isFinite(level)) {
+            // The incoming overlap is authoritative at a repeated level, including
+            // the rare case where TzKT exposes a different hash after a reorg.
+            byLevel.set(level, block);
+            continue;
+        }
+        const fallbackKey = String(block?.hash || `${block?.timestamp || ''}:${block?.producer?.address || ''}`);
+        withoutLevel.set(fallbackKey, block);
+    }
+    const seenHashes = new Set();
+    return [...byLevel.values(), ...withoutLevel.values()]
+        .sort((a, b) => Number(b?.level || 0) - Number(a?.level || 0))
+        .filter((block) => {
+            const hash = String(block?.hash || '');
+            if (!hash) return true;
+            if (seenHashes.has(hash)) return false;
+            seenHashes.add(hash);
+            return true;
+        })
+        .slice(0, limit);
+}
+
+async function refreshLiquidityBakingBlockWindow() {
+    const previousBlocks = _lbCache?.blocks || [];
+    const previousHead = Number(previousBlocks[0]?.level);
+    if (!previousBlocks.length || !Number.isFinite(previousHead)) {
+        return fetchCanonicalBlockWindow();
+    }
+
+    const overlapStart = Math.max(0, previousHead - LB_INCREMENTAL_OVERLAP_LEVELS + 1);
+    const incoming = await fetchBlocks(LB_INCREMENTAL_BLOCK_LIMIT, { minLevel: overlapStart });
+    if (!incoming.length) return previousBlocks;
+
+    const oldestIncoming = Number(incoming[incoming.length - 1]?.level);
+    const overlapsPreviousWindow = Number.isFinite(oldestIncoming) && oldestIncoming <= overlapStart;
+    if (!overlapsPreviousWindow) {
+        // More than the bounded incremental page arrived while this tab was away.
+        // Rebuild the canonical contiguous 2,500-block sample instead of silently
+        // presenting a ring buffer with a hole in it.
+        return fetchCanonicalBlockWindow();
+    }
+    const merged = mergeBlockWindow(previousBlocks, incoming, LB_MODAL_BLOCK_LIMIT, overlapStart);
+    if (merged.length < LB_MODAL_BLOCK_LIMIT) {
+        return fetchCanonicalBlockWindow();
+    }
+    return merged;
 }
 
 async function fetchLiquidityBakingData(limit = LB_MODAL_BLOCK_LIMIT, { force = false } = {}) {
@@ -470,7 +562,9 @@ async function fetchLiquidityBakingData(limit = LB_MODAL_BLOCK_LIMIT, { force = 
         return _lbCache;
     }
 
-    const blocks = await fetchBlocks(limit);
+    const blocks = limit === LB_MODAL_BLOCK_LIMIT
+        ? (force ? await refreshLiquidityBakingBlockWindow() : await fetchCanonicalBlockWindow())
+        : await fetchBlocks(limit);
     const summary = summarizeBlocks(blocks);
     if (limit === LB_MODAL_BLOCK_LIMIT) {
         _lbCache = summary;
@@ -507,52 +601,6 @@ async function fetchLiquidityBakingLore() {
         .filter(Boolean)
         .map(extractLiquidityBakingLore);
     return _lbLoreCache;
-}
-
-export async function fetchBakerLiquidityBakingVote(bakerAddress, { priority = 'normal' } = {}) {
-    if (!bakerAddress) return null;
-    const cached = _bakerVoteCache.get(bakerAddress);
-    if (cached && Date.now() - cached.time < CACHE_TTL) return cached.value;
-
-    try {
-        const url = `${TZKT}/blocks?sort.desc=level&limit=1&producer=${encodeURIComponent(bakerAddress)}&select=level,timestamp,producer,lbToggle,lbToggleEma`;
-        const response = await fetch(url, {
-            cache: 'no-store',
-            ...(priority === 'interactive' ? { __tezosSystemsPriority: 'interactive' } : {})
-        });
-        if (!response.ok) throw new Error(`TzKT baker blocks HTTP ${response.status}`);
-        const blocks = await response.json();
-        const block = Array.isArray(blocks) ? blocks[0] : null;
-        if (!block) {
-            const value = { found: false, label: 'No blocks found', className: 'unknown' };
-            _bakerVoteCache.set(bakerAddress, { time: Date.now(), value });
-            return value;
-        }
-
-        const vote = voteFromToggle(block.lbToggle);
-        const value = {
-            found: true,
-            address: block.producer?.address || bakerAddress,
-            name: bakerName(block.producer),
-            label: vote.label,
-            key: vote.key,
-            className: vote.className,
-            icon: vote.icon,
-            level: block.level,
-            timestamp: block.timestamp,
-            age: formatAge(block.timestamp),
-            ema: block.lbToggleEma,
-            emaPct: emaPct(block.lbToggleEma),
-            subsidyDisabled: subsidyDisabled(block.lbToggleEma)
-        };
-        _bakerVoteCache.set(bakerAddress, { time: Date.now(), value });
-        return value;
-    } catch (err) {
-        console.warn('Liquidity Baking baker vote fetch failed', err);
-        const value = { found: false, label: 'Unavailable', className: 'unknown', error: true };
-        _bakerVoteCache.set(bakerAddress, { time: Date.now(), value });
-        return value;
-    }
 }
 
 function lockPageScroll() {
@@ -1237,6 +1285,13 @@ function startLiquidityBakingLiveRefresh() {
         if (document.hidden) return;
         refreshLiquidityBakingMonitor();
     }, LB_LIVE_REFRESH_MS);
+    document.addEventListener('visibilitychange', handleLiquidityBakingVisibilityChange);
+}
+
+function handleLiquidityBakingVisibilityChange() {
+    if (document.hidden) return;
+    const overlay = document.getElementById('liquidity-baking-modal');
+    if (overlay?.classList.contains('active')) refreshLiquidityBakingMonitor();
 }
 
 function stopLiquidityBakingLiveRefresh() {
@@ -1244,6 +1299,7 @@ function stopLiquidityBakingLiveRefresh() {
         window.clearInterval(_lbLiveTimer);
         _lbLiveTimer = null;
     }
+    document.removeEventListener('visibilitychange', handleLiquidityBakingVisibilityChange);
     const overlay = document.getElementById('liquidity-baking-modal');
     if (overlay) overlay.dataset.lbLive = 'false';
 }

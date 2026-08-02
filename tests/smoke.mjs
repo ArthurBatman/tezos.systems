@@ -53,6 +53,7 @@ const allowedWarningPatterns = [
   /tezos-mainnet\.octez\.io/i,
   /teztale-server-mainnet-ro-prd\.octez\.tech/i,
   /api\.llama\.fi/i,
+  /fonts\.googleapis\.com/i,
   /fonts\.gstatic\.com/i,
   /explorer\.etherlink\.com/i,
   /node\.mainnet\.etherlink\.com/i,
@@ -116,6 +117,65 @@ const formattingRoutes = [
 const formattingViewports = [
   { label: 'desktop', viewport: { width: 1280, height: 900 } },
   { label: 'mobile', viewport: { width: 390, height: 844 } }
+];
+
+const DEFERRED_CHAMBER_MODULE_PATHS = [
+  '/js/features/capital-chamber.js',
+  '/js/features/chamber.js',
+  '/js/features/ctez.js',
+  '/js/features/ecosystem-chamber.js',
+  '/js/features/etherlink-governance.js',
+  '/js/features/ledger-flow.js',
+  '/js/features/liquidity-baking.js',
+  '/js/features/leaderboard.js',
+  '/js/features/maxis.js',
+  '/js/features/metals-chamber.js',
+  '/js/features/minerals-chamber.js',
+  '/js/features/network-pulse.js',
+  '/js/features/staking-chamber.js',
+  '/js/features/tezos-domains.js',
+  '/js/features/tezoscrp.js',
+  '/js/features/tezlink.js',
+  '/js/features/tz4-adoption.js',
+  '/js/features/uranium-chamber.js',
+  '/js/features/whale-chamber.js'
+];
+const DEFERRED_CHAMBER_PROJECTION_PATHS = [
+  '/data/capital-entry-summary.json',
+  '/data/ecosystem-entry-summary.json',
+  '/data/maxis/entry-summary.json',
+  '/data/baker-governance-signals.json',
+  '/data/minerals-entry-summary.json',
+  '/data/metals-entry-summary.json',
+  '/data/uranium-entry-summary.json'
+];
+const DEFERRED_CHAMBER_STYLE_PATHS = [
+  '/css/capital.min.css',
+  '/css/ecosystem.min.css',
+  '/css/ledger-flow.min.css',
+  '/css/leaderboard.min.css',
+  '/css/maxis.min.css',
+  '/css/metals-chamber.min.css',
+  '/css/minerals-chamber.min.css',
+  '/css/network-pulse.min.css',
+  '/css/staking-chamber.min.css',
+  '/css/tezos-domains.min.css',
+  '/css/tezoscrp.min.css',
+  '/css/uranium-chamber.min.css',
+  '/css/whale-chamber.min.css'
+];
+const DEFERRED_CHAMBER_HEAVY_DATA_PATHS = [
+  '/data/capital-snapshot.json',
+  '/data/ecosystem-stats.json',
+  '/data/maxis-leaders.json',
+  '/data/maxis-careers.json',
+  '/data/maxis-l2-governance.json',
+  '/data/maxis/manifest.json',
+  '/data/metals-snapshot.json',
+  '/data/minerals-snapshot.json',
+  '/data/tezoscrp-awards.json',
+  '/data/uranium-snapshot.json',
+  '/data/whale-watch.json'
 ];
 
 const SAMPLE_ADDRESS = 'tz1aWXP237BLwNHJcCD4b3DutCevhqq2T1Z9';
@@ -1442,7 +1502,9 @@ async function installFeatureMocks(context, options = {}) {
   let whaleLiveRequests = 0;
   let whaleFailureLane = '';
   let whaleDormancyMismatch = false;
-  let bakerGovernanceFailure = '';
+  let bakerGovernanceFailure = false;
+  let bakerGovernanceSignalRequests = 0;
+  let bakerGovernanceHeavyRequests = 0;
   const whaleCursorRequests = [];
   const ledgerFlowRequests = [];
   const ledgerFlowTzktRequests = [];
@@ -1659,51 +1721,63 @@ async function installFeatureMocks(context, options = {}) {
       return fulfillJson(route, sampleWhaleWatchArtifact({ dormantDaysOffset: whaleDormancyMismatch ? 1000 : 0 }));
     }
 
-    if (leaderboardSignals
-      && parsedUrl.pathname.endsWith('/data/maxis-careers.json')
+    if (leaderboardSignals && [
+      '/data/maxis-careers.json',
+      '/data/governance-votes.json'
+    ].some((pathname) => parsedUrl.pathname.endsWith(pathname))
       && parsedUrl.searchParams.get('surface') === 'leaderboard') {
-      if (bakerGovernanceFailure === 'career' || bakerGovernanceFailure === 'both') {
-        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke governance career unavailable"}' });
+      bakerGovernanceHeavyRequests += 1;
+      return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"unexpected heavy Baker governance request"}' });
+    }
+
+    if (leaderboardSignals && parsedUrl.pathname.endsWith('/data/baker-governance-signals.json')) {
+      bakerGovernanceSignalRequests += 1;
+      if (bakerGovernanceFailure) {
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke Baker governance signals unavailable"}' });
       }
-      return fulfillJson(route, {
+      const generatedAt = new Date().toISOString();
+      const unsigned = {
         schema: 1,
-        kind: 'maxis-governance-careers',
-        generatedAt: new Date().toISOString(),
-        coverage: { status: 'complete', absenceMeansZero: true },
+        kind: 'baker-governance-signals',
+        generatedAt,
+        coverage: {
+          status: 'complete',
+          mode: 'source-active-delegate-governance-signal-projection',
+          zeroSemantics: 'Zero-valued fields mean zero only for an address present in this frozen source cohort.',
+          missingAddressSemantics: 'A missing address is outside the source active-delegate cohort, not proof of no governance history.'
+        },
+        sources: {
+          careers: { generatedAt },
+          governanceVotes: { generatedAt }
+        },
+        recordCount: 2,
+        acceptedProposalCount: 2,
         records: {
           [SAMPLE_ADDRESS]: {
             address: SAMPLE_ADDRESS,
             lifetimeBallots: 34,
             currentBallotPeriodStreak: 12,
-            longestBallotPeriodStreak: 18
+            longestBallotPeriodStreak: 18,
+            acceptedProposals: [
+              { hash: 'PsSmokeAcceptedOne111111111111111111111111111', name: 'Smoke One', epoch: 89 },
+              { hash: 'PsSmokeAcceptedTwo222222222222222222222222222', name: 'Smoke Two', epoch: 90 }
+            ]
           },
           [SAMPLE_ADDRESS_2]: {
             address: SAMPLE_ADDRESS_2,
             lifetimeBallots: 4,
             currentBallotPeriodStreak: 0,
-            longestBallotPeriodStreak: 2
+            longestBallotPeriodStreak: 2,
+            acceptedProposals: []
           }
         }
-      });
-    }
-
-    if (leaderboardSignals
-      && parsedUrl.pathname.endsWith('/data/governance-votes.json')
-      && parsedUrl.searchParams.get('surface') === 'leaderboard') {
-      if (bakerGovernanceFailure === 'proposals' || bakerGovernanceFailure === 'both') {
-        return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"smoke governance proposals unavailable"}' });
-      }
+      };
       return fulfillJson(route, {
-        generatedAt: new Date().toISOString(),
-        epochCount: 1,
-        epochs: [{
-          index: 90,
-          proposals: [
-            { hash: 'PsSmokeAcceptedOne111111111111111111111111111', status: 'accepted', epoch: 89, initiator: { address: SAMPLE_ADDRESS }, extras: { alias: 'Smoke One' } },
-            { hash: 'PsSmokeAcceptedTwo222222222222222222222222222', status: 'accepted', epoch: 90, initiator: { address: SAMPLE_ADDRESS }, extras: { alias: 'Smoke Two' } },
-            { hash: 'PsSmokeSkipped333333333333333333333333333333', status: 'skipped', epoch: 90, initiator: { address: SAMPLE_ADDRESS_2 }, extras: { alias: 'Skipped Smoke' } }
-          ]
-        }]
+        ...unsigned,
+        integrity: {
+          algorithm: 'sha256-stable-json-v1',
+          contentHash: stableTestHash(unsigned)
+        }
       });
     }
 
@@ -2425,7 +2499,12 @@ async function installFeatureMocks(context, options = {}) {
         });
       }
       if (url.includes('/head')) {
-        return fulfillJson(route, { level: 12345678, cycle: 1278, protocol: 'PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY' });
+        return fulfillJson(route, {
+          level: 12345678,
+          cycle: 1278,
+          timestamp: new Date(Date.now() - 1000).toISOString(),
+          protocol: 'PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY'
+        });
       }
       if (/\/blocks\/[^/]+\/level/.test(url)) {
         return fulfillJson(route, 12344000);
@@ -2443,7 +2522,11 @@ async function installFeatureMocks(context, options = {}) {
           })));
         }
         const requestedLimit = Number(params.get('limit')) || 4;
-        const count = Math.max(1, Math.min(requestedLimit, 20));
+        const isLiquidityBakingWindow = (params.get('select') || '').includes('lbToggleEma');
+        // Liquidity Baking validates one complete, contiguous 2,500-block
+        // opening window before switching to 32-block overlap polls. Keep other
+        // generic block fixtures small, but model that bounded receipt exactly.
+        const count = Math.max(1, isLiquidityBakingWindow ? requestedLimit : Math.min(requestedLimit, 20));
         const now = Date.now() - blockHeadLagMs;
         const head = lbBlocksHead++;
         const producers = [
@@ -3437,7 +3520,9 @@ async function installFeatureMocks(context, options = {}) {
   });
   return {
     bakerPageOffsets,
-    failBakerGovernance(lane = '') { bakerGovernanceFailure = lane; },
+    failBakerGovernance(fail = false) { bakerGovernanceFailure = Boolean(fail); },
+    get bakerGovernanceSignalRequests() { return bakerGovernanceSignalRequests; },
+    get bakerGovernanceHeavyRequests() { return bakerGovernanceHeavyRequests; },
     failWhaleLane(lane = '') { whaleFailureLane = lane; },
     failLedgerFlowTarget(target = '') { ledgerFlowFailureTarget = target; },
     delayLedgerFlowTarget(target = '') { ledgerFlowDelayTarget = target; },
@@ -3512,11 +3597,10 @@ async function assertChamberOrder(page, label) {
 
 async function assertPromotedLauncherGeometry(page, label, { desktop = false } = {}) {
   await page.waitForFunction(() => {
-    if (window.innerWidth > 560) return true;
-    const stylesheet = document.getElementById('leaderboard-css');
-    const baker = document.getElementById('baker-directory-entry-card');
-    return Boolean(stylesheet?.sheet && baker && Number.parseFloat(getComputedStyle(baker).minHeight) >= 340);
+    return ['whale-watch-entry-card', 'baker-directory-entry-card', 'cycle-history-entry-card']
+      .every((id) => document.getElementById(id)?.getBoundingClientRect().height > 0);
   }, null, { timeout: 5000 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const geometry = await page.evaluate(() => {
     const readCard = (selector, railsSelector) => {
       const card = document.querySelector(selector);
@@ -3947,6 +4031,11 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
   await page.waitForFunction(() => document.querySelectorAll('#chambers-section .chamber-entry-card[data-updated-label]').length >= 6, null, { timeout: 15000 });
+  await page.evaluate(() => {
+    document.querySelectorAll('#chambers-section [data-chamber-entry-id]').forEach((card) => {
+      card.dispatchEvent(new PointerEvent('pointerenter'));
+    });
+  });
   try {
     await page.waitForFunction((expectedCount) => {
       const cards = Array.from(document.querySelectorAll('#chambers-section .chamber-entry-card'));
@@ -4520,8 +4609,9 @@ async function smokeAppShell(browser, baseUrl) {
     const aiPlugin = await fetchJson('/.well-known/ai-plugin.json');
     const openApi = await fetchJson('/.well-known/openapi.json');
     const llms = await fetchText('/llms.txt');
+    const shellAssetsBlock = sw.text.match(/const SHELL_ASSETS = \[([\s\S]*?)\];/)?.[1] || '';
     const shellAssets = Array.from(new Set(
-      Array.from(sw.text.matchAll(/['"]((?:\/|\.\.?\/)[^'"]+)['"]/g))
+      Array.from(shellAssetsBlock.matchAll(/['"]((?:\/|\.\.?\/)[^'"]+)['"]/g))
         .map((match) => match[1])
         .filter((asset) => asset.startsWith('/') && !asset.includes('*'))
     )).sort();
@@ -4721,20 +4811,59 @@ async function smokeAppShell(browser, baseUrl) {
   assert(shell.assetResults.length >= 12 && shell.assetResults.length <= 24, `app shell: expected a compact core shell, saw ${shell.assetResults.length} discovered assets`);
 
   await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller), null, { timeout: 10000 });
-  await page.close();
-  const offlinePage = await context.newPage();
-  attachIssueCollectors(offlinePage, 'app shell offline navigation', issues);
+  const cachePolicySeed = await page.evaluate(async () => {
+    const [immutable, mutable] = await Promise.all([
+      fetch('/data/protocol-data.json?v=2'),
+      fetch('/data/metals-entry-summary.json')
+    ]);
+    return { immutable: immutable.status, mutable: mutable.status };
+  });
+  assert(
+    cachePolicySeed.immutable === 200 && cachePolicySeed.mutable === 200,
+    `app shell: cache-policy seed requests failed ${JSON.stringify(cachePolicySeed)}`
+  );
+  // Keep the already-controlled client for the offline transition. A fresh
+  // about:blank page created after the browser is taken offline is not a
+  // reliable service-worker client in every Chromium build.
+  const offlinePage = page;
   let offlineResponse = null;
   let offlineHeading = '';
+  let offlineCachePolicy = null;
   try {
     await context.setOffline(true);
     offlineResponse = await offlinePage.goto(`${baseUrl}/offline-navigation-smoke`, { waitUntil: 'domcontentloaded' });
     offlineHeading = await offlinePage.locator('h1').innerText();
+    offlineCachePolicy = await offlinePage.evaluate(async () => {
+      const immutable = await fetch('/data/protocol-data.json?v=2');
+      const mutable = await fetch('/data/metals-entry-summary.json');
+      const mutableBody = await mutable.json().catch(() => null);
+      return {
+        controller: navigator.serviceWorker?.controller?.scriptURL || '',
+        online: navigator.onLine,
+        immutable: {
+          status: immutable.status,
+          textStartsWithJson: (await immutable.text()).trim().startsWith('{')
+        },
+        mutable: {
+          status: mutable.status,
+          cache: mutable.headers.get('x-tezos-systems-cache') || '',
+          body: mutableBody?._quality ? { _quality: mutableBody._quality } : null
+        }
+      };
+    });
   } finally {
     await context.setOffline(false);
   }
   assert(offlineResponse?.ok(), `app shell: offline navigation did not return the cached explanation (${offlineResponse?.status()})`);
   assert(/offline/i.test(offlineHeading), `app shell: offline navigation should render the self-contained offline page, saw ${offlineHeading}`);
+  assert(
+    offlineCachePolicy?.immutable?.status === 200
+      && offlineCachePolicy.immutable.textStartsWithJson
+      && offlineCachePolicy?.mutable?.status === 503
+      && offlineCachePolicy.mutable.cache === 'miss'
+      && offlineCachePolicy.mutable.body?._quality?.status === 'unavailable',
+    `app shell: service worker replayed a mutable generated receipt or failed to retain an immutable asset ${JSON.stringify(offlineCachePolicy)}`
+  );
 
   await offlinePage.close();
   await context.close();
@@ -4759,7 +4888,10 @@ async function smokeAppShell(browser, baseUrl) {
   assert(/build \d+ · latest unavailable · stamp [a-f0-9]{7,12} · \d{4}-\d{2}-\d{2}/i.test(fallbackFooter), `app shell footer fallback: footer shape mismatch: ${fallbackFooter}`);
   await fallbackContext.close();
 
-  assert(issues.length === 0, `app shell browser issues:\n${issues.join('\n')}`);
+  const unexpectedIssues = issues.filter((issue) => !(
+    /app shell console error: Failed to load resource: the server responded with a status of 503[\s\S]*\/data\/metals-entry-summary\.json/i.test(issue)
+  ));
+  assert(unexpectedIssues.length === 0, `app shell browser issues:\n${unexpectedIssues.join('\n')}`);
   log(`ok - app shell smoke (${shell.assetResults.length} shell assets)`);
 }
 
@@ -5219,7 +5351,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     const activityRect = activity?.getBoundingClientRect();
     const center = (rect) => rect ? rect.top + (rect.height / 2) : 0;
     return {
-      shellExtrasAbsent: !document.getElementById('shell-extras-css'),
+      shellExtrasReady: Boolean(document.getElementById('shell-extras-css')?.sheet),
       rowDisplay: row ? getComputedStyle(row).display : '',
       buttonDisplay: activity ? getComputedStyle(activity).display : '',
       buttonHeight: activityRect?.height || 0,
@@ -5233,12 +5365,12 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     };
   });
   assert(
-    firstPaintState.shellExtrasAbsent
+    firstPaintState.shellExtrasReady
       && firstPaintState.rowDisplay === 'flex'
       && firstPaintState.buttonDisplay === 'block'
       && firstPaintState.buttonHeight >= 35
       && firstPaintState.sameBand,
-    `hero command bar first paint: activity geometry depends on lazy shell styles ${JSON.stringify(firstPaintState)}`
+    `hero command bar first paint: render-blocking shell geometry is not ready ${JSON.stringify(firstPaintState)}`
   );
   assert(
     firstPaintState.clusterPresent
@@ -5739,7 +5871,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
     const intentResponse = await intentPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'commit' });
     assert(intentResponse?.ok(), `hero command bar exact intents: dashboard failed with HTTP ${intentResponse?.status()}`);
     await intentPage.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 10000 });
-    await intentPage.waitForFunction(() => document.querySelectorAll('#hero-search-chips button').length > 0, null, { timeout: 10000 });
+    await intentPage.waitForFunction(() => document.querySelector('#hero-slot')?.dataset.heroSearchWired === '1', null, { timeout: 10000 });
     await intentPage.locator('#hero-search-input').fill(query);
     await intentPage.waitForFunction(({ value, title }) => {
       const input = document.getElementById('hero-search-input');
@@ -6844,6 +6976,7 @@ async function smokeStakingChamber(browser, baseUrl) {
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#staking-entry-card').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#staking-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => {
     const card = document.querySelector('#staking-entry-card');
     const ratio = document.querySelector('#staking-entry-ratio')?.textContent?.trim() || '';
@@ -7213,6 +7346,12 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
     });
     assert(scrolledTray.trayPosition === 'relative' && scrolledTray.giftBottom <= 0 && scrolledTray.overlapArea === 0, `${label}: corner gift must leave with the mobile header instead of overlapping the title ${JSON.stringify(scrolledTray)}`);
   }
+  // Dashboard smoke is allowed to exercise the launcher, but it must no
+  // longer assume the Tezos X feature was eager. Visibility/hover is the
+  // explicit hydration intent; the dedicated lazy suite covers pre-intent.
+  await page.locator('#tezlink-entry-card').scrollIntoViewIfNeeded();
+  await page.locator('#tezlink-entry-card').hover();
+  await page.locator('#chambers-section #tezlink-entry-card.chamber-entry-wide .card-copy-link[data-copy-hash="#tezosx"]').waitFor({ state: 'attached', timeout: 10000 });
   await expectCount(page, '#chambers-section #tezlink-entry-card.chamber-entry-wide .card-copy-link[data-copy-hash="#tezosx"]', 1, `${label} Tezos X chamber card`);
   await assertChamberOrder(page, label);
   assert(!(await page.locator('#consensus-section').isVisible()), `${label}: Consensus stats should be hidden by default`);
@@ -7757,7 +7896,9 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
       presentation.releaseIndex >= 0
         && presentation.releaseIndex <= 1
         && presentation.score >= 170
-        && presentation.priority === 'EVERYONE WATCH',
+        && (presentation.priority === 'EVERYONE WATCH'
+          || (presentation.priority === 'FORECAST STALE'
+            && /Treat horizons as stale until the next tracker receipt/i.test(presentation.text))),
       `release radar pulse ${label}: the important forecast left the top priority pair ${JSON.stringify(presentation)}`
     );
     assert(
@@ -7786,13 +7927,16 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         presentation.cardWidth >= 420
           && presentation.cardWidth <= 600
           && presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.cardHeight <= 190,
+          && presentation.cardHeight <= (presentation.priority === 'FORECAST STALE' ? 225 : 190),
         `release radar pulse desktop: compact priority geometry regressed ${JSON.stringify(presentation)}`
       );
     } else {
       assert(
         presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.cardHeight <= Math.min(280, viewport.height * 0.4),
+          && presentation.cardHeight <= Math.min(
+            presentation.priority === 'FORECAST STALE' ? 305 : 280,
+            viewport.height * 0.4
+          ),
         `release radar pulse mobile: compact single-column geometry regressed ${JSON.stringify(presentation)}`
       );
     }
@@ -7866,7 +8010,7 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         && /Dependency boundaries/.test(overlayPresentation.text)
         && /Status-change ledger/.test(overlayPresentation.text)
         && /Every receipt used in the current review/.test(overlayPresentation.text)
-        && /Current daily receipt/.test(overlayPresentation.text)
+        && /(?:Current daily receipt|This receipt is outside its freshness window)/.test(overlayPresentation.text)
         && /Reviewed daily/.test(overlayPresentation.text),
       `release radar pulse ${label}: expanded forecast context drifted ${JSON.stringify(overlayPresentation)}`
     );
@@ -12914,6 +13058,7 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `ledger flow chamber: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#ledger-flow-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#ledger-flow-entry-card').dispatchEvent('pointerenter');
   await page.locator('#ledger-flow-entry-card .ledger-flow-entry-hero:not(.is-fallback)').waitFor({ state: 'visible', timeout: 15000 });
   const entryState = await page.locator('#ledger-flow-entry-card').evaluate((card) => ({
     hero: card.querySelector('.ledger-flow-entry-hero')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -13504,7 +13649,7 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     assert(initial.podiumPlaces.join('|') === '1|2|3', `TezosCRP ${label}: top recognition rows lost their distinct placement treatment ${JSON.stringify(initial.podiumPlaces)}`);
     assert(initial.launcherIdentities === 6, `TezosCRP ${label}: launcher must surface six leading recognition identities`);
     if (label === 'desktop') {
-      assert(initial.bottomRowHeights['maxis-entry-card'] >= 350 && initial.bottomRowHeights['maxis-entry-card'] <= 375, `TezosCRP desktop: categorized Maxis intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
+      assert(initial.bottomRowHeights['maxis-entry-card'] >= 315 && initial.bottomRowHeights['maxis-entry-card'] <= 335, `TezosCRP desktop: categorized Maxis intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
       assert(initial.bottomRowHeights['tezoscrp-entry-card'] >= 280 && initial.bottomRowHeights['tezoscrp-entry-card'] <= 520, `TezosCRP desktop: categorized TezosCRP intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
       assert(initial.bottomRowHeights['tezos-domains-entry-card'] >= 290 && initial.bottomRowHeights['tezos-domains-entry-card'] <= 500, `TezosCRP desktop: categorized Domains intrinsic height drifted ${JSON.stringify(initial.bottomRowHeights)}`);
       assert(Object.values(initial.bottomRowWidths).every((width) => width > 1200), `TezosCRP desktop: dense People launchers must own full rows ${JSON.stringify(initial.bottomRowWidths)}`);
@@ -14818,6 +14963,11 @@ async function smokeLauncherProjections(browser, baseUrl) {
 
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `launcher projections: dashboard failed with HTTP ${response?.status()}`);
+  await page.evaluate(() => {
+    for (const selector of ['#capital-entry-card', '#ecosystem-entry-card', '#maxis-entry-card']) {
+      document.querySelector(selector)?.dispatchEvent(new PointerEvent('pointerenter'));
+    }
+  });
   await page.waitForFunction(() => {
     const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
     const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
@@ -14869,6 +15019,87 @@ async function smokeLauncherProjections(browser, baseUrl) {
   assert(afterOpen.maxis === beforeOpen.maxis, 'Maxis launcher markup drifted after replacing its projection with reviewed full data');
   await context.close();
 
+  const noSubtleIssues = [];
+  const noSubtlePaths = [];
+  const noSubtleContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(noSubtleContext);
+  await noSubtleContext.addInitScript(() => {
+    // Plain-HTTP LAN previews expose crypto without SubtleCrypto. Shadow the
+    // secure-localhost implementation so this regression stays reproducible in
+    // CI while the shared deterministic verifier still checks exact receipts.
+    Object.defineProperty(globalThis.crypto, 'subtle', {
+      configurable: true,
+      value: undefined
+    });
+    localStorage.setItem('tezos-systems-theme', 'clean');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const noSubtlePage = await noSubtleContext.newPage();
+  attachIssueCollectors(noSubtlePage, 'plain-HTTP launcher receipts', noSubtleIssues);
+  noSubtlePage.on('request', (request) => {
+    try {
+      noSubtlePaths.push(new URL(request.url()).pathname);
+    } catch {
+      // Ignore malformed third-party diagnostics.
+    }
+  });
+  const noSubtleResponse = await noSubtlePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(noSubtleResponse?.ok(), `plain-HTTP launcher receipts: dashboard failed with HTTP ${noSubtleResponse?.status()}`);
+  assert(await noSubtlePage.evaluate(() => !globalThis.crypto?.subtle),
+    'plain-HTTP launcher receipt fixture did not disable SubtleCrypto');
+  await noSubtlePage.evaluate(() => {
+    for (const selector of ['#capital-entry-card', '#ecosystem-entry-card', '#maxis-entry-card']) {
+      document.querySelector(selector)?.dispatchEvent(new PointerEvent('pointerenter'));
+    }
+  });
+  await noSubtlePage.waitForFunction(() => {
+    const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
+    const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
+    const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
+    const visibleText = [
+      document.querySelector('#capital-entry-card')?.textContent || '',
+      document.querySelector('#ecosystem-entry-card')?.textContent || '',
+      document.querySelector('#maxis-entry-card')?.textContent || ''
+    ].join(' ');
+    return capitalPath.length > 80
+      && ecosystemPoints.length > 40
+      && maxisIdentities === 10
+      && !/Unavailable/.test(visibleText);
+  }, null, { timeout: 30000 });
+  assert(noSubtlePaths.includes('/data/capital-entry-summary.json')
+    && noSubtlePaths.includes('/data/ecosystem-entry-summary.json')
+    && noSubtlePaths.includes('/data/maxis/entry-summary.json'),
+  `plain-HTTP launchers did not request all compact receipts: ${noSubtlePaths.join(', ')}`);
+  assert(!noSubtlePaths.includes('/data/capital-snapshot.json')
+    && !noSubtlePaths.includes('/data/ecosystem-stats.json')
+    && !noSubtlePaths.includes('/data/maxis-leaders.json')
+    && !noSubtlePaths.includes('/data/maxis-careers.json'),
+  `plain-HTTP launcher verification loaded full room data before intent: ${noSubtlePaths.join(', ')}`);
+
+  await noSubtlePage.locator('#capital-entry-front').evaluate((node) => node.click());
+  await noSubtlePage.waitForFunction(() => {
+    const body = document.querySelector('#capital-modal.active #capital-chamber-body');
+    return body?.dataset.capitalRendered === '1'
+      && !/Capital snapshot unavailable/i.test(body.textContent || '');
+  }, null, { timeout: 30000 });
+  await noSubtlePage.locator('#capital-modal.active .chamber-close').click();
+  await noSubtlePage.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
+  await noSubtlePage.locator('#ecosystem-entry-front').evaluate((node) => node.click());
+  await noSubtlePage.waitForFunction(() => {
+    const body = document.querySelector('#ecosystem-activity-modal.active #ecosystem-chamber-body');
+    return body?.dataset.ecosystemRendered === '1'
+      && !/Ecosystem history unavailable/i.test(body.textContent || '');
+  }, null, { timeout: 30000 });
+  await noSubtlePage.locator('#ecosystem-activity-modal.active .chamber-close').click();
+  await noSubtlePage.waitForFunction(() => !document.querySelector('#ecosystem-activity-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await noSubtleContext.close();
+
   const raceIssues = [];
   const racePaths = [];
   let releaseDelayedMaxisProjection;
@@ -14908,6 +15139,7 @@ async function smokeLauncherProjections(browser, baseUrl) {
   });
   const raceResponse = await racePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(raceResponse?.ok(), `Maxis delayed launcher projection: dashboard failed with HTTP ${raceResponse?.status()}`);
+  await racePage.locator('#maxis-entry-card').dispatchEvent('pointerenter');
   await racePage.waitForFunction(() => typeof window.openMaxisChamber === 'function', null, { timeout: 15000 });
   const raceRequestDeadline = Date.now() + 15000;
   while (!racePaths.includes('/data/maxis/entry-summary.json') && Date.now() < raceRequestDeadline) {
@@ -14936,13 +15168,6 @@ async function smokeLauncherProjections(browser, baseUrl) {
 
   const fallbackRaceIssues = [];
   const fallbackRacePaths = [];
-  const fallbackRaceRequestCounts = new Map();
-  const delayedFallbackRequests = new Set();
-  let delayedFallbackFulfilled = 0;
-  let releaseDelayedFallback;
-  const delayedFallbackGate = new Promise((resolve) => {
-    releaseDelayedFallback = resolve;
-  });
   const fallbackRaceContext = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
@@ -14954,26 +15179,6 @@ async function smokeLauncherProjections(browser, baseUrl) {
     body.integrity.contentHash = '0'.repeat(64);
     await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
   });
-  const delayFirstFallbackArtifact = async (route, key, mutate = () => {}) => {
-    const count = (fallbackRaceRequestCounts.get(key) || 0) + 1;
-    fallbackRaceRequestCounts.set(key, count);
-    const response = await route.fetch();
-    const body = await response.json();
-    if (count === 1) {
-      mutate(body);
-      delayedFallbackRequests.add(key);
-      await delayedFallbackGate;
-      delayedFallbackFulfilled += 1;
-    }
-    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
-  };
-  await fallbackRaceContext.route('**/data/maxis-leaders.json*', (route) => delayFirstFallbackArtifact(route, 'legacy', (body) => {
-    body.rankedWalletCount = 777;
-  }));
-  await fallbackRaceContext.route('**/data/maxis-l2-governance.json*', (route) => delayFirstFallbackArtifact(route, 'l2Governance'));
-  await fallbackRaceContext.route('**/data/maxis/manifest.json*', (route) => delayFirstFallbackArtifact(route, 'manifest', (body) => {
-    if (body.current) body.current.displayLabel = 'Stale Fallback Season';
-  }));
   await fallbackRaceContext.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'clean');
     localStorage.setItem('tezos-toured', '1');
@@ -14991,32 +15196,39 @@ async function smokeLauncherProjections(browser, baseUrl) {
   });
   const fallbackRaceResponse = await fallbackRacePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(fallbackRaceResponse?.ok(), `Maxis immediate-open fallback race: dashboard failed with HTTP ${fallbackRaceResponse?.status()}`);
+  await fallbackRacePage.locator('#maxis-entry-card').dispatchEvent('pointerenter');
   await fallbackRacePage.waitForFunction(() => typeof window.openMaxisChamber === 'function', null, { timeout: 15000 });
-  const fallbackRaceStartDeadline = Date.now() + 15000;
-  while (delayedFallbackRequests.size < 3 && Date.now() < fallbackRaceStartDeadline) {
+  const fallbackRaceSummaryDeadline = Date.now() + 15000;
+  while (!fallbackRacePaths.includes('/data/maxis/entry-summary.json') && Date.now() < fallbackRaceSummaryDeadline) {
     await fallbackRacePage.waitForTimeout(50);
   }
-  assert(delayedFallbackRequests.size === 3,
-    `Maxis corrupt projection did not start every delayed fallback artifact: ${Array.from(delayedFallbackRequests).join(', ')}; observed ${fallbackRacePaths.join(', ')}`);
+  assert(fallbackRacePaths.includes('/data/maxis/entry-summary.json'),
+    `Maxis corrupt projection was not requested: ${fallbackRacePaths.join(', ')}`);
+  await fallbackRacePage.waitForTimeout(300);
+  const maxisFullDataLoaded = () => fallbackRacePaths.includes('/data/maxis-leaders.json')
+    || fallbackRacePaths.includes('/data/maxis-careers.json')
+    || fallbackRacePaths.includes('/data/maxis-l2-governance.json')
+    || fallbackRacePaths.includes('/data/maxis/manifest.json')
+    || fallbackRacePaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path));
+  assert(!maxisFullDataLoaded(),
+    `Maxis projection failure loaded full data before explicit room intent: ${fallbackRacePaths.join(', ')}`);
   await fallbackRacePage.evaluate(() => window.openMaxisChamber());
   await fallbackRacePage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
-  assert(['legacy', 'l2Governance', 'manifest'].every((key) => (fallbackRaceRequestCounts.get(key) || 0) >= 2),
-    `Maxis explicit open did not supersede all in-flight fallback requests: ${JSON.stringify(Object.fromEntries(fallbackRaceRequestCounts))}`);
-  const fallbackRaceFullMarkup = await fallbackRacePage.locator('#maxis-entry-card .maxis-entry-front').evaluate((node) => node.innerHTML.replace(/\s+/g, ' ').trim());
-  assert(!/777 ranked wallets|Stale Fallback Season/i.test(fallbackRaceFullMarkup),
-    `Maxis explicit open rendered delayed fallback data before release: ${fallbackRaceFullMarkup}`);
-  releaseDelayedFallback();
-  const fallbackRaceFulfillDeadline = Date.now() + 10000;
-  while (delayedFallbackFulfilled < 3 && Date.now() < fallbackRaceFulfillDeadline) {
+  const fallbackRaceFullDeadline = Date.now() + 30000;
+  while (!(fallbackRacePaths.includes('/data/maxis-leaders.json')
+    && fallbackRacePaths.includes('/data/maxis-careers.json')
+    && fallbackRacePaths.includes('/data/maxis-l2-governance.json')
+    && fallbackRacePaths.includes('/data/maxis/manifest.json')
+    && fallbackRacePaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path)))
+    && Date.now() < fallbackRaceFullDeadline) {
     await fallbackRacePage.waitForTimeout(50);
   }
-  assert(delayedFallbackFulfilled === 3, `Maxis delayed fallback fixtures did not all finish: ${delayedFallbackFulfilled}/3`);
-  await fallbackRacePage.waitForTimeout(100);
-  await fallbackRacePage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const settledFallbackRaceMarkup = await fallbackRacePage.locator('#maxis-entry-card .maxis-entry-front').evaluate((node) => node.innerHTML.replace(/\s+/g, ' ').trim());
-  assert(settledFallbackRaceMarkup === fallbackRaceFullMarkup
-    && !/777 ranked wallets|Stale Fallback Season/i.test(settledFallbackRaceMarkup),
-  `delayed Maxis fallback overwrote explicit full-room launcher data: ${settledFallbackRaceMarkup}`);
+  assert(fallbackRacePaths.includes('/data/maxis-leaders.json')
+    && fallbackRacePaths.includes('/data/maxis-careers.json')
+    && fallbackRacePaths.includes('/data/maxis-l2-governance.json')
+    && fallbackRacePaths.includes('/data/maxis/manifest.json')
+    && fallbackRacePaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path)),
+  `Maxis explicit room intent did not load the reviewed full artifacts: ${fallbackRacePaths.join(', ')}`);
   await fallbackRaceContext.close();
 
   const fallbackIssues = [];
@@ -15033,6 +15245,12 @@ async function smokeLauncherProjections(browser, baseUrl) {
     await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
   });
   await fallbackContext.route('**/data/ecosystem-entry-summary.json*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.contentHash = '0'.repeat(64);
+    await route.fulfill({ response, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await fallbackContext.route('**/data/uranium-entry-summary.json*', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
     body.contentHash = '0'.repeat(64);
@@ -15068,40 +15286,76 @@ async function smokeLauncherProjections(browser, baseUrl) {
   };
   const fallbackResponse = await fallbackPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(fallbackResponse?.ok(), `launcher projection fallback: dashboard failed with HTTP ${fallbackResponse?.status()}`);
-  await fallbackPage.waitForFunction(() => {
-    const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
-    const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
-    const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
-    return capitalPath.length > 80 && ecosystemPoints.length > 40 && maxisIdentities === 10;
-  }, null, { timeout: 30000 });
+  await fallbackPage.evaluate(() => {
+    for (const selector of ['#capital-entry-card', '#ecosystem-entry-card', '#uranium-entry-card', '#maxis-entry-card']) {
+      document.querySelector(selector)?.dispatchEvent(new PointerEvent('pointerenter'));
+    }
+  });
   await waitForFallbackRequests(() => fallbackPaths.includes('/data/capital-entry-summary.json')
-    && fallbackPaths.includes('/data/capital-snapshot.json'), 'Capital projection failure did not fall back to the reviewed snapshot');
-  await waitForFallbackRequests(() => fallbackPaths.includes('/data/ecosystem-entry-summary.json')
-    && fallbackPaths.includes('/data/ecosystem-stats.json'), 'Ecosystem projection failure did not fall back to the reviewed snapshot');
-  await waitForFallbackRequests(() => fallbackPaths.includes('/data/maxis/entry-summary.json')
-    && fallbackPaths.includes('/data/maxis-leaders.json')
+    && fallbackPaths.includes('/data/ecosystem-entry-summary.json')
+    && fallbackPaths.includes('/data/uranium-entry-summary.json')
+    && fallbackPaths.includes('/data/maxis/entry-summary.json'),
+  'corrupt launcher projections were not all requested');
+  await fallbackPage.waitForFunction(() => (
+    document.querySelector('#capital-entry-card .capital-entry-value')?.textContent?.trim() === 'Unavailable'
+    && document.querySelector('#ecosystem-entry-card .ecosystem-entry-value')?.textContent?.trim() === 'Unavailable'
+    && document.querySelector('#uranium-entry-card .uranium-entry-value')?.textContent?.trim() === 'Unavailable'
+  ), null, { timeout: 10000 });
+  assert(!fallbackPaths.includes('/data/capital-snapshot.json')
+    && !fallbackPaths.includes('/data/ecosystem-stats.json')
+    && !fallbackPaths.includes('/data/uranium-snapshot.json')
+    && !fallbackPaths.includes('/data/maxis-leaders.json')
+    && !fallbackPaths.includes('/data/maxis-careers.json')
+    && !fallbackPaths.includes('/data/maxis-l2-governance.json')
+    && !fallbackPaths.includes('/data/maxis/manifest.json')
+    && !fallbackPaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path)),
+  `projection failure loaded full data before explicit room intent: ${fallbackPaths.join(', ')}`);
+  const failClosedLauncherState = await fallbackPage.evaluate(() => Object.fromEntries([
+    ['capital', '#capital-entry-card'],
+    ['ecosystem', '#ecosystem-entry-card'],
+    ['uranium', '#uranium-entry-card']
+  ].map(([id, selector]) => {
+    const card = document.querySelector(selector);
+    return [id, {
+      updatedLabel: card?.dataset.updatedLabel || '',
+      text: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      stale: card?.classList.contains('chamber-data-stale') || false,
+      hasOpenCue: Boolean(card?.querySelector('.chamber-expand-cue'))
+    }];
+  })));
+  for (const [id, state] of Object.entries(failClosedLauncherState)) {
+    assert(
+      state.stale
+        && state.hasOpenCue
+        && /^Unavailable · refresh failed · no last-good receipt$/.test(state.updatedLabel)
+        && /Unavailable/.test(state.text)
+        && !/\b(?:Loading|Verifying)\b/i.test(state.text),
+      `${id} corrupt launcher projection did not settle into an honest retryable unavailable state: ${JSON.stringify(state)}`
+    );
+  }
+
+  await fallbackPage.locator('#capital-entry-front').click();
+  await fallbackPage.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 20000 });
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/capital-snapshot.json'),
+    'Capital explicit room intent did not load the reviewed snapshot');
+  await fallbackPage.locator('#capital-modal.active .chamber-close').click();
+  await fallbackPage.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
+  await fallbackPage.locator('#ecosystem-entry-front').click();
+  await fallbackPage.locator('#ecosystem-activity-modal.active .ecosystem-content').waitFor({ state: 'visible', timeout: 20000 });
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/ecosystem-stats.json'),
+    'Ecosystem explicit room intent did not load the reviewed snapshot');
+  await fallbackPage.locator('#ecosystem-activity-modal.active .chamber-close').click();
+  await fallbackPage.waitForFunction(() => !document.querySelector('#ecosystem-activity-modal')?.classList.contains('active'), null, { timeout: 5000 });
+
+  await fallbackPage.locator('#maxis-entry-card .maxis-entry-front').click();
+  await fallbackPage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
+  await waitForFallbackRequests(() => fallbackPaths.includes('/data/maxis-leaders.json')
+    && fallbackPaths.includes('/data/maxis-careers.json')
     && fallbackPaths.includes('/data/maxis-l2-governance.json')
     && fallbackPaths.includes('/data/maxis/manifest.json')
     && fallbackPaths.some((path) => /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(path)),
-  'Maxis projection failure did not fall back to the reviewed launcher artifacts');
-  assert(!fallbackPaths.includes('/data/maxis-careers.json'), `Maxis career data loaded before the fallback launcher was explicitly opened: ${fallbackPaths.join(', ')}`);
-  await fallbackPage.waitForFunction(() => {
-    const text = document.querySelector('#maxis-entry-card .maxis-entry-front')?.textContent || '';
-    return /Passports/i.test(text) && !/loading/i.test(text);
-  }, null, { timeout: 30000 });
-  await fallbackPage.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const fallbackMarkup = await fallbackPage.evaluate(() => ({
-    capital: document.querySelector('#capital-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
-    ecosystem: document.querySelector('#ecosystem-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || '',
-    maxis: document.querySelector('#maxis-entry-card .maxis-entry-front')?.innerHTML.replace(/\s+/g, ' ').trim() || ''
-  }));
-  assert(fallbackMarkup.capital === beforeOpen.capital, 'Capital reviewed-data fallback did not preserve launcher markup parity');
-  assert(fallbackMarkup.ecosystem === beforeOpen.ecosystem, 'Ecosystem reviewed-data fallback did not preserve launcher markup parity');
-  assert(fallbackMarkup.maxis === beforeOpen.maxis, 'Maxis reviewed-data fallback did not preserve launcher markup parity');
-  await fallbackPage.locator('#maxis-entry-card .maxis-entry-front').click();
-  await fallbackPage.locator('#maxis-modal.active .maxis-experience').waitFor({ state: 'visible', timeout: 30000 });
-  await waitForFallbackRequests(() => fallbackPaths.includes('/data/maxis-careers.json'),
-    'Maxis reviewed-data fallback did not load the career ledger after explicit room open');
+  'Maxis explicit room intent did not load the reviewed full artifacts');
   await fallbackContext.close();
 
   const deploySkewIssues = [];
@@ -15111,8 +15365,14 @@ async function smokeLauncherProjections(browser, baseUrl) {
     serviceWorkers: 'block'
   });
   await installFeatureMocks(deploySkewContext);
+  let deploySkewSummaryRequests = 0;
   await deploySkewContext.route('**/data/capital-entry-summary.json*', async (route) => {
     const response = await route.fetch();
+    deploySkewSummaryRequests += 1;
+    if (deploySkewSummaryRequests > 1) {
+      await route.fulfill({ response });
+      return;
+    }
     const body = await response.json();
     const olderGeneratedAt = new Date(Date.parse(body.generatedAt) - 60_000).toISOString();
     body.generatedAt = olderGeneratedAt;
@@ -15139,41 +15399,133 @@ async function smokeLauncherProjections(browser, baseUrl) {
   });
   const deploySkewResponse = await deploySkewPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(deploySkewResponse?.ok(), `Capital launcher deploy skew: dashboard failed with HTTP ${deploySkewResponse?.status()}`);
+  await deploySkewPage.locator('#capital-entry-card').dispatchEvent('pointerenter');
   await deploySkewPage.locator('#capital-entry-card .capital-entry-price-line').waitFor({ state: 'attached', timeout: 20000 });
   assert(!deploySkewPaths.includes('/data/capital-snapshot.json'), `Capital deploy-skew fixture loaded full data before open: ${deploySkewPaths.join(', ')}`);
   await deploySkewPage.locator('#capital-entry-front').click();
-  await deploySkewPage.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 20000 });
+  await deploySkewPage.locator('#capital-modal.active .capital-error').waitFor({ state: 'visible', timeout: 20000 });
+  const rejectedSkewText = await deploySkewPage.locator('#capital-modal.active .capital-error').innerText();
+  assert(
+    /Capital snapshot unavailable/.test(rejectedSkewText)
+      && /does not match the launcher projection content receipt/.test(rejectedSkewText),
+    `Capital deploy-skew snapshot was not rejected against its validated launcher receipt: ${rejectedSkewText}`
+  );
+  assert(
+    deploySkewPaths.filter((path) => path === '/data/capital-snapshot.json').length === 1,
+    `Capital deploy-skew fixture should attempt the mismatched full snapshot exactly once: ${deploySkewPaths.join(', ')}`
+  );
+  await deploySkewPage.locator('#capital-modal.active .chamber-close').click();
+  await deploySkewPage.waitForFunction(() => !document.querySelector('#capital-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  await deploySkewPage.locator('#capital-entry-front').click();
   await deploySkewPage.waitForFunction(() => {
     const body = document.querySelector('#capital-modal.active #capital-chamber-body');
     return Boolean(body?.querySelector('.capital-tabs')) && !/Capital snapshot unavailable/i.test(body?.textContent || '');
   }, null, { timeout: 20000 });
-  assert(deploySkewPaths.includes('/data/capital-snapshot.json'), `Capital deploy-skew fixture did not request the newer reviewed snapshot: ${deploySkewPaths.join(', ')}`);
+  assert(
+    deploySkewSummaryRequests >= 2
+      && deploySkewPaths.filter((path) => path === '/data/capital-snapshot.json').length === 2,
+    `Capital did not recover from deploy skew by revalidating the projection before accepting the snapshot: ${JSON.stringify({ deploySkewSummaryRequests, deploySkewPaths })}`
+  );
   await deploySkewContext.close();
 
   assert(issues.length === 0, `launcher projection browser issues:\n${issues.join('\n')}`);
   const unexpectedFallbackIssues = fallbackIssues.filter((issue) => (
-    !/Capital Chamber entry summary failed; loading the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
-    && !/Ecosystem Activity launcher projection failed; loading the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+    !/Capital Chamber entry summary refresh failed; retaining the last good launcher:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+    && !/Ecosystem Activity launcher projection refresh failed; retaining the last good launcher:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+    && !/Uranium Chamber entry summary refresh failed; retaining the last good launcher:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+    && !/Capital Chamber summary poll failed during open; trying the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
+    && !/Ecosystem Activity summary poll failed during open; trying the complete snapshot:[\s\S]*failed its SHA-256 integrity receipt/i.test(issue)
   ));
-  assert(unexpectedFallbackIssues.length === 0, `launcher projection fallback browser issues:\n${unexpectedFallbackIssues.join('\n')}`);
-  assert(deploySkewIssues.length === 0, `Capital launcher deploy-skew browser issues:\n${deploySkewIssues.join('\n')}`);
+  assert(unexpectedFallbackIssues.length === 0, `launcher projection fail-closed browser issues:\n${unexpectedFallbackIssues.join('\n')}`);
+  const unexpectedDeploySkewIssues = deploySkewIssues.filter((issue) => !(
+    /Capital Chamber snapshot refresh failed:[\s\S]*does not match the launcher projection content receipt/i.test(issue)
+  ));
+  assert(unexpectedDeploySkewIssues.length === 0, `Capital launcher deploy-skew browser issues:\n${unexpectedDeploySkewIssues.join('\n')}`);
   assert(raceIssues.length === 0, `Maxis delayed launcher projection browser issues:\n${raceIssues.join('\n')}`);
   assert(fallbackRaceIssues.length === 0, `Maxis immediate-open fallback race browser issues:\n${fallbackRaceIssues.join('\n')}`);
-  log('ok - launcher projections defer full data, preserve parity, and fall back safely');
+  assert(noSubtleIssues.length === 0, `plain-HTTP launcher receipt browser issues:\n${noSubtleIssues.join('\n')}`);
+  log('ok - launcher projections defer full data, preserve parity, and fail closed until explicit room intent');
 }
 
 async function smokeCapitalChamber(browser, baseUrl) {
   const issues = [];
+  let capitalEntryFixture = null;
+  let capitalSnapshotFixture = null;
+  let capitalRevision = 0;
+  let capitalEntryRequests = 0;
+  let capitalSnapshotRequests = 0;
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const makeCapitalSnapshot = (revision) => {
+    const snapshot = clone(capitalSnapshotFixture);
+    if (revision > 0) {
+      const generatedAt = new Date(Date.parse(capitalSnapshotFixture.generatedAt) + (revision * 60_000)).toISOString();
+      snapshot.generatedAt = generatedAt;
+      if (snapshot.markets?.xtz?.coin) {
+        snapshot.markets.xtz.coin.currentPriceUsd = Number(snapshot.markets.xtz.coin.currentPriceUsd || 0) + (revision * 0.01);
+        snapshot.markets.xtz.coin.lastUpdated = generatedAt;
+      }
+      const history = snapshot.markets?.xtz?.priceHistory?.usd;
+      if (Array.isArray(history) && history.length) history[history.length - 1].value = Number(history.at(-1).value || 0) + (revision * 0.01);
+      const { contentHash: ignored, ...unsigned } = snapshot;
+      snapshot.contentHash = stableTestHash(unsigned);
+    }
+    return snapshot;
+  };
+  const makeCapitalEntry = (snapshot, sourceText) => {
+    const entry = clone(capitalEntryFixture);
+    entry.generatedAt = snapshot.generatedAt;
+    entry.source.generatedAt = snapshot.generatedAt;
+    entry.source.contentHash = snapshot.contentHash;
+    entry.source.fileSha256 = createHash('sha256').update(sourceText).digest('hex');
+    if (entry.markets?.xtz?.coin && snapshot.markets?.xtz?.coin) {
+      entry.markets.xtz.coin.currentPriceUsd = snapshot.markets.xtz.coin.currentPriceUsd;
+      entry.markets.xtz.coin.lastUpdated = snapshot.markets.xtz.coin.lastUpdated;
+    }
+    const { contentHash: ignored, ...unsigned } = entry;
+    entry.contentHash = stableTestHash(unsigned);
+    return entry;
+  };
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
+  });
+  await context.route('**/data/capital-entry-summary.json*', async (route) => {
+    capitalEntryRequests += 1;
+    if (!capitalEntryFixture) {
+      const response = await route.fetch();
+      capitalEntryFixture = await response.json();
+      return fulfillJson(route, clone(capitalEntryFixture));
+    }
+    if (!capitalSnapshotFixture || capitalRevision === 0) return fulfillJson(route, clone(capitalEntryFixture));
+    const snapshot = makeCapitalSnapshot(capitalRevision);
+    const sourceText = JSON.stringify(snapshot);
+    return fulfillJson(route, makeCapitalEntry(snapshot, sourceText));
+  });
+  await context.route('**/data/capital-snapshot.json*', async (route) => {
+    capitalSnapshotRequests += 1;
+    if (!capitalSnapshotFixture) {
+      const response = await route.fetch();
+      const sourceText = await response.text();
+      capitalSnapshotFixture = JSON.parse(sourceText);
+      return route.fulfill({ status: response.status(), contentType: 'application/json', body: sourceText });
+    }
+    const snapshot = makeCapitalSnapshot(capitalRevision);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(snapshot) });
   });
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
-    window.__CAPITAL_CHAMBER_REFRESH_MS__ = 1000;
+    window.__CAPITAL_CHAMBER_REFRESH_MS__ = 123459;
+    const nativeSetInterval = window.setInterval.bind(window);
+    window.setInterval = (callback, delay, ...args) => {
+      const timer = nativeSetInterval(callback, delay, ...args);
+      if (Number(delay) === window.__CAPITAL_CHAMBER_REFRESH_MS__) {
+        window.__capitalSmokeTimerTick = () => callback(...args);
+      }
+      return timer;
+    };
   });
   const page = await context.newPage();
   attachIssueCollectors(page, 'capital chamber', issues);
@@ -15181,6 +15533,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `capital chamber: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#capital-entry-card').waitFor({ state: 'visible', timeout: 20000 });
+  await page.locator('#capital-entry-card').dispatchEvent('pointerenter');
+  await page.locator('#capital-entry-card .capital-entry-price-line').waitFor({ state: 'attached', timeout: 20000 });
   const cardState = await page.locator('#capital-entry-card').evaluate((card) => ({
     copyHash: card.querySelector('.card-copy-link')?.dataset.copyHash || '',
     updatedLabel: card.dataset.updatedLabel || '',
@@ -15344,6 +15698,15 @@ async function smokeCapitalChamber(browser, baseUrl) {
   assert(artState.sourceReceipts > 0, 'capital chamber: Art source receipts missing');
 
   await marketsTab.click();
+  await page.waitForFunction(() => typeof window.__capitalSmokeTimerTick === 'function', null, { timeout: 3000 });
+  const snapshotsBeforeUnchangedTick = capitalSnapshotRequests;
+  const entriesBeforeUnchangedTick = capitalEntryRequests;
+  await page.evaluate(() => window.__capitalSmokeTimerTick());
+  const unchangedDeadline = Date.now() + 3000;
+  while (capitalEntryRequests <= entriesBeforeUnchangedTick && Date.now() < unchangedDeadline) await page.waitForTimeout(25);
+  await page.waitForTimeout(75);
+  assert(capitalEntryRequests === entriesBeforeUnchangedTick + 1 && capitalSnapshotRequests === snapshotsBeforeUnchangedTick,
+    `capital chamber: unchanged summary should not redownload the full snapshot ${JSON.stringify({ entriesBeforeUnchangedTick, capitalEntryRequests, snapshotsBeforeUnchangedTick, capitalSnapshotRequests })}`);
   const quietBefore = await page.evaluate(() => {
     const modal = document.querySelector('#capital-modal');
     const body = modal.querySelector('#capital-chamber-body');
@@ -15372,6 +15735,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
     };
   });
   assert(quietBefore.top > 0 && quietBefore.selection.length > 0, `capital chamber: quiet-refresh fixture must exercise nested scroll and a real text selection ${JSON.stringify(quietBefore)}`);
+  capitalRevision = 1;
+  await page.evaluate(() => window.__capitalSmokeTimerTick());
   await page.waitForFunction(() => document.querySelector('#capital-chamber-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 6000 });
   await page.waitForTimeout(80);
   const quietAfter = await page.evaluate(() => {
@@ -15414,6 +15779,8 @@ async function smokeCapitalChamber(browser, baseUrl) {
     });
     observer.observe(body, { attributes: true, attributeFilter: ['data-quiet-refresh-settled'] });
   });
+  capitalRevision = 2;
+  await page.evaluate(() => window.__capitalSmokeTimerTick());
   await page.waitForFunction(() => window.__capitalReaderScrollResult !== null, null, { timeout: 5000 });
   const userScroll = await page.evaluate(() => window.__capitalReaderScrollResult);
   assert(userScroll.target !== userScroll.before && Math.abs(userScroll.actual - userScroll.target) < 1, `capital chamber: delayed quiet restore overwrote a reader scroll made immediately after reconciliation ${JSON.stringify(userScroll)}`);
@@ -15660,27 +16027,13 @@ async function smokeUraniumChamber(browser, baseUrl) {
   let snapshotRequests = 0;
   let entryFixture = null;
   let snapshotFixture = null;
-
-  await context.route('**/data/uranium-entry-summary.json*', async (route) => {
-    entryRequests += 1;
-    if (!entryFixture) {
-      const response = await route.fetch();
-      entryFixture = await response.json();
-    }
-    return fulfillJson(route, JSON.parse(JSON.stringify(entryFixture)));
-  });
-
-  await context.route('**/data/uranium-snapshot.json*', async (route) => {
-    snapshotRequests += 1;
-    if (!snapshotFixture) {
-      const response = await route.fetch();
-      snapshotFixture = await response.json();
-    }
-    const snapshot = JSON.parse(JSON.stringify(snapshotFixture));
-    if (snapshotRequests > 1) {
-      const revision = snapshotRequests - 1;
-      const observedAt = new Date(Date.parse(snapshotFixture.generatedAt) + revision * 60_000).toISOString();
-      const nextPrice = Number(snapshotFixture.market.kraken.ticker.lastPriceUsd) + revision * 0.01;
+  let uraniumRevision = 0;
+  const cloneUranium = (value) => JSON.parse(JSON.stringify(value));
+  const makeUraniumSnapshot = (revision) => {
+    const snapshot = cloneUranium(snapshotFixture);
+    if (revision > 0) {
+      const observedAt = new Date(Date.parse(snapshotFixture.generatedAt) + (revision * 60_000)).toISOString();
+      const nextPrice = Number(snapshotFixture.market.kraken.ticker.lastPriceUsd) + (revision * 0.01);
       snapshot.generatedAt = observedAt;
       snapshot.market.coin.currentPriceUsd = nextPrice;
       snapshot.market.coin.lastUpdated = observedAt;
@@ -15694,7 +16047,44 @@ async function smokeUraniumChamber(browser, baseUrl) {
       const { contentHash: ignoredContentHash, ...unsigned } = snapshot;
       snapshot.contentHash = stableTestHash(unsigned);
     }
-    return fulfillJson(route, snapshot);
+    return snapshot;
+  };
+  const makeUraniumEntry = (snapshot, sourceText) => {
+    const entry = cloneUranium(entryFixture);
+    entry.generatedAt = snapshot.generatedAt;
+    entry.source.generatedAt = snapshot.generatedAt;
+    entry.source.contentHash = snapshot.contentHash;
+    entry.source.fileSha256 = createHash('sha256').update(sourceText).digest('hex');
+    if (entry.market?.coin && snapshot.market?.coin) entry.market.coin = cloneUranium(snapshot.market.coin);
+    if (entry.market?.kraken && snapshot.market?.kraken) entry.market.kraken = cloneUranium(snapshot.market.kraken);
+    const { contentHash: ignoredContentHash, ...unsigned } = entry;
+    entry.contentHash = stableTestHash(unsigned);
+    return entry;
+  };
+
+  await context.route('**/data/uranium-entry-summary.json*', async (route) => {
+    entryRequests += 1;
+    if (!entryFixture) {
+      const response = await route.fetch();
+      entryFixture = await response.json();
+      return fulfillJson(route, cloneUranium(entryFixture));
+    }
+    if (!snapshotFixture || uraniumRevision === 0) return fulfillJson(route, cloneUranium(entryFixture));
+    const snapshot = makeUraniumSnapshot(uraniumRevision);
+    const sourceText = JSON.stringify(snapshot);
+    return fulfillJson(route, makeUraniumEntry(snapshot, sourceText));
+  });
+
+  await context.route('**/data/uranium-snapshot.json*', async (route) => {
+    snapshotRequests += 1;
+    if (!snapshotFixture) {
+      const response = await route.fetch();
+      const sourceText = await response.text();
+      snapshotFixture = JSON.parse(sourceText);
+      return route.fulfill({ status: response.status(), contentType: 'application/json', body: sourceText });
+    }
+    const snapshot = makeUraniumSnapshot(uraniumRevision);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(snapshot) });
   });
 
   await context.addInitScript(() => {
@@ -15722,6 +16112,7 @@ async function smokeUraniumChamber(browser, baseUrl) {
   attachIssueCollectors(page, 'uranium chamber', issues);
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `uranium chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.locator('#uranium-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => document.querySelector('#uranium-entry-front')?.dataset.uraniumRendered === '1', null, { timeout: 10000 });
   await page.locator('#uranium-entry-front .uranium-entry-art img').scrollIntoViewIfNeeded();
   await page.waitForFunction(() => {
@@ -15785,6 +16176,9 @@ async function smokeUraniumChamber(browser, baseUrl) {
       if (capital) capital.open = true;
       await document.fonts?.ready;
     }, theme);
+    // Theme changes interpolate card borders in OKLab for 300ms. Sample the
+    // settled launcher, not a transient color-space value between themes.
+    await page.waitForTimeout(350);
     mobileLauncherStates.push(await page.evaluate(() => {
       const selectors = {
         title: '.uranium-entry-title-line',
@@ -15819,6 +16213,7 @@ async function smokeUraniumChamber(browser, baseUrl) {
       const valueStyle = nodes.value ? getComputedStyle(nodes.value) : null;
       const titleStyle = nodes.title ? getComputedStyle(nodes.title.querySelector('.stat-label')) : null;
       const kpiValueStyle = nodes.kpis ? getComputedStyle(nodes.kpis.querySelector('strong')) : null;
+      const footerFreshnessStyle = nodes.footerFreshness ? getComputedStyle(nodes.footerFreshness) : null;
       const borderChannels = cardStyle?.borderTopColor?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
       const valueChannels = valueStyle?.color?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
       const titleChannels = titleStyle?.color?.match(/[\d.]+/g)?.slice(0, 3).map(Number) || [];
@@ -15850,8 +16245,13 @@ async function smokeUraniumChamber(browser, baseUrl) {
         descriptionVisible: rects.description?.width > 0 && rects.description?.height > 0,
         footerFreshnessText: nodes.footerFreshness?.textContent?.replace(/\s+/g, ' ').trim() || '',
         footerFreshnessOverflow: (nodes.footerFreshness?.scrollWidth || 0) - (nodes.footerFreshness?.clientWidth || 0),
+        footerFreshnessTextOverflow: footerFreshnessStyle?.textOverflow || '',
+        footerFreshnessOverflowX: footerFreshnessStyle?.overflowX || '',
         footerFreshnessCueOverlap: overlapArea(rects.footerFreshness, rects.footerCue),
         metricText: nodes.kpis?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        cardBackgroundImage: cardStyle?.backgroundImage || '',
+        cardBoxShadow: cardStyle?.boxShadow || '',
+        cardBorderColor: cardStyle?.borderTopColor || '',
         highContrastMint: valueChannels.length === 3
           && titleChannels.length === 3
           && kpiValueChannels.length === 3
@@ -15881,7 +16281,8 @@ async function smokeUraniumChamber(browser, baseUrl) {
       && state.horizontalOverflow.every(({ overflow }) => overflow <= 1)
       && state.contained
       && !state.descriptionVisible
-      && state.footerFreshnessOverflow <= 1
+      && (state.footerFreshnessOverflow <= 1
+        || (state.footerFreshnessTextOverflow === 'ellipsis' && state.footerFreshnessOverflowX === 'hidden'))
       && state.footerFreshnessCueOverlap <= 1
       && /Kraken online|Kraken WebSocket|token market/i.test(state.footerFreshnessText)
       && /U₃O₈ oracle/i.test(state.metricText)
@@ -15983,11 +16384,12 @@ async function smokeUraniumChamber(browser, baseUrl) {
   });
   await page.waitForFunction(() => window.__uraniumWebSocketState?.closed === 2, null, { timeout: 3000 });
   await page.waitForFunction(() => typeof window.__uraniumSmokeTimerTick === 'function', null, { timeout: 3000 });
+  const entriesBeforeHiddenTick = entryRequests;
   const requestsBeforeHiddenTick = snapshotRequests;
   await page.evaluate(() => window.__uraniumSmokeTimerTick());
   await page.waitForTimeout(50);
-  assert(snapshotRequests === requestsBeforeHiddenTick,
-    `uranium chamber: hidden tab polled the full snapshot ${JSON.stringify({ requestsBeforeHiddenTick, snapshotRequests })}`);
+  assert(entryRequests === entriesBeforeHiddenTick && snapshotRequests === requestsBeforeHiddenTick,
+    `uranium chamber: hidden tab polled a summary or full snapshot ${JSON.stringify({ entriesBeforeHiddenTick, entryRequests, requestsBeforeHiddenTick, snapshotRequests })}`);
   const hiddenSocketState = await page.evaluate(() => ({ ...window.__uraniumWebSocketState }));
   assert(hiddenSocketState.opened === 2 && hiddenSocketState.closed === 2,
     `uranium chamber: hidden room did not close both Kraken sockets ${JSON.stringify(hiddenSocketState)}`);
@@ -16155,6 +16557,7 @@ async function smokeUraniumChamber(browser, baseUrl) {
     `uranium chamber: quiet-refresh fixture did not exercise scroll and selection ${JSON.stringify(quietBefore)}`);
 
   const requestsBeforeResume = snapshotRequests;
+  uraniumRevision = 1;
   await page.evaluate(() => {
     window.__uraniumSmokeVisibility = 'visible';
     document.dispatchEvent(new Event('visibilitychange'));
@@ -16461,9 +16864,11 @@ async function smokeUraniumChamber(browser, baseUrl) {
 async function smokeMineralsChamber(browser, baseUrl) {
   let entryFixture = null;
   let snapshotFixture = null;
+  let snapshotFixtureText = '';
   let entryRequests = 0;
   let snapshotRequests = 0;
   let failNextSnapshot = false;
+  let mineralsRevision = 0;
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const revisedSnapshot = (revision = 0) => {
@@ -16484,6 +16889,28 @@ async function smokeMineralsChamber(browser, baseUrl) {
     }
     const { contentHash: _contentHash, ...unsigned } = snapshot;
     return { ...unsigned, contentHash: stableTestHash(unsigned) };
+  };
+  const revisedEntry = (snapshot, sourceText) => {
+    const entry = clone(entryFixture);
+    entry.generatedAt = snapshot.generatedAt;
+    entry.fullSnapshot.generatedAt = snapshot.generatedAt;
+    entry.fullSnapshot.contentHash = snapshot.contentHash;
+    entry.fullSnapshot.fileSha256 = createHash('sha256').update(sourceText).digest('hex');
+    const copper = snapshot.markets?.series?.copper;
+    const copperPulse = entry.marketPulse?.rows?.find((row) => row.id === 'copper');
+    if (copperPulse && copper) {
+      copperPulse.latest = clone(copper.latest);
+      copperPulse.rows = clone((copper.rows || []).slice(-36));
+    }
+    const xco = snapshot.tokenized?.products?.xCo;
+    const xcoProjection = entry.tokenized?.products?.find((row) => String(row.symbol || '').toLowerCase() === 'xco');
+    if (xcoProjection && xco?.chain) {
+      xcoProjection.holderAddresses = xco.chain.counters?.holderAddresses;
+      xcoProjection.observedAt = xco.chain.observedAt;
+    }
+    const { contentHash: ignoredContentHash, ...unsigned } = entry;
+    entry.contentHash = stableTestHash(unsigned);
+    return entry;
   };
 
   const installMineralsState = async (context) => {
@@ -16516,8 +16943,12 @@ async function smokeMineralsChamber(browser, baseUrl) {
       if (!entryFixture) {
         const response = await route.fetch();
         entryFixture = await response.json();
+        return fulfillJson(route, clone(entryFixture));
       }
-      return fulfillJson(route, clone(entryFixture));
+      if (!snapshotFixture || mineralsRevision === 0) return fulfillJson(route, clone(entryFixture));
+      const snapshot = revisedSnapshot(mineralsRevision);
+      const sourceText = JSON.stringify(snapshot);
+      return fulfillJson(route, revisedEntry(snapshot, sourceText));
     });
     await context.route('**/data/minerals-snapshot.json*', async (route) => {
       snapshotRequests += 1;
@@ -16532,10 +16963,12 @@ async function smokeMineralsChamber(browser, baseUrl) {
       if (!snapshotFixture) {
         const response = await route.fetch();
         const text = await response.text();
+        snapshotFixtureText = text;
         snapshotFixture = JSON.parse(text);
         return route.fulfill({ status: response.status(), contentType: 'application/json', body: text });
       }
-      return fulfillJson(route, revisedSnapshot(snapshotRequests - 1));
+      if (mineralsRevision === 0) return route.fulfill({ status: 200, contentType: 'application/json', body: snapshotFixtureText });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(revisedSnapshot(mineralsRevision)) });
     });
   };
 
@@ -16549,6 +16982,7 @@ async function smokeMineralsChamber(browser, baseUrl) {
 
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `minerals chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.locator('#minerals-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => document.querySelector('#minerals-entry-front')?.dataset.mineralsRendered === '1', null, { timeout: 10000 });
   const compactState = await page.evaluate(() => ({
     title: document.querySelector('#minerals-entry-title')?.textContent?.trim() || '',
@@ -16701,6 +17135,14 @@ async function smokeMineralsChamber(browser, baseUrl) {
     `minerals chamber: market range did not update the bookmarkable URL ${JSON.stringify(updatedRoute)}`);
 
   await page.waitForFunction(() => typeof window.__mineralsSmokeTimerTick === 'function', null, { timeout: 3000 });
+  const entriesBeforeUnchangedTick = entryRequests;
+  const snapshotsBeforeUnchangedTick = snapshotRequests;
+  await page.evaluate(() => window.__mineralsSmokeTimerTick());
+  const unchangedDeadline = Date.now() + 3000;
+  while (entryRequests <= entriesBeforeUnchangedTick && Date.now() < unchangedDeadline) await page.waitForTimeout(25);
+  await page.waitForTimeout(75);
+  assert(entryRequests === entriesBeforeUnchangedTick + 1 && snapshotRequests === snapshotsBeforeUnchangedTick,
+    `minerals chamber: unchanged summary should not redownload the full snapshot ${JSON.stringify({ entriesBeforeUnchangedTick, entryRequests, snapshotsBeforeUnchangedTick, snapshotRequests })}`);
   const quietBefore = await page.evaluate(() => {
     const body = document.querySelector('#minerals-chamber-body');
     const header = body?.querySelector('.minerals-header');
@@ -16735,12 +17177,14 @@ async function smokeMineralsChamber(browser, baseUrl) {
     window.__mineralsSmokeVisibility = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
   });
+  const entriesBeforeHiddenTick = entryRequests;
   const requestsBeforeHiddenTick = snapshotRequests;
   await page.evaluate(() => window.__mineralsSmokeTimerTick());
   await page.waitForTimeout(75);
-  assert(snapshotRequests === requestsBeforeHiddenTick,
-    `minerals chamber: hidden timer polled the full snapshot ${JSON.stringify({ requestsBeforeHiddenTick, snapshotRequests })}`);
+  assert(entryRequests === entriesBeforeHiddenTick && snapshotRequests === requestsBeforeHiddenTick,
+    `minerals chamber: hidden timer polled a summary or full snapshot ${JSON.stringify({ entriesBeforeHiddenTick, entryRequests, requestsBeforeHiddenTick, snapshotRequests })}`);
 
+  mineralsRevision = 1;
   await page.evaluate(() => {
     window.__mineralsSmokeVisibility = 'visible';
     document.dispatchEvent(new Event('visibilitychange'));
@@ -16801,6 +17245,7 @@ async function smokeMineralsChamber(browser, baseUrl) {
   assert(Math.abs(readerScrollAfter - readerScroll) < 1,
     `minerals chamber: a delayed restore overwrote reader scroll after reconciliation ${JSON.stringify({ readerScroll, readerScrollAfter })}`);
 
+  mineralsRevision = 2;
   failNextSnapshot = true;
   const requestsBeforeFailure = snapshotRequests;
   const lastGoodValue = quietAfter.value;
@@ -16837,21 +17282,25 @@ async function smokeMineralsChamber(browser, baseUrl) {
 
   for (const viewport of [{ width: 320, height: 720 }, { width: 390, height: 844 }]) {
     const mobileIssues = [];
+    const mobileSnapshot = revisedSnapshot(10 + viewport.width);
+    const mobileSnapshotText = JSON.stringify(mobileSnapshot);
+    const mobileEntry = revisedEntry(mobileSnapshot, mobileSnapshotText);
     const mobileContext = await browser.newContext({ viewport, serviceWorkers: 'block' });
     await installFeatureMocks(mobileContext);
     await installMineralsState(mobileContext);
     await mobileContext.route('**/data/minerals-entry-summary.json*', (route) => {
       entryRequests += 1;
-      return fulfillJson(route, clone(entryFixture));
+      return fulfillJson(route, clone(mobileEntry));
     });
     await mobileContext.route('**/data/minerals-snapshot.json*', (route) => {
       snapshotRequests += 1;
-      return fulfillJson(route, revisedSnapshot(snapshotRequests + viewport.width));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: mobileSnapshotText });
     });
     const mobilePage = await mobileContext.newPage();
     attachIssueCollectors(mobilePage, `minerals chamber ${viewport.width}px`, mobileIssues);
     const launcherMobileResponse = await mobilePage.goto(`${baseUrl}/?minerals-launcher-width=${viewport.width}`, { waitUntil: 'domcontentloaded' });
     assert(launcherMobileResponse?.ok(), `minerals chamber ${viewport.width}px: dashboard launcher failed with HTTP ${launcherMobileResponse?.status()}`);
+    await mobilePage.locator('#minerals-entry-card').dispatchEvent('pointerenter');
     await mobilePage.waitForFunction(() => (
       document.querySelector('#minerals-entry-front')?.dataset.mineralsRendered === '1'
         && Boolean(document.querySelector('#minerals-entry-front > .chamber-entry-footer'))
@@ -17196,7 +17645,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     return { ...unsigned, contentHash: stableTestHash(unsigned) };
   };
   const initialSnapshot = makeSnapshot(0);
-  const makeEntry = (snapshot) => {
+  const makeEntry = (snapshot, sourceText) => {
     const unsigned = {
       schemaVersion: 1,
       kind: 'metals-entry-summary',
@@ -17206,7 +17655,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
         path: 'data/metals-snapshot.json',
         generatedAt: snapshot.generatedAt,
         contentHash: snapshot.contentHash,
-        fileSha256: 'b'.repeat(64)
+        fileSha256: createHash('sha256').update(sourceText).digest('hex')
       },
       metals: snapshot.metals,
       marketHistory: snapshot.marketHistory,
@@ -17215,7 +17664,13 @@ async function smokeMetalsChamber(browser, baseUrl) {
     };
     return { ...unsigned, contentHash: stableTestHash(unsigned) };
   };
-  const entryFixture = makeEntry(initialSnapshot);
+  const makeMetalsPair = (snapshot) => {
+    const snapshotText = JSON.stringify(snapshot);
+    return { snapshot, snapshotText, entry: makeEntry(snapshot, snapshotText) };
+  };
+  const initialPair = makeMetalsPair(initialSnapshot);
+  const entryFixture = initialPair.entry;
+  let currentMetalsPair = initialPair;
   let entryRequests = 0;
   let snapshotRequests = 0;
   let failNextSnapshot = false;
@@ -17224,7 +17679,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
   const installArtifactRoutes = async (context) => {
     await context.route('**/data/metals-entry-summary.json*', async (route) => {
       entryRequests += 1;
-      return fulfillJson(route, JSON.parse(JSON.stringify(entryFixture)));
+      return fulfillJson(route, JSON.parse(JSON.stringify(currentMetalsPair.entry)));
     });
     await context.route('**/data/metals-snapshot.json*', async (route) => {
       snapshotRequests += 1;
@@ -17232,13 +17687,13 @@ async function smokeMetalsChamber(browser, baseUrl) {
         failNextSnapshot = false;
         return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'forced Metals refresh failure' }) });
       }
-      const fixture = makeSnapshot(snapshotRequests - 1);
+      const pair = currentMetalsPair;
       if (holdNextSnapshot) {
         holdNextSnapshot = false;
         await new Promise((resolve) => { releaseHeldSnapshot = resolve; });
         releaseHeldSnapshot = null;
       }
-      return fulfillJson(route, fixture);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: pair.snapshotText });
     });
   };
   const installMetalsState = async (context) => {
@@ -17274,6 +17729,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
 
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `metals chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.locator('#metals-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => document.querySelector('#metals-entry-front')?.dataset.metalsRendered === '1', null, { timeout: 10000 });
   const compactState = await page.evaluate(() => ({
     modalOpen: document.querySelector('#metals-modal')?.classList.contains('active') || false,
@@ -17382,6 +17838,14 @@ async function smokeMetalsChamber(browser, baseUrl) {
   await page.locator('[data-metals-view="markets"]').click();
   await page.locator('[data-metals-metal="XAG"]').click();
   await page.waitForFunction(() => typeof window.__metalsSmokeTimerTick === 'function', null, { timeout: 3000 });
+  const entriesBeforeUnchangedTick = entryRequests;
+  const snapshotsBeforeUnchangedTick = snapshotRequests;
+  await page.evaluate(() => window.__metalsSmokeTimerTick());
+  const unchangedDeadline = Date.now() + 3000;
+  while (entryRequests <= entriesBeforeUnchangedTick && Date.now() < unchangedDeadline) await page.waitForTimeout(25);
+  await page.waitForTimeout(75);
+  assert(entryRequests === entriesBeforeUnchangedTick + 1 && snapshotRequests === snapshotsBeforeUnchangedTick,
+    `metals chamber: unchanged summary should not redownload the full snapshot ${JSON.stringify({ entriesBeforeUnchangedTick, entryRequests, snapshotsBeforeUnchangedTick, snapshotRequests })}`);
   const quietBefore = await page.evaluate(() => {
     const body = document.querySelector('#metals-chamber-body');
     const header = body?.querySelector('.metals-header');
@@ -17410,20 +17874,23 @@ async function smokeMetalsChamber(browser, baseUrl) {
     window.__metalsSmokeVisibility = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
   });
+  const entriesBeforeHiddenTick = entryRequests;
   const requestsBeforeHiddenTick = snapshotRequests;
   await page.evaluate(() => window.__metalsSmokeTimerTick());
   await page.waitForTimeout(50);
-  assert(snapshotRequests === requestsBeforeHiddenTick,
-    `metals chamber: hidden timer polled the full snapshot ${JSON.stringify({ requestsBeforeHiddenTick, snapshotRequests })}`);
+  assert(entryRequests === entriesBeforeHiddenTick && snapshotRequests === requestsBeforeHiddenTick,
+    `metals chamber: hidden timer polled a summary or full snapshot ${JSON.stringify({ entriesBeforeHiddenTick, entryRequests, requestsBeforeHiddenTick, snapshotRequests })}`);
 
+  currentMetalsPair = makeMetalsPair(makeSnapshot(1));
+  const entriesBeforeCatchup = entryRequests;
   await page.evaluate(() => {
     window.__metalsSmokeVisibility = 'visible';
     document.dispatchEvent(new Event('visibilitychange'));
   });
   const catchupDeadline = Date.now() + 6000;
   while (snapshotRequests <= requestsBeforeHiddenTick && Date.now() < catchupDeadline) await page.waitForTimeout(25);
-  assert(snapshotRequests === requestsBeforeHiddenTick + 1,
-    `metals chamber: visibility return did not perform exactly one catch-up ${JSON.stringify({ requestsBeforeHiddenTick, snapshotRequests })}`);
+  assert(entryRequests === entriesBeforeCatchup + 1 && snapshotRequests === requestsBeforeHiddenTick + 1,
+    `metals chamber: visibility return did not perform exactly one summary-gated catch-up ${JSON.stringify({ entriesBeforeCatchup, entryRequests, requestsBeforeHiddenTick, snapshotRequests })}`);
   await page.waitForFunction(() => {
     const body = document.querySelector('#metals-chamber-body');
     return body?.dataset.quietRefreshSettled === 'true' && !body.hasAttribute('data-quiet-refreshing');
@@ -17491,6 +17958,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
       entryValue: entryValue.textContent?.trim() || ''
     };
   });
+  currentMetalsPair = makeMetalsPair(makeSnapshot(2));
   holdNextSnapshot = true;
   const requestsBeforeHeldResponse = snapshotRequests;
   await page.evaluate(() => window.__metalsSmokeTimerTick());
@@ -17571,6 +18039,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     && delayedCatchup.entryValue !== delayedBefore.entryValue && delayedCatchup.settled,
   `metals chamber: visible catch-up did not quietly apply the response after hidden completion ${JSON.stringify({ delayedBefore, delayedCatchup })}`);
 
+  currentMetalsPair = makeMetalsPair(makeSnapshot(3));
   failNextSnapshot = true;
   const requestsBeforeFailure = snapshotRequests;
   await page.evaluate(() => { window.__metalsSmokeTimerTick(); });
@@ -17615,6 +18084,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     && /^generated\b/i.test(proofbookBeforeFailure.receiptBadge)
     && !/last-good retained/i.test(proofbookBeforeFailure.receiptBadge),
   `metals chamber: Proofbook did not begin with a current receipt badge ${JSON.stringify(proofbookBeforeFailure)}`);
+  currentMetalsPair = makeMetalsPair(makeSnapshot(4));
   failNextSnapshot = true;
   const requestsBeforeProofbookFailure = snapshotRequests;
   await page.evaluate(() => window.__metalsSmokeTimerTick());
@@ -17686,6 +18156,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     attachIssueCollectors(coldPage, 'metals chamber cold failure', coldIssues);
     const coldResponse = await coldPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     assert(coldResponse?.ok(), `metals chamber cold failure: dashboard failed with HTTP ${coldResponse?.status()}`);
+    await coldPage.locator('#metals-entry-card').dispatchEvent('pointerenter');
     await coldPage.waitForFunction(() => {
       const text = document.querySelector('#metals-entry-front')?.textContent?.replace(/\s+/g, ' ').trim() || '';
       return /unavailable/i.test(text) && !/Verifying/i.test(text);
@@ -17733,8 +18204,8 @@ async function smokeMetalsChamber(browser, baseUrl) {
 
   {
     const compactIssues = [];
-    const refreshedCompactSnapshot = makeIndependentStaleLauncherSnapshot();
-    const refreshedCompactEntry = makeEntry(refreshedCompactSnapshot);
+    const refreshedCompactPair = makeMetalsPair(makeIndependentStaleLauncherSnapshot());
+    const refreshedCompactEntry = refreshedCompactPair.entry;
     let compactEntryRequests = 0;
     let compactSnapshotRequests = 0;
     const compactContext = await browser.newContext({ viewport: { width: 1100, height: 760 }, serviceWorkers: 'block' });
@@ -17766,12 +18237,13 @@ async function smokeMetalsChamber(browser, baseUrl) {
     });
     await compactContext.route('**/data/metals-snapshot.json*', async (route) => {
       compactSnapshotRequests += 1;
-      return fulfillJson(route, makeSnapshot(99));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: refreshedCompactPair.snapshotText });
     });
     const compactPage = await compactContext.newPage();
     attachIssueCollectors(compactPage, 'metals chamber compact timer', compactIssues);
     const compactResponse = await compactPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     assert(compactResponse?.ok(), `metals chamber compact timer: dashboard failed with HTTP ${compactResponse?.status()}`);
+    await compactPage.locator('#metals-entry-card').dispatchEvent('pointerenter');
     await compactPage.waitForFunction(() => (
       document.querySelector('#metals-entry-front')?.dataset.metalsRendered === '1'
         && typeof window.__metalsCompactSmokeTimerTick === 'function'
@@ -17861,8 +18333,9 @@ async function smokeMetalsChamber(browser, baseUrl) {
 
   {
     const staleIssues = [];
-    const staleSnapshot = makeStaleSnapshot();
-    const staleEntry = makeEntry(staleSnapshot);
+    const stalePair = makeMetalsPair(makeStaleSnapshot());
+    const staleSnapshot = stalePair.snapshot;
+    const staleEntry = stalePair.entry;
     const staleContext = await browser.newContext({ viewport: { width: 1100, height: 760 }, serviceWorkers: 'block' });
     await installFeatureMocks(staleContext);
     await staleContext.addInitScript(() => {
@@ -17872,11 +18345,12 @@ async function smokeMetalsChamber(browser, baseUrl) {
       localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
     });
     await staleContext.route('**/data/metals-entry-summary.json*', (route) => fulfillJson(route, staleEntry));
-    await staleContext.route('**/data/metals-snapshot.json*', (route) => fulfillJson(route, staleSnapshot));
+    await staleContext.route('**/data/metals-snapshot.json*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: stalePair.snapshotText }));
     const stalePage = await staleContext.newPage();
     attachIssueCollectors(stalePage, 'metals chamber stale receipts', staleIssues);
     const staleResponse = await stalePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     assert(staleResponse?.ok(), `metals chamber stale receipts: dashboard failed with HTTP ${staleResponse?.status()}`);
+    await stalePage.locator('#metals-entry-card').dispatchEvent('pointerenter');
     await stalePage.waitForFunction(() => document.querySelector('#metals-entry-front')?.dataset.metalsRendered === '1', null, { timeout: 10000 });
     const staleLauncher = await stalePage.evaluate(() => ({
       coverage: document.querySelector('#metals-entry-front .metals-entry-kpis')?.textContent?.replace(/\s+/g, ' ').trim() || '',
@@ -17987,17 +18461,112 @@ async function smokeMetalsChamber(browser, baseUrl) {
 
 async function smokeEcosystemActivity(browser, baseUrl) {
   const issues = [];
+  let ecosystemEntryFixture = null;
+  let ecosystemSnapshotFixture = null;
+  let ecosystemSnapshotText = '';
+  let ecosystemRevision = 0;
+  let ecosystemEntryRequests = 0;
+  let ecosystemSnapshotRequests = 0;
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  const makeEcosystemSnapshot = (revision) => {
+    const snapshot = clone(ecosystemSnapshotFixture);
+    if (revision > 0) {
+      const generatedAt = new Date(Date.parse(ecosystemSnapshotFixture.generatedAt) + (revision * 60_000)).toISOString();
+      snapshot.generatedAt = generatedAt;
+      if (snapshot.partialWeek) {
+        snapshot.partialWeek.observedAt = generatedAt;
+        if (snapshot.partialWeek.all) {
+          snapshot.partialWeek.all.activeWallets = Number(snapshot.partialWeek.all.activeWallets || 0) + revision;
+          snapshot.partialWeek.all.interactions = Number(snapshot.partialWeek.all.interactions || 0) + revision;
+        }
+        if (snapshot.partialWeek.layers?.etherlink) {
+          snapshot.partialWeek.layers.etherlink.activeWallets = Number(snapshot.partialWeek.layers.etherlink.activeWallets || 0) + revision;
+          snapshot.partialWeek.layers.etherlink.interactions = Number(snapshot.partialWeek.layers.etherlink.interactions || 0) + revision;
+        }
+      }
+      const morphoWeek = snapshot.apps?.find((app) => app.id === 'morpho-blue')?.weekly?.at(-1);
+      if (morphoWeek?.all) {
+        morphoWeek.all.activeWallets = Number(morphoWeek.all.activeWallets || 0) + revision;
+        morphoWeek.all.interactions = Number(morphoWeek.all.interactions || 0) + revision;
+      }
+      if (morphoWeek?.layers?.etherlink) {
+        morphoWeek.layers.etherlink.activeWallets = Number(morphoWeek.layers.etherlink.activeWallets || 0) + revision;
+        morphoWeek.layers.etherlink.interactions = Number(morphoWeek.layers.etherlink.interactions || 0) + revision;
+      }
+      const { contentHash: ignored, ...unsigned } = snapshot;
+      snapshot.contentHash = stableTestHash(unsigned);
+    }
+    return snapshot;
+  };
+  const makeEcosystemEntry = (snapshot, sourceText) => {
+    const entry = clone(ecosystemEntryFixture);
+    entry.generatedAt = snapshot.generatedAt;
+    entry.source.generatedAt = snapshot.generatedAt;
+    entry.source.contentHash = snapshot.contentHash;
+    entry.source.fileSha256 = createHash('sha256').update(sourceText).digest('hex');
+    if (snapshot.partialWeek) entry.partialWeek = clone(snapshot.partialWeek);
+    const { contentHash: ignored, ...unsigned } = entry;
+    entry.contentHash = stableTestHash(unsigned);
+    return entry;
+  };
+  const currentEcosystemPair = () => {
+    const snapshot = makeEcosystemSnapshot(ecosystemRevision);
+    const snapshotText = ecosystemRevision === 0 ? ecosystemSnapshotText : JSON.stringify(snapshot);
+    return { snapshot, snapshotText, entry: makeEcosystemEntry(snapshot, snapshotText) };
+  };
+  const waitForArtifactRequests = async (predicate, label, timeoutMs = 10000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (predicate()) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`${label}: ${JSON.stringify({ ecosystemEntryRequests, ecosystemSnapshotRequests })}`);
+  };
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
   });
   await installFeatureMocks(context);
+  await context.route('**/data/ecosystem-entry-summary.json*', async (route) => {
+    ecosystemEntryRequests += 1;
+    if (!ecosystemEntryFixture) {
+      const response = await route.fetch();
+      ecosystemEntryFixture = await response.json();
+      return fulfillJson(route, clone(ecosystemEntryFixture));
+    }
+    if (!ecosystemSnapshotFixture) return fulfillJson(route, clone(ecosystemEntryFixture));
+    return fulfillJson(route, currentEcosystemPair().entry);
+  });
+  await context.route('**/data/ecosystem-stats.json*', async (route) => {
+    ecosystemSnapshotRequests += 1;
+    if (!ecosystemSnapshotFixture) {
+      const response = await route.fetch();
+      ecosystemSnapshotText = await response.text();
+      ecosystemSnapshotFixture = JSON.parse(ecosystemSnapshotText);
+      return route.fulfill({ status: response.status(), contentType: 'application/json', body: ecosystemSnapshotText });
+    }
+    const pair = currentEcosystemPair();
+    return route.fulfill({ status: 200, contentType: 'application/json', body: pair.snapshotText });
+  });
   await context.addInitScript(() => {
     localStorage.setItem('tezos-systems-theme', 'clean');
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
-    window.__ECOSYSTEM_CHAMBER_REFRESH_MS__ = 1000;
+    window.__ECOSYSTEM_CHAMBER_REFRESH_MS__ = 135799;
+    window.__ecosystemSmokeVisibility = 'visible';
+    const nativeSetInterval = window.setInterval.bind(window);
+    window.setInterval = (callback, delay, ...args) => {
+      const timer = nativeSetInterval(callback, delay, ...args);
+      if (Number(delay) === window.__ECOSYSTEM_CHAMBER_REFRESH_MS__) {
+        window.__ecosystemSmokeTimerTick = () => callback(...args);
+      }
+      return timer;
+    };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => window.__ecosystemSmokeVisibility
+    });
   });
   const page = await context.newPage();
   attachIssueCollectors(page, 'ecosystem activity', issues);
@@ -18064,6 +18633,26 @@ async function smokeEcosystemActivity(browser, baseUrl) {
   await page.locator('#ecosystem-activity-modal [data-ecosystem-layer="all"]').click();
   await page.waitForFunction(() => !new URL(location.href).searchParams.has('layer'));
 
+  await page.waitForFunction(() => typeof window.__ecosystemSmokeTimerTick === 'function');
+  const unchangedEntryBefore = ecosystemEntryRequests;
+  const unchangedSnapshotBefore = ecosystemSnapshotRequests;
+  await page.evaluate(() => window.__ecosystemSmokeTimerTick());
+  await waitForArtifactRequests(
+    () => ecosystemEntryRequests >= unchangedEntryBefore + 1,
+    'ecosystem activity: unchanged timer did not poll the compact projection'
+  );
+  await page.waitForTimeout(150);
+  assert(
+    ecosystemEntryRequests === unchangedEntryBefore + 1
+      && ecosystemSnapshotRequests === unchangedSnapshotBefore,
+    `ecosystem activity: unchanged summary poll downloaded the complete snapshot ${JSON.stringify({
+      unchangedEntryBefore,
+      unchangedSnapshotBefore,
+      ecosystemEntryRequests,
+      ecosystemSnapshotRequests
+    })}`
+  );
+
   await page.evaluate(() => {
     const body = document.querySelector('#ecosystem-chamber-body');
     const detail = document.querySelector('#ecosystem-history-detail');
@@ -18087,12 +18676,50 @@ async function smokeEcosystemActivity(browser, baseUrl) {
       selectedText: getSelection()?.toString() || ''
     };
   });
+
+  await page.evaluate(() => {
+    window.__ecosystemSmokeVisibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const hiddenEntryBefore = ecosystemEntryRequests;
+  const hiddenSnapshotBefore = ecosystemSnapshotRequests;
+  await page.evaluate(() => window.__ecosystemSmokeTimerTick());
+  await page.waitForTimeout(150);
+  assert(
+    ecosystemEntryRequests === hiddenEntryBefore && ecosystemSnapshotRequests === hiddenSnapshotBefore,
+    `ecosystem activity: hidden timer performed network work ${JSON.stringify({
+      hiddenEntryBefore,
+      hiddenSnapshotBefore,
+      ecosystemEntryRequests,
+      ecosystemSnapshotRequests
+    })}`
+  );
+
+  ecosystemRevision = 1;
+  const expectedEcosystemHash = makeEcosystemSnapshot(ecosystemRevision).contentHash;
+  await page.evaluate(() => {
+    window.__ecosystemSmokeVisibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await waitForArtifactRequests(
+    () => ecosystemEntryRequests >= hiddenEntryBefore + 1 && ecosystemSnapshotRequests >= hiddenSnapshotBefore + 1,
+    'ecosystem activity: visible catch-up did not fetch the changed snapshot'
+  );
   await page.waitForFunction(() => {
     const body = document.querySelector('#ecosystem-chamber-body');
     return body?.dataset.quietRefreshSettled === 'true'
       && body.dataset.quietRefreshing !== 'true';
   }, null, { timeout: 7000 });
-  const quiet = await page.evaluate(() => {
+  assert(
+    ecosystemEntryRequests === hiddenEntryBefore + 1 && ecosystemSnapshotRequests === hiddenSnapshotBefore + 1,
+    `ecosystem activity: changed catch-up request counts drifted ${JSON.stringify({
+      hiddenEntryBefore,
+      hiddenSnapshotBefore,
+      ecosystemEntryRequests,
+      ecosystemSnapshotRequests
+    })}`
+  );
+  const quiet = await page.evaluate((expectedHash) => {
     const fixture = window.__ecosystemQuietFixture;
     const body = document.querySelector('#ecosystem-chamber-body');
     return {
@@ -18104,12 +18731,14 @@ async function smokeEcosystemActivity(browser, baseUrl) {
       expectedSelection: fixture.selectedText,
       rangePressed: document.querySelector('[data-ecosystem-range="12w"]')?.getAttribute('aria-pressed'),
       refreshing: body.dataset.quietRefreshing || '',
-      settled: body.dataset.quietRefreshSettled || ''
+      settled: body.dataset.quietRefreshSettled || '',
+      changedReceiptVisible: (body.textContent || '').includes(expectedHash)
     };
-  });
+  }, expectedEcosystemHash);
   assert(quiet.sameBody && quiet.sameDetail && quiet.scrollDelta <= 1 && quiet.focusRange === '12w'
     && quiet.selectedText === quiet.expectedSelection && quiet.selectedText.length > 0
-    && quiet.rangePressed === 'true' && quiet.refreshing === '' && quiet.settled === 'true',
+    && quiet.rangePressed === 'true' && quiet.refreshing === '' && quiet.settled === 'true'
+    && quiet.changedReceiptVisible,
   `ecosystem activity: quiet refresh moved or reset the reader ${JSON.stringify(quiet)}`);
 
   await page.evaluate(() => {
@@ -18385,8 +19014,22 @@ async function smokeCtezChamber(browser, baseUrl) {
   await page.waitForFunction(() => !document.querySelector('#ctez-modal')?.classList.contains('active'), null, { timeout: 5000 });
   await ensureDropdownOpen(page, '#features-gear', '#features-dropdown');
   await page.locator('#features-dropdown .feature-launcher-legacy-summary').click();
+  const featureMenuBefore = await page.evaluate(() => ({
+    open: document.getElementById('features-dropdown')?.classList.contains('open') || false,
+    expanded: document.getElementById('features-gear')?.getAttribute('aria-expanded') || ''
+  }));
+  assert(featureMenuBefore.open && featureMenuBefore.expanded === 'true', `ctez chamber: Explore menu did not begin open ${JSON.stringify(featureMenuBefore)}`);
   await page.locator('#ctez-feature-btn').click();
   await page.locator('#ctez-modal.active .ctez-content').waitFor({ state: 'visible', timeout: 5000 });
+  const featureMenuAfter = await page.evaluate(() => ({
+    open: document.getElementById('features-dropdown')?.classList.contains('open') || false,
+    expanded: document.getElementById('features-gear')?.getAttribute('aria-expanded') || '',
+    activeCtezSurfaces: document.querySelectorAll('#ctez-modal.active').length
+  }));
+  assert(
+    !featureMenuAfter.open && featureMenuAfter.expanded === 'false' && featureMenuAfter.activeCtezSurfaces === 1,
+    `ctez chamber: Explore launcher did not close its menu or opened duplicate surfaces ${JSON.stringify(featureMenuAfter)}`
+  );
 
   await page.locator('#ctez-readonly-address').fill(SAMPLE_ADDRESS);
   await page.locator('#ctez-readonly-scan button[type="submit"]').click();
@@ -18468,6 +19111,14 @@ async function smokeCtezChamber(browser, baseUrl) {
 
   await page.locator('#ctez-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#ctez-modal')?.classList.contains('active'), null, { timeout: 5000 });
+  const featureCloseState = await page.evaluate(() => ({
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    featureCloseState.bodyOverflow !== 'hidden' && featureCloseState.htmlOverflow !== 'hidden',
+    `ctez chamber: feature launcher left a duplicate scroll lock after close ${JSON.stringify(featureCloseState)}`
+  );
 
   await context.close();
 
@@ -18536,6 +19187,20 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   });
   const page = await context.newPage();
   attachIssueCollectors(page, 'governance testing period', issues);
+  const lbBlockRequests = [];
+  const tz4OperationRequests = [];
+  const tz4DelegateRequests = [];
+  const lazyPollingModuleRequests = [];
+  page.on('request', (request) => {
+    try {
+      const url = new URL(request.url());
+      const select = url.searchParams.get('select') || '';
+      if (url.pathname.endsWith('/blocks') && select.includes('lbToggleEma')) lbBlockRequests.push(url);
+      if (url.pathname.endsWith('/operations/update_consensus_key')) tz4OperationRequests.push(url);
+      if (url.pathname.endsWith('/delegates') && select.includes('consensusAddress') && select.includes('software')) tz4DelegateRequests.push(url);
+      if (/\/js\/features\/(?:liquidity-baking|tz4-adoption)\.js$/.test(url.pathname)) lazyPollingModuleRequests.push(url.pathname);
+    } catch { /* ignore non-URL browser requests */ }
+  });
 
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `governance testing period: dashboard failed with HTTP ${response?.status()}`);
@@ -18543,8 +19208,26 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     const breakdown = document.querySelector('#issuance-breakdown')?.textContent?.trim() || '';
     return /LB/.test(breakdown);
   }, null, { timeout: 10000 });
+  const lazyPollingBeforeIntent = await page.evaluate(() => ({
+    lbSkeleton: document.getElementById('lb-entry-card')?.hasAttribute('data-chamber-skeleton') || false,
+    lbLive: document.getElementById('lb-entry-card')?.dataset.lbLive || '',
+    tz4Wired: document.querySelector('[data-stat="tz4-adoption"]')?.dataset.tz4ChamberWired || ''
+  }));
+  assert(lazyPollingBeforeIntent.lbSkeleton && !lazyPollingBeforeIntent.lbLive, `governance testing period: LB launcher should remain a stable, non-live shell before intent ${JSON.stringify(lazyPollingBeforeIntent)}`);
+  assert(!lazyPollingBeforeIntent.tz4Wired, `governance testing period: tz4 launcher should remain unhydrated before intent ${JSON.stringify(lazyPollingBeforeIntent)}`);
+  assert(lazyPollingModuleRequests.length === 0, `governance testing period: LB/tz4 modules loaded before route, visibility, or intent ${JSON.stringify(lazyPollingModuleRequests)}`);
+
+  await page.locator('#lb-entry-card').scrollIntoViewIfNeeded();
+  await page.locator('#lb-entry-card').hover();
   await page.locator('#lb-entry-card[data-lb-live="true"][data-lb-refresh-interval="60000"]').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.stat-card[data-stat="tz4-adoption"]').scrollIntoViewIfNeeded();
+  await page.locator('.stat-card[data-stat="tz4-adoption"]').hover();
   await page.locator('.stat-card[data-stat="tz4-adoption"].chamber-entry-card .chamber-expand-cue').waitFor({ state: 'visible', timeout: 10000 });
+  for (const selector of ['#chamber-entry-card', '#etherlink-governance-entry-card', '#tezlink-entry-card']) {
+    await page.locator(selector).scrollIntoViewIfNeeded();
+    await page.locator(selector).hover();
+    await page.locator(`${selector} .card-copy-link`).waitFor({ state: 'attached', timeout: 10000 });
+  }
   await page.locator('#etherlink-governance-entry-card[data-etherlink-governance-live="true"]').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#hot-today-island [data-hot-signal-id="etherlink-governance-fast"]').waitFor({ state: 'visible', timeout: 10000 });
   const etherlinkHotState = await page.evaluate(() => {
@@ -18612,6 +19295,8 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   attachIssueCollectors(adoptionPage, 'governance adoption entry card', issues);
   const adoptionResponse = await adoptionPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(adoptionResponse?.ok(), `governance adoption entry card: dashboard failed with HTTP ${adoptionResponse?.status()}`);
+  await adoptionPage.locator('#chamber-entry-card').scrollIntoViewIfNeeded();
+  await adoptionPage.locator('#chamber-entry-card').hover();
   await adoptionPage.locator('#chamber-entry-card.chamber-entry-adoption.chamber-entry-wide[data-chamber-entry-size="wide"]').waitFor({ state: 'visible', timeout: 10000 });
   await assertChamberControlGeometry(adoptionPage, 'governance adoption entry card');
   const adoptionState = await adoptionPage.evaluate(() => {
@@ -18837,7 +19522,11 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(dashboardState.tezlinkEntryGeometry.metricTruncations.length === 0, `governance testing period: Tezos X metric tiles should not ellipsize while governance is active: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.pairedWithHealth, `governance testing period: Tezos X and Network Health cards should keep matched row height: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   const chamberFreshnessLabels = dashboardState.chamberUpdatedLabels.filter((label) => /^(?:TzKT(?: head| blocks)?|Tezos X sources) · /.test(label));
-  assert(chamberFreshnessLabels.length >= 6, `governance testing period: chamber freshness stamps missing: ${dashboardState.chamberUpdatedLabels.join(', ')}`);
+  const deferredChamberLabels = dashboardState.chamberUpdatedLabels.filter((label) => label === 'Loads when viewed');
+  assert(chamberFreshnessLabels.length >= 5
+    && deferredChamberLabels.length >= 5
+    && dashboardState.chamberUpdatedLabels.every((label) => label.trim().length > 0),
+  `governance testing period: active or deferred chamber freshness stamps missing: ${dashboardState.chamberUpdatedLabels.join(', ')}`);
   assert(dashboardState.etherlinkEntryGeometry.titleMetricsOverlap === 0, `governance testing period: Tezos X Governance title should not overlap proposal chips: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
   assert(dashboardState.etherlinkEntryGeometry.metricsRightOfMain, `governance testing period: Tezos X Governance proposal chips should sit beside the title/value lane: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
   assert(dashboardState.etherlinkEntryGeometry.metricTruncations.length === 0, `governance testing period: Tezos X Governance proposal chips should not ellipsize: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
@@ -19313,7 +20002,11 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(lbState.loreItems >= 3, `governance testing period: LB protocol-history lore items missing, saw ${lbState.loreItems}`);
   assert(/Granada/.test(lbState.lore) && /Ithaca/.test(lbState.lore) && /Jakarta/.test(lbState.lore), `governance testing period: LB lore should expose Granada/Ithaca/Jakarta, saw ${lbState.lore}`);
   assert(lbState.sparklineSpread >= 12, `governance testing period: LB EMA sparkline should auto-scale recent movement, saw spread ${lbState.sparklineSpread}`);
-  assert(/from 51\.\d+% to 51\.\d+%/.test(lbState.sparklineLabel), `governance testing period: LB EMA sparkline label should expose scaled range, saw ${lbState.sparklineLabel}`);
+  const sparklineLabelRange = lbState.sparklineLabel.match(/from ([\d.]+)% to ([\d.]+)%/);
+  assert(sparklineLabelRange
+    && Number(sparklineLabelRange[1]) < Number(sparklineLabelRange[2])
+    && Math.abs(Number(sparklineLabelRange[2]) - 51.5) < 0.001,
+  `governance testing period: LB EMA sparkline label should expose the canonical-window range, saw ${lbState.sparklineLabel}`);
   assert(/EMA Forecast/.test(lbState.forecast) && /Drift/.test(lbState.forecast), `governance testing period: LB forecast panel missing: ${lbState.forecast}`);
   assert(lbState.forecastMetricValues.some((value) => /pp\/d$/.test(value)), `governance testing period: LB drift metric should use compact pp/d unit: ${lbState.forecastMetricValues.join(', ')}`);
   assert(lbState.forecastMetricValues.every((value) => value.length <= 11), `governance testing period: LB forecast metrics should stay compact: ${lbState.forecastMetricValues.join(', ')}`);
@@ -19360,6 +20053,11 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(Number(smoothRefreshState.topLevel) > Number(smoothRefreshStart.beforeLevel), `governance testing period: LB top row should advance, saw ${smoothRefreshStart.beforeLevel} -> ${smoothRefreshState.topLevel}`);
   assert(smoothRefreshState.newRows > 0, 'governance testing period: LB refresh should mark newly inserted rows');
   assert(smoothRefreshState.recentRows <= 12, `governance testing period: LB recent rows should stay capped, saw ${smoothRefreshState.recentRows}`);
+  const lbFullWindowRequests = lbBlockRequests.filter((url) => url.searchParams.get('limit') === '2500');
+  const lbIncrementalRequests = lbBlockRequests.filter((url) => url.searchParams.get('limit') === '32');
+  assert(lbFullWindowRequests.length === 1, `governance testing period: LB should load one initial 2,500-block window, saw ${lbFullWindowRequests.map(String).join(', ')}`);
+  assert(lbIncrementalRequests.length >= 1, `governance testing period: LB live tick did not use its bounded incremental page ${lbBlockRequests.map(String).join(', ')}`);
+  assert(lbIncrementalRequests.every((url) => url.searchParams.has('level.ge') && (url.searchParams.get('select') || '').includes('hash')), `governance testing period: LB incremental request lost overlap or hash receipts ${lbIncrementalRequests.map(String).join(', ')}`);
 
   await page.locator('#liquidity-baking-modal.active .chamber-close').click();
   await page.waitForFunction(() => !document.querySelector('#liquidity-baking-modal')?.classList.contains('active'), null, { timeout: 5000 });
@@ -19376,6 +20074,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     refreshState: document.querySelector('#tz4-refresh-state')?.textContent || '',
     hero: document.querySelector('#tz4-adoption-modal .tz4-hero-number')?.textContent || '',
     heroCopy: document.querySelector('#tz4-adoption-modal .tz4-hero-copy')?.textContent || '',
+    coverage: document.querySelector('#tz4-adoption-modal .tz4-explainer')?.textContent?.replace(/\s+/g, ' ').trim() || '',
     legend: document.querySelector('#tz4-adoption-modal .tz4-adoption-legend')?.textContent || '',
     saved: document.querySelector('#tz4-adoption-modal .tz4-saved-baker')?.textContent || '',
     latestSwitches: document.querySelector('#tz4-adoption-modal .tz4-latest-panel')?.textContent || '',
@@ -19427,6 +20126,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(/auto-refresh 60s/.test(tz4State.refreshState), `governance testing period: tz4 refresh label mismatch: ${tz4State.refreshState}`);
   assert(tz4State.hero === '33.3%', `governance testing period: tz4 hero adoption mismatch: ${tz4State.hero}`);
   assert(/1 of 3 active bakers/.test(tz4State.heroCopy), `governance testing period: tz4 hero copy mismatch: ${tz4State.heroCopy}`);
+  assert(/Coverage:.*2 applied BLS updates.*3 active funded bakers/.test(tz4State.coverage), `governance testing period: tz4 paged-history coverage is missing or dishonest: ${tz4State.coverage}`);
   assert(/1 active/.test(tz4State.legend) && /1 pending/.test(tz4State.legend) && /1 not yet/.test(tz4State.legend), `governance testing period: tz4 legend mismatch: ${tz4State.legend}`);
   assert(/QA Baker/.test(tz4State.saved) && /Active/.test(tz4State.saved), `governance testing period: tz4 saved baker status mismatch: ${tz4State.saved}`);
   assert(tz4State.latestSwitchRows === 1, `governance testing period: tz4 latest switch row count mismatch: ${tz4State.latestSwitchRows}`);
@@ -19448,9 +20148,31 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(tz4State.systemLinks >= 3, `governance testing period: tz4 Tezos.Systems baker links missing, saw ${tz4State.systemLinks}`);
   assert(tz4State.tzktLinks >= 3, `governance testing period: tz4 TzKT links missing, saw ${tz4State.tzktLinks}`);
   assert(/Direct: \/tz4\//.test(tz4State.footer), `governance testing period: tz4 direct footer missing: ${tz4State.footer}`);
-  assert(/^TzKT · /.test(tz4State.cardUpdatedLabel), `governance testing period: tz4 freshness stamp mismatch: ${tz4State.cardUpdatedLabel}`);
+  assert(/^TzKT oldest receipt · /.test(tz4State.cardUpdatedLabel), `governance testing period: tz4 freshness stamp mismatch: ${tz4State.cardUpdatedLabel}`);
   assert(/Copy Chambers link/.test(tz4State.chambersLauncherCopy), `governance testing period: combined Chambers launcher copy link missing: ${tz4State.chambersLauncherCopy}`);
   assert(tz4State.intervalDelays.includes(60000), `governance testing period: tz4 modal 60s refresh timer was not registered: ${tz4State.intervalDelays.join(', ')}`);
+
+  const tz4InitialHistoryRequests = tz4OperationRequests.filter((url) => !url.searchParams.has('level.ge'));
+  assert(tz4InitialHistoryRequests.length === 1 && tz4InitialHistoryRequests[0].searchParams.get('limit') === '1000' && tz4InitialHistoryRequests[0].searchParams.get('offset') === '0', `governance testing period: tz4 initial history was not explicitly paged once ${tz4OperationRequests.map(String).join(', ')}`);
+  const tz4DelegateRequestsBeforeTick = tz4DelegateRequests.length;
+  const tz4IncrementalRequestPromise = page.waitForRequest((request) => {
+    try {
+      const url = new URL(request.url());
+      return url.pathname.endsWith('/operations/update_consensus_key') && url.searchParams.has('level.ge');
+    } catch {
+      return false;
+    }
+  }, { timeout: 10000 });
+  const tz4TickStarted = await page.evaluate(() => {
+    const timer = (window.__tezosSystemsIntervals || []).filter((item) => item.timeout === 60000).at(-1);
+    timer?.handler();
+    return Boolean(timer);
+  });
+  assert(tz4TickStarted, 'governance testing period: tz4 incremental refresh timer handler missing');
+  const tz4IncrementalRequest = new URL((await tz4IncrementalRequestPromise).url());
+  await page.waitForFunction(() => !document.querySelector('#tz4-adoption-modal')?.classList.contains('tz4-refreshing'), null, { timeout: 10000 });
+  assert(tz4IncrementalRequest.searchParams.get('limit') === '1000' && tz4IncrementalRequest.searchParams.get('offset') === '0', `governance testing period: tz4 incremental page shape drifted ${tz4IncrementalRequest}`);
+  assert(tz4DelegateRequests.length === tz4DelegateRequestsBeforeTick, `governance testing period: tz4 minute tick refetched the full active-baker set ${tz4DelegateRequests.map(String).join(', ')}`);
 
   await page.locator('#tz4-adoption-modal [data-tz4-filter="pending"]').click();
   const tz4PendingFilter = await page.evaluate(() => ({
@@ -19481,6 +20203,10 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   attachIssueCollectors(quietPage, 'quiet governance sizing', issues);
   const quietResponse = await quietPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(quietResponse?.ok(), `quiet governance sizing: dashboard failed with HTTP ${quietResponse?.status()}`);
+  for (const selector of ['#chamber-entry-card', '#etherlink-governance-entry-card']) {
+    await quietPage.locator(selector).scrollIntoViewIfNeeded();
+    await quietPage.locator(selector).hover();
+  }
   await quietPage.locator('#chamber-entry-card[data-chamber-entry-size="wide"]').waitFor({ state: 'visible', timeout: 10000 });
   await quietPage.locator('#etherlink-governance-entry-card[data-etherlink-governance-size="compact"]').waitFor({ state: 'visible', timeout: 10000 });
   const quietSizing = await quietPage.evaluate(() => {
@@ -19579,6 +20305,11 @@ async function smokeHashModalCleanup(browser, baseUrl) {
 
   const page = await context.newPage();
   attachIssueCollectors(page, 'hash modal cleanup', issues);
+  const lazyModuleRequests = [];
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (DEFERRED_CHAMBER_MODULE_PATHS.includes(pathname)) lazyModuleRequests.push(pathname);
+  });
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `hash modal cleanup: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
@@ -19605,6 +20336,18 @@ async function smokeHashModalCleanup(browser, baseUrl) {
     const active = Array.from(document.querySelectorAll('.modal-overlay.active, #history-modal.active'));
     return active.length === 0 && document.body.style.overflow !== 'hidden' && document.documentElement.style.overflow !== 'hidden';
   }, null, { timeout: 5000 });
+
+  const allowedTransitions = new Set([
+    '/js/features/chamber.js',
+    '/js/features/etherlink-governance.js'
+  ]);
+  const unexpectedModules = [...new Set(lazyModuleRequests)].filter((pathname) => !allowedTransitions.has(pathname));
+  assert(
+    unexpectedModules.length === 0
+      && lazyModuleRequests.includes('/js/features/chamber.js')
+      && lazyModuleRequests.includes('/js/features/etherlink-governance.js'),
+    `hash modal cleanup loaded Chambers that were never opened: ${JSON.stringify(lazyModuleRequests)}`
+  );
 
   await context.close();
   assert(issues.length === 0, `hash modal cleanup browser issues:\n${issues.join('\n')}`);
@@ -20097,19 +20840,34 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
   assert(signalState.og.badges.some((badge) => badge.kind === 'voting' && /Streak · 12/.test(badge.text) && /Career high: 18/.test(badge.title)), `Baker Directory: completed-ballot streak receipt missing ${JSON.stringify(signalState.og)}`);
   assert(signalState.veteran.badges.some((badge) => badge.kind === 'veteran' && /Veteran · 2021/.test(badge.text)), `Baker Directory: end-of-2021 Veteran cutoff missing ${JSON.stringify(signalState.veteran)}`);
   assert(!signalState.postCutoff.badges.some((badge) => ['og', 'veteran'].includes(badge.kind)), `Baker Directory: post-cutoff baker received a tenure marker ${JSON.stringify(signalState.postCutoff)}`);
+  assert(signalState.postCutoff.badges.some((badge) => badge.kind === 'unavailable'
+    && badge.text === 'Governance unavailable'
+    && /outside the frozen governance-signal source cohort/i.test(badge.title)
+    && /Missing is not interpreted as zero history/i.test(badge.title)), `Baker Directory: a baker missing from the source cohort must remain unavailable rather than becoming a zero-governance baker ${JSON.stringify(signalState.postCutoff)}`);
   assert(/^Observed TzKT · /.test(signalState.observed), `Baker Directory: source-aware observation stamp missing ${JSON.stringify(signalState)}`);
   assert(/^(?:TzKT observed|Cached TzKT) · /.test(signalState.launcherFreshness)
     && signalState.launcherFreshness === signalState.launcherFooter, `Baker Directory: launcher observation freshness missing ${JSON.stringify(signalState)}`);
-  assert(/Complete funded set/.test(signalState.setCopy) && /governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer), `Baker Directory: set or source receipt copy drifted ${JSON.stringify(signalState)}`);
+  assert(/Complete funded set/.test(signalState.setCopy)
+    && /governance receipts \d{4}-\d{2}-\d{2} UTC/.test(signalState.footer)
+    && /\b2\/502 current bakers covered\b/.test(signalState.footer), `Baker Directory: set, source receipt, or explicit governance coverage copy drifted ${JSON.stringify(signalState)}`);
+  assert(mockState.bakerGovernanceSignalRequests >= 1
+    && mockState.bakerGovernanceHeavyRequests === 0,
+  `Baker Directory: expected only the compact governance signal receipt, got ${mockState.bakerGovernanceSignalRequests} compact and ${mockState.bakerGovernanceHeavyRequests} heavy requests`);
 
   await page.evaluate((address) => {
     const row = document.querySelector(`#baker-directory-panel .baker-directory-table tr[data-address="${address}"]`);
     window.__bakerAcceptedBadge = row?.querySelector('[data-badge="accepted"]');
     window.__bakerVotingBadge = row?.querySelector('[data-badge="voting"]');
   }, SAMPLE_ADDRESS);
-  mockState.failBakerGovernance('both');
+  mockState.failBakerGovernance(true);
   const failedGovernanceState = await page.evaluate(async (address) => {
-    const feature = await import('/js/features/leaderboard.js');
+    const loadedModuleUrl = performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .find((url) => /\/js\/features\/leaderboard\.js(?:\?|$)/.test(url));
+    if (!loadedModuleUrl) throw new Error('Baker Directory loaded module URL is unavailable');
+    // Import the exact stamped URL used by app.js. Importing the bare path
+    // would create a second module instance with empty last-good state.
+    const feature = await import(loadedModuleUrl);
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await feature.refreshBakerDirectoryChamber({ quiet: true });
       const footer = document.querySelector('#baker-directory-modal .baker-directory-footer')?.textContent || '';
@@ -20134,15 +20892,17 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
       && failedGovernanceState.sameAccepted
       && failedGovernanceState.sameVoting
       && /last-good governance receipts/i.test(failedGovernanceState.footer),
-    `Baker Directory: career/proposal refresh failures must retain validated badge maps and label them last-good ${JSON.stringify(failedGovernanceState)}`
+    `Baker Directory: compact signal refresh failures must retain validated badge maps and label them last-good ${JSON.stringify(failedGovernanceState)}`
   );
-  for (const artifactName of ['maxis-careers.json', 'governance-votes.json']) {
-    const expectedFailureIssue = issues.findIndex((issue) => issue.includes('503 (Service Unavailable)') && issue.includes(artifactName));
-    assert(expectedFailureIssue >= 0, `Baker Directory: ${artifactName} failure probe did not reach the browser fetch path ${JSON.stringify(issues)}`);
-    issues.splice(expectedFailureIssue, 1);
-  }
+  const expectedFailureIssue = issues.findIndex((issue) => issue.includes('503 (Service Unavailable)') && issue.includes('baker-governance-signals.json'));
+  assert(expectedFailureIssue >= 0, `Baker Directory: compact signal failure probe did not reach the browser fetch path ${JSON.stringify(issues)}`);
+  issues.splice(expectedFailureIssue, 1);
   await page.evaluate(async () => {
-    const feature = await import('/js/features/leaderboard.js');
+    const loadedModuleUrl = performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .find((url) => /\/js\/features\/leaderboard\.js(?:\?|$)/.test(url));
+    if (!loadedModuleUrl) throw new Error('Baker Directory loaded module URL is unavailable');
+    const feature = await import(loadedModuleUrl);
     await feature.refreshBakerDirectoryChamber({ quiet: true });
   });
   await page.waitForFunction(() => {
@@ -20219,7 +20979,11 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
     };
   });
   await page.evaluate(async () => {
-    const feature = await import('/js/features/leaderboard.js');
+    const loadedModuleUrl = performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .find((url) => /\/js\/features\/leaderboard\.js(?:\?|$)/.test(url));
+    if (!loadedModuleUrl) throw new Error('Baker Directory loaded module URL is unavailable');
+    const feature = await import(loadedModuleUrl);
     await feature.refreshBakerDirectoryChamber({ quiet: true });
   });
   await page.waitForFunction(() => document.querySelector('#baker-directory-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 8000 });
@@ -20284,8 +21048,16 @@ async function smokeLeaderboardSignals(browser, baseUrl) {
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'clean';
     localStorage.setItem('tezos-systems-theme', 'clean');
+    document.getElementById('whale-watch-entry-card')?.dispatchEvent(new PointerEvent('pointerenter', {
+      bubbles: true,
+      pointerType: 'mouse'
+    }));
     return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
+  await page.waitForFunction(() => (
+    !document.getElementById('whale-watch-entry-card')?.hasAttribute('data-chamber-skeleton')
+    && Boolean(document.getElementById('whale-chamber-css')?.sheet)
+  ), null, { timeout: 15000 });
   await assertPromotedLauncherGeometry(page, 'Baker Directory mobile launcher pair');
   const mobileState = await page.evaluate(() => {
     const overlay = document.querySelector('#baker-directory-modal');
@@ -20436,6 +21208,13 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   let response = await page.goto(`${baseUrl}/whales/?view=overview`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `Whale Watch: direct route failed with HTTP ${response?.status()}`);
   await page.locator('#whale-watch-modal.active #whale-watch-panel-overview').waitFor({ state: 'visible', timeout: 15000 });
+  await page.evaluate(() => {
+    const loadedModuleUrl = performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .find((url) => /\/js\/features\/whale-chamber\.js(?:\?|$)/.test(url));
+    if (!loadedModuleUrl) throw new Error('Whale Watch loaded module URL is unavailable');
+    window.__whaleChamberModuleUrl = loadedModuleUrl;
+  });
   await assertPromotedLauncherGeometry(page, 'Whale Watch desktop launcher pair', { desktop: true });
   await expectCount(page, '#whale-watch-modal [role="tab"][data-whale-view]', 5, 'Whale Watch views');
   const sourceStripText = await page.locator('#whale-watch-freshness').innerText();
@@ -20534,7 +21313,7 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   });
   assert(quietBefore.anchorKey, `Whale Watch: could not establish a visible live-tape anchor ${JSON.stringify(quietBefore)}`);
   await page.evaluate(async () => {
-    const feature = await import('/js/features/whale-chamber.js');
+    const feature = await import(window.__whaleChamberModuleUrl);
     await feature.refreshWhaleChamber({ quiet: true });
   });
   await page.waitForFunction(() => document.querySelector('#whale-watch-body')?.dataset.quietRefreshSettled === 'true', null, { timeout: 8000 });
@@ -20596,7 +21375,7 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   });
   mockState.mismatchWhaleDormancy(true);
   await page.evaluate(async () => {
-    const feature = await import('/js/features/whale-chamber.js');
+    const feature = await import(window.__whaleChamberModuleUrl);
     await feature.refreshWhaleChamber({ quiet: true, forceArtifact: true });
   });
   await page.waitForFunction(() => /last-good retained.*refresh failed/i.test(document.querySelector('#whale-watch-freshness')?.textContent || ''), null, { timeout: 5000 });
@@ -20621,7 +21400,7 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   );
   mockState.mismatchWhaleDormancy(false);
   await page.evaluate(async () => {
-    const feature = await import('/js/features/whale-chamber.js');
+    const feature = await import(window.__whaleChamberModuleUrl);
     await feature.refreshWhaleChamber({ quiet: true, forceArtifact: true });
   });
   await page.waitForFunction(() => !document.querySelector('#whale-watch-freshness')?.classList.contains('is-stale'), null, { timeout: 5000 });
@@ -20670,9 +21449,15 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   await page.setViewportSize({ width: 1440, height: 1000 });
   response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `Whale Watch: dashboard lifecycle route failed with HTTP ${response?.status()}`);
+  await page.locator('#whale-watch-entry-card').dispatchEvent('pointerenter');
   const whaleOpenCue = page.locator('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
   await whaleOpenCue.waitFor({ state: 'visible', timeout: 15000 });
   const footerBefore = await page.evaluate(() => {
+    const loadedModuleUrl = performance.getEntriesByType('resource')
+      .map((entry) => entry.name)
+      .find((url) => /\/js\/features\/whale-chamber\.js(?:\?|$)/.test(url));
+    if (!loadedModuleUrl) throw new Error('Whale Watch loaded module URL is unavailable');
+    window.__whaleChamberModuleUrl = loadedModuleUrl;
     const cue = document.querySelector('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
     window.__whaleWatchOpenCue = cue;
     cue?.focus({ preventScroll: true });
@@ -20685,7 +21470,7 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   });
   assert(footerBefore.connected && footerBefore.focused && footerBefore.ariaLabel === 'Open Whale Watch Chamber', `Whale Watch: could not establish footer Open focus before refresh ${JSON.stringify(footerBefore)}`);
   await page.evaluate(async () => {
-    const feature = await import('/js/features/whale-chamber.js');
+    const feature = await import(window.__whaleChamberModuleUrl);
     await feature.refreshWhaleChamber({ quiet: true });
   });
   const footerAfter = await page.evaluate(() => {
@@ -20702,7 +21487,7 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
 
   mockState.failWhaleLane('unstake');
   const atomicFailure = await page.evaluate(async () => {
-    const chamber = await import('/js/features/whale-chamber.js');
+    const chamber = await import(window.__whaleChamberModuleUrl);
     const whales = await import('/js/features/whales.js');
     const before = whales.getWhaleSnapshot();
     await chamber.refreshWhaleChamber({ quiet: true });
@@ -25778,7 +26563,331 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
   log('ok - live background number motion, accessibility, and theme personality smoke');
 }
 
+async function smokeLazyChamberLoading(browser, baseUrl) {
+  const installLazyInit = async (context) => {
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'matrix');
+      localStorage.setItem('tezos-systems-stats-visible', 'true');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    });
+  };
+  const waitForLauncherShell = (page) => page.waitForFunction(() => (
+    document.querySelectorAll('#chambers-grid > .chamber-category').length === 7
+    && document.querySelectorAll('#chambers-grid .stat-card').length === 21
+    && document.querySelectorAll('#chambers-grid [data-chamber-skeleton]').length >= 15
+  ), null, { timeout: 15000 });
+
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installLazyInit(context);
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'lazy Chamber no-intent/focus', issues);
+  const requestedPaths = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.origin === new URL(baseUrl).origin) requestedPaths.push(url.pathname);
+  });
+  const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `lazy Chamber loading: dashboard failed with HTTP ${response?.status()}`);
+  await waitForLauncherShell(page);
+  await page.waitForTimeout(1000);
+
+  const forbiddenBeforeIntent = new Set([
+    ...DEFERRED_CHAMBER_MODULE_PATHS,
+    ...DEFERRED_CHAMBER_PROJECTION_PATHS,
+    ...DEFERRED_CHAMBER_STYLE_PATHS,
+    ...DEFERRED_CHAMBER_HEAVY_DATA_PATHS
+  ]);
+  const observedBeforeIntent = requestedPaths.filter((pathname) => (
+    forbiddenBeforeIntent.has(pathname)
+    || /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(pathname)
+  ));
+  assert(
+    observedBeforeIntent.length === 0,
+    `lazy Chamber loading requested deferred resources without route, visibility, focus, or pointer intent: ${observedBeforeIntent.join(', ')}`
+  );
+
+  const requestCountBeforeFocus = requestedPaths.length;
+  const focusBefore = await page.evaluate(() => {
+    const card = document.getElementById('ledger-flow-entry-card');
+    window.__lazyLedgerSkeleton = card;
+    const scrollY = window.scrollY;
+    card?.focus({ preventScroll: true });
+    return {
+      hasSkeleton: card?.hasAttribute('data-chamber-skeleton') || false,
+      focusedSkeleton: document.activeElement === card,
+      scrollY
+    };
+  });
+  assert(focusBefore.hasSkeleton && focusBefore.focusedSkeleton, `lazy Chamber focus intent did not begin on the static launcher: ${JSON.stringify(focusBefore)}`);
+  await page.waitForFunction(() => {
+    const card = document.getElementById('ledger-flow-entry-card');
+    return card
+      && !card.hasAttribute('data-chamber-skeleton')
+      && document.activeElement === card.querySelector('.chamber-expand-cue');
+  }, null, { timeout: 15000 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const focusAfter = await page.evaluate((scrollY) => {
+    const card = document.getElementById('ledger-flow-entry-card');
+    return {
+      replaced: card !== window.__lazyLedgerSkeleton,
+      activeIsOpenCue: document.activeElement === card?.querySelector('.chamber-expand-cue'),
+      activeInsideCard: Boolean(card?.contains(document.activeElement)),
+      activeTagName: document.activeElement?.tagName || '',
+      activeTabIndex: document.activeElement?.tabIndex ?? -1,
+      scrollDelta: Math.abs(window.scrollY - scrollY),
+      skeletonRemaining: card?.hasAttribute('data-chamber-skeleton') || false
+    };
+  }, focusBefore.scrollY);
+  const focusIntentPaths = requestedPaths.slice(requestCountBeforeFocus);
+  assert(
+    focusAfter.replaced
+      && focusAfter.activeIsOpenCue
+      && focusAfter.activeInsideCard
+      && focusAfter.activeTagName === 'BUTTON'
+      && focusAfter.activeTabIndex === 0
+      && !focusAfter.skeletonRemaining
+      && focusAfter.scrollDelta <= 2,
+    `lazy Chamber hydration did not preserve logical focus and scroll: ${JSON.stringify(focusAfter)}`
+  );
+  assert(
+    focusIntentPaths.includes('/js/features/ledger-flow.js')
+      && focusIntentPaths.includes('/css/ledger-flow.min.css'),
+    `lazy Chamber focus intent did not request only-in-time module and CSS: ${JSON.stringify(focusIntentPaths)}`
+  );
+  await page.keyboard.press('Enter');
+  await page.locator('#ledger-flow-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#ledger-flow-modal.active .chamber-close').click();
+  await context.close();
+
+  const retryIssues = [];
+  const retryContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installLazyInit(retryContext);
+  const moduleAttempts = [];
+  await retryContext.route('**/js/features/ledger-flow.js*', async (route) => {
+    moduleAttempts.push(route.request().url());
+    if (moduleAttempts.length === 1) return route.abort('failed');
+    return route.continue();
+  });
+  const retryPage = await retryContext.newPage();
+  attachIssueCollectors(retryPage, 'lazy Chamber module retry', retryIssues);
+  const retryResponse = await retryPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(retryResponse?.ok(), `lazy Chamber retry: dashboard failed with HTTP ${retryResponse?.status()}`);
+  await waitForLauncherShell(retryPage);
+  const firstModuleFailureSettled = retryPage.waitForEvent('console', {
+    predicate: (message) => (
+      ['warning', 'warn', 'error'].includes(message.type())
+      && /Failed to hydrate ledger-flow Chamber launcher/.test(message.text())
+    ),
+    timeout: 5000
+  });
+  await retryPage.evaluate(() => {
+    document.getElementById('ledger-flow-entry-card')?.dispatchEvent(new PointerEvent('pointerenter', {
+      bubbles: true,
+      pointerType: 'mouse'
+    }));
+  });
+  await firstModuleFailureSettled;
+  assert(moduleAttempts.length === 1, `lazy Chamber retry: first failed import did not settle exactly once: ${JSON.stringify(moduleAttempts)}`);
+  await retryPage.locator('#ledger-flow-entry-card').click({ force: true });
+  await retryPage.locator('#ledger-flow-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  assert(moduleAttempts.length === 2, `lazy Chamber retry should make exactly two module requests: ${JSON.stringify(moduleAttempts)}`);
+  const retryUrl = new URL(moduleAttempts[1]);
+  assert(
+    retryUrl.searchParams.get('chamber-retry') === '1',
+    `lazy Chamber retry did not escape Chromium's failed-module cache: ${moduleAttempts[1]}`
+  );
+  await retryPage.locator('#ledger-flow-modal.active .chamber-close').click();
+  await retryContext.close();
+  const unexpectedRetryIssues = retryIssues.filter((issue) => !(
+    /ledger-flow\.js/.test(issue)
+    && /request failed|Failed to hydrate ledger-flow|Failed to load resource/i.test(issue)
+  ));
+  assert(unexpectedRetryIssues.length === 0, `lazy Chamber retry browser issues:\n${unexpectedRetryIssues.join('\n')}`);
+
+  const cssIssues = [];
+  const cssContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installLazyInit(cssContext);
+  let cssAttemptCount = 0;
+  let markRetryCssRequested;
+  let releaseRetryCss;
+  const retryCssRequested = new Promise((resolve) => { markRetryCssRequested = resolve; });
+  const retryCssRelease = new Promise((resolve) => { releaseRetryCss = resolve; });
+  await cssContext.route('**/css/ledger-flow.min.css*', async (route) => {
+    cssAttemptCount += 1;
+    if (cssAttemptCount === 1) return route.abort('failed');
+    markRetryCssRequested();
+    const cssResponse = await route.fetch();
+    await retryCssRelease;
+    return route.fulfill({ response: cssResponse });
+  });
+  const cssPage = await cssContext.newPage();
+  attachIssueCollectors(cssPage, 'lazy Chamber stylesheet retry', cssIssues);
+  const cssResponse = await cssPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(cssResponse?.ok(), `lazy Chamber stylesheet retry: dashboard failed with HTTP ${cssResponse?.status()}`);
+  await waitForLauncherShell(cssPage);
+  await cssPage.evaluate(() => {
+    document.getElementById('ledger-flow-entry-card')?.dispatchEvent(new PointerEvent('pointerenter', {
+      bubbles: true,
+      pointerType: 'mouse'
+    }));
+  });
+  await cssPage.waitForFunction(() => (
+    !document.getElementById('ledger-flow-entry-card')?.hasAttribute('data-chamber-skeleton')
+    && !document.getElementById('ledger-flow-css')
+  ), null, { timeout: 15000 });
+  assert(cssAttemptCount === 1, `lazy Chamber stylesheet first failure was not isolated: ${cssAttemptCount}`);
+  await cssPage.locator('#ledger-flow-entry-card .chamber-expand-cue').click();
+  await Promise.race([
+    retryCssRequested,
+    sleep(5000).then(() => { throw new Error('lazy Chamber stylesheet retry was not requested'); })
+  ]);
+  const beforeCssRelease = await cssPage.evaluate(() => ({
+    modalExists: Boolean(document.getElementById('ledger-flow-modal')),
+    linkExists: Boolean(document.getElementById('ledger-flow-css')),
+    stylesheetReady: Boolean(document.getElementById('ledger-flow-css')?.sheet),
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    !beforeCssRelease.modalExists
+      && beforeCssRelease.linkExists
+      && !beforeCssRelease.stylesheetReady
+      && beforeCssRelease.bodyOverflow !== 'hidden'
+      && beforeCssRelease.htmlOverflow !== 'hidden',
+    `lazy Chamber room became active before its retry stylesheet was ready: ${JSON.stringify(beforeCssRelease)}`
+  );
+  releaseRetryCss();
+  await cssPage.locator('#ledger-flow-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  const afterCssRelease = await cssPage.evaluate(() => ({
+    cssAttemptCount: performance.getEntriesByName(document.getElementById('ledger-flow-css')?.href || '').length,
+    stylesheetReady: Boolean(document.getElementById('ledger-flow-css')?.sheet),
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    cssAttemptCount === 2
+      && afterCssRelease.stylesheetReady
+      && afterCssRelease.bodyOverflow === 'hidden'
+      && afterCssRelease.htmlOverflow === 'hidden',
+    `lazy Chamber room did not wait for the successful stylesheet retry: ${JSON.stringify({ cssAttemptCount, afterCssRelease })}`
+  );
+  await cssPage.locator('#ledger-flow-modal.active .chamber-close').click();
+  await cssPage.waitForFunction(() => (
+    document.body.style.overflow !== 'hidden'
+    && document.documentElement.style.overflow !== 'hidden'
+  ), null, { timeout: 5000 });
+  await cssContext.close();
+  const unexpectedCssIssues = cssIssues.filter((issue) => !(
+    /ledger-flow(?:\.min\.css| styles unavailable)/i.test(issue)
+    && /request failed|Failed to load resource|styles unavailable/i.test(issue)
+  ));
+  assert(unexpectedCssIssues.length === 0, `lazy Chamber stylesheet retry browser issues:\n${unexpectedCssIssues.join('\n')}`);
+
+  const routeRaceIssues = [];
+  const routeRaceContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installLazyInit(routeRaceContext);
+  let releaseCapitalModule;
+  let markCapitalModuleRequested;
+  const capitalModuleRelease = new Promise((resolve) => { releaseCapitalModule = resolve; });
+  const capitalModuleRequested = new Promise((resolve) => { markCapitalModuleRequested = resolve; });
+  await routeRaceContext.route('**/js/features/capital-chamber.js*', async (route) => {
+    const moduleResponse = await route.fetch();
+    markCapitalModuleRequested();
+    await capitalModuleRelease;
+    await route.fulfill({ response: moduleResponse });
+  });
+  const routeRacePage = await routeRaceContext.newPage();
+  attachIssueCollectors(routeRacePage, 'lazy Chamber rapid route cancellation', routeRaceIssues);
+  const routeRaceResponse = await routeRacePage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(routeRaceResponse?.ok(), `lazy Chamber route race: dashboard failed with HTTP ${routeRaceResponse?.status()}`);
+  await waitForLauncherShell(routeRacePage);
+  await routeRacePage.evaluate(() => { window.location.hash = 'capital'; });
+  await Promise.race([
+    capitalModuleRequested,
+    sleep(5000).then(() => { throw new Error('lazy Chamber route race: delayed Capital module was not requested'); })
+  ]);
+  await routeRacePage.evaluate(() => { window.location.hash = 'minerals'; });
+  await routeRacePage.locator('#minerals-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  releaseCapitalModule();
+  await routeRacePage.waitForTimeout(500);
+  const routeRaceState = await routeRacePage.evaluate(() => ({
+    hash: window.location.hash,
+    activeModals: Array.from(document.querySelectorAll('.modal-overlay.active'), (modal) => modal.id),
+    capitalActive: document.getElementById('capital-modal')?.classList.contains('active') || false,
+    mineralsActive: document.getElementById('minerals-modal')?.classList.contains('active') || false
+  }));
+  assert(
+    routeRaceState.hash === '#minerals'
+      && routeRaceState.mineralsActive
+      && !routeRaceState.capitalActive
+      && routeRaceState.activeModals.length === 1,
+    `lazy Chamber route race reopened a stale delayed room: ${JSON.stringify(routeRaceState)}`
+  );
+
+  await routeRacePage.evaluate(() => { window.location.hash = 'tezoscrp'; });
+  await routeRacePage.locator('#tezoscrp-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await routeRacePage.waitForFunction(() => (
+    document.querySelectorAll('.modal-overlay.active').length === 1
+    && document.querySelector('#tezoscrp-modal')?.classList.contains('active')
+  ), null, { timeout: 5000 });
+  await routeRacePage.evaluate(() => { window.location.hash = 'minerals'; });
+  await routeRacePage.waitForFunction(() => (
+    document.querySelectorAll('.modal-overlay.active').length === 1
+    && document.querySelector('#minerals-modal')?.classList.contains('active')
+    && !document.querySelector('#tezoscrp-modal')?.classList.contains('active')
+  ), null, { timeout: 15000 });
+  const tezosCrpCleanupState = await routeRacePage.evaluate(() => ({
+    activeModals: Array.from(document.querySelectorAll('.modal-overlay.active'), (modal) => modal.id),
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    tezosCrpCleanupState.activeModals.length === 1
+      && tezosCrpCleanupState.activeModals[0] === 'minerals-modal'
+      && tezosCrpCleanupState.bodyOverflow === 'hidden'
+      && tezosCrpCleanupState.htmlOverflow === 'hidden',
+    `lazy Chamber route cleanup left TezosCRP stacked or lost scroll ownership: ${JSON.stringify(tezosCrpCleanupState)}`
+  );
+  await routeRacePage.locator('#minerals-modal.active .chamber-close').click();
+  await routeRaceContext.close();
+  assert(routeRaceIssues.length === 0, `lazy Chamber route cancellation browser issues:\n${routeRaceIssues.join('\n')}`);
+
+  assert(issues.length === 0, `lazy Chamber no-intent/focus browser issues:\n${issues.join('\n')}`);
+  log('ok - deferred Chamber resources, focus-safe hydration, retries, stylesheet readiness, and stale-route cancellation smoke');
+}
+
 async function smokeChamberCategories(browser, baseUrl) {
+  const hydrateDenseLayoutCards = async (page) => {
+    await page.evaluate(() => {
+      for (const selector of ['#tezoscrp-entry-card', '#maxis-entry-card']) {
+        document.querySelector(selector)?.dispatchEvent(new PointerEvent('pointerenter', {
+          bubbles: true,
+          pointerType: 'mouse'
+        }));
+      }
+    });
+    await page.waitForFunction(() => (
+      document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length === 6
+      && document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length >= 6
+    ), null, { timeout: 15000 });
+  };
+
   const issues = [];
   const context = await browser.newContext({
     viewport: { width: 375, height: 812 },
@@ -25819,10 +26928,7 @@ async function smokeChamberCategories(browser, baseUrl) {
 
   await page.locator('#tezos-domains-modal.active .chamber-close').click();
   await page.locator('#tezos-domains-modal.active').waitFor({ state: 'hidden', timeout: 5000 });
-  await page.waitForFunction(() => (
-    document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length === 6
-    && document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length >= 6
-  ), null, { timeout: 15000 });
+  await hydrateDenseLayoutCards(page);
   const capitalSummary = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
   await page.evaluate(() => {
     const html = document.documentElement;
@@ -25952,10 +27058,7 @@ async function smokeChamberCategories(browser, baseUrl) {
       document.querySelectorAll('#chambers-grid > .chamber-category').length === 7
       && document.querySelectorAll('#chambers-grid .stat-card').length === expectedCount
     ), EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
-    await layoutPage.waitForFunction(() => (
-      document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length === 6
-      && document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length >= 6
-    ), null, { timeout: 15000 });
+    await hydrateDenseLayoutCards(layoutPage);
     await assertChamberOrder(layoutPage, `Chamber categories ${label}`);
     const geometry = await layoutPage.evaluate(() => {
       const grid = document.querySelector('#chambers-grid');
@@ -26030,6 +27133,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
     { name: 'chamber-categories', description: 'Seven responsive Chamber disclosures, exact membership, reusable organization, direct-route reveal, and risk-only attention', run: () => smokeChamberCategories(browser, baseUrl) },
+    { name: 'lazy-chamber-loading', description: 'Chamber code, projections, and CSS remain deferred until intent; hydration preserves focus; failed modules and styles retry without unstyled rooms', run: () => smokeLazyChamberLoading(browser, baseUrl) },
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'launcher-projections', description: 'Capital, Ecosystem Activity, and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
     { name: 'capital-chamber', description: 'Capital Chamber renders sourced cross-layer, market, asset, RWA, and art-economy views with quality quarantine, explicit gaps, direct routing, and quiet refresh', run: () => smokeCapitalChamber(browser, baseUrl) },

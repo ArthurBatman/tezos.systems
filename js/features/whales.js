@@ -546,8 +546,7 @@ export async function initWhaleChamber() {
 
 export async function initWhaleTracker({ legacyUi = true } = {}) {
     if (!legacyUi) {
-        debugLog('Initializing Whale Watch without the legacy inline rail...');
-        await initWhaleChamber();
+        debugLog('Initializing Whale Watch data bridge without the legacy inline rail...');
         window.whaleTracker = {
             get transactions() { return transactions; },
             refresh: pollForUpdates,

@@ -4,15 +4,17 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { fetchHistoricalData, fetchStakingRatio } from '../core/api.js';
 import { siteMapRoute } from '../core/site-map.js';
 import { siteMapJourneyLinks } from '../core/site-journey.js';
 import { loadStats, loadStatsTimestamp } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, matchesTextQuery, pluralize, setDataFreshnessState } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import { openCardHistoryModal } from './history.js';
 
-const STAKING_CSS_URL = '/css/staking-chamber.css?v=546';
+const STAKING_CSS_URL = versionedAsset('/css/staking-chamber.min.css');
 const LARGE_MOVE_THRESHOLD_XTZ = 10_000;
 const LARGE_MOVE_THRESHOLD_MUTEZ = LARGE_MOVE_THRESHOLD_XTZ * 1e6;
 const ENTRY_SCAN_LIMIT = 1_000;
@@ -51,12 +53,7 @@ const richRowCache = new Map();
 const moverTrailCache = new Map();
 
 function ensureStakingStyles() {
-    if (document.getElementById('staking-chamber-css')) return;
-    const link = document.createElement('link');
-    link.id = 'staking-chamber-css';
-    link.rel = 'stylesheet';
-    link.href = STAKING_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('staking-chamber-css', STAKING_CSS_URL);
 }
 
 function amountMutez(row) {
@@ -1171,7 +1168,7 @@ async function loadRoom({ force = false } = {}) {
 }
 
 export async function openStakingChamber() {
-    ensureStakingStyles();
+    await ensureStakingStyles();
     const overlay = ensureOverlay();
     if (!overlay.classList.contains('active')) lastFocusedElement = document.activeElement;
     overlay.classList.add('active');
@@ -1198,7 +1195,7 @@ export function closeStakingChamber() {
 }
 
 export function initStakingChamber() {
-    ensureStakingStyles();
+    ensureStakingStyles().catch((error) => console.warn('Staking Chamber styles unavailable', error));
     const card = ensureEntryCard();
     if (!card) return;
     bindEntryStats();

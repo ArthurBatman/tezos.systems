@@ -21,9 +21,37 @@ const GOVERNANCE_TARGETS = [
   'data/governance-refresh-report.json',
   'feed.xml'
 ];
+const LAZY_SURFACE_STYLES = [
+  'capital.css',
+  'ecosystem.css',
+  'history-chamber.css',
+  'leaderboard.css',
+  'ledger-flow.css',
+  'maxis.css',
+  'metals-chamber.css',
+  'minerals-chamber.css',
+  'network-health.css',
+  'network-pulse.css',
+  'staking-chamber.css',
+  'tezos-domains.css',
+  'tezoscrp.css',
+  'uranium-chamber.css',
+  'whale-chamber.css'
+];
 const CSS_TARGETS = [
   'css/styles.min.css',
+  'css/my-tezos.min.css',
+  'css/shell-extras.min.css',
+  ...LAZY_SURFACE_STYLES.map((file) => `css/${file.replace(/\.css$/, '.min.css')}`),
   ...THEME_NAMES.flatMap((theme) => [`css/themes/${theme}.css`, `css/themes/${theme}.min.css`])
+];
+const CSS_SOURCE_PATTERNS = [
+  /^css\/styles\.css$/,
+  /^css\/my-tezos\.css$/,
+  /^css\/shell-extras\.css$/,
+  ...LAZY_SURFACE_STYLES.map((file) => new RegExp(`^css/${file.replace('.', '\\.')}$`)),
+  /^scripts\/build-css\.mjs$/,
+  /^package(?:-lock)?\.json$/
 ];
 const ROUTE_TARGETS = CHAMBER_ROUTES.map((route) => `${route.slug}/index.html`);
 const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`);
@@ -41,7 +69,12 @@ const MINERALS_TARGETS = ['data/minerals-snapshot.json', 'data/minerals-entry-su
 const URANIUM_TARGETS = ['data/uranium-snapshot.json', 'data/uranium-entry-summary.json'];
 const METALS_TARGETS = ['data/metals-snapshot.json', 'data/metals-entry-summary.json'];
 const ECOSYSTEM_TARGETS = ['data/ecosystem-stats.json'];
-const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json', 'data/ecosystem-entry-summary.json'];
+const LAUNCHER_PROJECTION_TARGETS = [
+  'data/maxis/entry-summary.json',
+  'data/capital-entry-summary.json',
+  'data/ecosystem-entry-summary.json',
+  'data/baker-governance-signals.json'
+];
 const WHALE_WATCH_TARGETS = ['data/whale-watch.json'];
 const TEZOSCRP_TARGETS = ['data/tezoscrp-awards.json', 'data/tezoscrp-summary.json'];
 const SEARCH_CATALOG_TARGETS = ['data/search-catalog.json'];
@@ -238,6 +271,11 @@ async function main() {
     ran.push('maxis-check');
     nodeScript('scripts/refresh-maxis-careers.mjs', ['--check']);
     ran.push('maxis-careers-check');
+    // Governance votes are refreshed above even in pre-commit mode, so this
+    // compact projection must be rebuilt before the aggregate projection check.
+    nodeScript('scripts/generate-baker-governance-signals.mjs');
+    ran.push('baker-governance-signals');
+    if (shouldStage) stageTargets(['data/baker-governance-signals.json']);
     nodeScript('scripts/refresh-nakamoto-sources.mjs', ['--check']);
     ran.push('nakamoto-check');
     nodeScript('scripts/refresh-capital-data.mjs', ['--check']);
@@ -318,7 +356,7 @@ async function main() {
     ran.push('search-catalog-check');
   }
 
-  if (shouldRun(modeName, touched, [/^css\/styles\.css$/, /^scripts\/build-css\.mjs$/, /^package(?:-lock)?\.json$/])) {
+  if (shouldRun(modeName, touched, CSS_SOURCE_PATTERNS)) {
     ran.push('css');
     nodeScript('scripts/build-css.mjs');
     if (shouldStage) stageTargets(CSS_TARGETS);

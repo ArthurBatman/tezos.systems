@@ -8,6 +8,7 @@ import {
     fetchHistoricalDataReceipt,
     fetchSupabaseHistoryFreshness
 } from '../core/api.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { navigateSiteMapEntry } from '../core/site-map.js';
 import { debugLog } from '../core/utils.js';
 import { getCurrentTheme } from '../ui/theme.js';
@@ -17,8 +18,9 @@ import {
     findChamberLauncher,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=524';
+const CYCLE_HISTORY_CSS_URL = versionedAsset('/css/history-chamber.min.css');
 const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all']);
 const DEFAULT_CYCLE_HISTORY_RANGE = 'all';
 
@@ -231,7 +233,6 @@ const CYCLE_HISTORY_METRIC_ALIASES = new Map(CYCLE_HISTORY_METRICS.flatMap((metr
         .map((alias) => [normalizeHistoryRouteToken(alias), metric.key])
 )));
 
-let cycleHistoryStylesReady = null;
 let cycleHistoryCurrentRange = DEFAULT_CYCLE_HISTORY_RANGE;
 let cycleHistoryRenderedRange = '';
 let cycleHistoryLastFailureSources = [];
@@ -1616,22 +1617,7 @@ function readCycleHistoryState(options = {}) {
 }
 
 function ensureCycleHistoryStyles() {
-    const existing = document.getElementById('cycle-history-chamber-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (cycleHistoryStylesReady) return cycleHistoryStylesReady;
-
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'cycle-history-chamber-css';
-        link.rel = 'stylesheet';
-        link.href = CYCLE_HISTORY_CSS_URL;
-    }
-    cycleHistoryStylesReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return cycleHistoryStylesReady;
+    return ensureChamberStylesheet('cycle-history-chamber-css', CYCLE_HISTORY_CSS_URL);
 }
 
 function renderCycleHistoryIntro(modal) {
@@ -1900,7 +1886,7 @@ function ensureCycleHistoryEntryCard() {
  * launches, the legacy #history route, and the first-party /history/ shell.
  */
 export async function openCycleHistoryChamber(options = {}) {
-    ensureCycleHistoryStyles();
+    await ensureCycleHistoryStyles();
     if (!initCycleHistoryChamber()) return false;
     const modal = document.getElementById('history-modal');
     const content = modal?.querySelector('.cycle-history-content');
@@ -1996,7 +1982,7 @@ export function initCycleHistoryChamber() {
         console.warn('History modal elements not found');
         return false;
     }
-    ensureCycleHistoryStyles();
+    ensureCycleHistoryStyles().catch((error) => console.warn('Cycle History styles unavailable', error));
     decorateCycleHistoryChamber(modal);
     ensureCycleHistoryEntryCard();
     scheduleCycleHistoryEntryFreshness();
@@ -2010,7 +1996,7 @@ export function initCycleHistoryChamber() {
     openBtn.addEventListener('click', (event) => {
         cycleHistoryOpenedFromEntryCard = false;
         cycleHistoryFocusedBeforeOpen = event.currentTarget;
-        openCycleHistoryChamber();
+        openCycleHistoryChamber().catch((error) => console.warn('Failed to open Cycle History Chamber', error));
     });
     closeBtn.addEventListener('click', () => closeCycleHistoryChamber());
     modal.addEventListener('click', (event) => {

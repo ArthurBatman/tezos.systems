@@ -6,7 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { escapeHtml, formatNumber } from '../core/utils.js';
 import { fetchProtocolConstants, fetchStakingAPY, fetchWithDeadline, getExternalStakerApy } from '../core/api.js';
-import { fetchBakerLiquidityBakingVote } from './liquidity-baking.js';
+import { fetchBakerLiquidityBakingVote } from '../core/liquidity-baking-vote.js';
 import { classifyOctezVersion, fetchOctezVersions } from './network-health.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import {

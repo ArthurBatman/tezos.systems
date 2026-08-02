@@ -94,6 +94,7 @@ tezos.systems/
 │   ├── whale-watch.json               # Complete 24h whale/dormancy snapshot and receipts
 │   ├── maxis-contracts.json            # Reviewed app/entrypoint taxonomy
 │   ├── maxis-careers.json              # Exact all-history governance career records
+│   ├── baker-governance-signals.json    # Compact Baker Directory governance projection
 │   ├── maxis-l2-governance.json         # Exact all-history Etherlink governance careers
 │   ├── maxis-leaders.json              # Generated canonical lane-native-clock Maxis snapshot
 │   ├── tezoscrp-awards.json             # Full official human-identity recognition archive
@@ -127,6 +128,7 @@ tezos.systems/
 │   ├── refresh-governance-data.mjs    # Canonical governance refresh command
 │   ├── refresh-maxis-data.mjs         # Canonical Maxis and protocol-season artifacts
 │   ├── refresh-maxis-careers.mjs      # Canonical governance career history
+│   ├── generate-baker-governance-signals.mjs # Compact Baker Directory governance projection
 │   ├── refresh-maxis-l2-governance.mjs # Canonical Etherlink governance career history
 │   ├── refresh-nakamoto-sources.mjs   # Dated external Nakamoto source ledger
 │   ├── refresh-capital-data.mjs       # Public-source Capital snapshot generator/checker
@@ -1136,6 +1138,11 @@ summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
 `npm run refresh:maxis-careers` refreshes the separate exact all-history L1
 Governance career artifact; `npm run check:maxis-careers` validates its source
 receipts and content hash without a network scan.
+`npm run refresh:baker-governance-signals` derives the compact active-baker
+governance badge projection from that career ledger and the accepted-proposal
+history; `npm run check:baker-governance-signals` verifies its exact source
+receipts and byte budget without making the Baker Directory download either
+full source artifact.
 `npm run refresh:maxis-l2-governance` rebuilds the independent L2 career and
 all-time-active crown from official canonical period ledgers plus complete TzKT
 big-map receipts; `npm run check:maxis-l2-governance` validates its coverage,
@@ -1351,6 +1358,8 @@ npm run refresh:maxis
 npm run check:maxis
 npm run refresh:maxis-careers
 npm run check:maxis-careers
+npm run refresh:baker-governance-signals
+npm run check:baker-governance-signals
 npm run refresh:maxis-l2-governance
 npm run check:maxis-l2-governance
 npm run refresh:tezoscrp
@@ -1494,7 +1503,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v546`, including hero search, theme
+- Current aligned shell cache stamp: `v548`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, Uranium, Precious Metals, and Critical Minerals lazy CSS
   loaders.

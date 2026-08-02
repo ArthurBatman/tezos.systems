@@ -9,7 +9,8 @@ const checkArgs = process.argv.includes('--check') ? ['--check'] : [];
 const generators = [
   'scripts/generate-maxis-entry-summary.mjs',
   'scripts/generate-capital-entry-summary.mjs',
-  'scripts/generate-ecosystem-entry-summary.mjs'
+  'scripts/generate-ecosystem-entry-summary.mjs',
+  'scripts/generate-baker-governance-signals.mjs'
 ];
 
 for (const generator of generators) {

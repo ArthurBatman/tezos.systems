@@ -8,6 +8,7 @@
  */
 
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
+import { versionedAsset } from '../core/asset-version.js';
 import { escapeHtml, formatUtcDateTime } from '../core/utils.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import {
@@ -16,6 +17,7 @@ import {
     findChamberLauncher,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import {
     formatWhaleAmount,
     getWhaleAddressLabel,
@@ -39,7 +41,7 @@ import {
     requestAwakeningNotifications
 } from './sleeping-giants.js';
 
-const CSS_URL = '/css/whale-chamber.css?v=471';
+const CSS_URL = versionedAsset('/css/whale-chamber.min.css');
 const ARTIFACT_URL = '/data/whale-watch.json';
 const LIVE_REFRESH_MS = 20_000;
 const ARTIFACT_REFRESH_MS = 5 * 60_000;
@@ -63,7 +65,6 @@ let lastArtifact = null;
 let artifactError = '';
 let liveError = '';
 let artifactFetch = null;
-let cssReady = null;
 let refreshTimer = null;
 let refreshDeferred = false;
 let visibilityReady = false;
@@ -174,21 +175,7 @@ function receiptHref(hash, address = '') {
 }
 
 function ensureWhaleCss() {
-    const existing = document.getElementById('whale-chamber-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (cssReady) return cssReady;
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'whale-chamber-css';
-        link.rel = 'stylesheet';
-        link.href = CSS_URL;
-    }
-    cssReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return cssReady;
+    return ensureChamberStylesheet('whale-chamber-css', CSS_URL);
 }
 
 function validateArtifact(value) {
@@ -248,7 +235,7 @@ function validateArtifact(value) {
 async function fetchWhaleArtifact({ force = false } = {}) {
     if (!force && lastArtifact && Date.now() - lastArtifactRead < ARTIFACT_REFRESH_MS) return lastArtifact;
     if (artifactFetch) return artifactFetch;
-    artifactFetch = fetch(`${ARTIFACT_URL}?t=${Date.now()}`, { cache: 'no-store' })
+    artifactFetch = fetch(ARTIFACT_URL, { cache: 'no-cache' })
         .then((response) => {
             if (!response.ok) throw new Error(`Shared Whale Watch snapshot unavailable (${response.status})`);
             return response.json();
@@ -985,7 +972,7 @@ export function closeWhaleChamber({ preserveRoute = false } = {}) {
 }
 
 export function initWhaleChamber() {
-    ensureWhaleCss();
+    ensureWhaleCss().catch((error) => console.warn('Whale Watch styles unavailable', error));
     bindVisibilityRefresh();
     const card = ensureEntryCard();
     wireEntry(card);

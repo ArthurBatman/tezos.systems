@@ -809,8 +809,11 @@ async function checkRequiredFiles() {
     'css/tezoscrp.css',
     'js/core/app.js',
     'js/core/api.js',
+    'js/core/asset-version.js',
     'js/core/config.js',
-    'js/core/quiet-refresh.js',
+    'js/core/liquidity-baking-vote.js',
+  'js/core/quiet-refresh.js',
+  'js/core/snapshot-receipt.js',
     'js/core/pulse-history.mjs',
     'js/core/pulse-history-analysis.mjs',
     'js/core/personal-signal-relevance.mjs',
@@ -852,6 +855,7 @@ async function checkRequiredFiles() {
     'js/features/search.js',
     'js/landing/site-nav.js',
     'js/ui/wayfinder.js',
+    'js/ui/chamber-styles.js',
     'sw.js',
     'og-image.png',
     'stake/index.html',
@@ -912,6 +916,7 @@ async function checkRequiredFiles() {
     'scripts/generate-ecosystem-entry-summary.mjs',
     'scripts/lib/ecosystem-stats.mjs',
     'scripts/generate-maxis-entry-summary.mjs',
+    'scripts/generate-baker-governance-signals.mjs',
     'scripts/generate-launcher-projections.mjs',
     'scripts/refresh-whale-watch-data.mjs',
     'scripts/refresh-tezoscrp-awards.mjs',
@@ -951,6 +956,7 @@ async function checkRequiredFiles() {
     'data/search-catalog.json',
     'data/maxis-contracts.json',
     'data/maxis-careers.json',
+    'data/baker-governance-signals.json',
     'data/maxis-l2-governance.json',
     'data/maxis-leaders.json',
     'data/maxis/entry-summary.json',
@@ -970,9 +976,11 @@ async function checkRequiredFiles() {
     'tests/pulse-history-check.mjs',
     'tests/personal-signal-relevance-check.mjs',
     'tests/live-pulse-curio-check.mjs',
+    'tests/baker-governance-signals-check.mjs',
     'tests/uranium-check.mjs',
     'tests/metals-check.mjs',
     'tests/minerals-check.mjs',
+    'tests/service-worker-cache-check.mjs',
     'data/protocol-data.json',
     'data/protocol-debates.json',
     'data/tweets.json'
@@ -1600,6 +1608,7 @@ async function checkCacheBustAlignment() {
   const stakingChamber = await readText('js/features/staking-chamber.js');
   const networkHealth = await readText('js/features/network-health.js');
   const maxis = await readText('js/features/maxis.js');
+  const assetVersion = await readText('js/core/asset-version.js');
   const themePreload = await readText('js/core/theme-preload.js');
   const themeUi = await readText('js/ui/theme.js');
   const cssMatch = index.match(/css\/styles\.min\.css\?v=(\d+)/);
@@ -1610,17 +1619,20 @@ async function checkCacheBustAlignment() {
   const appScriptMatch = index.match(/<script[^>]+src=["']js\/core\/app\.js\?v=(\d+)["']/);
   const themePreloadScriptMatch = index.match(/js\/core\/theme-preload\.js\?v=(\d+)/);
   const cacheMatch = sw.match(/CACHE_NAME\s*=\s*['"]tezos-systems-v(\d+)['"]/);
-  const heroSearchCssMatch = heroSearch.match(/HERO_SEARCH_CSS_URL\s*=\s*['"]\/css\/hero-search\.css\?v=(\d+)['"]/);
-  const shellExtrasCssMatch = app.match(/SHELL_EXTRAS_CSS_URL\s*=\s*['"]\/css\/shell-extras\.css\?v=(\d+)['"]/);
-  const myTezosCssMatch = app.match(/MY_TEZOS_CSS_URL\s*=\s*['"]\/css\/my-tezos\.min\.css\?v=(\d+)['"]/);
-  const leaderboardCssMatch = leaderboard.match(/LEADERBOARD_CSS_URL\s*=\s*['"]\/css\/leaderboard\.css\?v=(\d+)['"]/);
-  const ledgerFlowCssMatch = ledgerFlow.match(/LEDGER_FLOW_CSS_URL\s*=\s*['"]\/css\/ledger-flow\.css\?v=(\d+)['"]/);
-  const networkPulseCssMatch = networkPulse.match(/NETWORK_PULSE_CSS_URL\s*=\s*['"]\/css\/network-pulse\.css\?v=(\d+)['"]/);
-  const stakingChamberCssMatch = stakingChamber.match(/STAKING_CSS_URL\s*=\s*['"]\/css\/staking-chamber\.css\?v=(\d+)['"]/);
-  const networkHealthCssMatch = networkHealth.match(/NETWORK_HEALTH_CSS_URL\s*=\s*['"]\/css\/network-health\.css\?v=(\d+)['"]/);
-  const maxisCssMatch = maxis.match(/MAXIS_CSS_URL\s*=\s*['"]\/css\/maxis\.css\?v=(\d+)['"]/);
+  const shellExtrasCssMatch = index.match(/css\/shell-extras\.min\.css\?v=(\d+)/);
+  const assetVersionMatch = assetVersion.match(/ASSET_VERSION\s*=\s*['"](\d+)['"]/);
   const themePreloadMatch = themePreload.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
   const themeUiMatch = themeUi.match(/THEME_CSS_VERSION\s*=\s*['"](\d+)['"]/);
+  const runtimeCssContracts = [
+    ['search.js hero-search.css', heroSearch, "versionedAsset('/css/hero-search.css')"],
+    ['app.js generated My Tezos CSS', app, "versionedAsset('/css/my-tezos.min.css')"],
+    ['leaderboard.js leaderboard CSS', leaderboard, "versionedAsset('/css/leaderboard.min.css')"],
+    ['ledger-flow.js Ledger Flow CSS', ledgerFlow, "versionedAsset('/css/ledger-flow.min.css')"],
+    ['network-pulse.js Network Pulse CSS', networkPulse, "versionedAsset('/css/network-pulse.min.css')"],
+    ['staking-chamber.js Staking CSS', stakingChamber, "versionedAsset('/css/staking-chamber.min.css')"],
+    ['network-health.js Network Health CSS', networkHealth, "versionedAsset('/css/network-health.min.css')"],
+    ['maxis.js Maxis CSS', maxis, "versionedAsset('/css/maxis.min.css')"]
+  ];
 
   if (!cssMatch) fail('index.html must serve css/styles.min.css with a ?v= cache stamp');
   if (!loadingCssLinkMatch) fail('index.html must serve css/loading.css with a ?v= cache stamp');
@@ -1630,15 +1642,11 @@ async function checkCacheBustAlignment() {
   if (!appScriptMatch) fail('index.html app module script must carry a ?v= cache stamp');
   if (!themePreloadScriptMatch) fail('index.html theme-preload.js script must carry a ?v= cache stamp');
   if (!cacheMatch) fail('sw.js CACHE_NAME must be tezos-systems-vNN');
-  if (!heroSearchCssMatch) fail('search.js hero-search.css loader must carry a ?v= cache stamp');
-  if (!shellExtrasCssMatch) fail('app.js shell-extras.css loader must carry a ?v= cache stamp');
-  if (!myTezosCssMatch) fail('app.js generated My Tezos CSS loader must carry a ?v= cache stamp');
-  if (!leaderboardCssMatch) fail('leaderboard.js leaderboard.css loader must carry a ?v= cache stamp');
-  if (!ledgerFlowCssMatch) fail('ledger-flow.js ledger-flow.css loader must carry a ?v= cache stamp');
-  if (!networkPulseCssMatch) fail('network-pulse.js network-pulse.css loader must carry a ?v= cache stamp');
-  if (!stakingChamberCssMatch) fail('staking-chamber.js staking-chamber.css loader must carry a ?v= cache stamp');
-  if (!networkHealthCssMatch) fail('network-health.js network-health.css loader must carry a ?v= cache stamp');
-  if (!maxisCssMatch) fail('maxis.js maxis.css loader must carry a ?v= cache stamp');
+  if (!shellExtrasCssMatch) fail('index.html must serve the render-blocking minified shell-extras bundle with a ?v= cache stamp');
+  if (!assetVersionMatch) fail('asset-version.js must expose the shared runtime ASSET_VERSION');
+  for (const [label, source, contract] of runtimeCssContracts) {
+    if (!source.includes(contract)) fail(`${label} loader must use the shared versionedAsset() cache stamp`);
+  }
   if (!themePreloadMatch) fail('theme-preload.js must expose THEME_CSS_VERSION');
   if (!themeUiMatch) fail('theme.js must expose THEME_CSS_VERSION');
 
@@ -1651,19 +1659,14 @@ async function checkCacheBustAlignment() {
     appScriptMatch?.[1],
     themePreloadScriptMatch?.[1],
     cacheMatch?.[1],
-    heroSearchCssMatch?.[1],
     shellExtrasCssMatch?.[1],
-    myTezosCssMatch?.[1],
-    leaderboardCssMatch?.[1],
-    ledgerFlowCssMatch?.[1],
-    networkPulseCssMatch?.[1],
-    stakingChamberCssMatch?.[1],
-    networkHealthCssMatch?.[1],
-    maxisCssMatch?.[1]
+    assetVersionMatch?.[1],
+    themePreloadMatch?.[1],
+    themeUiMatch?.[1]
   ].filter(Boolean);
   if (new Set(versions).size > 1) {
     fail(`cache stamps are out of sync: ${versions.join(', ')}`);
-  } else if (versions.length === 17) {
+  } else if (versions.length === 12) {
     pass(`cache stamps aligned at v${versions[0]}`);
   }
 
@@ -2958,9 +2961,9 @@ async function checkSelectorContracts() {
     ['Leaderboard native sort controls', 'class="lb-sort-btn"', leaderboard],
     ['Leaderboard column sort state', 'aria-sort="${direction}"', leaderboard],
     ['Leaderboard explicit baker action', 'class="lb-baker-open"', leaderboard],
-    ['Leaderboard exact governance career source', "GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard'", leaderboard],
-    ['Leaderboard accepted proposal source', "GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard'", leaderboard],
-    ['Leaderboard accepted proposal initiator attribution', 'proposal?.initiator?.address', leaderboard],
+    ['Leaderboard compact governance signal source', "GOVERNANCE_SIGNALS_URL = '/data/baker-governance-signals.json'", leaderboard],
+    ['Leaderboard governance signal integrity receipt', 'failed its SHA-256 integrity receipt', leaderboard],
+    ['Leaderboard accepted proposal projection', 'record.acceptedProposals.map', leaderboard],
     ['Leaderboard completed ballot streak signal', 'currentBallotPeriodStreak', leaderboard],
     ['Leaderboard multi-signal badge rail', 'class="lb-badge-rail"', leaderboard],
     ['Leaderboard progressive signal legend', '.leaderboard-signal-legend', leaderboardCss],
@@ -2976,6 +2979,35 @@ async function checkSelectorContracts() {
   for (const [label, snippet, text] of deepLinkContracts) {
     if (!text.includes(snippet)) fail(`missing deep-link contract: ${label}`);
   }
+
+  const chamberPollingContracts = [
+    ['Liquidity Baking bounded incremental page', 'const LB_INCREMENTAL_BLOCK_LIMIT = 32', lb],
+    ['Liquidity Baking overlap depth', 'const LB_INCREMENTAL_OVERLAP_LEVELS = 4', lb],
+    ['Liquidity Baking block hash receipt', "select: 'level,hash,timestamp,producer,lbToggle,lbToggleEma'", lb],
+    ['Liquidity Baking incremental level filter', "params.set('level.ge'", lb],
+    ['Liquidity Baking deduplicated ring merge', 'function mergeBlockWindow(', lb],
+    ['Liquidity Baking continuity catch-up', 'return fetchCanonicalBlockWindow();', lb],
+    ['Liquidity Baking visible-tab catch-up', 'handleLiquidityBakingVisibilityChange', lb],
+    ['tz4 explicit operation page size', 'const CONSENSUS_OPERATION_PAGE_SIZE = 1000', tz4],
+    ['tz4 safe overlap depth', 'const CONSENSUS_UPDATE_OVERLAP_LEVELS = 64', tz4],
+    ['tz4 explicit operation offset', 'offset: String(offset)', tz4],
+    ['tz4 incremental level filter', "params.set('level.ge'", tz4],
+    ['tz4 operation receipt deduplication', 'function consensusOperationIdentity(', tz4],
+    ['tz4 ten-minute baker snapshot cache', 'const BAKER_CACHE_TTL = 10 * 60 * 1000', tz4],
+    ['tz4 launcher-room request coalescing', 'let _tz4FetchPromise = null', tz4],
+    ['tz4 truthful paged-history coverage', "mode: 'complete-paged'", tz4],
+    ['tz4 visible-tab catch-up', 'handleTz4VisibilityChange', tz4],
+    ['Liquidity Baking static launcher shell', 'data-chamber-entry-id="liquidity-baking"', index],
+    ['Liquidity Baking dynamic module registry', "modulePath: '../features/liquidity-baking.js'", app],
+    ['tz4 dynamic module registry', "modulePath: '../features/tz4-adoption.js'", app]
+  ];
+  for (const [label, snippet, text] of chamberPollingContracts) {
+    if (!text.includes(snippet)) fail(`missing Chamber polling contract: ${label}`);
+  }
+  if (/^import\s+\{[^\n]*(?:initLiquidityBaking|initTz4AdoptionChamber)[^\n]*\}\s+from/m.test(app)) {
+    fail('Liquidity Baking and tz4 launchers must not regain eager static imports');
+  }
+  pass(`Liquidity Baking and tz4 lazy polling contracts checked: ${chamberPollingContracts.length}`);
 
   const uptimeMilestoneClickStart = app.indexOf("topContinuityHistory.addEventListener('click'");
   const uptimeMilestoneLinkStart = app.indexOf("topContinuityMilestoneLink?.addEventListener('click'", uptimeMilestoneClickStart);
@@ -3035,8 +3067,9 @@ async function checkSelectorContracts() {
   }
   if (!leaderboard.includes('const OG_LAST_YEAR = 2018;')
       || !leaderboard.includes('const VETERAN_LAST_YEAR = 2021;')
-      || !leaderboard.includes("proposal?.status !== 'accepted'")) {
-    fail('Baker Leaderboard badge cutoffs or accepted-proposal final-status gate have drifted');
+      || !leaderboard.includes("artifact?.kind !== 'baker-governance-signals'")
+      || !leaderboard.includes('acceptedProposalCount !== Number(artifact.acceptedProposalCount)')) {
+    fail('Baker Leaderboard badge cutoffs or compact governance receipt validation have drifted');
   }
   if (leaderboard.includes('computeBakerScores') || leaderboard.includes("value: 'reliability'") || leaderboard.includes('grade ${')) {
     fail('Delegator fit must not present synthetic participation defaults as reliability or performance grades');
@@ -3290,7 +3323,7 @@ async function checkSelectorContracts() {
     ['Chamber rich share capture helper', 'async function captureChamberCard(card)', share],
     ['Chamber rich share clones visible panel', 'cloneChamberPanel(card)', share],
     ['Chamber rich share html2canvas color sanitizer', 'sanitizeCaptureModernColorStyles(panelClone', share],
-    ['Chamber rich share canonical route helper import', "import { siteMapCanonicalRoute } from '../core/site-map.js';", share],
+    ['Chamber rich share canonical route helper imports', "import { findSiteMapDestination, siteMapCanonicalRoute } from '../core/site-map.js';", share],
     ['Chamber rich share canonical route resolver', "siteMapCanonicalRoute(hash || '#chambers')", share],
     ['Chamber rich share panel label', 'Visible Chamber Panel', share],
     ['Chamber generated info helper', 'function ensureChamberInfoButton(card)', app],
@@ -3933,7 +3966,8 @@ async function checkInitialLoadMeasurementContracts() {
     'totalBlockingTimeMs',
     'serviceWorkerResponseCount',
     'readiness',
-    'launcherResources',
+    'deferredChamberResources',
+    'deferredChamberStylePaths',
     'forbiddenHeavyResources',
     "page.on('pageerror'",
     'decodedBytesWithinFivePct',
@@ -3971,6 +4005,186 @@ async function checkInitialLoadMeasurementContracts() {
   pass(`initial-load measurement harness and ${baseline.measuredAt.slice(0, 10)} baseline checked`);
 }
 
+async function checkChamberEfficiencyContracts() {
+  const app = await readText('js/core/app.js');
+  const index = await readText('index.html');
+  const chamberStyles = await readText('js/ui/chamber-styles.js');
+  const dataAssets = await readText('js/core/data-assets.js');
+  const dailyBriefing = await readText('js/features/daily-briefing.js');
+  const maxis = await readText('js/features/maxis.js');
+  const smoke = await readText('tests/smoke.mjs');
+  const sw = await readText('sw.js');
+  const lazyModules = [
+    'network-pulse.js', 'tezlink.js', 'capital-chamber.js', 'minerals-chamber.js',
+    'uranium-chamber.js', 'metals-chamber.js', 'whale-chamber.js', 'staking-chamber.js',
+    'ecosystem-chamber.js', 'tz4-adoption.js', 'chamber.js', 'etherlink-governance.js',
+    'liquidity-baking.js', 'leaderboard.js', 'ledger-flow.js', 'tezos-domains.js', 'maxis.js',
+    'tezoscrp.js', 'ctez.js'
+  ];
+  for (const moduleName of lazyModules) {
+    const modulePath = `../features/${moduleName}`;
+    if (!app.includes(`modulePath: '${modulePath}'`)) {
+      fail(`lazy Chamber registry is missing ${modulePath}`);
+    }
+    if (new RegExp(`^import\\s+[\\s\\S]*?from\\s+['"]\\.\\./features/${moduleName.replace('.', '\\.') }['"];?`, 'm').test(app)) {
+      fail(`app.js must not statically import lazy Chamber module ${moduleName}`);
+    }
+    if (index.includes(`modulepreload\" href=\"/js/features/${moduleName}`)
+      || index.includes(`modulepreload\" href=\"js/features/${moduleName}`)) {
+      fail(`index.html must not eagerly modulepreload ${moduleName}`);
+    }
+  }
+  for (const statefulModule of ['leaderboard.js', 'whale-chamber.js']) {
+    if (smoke.includes(`import('/js/features/${statefulModule}')`)) {
+      fail(`browser smoke probes must import the loaded stamped ${statefulModule} URL instead of creating a second module instance`);
+    }
+  }
+  for (const snippet of [
+    'const _chamberModuleAttempts = new Map()',
+    '_chamberModulePromises.delete(entryId)',
+    'versionedAsset(new URL(config.modulePath, import.meta.url).pathname)',
+    '&chamber-retry=${attempt}',
+    '_chamberModuleAttempts.set(entryId, attempt + 1)',
+    'let _chamberOpenEpoch = 0',
+    'const openEpoch = _chamberOpenEpoch',
+    'if (openEpoch !== _chamberOpenEpoch)',
+    '_chamberOpenEpoch += 1',
+    'isChamberOpenCancelled(error)',
+    "hydrated?.querySelector?.('.chamber-expand-cue')",
+    'focusTarget?.focus?.({ preventScroll: true })',
+    'closeLoadedChamberFeatures()',
+    "init: 'initCtezChamber'",
+    'exclusiveLaunchers: true',
+    'closeFeatureMenu: true',
+    "'tezoscrp-modal': { entryIds: ['tezoscrp'], hashes: ['tezoscrp'] }"
+  ]) {
+    if (!app.includes(snippet)) fail(`lazy Chamber runtime is missing contract: ${snippet}`);
+  }
+
+  const focusHydrationStart = app.indexOf('function initStaticChamberEntry(entryId, initializer)');
+  const moduleLoadStart = app.indexOf('function loadChamberFeature(entryId', focusHydrationStart);
+  const moduleLoadEnd = app.indexOf('\nfunction callLoadedChamberFeature(', moduleLoadStart);
+  const focusHydrationSource = app.slice(focusHydrationStart, moduleLoadStart);
+  const moduleLoadSource = app.slice(moduleLoadStart, moduleLoadEnd);
+  if (focusHydrationStart < 0
+    || moduleLoadStart < 0
+    || !focusHydrationSource.includes('document.activeElement === placeholder || placeholder.contains(document.activeElement)')
+    || !focusHydrationSource.includes("hydrated?.querySelector?.('.chamber-expand-cue')")
+    || !focusHydrationSource.includes('focusTarget?.focus?.({ preventScroll: true })')) {
+    fail('focused static Chamber shells must transfer focus into the hydrated launcher without scrolling');
+  }
+  if (moduleLoadEnd < 0
+    || !moduleLoadSource.includes('.catch((error) => {\n            _chamberModulePromises.delete(entryId);')
+    || !moduleLoadSource.includes('_chamberModuleAttempts.set(entryId, attempt + 1);\n            throw error;')) {
+    fail('failed lazy Chamber imports must evict their rejected promise and advance the cache-busting retry attempt');
+  }
+  for (const snippet of [
+    'focusAfter.activeTagName === \'BUTTON\'',
+    'focusAfter.activeTabIndex === 0',
+    "await page.keyboard.press('Enter')",
+    "const firstModuleFailureSettled = retryPage.waitForEvent('console'",
+    "retryUrl.searchParams.get('chamber-retry') === '1'"
+  ]) {
+    if (!smoke.includes(snippet)) fail(`lazy Chamber focused browser regression is missing contract: ${snippet}`);
+  }
+
+  for (const snippet of [
+    'const stylesheetPromises = new Map()',
+    'if (existing?.sheet) return Promise.resolve(existing)',
+    "link.addEventListener('load'",
+    "link.addEventListener('error'",
+    'stylesheetPromises.delete(id)',
+    'link.remove()'
+  ]) {
+    if (!chamberStyles.includes(snippet)) fail(`shared Chamber stylesheet loader is missing contract: ${snippet}`);
+  }
+  const styleGatedModules = [
+    ['capital-chamber.js', 'await ensureCapitalCss()'],
+    ['ecosystem-chamber.js', 'await ensureEcosystemCss()'],
+    ['history.js', 'await ensureCycleHistoryStyles()'],
+    ['leaderboard.js', 'await ensureLeaderboardStyles()'],
+    ['ledger-flow.js', 'await ensureLedgerFlowStyles()'],
+    ['maxis.js', 'await ensureMaxisStyles()'],
+    ['metals-chamber.js', 'await ensureMetalsCss()'],
+    ['minerals-chamber.js', 'await ensureMineralsCss()'],
+    ['network-health.js', 'await ensureNetworkHealthCss()'],
+    ['network-pulse.js', 'await ensureNetworkPulseCss()'],
+    ['staking-chamber.js', 'await ensureStakingStyles()'],
+    ['tezos-domains.js', 'await ensureTezosDomainsStyles()'],
+    ['tezoscrp.js', 'await ensureStyles()'],
+    ['uranium-chamber.js', 'await ensureUraniumCss()'],
+    ['whale-chamber.js', 'await ensureWhaleCss()']
+  ];
+  for (const [moduleName, awaitContract] of styleGatedModules) {
+    const source = await readText(`js/features/${moduleName}`);
+    if (!source.includes("from '../ui/chamber-styles.js'")) {
+      fail(`${moduleName} must use the shared Chamber stylesheet loader`);
+    }
+    if (!source.includes(awaitContract)) {
+      fail(`${moduleName} must await its stylesheet before activating the room`);
+    }
+  }
+
+  const freshnessModules = [
+    ['capital-chamber.js', 'syncCapitalFreshness'],
+    ['ecosystem-chamber.js', 'syncEcosystemFreshness'],
+    ['minerals-chamber.js', 'syncMineralsFreshness'],
+    ['metals-chamber.js', 'syncMetalsFreshness'],
+    ['uranium-chamber.js', 'syncUraniumFreshness']
+  ];
+  for (const [moduleName, helper] of freshnessModules) {
+    const source = await readText(`js/features/${moduleName}`);
+    if (!source.includes(`function ${helper}(`) || !source.includes(`${helper}(`)) {
+      fail(`${moduleName} must reconcile freshness when an unchanged summary hash crosses its stale threshold`);
+    }
+  }
+
+  for (const snippet of [
+    'const DATA_ASSET_CACHE_MODES',
+    "protocolData: 'default'",
+    "governanceVotes: 'no-cache'",
+    "force ? 'reload'",
+    'DATA_ASSET_CACHE_MODES[name]'
+  ]) {
+    if (!dataAssets.includes(snippet)) fail(`data asset cache policy is missing contract: ${snippet}`);
+  }
+  for (const dataPath of [
+    '/data/capital-entry-summary.json', '/data/capital-snapshot.json',
+    '/data/ecosystem-entry-summary.json', '/data/ecosystem-stats.json',
+    '/data/minerals-entry-summary.json', '/data/minerals-snapshot.json',
+    '/data/metals-entry-summary.json', '/data/metals-snapshot.json',
+    '/data/uranium-entry-summary.json', '/data/uranium-snapshot.json',
+    '/data/baker-governance-signals.json'
+  ]) {
+    if (!sw.includes(`'${dataPath}'`)) fail(`service worker network-only data inventory is missing ${dataPath}`);
+  }
+  if (!sw.includes('isNetworkOnlyDataPath(url.pathname)')) {
+    fail('service worker must route generated mutable receipts through the network-only predicate');
+  }
+  if (!sw.includes('event.respondWith(generatedDataNetworkFirst(request, event))')
+    || !sw.includes("fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-cache' })")) {
+    fail('service worker generated receipts must conditionally revalidate without a Cache Storage fallback');
+  }
+  if (!sw.includes('event.respondWith(apiNetworkFirst(request, event))')
+    || !sw.includes("fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-store' })")) {
+    fail('service worker live API reads must remain network-only and bypass browser caching');
+  }
+  if (!sw.includes('self.navigator?.onLine === false') || !sw.includes('unavailableDataResponse()')) {
+    fail('service worker network-only generated receipts must fail closed while the browser is explicitly offline');
+  }
+  if (!dailyBriefing.includes("fetch(MILESTONE_CATALOG_URL, { cache: 'no-cache'")) {
+    fail('the mutable milestone catalog must conditionally revalidate instead of opting out of HTTP caching');
+  }
+  if (!maxis.includes("const response = await fetch(url, { cache: 'default', headers: { Accept: 'application/json' } });")) {
+    fail('immutable, hash-verified Maxis Passport shards must use normal HTTP caching');
+  }
+  if (sw.includes('/passports\\/[0-9a-f]{2}\\.json$/.test(pathname)')) {
+    fail('immutable Maxis Passport shards must not use the service worker network-only data branch');
+  }
+
+  pass(`lazy Chamber registry, stylesheet readiness, freshness reconciliation, and cache policy checked across ${lazyModules.length} deferred modules`);
+}
+
 async function checkLauncherProjectionContracts() {
   const [
     capitalProjectionText,
@@ -3978,9 +4192,13 @@ async function checkLauncherProjectionContracts() {
     ecosystemProjectionText,
     ecosystemSourceText,
     maxisProjectionText,
+    bakerSignalsProjectionText,
+    bakerCareersSourceText,
+    governanceVotesSourceText,
     capitalGenerator,
     ecosystemGenerator,
     maxisGenerator,
+    bakerSignalsGenerator,
     aggregateGenerator,
     capitalFeature,
     ecosystemFeature,
@@ -3997,9 +4215,13 @@ async function checkLauncherProjectionContracts() {
     readText('data/ecosystem-entry-summary.json'),
     readText('data/ecosystem-stats.json'),
     readText('data/maxis/entry-summary.json'),
+    readText('data/baker-governance-signals.json'),
+    readText('data/maxis-careers.json'),
+    readText('data/governance-votes.json'),
     readText('scripts/generate-capital-entry-summary.mjs'),
     readText('scripts/generate-ecosystem-entry-summary.mjs'),
     readText('scripts/generate-maxis-entry-summary.mjs'),
+    readText('scripts/generate-baker-governance-signals.mjs'),
     readText('scripts/generate-launcher-projections.mjs'),
     readText('js/features/capital-chamber.js'),
     readText('js/features/ecosystem-chamber.js'),
@@ -4016,6 +4238,7 @@ async function checkLauncherProjectionContracts() {
   const ecosystemProjection = JSON.parse(ecosystemProjectionText);
   const ecosystemSource = JSON.parse(ecosystemSourceText);
   const maxisProjection = JSON.parse(maxisProjectionText);
+  const bakerSignalsProjection = JSON.parse(bakerSignalsProjectionText);
   const packageJson = JSON.parse(packageText);
 
   if (Buffer.byteLength(capitalProjectionText) > 16 * 1024) {
@@ -4071,22 +4294,47 @@ async function checkLauncherProjectionContracts() {
     }
   }
 
+  const { integrity: bakerSignalsIntegrity, ...bakerSignalsUnsigned } = bakerSignalsProjection;
+  if (Buffer.byteLength(bakerSignalsProjectionText) > 96 * 1024
+    || bakerSignalsProjection.schema !== 1
+    || bakerSignalsProjection.kind !== 'baker-governance-signals'
+    || bakerSignalsProjection.coverage?.status !== 'complete'
+    || bakerSignalsProjection.coverage?.mode !== 'source-active-delegate-governance-signal-projection'
+    || bakerSignalsProjection.recordCount !== Object.keys(bakerSignalsProjection.records || {}).length
+    || bakerSignalsIntegrity?.algorithm !== 'sha256-stable-json-v1'
+    || bakerSignalsIntegrity?.contentHash !== stableJsonHash(bakerSignalsUnsigned)
+    || bakerSignalsProjection.sources?.careers?.path !== 'data/maxis-careers.json'
+    || bakerSignalsProjection.sources?.careers?.fileSha256 !== createHash('sha256').update(bakerCareersSourceText).digest('hex')
+    || bakerSignalsProjection.sources?.governanceVotes?.path !== 'data/governance-votes.json'
+    || bakerSignalsProjection.sources?.governanceVotes?.fileSha256 !== createHash('sha256').update(governanceVotesSourceText).digest('hex')) {
+    fail('Baker governance signal projection must remain compact, complete, integrity-checked, and tied to both exact source files');
+  }
+
   if (packageJson.scripts?.['refresh:launcher-projections'] !== 'node scripts/generate-launcher-projections.mjs'
     || packageJson.scripts?.['check:launcher-projections'] !== 'node scripts/generate-launcher-projections.mjs --check'
+    || packageJson.scripts?.['test:baker-governance-signals'] !== 'node tests/baker-governance-signals-check.mjs'
+    || !packageJson.scripts?.['test:static']?.includes('node tests/baker-governance-signals-check.mjs')
     || !aggregateGenerator.includes('generate-capital-entry-summary.mjs')
     || !aggregateGenerator.includes('generate-ecosystem-entry-summary.mjs')
-    || !aggregateGenerator.includes('generate-maxis-entry-summary.mjs')) {
+    || !aggregateGenerator.includes('generate-maxis-entry-summary.mjs')
+    || !aggregateGenerator.includes('generate-baker-governance-signals.mjs')) {
     fail('package scripts must expose one deterministic launcher-projection refresh and check path');
   }
   const projectionCheckIndex = orchestrator.indexOf("nodeScript('scripts/generate-launcher-projections.mjs', ['--check'])");
+  const bakerSignalsPrecommitIndex = orchestrator.indexOf("nodeScript('scripts/generate-baker-governance-signals.mjs')");
   const projectionPrecommitStageIndex = orchestrator.indexOf('if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS)', projectionCheckIndex);
   const whaleCheckIndex = orchestrator.indexOf("nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check'])", projectionCheckIndex);
   if (!capitalGenerator.includes('MAX_OUTPUT_BYTES = 16 * 1024')
     || !ecosystemGenerator.includes('MAX_OUTPUT_BYTES = 16 * 1024')
     || !maxisGenerator.includes('MAX_OUTPUT_BYTES = 24 * 1024')
+    || !bakerSignalsGenerator.includes('MAX_OUTPUT_BYTES = 96 * 1024')
+    || !bakerSignalsGenerator.includes("proposal?.status !== 'accepted'")
+    || !bakerSignalsGenerator.includes('proposal.initiator.address')
     || !maxisGenerator.includes("integrity: {\n      algorithm: 'sha256-stable-json-v1'")
-    || !orchestrator.includes("const LAUNCHER_PROJECTION_TARGETS = ['data/maxis/entry-summary.json', 'data/capital-entry-summary.json', 'data/ecosystem-entry-summary.json']")
+    || !orchestrator.includes("'data/baker-governance-signals.json'")
     || projectionCheckIndex < 0
+    || bakerSignalsPrecommitIndex < 0
+    || bakerSignalsPrecommitIndex > projectionCheckIndex
     || projectionPrecommitStageIndex < projectionCheckIndex
     || projectionPrecommitStageIndex > whaleCheckIndex
     || !orchestrator.includes("nodeScript('scripts/generate-launcher-projections.mjs')")
@@ -4097,6 +4345,7 @@ async function checkLauncherProjectionContracts() {
     'generate-capital-entry-summary',
     'generate-ecosystem-entry-summary',
     'generate-maxis-entry-summary',
+    'generate-baker-governance-signals',
     'generate-launcher-projections',
     'generate-llms-txt',
     'measure-initial-load',
@@ -4109,27 +4358,30 @@ async function checkLauncherProjectionContracts() {
 
   for (const [label, feature, snippets] of [
     ['Capital', capitalFeature, [
+      "import { sha256Text } from '../core/sha256.js'",
       "const CAPITAL_ENTRY_SUMMARY_URL = '/data/capital-entry-summary.json'",
       'fetchCapitalEntrySummary',
       'fetchCapitalSnapshot',
       'priceFreshnessLabel',
       'GENERATED_PROOFBOOK_SCHEDULE_LABEL',
       'Capital snapshot failed its SHA-256 integrity receipt',
-      'Capital snapshot is older than the launcher projection source receipt',
-      'in-memory launcher projection instead of leaving the Chamber pinned'
+      'const sourceReceipt = summary?.source || null',
+      'assertSnapshotMatchesProjection(snapshot, sourceText, sourceReceipt'
     ]],
     ['Ecosystem', ecosystemFeature, [
+      "import { sha256Text } from '../core/sha256.js'",
       "const ECOSYSTEM_ENTRY_SUMMARY_URL = '/data/ecosystem-entry-summary.json'",
       'fetchEntrySummary',
       'fetchSnapshot',
       'Ecosystem snapshot failed its SHA-256 integrity receipt',
-      'Ecosystem snapshot does not match the launcher projection source receipt',
-      'lastEntrySummary = null'
+      'const sourceReceipt = summary?.source || null',
+      'assertSnapshotMatchesProjection(value, text, sourceReceipt'
     ]],
     ['Maxis', maxisFeature, [
+      "import { sha256Text } from '../core/sha256.js'",
       "const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json'",
       'loadEntrySummaryProjection',
-      'progressiveEntryLoad',
+      'The compact Maxis launcher receipt is temporarily unavailable.',
       'entryHydrationSerial',
       'failed its SHA-256 integrity receipt',
       'missing a canonical identity',
@@ -4139,6 +4391,13 @@ async function checkLauncherProjectionContracts() {
     for (const snippet of snippets) {
       if (!feature.includes(snippet)) fail(`${label} launcher projection contract is missing: ${snippet}`);
     }
+    if (/async function sha256Text\s*\(/.test(feature)
+      || /(?:SHA-256 verification|Web Crypto) is unavailable/.test(feature)) {
+      fail(`${label} receipt verification must retain the shared deterministic fallback on plain-HTTP LAN origins`);
+    }
+  }
+  if (maxisFeature.includes('progressiveEntryLoad')) {
+    fail('Maxis launcher projection failures must fail closed instead of loading full room artifacts');
   }
   for (const snippet of [
     "name: 'launcher-projections'",
@@ -4148,27 +4407,34 @@ async function checkLauncherProjectionContracts() {
     'full Capital data loaded before its Chamber opened',
     'full Ecosystem data loaded before its Chamber opened',
     'full Maxis data loaded before its Chamber opened',
-    'projection failure did not fall back',
+    'plain-HTTP launcher receipt fixture did not disable SubtleCrypto',
+    'projection failure loaded full data before explicit room intent',
     'delayed Maxis projection overwrote full launcher data'
   ]) {
     if (!smoke.includes(snippet)) fail(`launcher-projection browser regression contract is missing: ${snippet}`);
   }
   if (!leaderboardFeature.includes('refreshBakerDirectoryChamber({ quiet: false, includeGovernance: false })')
     || !leaderboardFeature.includes('if (includeGovernance) requests.push(fetchGovernanceSignals())')
+    || !leaderboardFeature.includes("GOVERNANCE_SIGNALS_URL = '/data/baker-governance-signals.json'")
     || !measurement.includes("'/data/ecosystem-entry-summary.json'")
     || !measurement.includes("'/data/ecosystem-stats.json'")
+    || !measurement.includes("'/data/baker-governance-signals.json'")
     || !measurement.includes("'/data/maxis-careers.json'")
+    || !smoke.includes('bakerGovernanceHeavyRequests === 0')
     || !smoke.includes("!hasPath('/data/maxis-careers.json')")
     || !smoke.includes("hasPath('/data/maxis-careers.json')")) {
-    fail('initial-load QA must defer the Baker Directory Maxis career ledger until an explicit room open');
+    fail('initial-load QA must defer the Baker Directory compact signal receipt and full Maxis career ledger until explicit room intent');
   }
 
   const sourceBytes = Buffer.byteLength(capitalSourceText)
     + Buffer.byteLength(ecosystemSourceText)
+    + Buffer.byteLength(bakerCareersSourceText)
+    + Buffer.byteLength(governanceVotesSourceText)
     + Object.values(maxisProjection.sourceReceipts || {}).reduce((total, receipt) => total + Number(receipt?.bytes || 0), 0);
   const projectionBytes = Buffer.byteLength(capitalProjectionText)
     + Buffer.byteLength(ecosystemProjectionText)
-    + Buffer.byteLength(maxisProjectionText);
+    + Buffer.byteLength(maxisProjectionText)
+    + Buffer.byteLength(bakerSignalsProjectionText);
   pass(`launcher projections retain exact source receipts within ${projectionBytes} bytes versus ${sourceBytes} reviewed source bytes`);
 }
 
@@ -4724,6 +4990,39 @@ async function checkStylesheetFreshness() {
     pass(`lazy theme CSS bundles checked: ${themeFiles.length}`);
   }
 
+  const lazySurfaceSources = [
+    'capital.css', 'ecosystem.css', 'history-chamber.css', 'leaderboard.css', 'ledger-flow.css',
+    'maxis.css', 'metals-chamber.css', 'minerals-chamber.css', 'network-health.css',
+    'network-pulse.css', 'staking-chamber.css', 'tezos-domains.css', 'tezoscrp.css',
+    'uranium-chamber.css', 'whale-chamber.css'
+  ];
+  const myTezosMinStat = await statOrNull('css/my-tezos.min.css');
+  if (!myTezosMinStat) {
+    fail('missing generated stylesheet: css/my-tezos.min.css');
+  } else if (source.mtimeMs > myTezosMinStat.mtimeMs + 1000) {
+    warn('css/my-tezos.min.css is older than css/styles.css; run npm run build:css');
+  }
+  for (const sourceName of ['shell-extras.css', ...lazySurfaceSources]) {
+    const sourcePath = `css/${sourceName}`;
+    const minPath = `css/${sourceName.replace(/\.css$/, '.min.css')}`;
+    const sourceStat = await statOrNull(sourcePath);
+    const minStat = await statOrNull(minPath);
+    if (!sourceStat || !minStat) {
+      fail(`missing generated stylesheet pair: ${sourcePath} -> ${minPath}`);
+    } else if (sourceStat.mtimeMs > minStat.mtimeMs + 1000) {
+      warn(`${minPath} is older than ${sourcePath}; run npm run build:css`);
+    }
+  }
+  const generatedSurfaces = await readText('scripts/refresh-generated-surfaces.mjs');
+  if (!generatedSurfaces.includes('const CSS_SOURCE_PATTERNS = [')
+    || !generatedSurfaces.includes("'css/my-tezos.min.css'")
+    || !generatedSurfaces.includes("'css/shell-extras.min.css'")
+    || !generatedSurfaces.includes('...LAZY_SURFACE_STYLES.map')
+    || !generatedSurfaces.includes('stageTargets(CSS_TARGETS)')) {
+    fail('pre-commit generated-surface orchestration must rebuild and stage every served minified stylesheet');
+  }
+  pass(`lazy surface CSS bundles and pre-commit coverage checked: ${lazySurfaceSources.length}`);
+
   const sourceCss = await readText('css/styles.css');
   const henCss = await readText('css/hen-mode.css');
   const parseVariables = (block = '') => Object.fromEntries(
@@ -5109,13 +5408,16 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs',
+    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
     'test:smoke:strict': 'node tests/smoke.mjs --strict-external',
     'test:smoke:live': 'node tests/smoke.mjs --base-url https://tezos.systems',
-    'test:ledger-flow': 'node tests/ledger-flow-check.mjs'
+    'test:ledger-flow': 'node tests/ledger-flow-check.mjs',
+    'test:baker-governance-signals': 'node tests/baker-governance-signals-check.mjs',
+    'test:chamber-polling': 'node tests/chamber-polling-check.mjs',
+    'test:service-worker-cache': 'node tests/service-worker-cache-check.mjs'
   };
 
   for (const [name, command] of Object.entries(expectedScripts)) {
@@ -7320,7 +7622,7 @@ async function checkMaxisContracts() {
     ['maxis compact transaction top-ten adapter', 'record?.topTenGap', maxis],
     ['maxis compact Unicorn progress adapter', 'profile?.unicornProgress?.breadth', maxis],
     ['maxis compact transaction near-miss adapter', 'function profileNearMisses', maxis],
-    ['maxis Passport SHA-256 shard routing', "crypto.subtle.digest('SHA-256'", maxis],
+    ['maxis Passport SHA-256 shard routing', 'const digestHex = await sha256Text(address.trim())', maxis],
     ['maxis Passport in-flight shard deduplication', 'shardRequestCache.has(key)', maxis],
     ['maxis Passport explicit-address form', 'data-maxis-passport-form', maxis],
     ['maxis Passport Tezos Domains resolver import', 'resolveTezDomainAddress', maxis],
@@ -7490,6 +7792,8 @@ async function checkTezosCrpContracts() {
     ['site-map archive intent', "view=archive", siteMap],
     ['pretty route metadata', "slug: 'tezoscrp'", routes],
     ['generated data target', "'data/tezoscrp-summary.json'", generatedSurfaces],
+    ['central summary version stamp', "versionedAsset('/data/tezoscrp-summary.json')", feature],
+    ['central archive version stamp', "versionedAsset('/data/tezoscrp-awards.json')", feature],
     ['twice-monthly schedule', '10,25 * *', workflow],
     ['refresh command', 'refresh:tezoscrp', JSON.stringify(packageJson.scripts)],
     ['check command', 'check:tezoscrp', JSON.stringify(packageJson.scripts)]
@@ -7891,7 +8195,7 @@ async function checkMetalsIntegrationContracts() {
   for (const dataPath of ['/data/metals-entry-summary.json', '/data/metals-snapshot.json']) {
     if (!sw.includes(`'${dataPath}'`)) fail(`service worker network-only data inventory is missing ${dataPath}`);
   }
-  if (!sw.includes('NETWORK_ONLY_DATA_PATHS.has(url.pathname)')) {
+  if (!sw.includes('isNetworkOnlyDataPath(url.pathname)')) {
     fail('Precious Metals generated receipts must use the service worker network-only data branch');
   }
 
@@ -8151,7 +8455,9 @@ async function checkCapitalContracts() {
   for (const selector of ['.capital-entry-card', '.capital-entry-price-chart', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-range-wrap', '.capital-range-static', '.capital-cost-section', '.capital-market-price-panel', '.capital-featured-price-chart', '.capital-quality', '.capital-source-receipt']) {
     if (!css.includes(selector)) fail(`Capital Chamber CSS is missing ${selector}`);
   }
-  if (!smoke.includes("name: 'capital-chamber'") || !smoke.includes('window.__CAPITAL_CHAMBER_REFRESH_MS__ = 1000')) {
+  if (!smoke.includes("name: 'capital-chamber'")
+      || !smoke.includes('window.__CAPITAL_CHAMBER_REFRESH_MS__')
+      || !smoke.includes('window.__capitalSmokeTimerTick')) {
     fail('smoke catalog must include the focused Capital Chamber quiet-refresh suite');
   }
 
@@ -8387,7 +8693,9 @@ async function checkEcosystemActivityContracts() {
     fail('Ecosystem mobile shell must suppress entrance geometry and let the header scroll with the room');
   }
   if (!smoke.includes("name: 'ecosystem-activity'")
-    || !smoke.includes('window.__ECOSYSTEM_CHAMBER_REFRESH_MS__ = 1000')) {
+    || !smoke.includes('window.__ECOSYSTEM_CHAMBER_REFRESH_MS__')
+    || !smoke.includes('window.__ecosystemSmokeTimerTick')
+    || !smoke.includes("window.__ecosystemSmokeVisibility = 'hidden'")) {
     fail('smoke catalog must include the focused Ecosystem Activity quiet-refresh suite');
   }
 
@@ -8732,9 +9040,9 @@ async function checkPromotedChamberContracts() {
     ['Whale routed overlay ownership', "'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants']", app],
     ['Baker routed overlay ownership', "'baker-directory-modal': { entryIds: ['leaderboard']", app],
     ['Cycle History routed overlay ownership', "'history-modal': { entryIds: ['history']", app],
-    ['legacy giants Chamber handoff', "openWhaleChamber('dormant')", app],
-    ['Baker router-owned close preserves canonical route', 'closeBakerDirectoryChamber?.({ preserveRoute: true })', app],
-    ['Whale router-owned close preserves canonical route', 'closeWhaleChamber?.({ preserveRoute: true })', app]
+    ['legacy giants Chamber handoff', "openChamberFeature('whales', 'dormant')", app],
+    ['Baker router-owned close preserves canonical route', "leaderboard: {\n        modulePath: '../features/leaderboard.js'", app],
+    ['Whale router-owned close preserves canonical route', 'closeArgs: [{ preserveRoute: true }]', app]
   ];
   for (const [label, snippet, source] of integrationContracts) {
     if (!source.includes(snippet)) fail(`${label} contract is missing`);
@@ -8863,7 +9171,7 @@ async function checkPromotedChamberContracts() {
   }
 
   for (const snippet of [
-    "const CYCLE_HISTORY_CSS_URL = '/css/history-chamber.css?v=524'",
+    "const CYCLE_HISTORY_CSS_URL = versionedAsset('/css/history-chamber.min.css')",
     "const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all'])",
     'CYCLE_HISTORY_METRICS',
     'data-history-metric',
@@ -8919,7 +9227,7 @@ async function checkPromotedChamberContracts() {
     'frontScrollHeight <= card.frontClientHeight + 1',
     'Whale Watch and Baker Directory desktop pair heights differ',
     'raw delegation use above 100% must remain visible instead of being clamped',
-    'career/proposal refresh failures must retain validated badge maps and label them last-good',
+    'compact signal refresh failures must retain validated badge maps and label them last-good',
     'sameFooter',
     'timestamp.ge',
     '__cycleHistoryKeyboardLauncher',
@@ -8961,6 +9269,7 @@ async function main() {
   await checkMainnetLaunchCopy();
   await checkPublicDataDiscoveryContracts();
   await checkInitialLoadMeasurementContracts();
+  await checkChamberEfficiencyContracts();
   await checkLauncherProjectionContracts();
   await checkModuleImportVersions();
   await checkHistoricalPagination();

@@ -158,9 +158,15 @@ function unlockPageScrollForChamber() {
     _savedScrollY = 0;
 }
 
+async function fetchJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Governance request failed (${response.status}) for ${url}`);
+    return response.json();
+}
+
 async function fetchEpochData(epochIndex, currentPeriod = null) {
     const [epoch, baseProtocols, report] = await Promise.all([
-        (await fetch(`${TZKT}/voting/epochs/${epochIndex}`)).json(),
+        fetchJson(`${TZKT}/voting/epochs/${epochIndex}`),
         loadProtocolHistory(),
         loadGovernanceReport()
     ]);
@@ -171,7 +177,7 @@ async function fetchEpochData(epochIndex, currentPeriod = null) {
     
     let voters = [];
     if (votePeriod) {
-        voters = await (await fetch(`${TZKT}/voting/periods/${votePeriod.index}/voters?sort.desc=votingPower&limit=250`)).json();
+        voters = await fetchJson(`${TZKT}/voting/periods/${votePeriod.index}/voters?sort.desc=votingPower&limit=250`);
     }
 
     let previousVotePeriod = null;
@@ -180,7 +186,7 @@ async function fetchEpochData(epochIndex, currentPeriod = null) {
         previousVotePeriod = (epoch.periods || []).find(p => p.kind === 'exploration' && p.index !== votePeriod.index) || null;
         if (previousVotePeriod?.index) {
             try {
-                previousVoters = await (await fetch(`${TZKT}/voting/periods/${previousVotePeriod.index}/voters?sort.desc=votingPower&limit=250`)).json();
+                previousVoters = await fetchJson(`${TZKT}/voting/periods/${previousVotePeriod.index}/voters?sort.desc=votingPower&limit=250`);
             } catch (_) {
                 previousVoters = [];
             }
@@ -207,7 +213,7 @@ async function fetchChamberData(epochIndex) {
             }
             
             if (!activeEpoch) {
-                const epochs = await (await fetch(`${TZKT}/voting/epochs?sort.desc=id&limit=10`)).json();
+                const epochs = await fetchJson(`${TZKT}/voting/epochs?sort.desc=id&limit=10`);
                 _latestEpochIndex = epochs[0]?.index || 83;
                 const lastComplete = epochs.find(e => e.status === 'completed');
                 activeEpoch = lastComplete ? lastComplete.index : 83;
@@ -244,7 +250,7 @@ async function fetchChamberData(epochIndex) {
 
 async function fetchRecentEpochs(count = 5) {
     try {
-        const epochs = await (await fetch(`${TZKT}/voting/epochs?sort.desc=id&limit=${count}`)).json();
+        const epochs = await fetchJson(`${TZKT}/voting/epochs?sort.desc=id&limit=${count}`);
         return epochs;
     } catch { return []; }
 }
@@ -262,7 +268,7 @@ async function fetchBallotTimeline(periodIndex) {
 
         while (true) {
             const url = `${TZKT}/operations/ballots?period=${periodIndex}&sort.asc=id&limit=${limit}&offset=${offset}`;
-            const batch = await (await fetch(url)).json();
+            const batch = await fetchJson(url);
             if (!batch.length) break;
             allBallots.push(...batch);
             if (batch.length < limit) break;

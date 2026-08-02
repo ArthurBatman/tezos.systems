@@ -7,16 +7,19 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
 import { sha256Text } from '../core/sha256.js';
+import { assertSnapshotMatchesProjection } from '../core/snapshot-receipt.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const URANIUM_CSS_URL = '/css/uranium-chamber.css?v=546';
+const URANIUM_CSS_URL = versionedAsset('/css/uranium-chamber.min.css');
 const URANIUM_SNAPSHOT_URL = '/data/uranium-snapshot.json';
 const URANIUM_ENTRY_SUMMARY_URL = '/data/uranium-entry-summary.json';
 const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2';
@@ -71,7 +74,6 @@ let krakenHistorySocket = null;
 let krakenReconnectTimer = null;
 let krakenHistoryReconnectTimer = null;
 let krakenReconcileTimer = null;
-let uraniumCssReady = null;
 let chamberTimer = null;
 let visibilityReady = false;
 let refreshDeferred = false;
@@ -281,21 +283,7 @@ function directionClass(value) {
 }
 
 function ensureUraniumCss() {
-    const existing = document.getElementById('uranium-chamber-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (uraniumCssReady) return uraniumCssReady;
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'uranium-chamber-css';
-        link.rel = 'stylesheet';
-        link.href = URANIUM_CSS_URL;
-    }
-    uraniumCssReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return uraniumCssReady;
+    return ensureChamberStylesheet('uranium-chamber-css', URANIUM_CSS_URL);
 }
 
 async function validateSnapshot(snapshot) {
@@ -318,15 +306,6 @@ async function validateSnapshot(snapshot) {
     if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
         throw new Error('Uranium snapshot failed its SHA-256 integrity receipt.');
     }
-    if (lastEntrySummary?.source?.contentHash
-        && lastEntrySummary.source.contentHash.toLowerCase() !== contentHash.toLowerCase()) {
-        const projectionTime = Date.parse(lastEntrySummary.source.generatedAt || lastEntrySummary.generatedAt || '');
-        const snapshotTime = Date.parse(snapshot.generatedAt || '');
-        if (!Number.isFinite(projectionTime) || snapshotTime <= projectionTime) {
-            throw new Error('Uranium snapshot is older than the launcher projection receipt.');
-        }
-        lastEntrySummary = null;
-    }
     return snapshot;
 }
 
@@ -337,6 +316,8 @@ async function validateEntrySummary(summary) {
     if (!Number.isFinite(Date.parse(summary.generatedAt || ''))
         || !/^[0-9a-f]{64}$/.test(summary.contentHash || '')
         || summary.source?.path !== 'data/uranium-snapshot.json'
+        || summary.source?.schemaVersion !== 1
+        || summary.source?.generatedAt !== summary.generatedAt
         || !/^[0-9a-f]{64}$/.test(summary.source?.contentHash || '')
         || !/^[0-9a-f]{64}$/.test(summary.source?.fileSha256 || '')
         || summary.identity?.tokenContract?.toLowerCase() !== TOKEN_CONTRACT.toLowerCase()
@@ -354,21 +335,30 @@ async function validateEntrySummary(summary) {
     return summary;
 }
 
-function fetchUraniumSnapshot() {
+function fetchUraniumSnapshot(summary = lastEntrySummary) {
     if (activeFetch) return activeFetch;
-    activeFetch = fetch(URANIUM_SNAPSHOT_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
-        .then((response) => {
+    const sourceReceipt = summary?.source || null;
+    activeFetch = fetch(URANIUM_SNAPSHOT_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
+        .then(async (response) => {
             if (!response.ok) throw new Error(`Uranium snapshot HTTP ${response.status}`);
-            return response.json();
+            const sourceText = await response.text();
+            let snapshot;
+            try {
+                snapshot = JSON.parse(sourceText);
+            } catch {
+                throw new Error('Uranium snapshot is not valid JSON.');
+            }
+            await validateSnapshot(snapshot);
+            await assertSnapshotMatchesProjection(snapshot, sourceText, sourceReceipt, { label: 'Uranium snapshot' });
+            return snapshot;
         })
-        .then(validateSnapshot)
         .finally(() => { activeFetch = null; });
     return activeFetch;
 }
 
 function fetchUraniumEntrySummary() {
     if (activeEntryFetch) return activeEntryFetch;
-    activeEntryFetch = fetch(URANIUM_ENTRY_SUMMARY_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
+    activeEntryFetch = fetch(URANIUM_ENTRY_SUMMARY_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
         .then((response) => {
             if (!response.ok) throw new Error(`Uranium entry summary HTTP ${response.status}`);
             return response.json();
@@ -376,6 +366,40 @@ function fetchUraniumEntrySummary() {
         .then(validateEntrySummary)
         .finally(() => { activeEntryFetch = null; });
     return activeEntryFetch;
+}
+
+function uraniumSnapshotHash(summary) {
+    return String(summary?.source?.contentHash || '').toLowerCase();
+}
+
+async function resolveUraniumSnapshotRefresh() {
+    let summary = lastEntrySummary;
+
+    if (lastSnapshot || !summary || lastRefreshError) {
+        try {
+            summary = await fetchUraniumEntrySummary();
+            lastEntrySummary = summary;
+        } catch (error) {
+            if (lastSnapshot) throw error;
+            console.warn('Uranium summary poll failed during open; trying the complete snapshot:', error);
+            summary = null;
+        }
+    }
+
+    const projectedHash = uraniumSnapshotHash(summary);
+    const loadedHash = String(lastSnapshot?.contentHash || '').toLowerCase();
+    if (lastSnapshot && projectedHash && projectedHash === loadedHash) {
+        return { snapshot: lastSnapshot, changed: false };
+    }
+    if (lastSnapshot && projectedHash) {
+        const projectedAt = Date.parse(summary?.source?.generatedAt || summary?.generatedAt || '');
+        const loadedAt = Date.parse(lastSnapshot.generatedAt || '');
+        if (!Number.isFinite(projectedAt) || !Number.isFinite(loadedAt) || projectedAt <= loadedAt) {
+            throw new Error('Uranium launcher projection is not newer than the loaded snapshot; retaining last-good data.');
+        }
+    }
+
+    return { snapshot: await fetchUraniumSnapshot(summary), changed: true };
 }
 
 function krakenWebSocketAllowed() {
@@ -1359,7 +1383,7 @@ function renderProof(snapshot) {
             <article class="uranium-panel"><span class="uranium-eyebrow">Market structure</span><h4>No assumed peg</h4><p>${escapeHtml(pegCopy)} A token can trade above or below the indicative uranium reference; neither quote is proof of executable physical value.${issuerReceiptLink(terms.priceReceipt)}</p></article>
         </section>
         <p class="uranium-footnote">${escapeHtml(terms.caveat)} ${escapeHtml(issuerRightsSummary(terms))}${issuerReceiptLink(terms.rightsReceipt, 'Issuer whitepaper')}</p>
-        <section class="uranium-panel"><div class="uranium-panel-head"><div><span class="uranium-eyebrow">Source ledger</span><h4>Receipts and independent clocks</h4></div><span class="uranium-status is-neutral">Generated ${escapeHtml(ageLabel(snapshot.generatedAt))}</span></div>${renderSources(snapshot)}</section>
+        <section class="uranium-panel"><div class="uranium-panel-head"><div><span class="uranium-eyebrow">Source ledger</span><h4>Receipts and independent clocks</h4></div><span class="uranium-status is-neutral" id="uranium-proof-generated">Generated ${escapeHtml(ageLabel(snapshot.generatedAt))}</span></div>${renderSources(snapshot)}</section>
         ${renderUnavailable(snapshot.unavailable)}
         <nav class="uranium-pathways" aria-label="Continue through related Tezos Chambers">
             <a href="/minerals/">Critical Minerals<small>Place uranium beside the official strategic-minerals atlas</small></a>
@@ -1391,6 +1415,18 @@ function freshnessPresentation(snapshot) {
         label: degradedLabel ? `${baseLabel} · ${degradedLabel}` : baseLabel,
         stale: stale || Boolean(lastRefreshError) || degraded.length > 0
     };
+}
+
+function syncUraniumFreshness(snapshot) {
+    const presentation = freshnessPresentation(snapshot);
+    const freshness = document.getElementById('uranium-freshness');
+    if (freshness) {
+        if (freshness.textContent !== presentation.label) freshness.textContent = presentation.label;
+        freshness.classList.toggle('is-stale', presentation.stale);
+    }
+    const proofGenerated = document.getElementById('uranium-proof-generated');
+    const proofLabel = `Generated ${ageLabel(snapshot.generatedAt)}`;
+    if (proofGenerated && proofGenerated.textContent !== proofLabel) proofGenerated.textContent = proofLabel;
 }
 
 function renderChamber(snapshot) {
@@ -1736,9 +1772,29 @@ async function refreshUraniumEntry({ quiet = true } = {}) {
         updateEntry(summary, { quiet });
         return summary;
     } catch (error) {
-        console.warn('Uranium Chamber entry summary failed; loading the complete snapshot:', error);
-        return refreshUraniumChamber({ quiet });
+        console.warn('Uranium Chamber entry summary refresh failed; retaining the last good launcher:', error);
+        entryRefreshDeferred = true;
+        const retained = lastEntrySummary || lastSnapshot;
+        if (!retained) markUraniumEntryUnavailable(error);
+        return retained;
     }
+}
+
+function markUraniumEntryUnavailable(error) {
+    const card = document.getElementById('uranium-entry-card');
+    if (!card) return;
+    const value = card.querySelector('.uranium-entry-value');
+    if (value) {
+        value.textContent = 'Unavailable';
+        value.setAttribute('role', 'status');
+        value.setAttribute('aria-live', 'polite');
+    }
+    const kpis = card.querySelector('.uranium-entry-kpis');
+    if (kpis) kpis.innerHTML = '<span><small>Proofbook</small><strong>Unavailable</strong></span><span><small>Receipt</small><strong>No last-good summary</strong></span>';
+    card.classList.add('chamber-data-stale');
+    card.dataset.updatedLabel = 'Unavailable · refresh failed · no last-good receipt';
+    card.title = error?.message || 'Uranium launcher receipt unavailable';
+    window.syncChamberEntryFooters?.(card);
 }
 
 async function refreshUraniumChamber({ quiet = true } = {}) {
@@ -1747,12 +1803,20 @@ async function refreshUraniumChamber({ quiet = true } = {}) {
         return lastSnapshot;
     }
     try {
-        const snapshot = await fetchUraniumSnapshot();
+        const hadRefreshError = Boolean(lastRefreshError);
+        const { snapshot, changed } = await resolveUraniumSnapshotRefresh();
+        if (document.visibilityState !== 'visible') {
+            refreshDeferred = true;
+            return lastSnapshot;
+        }
         lastSnapshot = snapshot;
         lastRefreshError = '';
         refreshDeferred = false;
-        updateEntry(snapshot, { quiet });
-        if (document.getElementById('uranium-modal')?.classList.contains('active')) renderBody(snapshot, { quiet });
+        if (changed || hadRefreshError) updateEntry(snapshot, { quiet });
+        else syncUraniumFreshness(snapshot);
+        if ((changed || hadRefreshError) && document.getElementById('uranium-modal')?.classList.contains('active')) {
+            renderBody(snapshot, { quiet });
+        }
         return snapshot;
     } catch (error) {
         console.warn('Uranium Chamber snapshot refresh failed:', error);
@@ -1823,7 +1887,7 @@ export function closeUraniumChamber() {
 }
 
 export function initUraniumChamber() {
-    ensureUraniumCss();
+    ensureUraniumCss().catch((error) => console.warn('Uranium Chamber styles unavailable', error));
     bindVisibilityRefresh();
     const card = ensureEntryCard();
     wireEntry(card);

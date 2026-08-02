@@ -4,11 +4,13 @@
  */
 
 import { escapeHtml } from '../core/utils.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const SUMMARY_URL = '/data/tezoscrp-summary.json?v=463';
-const DATA_URL = '/data/tezoscrp-awards.json?v=463';
-const CSS_URL = '/css/tezoscrp.css?v=476';
+const SUMMARY_URL = versionedAsset('/data/tezoscrp-summary.json');
+const DATA_URL = versionedAsset('/data/tezoscrp-awards.json');
+const CSS_URL = versionedAsset('/css/tezoscrp.min.css');
 const VIEW_KEYS = ['hall', 'records', 'latest', 'categories', 'archive'];
 const VIEW_LABELS = {
     hall: 'Recognition Hall',
@@ -41,12 +43,7 @@ const state = {
 };
 
 function ensureStyles() {
-    if (document.getElementById('tezoscrp-css')) return;
-    const link = document.createElement('link');
-    link.id = 'tezoscrp-css';
-    link.rel = 'stylesheet';
-    link.href = CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('tezoscrp-css', CSS_URL);
 }
 
 function safeUrl(value) {
@@ -827,7 +824,7 @@ async function loadRoom({ force = false } = {}) {
 }
 
 export async function openTezosCrpChamber() {
-    ensureStyles();
+    await ensureStyles();
     const overlay = ensureOverlay();
     if (!overlay.classList.contains('active')) focusedBeforeOpen = document.activeElement;
     savedBodyOverflow = document.body.style.overflow;
@@ -858,7 +855,7 @@ export function closeTezosCrpChamber() {
 }
 
 export function initTezosCrpChamber() {
-    ensureStyles();
+    ensureStyles().catch((error) => console.warn('TezosCRP styles unavailable', error));
     if (!ensureEntryCard()) return;
     window.openTezosCrpChamber = openTezosCrpChamber;
     window.closeTezosCrpChamber = closeTezosCrpChamber;

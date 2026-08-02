@@ -10,17 +10,19 @@ import {
     fetchAllStats,
     fetchHistoricalData
 } from '../core/api.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { siteMapCanonicalRoute, siteMapRoute } from '../core/site-map.js';
 import { siteMapJourneyLinks } from '../core/site-journey.js';
 import { getPulseDomainRows, getPulseHistoryRows } from '../core/pulse-history.mjs';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply, formatUtcDateTime, pluralize } from '../core/utils.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import { openCardHistoryModal } from './history.js';
 
 const CHAMBER_REFRESH_MS = 2 * 60 * 1000;
 const STATS_STALE_MS = 10 * 60 * 1000;
-const NETWORK_PULSE_CSS_URL = '/css/network-pulse.css?v=546';
+const NETWORK_PULSE_CSS_URL = versionedAsset('/css/network-pulse.min.css');
 const HISTORY_RANGE = '7d';
 const ENTRY_SPARK_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -66,12 +68,7 @@ let entryPriceObserver = null;
 let entryPriceFrame = 0;
 
 function ensureNetworkPulseCss() {
-    if (document.getElementById('network-pulse-css')) return;
-    const link = document.createElement('link');
-    link.id = 'network-pulse-css';
-    link.rel = 'stylesheet';
-    link.href = NETWORK_PULSE_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('network-pulse-css', NETWORK_PULSE_CSS_URL);
 }
 
 const GROUPS = [
@@ -1568,7 +1565,7 @@ function wireEntryLauncher(card) {
 }
 
 export async function openNetworkPulseChamber() {
-    ensureNetworkPulseCss();
+    await ensureNetworkPulseCss();
     const overlay = ensureOverlay();
     const body = overlay.querySelector('.network-pulse-body');
     focusedBeforeOpen = document.activeElement;
@@ -1597,7 +1594,7 @@ export function closeNetworkPulseChamber() {
 }
 
 export function initNetworkPulseChamber() {
-    ensureNetworkPulseCss();
+    ensureNetworkPulseCss().catch((error) => console.warn('Network Pulse styles unavailable', error));
     bindEntryStatsEvents();
     bindEntryDomObservers();
     if (document.getElementById('network-pulse-entry-card')) {

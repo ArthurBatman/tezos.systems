@@ -4,11 +4,13 @@
  */
 
 import { debounce, escapeHtml, formatFreshnessStamp, formatLiveDuration, startLiveTimeTicker } from '../core/utils.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { quietlyMutate } from '../core/quiet-refresh.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const TEZOS_DOMAINS_ENDPOINT = 'https://api.tezos.domains/graphql';
-const TEZOS_DOMAINS_CSS_URL = '/css/tezos-domains.css?v=321';
+const TEZOS_DOMAINS_CSS_URL = versionedAsset('/css/tezos-domains.min.css');
 const CHAMBER_REFRESH_MS = 10 * 60 * 1000;
 const ENTRY_REFRESH_MS = 15 * 60 * 1000;
 const MIN_HIGH_VALUE_MUTEZ = '25000000';
@@ -45,12 +47,7 @@ let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 
 function ensureTezosDomainsStyles() {
-    if (document.getElementById('tezos-domains-css')) return;
-    const link = document.createElement('link');
-    link.id = 'tezos-domains-css';
-    link.rel = 'stylesheet';
-    link.href = TEZOS_DOMAINS_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('tezos-domains-css', TEZOS_DOMAINS_CSS_URL);
 }
 
 function isLikelySafeName(name) {
@@ -1358,7 +1355,7 @@ function stopChamberRefresh() {
 }
 
 export async function openTezosDomainsChamber(initialName = '') {
-    ensureTezosDomainsStyles();
+    await ensureTezosDomainsStyles();
     const normalizedInitial = normalizeDomainInput(initialName);
     if (normalizedInitial.name && !normalizedInitial.error) {
         lookupState = { status: 'loading', name: normalizedInitial.name };
@@ -1432,7 +1429,7 @@ function wireEntryCard(card) {
 }
 
 export function initTezosDomainsChamber() {
-    ensureTezosDomainsStyles();
+    ensureTezosDomainsStyles().catch((error) => console.warn('Tezos Domains styles unavailable', error));
     const grid = document.getElementById('chambers-grid');
     if (!grid) return;
     let card = document.getElementById('tezos-domains-entry-card');

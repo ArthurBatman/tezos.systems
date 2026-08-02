@@ -39,6 +39,7 @@ import {
     debounce
 } from './utils.js';
 import { quietlyMutate } from './quiet-refresh.js';
+import { versionedAsset } from './asset-version.js';
 import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades, getProtocolUpgradeOrdinal } from './protocol-count.js';
 import {
     connectOctezWallet,
@@ -49,30 +50,12 @@ import {
     shortAddress
 } from './wallet.js';
 import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js';
-import { initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
+import { closeCycleHistoryChamber, initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { setToastGate } from '../ui/toast-queue.js';
 import { fetchProtocols } from '../features/governance.js';
 import { initGovernanceAlerts } from '../features/governance-alerts.js';
-import { initChamber } from '../features/chamber.js';
-import { initLiquidityBaking } from '../features/liquidity-baking.js';
-import { initTz4AdoptionChamber } from '../features/tz4-adoption.js';
-import { initTezlinkChamber } from '../features/tezlink.js';
-import { initEtherlinkGovernanceChamber } from '../features/etherlink-governance.js';
-import { initCtezChamber } from '../features/ctez.js';
-import { initLedgerFlowChamber } from '../features/ledger-flow.js';
-import { initTezosDomainsChamber } from '../features/tezos-domains.js';
-import { initNetworkPulseChamber } from '../features/network-pulse.js';
-import { initCapitalChamber } from '../features/capital-chamber.js';
-import { initMineralsChamber } from '../features/minerals-chamber.js';
-import { initUraniumChamber } from '../features/uranium-chamber.js';
-import { initMetalsChamber } from '../features/metals-chamber.js';
-import { initEcosystemChamber } from '../features/ecosystem-chamber.js';
-import { initMaxisChamber } from '../features/maxis.js';
-import { initStakingChamber } from '../features/staking-chamber.js';
-import { initTezosCrpChamber } from '../features/tezoscrp.js';
-import { initWhaleChamber, openWhaleChamber } from '../features/whale-chamber.js';
 
 const SPARKLINE_LIVE_METRICS = [
     ['tz4_percentage', 'tz4Percentage'],
@@ -114,7 +97,6 @@ import { initCalculator } from '../features/calculator.js';
 import { checkMoments, initMomentsTimeline } from '../features/moments.js';
 import { initVibes } from '../effects/vibes.js';
 import { initChangelog } from '../features/changelog.js';
-import { initBakerDirectoryChamber, initLeaderboard, refreshLeaderboard } from '../features/leaderboard.js';
 import { initBakerReportCard } from '../features/baker-report-card.js';
 
 import { initMyTezos, refreshMyTezos } from '../features/my-tezos.js';
@@ -124,13 +106,12 @@ import { initPriceIntelligence, updatePriceIntelligence } from '../features/pric
 import { initRewardsTracker, updateRewardsTracker, destroyRewardsTracker } from '../features/rewards-tracker.js';
 import { activateHotTodaySignal, initDailyBriefing, initHotTodayIsland, updateDailyBriefing, updateHotTodayIsland } from '../features/daily-briefing.js';
 import { initStateOfTezos } from '../features/state-of-tezos.js';
-import { initNetworkHealth, refreshNetworkHealth } from '../features/network-health.js';
+import { closeNetworkHealthChamber, initNetworkHealth, refreshNetworkHealth } from '../features/network-health.js';
 import { initHeroSearch } from '../features/search.js';
 import { initNativeExplorer } from '../features/native-explorer.js';
 import { initSiteWayfinder } from '../ui/wayfinder.js';
 
-const SHELL_EXTRAS_CSS_URL = '/css/shell-extras.css?v=546';
-const MY_TEZOS_CSS_URL = '/css/my-tezos.min.css?v=546';
+const MY_TEZOS_CSS_URL = versionedAsset('/css/my-tezos.min.css');
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
 const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
@@ -281,15 +262,6 @@ function safe(name, fn) {
     try { fn(); } catch (e) { console.warn(`[feature] ${name} failed:`, e); }
 }
 
-function ensureShellExtrasCss() {
-    if (document.getElementById('shell-extras-css')) return;
-    const link = document.createElement('link');
-    link.id = 'shell-extras-css';
-    link.rel = 'stylesheet';
-    link.href = SHELL_EXTRAS_CSS_URL;
-    document.head.appendChild(link);
-}
-
 function ensureMyTezosCss() {
     if (document.getElementById('my-tezos-css')) return;
     const link = document.createElement('link');
@@ -307,7 +279,6 @@ async function init() {
 
     // Initialize theme
     safe('theme', initTheme);
-    safe('shellExtrasCss', ensureShellExtrasCss);
     safe('myTezosCss', ensureMyTezosCss);
 
     // Initialize arcade effects
@@ -322,38 +293,14 @@ async function init() {
     // Lift chamber entry cards out of the hidden network-stat sections.
     safe('chambersSurface', initChambersSurface);
     
-    // Initialize Tezos L1 Governance modal
-    safe('chamber', initChamber);
-    safe('liquidityBaking', initLiquidityBaking);
-    safe('tezlinkChamber', initTezlinkChamber);
-    safe('etherlinkGovernanceChamber', initEtherlinkGovernanceChamber);
-    safe('tz4AdoptionChamber', initTz4AdoptionChamber);
-    safe('networkPulseChamber', initNetworkPulseChamber);
-    safe('capitalChamber', initCapitalChamber);
-    safe('mineralsChamber', initMineralsChamber);
-    safe('uraniumChamber', initUraniumChamber);
-    safe('metalsChamber', initMetalsChamber);
-    safe('ecosystemChamber', initEcosystemChamber);
-    safe('stakingChamber', initStakingChamber);
-    safe('ctezChamber', initCtezChamber);
-    safe('ledgerFlowChamber', initLedgerFlowChamber);
-    safe('tezosDomainsChamber', initTezosDomainsChamber);
-    safe('maxisChamber', initMaxisChamber);
-    safe('tezosCrpChamber', initTezosCrpChamber);
-    safe('whaleChamber', initWhaleChamber);
-    safe('bakerDirectoryChamber', initBakerDirectoryChamber);
-    safe('whaleChamberLauncher', () => {
-        const launcher = document.getElementById('whale-toggle');
-        if (!launcher || launcher.dataset.whaleChamberWired === '1') return;
-        launcher.dataset.whaleChamberWired = '1';
-        launcher.addEventListener('click', () => {
-            openWhaleChamber().catch((error) => console.warn('Failed to open Whale Watch Chamber', error));
-        });
-    });
+    // Chamber modules hydrate only as their launcher approaches the viewport,
+    // receives intent, or owns the active route. The static launcher shell
+    // keeps the directory complete and stable before those modules arrive.
+    safe('lazyChamberLaunchers', initLazyChamberLaunchers);
     safe('governanceAlerts', initGovernanceAlerts);
     safe('protocolHistoryChamber', initProtocolHistoryChamber);
     safe('protocolHistoryHeaderLauncher', initProtocolHistoryHeaderLauncher);
-    safe('cycleHistoryChamber', initHistoryModal);
+    safe('cycleHistoryChamber', () => initStaticChamberEntry('history', initHistoryModal));
     
     // Initialize changelog modal
     safe('changelog', initChangelog);
@@ -388,7 +335,6 @@ async function init() {
 
     // Initialize Rewards Calculator
     safe('calculator', initCalculator);
-    safe('leaderboard', initLeaderboard);
     safe('bakerReportCard', initBakerReportCard);
     safe('stateOfTezos', initStateOfTezos);
 
@@ -678,7 +624,7 @@ async function refreshInBackground({ includeHeavy = true } = {}) {
         
         if (includeHeavy) {
             refreshMyBaker({ quiet: true });
-            refreshLeaderboard({ quiet: true });
+            callLoadedChamberFeature('leaderboard', 'refreshLeaderboard', { quiet: true });
             refreshMyTezos();
             refreshNetworkHealth({ force: true });
             state.lastHeavyRefreshAt = Date.now();
@@ -736,7 +682,7 @@ async function refresh() {
         }
         // resetCountdown();
         refreshMyBaker();
-        refreshLeaderboard();
+        callLoadedChamberFeature('leaderboard', 'refreshLeaderboard');
         refreshMyTezos();
         refreshNetworkHealth({ force: true });
 
@@ -1552,8 +1498,360 @@ const CHAMBER_CARD_TARGETS = Object.freeze({
     anthology: { selector: '#protocol-history-entry-card', layout: 'standard' },
     history: { selector: '#cycle-history-entry-card', layout: 'standard' }
 });
+const CHAMBER_FEATURES = Object.freeze({
+    pulse: {
+        modulePath: '../features/network-pulse.js',
+        init: 'initNetworkPulseChamber',
+        open: 'openNetworkPulseChamber',
+        close: 'closeNetworkPulseChamber'
+    },
+    tezosx: {
+        modulePath: '../features/tezlink.js',
+        init: 'initTezlinkChamber',
+        open: 'openTezlinkChamber',
+        close: 'closeTezlinkChamber'
+    },
+    capital: {
+        modulePath: '../features/capital-chamber.js',
+        init: 'initCapitalChamber',
+        open: 'openCapitalChamber',
+        close: 'closeCapitalChamber'
+    },
+    minerals: {
+        modulePath: '../features/minerals-chamber.js',
+        init: 'initMineralsChamber',
+        open: 'openMineralsChamber',
+        close: 'closeMineralsChamber'
+    },
+    uranium: {
+        modulePath: '../features/uranium-chamber.js',
+        init: 'initUraniumChamber',
+        open: 'openUraniumChamber',
+        close: 'closeUraniumChamber'
+    },
+    metals: {
+        modulePath: '../features/metals-chamber.js',
+        init: 'initMetalsChamber',
+        open: 'openMetalsChamber',
+        close: 'closeMetalsChamber'
+    },
+    whales: {
+        modulePath: '../features/whale-chamber.js',
+        init: 'initWhaleChamber',
+        open: 'openWhaleChamber',
+        close: 'closeWhaleChamber',
+        closeArgs: [{ preserveRoute: true }],
+        launchers: ['#whale-toggle']
+    },
+    'staking-chamber': {
+        modulePath: '../features/staking-chamber.js',
+        init: 'initStakingChamber',
+        open: 'openStakingChamber',
+        close: 'closeStakingChamber'
+    },
+    ecosystem: {
+        modulePath: '../features/ecosystem-chamber.js',
+        init: 'initEcosystemChamber',
+        open: 'openEcosystemChamber',
+        close: 'closeEcosystemChamber'
+    },
+    leaderboard: {
+        modulePath: '../features/leaderboard.js',
+        init: 'initBakerDirectoryChamber',
+        open: 'openBakerDirectoryChamber',
+        close: 'closeBakerDirectoryChamber',
+        closeArgs: [{ preserveRoute: true }],
+        launchers: ['#leaderboard-toggle'],
+        exclusiveLaunchers: true
+    },
+    tz4: {
+        modulePath: '../features/tz4-adoption.js',
+        init: 'initTz4AdoptionChamber',
+        open: 'openTz4AdoptionChamber',
+        close: 'closeTz4AdoptionChamber'
+    },
+    chamber: {
+        modulePath: '../features/chamber.js',
+        init: 'initChamber',
+        open: 'openChamber',
+        close: 'closeChamber'
+    },
+    'l2-governance': {
+        modulePath: '../features/etherlink-governance.js',
+        init: 'initEtherlinkGovernanceChamber',
+        open: 'openEtherlinkGovernanceChamber',
+        close: 'closeEtherlinkGovernanceChamber'
+    },
+    'liquidity-baking': {
+        modulePath: '../features/liquidity-baking.js',
+        init: 'initLiquidityBaking',
+        open: 'openLiquidityBakingMonitor',
+        close: 'closeLiquidityBakingMonitor'
+    },
+    'ledger-flow': {
+        modulePath: '../features/ledger-flow.js',
+        init: 'initLedgerFlowChamber',
+        open: 'openLedgerFlowChamber',
+        close: 'closeLedgerFlowChamber'
+    },
+    domains: {
+        modulePath: '../features/tezos-domains.js',
+        init: 'initTezosDomainsChamber',
+        open: 'openTezosDomainsChamber',
+        close: 'closeTezosDomainsChamber'
+    },
+    maxis: {
+        modulePath: '../features/maxis.js',
+        init: 'initMaxisChamber',
+        open: 'openMaxisChamber',
+        close: 'closeMaxisChamber'
+    },
+    tezoscrp: {
+        modulePath: '../features/tezoscrp.js',
+        init: 'initTezosCrpChamber',
+        open: 'openTezosCrpChamber',
+        close: 'closeTezosCrpChamber'
+    },
+    ctez: {
+        modulePath: '../features/ctez.js',
+        init: 'initCtezChamber',
+        open: 'openCtezChamber',
+        close: 'closeCtezChamber',
+        launchers: ['#ctez-launcher', '#ctez-feature-btn'],
+        exclusiveLaunchers: true,
+        closeFeatureMenu: true
+    }
+});
+const _chamberModulePromises = new Map();
+const _chamberModuleAttempts = new Map();
+const _loadedChamberModules = new Map();
+const _initializedChamberModules = new Set();
+const _openingChamberModules = new Map();
+let _chamberOpenEpoch = 0;
+let _lazyChamberObserver = null;
 let _chamberPairObserver = null;
 let _pendingChamberCategoryKey = '';
+
+function chamberEntryNode(entryId) {
+    const target = CHAMBER_CARD_TARGETS[entryId];
+    return target ? document.querySelector(target.selector) : null;
+}
+
+function initStaticChamberEntry(entryId, initializer) {
+    if (typeof initializer !== 'function') return undefined;
+    const placeholder = chamberEntryNode(entryId);
+    const isSkeleton = placeholder?.hasAttribute('data-chamber-skeleton');
+    const marker = isSkeleton ? document.createComment(`hydrate:${entryId}`) : null;
+    const restoreFocus = Boolean(placeholder && (document.activeElement === placeholder || placeholder.contains(document.activeElement)));
+    if (marker) placeholder.replaceWith(marker);
+
+    let result;
+    try {
+        result = initializer();
+    } catch (error) {
+        if (marker?.parentNode && placeholder) marker.replaceWith(placeholder);
+        throw error;
+    }
+
+    const hydrated = chamberEntryNode(entryId);
+    if (marker?.parentNode) {
+        if (hydrated && hydrated !== placeholder) marker.replaceWith(hydrated);
+        else marker.replaceWith(placeholder);
+    }
+    if (restoreFocus) {
+        const focusTarget = hydrated?.querySelector?.('.chamber-expand-cue')
+            || hydrated?.querySelector?.('button:not([disabled]), a[href]')
+            || hydrated
+            || placeholder;
+        focusTarget?.focus?.({ preventScroll: true });
+    }
+    if (result && typeof result.catch === 'function') {
+        result.catch((error) => console.warn(`Failed to initialize ${entryId} Chamber launcher`, error));
+    }
+    orderChambersSurface();
+    return result;
+}
+
+function loadChamberFeature(entryId, { initialize = true } = {}) {
+    const config = CHAMBER_FEATURES[entryId];
+    if (!config) return Promise.reject(new Error(`Unknown Chamber feature: ${entryId}`));
+
+    let promise = _chamberModulePromises.get(entryId);
+    if (!promise) {
+        const attempt = _chamberModuleAttempts.get(entryId) || 0;
+        const versionedModulePath = versionedAsset(new URL(config.modulePath, import.meta.url).pathname);
+        const moduleSpecifier = attempt > 0
+            ? `${versionedModulePath}&chamber-retry=${attempt}`
+            : versionedModulePath;
+        promise = import(moduleSpecifier).then((module) => {
+            _loadedChamberModules.set(entryId, module);
+            _chamberModuleAttempts.delete(entryId);
+            return module;
+        }).catch((error) => {
+            _chamberModulePromises.delete(entryId);
+            _chamberModuleAttempts.set(entryId, attempt + 1);
+            throw error;
+        });
+        _chamberModulePromises.set(entryId, promise);
+    }
+
+    return promise.then((module) => {
+        if (!initialize || !config.init || _initializedChamberModules.has(entryId)) return module;
+        _initializedChamberModules.add(entryId);
+        try {
+            initStaticChamberEntry(entryId, () => module[config.init]?.());
+        } catch (error) {
+            _initializedChamberModules.delete(entryId);
+            throw error;
+        }
+        return module;
+    });
+}
+
+function callLoadedChamberFeature(entryId, exportName, ...args) {
+    const method = _loadedChamberModules.get(entryId)?.[exportName];
+    if (typeof method !== 'function') return undefined;
+    try {
+        return method(...args);
+    } catch (error) {
+        console.warn(`Failed to call ${entryId}.${exportName}`, error);
+        return undefined;
+    }
+}
+
+async function openChamberFeature(entryId, ...args) {
+    const config = CHAMBER_FEATURES[entryId];
+    const openEpoch = _chamberOpenEpoch;
+    const openToken = Symbol(entryId);
+    _openingChamberModules.set(entryId, openToken);
+    try {
+        const module = await loadChamberFeature(entryId);
+        if (openEpoch !== _chamberOpenEpoch) throw chamberOpenCancelledError(entryId);
+        const open = module?.[config?.open];
+        if (typeof open !== 'function') throw new Error(`${entryId} Chamber does not export ${config?.open || 'an open function'}`);
+        const result = await open(...args);
+        if (openEpoch !== _chamberOpenEpoch) {
+            if (_openingChamberModules.get(entryId) === openToken) {
+                const close = module?.[config?.close];
+                if (typeof close === 'function') await close(...(config.closeArgs || []));
+            }
+            throw chamberOpenCancelledError(entryId);
+        }
+        return result;
+    } finally {
+        if (_openingChamberModules.get(entryId) === openToken) {
+            _openingChamberModules.delete(entryId);
+        }
+    }
+}
+
+function chamberOpenCancelledError(entryId) {
+    const error = new Error(`Cancelled stale ${entryId} Chamber open`);
+    error.name = 'ChamberOpenCancelledError';
+    return error;
+}
+
+function isChamberOpenCancelled(error) {
+    return error?.name === 'ChamberOpenCancelledError';
+}
+
+function chamberFeatureHasActiveSurface(entryId) {
+    return Object.entries(ROUTED_OVERLAY_ENTRIES).some(([overlayId, route]) => (
+        route.entryIds.includes(entryId)
+        && document.getElementById(overlayId)?.classList.contains('active')
+    ));
+}
+
+async function closeLoadedChamberFeatures() {
+    const pending = [];
+    for (const [entryId, module] of _loadedChamberModules) {
+        if (!_openingChamberModules.has(entryId) && !chamberFeatureHasActiveSurface(entryId)) continue;
+        const config = CHAMBER_FEATURES[entryId];
+        const close = module?.[config?.close];
+        if (typeof close !== 'function') continue;
+        try {
+            pending.push(Promise.resolve(close(...(config.closeArgs || []))));
+        } catch (error) {
+            pending.push(Promise.reject(error));
+        }
+    }
+    return Promise.allSettled(pending);
+}
+
+function isChamberLauncherControl(target) {
+    return Boolean(target?.closest?.(
+        '.card-copy-link, .card-share-btn, .card-info-btn, .card-history-btn, a[href], button:not(.chamber-expand-cue)'
+    ));
+}
+
+function wireLazyChamberEntry(entryId) {
+    const card = chamberEntryNode(entryId);
+    if (!card || card.dataset.lazyChamberWired === '1') return;
+    card.dataset.lazyChamberWired = '1';
+    if (!card.hasAttribute('tabindex')) card.tabIndex = 0;
+    if (!card.hasAttribute('role')) card.setAttribute('role', 'button');
+
+    const hydrate = () => {
+        _lazyChamberObserver?.unobserve(card);
+        loadChamberFeature(entryId).catch((error) => console.warn(`Failed to hydrate ${entryId} Chamber launcher`, error));
+    };
+    const open = (event) => {
+        if (isChamberLauncherControl(event?.target)) return;
+        event?.preventDefault();
+        openChamberFeature(entryId).catch((error) => console.warn(`Failed to open ${entryId} Chamber`, error));
+    };
+    card.addEventListener('pointerenter', hydrate, { once: true, passive: true });
+    card.addEventListener('focusin', hydrate, { once: true });
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') open(event);
+    });
+    _lazyChamberObserver?.observe(card);
+}
+
+function wireLazyExternalLauncher(entryId, selector, config) {
+    const launcher = document.querySelector(selector);
+    if (!launcher || launcher.dataset.lazyChamberWired === '1') return;
+    launcher.dataset.lazyChamberWired = '1';
+    const hydrate = () => loadChamberFeature(entryId)
+        .catch((error) => console.warn(`Failed to hydrate ${entryId} Chamber launcher`, error));
+    launcher.addEventListener('pointerenter', hydrate, { once: true, passive: true });
+    launcher.addEventListener('focus', hydrate, { once: true });
+    launcher.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (config.exclusiveLaunchers) event.stopImmediatePropagation();
+        if (config.closeFeatureMenu) {
+            const dropdown = document.getElementById('features-dropdown');
+            dropdown?.classList.remove('open');
+            document.querySelector('[aria-controls="features-dropdown"]')?.setAttribute('aria-expanded', 'false');
+        }
+        openChamberFeature(entryId).catch((error) => console.warn(`Failed to open ${entryId} Chamber`, error));
+    });
+}
+
+function initLazyChamberLaunchers() {
+    if (!_lazyChamberObserver && 'IntersectionObserver' in window) {
+        _lazyChamberObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                const entryId = entry.target.dataset.chamberEntryId;
+                if (!entryId) return;
+                _lazyChamberObserver.unobserve(entry.target);
+                loadChamberFeature(entryId).catch((error) => console.warn(`Failed to hydrate ${entryId} Chamber launcher`, error));
+            });
+        }, { rootMargin: '0px', threshold: 0.1 });
+    }
+
+    Object.entries(CHAMBER_FEATURES).forEach(([entryId, config]) => {
+        const card = chamberEntryNode(entryId);
+        if (card) {
+            card.dataset.chamberEntryId = entryId;
+            wireLazyChamberEntry(entryId);
+        }
+        (config.launchers || []).forEach((selector) => wireLazyExternalLauncher(entryId, selector, config));
+    });
+}
+
 const CHAMBER_EXPAND_CUE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h5v5"/><path d="M9 20H4v-5"/><path d="M20 4l-7 7"/><path d="M4 20l7-7"/></svg>';
 const CHAMBER_INFO_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>';
 const CHAMBER_INFO_COPY = {
@@ -2316,16 +2614,10 @@ function ensureProtocolHistoryEntryCard() {
     return card;
 }
 
-function createChamberCategory(categoryConfig) {
-    const category = document.createElement('details');
-    category.className = 'chamber-card-pair chamber-category';
-    category.dataset.chamberCategory = categoryConfig.key;
-    category.open = window.matchMedia('(min-width: 760px)').matches
-        || categoryConfig.key === 'network'
-        || categoryConfig.key === _pendingChamberCategoryKey;
-
-    const head = document.createElement('summary');
-    head.className = 'chamber-category-head';
+function wireChamberCategory(category) {
+    const head = category?.querySelector(':scope > .chamber-category-head');
+    if (!head || head.dataset.chamberCategoryWired === '1') return;
+    head.dataset.chamberCategoryWired = '1';
     head.addEventListener('click', (event) => {
         const scrollX = window.scrollX;
         const scrollY = window.scrollY;
@@ -2349,6 +2641,18 @@ function createChamberCategory(categoryConfig) {
             });
         });
     });
+}
+
+function createChamberCategory(categoryConfig) {
+    const category = document.createElement('details');
+    category.className = 'chamber-card-pair chamber-category';
+    category.dataset.chamberCategory = categoryConfig.key;
+    category.open = window.matchMedia('(min-width: 760px)').matches
+        || categoryConfig.key === 'network'
+        || categoryConfig.key === _pendingChamberCategoryKey;
+
+    const head = document.createElement('summary');
+    head.className = 'chamber-category-head';
 
     const name = document.createElement('span');
     name.className = 'chamber-category-name';
@@ -2379,6 +2683,7 @@ function createChamberCategory(categoryConfig) {
 
     head.append(name, question, rule, count, cue);
     category.append(head, cards);
+    wireChamberCategory(category);
     return category;
 }
 
@@ -2410,6 +2715,13 @@ function orderChambersSurface() {
                 `:scope > .chamber-category[data-chamber-category="${categoryConfig.key}"]`
             );
             if (!category) category = createChamberCategory(categoryConfig);
+            if (category.dataset.chamberShell === '1' && category.dataset.chamberShellInitialized !== '1') {
+                category.open = window.matchMedia('(min-width: 760px)').matches
+                    || categoryConfig.key === 'network'
+                    || categoryConfig.key === _pendingChamberCategoryKey;
+                category.dataset.chamberShellInitialized = '1';
+            }
+            wireChamberCategory(category);
             const categoryCards = category.querySelector(':scope > .chamber-category-cards');
             let previousCard = null;
 
@@ -2419,6 +2731,8 @@ function orderChambersSurface() {
                 const card = document.querySelector(target.selector);
                 if (!card) return;
                 card.dataset.chamberLayout = target.layout;
+                const reservedSlot = categoryCards?.querySelector(`:scope > [data-chamber-slot="${entryId}"]`);
+                if (reservedSlot && card.parentElement !== categoryCards) reservedSlot.replaceWith(card);
                 const expectedCard = previousCard
                     ? previousCard.nextElementSibling
                     : categoryCards?.firstElementChild;
@@ -2473,7 +2787,7 @@ function orderChambersSurface() {
 }
 
 function initChambersSurface() {
-    ensureProtocolHistoryEntryCard();
+    initStaticChamberEntry('anthology', ensureProtocolHistoryEntryCard);
     orderChambersSurface();
 }
 
@@ -5958,6 +6272,7 @@ function applyDeepLink() {
     };
 
     const closeHashModalSurfaces = async () => {
+        _chamberOpenEpoch += 1;
         setMyTezosDrawerOpenState?.(false, { restoreFocus: false });
         document.getElementById('protocol-history-modal')?.remove();
         const protocolHistoryChamber = document.getElementById('protocol-history-chamber-modal');
@@ -5967,30 +6282,15 @@ function applyDeepLink() {
             protocolHistoryChamber.remove();
         }
 
-        await Promise.allSettled([
-            import('../features/chamber.js').then((module) => module.closeChamber?.()),
-            import('../features/tezlink.js').then((module) => module.closeTezlinkChamber?.()),
-            import('../features/etherlink-governance.js').then((module) => module.closeEtherlinkGovernanceChamber?.()),
-            import('../features/network-health.js').then((module) => module.closeNetworkHealthChamber?.()),
-            import('../features/network-pulse.js').then((module) => module.closeNetworkPulseChamber?.()),
-            import('../features/capital-chamber.js').then((module) => module.closeCapitalChamber?.()),
-            import('../features/minerals-chamber.js').then((module) => module.closeMineralsChamber?.()),
-            import('../features/uranium-chamber.js').then((module) => module.closeUraniumChamber?.()),
-            import('../features/metals-chamber.js').then((module) => module.closeMetalsChamber?.()),
-            import('../features/ecosystem-chamber.js').then((module) => module.closeEcosystemChamber?.()),
-            import('../features/staking-chamber.js').then((module) => module.closeStakingChamber?.()),
-            import('../features/liquidity-baking.js').then((module) => module.closeLiquidityBakingMonitor?.()),
-            import('../features/tz4-adoption.js').then((module) => module.closeTz4AdoptionChamber?.()),
-            import('../features/ctez.js').then((module) => module.closeCtezChamber?.()),
-            import('../features/ledger-flow.js').then((module) => module.closeLedgerFlowChamber?.()),
-            import('../features/tezos-domains.js').then((module) => module.closeTezosDomainsChamber?.()),
-            import('../features/maxis.js').then((module) => module.closeMaxisChamber?.()),
-            import('../features/tezoscrp.js').then((module) => module.closeTezosCrpChamber?.()),
-            import('../features/leaderboard.js').then((module) => module.closeBakerDirectoryChamber?.({ preserveRoute: true })),
-            import('../features/whale-chamber.js').then((module) => module.closeWhaleChamber?.({ preserveRoute: true })),
-            import('../features/history.js').then((module) => module.closeCycleHistoryChamber?.({ preserveRoute: true })),
-            import('../features/native-explorer.js').then((module) => module.closeNativeExplorer?.())
-        ]);
+        const closeTasks = [
+            closeLoadedChamberFeatures(),
+            Promise.resolve().then(() => closeNetworkHealthChamber?.()),
+            Promise.resolve().then(() => closeCycleHistoryChamber?.({ preserveRoute: true }))
+        ];
+        if (document.getElementById('native-explorer-overlay')) {
+            closeTasks.push(import('../features/native-explorer.js').then((module) => module.closeNativeExplorer?.()));
+        }
+        await Promise.allSettled(closeTasks);
 
         document.body.style.overflow = '';
         document.documentElement.style.overflow = '';
@@ -6002,7 +6302,9 @@ function applyDeepLink() {
             .then(() => {
                 if (typeof afterOpen === 'function') afterOpen();
             })
-            .catch((error) => console.warn(label, error));
+            .catch((error) => {
+                if (!isChamberOpenCancelled(error)) console.warn(label, error);
+            });
     };
 
     const openPrettyChamberRoute = (route) => {
@@ -6012,61 +6314,61 @@ function applyDeepLink() {
                 break;
             case 'chamber':
                 openHashModal(
-                    () => import('../features/chamber.js').then(({ openChamber }) => openChamber()),
+                    () => openChamberFeature('chamber'),
                     'Failed to open Tezos L1 Governance'
                 );
                 break;
             case 'pulse':
                 openHashModal(
-                    () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
+                    () => openChamberFeature('pulse'),
                     'Failed to open Network Pulse Chamber'
                 );
                 break;
             case 'capital':
                 openHashModal(
-                    () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
+                    () => openChamberFeature('capital'),
                     'Failed to open Capital Chamber'
                 );
                 break;
             case 'minerals':
                 openHashModal(
-                    () => import('../features/minerals-chamber.js').then(({ openMineralsChamber }) => openMineralsChamber()),
+                    () => openChamberFeature('minerals'),
                     'Failed to open Critical Minerals Chamber'
                 );
                 break;
             case 'uranium':
                 openHashModal(
-                    () => import('../features/uranium-chamber.js').then(({ openUraniumChamber }) => openUraniumChamber()),
+                    () => openChamberFeature('uranium'),
                     'Failed to open Uranium Chamber'
                 );
                 break;
             case 'metals':
                 openHashModal(
-                    () => import('../features/metals-chamber.js').then(({ openMetalsChamber }) => openMetalsChamber()),
+                    () => openChamberFeature('metals'),
                     'Failed to open Precious Metals Chamber'
                 );
                 break;
             case 'ecosystem':
                 openHashModal(
-                    () => import('../features/ecosystem-chamber.js').then(({ openEcosystemChamber }) => openEcosystemChamber()),
+                    () => openChamberFeature('ecosystem'),
                     'Failed to open Ecosystem Activity'
                 );
                 break;
             case 'whales':
                 openHashModal(
-                    () => import('../features/whale-chamber.js').then(({ openWhaleChamber }) => openWhaleChamber()),
+                    () => openChamberFeature('whales'),
                     'Failed to open Whale Watch Chamber'
                 );
                 break;
             case 'staking':
                 openHashModal(
-                    () => import('../features/staking-chamber.js').then(({ openStakingChamber }) => openStakingChamber()),
+                    () => openChamberFeature('staking-chamber'),
                     'Failed to open Staking Chamber'
                 );
                 break;
             case 'leaderboard':
                 openHashModal(
-                    () => import('../features/leaderboard.js').then(({ openBakerDirectoryChamber }) => openBakerDirectoryChamber()),
+                    () => openChamberFeature('leaderboard'),
                     'Failed to open Baker Directory Chamber'
                 );
                 break;
@@ -6078,55 +6380,55 @@ function applyDeepLink() {
                 break;
             case 'tezosx':
                 openHashModal(
-                    () => import('../features/tezlink.js').then(({ openTezlinkChamber }) => openTezlinkChamber()),
+                    () => openChamberFeature('tezosx'),
                     'Failed to open Tezos X Chamber'
                 );
                 break;
             case 'l2chamber':
                 openHashModal(
-                    () => import('../features/etherlink-governance.js').then(({ openEtherlinkGovernanceChamber }) => openEtherlinkGovernanceChamber()),
+                    () => openChamberFeature('l2-governance'),
                     'Failed to open Tezos X Governance Chamber'
                 );
                 break;
             case 'lb':
                 openHashModal(
-                    () => import('../features/liquidity-baking.js').then(({ openLiquidityBakingMonitor }) => openLiquidityBakingMonitor()),
+                    () => openChamberFeature('liquidity-baking'),
                     'Failed to open Liquidity Baking monitor'
                 );
                 break;
             case 'tz4':
                 openHashModal(
-                    () => import('../features/tz4-adoption.js').then(({ openTz4AdoptionChamber }) => openTz4AdoptionChamber()),
+                    () => openChamberFeature('tz4'),
                     'Failed to open tz4 Adoption Chamber'
                 );
                 break;
             case 'ctez':
                 openHashModal(
-                    () => import('../features/ctez.js').then(({ openCtezChamber }) => openCtezChamber()),
+                    () => openChamberFeature('ctez'),
                     'Failed to open ctez End of Life'
                 );
                 break;
             case 'ledger-flow':
                 openHashModal(
-                    () => import('../features/ledger-flow.js').then(({ openLedgerFlowChamber }) => openLedgerFlowChamber('')),
+                    () => openChamberFeature('ledger-flow', ''),
                     'Failed to open Ledger Flow'
                 );
                 break;
             case 'domains':
                 openHashModal(
-                    () => import('../features/tezos-domains.js').then(({ openTezosDomainsChamber }) => openTezosDomainsChamber('')),
+                    () => openChamberFeature('domains', ''),
                     'Failed to open Tezos Domains Chamber'
                 );
                 break;
             case 'maxis':
                 openHashModal(
-                    () => import('../features/maxis.js').then(({ openMaxisChamber }) => openMaxisChamber()),
+                    () => openChamberFeature('maxis'),
                     'Failed to open Tezos Maxis Chamber'
                 );
                 break;
             case 'tezoscrp':
                 openHashModal(
-                    () => import('../features/tezoscrp.js').then(({ openTezosCrpChamber }) => openTezosCrpChamber()),
+                    () => openChamberFeature('tezoscrp'),
                     'Failed to open TezosCRP Recognition Hall'
                 );
                 break;
@@ -6217,7 +6519,7 @@ function applyDeepLink() {
     // #chamber / #the-chamber
     if (params.has('chamber') || hash === 'chamber' || params.has('the-chamber') || hash === 'the-chamber') {
         openHashModal(
-            () => import('../features/chamber.js').then(({ openChamber }) => openChamber()),
+            () => openChamberFeature('chamber'),
             'Failed to open Tezos L1 Governance'
         );
     }
@@ -6231,7 +6533,7 @@ function applyDeepLink() {
     // #pulse / #network-pulse
     if (params.has('pulse') || hash === 'pulse' || params.has('network-pulse') || hash === 'network-pulse') {
         openHashModal(
-            () => import('../features/network-pulse.js').then(({ openNetworkPulseChamber }) => openNetworkPulseChamber()),
+            () => openChamberFeature('pulse'),
             'Failed to open Network Pulse Chamber'
         );
     }
@@ -6239,7 +6541,7 @@ function applyDeepLink() {
     // #capital
     if (params.has('capital') || hash === 'capital') {
         openHashModal(
-            () => import('../features/capital-chamber.js').then(({ openCapitalChamber }) => openCapitalChamber()),
+            () => openChamberFeature('capital'),
             'Failed to open Capital Chamber'
         );
     }
@@ -6249,7 +6551,7 @@ function applyDeepLink() {
         || params.has('critical-minerals') || hash === 'critical-minerals'
         || params.has('strategic-minerals') || hash === 'strategic-minerals') {
         openHashModal(
-            () => import('../features/minerals-chamber.js').then(({ openMineralsChamber }) => openMineralsChamber()),
+            () => openChamberFeature('minerals'),
             'Failed to open Critical Minerals Chamber'
         );
     }
@@ -6260,7 +6562,7 @@ function applyDeepLink() {
         || params.has('u3o8') || hash === 'u3o8'
         || params.has('uranium-market') || hash === 'uranium-market') {
         openHashModal(
-            () => import('../features/uranium-chamber.js').then(({ openUraniumChamber }) => openUraniumChamber()),
+            () => openChamberFeature('uranium'),
             'Failed to open Uranium Chamber'
         );
     }
@@ -6270,7 +6572,7 @@ function applyDeepLink() {
         || params.has('precious-metals') || hash === 'precious-metals'
         || params.has('metals-market') || hash === 'metals-market') {
         openHashModal(
-            () => import('../features/metals-chamber.js').then(({ openMetalsChamber }) => openMetalsChamber()),
+            () => openChamberFeature('metals'),
             'Failed to open Precious Metals Chamber'
         );
     }
@@ -6278,7 +6580,7 @@ function applyDeepLink() {
     // #ecosystem
     if (params.has('ecosystem') || hash === 'ecosystem') {
         openHashModal(
-            () => import('../features/ecosystem-chamber.js').then(({ openEcosystemChamber }) => openEcosystemChamber()),
+            () => openChamberFeature('ecosystem'),
             'Failed to open Ecosystem Activity'
         );
     }
@@ -6286,7 +6588,7 @@ function applyDeepLink() {
     // #staking / #stake
     if (params.has('staking') || hash === 'staking' || params.has('stake') || hash === 'stake') {
         openHashModal(
-            () => import('../features/staking-chamber.js').then(({ openStakingChamber }) => openStakingChamber()),
+            () => openChamberFeature('staking-chamber'),
             'Failed to open Staking Chamber'
         );
     }
@@ -6294,7 +6596,7 @@ function applyDeepLink() {
     // #maxis / #tezos-maxis
     if (params.has('maxis') || hash === 'maxis' || params.has('tezos-maxis') || hash === 'tezos-maxis') {
         openHashModal(
-            () => import('../features/maxis.js').then(({ openMaxisChamber }) => openMaxisChamber()),
+            () => openChamberFeature('maxis'),
             'Failed to open Tezos Maxis Chamber'
         );
     }
@@ -6302,7 +6604,7 @@ function applyDeepLink() {
     // #tezoscrp / #community-rewards
     if (params.has('tezoscrp') || hash === 'tezoscrp' || params.has('community-rewards') || hash === 'community-rewards') {
         openHashModal(
-            () => import('../features/tezoscrp.js').then(({ openTezosCrpChamber }) => openTezosCrpChamber()),
+            () => openChamberFeature('tezoscrp'),
             'Failed to open TezosCRP Recognition Hall'
         );
     }
@@ -6320,7 +6622,7 @@ function applyDeepLink() {
     // #tezosx / legacy #tezlink
     if (params.has('tezosx') || hash === 'tezosx' || params.has('tezlink') || hash === 'tezlink') {
         openHashModal(
-            () => import('../features/tezlink.js').then(({ openTezlinkChamber }) => openTezlinkChamber()),
+            () => openChamberFeature('tezosx'),
             'Failed to open Tezos X Chamber'
         );
     }
@@ -6333,7 +6635,7 @@ function applyDeepLink() {
         params.has('etherlink') || hash === 'etherlink'
     ) {
         openHashModal(
-            () => import('../features/etherlink-governance.js').then(({ openEtherlinkGovernanceChamber }) => openEtherlinkGovernanceChamber()),
+            () => openChamberFeature('l2-governance'),
             'Failed to open Tezos X Governance Chamber'
         );
     }
@@ -6355,7 +6657,7 @@ function applyDeepLink() {
     // #lb / #liquidity-baking
     if (params.has('lb') || hash === 'lb' || params.has('liquidity-baking') || hash === 'liquidity-baking') {
         openHashModal(
-            () => import('../features/liquidity-baking.js').then(({ openLiquidityBakingMonitor }) => openLiquidityBakingMonitor()),
+            () => openChamberFeature('liquidity-baking'),
             'Failed to open Liquidity Baking monitor'
         );
     }
@@ -6363,7 +6665,7 @@ function applyDeepLink() {
     // #tz4 / #tz4-adoption
     if (params.has('tz4') || hash === 'tz4' || params.has('tz4-adoption') || hash === 'tz4-adoption') {
         openHashModal(
-            () => import('../features/tz4-adoption.js').then(({ openTz4AdoptionChamber }) => openTz4AdoptionChamber()),
+            () => openChamberFeature('tz4'),
             'Failed to open tz4 Adoption Chamber'
         );
     }
@@ -6371,7 +6673,7 @@ function applyDeepLink() {
     // #ctez / legacy #ctez-oven / #ctez-guide
     if (params.has('ctez') || hash === 'ctez' || params.has('ctez-oven') || hash === 'ctez-oven' || params.has('ctez-guide') || hash === 'ctez-guide') {
         openHashModal(
-            () => import('../features/ctez.js').then(({ openCtezChamber }) => openCtezChamber()),
+            () => openChamberFeature('ctez'),
             'Failed to open ctez End of Life'
         );
     }
@@ -6380,7 +6682,7 @@ function applyDeepLink() {
     if (params.has('ledger-flow') || hash === 'ledger-flow' || params.has('flow') || hash === 'flow') {
         const target = params.get('ledger-flow') || params.get('flow') || '';
         openHashModal(
-            () => import('../features/ledger-flow.js').then(({ openLedgerFlowChamber }) => openLedgerFlowChamber(target)),
+            () => openChamberFeature('ledger-flow', target),
             'Failed to open Ledger Flow'
         );
     }
@@ -6389,7 +6691,7 @@ function applyDeepLink() {
     if (params.has('domains') || hash === 'domains' || params.has('tezos-domains') || hash === 'tezos-domains') {
         const target = params.get('domains') || params.get('tezos-domains') || '';
         openHashModal(
-            () => import('../features/tezos-domains.js').then(({ openTezosDomainsChamber }) => openTezosDomainsChamber(target)),
+            () => openChamberFeature('domains', target),
             'Failed to open Tezos Domains Chamber',
             () => {
                 if (!target && (window.location.pathname !== '/domains/' || window.location.hash)) {
@@ -6420,7 +6722,7 @@ function applyDeepLink() {
     // #leaderboard — open Baker Directory Chamber
     if (params.has('leaderboard') || hash === 'leaderboard') {
         openHashModal(
-            () => import('../features/leaderboard.js').then(({ openBakerDirectoryChamber }) => openBakerDirectoryChamber()),
+            () => openChamberFeature('leaderboard'),
             'Failed to open Baker Directory Chamber'
         );
     }
@@ -6429,7 +6731,7 @@ function applyDeepLink() {
     if (params.has('baker')) {
         const addr = params.get('baker');
         if (addr && (addr.startsWith('tz') || addr.endsWith('.tez'))) {
-            import('../features/leaderboard.js').then(mod => {
+            loadChamberFeature('leaderboard').then(mod => {
                 if (mod.openBakerProfile) mod.openBakerProfile(addr);
                 else console.warn('[deep-link] openBakerProfile not found in leaderboard module');
             }).catch(err => console.error('[deep-link] baker import failed:', err));
@@ -6439,7 +6741,7 @@ function applyDeepLink() {
     // #whales — open Whale Watch Chamber
     if (params.has('whales') || hash === 'whales') {
         openHashModal(
-            () => import('../features/whale-chamber.js').then(({ openWhaleChamber }) => openWhaleChamber()),
+            () => openChamberFeature('whales'),
             'Failed to open Whale Watch Chamber'
         );
     }
@@ -6447,7 +6749,7 @@ function applyDeepLink() {
     // #giants — legacy alias for Whale Watch Deep Sleep
     if (params.has('giants') || hash === 'giants') {
         openHashModal(
-            () => import('../features/whale-chamber.js').then(({ openWhaleChamber }) => openWhaleChamber('dormant')),
+            () => openChamberFeature('whales', 'dormant'),
             'Failed to open Whale Watch Deep Sleep'
         );
     }
@@ -6529,6 +6831,7 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },
     'baker-directory-modal': { entryIds: ['leaderboard'], hashes: ['leaderboard'] },
     'maxis-modal': { entryIds: ['maxis'], hashes: ['maxis', 'tezos-maxis'] },
+    'tezoscrp-modal': { entryIds: ['tezoscrp'], hashes: ['tezoscrp'] },
     'network-health-modal': { entryIds: ['health'], hashes: ['health', 'network-health'] },
     'tezlink-modal': { entryIds: ['tezosx'], hashes: ['tezosx', 'tezlink'] },
     'etherlink-governance-modal': { entryIds: ['l2-governance'], hashes: ['l2chamber', 'etherlink-governance', 'etherlink-gov', 'etherlink'] },
@@ -6911,8 +7214,7 @@ function initKeyboardShortcuts() {
             }
             case 'g': {
                 e.preventDefault();
-                import('../features/whale-chamber.js')
-                    .then(({ openWhaleChamber }) => openWhaleChamber('dormant'))
+                openChamberFeature('whales', 'dormant')
                     .catch((error) => console.warn('Failed to open Whale Watch Deep Sleep', error));
                 break;
             }

@@ -729,7 +729,7 @@ async function loadGeneratedMilestoneCatalog() {
   if (generatedMilestoneCatalog) return generatedMilestoneCatalog;
   if (generatedMilestoneCatalogPromise) return generatedMilestoneCatalogPromise;
   generatedMilestoneCatalogPromise = withTimeout(
-    fetch(MILESTONE_CATALOG_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
+    fetch(MILESTONE_CATALOG_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
       .then(response => response.ok ? response.json() : null),
     MILESTONE_FETCH_TIMEOUT_MS
   ).then((catalog) => {
@@ -3929,7 +3929,10 @@ function renderHotTodayState(state, stats = lastStats || {}) {
   island.dataset.pulseState = state;
   island.setAttribute('aria-busy', loading ? 'true' : 'false');
   island.setAttribute('aria-live', loading ? 'off' : 'polite');
-  if (hotTodayHasRendered) quietlySyncHtml(content, stateMarkup);
+  if (loading && content.hasAttribute('data-static-loading')) {
+    content.removeAttribute('data-static-loading');
+    setHotTodayLiveText('clock', `Live · ${currentUtcTick()} UTC`);
+  } else if (hotTodayHasRendered) quietlySyncHtml(content, stateMarkup);
   else content.innerHTML = stateMarkup;
   hotTodayHasRendered = !loading;
   wireNetworkContextNavigation(island);

@@ -6,7 +6,7 @@
  * so installing an update does not download the whole site.
  */
 
-const CACHE_NAME = 'tezos-systems-v546';
+const CACHE_NAME = 'tezos-systems-v548';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CURRENT_CACHES = new Set([CACHE_NAME, RUNTIME_CACHE]);
 
@@ -50,13 +50,34 @@ const API_HOSTS = new Set([
 // Chamber retains and labels its in-memory last-good snapshot; the service
 // worker must not make an older JSON response look like a fresh fetch.
 const NETWORK_ONLY_DATA_PATHS = new Set([
+    '/data/governance-votes.json',
+    '/data/governance-refresh-report.json',
+    '/data/release-radar.json',
+    '/data/capital-entry-summary.json',
+    '/data/capital-snapshot.json',
+    '/data/ecosystem-entry-summary.json',
+    '/data/ecosystem-stats.json',
     '/data/minerals-entry-summary.json',
     '/data/minerals-snapshot.json',
     '/data/metals-entry-summary.json',
     '/data/metals-snapshot.json',
     '/data/uranium-entry-summary.json',
-    '/data/uranium-snapshot.json'
+    '/data/uranium-snapshot.json',
+    '/data/whale-watch.json',
+    '/data/baker-governance-signals.json',
+    '/data/maxis/entry-summary.json',
+    '/data/maxis-leaders.json',
+    '/data/maxis-careers.json',
+    '/data/maxis-l2-governance.json',
+    '/data/maxis/manifest.json',
+    '/data/tezoscrp-awards.json',
+    '/data/tezoscrp-summary.json'
 ]);
+
+function isNetworkOnlyDataPath(pathname) {
+    return NETWORK_ONLY_DATA_PATHS.has(pathname)
+        || /^\/data\/maxis\/seasons\/[^/]+\/(?:summary|rules)\.json$/.test(pathname);
+}
 
 const CDN_HOSTS = new Set([
     'cdn.jsdelivr.net',
@@ -94,18 +115,38 @@ async function fetchWithTimeout(request, timeoutMs, init = {}) {
     }
 }
 
+function unavailableDataResponse() {
+    return new Response(JSON.stringify({
+        error: 'Network data unavailable',
+        _quality: { status: 'unavailable', observedAt: null }
+    }), {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'application/json', 'X-Tezos-Systems-Cache': 'miss' }
+    });
+}
+
 async function apiNetworkFirst(request, event) {
+    if (self.navigator?.onLine === false) return unavailableDataResponse();
     try {
-        return await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS);
+        // A network-only receipt must bypass the browser HTTP cache as well as
+        // Cache Storage; otherwise an offline fetch can silently replay a
+        // previously seeded generated artifact as current.
+        return await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-store' });
     } catch {
-        return new Response(JSON.stringify({
-            error: 'Network data unavailable',
-            _quality: { status: 'unavailable', observedAt: null }
-        }), {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: { 'Content-Type': 'application/json', 'X-Tezos-Systems-Cache': 'miss' }
-        });
+        return unavailableDataResponse();
+    }
+}
+
+async function generatedDataNetworkFirst(request, event) {
+    if (self.navigator?.onLine === false) return unavailableDataResponse();
+    try {
+        // Revalidate mutable receipts with ETag/If-None-Match while never
+        // falling back to Cache Storage. A failed revalidation stays visibly
+        // unavailable so an old snapshot cannot impersonate a fresh one.
+        return await fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-cache' });
+    } catch {
+        return unavailableDataResponse();
     }
 }
 
@@ -190,8 +231,8 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    if (url.origin === self.location.origin && NETWORK_ONLY_DATA_PATHS.has(url.pathname)) {
-        event.respondWith(apiNetworkFirst(request, event));
+    if (url.origin === self.location.origin && isNetworkOnlyDataPath(url.pathname)) {
+        event.respondWith(generatedDataNetworkFirst(request, event));
         return;
     }
 

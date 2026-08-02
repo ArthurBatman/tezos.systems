@@ -8,16 +8,19 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
 import { sha256Text } from '../core/sha256.js';
+import { assertSnapshotMatchesProjection } from '../core/snapshot-receipt.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const METALS_CSS_URL = '/css/metals-chamber.css?v=546';
+const METALS_CSS_URL = versionedAsset('/css/metals-chamber.min.css');
 const METALS_SNAPSHOT_URL = '/data/metals-snapshot.json';
 const METALS_ENTRY_SUMMARY_URL = '/data/metals-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -52,7 +55,6 @@ let lastEntrySummary = null;
 let lastRefreshError = '';
 let activeFetch = null;
 let activeEntryFetch = null;
-let metalsCssReady = null;
 let chamberTimer = null;
 let entryTimer = null;
 let visibilityReady = false;
@@ -186,21 +188,7 @@ function directionClass(value) {
 }
 
 function ensureMetalsCss() {
-    const existing = document.getElementById('metals-chamber-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (metalsCssReady) return metalsCssReady;
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'metals-chamber-css';
-        link.rel = 'stylesheet';
-        link.href = METALS_CSS_URL;
-    }
-    metalsCssReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return metalsCssReady;
+    return ensureChamberStylesheet('metals-chamber-css', METALS_CSS_URL);
 }
 
 function metalKey(row) {
@@ -298,15 +286,6 @@ async function validateSnapshot(snapshot) {
     if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
         throw new Error('Metals snapshot failed its SHA-256 integrity receipt.');
     }
-    if (lastEntrySummary?.source?.contentHash
-        && lastEntrySummary.source.contentHash.toLowerCase() !== contentHash.toLowerCase()) {
-        const projectedAt = Date.parse(lastEntrySummary.source.generatedAt || lastEntrySummary.generatedAt || '');
-        const snapshotAt = Date.parse(snapshot.generatedAt || '');
-        if (!Number.isFinite(projectedAt) || snapshotAt <= projectedAt) {
-            throw new Error('Metals snapshot is older than the launcher projection receipt.');
-        }
-        lastEntrySummary = null;
-    }
     return snapshot;
 }
 
@@ -319,6 +298,7 @@ async function validateEntrySummary(summary) {
         || !/^[0-9a-f]{64}$/.test(summary.contentHash || '')
         || summary.source?.path !== 'data/metals-snapshot.json'
         || summary.source?.schemaVersion !== 1
+        || summary.source?.generatedAt !== summary.generatedAt
         || !/^[0-9a-f]{64}$/.test(summary.source?.contentHash || '')
         || !/^[0-9a-f]{64}$/.test(summary.source?.fileSha256 || '')
         || !Array.isArray(summary.metals)
@@ -336,21 +316,30 @@ async function validateEntrySummary(summary) {
     return summary;
 }
 
-function fetchMetalsSnapshot() {
+function fetchMetalsSnapshot(summary = lastEntrySummary) {
     if (activeFetch) return activeFetch;
-    activeFetch = fetch(METALS_SNAPSHOT_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
-        .then((response) => {
+    const sourceReceipt = summary?.source || null;
+    activeFetch = fetch(METALS_SNAPSHOT_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
+        .then(async (response) => {
             if (!response.ok) throw new Error(`Metals snapshot HTTP ${response.status}`);
-            return response.json();
+            const sourceText = await response.text();
+            let snapshot;
+            try {
+                snapshot = JSON.parse(sourceText);
+            } catch {
+                throw new Error('Metals snapshot is not valid JSON.');
+            }
+            await validateSnapshot(snapshot);
+            await assertSnapshotMatchesProjection(snapshot, sourceText, sourceReceipt, { label: 'Metals snapshot' });
+            return snapshot;
         })
-        .then(validateSnapshot)
         .finally(() => { activeFetch = null; });
     return activeFetch;
 }
 
 function fetchMetalsEntrySummary() {
     if (activeEntryFetch) return activeEntryFetch;
-    activeEntryFetch = fetch(METALS_ENTRY_SUMMARY_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
+    activeEntryFetch = fetch(METALS_ENTRY_SUMMARY_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
         .then((response) => {
             if (!response.ok) throw new Error(`Metals entry summary HTTP ${response.status}`);
             return response.json();
@@ -358,6 +347,40 @@ function fetchMetalsEntrySummary() {
         .then(validateEntrySummary)
         .finally(() => { activeEntryFetch = null; });
     return activeEntryFetch;
+}
+
+function metalsSnapshotHash(summary) {
+    return String(summary?.source?.contentHash || '').toLowerCase();
+}
+
+async function resolveMetalsSnapshotRefresh() {
+    let summary = lastEntrySummary;
+
+    if (lastSnapshot || !summary || lastRefreshError) {
+        try {
+            summary = await fetchMetalsEntrySummary();
+            lastEntrySummary = summary;
+        } catch (error) {
+            if (lastSnapshot) throw error;
+            console.warn('Metals summary poll failed during open; trying the complete snapshot:', error);
+            summary = null;
+        }
+    }
+
+    const projectedHash = metalsSnapshotHash(summary);
+    const loadedHash = String(lastSnapshot?.contentHash || '').toLowerCase();
+    if (lastSnapshot && projectedHash && projectedHash === loadedHash) {
+        return { snapshot: lastSnapshot, changed: false };
+    }
+    if (lastSnapshot && projectedHash) {
+        const projectedAt = Date.parse(summary?.source?.generatedAt || summary?.generatedAt || '');
+        const loadedAt = Date.parse(lastSnapshot.generatedAt || '');
+        if (!Number.isFinite(projectedAt) || !Number.isFinite(loadedAt) || projectedAt <= loadedAt) {
+            throw new Error('Metals launcher projection is not newer than the loaded snapshot; retaining last-good data.');
+        }
+    }
+
+    return { snapshot: await fetchMetalsSnapshot(summary), changed: true };
 }
 
 function corePicture(className = '') {
@@ -585,6 +608,22 @@ function freshnessPresentation(snapshot) {
     const degradedLabel = degraded.length === 1 ? `${degraded[0].label} ${degraded[0].status}` : degraded.length > 1 ? `${degraded.length} sources degraded` : '';
     const base = lastRefreshError ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed` : `Generated ${ageLabel(snapshot.generatedAt)}`;
     return { label: `${base} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}${degradedLabel ? ` · ${degradedLabel}` : ''}`, stale: stale || Boolean(lastRefreshError) || degraded.length > 0 };
+}
+
+function syncMetalsFreshness(snapshot) {
+    const presentation = freshnessPresentation(snapshot);
+    const freshness = document.getElementById('metals-freshness');
+    if (freshness) {
+        if (freshness.textContent !== presentation.label) freshness.textContent = presentation.label;
+        freshness.classList.toggle('is-stale', presentation.stale);
+    }
+    const proofStatus = document.getElementById('metals-proof-refresh-status');
+    if (proofStatus) {
+        const label = lastRefreshError ? 'last-good retained' : `generated ${ageLabel(snapshot.generatedAt)}`;
+        if (proofStatus.textContent !== label) proofStatus.textContent = label;
+        proofStatus.classList.toggle('is-bad', Boolean(lastRefreshError));
+        proofStatus.classList.toggle('is-good', !lastRefreshError);
+    }
 }
 
 function renderChamber(snapshot) {
@@ -919,7 +958,8 @@ async function refreshMetalsChamber({ quiet = true } = {}) {
         return lastSnapshot;
     }
     try {
-        const snapshot = await fetchMetalsSnapshot();
+        const hadRefreshError = Boolean(lastRefreshError);
+        const { snapshot, changed } = await resolveMetalsSnapshotRefresh();
         if (document.visibilityState !== 'visible') {
             refreshDeferred = true;
             return lastSnapshot;
@@ -927,8 +967,11 @@ async function refreshMetalsChamber({ quiet = true } = {}) {
         lastSnapshot = snapshot;
         lastRefreshError = '';
         refreshDeferred = false;
-        updateEntry(snapshot, { quiet });
-        if (document.getElementById('metals-modal')?.classList.contains('active')) renderBody(snapshot, { quiet });
+        if (changed || hadRefreshError) updateEntry(snapshot, { quiet });
+        else syncMetalsFreshness(snapshot);
+        if ((changed || hadRefreshError) && document.getElementById('metals-modal')?.classList.contains('active')) {
+            renderBody(snapshot, { quiet });
+        }
         return snapshot;
     } catch (error) {
         if (document.visibilityState !== 'visible') {
@@ -989,7 +1032,7 @@ export function closeMetalsChamber() {
 }
 
 export function initMetalsChamber() {
-    ensureMetalsCss();
+    ensureMetalsCss().catch((error) => console.warn('Precious Metals styles unavailable', error));
     bindVisibilityRefresh();
     startEntryRefreshTimer();
     const card = ensureEntryCard();

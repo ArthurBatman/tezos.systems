@@ -4,6 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { escapeHtml, formatFreshnessStamp, formatMutez } from '../core/utils.js';
 import { buildBakerCapacitySnapshot } from '../core/baker-capacity.mjs';
 import {
@@ -16,12 +17,14 @@ import {
 import { isValidAddress } from './my-baker.js';
 import { pulseFresh } from '../effects/data-magic.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { sha256Text } from '../core/sha256.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
     findChamberLauncher,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const TZKT = API_URLS.tzkt;
 const TOGGLE_KEY = 'tezos-systems-leaderboard-visible';
@@ -29,9 +32,8 @@ const SORT_KEY = 'tezos-systems-leaderboard-sort';
 const CACHE_KEY = 'tezos-systems-leaderboard-cache-v6';
 const LEGACY_CACHE_KEYS = [1, 2, 3, 4, 5].map((version) => `tezos-systems-leaderboard-cache-v${version}`);
 const FIT_KEY = 'tezos-systems-baker-fit';
-const LEADERBOARD_CSS_URL = '/css/leaderboard.css?v=546';
-const GOVERNANCE_CAREERS_URL = '/data/maxis-careers.json?surface=leaderboard';
-const GOVERNANCE_VOTES_URL = '/data/governance-votes.json?surface=leaderboard';
+const LEADERBOARD_CSS_URL = versionedAsset('/css/leaderboard.min.css');
+const GOVERNANCE_SIGNALS_URL = '/data/baker-governance-signals.json';
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_DELEGATION_LIMIT = 9;
 const MY_BAKER_KEY = 'tezos-systems-my-baker-address';
@@ -77,12 +79,7 @@ let bakerDirectoryFocusedBeforeOpen = null;
 let bakerActionState = null;
 
 function ensureLeaderboardStyles() {
-    if (document.getElementById('leaderboard-css')) return;
-    const link = document.createElement('link');
-    link.id = 'leaderboard-css';
-    link.rel = 'stylesheet';
-    link.href = LEADERBOARD_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('leaderboard-css', LEADERBOARD_CSS_URL);
 }
 
 const FIT_QUESTIONS = [
@@ -221,64 +218,102 @@ function emptyGovernanceSignals() {
         proposalsReady: false,
         careerGeneratedAt: null,
         proposalsGeneratedAt: null,
+        sourceRecordCount: 0,
+        runtimeMatchedCount: 0,
+        runtimeMissingAddresses: [],
         careerError: '',
         proposalsError: ''
     };
 }
 
 async function fetchJsonArtifact(url) {
-    const response = await fetch(url, { cache: 'no-store' });
+    const response = await fetch(url, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`Artifact HTTP ${response.status}`);
     return response.json();
 }
 
-function governanceCareerIndex(artifact) {
-    if (artifact?.kind !== 'maxis-governance-careers'
-        || artifact?.coverage?.status !== 'complete'
-        || artifact?.coverage?.absenceMeansZero !== true
-        || !artifact?.records
-        || typeof artifact.records !== 'object') {
-        throw new Error('Governance career artifact is incomplete');
-    }
-
-    const byAddress = new Map();
-    for (const [address, record] of Object.entries(artifact.records)) {
-        if (record?.address === address) byAddress.set(address, record);
-    }
-    return byAddress;
+function stableJsonValue(value) {
+    if (Array.isArray(value)) return value.map(stableJsonValue);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]));
 }
 
-function acceptedProposalIndex(artifact) {
-    if (!Array.isArray(artifact?.epochs)
-        || Number(artifact.epochCount) !== artifact.epochs.length) {
-        throw new Error('Governance proposal artifact is incomplete');
+async function governanceSignalIndexes(artifact) {
+    if (Number(artifact?.schema) !== 1
+        || artifact?.kind !== 'baker-governance-signals'
+        || artifact?.coverage?.status !== 'complete'
+        || artifact?.coverage?.mode !== 'source-active-delegate-governance-signal-projection'
+        || !/Zero-valued fields mean zero only for an address present/i.test(artifact?.coverage?.zeroSemantics || '')
+        || !/missing address.*not proof of no governance history/i.test(artifact?.coverage?.missingAddressSemantics || '')
+        || !artifact?.records
+        || typeof artifact.records !== 'object'
+        || Number(artifact?.recordCount) !== Object.keys(artifact.records).length
+        || !/^[0-9a-f]{64}$/.test(artifact?.integrity?.contentHash || '')) {
+        throw new Error('Baker governance signal artifact is incomplete');
+    }
+    const { integrity, ...unsigned } = artifact;
+    const actualHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
+    if (actualHash.toLowerCase() !== integrity.contentHash.toLowerCase()) {
+        throw new Error('Baker governance signal artifact failed its SHA-256 integrity receipt');
+    }
+    const careerGeneratedAt = artifact?.sources?.careers?.generatedAt || null;
+    const proposalsGeneratedAt = artifact?.sources?.governanceVotes?.generatedAt || null;
+    if (!Number.isFinite(Date.parse(careerGeneratedAt || ''))
+        || !Number.isFinite(Date.parse(proposalsGeneratedAt || ''))) {
+        throw new Error('Baker governance signal source clocks are invalid');
     }
 
-    const byAddress = new Map();
+    const careerByAddress = new Map();
+    const acceptedByAddress = new Map();
     const seenHashes = new Set();
-    for (const epoch of artifact.epochs) {
-        for (const proposal of epoch?.proposals || []) {
-            const hash = String(proposal?.hash || '').trim();
-            const address = String(proposal?.initiator?.address || '').trim();
-            if (proposal?.status !== 'accepted' || !hash || !address || seenHashes.has(hash)) continue;
-            seenHashes.add(hash);
-            const rows = byAddress.get(address) || [];
-            rows.push({
-                hash,
-                name: String(proposal?.extras?.alias || '').trim() || `${hash.slice(0, 8)}…`,
-                epoch: Number.isFinite(Number(proposal?.epoch)) ? Number(proposal.epoch) : null
-            });
-            byAddress.set(address, rows);
+    let acceptedProposalCount = 0;
+    for (const [address, record] of Object.entries(artifact.records)) {
+        const lifetimeBallots = Number(record?.lifetimeBallots);
+        const currentStreak = Number(record?.currentBallotPeriodStreak);
+        const longestStreak = Number(record?.longestBallotPeriodStreak);
+        if (record?.address !== address
+            || !/^tz[1-4][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
+            || !Number.isSafeInteger(lifetimeBallots) || lifetimeBallots < 0
+            || !Number.isSafeInteger(currentStreak) || currentStreak < 0
+            || !Number.isSafeInteger(longestStreak) || longestStreak < currentStreak
+            || !Array.isArray(record?.acceptedProposals)) {
+            throw new Error(`Baker governance signal record is invalid: ${address}`);
         }
+        const accepted = record.acceptedProposals.map((proposal) => {
+            const hash = String(proposal?.hash || '').trim();
+            const name = String(proposal?.name || '').trim();
+            const epoch = proposal?.epoch == null ? null : Number(proposal.epoch);
+            if (!hash || seenHashes.has(hash) || !name
+                || (epoch !== null && (!Number.isSafeInteger(epoch) || epoch < 0))) {
+                throw new Error(`Accepted proposal signal is invalid: ${hash || address}`);
+            }
+            seenHashes.add(hash);
+            acceptedProposalCount += 1;
+            return { hash, name, epoch };
+        });
+        careerByAddress.set(address, {
+            address,
+            lifetimeBallots,
+            currentBallotPeriodStreak: currentStreak,
+            longestBallotPeriodStreak: longestStreak
+        });
+        if (accepted.length) acceptedByAddress.set(address, accepted);
     }
-    return byAddress;
+    if (acceptedProposalCount !== Number(artifact.acceptedProposalCount)) {
+        throw new Error('Baker governance signal proposal count does not reconcile');
+    }
+    return { careerByAddress, acceptedByAddress, careerGeneratedAt, proposalsGeneratedAt, sourceRecordCount: careerByAddress.size };
+}
+
+function reconcileGovernanceSignalCoverage(bakers = bakersData) {
+    if (!governanceSignals.careerReady) return;
+    const addresses = bakers.map((baker) => baker.address).filter(Boolean);
+    const missing = addresses.filter((address) => !governanceSignals.careerByAddress.has(address));
+    governanceSignals.runtimeMatchedCount = addresses.length - missing.length;
+    governanceSignals.runtimeMissingAddresses = missing;
 }
 
 async function fetchGovernanceSignals() {
-    const [careerResult, proposalsResult] = await Promise.allSettled([
-        fetchJsonArtifact(GOVERNANCE_CAREERS_URL),
-        fetchJsonArtifact(GOVERNANCE_VOTES_URL)
-    ]);
     const next = {
         ...governanceSignals,
         careerByAddress: governanceSignals.careerByAddress,
@@ -286,27 +321,28 @@ async function fetchGovernanceSignals() {
         careerError: '',
         proposalsError: ''
     };
-
-    if (careerResult.status === 'fulfilled') {
-        try {
-            next.careerByAddress = governanceCareerIndex(careerResult.value);
-            next.careerReady = true;
-            next.careerGeneratedAt = careerResult.value.generatedAt || null;
-        } catch (error) {
-            next.careerError = error?.message || 'Governance career receipt invalid';
+    try {
+        const artifact = await fetchJsonArtifact(GOVERNANCE_SIGNALS_URL);
+        const indexed = await governanceSignalIndexes(artifact);
+        if ((next.careerReady && Date.parse(indexed.careerGeneratedAt) < Date.parse(next.careerGeneratedAt || ''))
+            || (next.proposalsReady && Date.parse(indexed.proposalsGeneratedAt) < Date.parse(next.proposalsGeneratedAt || ''))) {
+            throw new Error('Baker governance signal receipt is older than the retained last-good source clocks');
         }
-    } else next.careerError = careerResult.reason?.message || 'Governance career receipt unavailable';
-    if (proposalsResult.status === 'fulfilled') {
-        try {
-            next.acceptedByAddress = acceptedProposalIndex(proposalsResult.value);
-            next.proposalsReady = true;
-            next.proposalsGeneratedAt = proposalsResult.value.generatedAt || null;
-        } catch (error) {
-            next.proposalsError = error?.message || 'Governance proposal receipt invalid';
-        }
-    } else next.proposalsError = proposalsResult.reason?.message || 'Governance proposal receipt unavailable';
+        next.careerByAddress = indexed.careerByAddress;
+        next.acceptedByAddress = indexed.acceptedByAddress;
+        next.careerReady = true;
+        next.proposalsReady = true;
+        next.careerGeneratedAt = indexed.careerGeneratedAt;
+        next.proposalsGeneratedAt = indexed.proposalsGeneratedAt;
+        next.sourceRecordCount = indexed.sourceRecordCount;
+    } catch (error) {
+        const message = error?.message || 'Baker governance signal receipt unavailable';
+        next.careerError = message;
+        next.proposalsError = message;
+    }
 
     governanceSignals = next;
+    reconcileGovernanceSignalCoverage();
     return next;
 }
 
@@ -369,6 +405,13 @@ function earnedBadgesFor(baker) {
     }
 
     const career = governanceSignals.careerByAddress.get(baker.address);
+    if (governanceSignals.careerReady && !career) {
+        badges.push({
+            label: 'Governance unavailable',
+            tone: 'unavailable',
+            title: 'This current baker is outside the frozen governance-signal source cohort. Missing is not interpreted as zero history.'
+        });
+    }
     const currentStreak = Number(career?.currentBallotPeriodStreak || 0);
     if (currentStreak > 0) {
         const longest = Number(career?.longestBallotPeriodStreak || currentStreak);
@@ -657,7 +700,11 @@ function governanceSignalsSourceLabel() {
     const scope = readyCount === 2
         ? (hasRefreshError ? 'last-good governance receipts' : 'governance receipts')
         : (hasRefreshError ? 'partial last-good governance receipts' : 'partial governance receipts');
-    return `${scope}${asOf ? ` ${asOf} UTC` : ''}`;
+    const currentTotal = governanceSignals.runtimeMatchedCount + governanceSignals.runtimeMissingAddresses.length;
+    const runtimeCoverage = currentTotal
+        ? ` · ${governanceSignals.runtimeMatchedCount}/${currentTotal} current bakers covered`
+        : '';
+    return `${scope}${asOf ? ` ${asOf} UTC` : ''}${runtimeCoverage}`;
 }
 
 /**
@@ -1812,7 +1859,7 @@ function bakerDirectoryShellHtml() {
             </div>
             <footer class="baker-directory-footer">
                 <span>${escapeHtml(bakerDirectorySourceText())}</span>
-                <span><a href="https://api.tzkt.io/" target="_blank" rel="noopener noreferrer">TzKT source</a> · <a href="/data/maxis-careers.json">Governance careers</a> · <a href="/data/governance-votes.json">Proposal receipts</a></span>
+                <span><a href="https://api.tzkt.io/" target="_blank" rel="noopener noreferrer">TzKT source</a> · <a href="/data/baker-governance-signals.json">Directory signal receipt</a> · <a href="/data/maxis-careers.json">Governance careers</a> · <a href="/data/governance-votes.json">Proposal receipts</a></span>
             </footer>
         </div>
     `;
@@ -2149,6 +2196,7 @@ export async function refreshBakerDirectoryChamber({ quiet = true, includeGovern
     bakerDirectoryRefreshInFlight = Promise.all(requests).then(([raw, limit]) => {
         const enriched = raw.map((baker) => enrichBaker(baker, limit));
         bakersData = enriched;
+        reconcileGovernanceSignalCoverage(enriched);
         rememberStakeSnapshot(raw);
         bakerDirectoryLastError = '';
         bakerDirectoryRefreshDeferred = false;
@@ -2185,7 +2233,7 @@ export async function refreshBakerDirectoryChamber({ quiet = true, includeGovern
 }
 
 export async function openBakerDirectoryChamber(options = {}) {
-    ensureLeaderboardStyles();
+    await ensureLeaderboardStyles();
     bindBakerDirectoryVisibility();
     applyBakerDirectoryRouteState();
     if (BAKER_DIRECTORY_VIEW_IDS.has(options?.view)) bakerDirectoryState.view = options.view;
@@ -2249,7 +2297,7 @@ export function closeBakerDirectoryChamber({ preserveRoute = false } = {}) {
 }
 
 export function initBakerDirectoryChamber() {
-    ensureLeaderboardStyles();
+    ensureLeaderboardStyles().catch((error) => console.warn('Baker Directory styles unavailable', error));
     bindBakerDirectoryVisibility();
     const card = ensureBakerDirectoryEntryCard();
     wireBakerDirectoryEntryCard(card);

@@ -4,6 +4,7 @@
  */
 
 import { debounce, escapeHtml } from '../core/utils.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { API_URLS } from '../core/config.js';
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
@@ -32,9 +33,8 @@ import {
     suggestSiteMapQuery
 } from '../core/site-map.js';
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
-import { findBakersByName } from './leaderboard.js';
 
-const HERO_SEARCH_CSS_URL = '/css/hero-search.css?v=546';
+const HERO_SEARCH_CSS_URL = versionedAsset('/css/hero-search.css');
 
 const RUNTIME_QUICK_CHIPS = [
     { label: 'KT1', value: 'KT1' },
@@ -90,6 +90,17 @@ const accountSuggestionCache = new Map();
 const accountSuggestionInFlight = new Map();
 const entityResolutionCache = new Map();
 const entityResolutionInFlight = new Map();
+let bakerNameSearchModulePromise = null;
+
+function findBakersByNameOnDemand(query, options) {
+    if (!bakerNameSearchModulePromise) {
+        bakerNameSearchModulePromise = import('./leaderboard.js').catch((error) => {
+            bakerNameSearchModulePromise = null;
+            throw error;
+        });
+    }
+    return bakerNameSearchModulePromise.then(({ findBakersByName }) => findBakersByName(query, options));
+}
 
 const STARTER_QUERY_RESULTS = new Map([
     ['kt1', 'KT1 Contracts'],
@@ -869,7 +880,7 @@ export function initHeroSearch() {
             ...siteMapSearchChips(),
             ...RUNTIME_QUICK_CHIPS
         ];
-        chips.innerHTML = chipList.map((chip) => {
+        const markup = chipList.map((chip) => {
             const attr = chip.browseAll
                 ? 'data-hero-browse-all="true"'
                 : chip.route
@@ -878,6 +889,7 @@ export function initHeroSearch() {
             const entryAttr = chip.id ? ` data-hero-entry="${escapeHtml(chip.id)}"` : '';
             return `<button class="hero-search-chip" type="button" ${attr}${entryAttr}>${escapeHtml(chip.label)}</button>`;
         }).join('');
+        if (chips.innerHTML !== markup) chips.innerHTML = markup;
     };
 
     renderQuickChips();
@@ -952,7 +964,7 @@ export function initHeroSearch() {
         if (!shouldSearchNames(q)) return;
         const key = bakerSearchKey(q);
         if (!bakerSearchCache.has(key) && !bakerSearchInFlight.has(key)) {
-            const promise = findBakersByName(q, { limit: 5 })
+            const promise = findBakersByNameOnDemand(q, { limit: 5 })
                 .then((matches) => {
                     bakerSearchCache.set(key, Array.isArray(matches) ? matches : []);
                 })
@@ -1268,6 +1280,8 @@ export function initHeroSearch() {
 
     // Warm the protocol index after first paint, but keep the hero input cheap.
     window.setTimeout(ensureProtocols, 1200);
+
+    root.dataset.heroSearchWired = '1';
 
     const searchHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('search');
     if (searchHash) applyQuery(searchHash);

@@ -123,13 +123,25 @@ function renderRoute(route, dashboardShell) {
 }
 
 async function main() {
+  const checkOnly = process.argv.includes('--check');
   const dashboardShell = await fs.readFile(path.join(ROOT, 'index.html'), 'utf8');
+  const drift = [];
   for (const route of CHAMBER_ROUTES) {
     const dir = path.join(ROOT, route.slug);
+    const filename = path.join(dir, 'index.html');
+    const expected = renderRoute(route, dashboardShell);
+    if (checkOnly) {
+      const current = await fs.readFile(filename, 'utf8').catch(() => '');
+      if (current !== expected) drift.push(`${route.slug}/index.html`);
+      continue;
+    }
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, 'index.html'), renderRoute(route, dashboardShell));
+    await fs.writeFile(filename, expected);
   }
-  console.log(`Wrote ${CHAMBER_ROUTES.length} chamber route pages`);
+  if (drift.length) {
+    throw new Error(`Generated chamber route drift:\n${drift.map((file) => `- ${file}`).join('\n')}`);
+  }
+  console.log(`${checkOnly ? 'Verified' : 'Wrote'} ${CHAMBER_ROUTES.length} chamber route pages`);
 }
 
 main().catch((error) => {

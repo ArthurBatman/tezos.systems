@@ -4,6 +4,7 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { fetchWithRetry } from '../core/api.js';
 import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
 import {
@@ -14,6 +15,7 @@ import {
 } from '../core/tezos-domains.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import {
     getWhaleWatchArtifact,
     peekWhaleWatchArtifactState,
@@ -32,7 +34,7 @@ const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const LAST_TARGET_KEY = 'tezos-systems-ledger-flow-target';
 const WINDOW_KEY = 'tezos-systems-ledger-flow-window';
 const THRESHOLD_KEY = 'tezos-systems-ledger-flow-threshold-index';
-const LEDGER_FLOW_CSS_URL = '/css/ledger-flow.css?v=546';
+const LEDGER_FLOW_CSS_URL = versionedAsset('/css/ledger-flow.min.css');
 const DEFAULT_WINDOW = '30d';
 const TRANSFER_PAGE_LIMIT = 10000;
 const EXACT_ROW_LIMIT = 20000;
@@ -92,12 +94,7 @@ const mobileExpandedDirections = {
 };
 
 function ensureLedgerFlowStyles() {
-    if (document.getElementById('ledger-flow-css')) return;
-    const link = document.createElement('link');
-    link.id = 'ledger-flow-css';
-    link.rel = 'stylesheet';
-    link.href = LEDGER_FLOW_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('ledger-flow-css', LEDGER_FLOW_CSS_URL);
 }
 
 function readStorage(key) {
@@ -1568,7 +1565,7 @@ async function loadWhaleSeed() {
 
 export async function openLedgerFlowChamber(target = '') {
     const openGeneration = ++chamberOpenGeneration;
-    ensureLedgerFlowStyles();
+    await ensureLedgerFlowStyles();
     let overlay = document.getElementById('ledger-flow-modal');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -1876,7 +1873,7 @@ function bindLedgerFlowEntryResumeUpdates() {
 }
 
 export function initLedgerFlowChamber() {
-    ensureLedgerFlowStyles();
+    ensureLedgerFlowStyles().catch((error) => console.warn('Ledger Flow styles unavailable', error));
     window.openLedgerFlowChamber = openLedgerFlowChamber;
     ensureLedgerFlowEntryCard();
     bindLedgerFlowEntryResumeUpdates();
@@ -1886,5 +1883,11 @@ export function initLedgerFlowChamber() {
         });
     } else {
         updateLedgerFlowEntry(peekWhaleWatchArtifactState());
+    }
+    if (document.visibilityState === 'visible') {
+        getWhaleWatchArtifact().catch(() => {
+            // The shared store publishes its unavailable/last-good state to the
+            // subscriber, which keeps the launcher honest without a fallback fetch.
+        });
     }
 }

@@ -109,7 +109,8 @@ for (const snippet of [
 ]) {
   assert(briefing.includes(snippet), `Release Radar Live Pulse contract is missing ${snippet}`);
 }
-assert(dataAssets.includes("releaseRadar: '/data/release-radar.json'"), 'Release Radar must load as a same-origin no-store data asset');
+assert(dataAssets.includes("releaseRadar: '/data/release-radar.json'"), 'Release Radar must load as a same-origin generated data asset');
+assert(dataAssets.includes("releaseRadar: 'no-cache'"), 'Release Radar must revalidate through normal HTTP validators');
 for (const snippet of [
   '.hot-today-card.hot-today-card-release',
   '.release-radar-pulse-row',

@@ -7,15 +7,19 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
+import { sha256Text } from '../core/sha256.js';
+import { assertSnapshotMatchesProjection } from '../core/snapshot-receipt.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const CAPITAL_CSS_URL = '/css/capital.css?v=455';
+const CAPITAL_CSS_URL = versionedAsset('/css/capital.min.css');
 const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
 const CAPITAL_ENTRY_SUMMARY_URL = '/data/capital-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -52,7 +56,6 @@ let lastEntrySummary = null;
 let lastRefreshError = '';
 let activeFetch = null;
 let activeEntryFetch = null;
-let capitalCssReady = null;
 let chamberTimer = null;
 let visibilityReady = false;
 let refreshDeferred = false;
@@ -70,13 +73,6 @@ function stableJsonValue(value) {
     if (Array.isArray(value)) return value.map(stableJsonValue);
     if (!value || typeof value !== 'object') return value;
     return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]));
-}
-
-async function sha256Text(value) {
-    if (!globalThis.crypto?.subtle) throw new Error('SHA-256 verification is unavailable.');
-    const bytes = new TextEncoder().encode(value);
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function finiteValues(values) {
@@ -220,21 +216,7 @@ function safeExternalUrl(value) {
 }
 
 function ensureCapitalCss() {
-    const existing = document.getElementById('capital-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (capitalCssReady) return capitalCssReady;
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'capital-css';
-        link.rel = 'stylesheet';
-        link.href = CAPITAL_CSS_URL;
-    }
-    capitalCssReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return capitalCssReady;
+    return ensureChamberStylesheet('capital-css', CAPITAL_CSS_URL);
 }
 
 async function validateSnapshot(snapshot) {
@@ -258,19 +240,6 @@ async function validateSnapshot(snapshot) {
     const actualHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
     if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
         throw new Error('Capital snapshot failed its SHA-256 integrity receipt.');
-    }
-    if (lastEntrySummary?.source?.contentHash
-        && lastEntrySummary.source.contentHash.toLowerCase() !== contentHash.toLowerCase()) {
-        const projectionTime = Date.parse(lastEntrySummary.source.generatedAt || lastEntrySummary.generatedAt || '');
-        const snapshotTime = Date.parse(snapshot.generatedAt);
-        if (!Number.isFinite(projectionTime) || snapshotTime <= projectionTime) {
-            throw new Error('Capital snapshot is older than the launcher projection source receipt.');
-        }
-        // A long-lived tab can span a generated-data deployment. The complete
-        // snapshot has its own verified receipt, so a newer one supersedes the
-        // in-memory launcher projection instead of leaving the Chamber pinned
-        // to the older deploy until reload.
-        lastEntrySummary = null;
     }
     return snapshot;
 }
@@ -316,17 +285,26 @@ async function validateEntrySummary(summary) {
     return summary;
 }
 
-function fetchCapitalSnapshot() {
+function fetchCapitalSnapshot(summary = lastEntrySummary) {
     if (activeFetch) return activeFetch;
+    const sourceReceipt = summary?.source || null;
     activeFetch = fetch(CAPITAL_SNAPSHOT_URL, {
-        cache: 'no-store',
+        cache: 'no-cache',
         headers: { Accept: 'application/json' }
     })
-        .then((response) => {
+        .then(async (response) => {
             if (!response.ok) throw new Error(`Capital snapshot HTTP ${response.status}`);
-            return response.json();
+            const sourceText = await response.text();
+            let snapshot;
+            try {
+                snapshot = JSON.parse(sourceText);
+            } catch {
+                throw new Error('Capital snapshot is not valid JSON.');
+            }
+            await validateSnapshot(snapshot);
+            await assertSnapshotMatchesProjection(snapshot, sourceText, sourceReceipt, { label: 'Capital snapshot' });
+            return snapshot;
         })
-        .then(validateSnapshot)
         .finally(() => {
             activeFetch = null;
         });
@@ -336,7 +314,7 @@ function fetchCapitalSnapshot() {
 function fetchCapitalEntrySummary() {
     if (activeEntryFetch) return activeEntryFetch;
     activeEntryFetch = fetch(CAPITAL_ENTRY_SUMMARY_URL, {
-        cache: 'no-store',
+        cache: 'no-cache',
         headers: { Accept: 'application/json' }
     })
         .then((response) => {
@@ -348,6 +326,43 @@ function fetchCapitalEntrySummary() {
             activeEntryFetch = null;
         });
     return activeEntryFetch;
+}
+
+function capitalSnapshotHash(summary) {
+    return String(summary?.source?.contentHash || '').toLowerCase();
+}
+
+async function resolveCapitalSnapshotRefresh() {
+    let summary = lastEntrySummary;
+
+    // Once a complete snapshot is resident, the compact projection is the
+    // change detector. A first open may reuse the projection already verified
+    // for the launcher rather than issuing the same small request twice.
+    if (lastSnapshot || !summary || lastRefreshError) {
+        try {
+            summary = await fetchCapitalEntrySummary();
+            lastEntrySummary = summary;
+        } catch (error) {
+            if (lastSnapshot) throw error;
+            console.warn('Capital Chamber summary poll failed during open; trying the complete snapshot:', error);
+            summary = null;
+        }
+    }
+
+    const projectedHash = capitalSnapshotHash(summary);
+    const loadedHash = String(lastSnapshot?.contentHash || '').toLowerCase();
+    if (lastSnapshot && projectedHash && projectedHash === loadedHash) {
+        return { snapshot: lastSnapshot, changed: false };
+    }
+    if (lastSnapshot && projectedHash) {
+        const projectedAt = Date.parse(summary?.source?.generatedAt || summary?.generatedAt || '');
+        const loadedAt = Date.parse(lastSnapshot.generatedAt || '');
+        if (!Number.isFinite(projectedAt) || !Number.isFinite(loadedAt) || projectedAt <= loadedAt) {
+            throw new Error('Capital launcher projection is not newer than the loaded snapshot; retaining last-good data.');
+        }
+    }
+
+    return { snapshot: await fetchCapitalSnapshot(summary), changed: true };
 }
 
 function chain(snapshot, id) {
@@ -1051,6 +1066,18 @@ function freshnessPresentation(snapshot) {
     return { label, stale: stale || Boolean(lastRefreshError) };
 }
 
+function syncCapitalFreshness(snapshot) {
+    const presentation = freshnessPresentation(snapshot);
+    const freshness = document.getElementById('capital-freshness');
+    if (freshness) {
+        if (freshness.textContent !== presentation.label) freshness.textContent = presentation.label;
+        freshness.classList.toggle('is-stale', presentation.stale);
+    }
+    const entrySource = document.querySelector('#capital-entry-front .capital-entry-source-label');
+    const entryLabel = `snapshot ${ageLabel(snapshot.generatedAt)} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`;
+    if (entrySource && entrySource.textContent !== entryLabel) entrySource.textContent = entryLabel;
+}
+
 function renderChamber(snapshot) {
     const view = VIEWS.find((item) => item.id === currentView) || VIEWS[0];
     const freshness = freshnessPresentation(snapshot);
@@ -1289,9 +1316,31 @@ async function refreshCapitalEntry({ quiet = true } = {}) {
         updateEntry(summary, { quiet });
         return summary;
     } catch (error) {
-        console.warn('Capital Chamber entry summary failed; loading the complete snapshot:', error);
-        return refreshCapitalChamber({ quiet });
+        console.warn('Capital Chamber entry summary refresh failed; retaining the last good launcher:', error);
+        entryRefreshDeferred = true;
+        const retained = lastEntrySummary || lastSnapshot;
+        if (!retained) markCapitalEntryUnavailable(error);
+        return retained;
     }
+}
+
+function markCapitalEntryUnavailable(error) {
+    const card = document.getElementById('capital-entry-card');
+    if (!card) return;
+    const value = card.querySelector('.capital-entry-value');
+    if (value) {
+        value.textContent = 'Unavailable';
+        value.setAttribute('role', 'status');
+        value.setAttribute('aria-live', 'polite');
+    }
+    const kpis = card.querySelector('.capital-entry-kpis');
+    if (kpis) kpis.innerHTML = '<div class="capital-entry-kpi"><span>Generated snapshot</span><strong>Unavailable</strong><small>No verified launcher receipt</small></div>';
+    const history = card.querySelector('.capital-entry-price-empty');
+    if (history) history.textContent = 'Open the Chamber to retry the proofbook.';
+    card.classList.add('chamber-data-stale');
+    card.dataset.updatedLabel = 'Unavailable · refresh failed · no last-good receipt';
+    card.title = error?.message || 'Capital launcher receipt unavailable';
+    window.syncChamberEntryFooters?.(card);
 }
 
 async function refreshCapitalChamber({ quiet = true } = {}) {
@@ -1300,12 +1349,18 @@ async function refreshCapitalChamber({ quiet = true } = {}) {
         return lastSnapshot;
     }
     try {
-        const snapshot = await fetchCapitalSnapshot();
+        const hadRefreshError = Boolean(lastRefreshError);
+        const { snapshot, changed } = await resolveCapitalSnapshotRefresh();
+        if (document.visibilityState !== 'visible') {
+            refreshDeferred = true;
+            return lastSnapshot;
+        }
         lastSnapshot = snapshot;
         lastRefreshError = '';
         refreshDeferred = false;
-        updateEntry(snapshot, { quiet });
-        if (document.getElementById('capital-modal')?.classList.contains('active')) {
+        if (changed || hadRefreshError) updateEntry(snapshot, { quiet });
+        else syncCapitalFreshness(snapshot);
+        if ((changed || hadRefreshError) && document.getElementById('capital-modal')?.classList.contains('active')) {
             renderBody(snapshot, { quiet });
         }
         return snapshot;
@@ -1390,7 +1445,7 @@ export function closeCapitalChamber() {
 }
 
 export function initCapitalChamber() {
-    ensureCapitalCss();
+    ensureCapitalCss().catch((error) => console.warn('Capital Chamber styles unavailable', error));
     bindVisibilityRefresh();
     const card = ensureEntryCard();
     wireEntry(card);

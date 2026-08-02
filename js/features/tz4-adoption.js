@@ -12,7 +12,10 @@ import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } f
 const TZKT = API_URLS.tzkt;
 const STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CACHE_TTL = 60000;
+const BAKER_CACHE_TTL = 10 * 60 * 1000;
 const MODAL_REFRESH_MS = 60000;
+const CONSENSUS_OPERATION_PAGE_SIZE = 1000;
+const CONSENSUS_UPDATE_OVERLAP_LEVELS = 64;
 const LATEST_SWITCH_LIMIT = 5;
 const ENTRY_PREVIEW_SWITCH_LIMIT = 3;
 const PENDING_QUEUE_LIMIT = 8;
@@ -21,6 +24,14 @@ const TZ4_SWITCH_TTL_MS = 48 * 60 * 60 * 1000;
 
 let _tz4Cache = null;
 let _tz4CacheTime = 0;
+let _tz4BakersCache = null;
+let _tz4BakersCacheTime = 0;
+let _tz4BakersCycle = null;
+let _tz4BakersObservedAt = null;
+let _tz4OperationsCache = null;
+let _tz4OperationCoverage = null;
+let _tz4OperationsObservedAt = null;
+let _tz4FetchPromise = null;
 let _savedBodyOverflow = null;
 let _savedHtmlOverflow = null;
 let _tz4ActiveFilter = 'all';
@@ -157,14 +168,22 @@ async function fetchJson(url) {
     return fetchWithRetry(url, { cache: 'no-store', memoryCache: false }, 2);
 }
 
-async function fetchActiveBakers() {
+async function fetchActiveBakersSnapshot() {
     const limit = 500;
     let offset = 0;
     let bakers = [];
+    let previousPageSignature = null;
     while (true) {
         const url = `${TZKT}/delegates?active=true&select=address,alias,stakingBalance,bakingPower,consensusAddress,externalStakedBalance,externalDelegatedBalance,numDelegators,stakersCount,software&sort.desc=bakingPower&limit=${limit}&offset=${offset}`;
         const batch = await fetchJson(url);
-        if (!Array.isArray(batch)) break;
+        if (!Array.isArray(batch)) throw new Error('TzKT active bakers returned a malformed page');
+        const signature = batch.length
+            ? `${batch.length}:${batch[0]?.address || ''}:${batch[batch.length - 1]?.address || ''}`
+            : 'empty';
+        if (batch.length && signature === previousPageSignature) {
+            throw new Error('TzKT active bakers repeated a page');
+        }
+        previousPageSignature = signature;
         bakers = bakers.concat(batch);
         if (batch.length < limit) break;
         offset += limit;
@@ -172,24 +191,150 @@ async function fetchActiveBakers() {
     return bakers.filter((baker) => Number(baker.bakingPower || 0) > 0);
 }
 
-async function fetchConsensusKeyUpdates() {
-    const url = `${TZKT}/operations/update_consensus_key?status=applied&sort.asc=level&limit=10000&select=level,timestamp,sender,publicKey,publicKeyHash,activationCycle,status`;
-    const operations = await fetchJson(url);
-    return Array.isArray(operations) ? operations.filter(isBlsConsensusUpdate) : [];
+async function fetchActiveBakers(headState) {
+    const currentCycle = headState?.cycle === null || headState?.cycle === undefined
+        ? Number.NaN
+        : Number(headState.cycle);
+    const cachedCycle = _tz4BakersCycle === null || _tz4BakersCycle === undefined
+        ? Number.NaN
+        : Number(_tz4BakersCycle);
+    const cycleChanged = Number.isFinite(currentCycle)
+        && Number.isFinite(cachedCycle)
+        && currentCycle !== cachedCycle;
+    const cacheFresh = _tz4BakersCache && Date.now() - _tz4BakersCacheTime < BAKER_CACHE_TTL;
+    if (cacheFresh && !cycleChanged) return _tz4BakersCache;
+
+    const bakers = await fetchActiveBakersSnapshot();
+    _tz4BakersCache = bakers;
+    _tz4BakersCacheTime = Date.now();
+    _tz4BakersObservedAt = new Date().toISOString();
+    _tz4BakersCycle = Number.isFinite(currentCycle) ? currentCycle : _tz4BakersCycle;
+    return bakers;
+}
+
+function consensusOperationIdentity(operation) {
+    if (operation?.id !== undefined && operation?.id !== null) return `id:${operation.id}`;
+    return [
+        Number(operation?.level) || 0,
+        operation?.hash || '',
+        operation?.sender?.address || '',
+        operation?.counter || '',
+        operation?.publicKeyHash || operation?.publicKey || '',
+        operation?.activationCycle ?? '',
+        operation?.timestamp || ''
+    ].join('|');
+}
+
+async function fetchConsensusKeyUpdatePages({ minLevel = null } = {}) {
+    let offset = 0;
+    let pages = 0;
+    let operations = [];
+    let previousPageSignature = null;
+    while (true) {
+        const params = new URLSearchParams({
+            status: 'applied',
+            'sort.asc': 'level',
+            limit: String(CONSENSUS_OPERATION_PAGE_SIZE),
+            offset: String(offset),
+            select: 'id,level,hash,counter,timestamp,sender,publicKey,publicKeyHash,activationCycle,status'
+        });
+        if (minLevel !== null && minLevel !== '' && Number.isFinite(Number(minLevel))) {
+            params.set('level.ge', String(Math.max(0, Math.trunc(Number(minLevel)))));
+        }
+        const batch = await fetchJson(`${TZKT}/operations/update_consensus_key?${params}`);
+        if (!Array.isArray(batch)) throw new Error('TzKT consensus-key history returned a malformed page');
+        pages += 1;
+
+        const signature = batch.length
+            ? `${batch.length}:${consensusOperationIdentity(batch[0])}:${consensusOperationIdentity(batch[batch.length - 1])}`
+            : 'empty';
+        if (batch.length && signature === previousPageSignature) {
+            throw new Error('TzKT consensus-key history repeated a page');
+        }
+        previousPageSignature = signature;
+        operations = operations.concat(batch);
+        if (batch.length < CONSENSUS_OPERATION_PAGE_SIZE) break;
+        offset += CONSENSUS_OPERATION_PAGE_SIZE;
+    }
+    return { operations, pages };
+}
+
+function mergeConsensusKeyUpdates(previous, incoming, replaceFromLevel = null) {
+    const retained = replaceFromLevel !== null && replaceFromLevel !== '' && Number.isFinite(Number(replaceFromLevel))
+        ? previous.filter((operation) => {
+            const level = Number(operation?.level);
+            return !Number.isFinite(level) || level < Number(replaceFromLevel);
+        })
+        : previous;
+    const merged = new Map();
+    for (const operation of [...retained, ...incoming]) {
+        merged.set(consensusOperationIdentity(operation), operation);
+    }
+    return [...merged.values()].sort((a, b) => {
+        const levelDiff = Number(a?.level || 0) - Number(b?.level || 0);
+        if (levelDiff) return levelDiff;
+        return timestampValue(a?.timestamp) - timestampValue(b?.timestamp);
+    });
+}
+
+async function fetchConsensusKeyUpdates({ incremental = false } = {}) {
+    if (!incremental || !_tz4OperationsCache) {
+        const result = await fetchConsensusKeyUpdatePages();
+        _tz4OperationsCache = mergeConsensusKeyUpdates([], result.operations);
+        _tz4OperationCoverage = {
+            mode: 'complete-paged',
+            initialPages: result.pages
+        };
+    } else {
+        const latestLevel = _tz4OperationsCache.reduce((latest, operation) => {
+            const level = Number(operation?.level);
+            return Number.isFinite(level) ? Math.max(latest, level) : latest;
+        }, 0);
+        const overlapStart = Math.max(0, latestLevel - CONSENSUS_UPDATE_OVERLAP_LEVELS);
+        const result = await fetchConsensusKeyUpdatePages({ minLevel: overlapStart });
+        _tz4OperationsCache = mergeConsensusKeyUpdates(_tz4OperationsCache, result.operations, overlapStart);
+        _tz4OperationCoverage = {
+            ..._tz4OperationCoverage,
+            mode: 'complete-paged-plus-overlap',
+            latestRefreshPages: result.pages,
+            overlapStart
+        };
+    }
+
+    _tz4OperationsObservedAt = new Date().toISOString();
+
+    return _tz4OperationsCache.filter(isBlsConsensusUpdate);
 }
 
 async function fetchHeadState() {
     try {
         const head = await fetchJson(`${TZKT}/head`);
-        const cycle = Number(head?.cycle);
+        const cycle = head?.cycle === null || head?.cycle === undefined
+            ? Number.NaN
+            : Number(head.cycle);
         return {
             cycle: Number.isFinite(cycle) ? cycle : null,
-            timestamp: head?.timestamp || null
+            timestamp: head?.timestamp || null,
+            status: head?.timestamp ? 'ok' : 'unavailable'
         };
     } catch (error) {
         console.warn('tz4 Adoption: current cycle unavailable', error);
-        return { cycle: null, timestamp: null };
+        const cachedCycle = _tz4Cache?.currentCycle;
+        const lastGoodCycle = cachedCycle === null || cachedCycle === undefined
+            ? Number.NaN
+            : Number(cachedCycle);
+        return {
+            cycle: Number.isFinite(lastGoodCycle) ? lastGoodCycle : null,
+            timestamp: _tz4Cache?.clocks?.head?.observedAt || null,
+            status: _tz4Cache?.clocks?.head?.observedAt ? 'last-good' : 'unavailable'
+        };
     }
+}
+
+function oldestCompleteClock(values) {
+    const timestamps = values.map((value) => Date.parse(value || ''));
+    if (!timestamps.length || timestamps.some((value) => !Number.isFinite(value))) return null;
+    return new Date(Math.min(...timestamps)).toISOString();
 }
 
 function buildOperationMaps(operations, currentCycle) {
@@ -317,18 +462,44 @@ async function fetchTz4AdoptionData({ force = false } = {}) {
         dispatchTz4HotSignals(_tz4Cache);
         return _tz4Cache;
     }
-    const [bakers, operations, headState] = await Promise.all([
-        fetchActiveBakers(),
-        fetchConsensusKeyUpdates(),
-        fetchHeadState()
-    ]);
-    const data = summarize(enrichBakers(bakers, operations, headState.cycle), headState.cycle);
-    data.updatedAt = headState.timestamp || new Date().toISOString();
-    _tz4Cache = data;
-    _tz4CacheTime = Date.now();
-    renderTz4EntryPreview(data);
-    dispatchTz4HotSignals(data);
-    return data;
+    if (!_tz4FetchPromise) {
+        _tz4FetchPromise = (async () => {
+            const [headState, operations] = await Promise.all([
+                fetchHeadState(),
+                fetchConsensusKeyUpdates({ incremental: Boolean(_tz4OperationsCache) })
+            ]);
+            const bakers = await fetchActiveBakers(headState);
+            const data = summarize(enrichBakers(bakers, operations, headState.cycle), headState.cycle);
+            data.clocks = {
+                head: { observedAt: headState.timestamp, status: headState.status },
+                bakers: { observedAt: _tz4BakersObservedAt, status: _tz4BakersObservedAt ? 'ok' : 'unavailable' },
+                operations: { observedAt: _tz4OperationsObservedAt, status: _tz4OperationsObservedAt ? 'ok' : 'unavailable' }
+            };
+            data.updatedAt = oldestCompleteClock([
+                data.clocks.head.observedAt,
+                data.clocks.bakers.observedAt,
+                data.clocks.operations.observedAt
+            ]);
+            data.freshnessStatus = data.updatedAt && headState.status === 'ok' ? 'ok' : (data.updatedAt ? 'last-good' : 'unavailable');
+            data.coverage = {
+                activeBakers: bakers.length,
+                blsOperations: operations.length,
+                operationHistory: _tz4OperationCoverage?.mode || 'complete-paged',
+                initialOperationPages: _tz4OperationCoverage?.initialPages || 1,
+                bakerRefreshMs: BAKER_CACHE_TTL
+            };
+            _tz4Cache = data;
+            _tz4CacheTime = Date.now();
+            renderTz4EntryPreview(data);
+            dispatchTz4HotSignals(data);
+            return data;
+        })();
+    }
+    try {
+        return await _tz4FetchPromise;
+    } finally {
+        _tz4FetchPromise = null;
+    }
 }
 
 function lockPageScroll() {
@@ -406,9 +577,16 @@ function renderTz4EntryPreview(data) {
     const hiddenPending = Math.max(0, (data.pendingCount || 0) - pending.length);
     card.dataset.tz4LatestSwitches = String(latest.length || 0);
     card.dataset.tz4PowerDescription = `${formatCount(data.activeCount)} / ${formatCount(data.total)} bakers active · ${formatPercent(data.activePowerPct)} power`;
-    const updatedAt = data.updatedAt || new Date().toISOString();
-    card.dataset.updatedLabel = formatFreshnessStamp(updatedAt, { source: 'TzKT' });
-    setDataFreshnessState(card, updatedAt, CACHE_TTL * 2);
+    const updatedAt = data.updatedAt || '';
+    card.dataset.updatedLabel = updatedAt
+        ? formatFreshnessStamp(updatedAt, { source: 'TzKT oldest receipt' })
+        : 'TzKT freshness unavailable';
+    if (updatedAt) setDataFreshnessState(card, updatedAt, CACHE_TTL * 2);
+    else {
+        delete card.dataset.freshnessTimestamp;
+        card.dataset.freshnessState = 'unavailable';
+    }
+    card.classList.toggle('chamber-data-stale', data.freshnessStatus !== 'ok');
     const description = document.getElementById('tz4-description');
     if (description) {
         description.textContent = card.dataset.tz4PowerDescription;
@@ -464,6 +642,7 @@ function renderIntro(data) {
                 <div class="lb-explainer-kicker">BLS rollout</div>
                 <p><strong>tz4 consensus keys</strong> use BLS signatures. This chamber tracks which active bakers already bake with tz4, who has a pending switch, and who has not moved yet.</p>
                 <p>First-mover timing is based on each baker's first applied BLS consensus-key update, with current status checked against the active consensus address.</p>
+                <p><strong>Coverage:</strong> ${formatCount(data.coverage?.blsOperations || 0)} applied BLS updates from explicitly paged TzKT history; current status covers ${formatCount(data.coverage?.activeBakers || data.total)} active funded bakers.</p>
             </div>
             <div class="lb-explainer-facts" aria-label="tz4 adoption quick facts">
                 <span><strong>Active</strong> ${formatCount(data.activeCount)} / ${formatCount(data.total)}</span>
@@ -944,6 +1123,13 @@ function startModalRefresh() {
         if (document.hidden) return;
         refreshTz4AdoptionChamber();
     }, MODAL_REFRESH_MS);
+    document.addEventListener('visibilitychange', handleTz4VisibilityChange);
+}
+
+function handleTz4VisibilityChange() {
+    if (document.hidden) return;
+    const overlay = document.getElementById('tz4-adoption-modal');
+    if (overlay?.classList.contains('active')) refreshTz4AdoptionChamber();
 }
 
 function stopModalRefresh() {
@@ -951,6 +1137,7 @@ function stopModalRefresh() {
         window.clearInterval(_tz4ModalTimer);
         _tz4ModalTimer = null;
     }
+    document.removeEventListener('visibilitychange', handleTz4VisibilityChange);
     const overlay = document.getElementById('tz4-adoption-modal');
     if (overlay) overlay.dataset.tz4Live = 'false';
 }

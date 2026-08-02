@@ -520,10 +520,11 @@ assert.match(feature, /No buy, sell, swap, bridge, or redeem action is provided/
 for (const snippet of [
   "const MINERALS_SNAPSHOT_URL = '/data/minerals-snapshot.json'",
   "const MINERALS_ENTRY_SUMMARY_URL = '/data/minerals-entry-summary.json'",
-  "fetch(MINERALS_SNAPSHOT_URL, { cache: 'no-store'",
-  "fetch(MINERALS_ENTRY_SUMMARY_URL, { cache: 'no-store'",
-  'const fileHash = await sha256Text(text)',
-  'Minerals snapshot failed its exact-file SHA-256 launcher receipt.',
+  "fetch(MINERALS_SNAPSHOT_URL, { cache: 'no-cache'",
+  "fetch(MINERALS_ENTRY_SUMMARY_URL, { cache: 'no-cache'",
+  'mineralsSnapshotHash(summary)',
+  "import { assertSnapshotMatchesProjection } from '../core/snapshot-receipt.js'",
+  'assertSnapshotMatchesProjection(snapshot, text, sourceReceipt',
   "{ id: 'atlas', label: 'Atlas'",
   "{ id: 'supply', label: 'Supply'",
   "{ id: 'markets', label: 'Markets'",
@@ -584,8 +585,9 @@ for (const snippet of [
   "minerals: ['uranium', 'metals', 'capital', 'tezosx']"
 ]) assert.ok(siteMap.includes(snippet), `site-map contract missing ${snippet}`);
 for (const snippet of [
-  "import { initMineralsChamber } from '../features/minerals-chamber.js'",
-  "safe('mineralsChamber', initMineralsChamber)",
+  "modulePath: '../features/minerals-chamber.js'",
+  "init: 'initMineralsChamber'",
+  "() => openChamberFeature('minerals')",
   "case 'minerals':",
   "params.has('critical-minerals')",
   "params.has('strategic-minerals')",
@@ -593,7 +595,8 @@ for (const snippet of [
   "'minerals-modal': { entryIds: ['minerals']",
   "minerals: { selector: '#minerals-entry-card', layout: 'featured' }"
 ]) assert.ok(app.includes(snippet), `app integration missing ${snippet}`);
-assert.ok(indexHtml.includes('<link rel="modulepreload" href="js/features/minerals-chamber.js">'));
+assert.ok(!indexHtml.includes('<link rel="modulepreload" href="js/features/minerals-chamber.js">'),
+  'Critical Minerals must stay out of the eager module-preload closure');
 assert.ok(wayfinder.includes("'minerals-modal': 'minerals'"));
 assert.ok(ogGenerator.includes('minerals: {'));
 assert.ok(changelog.includes('Critical Minerals Chamber now maps the official 60-item'));
@@ -606,7 +609,9 @@ assert.equal(openApi.paths?.['/data/minerals-snapshot.json']?.get?.operationId, 
 assert.equal(openApi.paths?.['/data/minerals-entry-summary.json']?.get?.operationId, 'getMineralsEntrySummary');
 assert.ok(sw.includes("'/data/minerals-entry-summary.json'"));
 assert.ok(sw.includes("'/data/minerals-snapshot.json'"));
-assert.ok(sw.includes('NETWORK_ONLY_DATA_PATHS.has(url.pathname)'));
+assert.ok(sw.includes('isNetworkOnlyDataPath(url.pathname)'));
+assert.ok(sw.includes("fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-store' })"));
+assert.ok(sw.includes('return unavailableDataResponse()'));
 assert.equal(packageJson.scripts?.['refresh:minerals'], 'node scripts/refresh-minerals-data.mjs');
 assert.equal(packageJson.scripts?.['check:minerals'], 'node scripts/refresh-minerals-data.mjs --check');
 assert.equal(packageJson.scripts?.['test:minerals'], 'node tests/minerals-check.mjs');

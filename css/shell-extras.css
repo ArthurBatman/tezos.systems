@@ -3013,11 +3013,19 @@
 }
 
 .my-tezos-greeting {
+    min-height: 1.35em;
     margin: 0 0 10px;
+    overflow: hidden;
     color: var(--text-primary);
     font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-tezos-greeting:empty {
+    visibility: hidden;
 }
 
 .drawer-saved-addresses {
@@ -5645,4 +5653,90 @@
     opacity: 1 !important;
     transform: none !important;
     animation: none !important;
+}
+/* First-paint shell geometry. This bundle is render-blocking so these rules
+   reserve the same layout that Chamber and utility hydration will use. */
+.price-cta {
+    opacity: 1 !important;
+    padding: 3px 10px !important;
+    border: 1px solid rgba(var(--accent-rgb, 0, 212, 255), 0.3) !important;
+    border-radius: 4px !important;
+    color: var(--accent, #00d4ff) !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    transition: all 0.25s !important;
+}
+
+.price-cta:hover {
+    background: rgba(var(--accent-rgb, 0, 212, 255), 0.15) !important;
+    box-shadow: 0 0 12px rgba(var(--accent-rgb, 0, 212, 255), 0.2) !important;
+    transform: translateY(-1px) !important;
+}
+
+.chamber-entry-shell-slot {
+    width: 100%;
+    min-width: 0;
+    min-height: 236px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+}
+
+#chambers-grid .chamber-entry-skeleton[data-chamber-layout="featured"] {
+    min-height: 320px;
+}
+
+#chambers-grid .chamber-entry-skeleton .chamber-entry-front {
+    display: grid;
+    align-content: center;
+    justify-items: start;
+    gap: 0.75rem;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-cyan) 5%, transparent), transparent 58%),
+        var(--card-bg);
+}
+
+#chambers-grid .chamber-entry-skeleton .stat-value {
+    color: var(--text-secondary);
+    font-size: clamp(1rem, 2vw, 1.35rem);
+}
+
+#chambers-grid .chamber-entry-skeleton .stat-description {
+    max-width: 58ch;
+    text-align: left;
+}
+
+@media (min-width: 760px) {
+    #chambers-grid .chamber-entry-shell-slot:is([data-chamber-layout="standard"], [data-chamber-layout="compact"]) {
+        min-height: 248px;
+    }
+
+    #chambers-grid .chamber-entry-shell-slot[data-chamber-layout="wide"] {
+        min-height: 300px;
+    }
+}
+
+@media (min-width: 1180px) {
+    #chambers-grid > .chamber-category > .chamber-category-cards > .chamber-entry-shell-slot[data-chamber-layout="featured"] {
+        grid-column: 1 / -1;
+    }
+
+    #chambers-grid > :is(
+        .chamber-category[data-chamber-category="capital"],
+        .chamber-category[data-chamber-category="bakers"]
+    ) > .chamber-category-cards > .chamber-entry-shell-slot[data-chamber-layout="wide"] {
+        grid-column: span 2;
+    }
+
+    #chambers-grid > :is(
+        .chamber-category[data-chamber-category="capital"],
+        .chamber-category[data-chamber-category="bakers"]
+    ) > .chamber-category-cards > .chamber-entry-shell-slot[data-chamber-layout="compact"] {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 759px) {
+    .chamber-category[data-chamber-shell="1"]:not([data-chamber-shell-initialized="1"]):not([data-chamber-category="network"]) > .chamber-category-cards {
+        display: none;
+    }
 }

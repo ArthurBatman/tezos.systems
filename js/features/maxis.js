@@ -4,16 +4,19 @@
  */
 
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
+import { versionedAsset } from '../core/asset-version.js';
+import { sha256Text } from '../core/sha256.js';
 import { escapeHtml, formatUtcDateTime } from '../core/utils.js';
 import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
 import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
 const CAREER_DATA_URL = '/data/maxis-careers.json';
 const L2_GOVERNANCE_DATA_URL = '/data/maxis-l2-governance.json';
 const MANIFEST_URL = '/data/maxis/manifest.json';
 const ENTRY_SUMMARY_URL = '/data/maxis/entry-summary.json';
-const MAXIS_CSS_URL = '/css/maxis.css?v=546';
+const MAXIS_CSS_URL = versionedAsset('/css/maxis.min.css');
 const MAXIS_SHARE_URL = 'https://tezos.systems/maxis/';
 const MY_TEZOS_ADDRESS_KEY = 'tezos-systems-my-baker-address';
 const SHARE_STORAGE_KEY = 'tezos-systems-maxis-shares-v1';
@@ -162,12 +165,7 @@ const chamberState = {
 };
 
 function ensureMaxisStyles() {
-    if (document.getElementById('maxis-css')) return;
-    const link = document.createElement('link');
-    link.id = 'maxis-css';
-    link.rel = 'stylesheet';
-    link.href = MAXIS_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('maxis-css', MAXIS_CSS_URL);
 }
 
 function validDate(value) {
@@ -360,14 +358,6 @@ async function fetchJson(url, { force = false, quiet = false } = {}) {
     }
 }
 
-async function sha256Text(value) {
-    if (!globalThis.crypto?.subtle || typeof TextEncoder === 'undefined') {
-        throw new Error('This browser cannot verify Passport integrity because Web Crypto is unavailable.');
-    }
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)));
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 async function verifyPassportShardText(raw, expectedHash, shard) {
     if (!expectedHash) return;
     const actualHash = await sha256Text(raw);
@@ -402,9 +392,6 @@ async function assertL2GovernanceArtifact(artifact) {
     const { integrity, ...unsigned } = artifact;
     if (integrity?.algorithm !== 'sha256-stable-json-v1' || !integrity?.contentHash) {
         throw new Error('The L2 Governance Maxi artifact has no integrity receipt.');
-    }
-    if (!globalThis.crypto?.subtle || typeof TextEncoder === 'undefined') {
-        throw new Error('This browser cannot verify L2 Governance Maxi integrity because Web Crypto is unavailable.');
     }
     const contentHash = await sha256Text(JSON.stringify(stableJsonValue(unsigned)));
     if (contentHash.toLowerCase() !== String(integrity.contentHash).toLowerCase()) {
@@ -1897,11 +1884,8 @@ async function addressShard(address, config) {
     const count = Math.max(1, Number(config.count || 64));
     let shardNumber;
     if (algorithm.includes('sha256')) {
-        if (!globalThis.crypto?.subtle || typeof TextEncoder === 'undefined') {
-            throw new Error('This browser cannot calculate the season passport shard because Web Crypto is unavailable. The loaded leaderboard can still be scanned locally.');
-        }
-        const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(address.trim()));
-        const firstByte = new Uint8Array(digest)[0];
+        const digestHex = await sha256Text(address.trim());
+        const firstByte = Number.parseInt(digestHex.slice(0, 2), 16);
         shardNumber = algorithm.includes('mask-3f') && count === 64 ? firstByte & 0x3f : firstByte % count;
     } else if (algorithm.includes('fnv1a32')) {
         shardNumber = fnv1a32(address.trim()) % count;
@@ -1931,7 +1915,11 @@ async function loadPassportShard(address, { seasonId = chamberState.seasonId || 
     if (shardCache.has(key)) return shardCache.get(key);
     if (shardRequestCache.has(key)) return shardRequestCache.get(key);
     const request = (async () => {
-        const response = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+        // Passport shards are immutable season receipts and are verified below
+        // against the manifest's shard hash (and content root when present).
+        // Normal HTTP caching therefore saves repeat transfers while still
+        // allowing validators such as ETag to revalidate the stable URL.
+        const response = await fetch(url, { cache: 'default', headers: { Accept: 'application/json' } });
         if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
         const raw = await response.text();
         const expectedHash = config.shardHashes?.[shard];
@@ -3712,7 +3700,7 @@ async function refreshChamber({ force = false } = {}) {
 }
 
 export async function openMaxisChamber() {
-    ensureMaxisStyles();
+    await ensureMaxisStyles();
     let overlay = document.getElementById('maxis-modal');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -3766,49 +3754,6 @@ export function closeMaxisChamber() {
         requestAnimationFrame(() => target.focus({ preventScroll: true }));
     }
     focusedBeforeOpen = null;
-}
-
-async function progressiveEntryLoad(serial) {
-    const isCurrent = () => serial === entryHydrationSerial;
-    if (!isCurrent()) return;
-    const manifestTask = loadManifest();
-    const l2GovernanceTask = loadL2GovernanceData();
-    try {
-        const legacy = await loadLegacy();
-        if (!isCurrent()) return;
-        updateEntryCard(legacy, null, null);
-    } catch (error) {
-        if (!isCurrent()) return;
-        console.debug('Tezos Maxis ongoing snapshot unavailable', error);
-    }
-    await l2GovernanceTask;
-    if (!isCurrent()) return;
-    const manifest = await manifestTask;
-    if (!isCurrent()) return;
-    if (!manifest) {
-        chamberState.entrySummaryLoading = false;
-        chamberState.entrySummaryError = chamberState.manifestError;
-        updateEntryCard(lastLegacy, null, null);
-        return;
-    }
-    const seasons = normalizedSeasons(manifest);
-    const id = textValue(currentSeasonId(manifest), seasons[0]?.id);
-    chamberState.entrySummaryLoading = true;
-    chamberState.entrySummaryError = '';
-    updateEntryCard(lastLegacy, manifest, null);
-    try {
-        const summary = await loadSeasonSummary(id);
-        if (!isCurrent()) return;
-        chamberState.entrySummaryError = '';
-        updateEntryCard(lastLegacy, manifest, summary);
-    } catch (error) {
-        if (!isCurrent()) return;
-        chamberState.entrySummaryError = textValue(error?.message, 'The current Maxis season sheet is temporarily unavailable.');
-        updateEntryCard(lastLegacy, manifest, null);
-    }
-    if (!isCurrent()) return;
-    chamberState.entrySummaryLoading = false;
-    updateEntryCard(lastLegacy, manifest, summaryCache.get(id) || null);
 }
 
 async function assertEntrySummaryProjection(document) {
@@ -3880,9 +3825,11 @@ async function hydrateEntryCard() {
         return;
     } catch (error) {
         if (serial !== entryHydrationSerial) return;
-        console.debug('Tezos Maxis launcher projection unavailable; loading reviewed full artifacts', error);
+        chamberState.entrySummaryLoading = false;
+        chamberState.entrySummaryError = textValue(error?.message, 'The compact Maxis launcher receipt is temporarily unavailable.');
+        updateEntryCard(null, null, null);
+        throw error;
     }
-    await progressiveEntryLoad(serial);
 }
 
 function handleMyTezosUpdate(event) {
@@ -3909,7 +3856,7 @@ function handleMyTezosUpdate(event) {
 }
 
 export function initMaxisChamber() {
-    ensureMaxisStyles();
+    ensureMaxisStyles().catch((error) => console.warn('Tezos Maxis styles unavailable', error));
     ensureEntryCard();
     window.openMaxisChamber = openMaxisChamber;
     if (!initComplete) {

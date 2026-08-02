@@ -426,8 +426,9 @@ assert.match(snapshot.methodology.noExecution, /No trading, order-routing, walle
 for (const snippet of [
   "const METALS_SNAPSHOT_URL = '/data/metals-snapshot.json'",
   "const METALS_ENTRY_SUMMARY_URL = '/data/metals-entry-summary.json'",
-  "fetch(METALS_SNAPSHOT_URL, { cache: 'no-store'",
-  "fetch(METALS_ENTRY_SUMMARY_URL, { cache: 'no-store'",
+  "fetch(METALS_SNAPSHOT_URL, { cache: 'no-cache'",
+  "fetch(METALS_ENTRY_SUMMARY_URL, { cache: 'no-cache'",
+  'metalsSnapshotHash(summary)',
   'quietlySyncHtml(body, markup)',
   'quietlySyncHtml(front, markup)',
   "body.dataset.metalsRendered === '1'",
@@ -488,7 +489,9 @@ assert.equal(openApi.paths?.['/data/metals-snapshot.json']?.get?.operationId, 'g
 assert.equal(openApi.paths?.['/data/metals-entry-summary.json']?.get?.operationId, 'getMetalsEntrySummary');
 assert.ok(sw.includes("'/data/metals-entry-summary.json'"));
 assert.ok(sw.includes("'/data/metals-snapshot.json'"));
-assert.ok(sw.includes('NETWORK_ONLY_DATA_PATHS.has(url.pathname)'));
+assert.ok(sw.includes('isNetworkOnlyDataPath(url.pathname)'));
+assert.ok(sw.includes("fetchWithTimeout(request, API_NETWORK_TIMEOUT_MS, { cache: 'no-store' })"));
+assert.ok(sw.includes('return unavailableDataResponse()'));
 assert.equal(packageJson.scripts?.['refresh:metals'], 'node scripts/refresh-metals-data.mjs');
 assert.equal(packageJson.scripts?.['check:metals'], 'node scripts/refresh-metals-data.mjs --check');
 assert.equal(packageJson.scripts?.['test:metals'], 'node tests/metals-check.mjs');

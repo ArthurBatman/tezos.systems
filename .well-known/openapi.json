@@ -319,6 +319,20 @@
         }
       }
     },
+    "/data/baker-governance-signals.json": {
+      "get": {
+        "operationId": "getBakerGovernanceSignals",
+        "summary": "Get compact Baker Directory governance signals",
+        "description": "Active-baker ballot totals, voting streaks, and accepted-proposal receipts projected from the complete governance ledgers.",
+        "x-refresh-cadence": "Every generated governance and launcher refresh",
+        "x-license-boundary": "Underlying chain facts retain their source terms; original selection, arrangement, and commentary are CC BY 4.0 where owned.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/JsonDocument"
+          }
+        }
+      }
+    },
     "/data/maxis-l2-governance.json": {
       "get": {
         "operationId": "getMaxisL2Governance",

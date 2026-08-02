@@ -4,7 +4,7 @@
 
 import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgradeOrdinal } from '../core/protocol-count.js';
 import { loadDataAsset } from '../core/data-assets.js';
-import { siteMapCanonicalRoute } from '../core/site-map.js';
+import { findSiteMapDestination, siteMapCanonicalRoute } from '../core/site-map.js';
 import { loadStats } from '../core/storage.js';
 import { releaseToastSafeArea, reserveToastSafeArea } from './toast-queue.js';
 
@@ -452,6 +452,8 @@ function pushUniqueLine(lines, value) {
 }
 
 function getChamberShareRoute(card) {
+    const entry = findSiteMapDestination(card?.dataset?.chamberEntryId || '');
+    if (entry) return `tezos.systems${siteMapCanonicalRoute(entry)}`;
     const hash = card.querySelector(':scope > .card-copy-link')?.dataset?.copyHash || '';
     return `tezos.systems${siteMapCanonicalRoute(hash || '#chambers')}`;
 }

@@ -818,8 +818,22 @@ function updateDrawerGreeting(name) {
     const greeting = document.getElementById('my-tezos-greeting');
     if (!greeting) return;
     const cleanName = String(name || '').trim();
-    greeting.textContent = cleanName ? `Good ${getGreetingPeriod()}, ${cleanName}` : '';
-    greeting.hidden = !cleanName;
+    const nextText = cleanName ? `Good ${getGreetingPeriod()}, ${cleanName}` : '';
+    const applyGreeting = () => {
+        // The shell reserves one line for this async identity result. Keep the
+        // node in flow so a late reverse-name response cannot move a reader
+        // who is already browsing farther down the drawer.
+        greeting.hidden = false;
+        greeting.textContent = nextText;
+        greeting.setAttribute('aria-hidden', cleanName ? 'false' : 'true');
+    };
+    if (greeting.textContent === nextText && !greeting.hidden) {
+        greeting.setAttribute('aria-hidden', cleanName ? 'false' : 'true');
+        return;
+    }
+    const drawerBody = document.getElementById('drawer-body');
+    if (drawerBody) quietlyMutate(drawerBody, applyGreeting);
+    else applyGreeting();
 }
 
 function accountName(account) {

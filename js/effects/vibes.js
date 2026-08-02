@@ -251,8 +251,6 @@ function injectStyles() {
 
 
         // 3. Stake/Bake CTA buttons — more prominent
-        '.price-cta{opacity:1!important;padding:3px 10px!important;border:1px solid rgba(var(--accent-rgb,0,212,255),0.3)!important;border-radius:4px!important;font-weight:600!important;color:var(--accent,#00d4ff)!important;transition:all 0.25s!important;font-size:0.72rem!important}',
-        '.price-cta:hover{background:rgba(var(--accent-rgb,0,212,255),0.15)!important;box-shadow:0 0 12px rgba(var(--accent-rgb,0,212,255),0.2)!important;transform:translateY(-1px)!important}',
 
         // 4. Matrix rain glass interaction — removed (caused halo artifacts)
 

@@ -8,16 +8,19 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
 import { sha256Text } from '../core/sha256.js';
+import { assertSnapshotMatchesProjection } from '../core/snapshot-receipt.js';
 import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const MINERALS_CSS_URL = '/css/minerals-chamber.css?v=546';
+const MINERALS_CSS_URL = versionedAsset('/css/minerals-chamber.min.css');
 const MINERALS_SNAPSHOT_URL = '/data/minerals-snapshot.json';
 const MINERALS_ENTRY_SUMMARY_URL = '/data/minerals-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -61,7 +64,6 @@ let lastEntrySummary = null;
 let lastRefreshError = '';
 let activeFetch = null;
 let activeEntryFetch = null;
-let mineralsCssReady = null;
 let chamberTimer = null;
 let entryTimer = null;
 let visibilityReady = false;
@@ -194,22 +196,35 @@ function freshnessModel(value) {
     return { generatedAt, stale, label };
 }
 
-function ensureMineralsCss() {
-    const existing = document.getElementById('minerals-chamber-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (mineralsCssReady) return mineralsCssReady;
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'minerals-chamber-css';
-        link.rel = 'stylesheet';
-        link.href = MINERALS_CSS_URL;
+function syncMineralsFreshness(snapshot) {
+    const freshness = freshnessModel(snapshot);
+    const chamberFreshness = document.getElementById('minerals-freshness');
+    if (chamberFreshness) {
+        if (chamberFreshness.textContent !== freshness.label) chamberFreshness.textContent = freshness.label;
+        chamberFreshness.classList.toggle('is-stale', freshness.stale);
     }
-    mineralsCssReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return mineralsCssReady;
+    const proofFreshness = document.getElementById('minerals-proof-freshness');
+    if (proofFreshness && proofFreshness.textContent !== freshness.label) proofFreshness.textContent = freshness.label;
+    const entryFreshness = document.querySelector('#minerals-entry-front .minerals-entry-freshness');
+    const entryLabel = formatFreshnessStamp(generatedAtOf(snapshot), { source: 'Generated minerals receipt' });
+    if (entryFreshness && entryFreshness.textContent !== entryLabel) entryFreshness.textContent = entryLabel;
+    const receiptState = document.querySelector('#minerals-entry-front [data-minerals-receipt-state]');
+    if (receiptState) {
+        receiptState.classList.toggle('is-warn', freshness.stale);
+        receiptState.classList.toggle('is-good', !freshness.stale);
+        const value = receiptState.querySelector('strong');
+        const label = freshness.stale ? 'Last-good' : 'Verified';
+        if (value && value.textContent !== label) value.textContent = label;
+    }
+    const card = document.getElementById('minerals-entry-card');
+    if (card && entryLabel && card.dataset.updatedLabel !== entryLabel) {
+        card.dataset.updatedLabel = entryLabel;
+        window.syncChamberEntryFooters?.(card);
+    }
+}
+
+function ensureMineralsCss() {
+    return ensureChamberStylesheet('minerals-chamber-css', MINERALS_CSS_URL);
 }
 
 function mineralRows(snapshot) {
@@ -281,15 +296,6 @@ async function validateSnapshot(snapshot) {
     if (actualHash.toLowerCase() !== contentHash.toLowerCase()) {
         throw new Error('Minerals snapshot failed its SHA-256 integrity receipt.');
     }
-    const projection = lastEntrySummary?.fullSnapshot;
-    if (projection?.contentHash && projection.contentHash.toLowerCase() !== contentHash.toLowerCase()) {
-        const projectedAt = Date.parse(projection.generatedAt || lastEntrySummary.generatedAt || '');
-        const snapshotAt = Date.parse(snapshot.generatedAt || '');
-        if (!Number.isFinite(projectedAt) || snapshotAt <= projectedAt) {
-            throw new Error('Minerals snapshot is older than the launcher projection receipt.');
-        }
-        lastEntrySummary = null;
-    }
     return snapshot;
 }
 
@@ -303,6 +309,7 @@ async function validateEntrySummary(summary) {
         || !/^[0-9a-f]{64}$/i.test(summary.contentHash || '')
         || receiptPath !== 'data/minerals-snapshot.json'
         || summary.fullSnapshot?.schemaVersion !== 1
+        || summary.fullSnapshot?.generatedAt !== summary.generatedAt
         || !/^[0-9a-f]{64}$/i.test(summary.fullSnapshot?.contentHash || '')
         || !/^[0-9a-f]{64}$/i.test(summary.fullSnapshot?.fileSha256 || '')
         || numeric(summary?.headline?.criticalCount) !== 60
@@ -320,9 +327,10 @@ async function validateEntrySummary(summary) {
     return summary;
 }
 
-function fetchMineralsSnapshot() {
+function fetchMineralsSnapshot(summary = lastEntrySummary) {
     if (activeFetch) return activeFetch;
-    activeFetch = fetch(MINERALS_SNAPSHOT_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
+    const sourceReceipt = summary?.fullSnapshot || null;
+    activeFetch = fetch(MINERALS_SNAPSHOT_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
         .then(async (response) => {
             if (!response.ok) throw new Error(`Minerals snapshot HTTP ${response.status}`);
             const text = await response.text();
@@ -332,26 +340,17 @@ function fetchMineralsSnapshot() {
             } catch {
                 throw new Error('Minerals snapshot is not valid JSON.');
             }
-            const receipt = lastEntrySummary?.fullSnapshot;
-            const receiptMatchesSnapshot = receipt?.schemaVersion === snapshot?.schemaVersion
-                && /^[0-9a-f]{64}$/i.test(receipt?.fileSha256 || '')
-                && String(receipt?.contentHash || '').toLowerCase() === String(snapshot?.contentHash || '').toLowerCase();
-            if (receiptMatchesSnapshot) {
-                const fileHash = await sha256Text(text);
-                if (fileHash.toLowerCase() !== receipt.fileSha256.toLowerCase()) {
-                    throw new Error('Minerals snapshot failed its exact-file SHA-256 launcher receipt.');
-                }
-            }
+            await validateSnapshot(snapshot);
+            await assertSnapshotMatchesProjection(snapshot, text, sourceReceipt, { label: 'Minerals snapshot' });
             return snapshot;
         })
-        .then(validateSnapshot)
         .finally(() => { activeFetch = null; });
     return activeFetch;
 }
 
 function fetchMineralsEntrySummary() {
     if (activeEntryFetch) return activeEntryFetch;
-    activeEntryFetch = fetch(MINERALS_ENTRY_SUMMARY_URL, { cache: 'no-store', headers: { Accept: 'application/json' } })
+    activeEntryFetch = fetch(MINERALS_ENTRY_SUMMARY_URL, { cache: 'no-cache', headers: { Accept: 'application/json' } })
         .then((response) => {
             if (!response.ok) throw new Error(`Minerals entry summary HTTP ${response.status}`);
             return response.json();
@@ -359,6 +358,40 @@ function fetchMineralsEntrySummary() {
         .then(validateEntrySummary)
         .finally(() => { activeEntryFetch = null; });
     return activeEntryFetch;
+}
+
+function mineralsSnapshotHash(summary) {
+    return String(summary?.fullSnapshot?.contentHash || '').toLowerCase();
+}
+
+async function resolveMineralsSnapshotRefresh() {
+    let summary = lastEntrySummary;
+
+    if (lastSnapshot || !summary || lastRefreshError) {
+        try {
+            summary = await fetchMineralsEntrySummary();
+            lastEntrySummary = summary;
+        } catch (error) {
+            if (lastSnapshot) throw error;
+            console.warn('Minerals summary poll failed during open; trying the complete snapshot:', error);
+            summary = null;
+        }
+    }
+
+    const projectedHash = mineralsSnapshotHash(summary);
+    const loadedHash = String(lastSnapshot?.contentHash || '').toLowerCase();
+    if (lastSnapshot && projectedHash && projectedHash === loadedHash) {
+        return { snapshot: lastSnapshot, changed: false };
+    }
+    if (lastSnapshot && projectedHash) {
+        const projectedAt = Date.parse(summary?.fullSnapshot?.generatedAt || summary?.generatedAt || '');
+        const loadedAt = Date.parse(lastSnapshot.generatedAt || '');
+        if (!Number.isFinite(projectedAt) || !Number.isFinite(loadedAt) || projectedAt <= loadedAt) {
+            throw new Error('Minerals launcher projection is not newer than the loaded snapshot; retaining last-good data.');
+        }
+    }
+
+    return { snapshot: await fetchMineralsSnapshot(summary), changed: true };
 }
 
 function corePicture(className = '') {
@@ -646,7 +679,7 @@ function renderProofbook(snapshot) {
         }))
     ];
     const freshness = freshnessModel(snapshot);
-    return `<section class="minerals-proof-hero"><div><span class="minerals-kicker">Integrity before interpretation</span><h3>Every clock keeps its own name.</h3><p>List edition, annual report year, completed market month, issuer-claim date, chain observation, retrieval, review, and generation are different facts. The proofbook does not upgrade any of them to “live.”</p></div><div><strong>60</strong><span>taxonomy rows</span><small>${escapeHtml(freshness.label)}</small></div></section><section class="minerals-proof-grid">${methodologyCards(snapshot.methodology)}</section><section class="minerals-panel"><div class="minerals-panel-head"><div><span class="minerals-eyebrow">Public receipts</span><h4>Source clocks</h4><p>Status and clock fields are reproduced independently. Retrieval does not change an observation’s effective date.</p></div><span class="minerals-status ${lastRefreshError ? 'is-bad' : 'is-good'}" id="minerals-proof-refresh-status">${lastRefreshError ? 'last-good retained' : 'integrity verified'}</span></div><div class="minerals-table-wrap" tabindex="0" aria-label="Scrollable minerals source proofbook"><table class="minerals-table minerals-source-table"><thead><tr><th>Source</th><th>Status</th><th>Observed / reviewed</th><th>Retrieved / expiry</th><th>Receipt</th></tr></thead><tbody>${sources.map((source) => `<tr data-quiet-key="source-${escapeHtml(source.id)}"><th scope="row"><b>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)} ↗</a>` : escapeHtml(source.label)}</b><small>${escapeHtml(source.credit || source.id)}</small></th><td><span class="minerals-status ${statusClass(source.status)}">${escapeHtml(source.status)}</span>${source.error ? `<small>${escapeHtml(source.error)}</small>` : ''}</td><td><b>${escapeHtml(formatTimestamp(source.observedAt || source.reviewedAt))}</b><small>${source.observedAt && source.reviewedAt ? `reviewed ${escapeHtml(formatTimestamp(source.reviewedAt))}` : 'Natural clock shown'}</small></td><td><b>${escapeHtml(formatTimestamp(source.retrievedAt))}</b><small>${source.expiresAt ? `expires ${escapeHtml(formatTimestamp(source.expiresAt))}` : 'No expiry supplied'}</small></td><td>${escapeHtml(source.receipt || 'Public-source receipt')}</td></tr>`).join('')}</tbody></table></div></section><section class="minerals-panel"><div class="minerals-panel-head"><div><span class="minerals-eyebrow">Deliberate gaps</span><h4>Unavailable evidence</h4><p>Unavailable is retained as a first-class result, never silently converted to zero.</p></div></div><div class="minerals-unavailable-grid">${unavailable.length ? unavailable.map((item) => `<article><span>${escapeHtml(firstText(item.id, 'gap'))}</span><strong>${escapeHtml(firstText(item.label, 'Unavailable'))}</strong><p>${escapeHtml(firstText(item.reason, 'No defensible public receipt was retained.'))}</p></article>`).join('') : '<article><strong>No declared gaps</strong><p>The generator did not publish an unavailable-evidence row.</p></article>'}</div></section><section class="minerals-integrity"><div><span>Snapshot SHA-256 content receipt</span><code title="${escapeHtml(snapshot.contentHash)}">${escapeHtml(snapshot.contentHash)}</code></div><div><span>Schema</span><strong>v${escapeHtml(String(snapshot.schemaVersion))}</strong></div><div><span>Generated</span><strong>${escapeHtml(formatTimestamp(snapshot.generatedAt))}</strong></div></section><nav class="minerals-pathways" aria-label="Adjacent commodity Chambers"><a href="/uranium/"><strong>Uranium Chamber</strong><small>xU3O8, uranium references, and bounded Etherlink receipts</small></a><a href="/metals/"><strong>Precious Metals Chamber</strong><small>Eight-metal assay, completed-month history, and VNXAU evidence</small></a></nav>`;
+    return `<section class="minerals-proof-hero"><div><span class="minerals-kicker">Integrity before interpretation</span><h3>Every clock keeps its own name.</h3><p>List edition, annual report year, completed market month, issuer-claim date, chain observation, retrieval, review, and generation are different facts. The proofbook does not upgrade any of them to “live.”</p></div><div><strong>60</strong><span>taxonomy rows</span><small id="minerals-proof-freshness">${escapeHtml(freshness.label)}</small></div></section><section class="minerals-proof-grid">${methodologyCards(snapshot.methodology)}</section><section class="minerals-panel"><div class="minerals-panel-head"><div><span class="minerals-eyebrow">Public receipts</span><h4>Source clocks</h4><p>Status and clock fields are reproduced independently. Retrieval does not change an observation’s effective date.</p></div><span class="minerals-status ${lastRefreshError ? 'is-bad' : 'is-good'}" id="minerals-proof-refresh-status">${lastRefreshError ? 'last-good retained' : 'integrity verified'}</span></div><div class="minerals-table-wrap" tabindex="0" aria-label="Scrollable minerals source proofbook"><table class="minerals-table minerals-source-table"><thead><tr><th>Source</th><th>Status</th><th>Observed / reviewed</th><th>Retrieved / expiry</th><th>Receipt</th></tr></thead><tbody>${sources.map((source) => `<tr data-quiet-key="source-${escapeHtml(source.id)}"><th scope="row"><b>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)} ↗</a>` : escapeHtml(source.label)}</b><small>${escapeHtml(source.credit || source.id)}</small></th><td><span class="minerals-status ${statusClass(source.status)}">${escapeHtml(source.status)}</span>${source.error ? `<small>${escapeHtml(source.error)}</small>` : ''}</td><td><b>${escapeHtml(formatTimestamp(source.observedAt || source.reviewedAt))}</b><small>${source.observedAt && source.reviewedAt ? `reviewed ${escapeHtml(formatTimestamp(source.reviewedAt))}` : 'Natural clock shown'}</small></td><td><b>${escapeHtml(formatTimestamp(source.retrievedAt))}</b><small>${source.expiresAt ? `expires ${escapeHtml(formatTimestamp(source.expiresAt))}` : 'No expiry supplied'}</small></td><td>${escapeHtml(source.receipt || 'Public-source receipt')}</td></tr>`).join('')}</tbody></table></div></section><section class="minerals-panel"><div class="minerals-panel-head"><div><span class="minerals-eyebrow">Deliberate gaps</span><h4>Unavailable evidence</h4><p>Unavailable is retained as a first-class result, never silently converted to zero.</p></div></div><div class="minerals-unavailable-grid">${unavailable.length ? unavailable.map((item) => `<article><span>${escapeHtml(firstText(item.id, 'gap'))}</span><strong>${escapeHtml(firstText(item.label, 'Unavailable'))}</strong><p>${escapeHtml(firstText(item.reason, 'No defensible public receipt was retained.'))}</p></article>`).join('') : '<article><strong>No declared gaps</strong><p>The generator did not publish an unavailable-evidence row.</p></article>'}</div></section><section class="minerals-integrity"><div><span>Snapshot SHA-256 content receipt</span><code title="${escapeHtml(snapshot.contentHash)}">${escapeHtml(snapshot.contentHash)}</code></div><div><span>Schema</span><strong>v${escapeHtml(String(snapshot.schemaVersion))}</strong></div><div><span>Generated</span><strong>${escapeHtml(formatTimestamp(snapshot.generatedAt))}</strong></div></section><nav class="minerals-pathways" aria-label="Adjacent commodity Chambers"><a href="/uranium/"><strong>Uranium Chamber</strong><small>xU3O8, uranium references, and bounded Etherlink receipts</small></a><a href="/metals/"><strong>Precious Metals Chamber</strong><small>Eight-metal assay, completed-month history, and VNXAU evidence</small></a></nav>`;
 }
 
 function renderView(snapshot) {
@@ -711,7 +744,7 @@ function entryMarkup(value) {
     const availableProducts = products.filter((product) => !['unavailable', 'error', 'missing'].includes(String(product.status || product.catalogStatus).toLowerCase())).length;
     const freshness = freshnessModel(value);
     const seriesName = firstText(pulse.name, pulse.seriesId, 'Monthly reference');
-    return `<div class="minerals-entry-copy"><div class="minerals-entry-title-line"><h2 class="stat-label" id="minerals-entry-title">Critical Minerals</h2><span class="minerals-entry-chip">60-material atlas</span></div><div class="stat-value minerals-entry-value">${escapeHtml(formatNumber(headline.criticalCount, 0))}</div><div class="minerals-entry-delta ${directionClass(performance)}">${escapeHtml(formatPct(performance, true))} <span>${escapeHtml(seriesName)} · 1Y</span></div><div class="stat-description">Supply exposure, monthly series, and Etherlink receipts</div><div class="minerals-entry-freshness">${escapeHtml(formatFreshnessStamp(generatedAtOf(value), { source: 'Generated minerals receipt' }))}</div></div><div class="minerals-entry-art">${launcherPicture()}</div><div class="minerals-entry-kpis"><span><small>Rare earths</small><strong>${escapeHtml(formatNumber(headline.rareEarthCount, 0))}</strong></span><span><small>Monthly series</small><strong>${escapeHtml(formatNumber(headline.monthlySeriesCount, 0))}</strong></span><span><small>Etherlink products</small><strong>${availableProducts} / ${escapeHtml(formatNumber(headline.tokenProductCount, 0))}</strong></span><span class="${freshness.stale ? 'is-warn' : 'is-good'}"><small>Receipt state</small><strong>${freshness.stale ? 'Last-good' : 'Verified'}</strong></span></div><div class="minerals-entry-chart"><span class="minerals-entry-chart-clock">${escapeHtml(seriesName)} · ${escapeHtml(firstText(pulse.unit, 'source unit'))} · ${escapeHtml(formatDate(latest.month, true))}</span>${marketChart({ ...pulse, rows: pulse.rows || [] }, firstText(pulse.seriesId, 'pulse'), { compact: true })}</div>`;
+    return `<div class="minerals-entry-copy"><div class="minerals-entry-title-line"><h2 class="stat-label" id="minerals-entry-title">Critical Minerals</h2><span class="minerals-entry-chip">60-material atlas</span></div><div class="stat-value minerals-entry-value">${escapeHtml(formatNumber(headline.criticalCount, 0))}</div><div class="minerals-entry-delta ${directionClass(performance)}">${escapeHtml(formatPct(performance, true))} <span>${escapeHtml(seriesName)} · 1Y</span></div><div class="stat-description">Supply exposure, monthly series, and Etherlink receipts</div><div class="minerals-entry-freshness">${escapeHtml(formatFreshnessStamp(generatedAtOf(value), { source: 'Generated minerals receipt' }))}</div></div><div class="minerals-entry-art">${launcherPicture()}</div><div class="minerals-entry-kpis"><span><small>Rare earths</small><strong>${escapeHtml(formatNumber(headline.rareEarthCount, 0))}</strong></span><span><small>Monthly series</small><strong>${escapeHtml(formatNumber(headline.monthlySeriesCount, 0))}</strong></span><span><small>Etherlink products</small><strong>${availableProducts} / ${escapeHtml(formatNumber(headline.tokenProductCount, 0))}</strong></span><span data-minerals-receipt-state class="${freshness.stale ? 'is-warn' : 'is-good'}"><small>Receipt state</small><strong>${freshness.stale ? 'Last-good' : 'Verified'}</strong></span></div><div class="minerals-entry-chart"><span class="minerals-entry-chart-clock">${escapeHtml(seriesName)} · ${escapeHtml(firstText(pulse.unit, 'source unit'))} · ${escapeHtml(formatDate(latest.month, true))}</span>${marketChart({ ...pulse, rows: pulse.rows || [] }, firstText(pulse.seriesId, 'pulse'), { compact: true })}</div>`;
 }
 
 function wireEntry(card) {
@@ -1045,7 +1078,8 @@ async function refreshMineralsChamber({ quiet = true } = {}) {
         return lastSnapshot;
     }
     try {
-        const snapshot = await fetchMineralsSnapshot();
+        const hadRefreshError = Boolean(lastRefreshError);
+        const { snapshot, changed } = await resolveMineralsSnapshotRefresh();
         if (document.visibilityState !== 'visible') {
             refreshDeferred = true;
             return lastSnapshot;
@@ -1053,8 +1087,11 @@ async function refreshMineralsChamber({ quiet = true } = {}) {
         lastSnapshot = snapshot;
         lastRefreshError = '';
         refreshDeferred = false;
-        updateEntry(snapshot, { quiet });
-        if (document.getElementById('minerals-modal')?.classList.contains('active')) renderBody(snapshot, { quiet });
+        if (changed || hadRefreshError) updateEntry(snapshot, { quiet });
+        else syncMineralsFreshness(snapshot);
+        if ((changed || hadRefreshError) && document.getElementById('minerals-modal')?.classList.contains('active')) {
+            renderBody(snapshot, { quiet });
+        }
         return snapshot;
     } catch (error) {
         if (document.visibilityState !== 'visible') {
@@ -1115,7 +1152,7 @@ export function closeMineralsChamber() {
 }
 
 export function initMineralsChamber() {
-    ensureMineralsCss();
+    ensureMineralsCss().catch((error) => console.warn('Critical Minerals styles unavailable', error));
     bindVisibilityRefresh();
     bindRouteState();
     startEntryRefreshTimer();

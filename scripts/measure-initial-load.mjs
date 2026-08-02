@@ -104,7 +104,8 @@ function summarize(runs) {
     'longestTaskMs',
     'networkTransferCount',
     'zeroTransferCount',
-    'serviceWorkerResponseCount'
+    'serviceWorkerResponseCount',
+    'externalRequestAttempts'
   ];
   const medians = Object.fromEntries(numericFields.map((field) => [
     field,
@@ -176,6 +177,11 @@ async function measureRun(browser, options, runNumber) {
   const serviceWorkerResponses = new Set();
   const pageErrors = [];
   const sameOriginFailures = [];
+  const externalRequests = [];
+  page.on('request', (request) => {
+    const requestUrl = new URL(request.url());
+    if (requestUrl.origin !== baseOrigin) externalRequests.push(`${request.method()} ${requestUrl.origin}${requestUrl.pathname}`);
+  });
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('response', (response) => {
     const responseUrl = new URL(response.url());
@@ -212,15 +218,13 @@ async function measureRun(browser, options, runNumber) {
   });
   await page.waitForFunction(() => {
     const main = document.querySelector('main');
-    const capitalPath = document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d') || '';
-    const ecosystemPoints = document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points') || '';
-    const maxisIdentities = document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length;
     const chamberCards = document.querySelectorAll('#chambers-grid .stat-card').length;
+    const chamberCategories = document.querySelectorAll('#chambers-grid > .chamber-category').length;
+    const orderedCards = (document.querySelector('#chambers-grid')?.dataset.chambersOrder || '').split(',').filter(Boolean).length;
     return Boolean(main && getComputedStyle(main).display !== 'none')
-      && capitalPath.length > 80
-      && ecosystemPoints.length > 40
-      && maxisIdentities === 10
-      && chamberCards >= 18;
+      && chamberCards === 21
+      && chamberCategories === 7
+      && orderedCards === 21;
   }, null, { timeout: 30000 });
   await page.waitForTimeout(options.settleMs);
 
@@ -243,10 +247,50 @@ async function measureRun(browser, options, runNumber) {
     const extensionMatches = (extensions) => resources.filter((entry) => extensions.some((extension) => entry.path.split('?')[0].endsWith(extension)));
     const longTasks = window.__loadQa?.longTasks || [];
     const resourcePath = (entry) => entry.path.split('?')[0];
-    const launcherProjectionPaths = new Set([
+    const deferredLauncherProjectionPaths = new Set([
       '/data/capital-entry-summary.json',
       '/data/ecosystem-entry-summary.json',
-      '/data/maxis/entry-summary.json'
+      '/data/maxis/entry-summary.json',
+      '/data/baker-governance-signals.json',
+      '/data/minerals-entry-summary.json',
+      '/data/metals-entry-summary.json',
+      '/data/uranium-entry-summary.json'
+    ]);
+    const deferredChamberModulePaths = new Set([
+      '/js/features/capital-chamber.js',
+      '/js/features/chamber.js',
+      '/js/features/ctez.js',
+      '/js/features/ecosystem-chamber.js',
+      '/js/features/etherlink-governance.js',
+      '/js/features/ledger-flow.js',
+      '/js/features/liquidity-baking.js',
+      '/js/features/leaderboard.js',
+      '/js/features/maxis.js',
+      '/js/features/metals-chamber.js',
+      '/js/features/minerals-chamber.js',
+      '/js/features/network-pulse.js',
+      '/js/features/staking-chamber.js',
+      '/js/features/tezos-domains.js',
+      '/js/features/tezoscrp.js',
+      '/js/features/tezlink.js',
+      '/js/features/tz4-adoption.js',
+      '/js/features/uranium-chamber.js',
+      '/js/features/whale-chamber.js'
+    ]);
+    const deferredChamberStylePaths = new Set([
+      '/css/capital.min.css',
+      '/css/ecosystem.min.css',
+      '/css/ledger-flow.min.css',
+      '/css/leaderboard.min.css',
+      '/css/maxis.min.css',
+      '/css/metals-chamber.min.css',
+      '/css/minerals-chamber.min.css',
+      '/css/network-pulse.min.css',
+      '/css/staking-chamber.min.css',
+      '/css/tezos-domains.min.css',
+      '/css/tezoscrp.min.css',
+      '/css/uranium-chamber.min.css',
+      '/css/whale-chamber.min.css'
     ]);
     const forbiddenInitialPaths = new Set([
       '/data/capital-snapshot.json',
@@ -262,10 +306,10 @@ async function measureRun(browser, options, runNumber) {
       serviceWorkerControlled: Boolean(navigator.serviceWorker?.controller),
       readiness: {
         mainVisible: Boolean(document.querySelector('main') && getComputedStyle(document.querySelector('main')).display !== 'none'),
-        capitalChartPathLength: document.querySelector('#capital-entry-card .capital-entry-price-line')?.getAttribute('d')?.length || 0,
-        ecosystemPointLength: document.querySelector('#ecosystem-entry-card .ecosystem-entry-sparkline polyline')?.getAttribute('points')?.length || 0,
-        maxisIdentityCount: document.querySelectorAll('#maxis-entry-card [data-maxis-entry-identity]').length,
-        chamberCardCount: document.querySelectorAll('#chambers-grid .stat-card').length
+        chamberCardCount: document.querySelectorAll('#chambers-grid .stat-card').length,
+        chamberCategoryCount: document.querySelectorAll('#chambers-grid > .chamber-category').length,
+        orderedChamberCount: (document.querySelector('#chambers-grid')?.dataset.chambersOrder || '').split(',').filter(Boolean).length,
+        chamberSkeletonCount: document.querySelectorAll('#chambers-grid [data-chamber-skeleton]').length
       },
       domInteractiveMs: navigation?.domInteractive || 0,
       domContentLoadedMs: navigation?.domContentLoadedEventEnd || 0,
@@ -287,7 +331,11 @@ async function measureRun(browser, options, runNumber) {
       longestTaskMs: longTasks.reduce((longest, entry) => Math.max(longest, entry.duration), 0),
       networkTransferCount: resources.filter((entry) => entry.transferSize > 0).length + (navigation?.transferSize > 0 ? 1 : 0),
       zeroTransferCount: resources.filter((entry) => entry.transferSize === 0 && entry.decodedBodySize > 0).length,
-      launcherResources: resources.filter((entry) => launcherProjectionPaths.has(resourcePath(entry))),
+      deferredChamberResources: resources.filter((entry) => (
+        deferredLauncherProjectionPaths.has(resourcePath(entry))
+        || deferredChamberModulePaths.has(resourcePath(entry))
+        || deferredChamberStylePaths.has(resourcePath(entry))
+      )),
       forbiddenHeavyResources: resources.filter((entry) => (
         forbiddenInitialPaths.has(resourcePath(entry))
         || /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(resourcePath(entry))
@@ -305,17 +353,14 @@ async function measureRun(browser, options, runNumber) {
     throw new Error('installed-worker measurement was not controlled by the installed service worker');
   }
   if (!result.readiness.mainVisible
-    || result.readiness.capitalChartPathLength <= 80
-    || result.readiness.ecosystemPointLength <= 40
-    || result.readiness.maxisIdentityCount !== 10
-    || result.readiness.chamberCardCount < 18) {
+    || result.readiness.chamberCardCount !== 21
+    || result.readiness.chamberCategoryCount !== 7
+    || result.readiness.orderedChamberCount !== 21
+    || result.readiness.chamberSkeletonCount < 15) {
     throw new Error(`measurement page did not reach launcher readiness: ${JSON.stringify(result.readiness)}`);
   }
-  const measuredLauncherPaths = new Set(result.launcherResources.map((resource) => resource.path.split('?')[0]));
-  if (!measuredLauncherPaths.has('/data/capital-entry-summary.json')
-    || !measuredLauncherPaths.has('/data/ecosystem-entry-summary.json')
-    || !measuredLauncherPaths.has('/data/maxis/entry-summary.json')) {
-    throw new Error(`measurement did not observe all launcher projections: ${Array.from(measuredLauncherPaths).join(', ')}`);
+  if (result.deferredChamberResources.length) {
+    throw new Error(`measurement observed lazy Chamber resources before intent: ${result.deferredChamberResources.map((resource) => resource.path).join(', ')}`);
   }
   if (result.forbiddenHeavyResources.length) {
     throw new Error(`measurement observed deferred heavy launcher data: ${result.forbiddenHeavyResources.map((resource) => resource.path).join(', ')}`);
@@ -329,6 +374,8 @@ async function measureRun(browser, options, runNumber) {
     run: runNumber,
     wallClockMs: Date.now() - startedAt,
     serviceWorkerResponseCount: serviceWorkerResponses.size,
+    externalRequestAttempts: externalRequests.length,
+    externalRequests: Array.from(new Set(externalRequests)).sort(),
     pageErrors,
     sameOriginFailures,
     ...result

@@ -7,15 +7,19 @@
  */
 
 import { quietlySyncHtml } from '../core/quiet-refresh.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { GENERATED_PROOFBOOK_SCHEDULE_LABEL } from '../core/freshness-contracts.mjs';
+import { sha256Text } from '../core/sha256.js';
+import { assertSnapshotMatchesProjection } from '../core/snapshot-receipt.js';
 import { escapeHtml } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
-const ECOSYSTEM_CSS_URL = '/css/ecosystem.css?v=524';
+const ECOSYSTEM_CSS_URL = versionedAsset('/css/ecosystem.min.css');
 const ECOSYSTEM_SNAPSHOT_URL = '/data/ecosystem-stats.json';
 const ECOSYSTEM_ENTRY_SUMMARY_URL = '/data/ecosystem-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -52,7 +56,6 @@ let lastEntrySummary = null;
 let lastRefreshError = '';
 let activeSnapshotFetch = null;
 let activeEntryFetch = null;
-let ecosystemCssReady = null;
 let chamberTimer = null;
 let visibilityReady = false;
 let refreshDeferred = false;
@@ -142,12 +145,6 @@ function stableJsonValue(value) {
     return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]));
 }
 
-async function sha256Text(value) {
-    if (!globalThis.crypto?.subtle) throw new Error('SHA-256 verification is unavailable.');
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 async function verifyStableHash(payload, label, integrityFailure = `${label} failed its SHA-256 integrity receipt.`) {
     const { contentHash, ...unsigned } = payload || {};
     if (!/^[0-9a-f]{64}$/.test(contentHash || '')) throw new Error(`${label} content receipt is missing.`);
@@ -159,6 +156,10 @@ async function validateEntrySummary(summary) {
     if (summary?.schemaVersion !== 1
         || !Number.isFinite(Date.parse(summary.generatedAt || ''))
         || summary.source?.path !== 'data/ecosystem-stats.json'
+        || summary.source?.schemaVersion !== 1
+        || summary.source?.generatedAt !== summary.generatedAt
+        || !/^[0-9a-f]{64}$/.test(summary.source?.contentHash || '')
+        || !/^[0-9a-f]{64}$/.test(summary.source?.fileSha256 || '')
         || !Array.isArray(summary.weeks)
         || summary.weeks.length === 0
         || !Array.isArray(summary.leaders?.all)
@@ -169,7 +170,7 @@ async function validateEntrySummary(summary) {
     return summary;
 }
 
-async function validateSnapshot(snapshot, sourceText) {
+async function validateSnapshot(snapshot) {
     if (snapshot?.schemaVersion !== 1
         || !Number.isFinite(Date.parse(snapshot.generatedAt || ''))
         || !Array.isArray(snapshot.apps)
@@ -188,22 +189,14 @@ async function validateSnapshot(snapshot, sourceText) {
         'Ecosystem snapshot',
         'Ecosystem snapshot failed its SHA-256 integrity receipt.'
     );
-    if (lastEntrySummary?.source?.fileSha256) {
-        const fileHash = await sha256Text(sourceText);
-        if (fileHash.toLowerCase() !== lastEntrySummary.source.fileSha256.toLowerCase()) {
-            const snapshotTime = Date.parse(snapshot.generatedAt);
-            const projectionTime = Date.parse(lastEntrySummary.source.generatedAt || lastEntrySummary.generatedAt);
-            if (!Number.isFinite(snapshotTime) || !Number.isFinite(projectionTime) || snapshotTime <= projectionTime) {
-                throw new Error('Ecosystem snapshot does not match the launcher projection source receipt.');
-            }
-            lastEntrySummary = null;
-        }
-    }
     return snapshot;
 }
 
 async function fetchJsonText(url) {
-    const response = await fetch(url, { cache: 'no-store' });
+    const response = await fetch(url, {
+        cache: 'no-cache',
+        headers: { Accept: 'application/json' }
+    });
     if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
     const text = await response.text();
     return { text, value: JSON.parse(text) };
@@ -211,7 +204,7 @@ async function fetchJsonText(url) {
 
 async function fetchEntrySummary() {
     if (activeEntryFetch) return activeEntryFetch;
-    activeEntryFetch = fetchJsonText(`${ECOSYSTEM_ENTRY_SUMMARY_URL}?t=${Date.now()}`)
+    activeEntryFetch = fetchJsonText(ECOSYSTEM_ENTRY_SUMMARY_URL)
         .then(({ value }) => validateEntrySummary(value))
         .finally(() => {
             activeEntryFetch = null;
@@ -219,32 +212,57 @@ async function fetchEntrySummary() {
     return activeEntryFetch;
 }
 
-async function fetchSnapshot() {
+async function fetchSnapshot(summary = lastEntrySummary) {
     if (activeSnapshotFetch) return activeSnapshotFetch;
-    activeSnapshotFetch = fetchJsonText(`${ECOSYSTEM_SNAPSHOT_URL}?t=${Date.now()}`)
-        .then(({ value, text }) => validateSnapshot(value, text))
+    const sourceReceipt = summary?.source || null;
+    activeSnapshotFetch = fetchJsonText(ECOSYSTEM_SNAPSHOT_URL)
+        .then(async ({ value, text }) => {
+            await validateSnapshot(value);
+            await assertSnapshotMatchesProjection(value, text, sourceReceipt, { label: 'Ecosystem snapshot' });
+            return value;
+        })
         .finally(() => {
             activeSnapshotFetch = null;
         });
     return activeSnapshotFetch;
 }
 
-function ensureEcosystemCss() {
-    const existing = document.getElementById('ecosystem-css');
-    if (existing?.sheet) return Promise.resolve(true);
-    if (ecosystemCssReady) return ecosystemCssReady;
-    const link = existing || document.createElement('link');
-    if (!existing) {
-        link.id = 'ecosystem-css';
-        link.rel = 'stylesheet';
-        link.href = ECOSYSTEM_CSS_URL;
+function ecosystemSnapshotHash(summary) {
+    return String(summary?.source?.contentHash || '').toLowerCase();
+}
+
+async function resolveEcosystemSnapshotRefresh() {
+    let summary = lastEntrySummary;
+
+    if (lastSnapshot || !summary || lastRefreshError) {
+        try {
+            summary = await fetchEntrySummary();
+            lastEntrySummary = summary;
+        } catch (error) {
+            if (lastSnapshot) throw error;
+            console.warn('Ecosystem Activity summary poll failed during open; trying the complete snapshot:', error);
+            summary = null;
+        }
     }
-    ecosystemCssReady = new Promise((resolve) => {
-        link.addEventListener('load', () => resolve(true), { once: true });
-        link.addEventListener('error', () => resolve(false), { once: true });
-    });
-    if (!existing) document.head.appendChild(link);
-    return ecosystemCssReady;
+
+    const projectedHash = ecosystemSnapshotHash(summary);
+    const loadedHash = String(lastSnapshot?.contentHash || '').toLowerCase();
+    if (lastSnapshot && projectedHash && projectedHash === loadedHash) {
+        return { snapshot: lastSnapshot, changed: false };
+    }
+    if (lastSnapshot && projectedHash) {
+        const projectedAt = Date.parse(summary?.source?.generatedAt || summary?.generatedAt || '');
+        const loadedAt = Date.parse(lastSnapshot.generatedAt || '');
+        if (!Number.isFinite(projectedAt) || !Number.isFinite(loadedAt) || projectedAt <= loadedAt) {
+            throw new Error('Ecosystem launcher projection is not newer than the loaded snapshot; retaining last-good data.');
+        }
+    }
+
+    return { snapshot: await fetchSnapshot(summary), changed: true };
+}
+
+function ensureEcosystemCss() {
+    return ensureChamberStylesheet('ecosystem-css', ECOSYSTEM_CSS_URL);
 }
 
 function layerLabel(layer = currentLayer) {
@@ -540,6 +558,20 @@ function freshnessPresentation(snapshot) {
             ? `Last good ${ageLabel(snapshot.generatedAt)} · refresh failed · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
             : `Generated ${ageLabel(snapshot.generatedAt)} · ${GENERATED_PROOFBOOK_SCHEDULE_LABEL}`
     };
+}
+
+function syncEcosystemFreshness(snapshot) {
+    const presentation = freshnessPresentation(snapshot);
+    const freshness = document.getElementById('ecosystem-freshness');
+    if (freshness) {
+        if (freshness.textContent !== presentation.label) freshness.textContent = presentation.label;
+        freshness.classList.toggle('is-stale', presentation.stale);
+    }
+    const card = document.getElementById('ecosystem-entry-card');
+    if (card && card.dataset.updatedLabel !== presentation.label) {
+        card.dataset.updatedLabel = presentation.label;
+        window.syncChamberEntryFooters?.(card);
+    }
 }
 
 function renderMethodology(snapshot) {
@@ -855,7 +887,7 @@ function bindVisibilityRefresh() {
         if (document.visibilityState !== 'visible') return;
         if (entryRefreshDeferred) {
             entryRefreshDeferred = false;
-            refreshEcosystemEntry({ quiet: false });
+            refreshEcosystemEntry({ quiet: true });
         }
         const overlayOpen = document.getElementById('ecosystem-activity-modal')?.classList.contains('active');
         if (!refreshDeferred && !overlayOpen) return;
@@ -871,14 +903,44 @@ async function refreshEcosystemEntry({ quiet = true } = {}) {
     }
     try {
         const summary = await fetchEntrySummary();
+        if (document.visibilityState !== 'visible') {
+            entryRefreshDeferred = true;
+            return lastSnapshot || lastEntrySummary;
+        }
         lastEntrySummary = summary;
         entryRefreshDeferred = false;
         if (!lastSnapshot) updateEntry(summary, { quiet });
         return lastSnapshot || summary;
     } catch (error) {
-        console.warn('Ecosystem Activity launcher projection failed; loading the complete snapshot:', error);
-        return refreshEcosystemChamber({ quiet });
+        if (document.visibilityState !== 'visible') {
+            entryRefreshDeferred = true;
+            return lastSnapshot || lastEntrySummary;
+        }
+        console.warn('Ecosystem Activity launcher projection refresh failed; retaining the last good launcher:', error);
+        entryRefreshDeferred = true;
+        const retained = lastEntrySummary || lastSnapshot;
+        if (!retained) markEcosystemEntryUnavailable(error);
+        return retained;
     }
+}
+
+function markEcosystemEntryUnavailable(error) {
+    const card = document.getElementById('ecosystem-entry-card');
+    if (!card) return;
+    const value = card.querySelector('.ecosystem-entry-value');
+    if (value) {
+        value.textContent = 'Unavailable';
+        value.setAttribute('role', 'status');
+        value.setAttribute('aria-live', 'polite');
+    }
+    const kpis = card.querySelector('.ecosystem-entry-kpis');
+    if (kpis) kpis.innerHTML = '<span><small>Generated ledger</small><strong>Unavailable</strong><em>No verified launcher receipt</em></span>';
+    const history = card.querySelector('.ecosystem-entry-empty');
+    if (history) history.textContent = 'Open the Chamber to retry the weekly ledger.';
+    card.classList.add('chamber-data-stale');
+    card.dataset.updatedLabel = 'Unavailable · refresh failed · no last-good receipt';
+    card.title = error?.message || 'Ecosystem launcher receipt unavailable';
+    window.syncChamberEntryFooters?.(card);
 }
 
 async function refreshEcosystemChamber({ quiet = true } = {}) {
@@ -887,14 +949,26 @@ async function refreshEcosystemChamber({ quiet = true } = {}) {
         return lastSnapshot;
     }
     try {
-        const snapshot = await fetchSnapshot();
+        const hadRefreshError = Boolean(lastRefreshError);
+        const { snapshot, changed } = await resolveEcosystemSnapshotRefresh();
+        if (document.visibilityState !== 'visible') {
+            refreshDeferred = true;
+            return lastSnapshot;
+        }
         lastSnapshot = snapshot;
         lastRefreshError = '';
         refreshDeferred = false;
-        updateEntry(snapshot, { quiet });
-        if (document.getElementById('ecosystem-activity-modal')?.classList.contains('active')) renderBody(snapshot, { quiet });
+        if (changed || hadRefreshError) updateEntry(snapshot, { quiet });
+        else syncEcosystemFreshness(snapshot);
+        if ((changed || hadRefreshError) && document.getElementById('ecosystem-activity-modal')?.classList.contains('active')) {
+            renderBody(snapshot, { quiet });
+        }
         return snapshot;
     } catch (error) {
+        if (document.visibilityState !== 'visible') {
+            refreshDeferred = true;
+            return lastSnapshot;
+        }
         console.warn('Ecosystem Activity snapshot refresh failed:', error);
         lastRefreshError = error?.message || String(error);
         markRefreshFailure();
@@ -966,7 +1040,7 @@ export function closeEcosystemChamber() {
 }
 
 export function initEcosystemChamber() {
-    ensureEcosystemCss();
+    ensureEcosystemCss().catch((error) => console.warn('Ecosystem Activity styles unavailable', error));
     bindVisibilityRefresh();
     const card = ensureEntryCard();
     wireEntry(card);

@@ -4,9 +4,11 @@
  */
 
 import { API_URLS } from '../core/config.js';
+import { versionedAsset } from '../core/asset-version.js';
 import { escapeHtml, formatFreshnessStamp, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
 import { fetchCycleInfo, fetchWithRetry } from '../core/api.js';
 import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import { quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
 const TZKT = API_URLS.tzkt;
@@ -53,7 +55,7 @@ const NAKAMOTO_SOURCES_TTL = 6 * 60 * 60 * 1000;
 const NAKAMOTO_SOURCES_URL = '/data/nakamoto-sources.json';
 const NAKAMOTO_RPC_PATH = '/chains/main/blocks/head/helpers/baking_power_distribution_for_current_cycle';
 const TENDERBAKE_DOCS_URL = 'https://octez.tezos.com/docs/active/consensus.html';
-const NETWORK_HEALTH_CSS_URL = '/css/network-health.css?v=546';
+const NETWORK_HEALTH_CSS_URL = versionedAsset('/css/network-health.min.css');
 const STORAGE_KEY = 'tezos-systems-network-health';
 const MY_BAKER_STORAGE_KEY = 'tezos-systems-my-baker-address';
 const CONTESTED_ROUND_SIGNAL_KEY = 'tezos-systems-contested-round-hot-signal-at';
@@ -101,12 +103,7 @@ let nakamotoSourcesCacheAt = 0;
 let nakamotoSourcesInFlight = null;
 
 function ensureNetworkHealthCss() {
-    if (document.getElementById('network-health-css')) return;
-    const link = document.createElement('link');
-    link.id = 'network-health-css';
-    link.rel = 'stylesheet';
-    link.href = NETWORK_HEALTH_CSS_URL;
-    document.head.appendChild(link);
+    return ensureChamberStylesheet('network-health-css', NETWORK_HEALTH_CSS_URL);
 }
 
 function formatCount(value) {
@@ -3593,7 +3590,7 @@ function stopChamberRefresh() {
 }
 
 export async function openNetworkHealthChamber() {
-    ensureNetworkHealthCss();
+    await ensureNetworkHealthCss();
     document.getElementById('tooltip-network-health')?.classList.remove('is-open');
     let overlay = document.getElementById('network-health-modal');
     if (!overlay) {
@@ -3709,7 +3706,7 @@ export async function refreshNetworkHealth({ force = false } = {}) {
 export function initNetworkHealth() {
     if (!document.querySelector('[data-stat="network-health"]')) return;
 
-    ensureNetworkHealthCss();
+    ensureNetworkHealthCss().catch((error) => console.warn('Network Health styles unavailable', error));
     wireCycleChipHealthLauncher();
     wireNetworkHealthCard();
     startHealthAgeTicker();
