@@ -397,9 +397,10 @@ inline modal styles in `js/core/app.js`.
   ship, exact blocker, supported horizon, and most exciting recent artifact;
   the full Release Radar overlay opens every lane, all six Tezos X gates,
   dependency boundaries, status history, primary evidence, confidence meanings,
-  and methodology without a fake completion percentage. It marks the forecast
-  stale before the ephemeral card expires, and the browser never infers readiness
-  from GitLab merge volume. My Tezos draws from the same live candidate set and
+  and methodology without a fake completion percentage. It quietly marks when
+  the forecast review is due before the ephemeral card expires, and the browser
+  never infers readiness from GitLab merge volume. My Tezos draws from the same
+  live candidate set and
   combines address-scoped account changes with daily network changes in one
   return report. When fewer than eight stronger signals are present, Live Pulse
   may also show one score-58 Curio per UTC day from a protocol anniversary,
@@ -1503,7 +1504,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v551`, including hero search, theme
+- Current aligned shell cache stamp: `v552`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, Uranium, Precious Metals, and Critical Minerals lazy CSS
   loaders.

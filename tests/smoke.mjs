@@ -7953,6 +7953,8 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         cardOverflow: card ? card.scrollWidth - card.clientWidth : 999,
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
         priority: card?.querySelector('.release-radar-priority')?.textContent?.trim() || '',
+        priorityTitle: card?.querySelector('.release-radar-priority')?.getAttribute('title') || '',
+        compactWarningCount: card?.querySelectorAll('.release-radar-stale-note, [role="status"]').length || 0,
         activeCount: island?.querySelectorAll('.hot-today-card.is-hot-active').length || 0,
         railCount: island?.querySelectorAll('[data-hot-progress-index]').length || 0,
         cardCount: island?.querySelectorAll('[data-hot-signal-index]').length || 0
@@ -7963,8 +7965,10 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         && presentation.releaseIndex <= 1
         && presentation.score >= 170
         && (presentation.priority === 'EVERYONE WATCH'
-          || (presentation.priority === 'FORECAST STALE'
-            && /Treat horizons as stale until the next tracker receipt/i.test(presentation.text))),
+          || (presentation.priority === 'REVIEW DUE'
+            && /Forecast review due\. Last reviewed/i.test(presentation.priorityTitle)
+            && presentation.compactWarningCount === 0
+            && !/Treat horizons as stale/i.test(presentation.text))),
       `release radar pulse ${label}: the important forecast left the top priority pair ${JSON.stringify(presentation)}`
     );
     assert(
@@ -7993,16 +7997,13 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         presentation.cardWidth >= 420
           && presentation.cardWidth <= 600
           && presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.cardHeight <= (presentation.priority === 'FORECAST STALE' ? 225 : 190),
+          && presentation.cardHeight <= 190,
         `release radar pulse desktop: compact priority geometry regressed ${JSON.stringify(presentation)}`
       );
     } else {
       assert(
-        presentation.cardWidth <= presentation.stripWidth + 1
-          && presentation.cardHeight <= Math.min(
-            presentation.priority === 'FORECAST STALE' ? 305 : 280,
-            viewport.height * 0.4
-          ),
+          presentation.cardWidth <= presentation.stripWidth + 1
+          && presentation.cardHeight <= Math.min(280, viewport.height * 0.4),
         `release radar pulse mobile: compact single-column geometry regressed ${JSON.stringify(presentation)}`
       );
     }
@@ -8076,7 +8077,7 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         && /Dependency boundaries/.test(overlayPresentation.text)
         && /Status-change ledger/.test(overlayPresentation.text)
         && /Every receipt used in the current review/.test(overlayPresentation.text)
-        && /(?:Current daily receipt|This receipt is outside its freshness window)/.test(overlayPresentation.text)
+        && /(?:Current daily receipt|This receipt is past its daily review point)/.test(overlayPresentation.text)
         && /Reviewed daily/.test(overlayPresentation.text),
       `release radar pulse ${label}: expanded forecast context drifted ${JSON.stringify(overlayPresentation)}`
     );

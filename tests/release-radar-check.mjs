@@ -103,20 +103,26 @@ for (const snippet of [
   'Dependency boundaries',
   'Every receipt used in the current review',
   'quietlySyncHtml(content, islandHtml)',
-  'FORECAST STALE',
+  'REVIEW DUE',
+  'Forecast review due. Last reviewed',
+  'release-radar-overlay-review-note',
   'No credible near-term release signal detected',
   'no completion percentage implied'
 ]) {
   assert(briefing.includes(snippet), `Release Radar Live Pulse contract is missing ${snippet}`);
 }
+assert(!briefing.includes('release-radar-stale-note'), 'the compact Release Radar must not restore an alarm-style stale banner');
+assert(!briefing.includes('Treat horizons as stale until the next tracker receipt'), 'the compact Release Radar must keep overdue review copy out of the reading flow');
 assert(dataAssets.includes("releaseRadar: '/data/release-radar.json'"), 'Release Radar must load as a same-origin generated data asset');
 assert(dataAssets.includes("releaseRadar: 'no-cache'"), 'Release Radar must revalidate through normal HTTP validators');
 for (const snippet of [
   '.hot-today-card.hot-today-card-release',
   '.release-radar-pulse-row',
   '.release-radar-pulse-signals',
+  '.release-radar-priority.is-review-due',
   '.release-radar-open',
   '.release-radar-overlay-content',
+  '.release-radar-overlay-review-note',
   '.release-radar-lane.is-exciting',
   '.release-radar-overlay-gates',
   '.release-radar-overlay-evidence',

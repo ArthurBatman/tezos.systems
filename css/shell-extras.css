@@ -4237,24 +4237,18 @@
     letter-spacing: 0.06em;
 }
 
+.release-radar-priority.is-review-due {
+    border-color: color-mix(in srgb, var(--hot-visual-accent) 34%, transparent);
+    background: color-mix(in srgb, var(--hot-visual-accent) 6%, transparent);
+    color: color-mix(in srgb, var(--hot-visual-accent) 58%, var(--text-secondary));
+}
+
 .hot-today-card-release .hot-today-age {
     color: var(--text-tertiary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.54rem;
     font-weight: 800;
     text-transform: uppercase;
-}
-
-.release-radar-stale-note {
-    margin-top: 0.68rem;
-    padding: 0.48rem 0.62rem;
-    border: 1px solid color-mix(in srgb, var(--release-radar-red) 38%, transparent);
-    border-radius: 7px;
-    background: color-mix(in srgb, var(--release-radar-red) 8%, transparent);
-    color: color-mix(in srgb, var(--release-radar-red) 58%, var(--text-primary));
-    font-size: 0.72rem;
-    font-weight: 760;
-    line-height: 1.38;
 }
 
 .release-radar-lead {
@@ -4873,6 +4867,12 @@
     font-weight: 950;
 }
 
+.release-radar-overlay-priority.is-review-due {
+    border-color: color-mix(in srgb, var(--release-radar-overlay-accent) 34%, transparent);
+    background: color-mix(in srgb, var(--release-radar-overlay-accent) 6%, transparent);
+    color: color-mix(in srgb, var(--release-radar-overlay-accent) 58%, var(--text-secondary));
+}
+
 .release-radar-overlay-header h2 {
     max-width: 900px;
     margin: 0.78rem 0 0.32rem;
@@ -4923,12 +4923,12 @@
     font-size: 0.65rem;
 }
 
-.release-radar-overlay-stale {
-    padding: 0.68rem 0.78rem;
-    border: 1px solid color-mix(in srgb, var(--release-radar-overlay-red) 42%, transparent);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--release-radar-overlay-red) 8%, transparent);
-    color: var(--text-primary);
+.release-radar-overlay-review-note {
+    margin: 0;
+    padding: 0.5rem 0.68rem;
+    border-left: 2px solid color-mix(in srgb, var(--release-radar-overlay-accent) 42%, transparent);
+    background: color-mix(in srgb, var(--release-radar-overlay-accent) 3%, transparent);
+    color: var(--text-secondary);
     font-size: 0.75rem;
     line-height: 1.45;
 }

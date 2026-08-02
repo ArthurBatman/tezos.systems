@@ -7,6 +7,7 @@ export const CHANGELOG = [
     {
         date: '2026-08-02',
         entries: [
+            { type: '🎨', text: 'Release Radar now marks an overdue forecast review with a quiet Review due receipt instead of an alarm-style stale banner, while retaining the review age and full timing caveat' },
             { type: '🔧', text: 'Mainnet age and its anniversary pulse now count calendar time from Mainnet Block 1 on June 30, 2018' },
             { type: '🔧', text: 'Mobile Chamber category toggles now repair large browser anchoring shifts without overriding an immediate reader scroll' },
             { type: '🔧', text: 'Capital, Ecosystem Activity, and Maxis receipts now verify on plain-HTTP LAN previews, so phone launchers and full rooms no longer report healthy generated data as unavailable' },

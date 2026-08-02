@@ -3367,22 +3367,22 @@ function renderReleaseRadarOverlayMarkup(signal) {
       <div class="release-radar-overlay-brandline">
         <span class="release-radar-overlay-mark" aria-hidden="true">◉</span>
         <span><small>Full release intelligence</small><strong>Release Radar</strong></span>
-        <span class="release-radar-overlay-priority">${radar.stale ? 'FORECAST STALE' : radar.noCredibleSignal ? 'NO NEAR-TERM SIGNAL' : 'EVERYONE WATCH'}</span>
+        <span class="release-radar-overlay-priority${radar.stale ? ' is-review-due' : ''}">${radar.stale ? 'REVIEW DUE' : radar.noCredibleSignal ? 'NO NEAR-TERM SIGNAL' : 'EVERYONE WATCH'}</span>
       </div>
       <h2 id="release-radar-overlay-title">What may ship next—and what still blocks it</h2>
       <p>The reviewed decision board for Tezos X, Octez, and the EVM node. Every lane stays separate so a software tag cannot masquerade as mainnet readiness.</p>
       <div class="release-radar-overlay-receipt" aria-label="Release Radar review receipt">
         <span><small>Reviewed</small><strong>${escapeHtml(releaseRadarDateLabel(radar.updatedAt, { includeTime: true }))}</strong></span>
-        <span><small>Freshness</small><strong>${radar.stale ? 'Stale — recheck horizons' : radar.sourceState === 'last-good' ? 'Last-good receipt' : 'Current daily receipt'}</strong></span>
-        <span><small>Turns stale</small><strong>${escapeHtml(releaseRadarDateLabel(radar.staleAtMs, { includeTime: true }))}</strong></span>
+        <span><small>Freshness</small><strong>${radar.stale ? 'Review due — recheck timing' : radar.sourceState === 'last-good' ? 'Last-good receipt' : 'Current daily receipt'}</strong></span>
+        <span><small>${radar.stale ? 'Review due since' : 'Next review due'}</small><strong>${escapeHtml(releaseRadarDateLabel(radar.staleAtMs, { includeTime: true }))}</strong></span>
         <span><small>Review window ends</small><strong>${escapeHtml(releaseRadarDateLabel(radar.expiresAt, { includeTime: true }))}</strong></span>
       </div>
     </header>
 
     ${radar.stale ? `
-      <div class="release-radar-overlay-stale" role="status" data-quiet-key="release-radar-overlay-stale">
-        This receipt is outside its freshness window. The evidence remains visible, but forecasts should be treated as unreviewed until the next daily tracker receipt.
-      </div>
+      <p class="release-radar-overlay-review-note" data-quiet-key="release-radar-overlay-review-note">
+        This receipt is past its daily review point. The evidence stays visible; recheck forecast timing against the next tracker receipt.
+      </p>
     ` : ''}
 
     <section class="release-radar-overlay-hero" aria-labelledby="release-radar-overlay-main-title" data-quiet-key="release-radar-overlay-hero">
@@ -3616,28 +3616,25 @@ function renderReleaseRadarCard(signal, index) {
   const spectacleClass = ` is-spectacle-${safeCssToken(signal.spectacle)}`;
   const staleClass = radar.stale ? ' is-release-radar-stale' : '';
   const ageLabel = signalAgeLabel(signal);
+  const reviewLabel = radar.stale
+    ? ` Forecast review due; last reviewed ${releaseRadarDateLabel(radar.updatedAt, { includeTime: true })}.`
+    : '';
   const exciting = radar.candidates.find((candidate) => candidate.id === radar.excitingCandidateId)
     || radar.candidates.find((candidate) => candidate.lifecycle === 'released')
     || radar.candidates.find((candidate) => candidate.id !== main.id);
 
   return `
-    <article class="hot-today-card hot-today-card-release${spectacleClass}${activeClass}${staleClass}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-score="${escapeHtml(String(signal.score))}" data-hot-visual="release" data-hot-spectacle="${escapeHtml(signal.spectacle)}" aria-label="${escapeHtml(`Priority Release Radar. ${main.label}: ${main.summary}`)}">
+    <article class="hot-today-card hot-today-card-release${spectacleClass}${activeClass}${staleClass}" data-hot-signal-id="${escapeHtml(signal.id)}" data-hot-signal-index="${index}" data-hot-score="${escapeHtml(String(signal.score))}" data-hot-visual="release" data-hot-spectacle="${escapeHtml(signal.spectacle)}" aria-label="${escapeHtml(`Priority Release Radar.${reviewLabel} ${main.label}: ${main.summary}`)}">
       <div class="release-radar-topline">
         <div class="release-radar-brand">
           <span class="release-radar-mark" aria-hidden="true">◉</span>
           <span><small>Priority signal</small><strong>Release Radar</strong></span>
         </div>
         <div class="release-radar-freshness">
-          <span class="release-radar-priority">${radar.stale ? 'FORECAST STALE' : radar.noCredibleSignal ? 'NO NEAR-TERM SIGNAL' : 'EVERYONE WATCH'}</span>
+          <span class="release-radar-priority${radar.stale ? ' is-review-due' : ''}"${radar.stale ? ` title="${escapeHtml(`Forecast review due. Last reviewed ${releaseRadarDateLabel(radar.updatedAt, { includeTime: true })}.`)}"` : ''}>${radar.stale ? 'REVIEW DUE' : radar.noCredibleSignal ? 'NO NEAR-TERM SIGNAL' : 'EVERYONE WATCH'}</span>
           <span class="hot-today-age" data-hot-age data-hot-created-at="${escapeHtml(String(signal.createdAt || ''))}" data-hot-observed-at="${escapeHtml(String(signal.observedAt || ''))}" data-hot-started-at="" data-hot-kind="state">${escapeHtml(ageLabel)}</span>
         </div>
       </div>
-
-      ${radar.stale ? `
-        <div class="release-radar-stale-note" role="status">
-          Last reviewed ${escapeHtml(releaseRadarDateLabel(radar.updatedAt, { includeTime: true }))}. Treat horizons as stale until the next tracker receipt.
-        </div>
-      ` : ''}
 
       <div class="release-radar-pulse-row">
         <div class="release-radar-pulse-copy">
