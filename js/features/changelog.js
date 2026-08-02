@@ -9,7 +9,8 @@ export const CHANGELOG = [
         entries: [
             { type: '🔧', text: 'Capital, Ecosystem Activity, and Maxis receipts now verify on plain-HTTP LAN previews, so phone launchers and full rooms no longer report healthy generated data as unavailable' },
             { type: '🔧', text: 'My Tezos now reserves its async greeting line and quietly reconciles identity updates, keeping the drawer fixed under the reader on phones and desktops' },
-            { type: '🔧', text: 'Lazy Chamber launchers now retain keyboard focus and retry transient module failures, while Liquidity Baking throttle retries preserve the exact canonical or incremental block window' }
+            { type: '🔧', text: 'Lazy Chamber launchers now retain keyboard focus and retry transient module failures, while Liquidity Baking throttle retries preserve the exact canonical or incremental block window' },
+            { type: '🔧', text: 'Mobile Chamber categories now reserve the final Network Pulse, Network Health, and Tezos X launcher heights before lazy hydration, so opening a category cannot jump the reader down the page' }
         ]
     },
     {

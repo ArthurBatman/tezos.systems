@@ -5715,6 +5715,29 @@
     }
 }
 
+/* Network is the only Chamber category open by default on phones. Reserve the
+   exact hydrated floors before its lazy room styles arrive so Pulse, Health,
+   and Tezos X cannot move every category below them during intent hydration. */
+@media (max-width: 759px) {
+    #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
+        min-height: 538px;
+    }
+
+    #chambers-grid .chamber-entry-shell-slot[data-chamber-slot="health"] {
+        min-height: 318px;
+    }
+
+    #chambers-grid #tezlink-entry-card[data-chamber-layout="standard"] {
+        min-height: 344px;
+    }
+}
+
+@media (max-width: 479px) {
+    #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
+        min-height: 428px;
+    }
+}
+
 @media (min-width: 1180px) {
     #chambers-grid > .chamber-category > .chamber-category-cards > .chamber-entry-shell-slot[data-chamber-layout="featured"] {
         grid-column: 1 / -1;

@@ -4009,6 +4009,9 @@ async function checkChamberEfficiencyContracts() {
   const app = await readText('js/core/app.js');
   const index = await readText('index.html');
   const chamberStyles = await readText('js/ui/chamber-styles.js');
+  const shellExtras = await readText('css/shell-extras.css');
+  const mainStyles = await readText('css/styles.css');
+  const networkPulseStyles = await readText('css/network-pulse.css');
   const dataAssets = await readText('js/core/data-assets.js');
   const dailyBriefing = await readText('js/features/daily-briefing.js');
   const maxis = await readText('js/features/maxis.js');
@@ -4097,6 +4100,32 @@ async function checkChamberEfficiencyContracts() {
     'link.remove()'
   ]) {
     if (!chamberStyles.includes(snippet)) fail(`shared Chamber stylesheet loader is missing contract: ${snippet}`);
+  }
+  const mobileNetworkShellContract = `@media (max-width: 759px) {
+    #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
+        min-height: 538px;
+    }
+
+    #chambers-grid .chamber-entry-shell-slot[data-chamber-slot="health"] {
+        min-height: 318px;
+    }
+
+    #chambers-grid #tezlink-entry-card[data-chamber-layout="standard"] {
+        min-height: 344px;
+    }
+}
+
+@media (max-width: 479px) {
+    #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
+        min-height: 428px;
+    }
+}`;
+  if (!shellExtras.includes(mobileNetworkShellContract)
+    || !networkPulseStyles.includes('#chambers-grid .network-pulse-entry-card.chamber-entry-wide { min-height: 538px; }')
+    || !networkPulseStyles.includes('#chambers-grid .network-pulse-entry-card.chamber-entry-wide { min-height: 428px; }')
+    || !mainStyles.includes('#chambers-grid .tezlink-entry-card.chamber-entry-wide {\n        min-height: 344px;')
+    || !mainStyles.includes('#chambers-grid .health-entry-card.chamber-entry-wide {\n        min-height: 318px;')) {
+    fail('render-blocking mobile Network shell floors must exactly match the hydrated Pulse, Health, and Tezos X floors');
   }
   const styleGatedModules = [
     ['capital-chamber.js', 'await ensureCapitalCss()'],
