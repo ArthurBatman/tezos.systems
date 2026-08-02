@@ -811,6 +811,7 @@ async function checkRequiredFiles() {
     'js/core/api.js',
     'js/core/asset-version.js',
     'js/core/config.js',
+    'js/core/mainnet.mjs',
     'js/core/liquidity-baking-vote.js',
   'js/core/quiet-refresh.js',
   'js/core/snapshot-receipt.js',
@@ -3714,26 +3715,29 @@ async function checkWidgetRuntimeContracts() {
 
 async function checkMainnetLaunchCopy() {
   const config = await readText('js/core/config.js');
-  if (!config.includes("MAINNET_LAUNCH = '2018-09-17T00:00:00Z'")) {
-    fail('js/core/config.js must keep MAINNET_LAUNCH at 2018-09-17T00:00:00Z');
+  const mainnet = await readText('js/core/mainnet.mjs');
+  if (!mainnet.includes("MAINNET_LAUNCH = '2018-06-30T17:39:57Z'")) {
+    fail('js/core/mainnet.mjs must keep MAINNET_LAUNCH at the Mainnet Block 1 timestamp');
+  }
+  if (!config.includes("export { MAINNET_LAUNCH } from './mainnet.mjs';")) {
+    fail('js/core/config.js must re-export the shared MAINNET_LAUNCH timestamp');
   }
 
   const userFacingFiles = [
     'index.html',
     '.well-known/ai-plugin.json',
     'data/tweets.json',
+    'README.md',
     'js/core/app.js',
     'js/features/state-of-tezos.js',
     'js/landing/live-data.js'
   ];
   const stalePatterns = [
-    /June 30, 2018/i,
-    /mainnet launch in June 2018/i,
-    /since June 2018/i,
-    /Proof of Stake from genesis\s+—\s+June 2018/i,
-    /already PoS since genesis\.\s+June 2018/i,
-    /temporalCoverage["']?\s*:\s*["']2018-06-30\/\.\./i,
-    /mainnet launched June 30, 2018/i,
+    /September 17, 2018/i,
+    /September 17 UTC/i,
+    /Sep 17, 2018/i,
+    /2018-09-17T00:00:00Z/i,
+    /temporalCoverage["']?\s*:\s*["']2018-09-17\/\.\./i,
     /refreshed every 2 minutes/i
   ];
 
@@ -3741,19 +3745,19 @@ async function checkMainnetLaunchCopy() {
     const text = await readText(file);
     for (const pattern of stalePatterns) {
       if (pattern.test(text)) {
-        fail(`${file} contains stale June 2018 mainnet launch wording (${pattern})`);
+        fail(`${file} contains stale September 2018 mainnet launch wording (${pattern})`);
       }
     }
   }
 
   const index = await readText('index.html');
-  if (!index.includes('September 17, 2018')) {
-    fail('index.html should spell out the canonical September 17, 2018 mainnet launch date');
+  if (!index.includes('June 30, 2018') || !index.includes('"temporalCoverage": "2018-06-30/.."')) {
+    fail('index.html should expose the Mainnet Block 1 calendar date in copy and temporal coverage');
   }
 
   const aiPlugin = await readText('.well-known/ai-plugin.json');
-  if (!aiPlugin.includes('September 17, 2018')) {
-    fail('.well-known/ai-plugin.json must use the canonical September 17, 2018 mainnet launch date');
+  if (!aiPlugin.includes('June 30, 2018')) {
+    fail('.well-known/ai-plugin.json must use the Mainnet Block 1 calendar date');
   }
   if (!aiPlugin.includes('visible freshness markers')) {
     fail('.well-known/ai-plugin.json must describe freshness without stale two-minute claims');
@@ -3768,7 +3772,16 @@ async function checkMainnetLaunchCopy() {
     fail('security.txt must expose canonical private reporting contacts');
   }
 
-  pass('mainnet launch copy uses Sep 17, 2018 in user-facing surfaces');
+  const anniversary = await readText('js/core/anniversary.js');
+  const app = await readText('js/core/app.js');
+  if (!anniversary.includes('getCalendarElapsedTime') || !app.includes('getCalendarElapsedTime(now)')) {
+    fail('mainnet age and anniversary pulse must share the UTC calendar elapsed-time helper');
+  }
+  if (/function tickUptime\(\)[\s\S]*?365\.25[\s\S]*?function tickBlockAge/.test(app)) {
+    fail('the live mainnet-age clock must not use fixed 365.25-day year arithmetic');
+  }
+
+  pass('mainnet launch copy and calendar clock use Mainnet Block 1 on June 30, 2018');
 }
 
 function openApiPathPattern(dataPath) {
@@ -5437,7 +5450,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
+    'test:static': 'node tests/static-checks.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -6440,7 +6453,7 @@ async function checkReadmeContracts() {
     'BROWSER_EXECUTABLE_PATH',
     'CACHE_NAME',
     'version.json',
-    'September 17, 2018'
+    'June 30, 2018'
   ];
   for (const snippet of requiredSnippets) {
     if (!readme.includes(snippet)) fail(`README missing current contract text: ${snippet}`);

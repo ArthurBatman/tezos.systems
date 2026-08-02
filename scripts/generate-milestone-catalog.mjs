@@ -15,6 +15,7 @@ import {
   milestoneCatalogCadence
 } from '../js/features/milestone-catalog.mjs';
 import { deriveMilestoneMoments, MILESTONE_MOMENT_TTL_MS } from '../js/features/milestone-lifecycle.mjs';
+import { MAINNET_LAUNCH } from '../js/core/mainnet.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_FILE = path.join(ROOT, 'data/milestone-catalog.json');
@@ -22,7 +23,7 @@ const TZKT = 'https://api.tzkt.io/v1';
 const OCTEZ = 'https://eu.rpc.tez.capital';
 const OCTEZ_ARCHIVE = 'https://tezos-mainnet.octez.io';
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MAINNET_START = Date.parse('2018-09-17T00:00:00Z');
+const MAINNET_START = Date.parse(MAINNET_LAUNCH);
 
 function hasFlag(name) {
   return process.argv.includes(name);

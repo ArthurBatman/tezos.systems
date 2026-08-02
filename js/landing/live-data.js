@@ -4,6 +4,7 @@
  */
 import '../core/tzkt-throttle.js';
 import { fetchCurrentVotingPeriod, fetchWithRetry } from '../core/api.js';
+import { MAINNET_LAUNCH } from '../core/config.js';
 import { escapeHtml } from '../core/utils.js';
 import { countProtocolUpgrades } from '../core/protocol-count.js';
 
@@ -245,7 +246,7 @@ export async function loadGovernanceData() {
         }
 
         // Days live
-        const mainnetLaunch = new Date('2018-09-17T00:00:00Z');
+        const mainnetLaunch = new Date(MAINNET_LAUNCH);
         const daysLive = Math.floor((new Date() - mainnetLaunch) / 86400000);
         inject('days-live', daysLive.toLocaleString());
 

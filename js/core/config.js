@@ -49,9 +49,7 @@ export const THRESHOLDS = {
 // Staking target percentage
 export const STAKING_TARGET = 50;
 
-// Mainnet launch date
-// Tezos mainnet launched Sep 17, 2018 (not Jun 30, which was the fundraiser genesis)
-export const MAINNET_LAUNCH = '2018-09-17T00:00:00Z';
+export { MAINNET_LAUNCH } from './mainnet.mjs';
 
 // History data start date
 export const HISTORY_START = '2024-01-01';

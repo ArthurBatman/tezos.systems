@@ -4,13 +4,12 @@
  * the current state of the Tezos network.
  */
 
-import { API_URLS, REFRESH_INTERVALS } from '../core/config.js';
+import { API_URLS, MAINNET_LAUNCH, REFRESH_INTERVALS } from '../core/config.js';
 import { loadHtml2Canvas, showShareModal } from '../ui/share.js';
 import { fetchVotingStatus, getVotingPeriodName } from '../features/governance.js';
 import { getTzktTotalStaked } from '../core/api.js';
 
 const TZKT = API_URLS.tzkt;
-const MAINNET_LAUNCH = new Date('2018-09-17T00:00:00Z');
 const SELF_AMENDMENTS = 21;
 
 // Protocol hash prefix → human name (first 8 chars of hash → name)
@@ -74,7 +73,7 @@ async function fetchSnapshotData() {
         change7d: 'N/A',
         change7dRaw: null,
         governanceStatus: '—',
-        uptimeDays: Math.floor((Date.now() - MAINNET_LAUNCH.getTime()) / 86400000),
+        uptimeDays: Math.floor((Date.now() - Date.parse(MAINNET_LAUNCH)) / 86400000),
         selfAmendments: SELF_AMENDMENTS,
         sourceStatus: 'PARTIAL',
         timestamp: new Date(),

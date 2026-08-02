@@ -9,7 +9,7 @@
 
 import { debugLog, escapeHtml } from '../core/utils.js';
 import { quietlyMutate, quietlySyncHtml } from '../core/quiet-refresh.js';
-import { THRESHOLDS, API_URLS } from '../core/config.js';
+import { THRESHOLDS, API_URLS, MAINNET_LAUNCH } from '../core/config.js';
 
 const CONFIG = Object.freeze({
     minBalance: THRESHOLDS.giantMinBalance,
@@ -22,7 +22,7 @@ const STORAGE_KEY = 'tezos-systems-giants-enabled';
 const AWAKENINGS_KEY = 'tezos-systems-awakenings';
 const NOTIFICATIONS_KEY = 'tezos-systems-awakening-notifications';
 const MAX_STORED_AWAKENINGS = 20;
-const MAINNET_LAUNCH = new Date('2018-09-17T00:00:00Z').getTime();
+const MAINNET_LAUNCH_MS = Date.parse(MAINNET_LAUNCH);
 const DAY_MS = 86_400_000;
 const ACCOUNT_OPERATION_PAGE_SIZE = 100;
 const MAX_ACCOUNT_OPERATION_PAGES = 100;
@@ -89,8 +89,8 @@ export function daysSinceActivity(accountOrTimestamp) {
     const timestamp = typeof accountOrTimestamp === 'object'
         ? giantActivityTime(accountOrTimestamp)
         : timestampValue(accountOrTimestamp);
-    const activityTime = timestamp ? Date.parse(timestamp) : MAINNET_LAUNCH;
-    return Math.max(0, Math.floor((Date.now() - Math.max(activityTime, MAINNET_LAUNCH)) / DAY_MS));
+    const activityTime = timestamp ? Date.parse(timestamp) : MAINNET_LAUNCH_MS;
+    return Math.max(0, Math.floor((Date.now() - Math.max(activityTime, MAINNET_LAUNCH_MS)) / DAY_MS));
 }
 
 export function formatDormancy(days) {
@@ -165,11 +165,11 @@ function normalizeStoredAwakening(event) {
     if (!event?.address
         || String(event?.operation?.status || '').toLowerCase() !== 'applied'
         || !Number.isFinite(operationTime)
-        || operationTime <= MAINNET_LAUNCH
+        || operationTime <= MAINNET_LAUNCH_MS
         || !Number.isFinite(awakenedAt)
         || awakenedAt !== operationTime
         || !Number.isFinite(previousActivity)
-        || previousActivity < MAINNET_LAUNCH
+        || previousActivity < MAINNET_LAUNCH_MS
         || previousActivity >= awakenedAt
         || !Number.isFinite(dormantDays)
         || dormantDays < CONFIG.minDormantDays
@@ -331,7 +331,7 @@ export async function checkAwakenings(previousGiants) {
     const found = [];
     for (const giant of previousGiants) {
         try {
-            const previousActivity = Date.parse(giantActivityTime(giant)) || MAINNET_LAUNCH;
+            const previousActivity = Date.parse(giantActivityTime(giant)) || MAINNET_LAUNCH_MS;
             const operation = await earliestAppliedAccountOperation(giant.address, new Date(previousActivity).toISOString());
             if (!operation?.timestamp) continue;
             const operationTime = Date.parse(operation.timestamp);
@@ -346,7 +346,7 @@ export async function checkAwakenings(previousGiants) {
                 holdingBalance: number(giant.balance),
                 movedAmount: awakeningMovedAmount(operation),
                 dormantDays,
-                previousActivityTime: giantActivityTime(giant) || new Date(MAINNET_LAUNCH).toISOString(),
+                previousActivityTime: giantActivityTime(giant) || new Date(MAINNET_LAUNCH_MS).toISOString(),
                 awakenedAt: operation.timestamp,
                 operation
             });

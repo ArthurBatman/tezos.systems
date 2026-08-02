@@ -22497,8 +22497,9 @@ async function smokeInfoModals(browser, baseUrl) {
   await ensureDropdownOpen(page, '#settings-gear', '#settings-dropdown');
   await page.locator('#about-tezos-btn').click();
   await page.locator('#about-tezos-modal[aria-hidden="false"]').waitFor({ state: 'attached', timeout: 5000 });
-  const aboutText = await page.locator('#about-tezos-modal').innerText();
-  assert(!/June 30, 2018|June 2018/i.test(aboutText), 'about modal should not contain stale June 2018 launch wording');
+  const mainnetAgeText = await page.locator('#days-live-modal').innerText();
+  assert(/June 30, 2018/i.test(mainnetAgeText), 'mainnet-age modal should use the Mainnet Block 1 calendar date');
+  assert(!/September 17, 2018|September 2018/i.test(mainnetAgeText), 'mainnet-age modal should not contain the stale September 2018 launch date');
   await page.locator('#about-tezos-modal-close').click();
   await page.locator('#about-tezos-modal[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 5000 });
 

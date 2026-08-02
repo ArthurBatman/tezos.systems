@@ -90,7 +90,7 @@ import { initStreak } from '../features/streak.js';
 import { updatePageTitle } from '../ui/title.js';
 import { REFRESH_INTERVALS, STAKING_TARGET, MAINNET_LAUNCH, API_URLS } from './config.js';
 import { loadDataAsset } from './data-assets.js';
-import { getTezosUptimeAnniversary } from './anniversary.js';
+import { getCalendarElapsedTime, getTezosUptimeAnniversary } from './anniversary.js';
 import { initComparison, updateComparison } from '../features/comparison.js';
 import { init as initMyBaker, refresh as refreshMyBaker } from '../features/my-baker.js';
 import { initCalculator } from '../features/calculator.js';
@@ -3494,12 +3494,8 @@ function initUptimeClock() {
                     duration: 1200,
                     formatter: (value) => {
                         const minutes = Math.max(0, Math.floor(value));
-                        const yearsValue = Math.floor(minutes / (365.25 * 24 * 60));
-                        const remAfterYears = minutes - Math.floor(yearsValue * 365.25 * 24 * 60);
-                        const daysValue = Math.floor(remAfterYears / (24 * 60));
-                        const hoursValue = Math.floor((remAfterYears % (24 * 60)) / 60);
-                        const minsValue = Math.floor(remAfterYears % 60);
-                        return `${yearsValue}y ${daysValue}d ${hoursValue}h ${minsValue}m`;
+                        const elapsed = getCalendarElapsedTime(LAUNCH + (minutes * 60 * 1000));
+                        return `${elapsed.years}y ${elapsed.days}d ${elapsed.hours}h ${elapsed.minutes}m`;
                     },
                     onDone: () => {
                         el.innerHTML = finalHtml;
@@ -3843,13 +3839,10 @@ function initUptimeClock() {
     // Tick the uptime counter every second — fixed-width digits
     function tickUptime() {
         const now = Date.now();
-        const diff = now - LAUNCH;
-        const years = Math.floor(diff / (365.25 * 86400000));
-        const remAfterYears = diff - years * (365.25 * 86400000);
-        const days = Math.floor(remAfterYears / 86400000);
-        const hours = Math.floor((remAfterYears % 86400000) / 3600000);
-        const mins = Math.floor((remAfterYears % 3600000) / 60000);
-        const secs = Math.floor((remAfterYears % 60000) / 1000);
+        const elapsed = getCalendarElapsedTime(now);
+        const { years, days, hours, totalDays } = elapsed;
+        const mins = elapsed.minutes;
+        const secs = elapsed.seconds;
         const str = `${years}y ${days}d ${String(hours).padStart(2,'0')}h ${String(mins).padStart(2,'0')}m ${String(secs).padStart(2,'0')}s`;
         // Wrap each character in a fixed-width span to prevent layout shift
         const html = str.split('').map(ch =>
@@ -3859,7 +3852,6 @@ function initUptimeClock() {
         const chainCounterEl = document.getElementById('chain-uptime-counter');
         if (chainCounterEl) chainCounterEl.innerHTML = html;
         setTopContinuityRuntime(years, days, hours, mins);
-        const totalDays = Math.floor(diff / 86400000);
         const upgradeCount = state.currentStats?.protocolCount || countProtocolUpgrades(state.protocols || []);
         applyUptimeAnniversaryState(getTezosUptimeAnniversary(now), totalDays, upgradeCount);
         syncChainProofMetrics();

@@ -14,15 +14,75 @@ function ordinal(value) {
     }
 }
 
-function validTime(value) {
-    return Number.isFinite(value) ? value : Date.now();
+function timestamp(value) {
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === 'number') return value;
+    return new Date(value).getTime();
+}
+
+function utcAnniversaryAt(launch, year) {
+    return Date.UTC(
+        year,
+        launch.getUTCMonth(),
+        launch.getUTCDate(),
+        launch.getUTCHours(),
+        launch.getUTCMinutes(),
+        launch.getUTCSeconds(),
+        launch.getUTCMilliseconds()
+    );
+}
+
+function emptyElapsedTime() {
+    return {
+        valid: false,
+        years: 0,
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+        totalDays: 0,
+        anniversaryAt: 0
+    };
+}
+
+export function getCalendarElapsedTime(now = Date.now(), launchIso = MAINNET_LAUNCH) {
+    const nowMs = timestamp(now);
+    const launchMs = timestamp(launchIso);
+    if (!Number.isFinite(nowMs) || !Number.isFinite(launchMs) || nowMs < launchMs) {
+        return emptyElapsedTime();
+    }
+
+    const launch = new Date(launchMs);
+    const current = new Date(nowMs);
+    let years = current.getUTCFullYear() - launch.getUTCFullYear();
+    let anniversaryAt = utcAnniversaryAt(launch, launch.getUTCFullYear() + years);
+    if (nowMs < anniversaryAt) {
+        years -= 1;
+        anniversaryAt = utcAnniversaryAt(launch, launch.getUTCFullYear() + years);
+    }
+
+    const remainder = nowMs - anniversaryAt;
+    const days = Math.floor(remainder / DAY_MS);
+    const hours = Math.floor((remainder % DAY_MS) / (60 * 60 * 1000));
+    const minutes = Math.floor((remainder % (60 * 60 * 1000)) / (60 * 1000));
+    const seconds = Math.floor((remainder % (60 * 1000)) / 1000);
+
+    return {
+        valid: true,
+        years,
+        days,
+        hours,
+        minutes,
+        seconds,
+        totalDays: Math.floor((nowMs - launchMs) / DAY_MS),
+        anniversaryAt
+    };
 }
 
 export function getTezosUptimeAnniversary(now = Date.now(), launchIso = MAINNET_LAUNCH) {
-    const nowMs = validTime(typeof now === 'number' ? now : new Date(now).getTime());
-    const launch = new Date(launchIso);
-    const launchMs = launch.getTime();
-    if (!Number.isFinite(launchMs)) {
+    const nowMs = timestamp(now);
+    const elapsed = getCalendarElapsedTime(now, launchIso);
+    if (!elapsed.valid || !Number.isFinite(nowMs)) {
         return {
             isAnniversary: false,
             years: 0,
@@ -38,14 +98,11 @@ export function getTezosUptimeAnniversary(now = Date.now(), launchIso = MAINNET_
         };
     }
 
-    const current = new Date(nowMs);
-    const currentYear = current.getUTCFullYear();
-    const launchYear = launch.getUTCFullYear();
-    const years = currentYear - launchYear;
-    const startsAt = Date.UTC(currentYear, launch.getUTCMonth(), launch.getUTCDate());
+    const years = elapsed.years;
+    const startsAt = elapsed.anniversaryAt;
     const endsAt = startsAt + DAY_MS;
     const isAnniversary = years > 0 && nowMs >= startsAt && nowMs < endsAt;
-    const totalDays = Math.max(0, Math.floor((nowMs - launchMs) / DAY_MS));
+    const totalDays = elapsed.totalDays;
     const ordinalYears = ordinal(years);
     const formattedDays = totalDays.toLocaleString('en-US');
 

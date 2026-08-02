@@ -263,7 +263,7 @@ Current verified intervals in `js/core/config.js`:
 
 Cache/build details to verify when relevant:
 
-- Service worker cache name: `tezos-systems-v549`
+- Service worker cache name: `tezos-systems-v550`
 - `version.json` contains the served build stamp.
 - `git log -1 --oneline` shows the local current commit.
 
@@ -723,8 +723,8 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   `tests/static-checks.mjs --readme-only`; staged changes to documented
   contracts should stage `README.md` too, or use `SKIP_README_GUARD=1` after a
   deliberate no-docs-needed audit.
-- Some text still references June 2018 or June 30, 2018 for Tezos mainnet, while
-  `config.js` uses `2018-09-17T00:00:00Z`.
+- Mainnet age and anniversaries use the Block 1 timestamp
+  `2018-06-30T17:39:57Z` from `js/core/mainnet.mjs`, re-exported by `config.js`.
 - A comment near the comparison section says it defaults visible, but the local
   storage toggle defaults to hidden unless explicitly set to `true`.
 - TzKT filters can be surprising. The shared Whale archive uses complete paged

@@ -341,7 +341,7 @@ inline modal styles in `js/core/app.js`.
   and opens Network Health; it stacks below mainnet age on narrow screens rather
   than crowding the stat pills or the live block ticker. Its first paint reserves
   the final `1H Activity / TX / Moved / NFT` metric shape instead of flashing loading prose.
-  On the September 17 UTC mainnet anniversary, the continuity statement switches to
+  On the June 30 UTC mainnet anniversary, the continuity statement switches to
   a congratulatory anniversary message while preserving the live counter.
   An unseen imminent or newly crossed network milestone gives the live runtime
   a tight, transparent theme-derived hairline while preserving
@@ -747,7 +747,7 @@ inline modal styles in `js/core/app.js`.
   sits above Chambers as a horizontally scrolling strip for non-obvious daily
   signals instead of repeating the header's cycle, baker, staking, or security
   facts. Quiet, curious, headliner, peacock, and historic tiers give stronger
-  stories progressively larger and more distinctive cards, while September 17
+  stories progressively larger and more distinctive cards, while June 30
   UTC still leads with the uptime anniversary.
   Pace-aware milestone cards normally appear only within the final 14 days and
   are hard-capped at 30 days before a target; newly crossed milestones remain
@@ -1503,7 +1503,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v549`, including hero search, theme
+- Current aligned shell cache stamp: `v550`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, Uranium, Precious Metals, and Critical Minerals lazy CSS
   loaders.
@@ -1607,7 +1607,7 @@ and heartbeat affordance from the dashboard polish pass.
   routes to agree with the site map.
 - `index.html` includes CSP, Open Graph/Twitter metadata, and JSON-LD.
 - `.well-known/ai-plugin.json` describes the current live/historical data model
-  using the canonical September 17, 2018 mainnet date and avoids stale
+  using the canonical June 30, 2018 mainnet date and avoids stale
   two-minute refresh claims. It points to the site-owned read-only OpenAPI
   document; `.well-known/security.txt` publishes private reporting routes.
 - `.well-known/openapi.json` catalogues every intentionally public JSON
@@ -1647,8 +1647,7 @@ and heartbeat affordance from the dashboard polish pass.
   second. TzKT limits by visitor IP, so several open dashboard tabs or embed
   iframes can still add up; expect a small delay when several feature modules
   ask for live TzKT data at once.
-- Tezos mainnet launch copy should use September 17, 2018. June 2018 refers to
-  fundraiser genesis, not the mainnet launch date used by the app.
+- Tezos mainnet launch copy should use June 30, 2018.
 - Adding a new network source requires a CSP update in `index.html`.
 
 ## License

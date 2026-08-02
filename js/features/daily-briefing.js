@@ -3,7 +3,7 @@
  * Pure JS, no AI. ~50 sentence templates, data-driven selection.
  */
 
-import { API_URLS } from '../core/config.js';
+import { API_URLS, MAINNET_LAUNCH } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { getTezosUptimeAnniversary } from '../core/anniversary.js';
 import { CANONICAL_UPGRADE_COUNT } from '../core/protocol-count.js';
@@ -668,7 +668,7 @@ const MILESTONE_TRACKS = [
   },
   {
     id: 'uptime-days',
-    value: () => Math.floor((Date.now() - Date.parse('2018-09-17T00:00:00Z')) / DAY_MS),
+    value: () => Math.floor((Date.now() - Date.parse(MAINNET_LAUNCH)) / DAY_MS),
     thresholds: milestoneBaseThresholds('uptime-days'),
     noun: 'mainnet days',
     targetSuffix: 'days live',
