@@ -11924,15 +11924,19 @@ async function smokeMyTezosProposalAttribution(browser, baseUrl) {
         && Math.abs(personal.top - live.top) <= 1
         && personal.right < live.left,
       personalHeight: Math.round(personal?.height || 0),
-      liveHeight: Math.round(live?.height || 0)
+      liveHeight: Math.round(live?.height || 0),
+      hasAwayCard: Boolean(document.querySelector('#drawer-network .network-away-card')),
+      viewportHeight: window.innerHeight
     };
   });
+  const personalHeightLimit = visibleNetworkLayout.viewportHeight * 0.56;
+  const liveHeightLimit = visibleNetworkLayout.viewportHeight * (visibleNetworkLayout.hasAwayCard ? 0.68 : 0.56);
   assert(
     visibleNetworkLayout.siblingColumns
       && visibleNetworkLayout.personalHeight > 0
-      && visibleNetworkLayout.personalHeight < 520
+      && visibleNetworkLayout.personalHeight < personalHeightLimit
       && visibleNetworkLayout.liveHeight > 0
-      && visibleNetworkLayout.liveHeight < 520,
+      && visibleNetworkLayout.liveHeight < liveHeightLimit,
     `my tezos proposal attribution: visible wallet and Tezos panels are not compact sibling columns: ${JSON.stringify(visibleNetworkLayout)}`
   );
 
