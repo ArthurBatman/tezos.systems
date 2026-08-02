@@ -12523,6 +12523,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       topProofMilestonePopoverAfterHistory: Boolean(topProofMilestonePopover && topProofHistory && (topProofHistory.compareDocumentPosition(topProofMilestonePopover) & Node.DOCUMENT_POSITION_FOLLOWING)),
       topProofMilestonePopoverHidden: Boolean(topProofMilestonePopover?.hidden),
       topProofMilestonePopoverDisplay: topProofMilestonePopover ? getComputedStyle(topProofMilestonePopover).display : '',
+      topProofMilestonePopoverPosition: topProofMilestonePopover ? getComputedStyle(topProofMilestonePopover).position : '',
+      topProofMilestonePopoverVisibility: topProofMilestonePopover ? getComputedStyle(topProofMilestonePopover).visibility : '',
+      topProofMilestonePopoverOpacity: topProofMilestonePopover ? Number.parseFloat(getComputedStyle(topProofMilestonePopover).opacity) : 0,
       topProofMilestonePopoverAriaHidden: topProofMilestonePopover?.getAttribute('aria-hidden') || '',
       topProofMilestoneDisclosed: Boolean(topProofUptimeCluster?.classList.contains('is-milestone-disclosed')),
       topProofHistoryWired: topProof?.dataset.historyWired || '',
@@ -12741,7 +12744,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(
     healthState.topProofHistoryWired === '1'
       && (healthState.topProofHistoryMilestoneRoute
-        ? healthState.topProofHistoryAriaControls === ''
+        ? healthState.topProofHistoryAriaControls === 'top-continuity-milestone-popover'
         : healthState.topProofHistoryAriaControls === 'protocol-history-chamber-modal'),
     `network health chamber: uptime launcher semantics do not match its active destination ${healthState.topProofHistoryAriaControls}/${healthState.topProofHistoryMilestoneRoute}/${healthState.topProofHistoryWired}`
   );
@@ -12759,12 +12762,19 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
             && healthState.topProofMilestoneOrigin.toLowerCase() === 'since 2018'
             && !healthState.topProofMilestoneOutlineHidden
             && healthState.topProofMilestoneOutlineDisplay !== 'none'
-            && healthState.topProofMilestoneOutlineBorderStyle === 'solid'
+            && (
+              (healthState.topProofMilestoneNewText === 'New'
+                && healthState.topProofMilestoneOutlineBorderStyle === 'solid')
+              || (healthState.topProofMilestoneNewText === 'Soon'
+                && healthState.topProofMilestoneOutlineBorderStyle === 'dashed')
+            )
             && healthState.topProofMilestoneOutlineBoxShadow === 'none'
-            && healthState.topProofMilestoneNewText === 'New'
             && Boolean(healthState.topProofMilestoneLinkHref)
             && healthState.topProofMilestonePopoverAriaHidden === 'true'
             && !healthState.topProofMilestoneDisclosed
+            && healthState.topProofMilestonePopoverPosition === 'absolute'
+            && healthState.topProofMilestonePopoverVisibility === 'hidden'
+            && healthState.topProofMilestonePopoverOpacity <= 0.01
       ),
     `network health chamber: milestone clean outline must stay on the uptime clock and its dormant disclosure must reserve no reading-state space ${JSON.stringify({
       orbitCount: healthState.topProofMilestoneOrbitCount,
@@ -12780,6 +12790,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       popoverAfter: healthState.topProofMilestonePopoverAfterHistory,
       popoverHidden: healthState.topProofMilestonePopoverHidden,
       popoverDisplay: healthState.topProofMilestonePopoverDisplay,
+      popoverPosition: healthState.topProofMilestonePopoverPosition,
+      popoverVisibility: healthState.topProofMilestonePopoverVisibility,
+      popoverOpacity: healthState.topProofMilestonePopoverOpacity,
       popoverAriaHidden: healthState.topProofMilestonePopoverAriaHidden,
       disclosed: healthState.topProofMilestoneDisclosed
     })}`
@@ -13006,6 +13019,58 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(smoothRefreshState.newRows >= 1, 'network health chamber: smooth refresh did not animate newly arriving block rows');
   assert(smoothRefreshState.tickerTransitionCount >= 1, `network health chamber: live block ticker did not mark a transition after refresh: ${smoothRefreshState.tickerTransitionCount}`);
   assert(parseFloat(smoothRefreshState.tablePadding) >= 8, `network health chamber: passing blocks row padding too tight: ${smoothRefreshState.tablePadding}`);
+
+  const mobileTickerStates = [];
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    mobileTickerStates.push(await page.evaluate((viewportWidth) => {
+      const line = document.querySelector('#block-ticker-line');
+      const button = document.querySelector('#block-ticker-button');
+      const blockValue = line?.querySelector('.block-ticker-level .block-ticker-value');
+      const baker = line?.querySelector('.block-ticker-baker');
+      const health = line?.querySelector('.block-ticker-health');
+      const lineRect = line?.getBoundingClientRect();
+      const blockRect = blockValue?.getBoundingClientRect();
+      const bakerRect = baker?.getBoundingClientRect();
+      const healthRect = health?.getBoundingClientRect();
+      const blockStyle = blockValue ? getComputedStyle(blockValue) : null;
+      const withinLine = (rect) => Boolean(
+        rect
+        && lineRect
+        && rect.left >= lineRect.left - 1
+        && rect.right <= lineRect.right + 1
+      );
+      return {
+        viewportWidth,
+        text: blockValue?.textContent?.trim() || '',
+        overflow: blockStyle?.overflowX || '',
+        textOverflow: blockStyle?.textOverflow || '',
+        blockWithinLine: withinLine(blockRect),
+        bakerWithinLine: withinLine(bakerRect),
+        healthWithinLine: withinLine(healthRect),
+        bakerWidth: bakerRect?.width || 0,
+        lineOverflow: line ? line.scrollWidth - line.clientWidth : 999,
+        buttonOverflow: button ? button.scrollWidth - button.clientWidth : 999
+      };
+    }, width));
+  }
+  for (const tickerState of mobileTickerStates) {
+    assert(
+      /^#[\d,]+$/.test(tickerState.text)
+        && tickerState.overflow === 'visible'
+        && tickerState.textOverflow === 'clip'
+        && tickerState.blockWithinLine,
+      `network health chamber: full block level is clipped at ${tickerState.viewportWidth}px: ${JSON.stringify(tickerState)}`
+    );
+    assert(
+      tickerState.bakerWithinLine
+        && tickerState.healthWithinLine
+        && tickerState.bakerWidth >= 40
+        && tickerState.lineOverflow <= 1
+        && tickerState.buttonOverflow <= 1,
+      `network health chamber: mobile ticker priorities overflow at ${tickerState.viewportWidth}px: ${JSON.stringify(tickerState)}`
+    );
+  }
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#health-nakamoto-coefficient .health-nc-help .lb-help-popover').scrollIntoViewIfNeeded();

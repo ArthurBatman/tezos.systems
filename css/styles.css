@@ -1625,7 +1625,7 @@ body::before {
     }
 
     .block-ticker-baker {
-        flex-basis: 12ch;
+        flex: 1 1 8ch;
         max-width: 12ch;
     }
 
@@ -1635,7 +1635,9 @@ body::before {
     }
 
     .block-ticker-level .block-ticker-value {
-        width: 10.8ch;
+        width: max-content;
+        overflow: visible;
+        text-overflow: clip;
     }
 
 }
