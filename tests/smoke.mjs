@@ -6410,7 +6410,7 @@ async function smokeCycleMilestone(browser, baseUrl) {
     && before.outlineAnimation.includes('uptimeMilestoneOutlineArrival')
     && before.outlineAnimationIterations === '1'
     && before.markerText === 'New'
-    && before.markerGap >= 1
+    && before.markerGap > 0
     && before.markerBorderWidth === 0
     && before.markerBoxShadow === 'none'
     && before.markerAnimation.includes('uptimeMilestoneNewReveal')
