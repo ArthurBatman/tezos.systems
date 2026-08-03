@@ -5,6 +5,12 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-03',
+        entries: [
+            { type: '✨', text: 'Liquidity Baking now uses its compact monitor’s lower band for the three most recent unique baker vote switchers, with exact 2,500-block coverage and a truthful no-change state' }
+        ]
+    },
+    {
         date: '2026-08-02',
         entries: [
             { type: '🎨', text: 'Release Radar now centers its wrapped Review due receipt on narrow cards' },
