@@ -15,6 +15,7 @@ import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
+    focusChamberTab,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
@@ -1621,6 +1622,7 @@ function bindBodyEvents(body) {
             currentView = viewButton.dataset.uraniumView;
             updateRouteView();
             renderBody(lastSnapshot);
+            focusChamberTab(document.getElementById(`uranium-tab-${currentView}`));
             return;
         }
         const rangeButton = event.target.closest('[data-uranium-range]');
@@ -1680,7 +1682,7 @@ function bindBodyEvents(body) {
         currentView = VIEWS[next].id;
         updateRouteView();
         renderBody(lastSnapshot);
-        document.getElementById(`uranium-tab-${currentView}`)?.focus({ preventScroll: true });
+        focusChamberTab(document.getElementById(`uranium-tab-${currentView}`));
     });
 }
 

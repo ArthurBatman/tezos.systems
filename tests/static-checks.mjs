@@ -4152,7 +4152,10 @@ async function checkChamberEfficiencyContracts() {
     "scrollContainer.classList.add('chamber-room-scroll')",
     "'tezos:chamber-dialog-active'",
     "'release-radar-overlay'",
-    "'ctez-overlay'"
+    "'ctez-overlay'",
+    'export function focusChamberTab(tab)',
+    'tab.focus({ preventScroll: true })',
+    'tablist.scrollLeft +='
   ]) {
     if (!chamberAccessibility.includes(snippet)) fail(`shared Chamber shell normalizer is missing contract: ${snippet}`);
   }
@@ -4213,7 +4216,7 @@ async function checkChamberEfficiencyContracts() {
   }
   for (const moduleName of ['capital-chamber.js', 'metals-chamber.js', 'minerals-chamber.js', 'uranium-chamber.js']) {
     const source = await readText(`js/features/${moduleName}`);
-    for (const contract of ["versionedAsset('/css/market-room.min.css')", "ensureChamberStylesheet('market-room-css'", 'market-room-shell', 'market-room-header', 'market-room-tabs', 'market-room-view-shell']) {
+    for (const contract of ["versionedAsset('/css/market-room.min.css')", "ensureChamberStylesheet('market-room-css'", 'market-room-shell', 'market-room-header', 'market-room-tabs', 'market-room-view-shell', 'focusChamberTab(']) {
       if (!source.includes(contract)) fail(`${moduleName} is missing shared market-room contract: ${contract}`);
     }
   }

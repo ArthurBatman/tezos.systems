@@ -15,6 +15,7 @@ import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
+    focusChamberTab,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
@@ -1205,6 +1206,7 @@ function bindBodyEvents(body) {
             currentView = viewButton.dataset.capitalView;
             updateRouteView();
             renderBody(lastSnapshot);
+            focusChamberTab(document.getElementById(`capital-tab-${currentView}`));
             return;
         }
         const rangeButton = event.target.closest('[data-capital-range]');
@@ -1228,7 +1230,7 @@ function bindBodyEvents(body) {
         currentView = VIEWS[next].id;
         updateRouteView();
         renderBody(lastSnapshot);
-        document.getElementById(`capital-tab-${currentView}`)?.focus({ preventScroll: true });
+        focusChamberTab(document.getElementById(`capital-tab-${currentView}`));
     });
 }
 

@@ -16,6 +16,7 @@ import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
+    focusChamberTab,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
@@ -813,7 +814,7 @@ function bindBodyEvents(body) {
             currentView = viewButton.dataset.metalsView;
             updateRouteState();
             renderBody(lastSnapshot);
-            document.getElementById(`metals-tab-${currentView}`)?.focus({ preventScroll: true });
+            focusChamberTab(document.getElementById(`metals-tab-${currentView}`));
             return;
         }
         const metalButton = event.target.closest('[data-metals-metal]');
@@ -837,7 +838,7 @@ function bindBodyEvents(body) {
         currentView = VIEWS[next].id;
         updateRouteState();
         renderBody(lastSnapshot);
-        document.getElementById(`metals-tab-${currentView}`)?.focus({ preventScroll: true });
+        focusChamberTab(document.getElementById(`metals-tab-${currentView}`));
     });
 }
 

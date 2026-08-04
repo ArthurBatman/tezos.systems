@@ -9,7 +9,8 @@ export const CHANGELOG = [
         entries: [
             { type: '🎨', text: 'Live Pulse cards now keep their decorative signal marks inside the icon lane on phones, leaving age labels and card copy clear across every visual species' },
             { type: '🔧', text: 'Every Chamber now shares the same keyboard, focus-return, Escape, and narrow, standard, or wide room lifecycle, while mobile category disclosures keep the reader anchored as their cards settle' },
-            { type: '🎨', text: 'Market rooms now use one structural shell for headers, tabs, panels, artwork captions, and responsive titles, retiring the competing per-room layout copies' }
+            { type: '🎨', text: 'Market rooms now use one structural shell for headers, tabs, panels, artwork captions, and responsive titles, retiring the competing per-room layout copies' },
+            { type: '🔧', text: 'Market-room tab rails now keep the newly selected view visible after rendering on narrow phones, for both pointer and keyboard navigation' }
         ]
     },
     {

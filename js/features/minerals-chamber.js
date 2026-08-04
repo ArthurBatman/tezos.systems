@@ -16,6 +16,7 @@ import { escapeHtml, formatFreshnessStamp } from '../core/utils.js';
 import {
     activateChamberDialog,
     deactivateChamberDialog,
+    focusChamberTab,
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
@@ -907,7 +908,7 @@ function bindBodyEvents(body) {
             currentView = viewButton.dataset.mineralsView;
             updateRouteState();
             renderBody(lastSnapshot);
-            document.getElementById(`minerals-tab-${currentView}`)?.focus({ preventScroll: true });
+            focusChamberTab(document.getElementById(`minerals-tab-${currentView}`));
             return;
         }
         const filterButton = event.target.closest('[data-minerals-filter]');
@@ -949,7 +950,7 @@ function bindBodyEvents(body) {
             currentView = VIEWS[next].id;
             updateRouteState();
             renderBody(lastSnapshot);
-            document.getElementById(`minerals-tab-${currentView}`)?.focus({ preventScroll: true });
+            focusChamberTab(document.getElementById(`minerals-tab-${currentView}`));
             return;
         }
         if (event.key === 'Escape' && event.target.matches('[data-minerals-search-input]') && event.target.value) {

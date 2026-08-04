@@ -105,6 +105,27 @@ export function findChamberLauncher(cardSelector) {
 }
 
 /**
+ * Restore focus after a user-selected Chamber tab re-renders its tablist, then
+ * reveal that tab inside a horizontally scrolling rail without moving the
+ * room's vertical reading position.
+ */
+export function focusChamberTab(tab) {
+    if (!(tab instanceof HTMLElement)) return;
+    tab.focus({ preventScroll: true });
+
+    const tablist = tab.closest('[role="tablist"]');
+    if (!(tablist instanceof HTMLElement)) return;
+    const tabBounds = tab.getBoundingClientRect();
+    const listBounds = tablist.getBoundingClientRect();
+    const inset = 4;
+    if (tabBounds.left < listBounds.left + inset) {
+        tablist.scrollLeft += tabBounds.left - listBounds.left - inset;
+    } else if (tabBounds.right > listBounds.right - inset) {
+        tablist.scrollLeft += tabBounds.right - listBounds.right + inset;
+    }
+}
+
+/**
  * Make a Chamber card a labelled article whose quiet surface and explicit
  * native Open action launch the room. Nested controls retain their own action.
  */
