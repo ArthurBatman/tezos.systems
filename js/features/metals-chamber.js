@@ -21,6 +21,7 @@ import {
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const METALS_CSS_URL = versionedAsset('/css/metals-chamber.min.css');
+const MARKET_ROOM_CSS_URL = versionedAsset('/css/market-room.min.css');
 const METALS_SNAPSHOT_URL = '/data/metals-snapshot.json';
 const METALS_ENTRY_SUMMARY_URL = '/data/metals-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -188,7 +189,10 @@ function directionClass(value) {
 }
 
 function ensureMetalsCss() {
-    return ensureChamberStylesheet('metals-chamber-css', METALS_CSS_URL);
+    return Promise.all([
+        ensureChamberStylesheet('metals-chamber-css', METALS_CSS_URL),
+        ensureChamberStylesheet('market-room-css', MARKET_ROOM_CSS_URL)
+    ]);
 }
 
 function metalKey(row) {
@@ -384,7 +388,7 @@ async function resolveMetalsSnapshotRefresh() {
 }
 
 function corePicture(className = '') {
-    return `<figure class="metals-core-stage ${className}"><picture><source srcset="/assets/metals/metals-core-640.webp 640w, /assets/metals/metals-core.webp 1536w" sizes="(max-width: 700px) 100vw, 52vw" type="image/webp"><img src="/assets/metals/metals-core.webp" width="1536" height="1024" loading="lazy" decoding="async" alt="Eight distinct polished precious-metal specimens arranged in a dark assay display: gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium."></picture><figcaption>Original eight-metal study · visual identity, not a specimen-identification guide.</figcaption></figure>`;
+    return `<figure class="metals-core-stage market-room-core-stage ${className}"><picture><source srcset="/assets/metals/metals-core-640.webp 640w, /assets/metals/metals-core.webp 1536w" sizes="(max-width: 700px) 100vw, 52vw" type="image/webp"><img src="/assets/metals/metals-core.webp" width="1536" height="1024" loading="lazy" decoding="async" alt="Eight distinct polished precious-metal specimens arranged in a dark assay display: gold, silver, platinum, palladium, rhodium, ruthenium, iridium, and osmium."></picture><figcaption>Original eight-metal study · visual identity, not a specimen-identification guide.</figcaption></figure>`;
 }
 
 function launcherPicture() {
@@ -629,15 +633,15 @@ function syncMetalsFreshness(snapshot) {
 function renderChamber(snapshot) {
     const view = VIEWS.find(({ id }) => id === currentView) || VIEWS[0];
     const freshness = freshnessPresentation(snapshot);
-    return `<header class="metals-header" data-quiet-key="metals-header"><div class="metals-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>precious-metal intelligence</span></div><div class="metals-title-row"><h2 id="metals-title">Precious Metals Chamber</h2><span class="metals-badge">8 metals</span><span class="metals-freshness${freshness.stale ? ' is-stale' : ''}" id="metals-freshness" aria-live="polite">${escapeHtml(freshness.label)}</span></div><p class="metals-intro">Gold, silver, and all six platinum-group metals—with current indications, completed-month history, annual context, and VNXAU evidence kept on their natural clocks.</p><div class="metals-tabs" role="tablist" aria-label="Precious Metals Chamber views">${VIEWS.map((item) => `<button class="metals-tab" id="metals-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="metals-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-metals-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}</div></header><section class="metals-view-shell" id="metals-view-panel" role="tabpanel" aria-labelledby="metals-tab-${view.id}" data-quiet-key="metals-view-panel"><div class="metals-view-head"><div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div></div><div class="metals-view-content" id="metals-view-content" data-quiet-key="metals-view-content">${renderView(snapshot)}</div></section><p class="metals-disclaimer">Information only · public-source observations · not investment, custody, legal, redemption, or trading advice.</p>`;
+    return `<header class="metals-header market-room-header" data-quiet-key="metals-header"><div class="metals-system-strip market-room-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>precious-metal intelligence</span></div><div class="metals-title-row market-room-title-row"><h2 class="market-room-title is-editorial" id="metals-title">Precious Metals Chamber</h2><span class="metals-badge market-room-badge">8 metals</span><span class="metals-freshness market-room-freshness${freshness.stale ? ' is-stale' : ''}" id="metals-freshness" aria-live="polite">${escapeHtml(freshness.label)}</span></div><p class="metals-intro market-room-intro">Gold, silver, and all six platinum-group metals—with current indications, completed-month history, annual context, and VNXAU evidence kept on their natural clocks.</p><div class="metals-tabs market-room-tabs" role="tablist" aria-label="Precious Metals Chamber views">${VIEWS.map((item) => `<button class="metals-tab market-room-tab" id="metals-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="metals-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-metals-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}</div></header><section class="metals-view-shell market-room-view-shell" id="metals-view-panel" role="tabpanel" aria-labelledby="metals-tab-${view.id}" data-quiet-key="metals-view-panel"><div class="metals-view-head market-room-view-head"><div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div></div><div class="metals-view-content market-room-view-content" id="metals-view-content" data-quiet-key="metals-view-content">${renderView(snapshot)}</div></section><p class="metals-disclaimer">Information only · public-source observations · not investment, custody, legal, redemption, or trading advice.</p>`;
 }
 
 function renderLoading(body) {
-    body.innerHTML = '<div class="metals-loading" role="status" aria-live="polite"><div class="metals-loader" aria-hidden="true"></div><div><strong>Opening the assay vault…</strong><span>Verifying the generated eight-metal proofbook.</span></div></div>';
+    body.innerHTML = '<div class="metals-loading chamber-state chamber-state-loading" role="status" aria-live="polite"><div class="metals-loader" aria-hidden="true"></div><div><strong>Opening the assay vault…</strong><span>Verifying the generated eight-metal proofbook.</span></div></div>';
 }
 
 function renderError(body, error) {
-    body.innerHTML = `<div class="metals-error" role="alert"><div><strong>Precious-metals snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><button class="chamber-action" type="button" data-metals-retry>Retry</button></div></div>`;
+    body.innerHTML = `<div class="metals-error chamber-state chamber-state-error" role="alert"><div><strong>Precious-metals snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><button class="chamber-action" type="button" data-metals-retry>Retry</button></div></div>`;
 }
 
 function renderBody(snapshot, { quiet = false } = {}) {
@@ -844,7 +848,7 @@ function ensureOverlay() {
     overlay.id = 'metals-modal';
     overlay.className = 'modal-overlay chamber-overlay metals-overlay';
     overlay.setAttribute('aria-hidden', 'true');
-    overlay.innerHTML = `<div class="modal-content modal-large chamber-content metals-content" role="dialog" aria-modal="true" aria-labelledby="metals-title"><button class="modal-close chamber-close" type="button" aria-label="Close Precious Metals Chamber">&times;</button><div class="metals-body" id="metals-chamber-body"></div></div>`;
+    overlay.innerHTML = `<div class="modal-content modal-large chamber-content metals-content market-room-shell" role="dialog" aria-modal="true" aria-labelledby="metals-title"><button class="modal-close chamber-close" type="button" aria-label="Close Precious Metals Chamber">&times;</button><div class="metals-body market-room-body" id="metals-chamber-body"></div></div>`;
     overlay.querySelector('.chamber-close').addEventListener('click', closeMetalsChamber);
     overlay.addEventListener('click', (event) => { if (event.target === overlay) closeMetalsChamber(); });
     bindBodyEvents(overlay.querySelector('.metals-body'));

@@ -20,6 +20,7 @@ import {
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const CAPITAL_CSS_URL = versionedAsset('/css/capital.min.css');
+const MARKET_ROOM_CSS_URL = versionedAsset('/css/market-room.min.css');
 const CAPITAL_SNAPSHOT_URL = '/data/capital-snapshot.json';
 const CAPITAL_ENTRY_SUMMARY_URL = '/data/capital-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -216,7 +217,10 @@ function safeExternalUrl(value) {
 }
 
 function ensureCapitalCss() {
-    return ensureChamberStylesheet('capital-css', CAPITAL_CSS_URL);
+    return Promise.all([
+        ensureChamberStylesheet('capital-css', CAPITAL_CSS_URL),
+        ensureChamberStylesheet('market-room-css', MARKET_ROOM_CSS_URL)
+    ]);
 }
 
 async function validateSnapshot(snapshot) {
@@ -1082,34 +1086,34 @@ function renderChamber(snapshot) {
     const view = VIEWS.find((item) => item.id === currentView) || VIEWS[0];
     const freshness = freshnessPresentation(snapshot);
     return `
-        <header class="capital-header" data-quiet-key="capital-header">
-            <div class="capital-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>public-source capital intelligence</span></div>
-            <div class="capital-title-row">
-                <h2 id="capital-title">Capital Chamber</h2>
-                <span class="capital-badge">Generated proofbook</span>
-                <span class="capital-freshness${freshness.stale ? ' is-stale' : ''}" id="capital-freshness">${escapeHtml(freshness.label)}</span>
+        <header class="capital-header market-room-header" data-quiet-key="capital-header">
+            <div class="capital-system-strip market-room-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>public-source capital intelligence</span></div>
+            <div class="capital-title-row market-room-title-row">
+                <h2 class="market-room-title is-display" id="capital-title">Capital Chamber</h2>
+                <span class="capital-badge market-room-badge">Generated proofbook</span>
+                <span class="capital-freshness market-room-freshness${freshness.stale ? ' is-stale' : ''}" id="capital-freshness">${escapeHtml(freshness.label)}</span>
             </div>
-            <p class="capital-intro">A Tezos-native reconstruction of the useful public intelligence surface: reproducible data, explicit coverage limits, no proprietary impersonation, and no invented totals.</p>
-            <div class="capital-tabs" role="tablist" aria-label="Capital Chamber views">
-                ${VIEWS.map((item) => `<button class="capital-tab" id="capital-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="capital-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-capital-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}
+            <p class="capital-intro market-room-intro">A Tezos-native reconstruction of the useful public intelligence surface: reproducible data, explicit coverage limits, no proprietary impersonation, and no invented totals.</p>
+            <div class="capital-tabs market-room-tabs" role="tablist" aria-label="Capital Chamber views">
+                ${VIEWS.map((item) => `<button class="capital-tab market-room-tab" id="capital-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="capital-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-capital-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}
             </div>
         </header>
-        <section class="capital-view-shell" id="capital-view-panel" role="tabpanel" aria-labelledby="capital-tab-${view.id}" data-quiet-key="capital-view-panel">
-            <div class="capital-view-head">
+        <section class="capital-view-shell market-room-view-shell" id="capital-view-panel" role="tabpanel" aria-labelledby="capital-tab-${view.id}" data-quiet-key="capital-view-panel">
+            <div class="capital-view-head market-room-view-head">
                 <div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div>
                 ${renderRangeControl(view.id)}
             </div>
-            <div id="capital-view-content" data-quiet-key="capital-view-content">${renderView(snapshot)}</div>
+            <div class="market-room-view-content" id="capital-view-content" data-quiet-key="capital-view-content">${renderView(snapshot)}</div>
         </section>
     `;
 }
 
 function renderLoading(body) {
-    body.innerHTML = '<div class="capital-loading"><div><strong>Building the Capital Chamber…</strong><span>Loading the generated first-party snapshot.</span></div></div>';
+    body.innerHTML = '<div class="capital-loading chamber-state chamber-state-loading"><div><strong>Building the Capital Chamber…</strong><span>Loading the generated first-party snapshot.</span></div></div>';
 }
 
 function renderError(body, error) {
-    body.innerHTML = `<div class="capital-error"><div><strong>Capital snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><br><button class="chamber-action" type="button" data-capital-retry>Retry</button></div></div>`;
+    body.innerHTML = `<div class="capital-error chamber-state chamber-state-error"><div><strong>Capital snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><br><button class="chamber-action" type="button" data-capital-retry>Retry</button></div></div>`;
 }
 
 function renderBody(snapshot, { quiet = false } = {}) {
@@ -1236,9 +1240,9 @@ function ensureOverlay() {
     overlay.className = 'modal-overlay chamber-overlay capital-overlay';
     overlay.setAttribute('aria-hidden', 'true');
     overlay.innerHTML = `
-        <div class="modal-content modal-large chamber-content capital-content" role="dialog" aria-modal="true" aria-labelledby="capital-title">
+        <div class="modal-content modal-large chamber-content capital-content market-room-shell" role="dialog" aria-modal="true" aria-labelledby="capital-title">
             <button class="modal-close chamber-close" type="button" aria-label="Close Capital Chamber">&times;</button>
-            <div class="capital-body" id="capital-chamber-body"></div>
+            <div class="capital-body market-room-body" id="capital-chamber-body"></div>
         </div>
     `;
     overlay.querySelector('.chamber-close').addEventListener('click', closeCapitalChamber);

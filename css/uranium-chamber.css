@@ -7,7 +7,7 @@
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    min-height: 286px;
+    min-height: var(--chamber-entry-reserved-height, 320px);
     border-color: color-mix(in srgb, var(--uranium) 36%, var(--border-color, #334155));
     background:
         radial-gradient(circle at 86% 38%, rgba(0, 230, 118, .16), transparent 24%),
@@ -253,7 +253,7 @@
 #chambers-grid .uranium-entry-card,
 #chambers-grid .uranium-entry-card[data-chamber-layout] {
     height: auto !important;
-    min-height: 286px !important;
+    min-height: var(--chamber-entry-reserved-height, 320px) !important;
 }
 
 #chambers-grid .uranium-entry-card > .card-inner,
@@ -275,8 +275,8 @@
 .uranium-content {
     width: min(1460px, calc(100vw - 28px));
     max-width: 1460px;
-    height: min(940px, calc(100vh - 28px));
-    max-height: calc(100vh - 28px);
+    height: min(940px, calc(100dvh - 28px));
+    max-height: calc(100dvh - 28px);
     padding: 0;
     overflow: hidden;
     border: 1px solid rgba(157, 255, 74, .28);
@@ -338,7 +338,7 @@
 .uranium-title-row h2 {
     margin: 0;
     color: #efffe8;
-    font: 740 clamp(1.5rem, 3vw, 2.35rem)/1.05 "Space Grotesk", system-ui, sans-serif;
+    font: 740 clamp(1.5rem, 3vw, 2.35rem)/1.05 var(--font-ui, system-ui, sans-serif);
     letter-spacing: -.045em;
 }
 
@@ -486,7 +486,7 @@
 .uranium-proof-hero h3 {
     margin: 9px 0 10px;
     color: #f0ffe9;
-    font: 740 clamp(1.8rem, 4vw, 3.8rem)/.98 "Space Grotesk", system-ui, sans-serif;
+    font: 740 clamp(1.8rem, 4vw, 3.8rem)/.98 var(--font-ui, system-ui, sans-serif);
     letter-spacing: -.06em;
 }
 
@@ -1097,7 +1097,7 @@ html[data-theme="clean"] .uranium-chart-provenance { color: #58715d; }
 @media (max-width: 700px) {
     #chambers-grid .uranium-entry-card,
     #chambers-grid .uranium-entry-card.chamber-entry-wide,
-    #chambers-grid .uranium-entry-card[data-chamber-layout] { min-height: 286px !important; height: auto !important; }
+    #chambers-grid .uranium-entry-card[data-chamber-layout] { min-height: var(--chamber-entry-reserved-height, 320px) !important; height: auto !important; }
     .uranium-entry-front {
         align-content: start;
         padding: 1.1rem 12px var(--chamber-footer-clearance) 20px !important;

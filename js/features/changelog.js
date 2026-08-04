@@ -7,7 +7,10 @@ export const CHANGELOG = [
     {
         date: '2026-08-03',
         entries: [
-            { type: '✨', text: 'Liquidity Baking now uses its compact monitor’s lower band for the three most recent unique baker vote switchers, with exact 2,500-block coverage and a truthful no-change state' }
+            { type: '✨', text: 'Liquidity Baking now uses its compact monitor’s lower band for the three most recent unique baker vote switchers, with exact 2,500-block coverage and a truthful no-change state' },
+            { type: '🎨', text: 'Chambers now share stable narrow, standard, and wide room geometry, full-bleed mobile sizing, responsive titles, and reduced-motion scrolling without flattening each room’s identity' },
+            { type: '🔧', text: 'Update notices now remember Later across Chamber routes, collapse while a room is open, reserve reading-safe space, and use failure red only when an update actually fails' },
+            { type: '⚡', text: 'Chamber launchers now reserve their hydrated geometry from first paint, while the four market rooms share one lazy structural layer for headers, tabs, panels, states, tables, and mobile artwork captions' }
         ]
     },
     {

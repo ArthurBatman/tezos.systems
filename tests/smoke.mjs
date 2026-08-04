@@ -155,6 +155,7 @@ const DEFERRED_CHAMBER_STYLE_PATHS = [
   '/css/ledger-flow.min.css',
   '/css/leaderboard.min.css',
   '/css/maxis.min.css',
+  '/css/market-room.min.css',
   '/css/metals-chamber.min.css',
   '/css/minerals-chamber.min.css',
   '/css/network-pulse.min.css',
@@ -5099,7 +5100,9 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
         ariaLive: copy?.getAttribute('aria-live') || '',
         bottom: dockRect ? innerHeight - dockRect.bottom : Number.NaN,
         cardBorder: cardStyles?.borderColor || '',
-        cardBg: cardStyles?.backgroundImage || cardStyles?.backgroundColor || '',
+        cardBg: cardStyles?.backgroundImage && cardStyles.backgroundImage !== 'none'
+          ? cardStyles.backgroundImage
+          : cardStyles?.backgroundColor || '',
         cardWidth: cardRect?.width || 0,
         centerOffset: dockRect ? Math.abs(dockRect.left + (dockRect.width / 2) - (innerWidth / 2)) : Number.NaN,
         detail: dock?.querySelector('.release-update-detail')?.textContent || '',
@@ -5111,6 +5114,8 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
         mobile,
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         reducedTransition: reducedMotion ? dockStyles?.transitionDuration || '' : '',
+        releaseSafeBottom: rootStyles.getPropertyValue('--release-update-safe-bottom').trim(),
+        releaseSafeClass: document.body.classList.contains('release-update-safe-area-raised'),
         safeBottom: rootStyles.getPropertyValue('--toast-safe-bottom').trim(),
         scrollPreserved: Math.abs(window.scrollY - (baseline?.scrollY || 0)) <= 1,
         title: dock?.querySelector('.release-update-title')?.textContent || '',
@@ -5132,10 +5137,11 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     assert(initial.actionHeight >= 43.9 && initial.laterHeight >= 43.9, `release update dock ${testCase.label}: actions are undersized ${JSON.stringify(initial)}`);
     assert(initial.zIndex >= 10004
       && initial.cardBg !== 'none'
-      && /239, 35, 60/.test(initial.actionBg)
-      && /239, 35, 60/.test(initial.cardBorder)
-      && initial.actionBg !== initial.actionColor, `release update dock ${testCase.label}: System Transmission is not visibly red and stark ${JSON.stringify(initial)}`);
-    assert(initial.safeBottom && !initial.pageOverflow, `release update dock ${testCase.label}: safe-area or overflow contract failed ${JSON.stringify(initial)}`);
+      && /91, 141, 239/.test(initial.actionBg)
+      && /69, 224, 200/.test(initial.cardBorder)
+      && !/239, 35, 60/.test(`${initial.actionBg} ${initial.cardBorder}`)
+      && initial.actionBg !== initial.actionColor, `release update dock ${testCase.label}: routine update state must be calm cyan/blue rather than failure red ${JSON.stringify(initial)}`);
+    assert(initial.safeBottom && initial.releaseSafeBottom && initial.releaseSafeClass && !initial.pageOverflow, `release update dock ${testCase.label}: safe-area or overflow contract failed ${JSON.stringify(initial)}`);
     assert(Math.abs(initial.bottom - testCase.edge) <= 2 && initial.centerOffset <= 1, `release update dock ${testCase.label}: dock missed the bottom-center target ${JSON.stringify(initial)}`);
     if (testCase.viewport.width <= 600) {
       assert(initial.dockWidth >= testCase.viewport.width - 26 && initial.actionWidth >= initial.cardWidth - 30, `release update dock ${testCase.label}: mobile dock/action should span the safe width ${JSON.stringify(initial)}`);
@@ -5143,6 +5149,21 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     } else {
       assert(initial.dockWidth >= 580 && initial.dockWidth <= 620.5, `release update dock ${testCase.label}: desktop transmission width drifted ${JSON.stringify(initial)}`);
     }
+
+    const errorPalette = await page.evaluate(async () => {
+      window.__releaseUpdateUi.setReleaseUpdateDockState({ state: 'error' });
+      await new Promise(resolve => setTimeout(resolve, 220));
+      const dock = document.querySelector('[data-release-update-dock]');
+      const card = dock?.querySelector('.release-update-card');
+      const action = dock?.querySelector('[data-release-update-action]');
+      const result = {
+        actionBg: action ? getComputedStyle(action).backgroundColor : '',
+        cardBorder: card ? getComputedStyle(card).borderColor : ''
+      };
+      window.__releaseUpdateUi.setReleaseUpdateDockState({ state: 'ready' });
+      return result;
+    });
+    assert(/239, 35, 60/.test(errorPalette.actionBg) && /239, 35, 60/.test(errorPalette.cardBorder), `release update dock ${testCase.label}: actual failure state must retain clear red semantics ${JSON.stringify(errorPalette)}`);
 
     await page.evaluate(() => {
       window.__releaseUpdateUi.showReleaseUpdateDock({
@@ -5198,6 +5219,38 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
       };
     });
     assert(replay.activeAction && replay.stillVisible, `release update dock ${testCase.label}: resurface replayed or lost the settled dock ${JSON.stringify(replay)}`);
+
+    const activeChamber = await page.evaluate(async () => {
+      const accessibility = await import('/js/ui/chamber-accessibility.js');
+      const overlay = document.createElement('div');
+      overlay.className = 'chamber-overlay active';
+      overlay.innerHTML = '<div class="chamber-content" style="overflow-y:auto"><button class="chamber-close" type="button">Close</button><div style="height:900px"></div></div>';
+      document.body.appendChild(overlay);
+      const dialog = overlay.querySelector('.chamber-content');
+      dialog.scrollTop = 40;
+      accessibility.activateChamberDialog(overlay, { close() {}, label: 'Test Chamber' });
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const result = {
+        basePadding: parseFloat(dialog.style.getPropertyValue('--chamber-room-base-padding-bottom')),
+        bodySafe: document.body.classList.contains('release-update-safe-area-raised'),
+        collapsed: document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed') || false,
+        normalized: overlay.classList.contains('chamber-shell-normalized'),
+        paddingBottom: parseFloat(getComputedStyle(dialog).paddingBottom),
+        roomSize: dialog.dataset.roomSize || '',
+        scrollTop: dialog.scrollTop
+      };
+      accessibility.deactivateChamberDialog(overlay, { restoreFocus: false });
+      overlay.remove();
+      window.__releaseUpdateUi.expandReleaseUpdateDock();
+      return result;
+    });
+    assert(activeChamber.normalized
+      && activeChamber.roomSize === 'standard'
+      && activeChamber.collapsed
+      && activeChamber.bodySafe
+      && activeChamber.basePadding >= 20
+      && activeChamber.paddingBottom > activeChamber.basePadding
+      && activeChamber.scrollTop === 40, `release update dock ${testCase.label}: active Chamber collapse/safe-area preservation failed ${JSON.stringify(activeChamber)}`);
 
     const action = page.locator('[data-release-update-action]');
     assert(await action.count() === 1, `release update dock ${testCase.label}: expected one primary update action`);
@@ -5337,6 +5390,25 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     && waitingState.detail === expectedHydratedDetail
     && /System transmission · incoming/i.test(waitingState.transmission)
     && waitingState.waiting === 'installed', `release update lifecycle: waiting worker did not produce the release transmission with current change context ${JSON.stringify(waitingState)}`);
+
+  await updatingPage.locator('[data-release-update-later]').click();
+  await updatingPage.waitForFunction(() => document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed'));
+  response = await updatingPage.goto(`${lifecycleBaseUrl}/uranium/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `release update lifecycle: deferred Uranium navigation failed with HTTP ${response?.status()}`);
+  await updatingPage.locator('#uranium-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await updatingPage.locator('[data-release-update-dock].is-visible').waitFor({ state: 'visible', timeout: 10000 });
+  const deferredRouteState = await updatingPage.evaluate(() => ({
+    chamberActive: Boolean(document.querySelector('#uranium-modal.active')),
+    collapsed: document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed') || false,
+    deadline: Number(sessionStorage.getItem('tezos-systems-release-update-deferred-until-v1')),
+    pathname: location.pathname
+  }));
+  assert(deferredRouteState.chamberActive
+    && deferredRouteState.collapsed
+    && deferredRouteState.deadline > Date.now()
+    && deferredRouteState.pathname === '/uranium/', `release update lifecycle: Later did not survive pretty-route navigation as a collapsed Chamber-safe notice ${JSON.stringify(deferredRouteState)}`);
+
+  await updatingPage.locator('.release-update-pill').click();
 
   const lifecycleAction = updatingPage.locator('[data-release-update-action]');
   await Promise.all([

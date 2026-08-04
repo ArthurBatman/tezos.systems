@@ -800,6 +800,7 @@ async function checkRequiredFiles() {
     'css/whale-chamber.css',
     'css/network-pulse.css',
     'css/capital.css',
+    'css/market-room.css',
     'css/minerals-chamber.css',
     'css/uranium-chamber.css',
     'css/metals-chamber.css',
@@ -1730,6 +1731,9 @@ async function checkCacheBustAlignment() {
     ["import('../ui/release-update.js')", app],
     ['SERVICE_WORKER_UPDATE_CHECK_MS', app],
     ['SERVICE_WORKER_UPDATE_DEFER_MS', app],
+    ['SERVICE_WORKER_UPDATE_DEFER_KEY', app],
+    ['sessionStorage.setItem(SERVICE_WORKER_UPDATE_DEFER_KEY', app],
+    ['sessionStorage.getItem(SERVICE_WORKER_UPDATE_DEFER_KEY', app],
     ['SERVICE_WORKER_ACTIVATION_FALLBACK_MS', app],
     ['window.setInterval(checkForUpdate, SERVICE_WORKER_UPDATE_CHECK_MS)', app],
     ["document.visibilityState === 'visible'", app],
@@ -1740,13 +1744,17 @@ async function checkCacheBustAlignment() {
     ['hydrateIncomingReleaseContext', releaseUpdate],
     ['showReleaseUpdateDock', releaseUpdate],
     ['reserveToastSafeArea(SAFE_AREA_KEY', releaseUpdate],
+    ['--release-update-safe-bottom', releaseUpdate],
+    ['release-update-safe-area-raised', releaseUpdate],
+    ['tezos:chamber-dialog-active', releaseUpdate],
     ["pill.addEventListener('click'", releaseUpdate],
     ['release-update-transmission-header', releaseUpdate],
     ['System transmission · incoming', releaseUpdate],
     [".release-update-action", styles],
     [".release-update-transmission-header", styles],
     ['left: 50%', styles],
-    ['#EF233C', styles],
+    ['.release-update-dock[data-state="error"]', styles],
+    ['--release-accent: #45E0C8', styles],
     ['min-height: 44px', styles],
     [".release-update-dock.is-collapsed", styles]
   ];
@@ -4029,6 +4037,8 @@ async function checkChamberEfficiencyContracts() {
   const app = await readText('js/core/app.js');
   const index = await readText('index.html');
   const chamberStyles = await readText('js/ui/chamber-styles.js');
+  const chamberAccessibility = await readText('js/ui/chamber-accessibility.js');
+  const marketRoomStyles = await readText('css/market-room.css');
   const shellExtras = await readText('css/shell-extras.css');
   const mainStyles = await readText('css/styles.css');
   const networkPulseStyles = await readText('css/network-pulse.css');
@@ -4121,31 +4131,39 @@ async function checkChamberEfficiencyContracts() {
   ]) {
     if (!chamberStyles.includes(snippet)) fail(`shared Chamber stylesheet loader is missing contract: ${snippet}`);
   }
-  const mobileNetworkShellContract = `@media (max-width: 759px) {
-    #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
-        min-height: 538px;
+  for (const reservation of ['236px', '248px', '320px', '538px', '428px', '318px', '344px']) {
+    if (!shellExtras.includes(`--chamber-entry-reserved-height: ${reservation}`)) {
+      fail(`render-blocking Chamber shell is missing semantic reservation ${reservation}`);
     }
-
-    #chambers-grid .chamber-entry-shell-slot[data-chamber-slot="health"] {
-        min-height: 318px;
-    }
-
-    #chambers-grid #tezlink-entry-card[data-chamber-layout="standard"] {
-        min-height: 344px;
-    }
-}
-
-@media (max-width: 479px) {
-    #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
-        min-height: 428px;
-    }
-}`;
-  if (!shellExtras.includes(mobileNetworkShellContract)
+  }
+  if (!shellExtras.includes('min-height: var(--chamber-entry-reserved-height)')
+    || !mainStyles.includes('min-height: var(--chamber-entry-reserved-height)')
     || !networkPulseStyles.includes('#chambers-grid .network-pulse-entry-card.chamber-entry-wide { min-height: 538px; }')
     || !networkPulseStyles.includes('#chambers-grid .network-pulse-entry-card.chamber-entry-wide { min-height: 428px; }')
     || !mainStyles.includes('#chambers-grid .tezlink-entry-card.chamber-entry-wide {\n        min-height: 344px;')
     || !mainStyles.includes('#chambers-grid .health-entry-card.chamber-entry-wide {\n        min-height: 318px;')) {
     fail('render-blocking mobile Network shell floors must exactly match the hydrated Pulse, Health, and Tezos X floors');
+  }
+  for (const snippet of [
+    'const WIDE_CHAMBER_DIALOG_SELECTOR',
+    'dialog.dataset.roomSize = roomSize',
+    "scrollContainer.classList.add('chamber-room-scroll')",
+    "'tezos:chamber-dialog-active'",
+    "'release-radar-overlay'",
+    "'ctez-overlay'"
+  ]) {
+    if (!chamberAccessibility.includes(snippet)) fail(`shared Chamber shell normalizer is missing contract: ${snippet}`);
+  }
+  for (const snippet of [
+    '.market-room-shell',
+    '.market-room-title.is-display',
+    '.market-room-title.is-editorial',
+    '.market-room-tabs',
+    '.market-room-view-shell',
+    '.market-room-core-stage figcaption',
+    '.chamber-state-error'
+  ]) {
+    if (!marketRoomStyles.includes(snippet)) fail(`market-room component layer is missing contract: ${snippet}`);
   }
   for (const snippet of [
     "window.addEventListener('wheel', markReaderScrollIntent, scrollIntentOptions)",
@@ -4184,6 +4202,16 @@ async function checkChamberEfficiencyContracts() {
     if (!source.includes(awaitContract)) {
       fail(`${moduleName} must await its stylesheet before activating the room`);
     }
+  }
+  for (const moduleName of ['capital-chamber.js', 'metals-chamber.js', 'minerals-chamber.js', 'uranium-chamber.js']) {
+    const source = await readText(`js/features/${moduleName}`);
+    for (const contract of ["versionedAsset('/css/market-room.min.css')", "ensureChamberStylesheet('market-room-css'", 'market-room-shell', 'market-room-header', 'market-room-tabs', 'market-room-view-shell']) {
+      if (!source.includes(contract)) fail(`${moduleName} is missing shared market-room contract: ${contract}`);
+    }
+  }
+  for (const stylesheet of ['css/metals-chamber.css', 'css/minerals-chamber.css', 'css/uranium-chamber.css']) {
+    const source = await readText(stylesheet);
+    if (source.includes('Space Grotesk')) fail(`${stylesheet} must not reference an unloaded Space Grotesk face`);
   }
 
   const freshnessModules = [
@@ -5053,7 +5081,7 @@ async function checkStylesheetFreshness() {
 
   const lazySurfaceSources = [
     'capital.css', 'ecosystem.css', 'history-chamber.css', 'leaderboard.css', 'ledger-flow.css',
-    'maxis.css', 'metals-chamber.css', 'minerals-chamber.css', 'network-health.css',
+    'maxis.css', 'market-room.css', 'metals-chamber.css', 'minerals-chamber.css', 'network-health.css',
     'network-pulse.css', 'staking-chamber.css', 'tezos-domains.css', 'tezoscrp.css',
     'uranium-chamber.css', 'whale-chamber.css'
   ];

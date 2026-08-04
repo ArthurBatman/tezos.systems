@@ -7,7 +7,7 @@
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    min-height: 286px;
+    min-height: var(--chamber-entry-reserved-height, 320px);
 }
 
 #chambers-grid .chamber-entry-card.metals-entry-card {
@@ -229,7 +229,7 @@
 .metals-entry-chart .metals-chart-empty { padding: 14px; }
 
 #chambers-grid .metals-entry-card,
-#chambers-grid .metals-entry-card[data-chamber-layout] { height: auto !important; min-height: 286px !important; }
+#chambers-grid .metals-entry-card[data-chamber-layout] { height: auto !important; min-height: var(--chamber-entry-reserved-height, 320px) !important; }
 #chambers-grid .metals-entry-card > .card-inner,
 #chambers-grid .metals-entry-card > .card-inner > .metals-entry-front { height: auto !important; min-height: 0; }
 
@@ -244,8 +244,8 @@
 .metals-content {
     width: min(1460px, calc(100vw - 28px));
     max-width: 1460px;
-    height: min(940px, calc(100vh - 28px));
-    max-height: calc(100vh - 28px);
+    height: min(940px, calc(100dvh - 28px));
+    max-height: calc(100dvh - 28px);
     padding: 0;
     overflow: hidden;
     border: 1px solid rgba(237, 200, 112, .29);
@@ -312,7 +312,7 @@
     max-width: 100%;
     margin: 0;
     color: #fff9eb;
-    font: 740 clamp(1.5rem, 3vw, 2.35rem)/1.05 "Space Grotesk", system-ui, sans-serif;
+    font: 740 clamp(1.5rem, 3vw, 2.35rem)/1.05 var(--font-ui, system-ui, sans-serif);
     letter-spacing: -.045em;
     overflow-wrap: break-word;
 }
@@ -356,7 +356,7 @@
 
 .metals-view-shell { padding: 22px 24px 34px; }
 .metals-view-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
-.metals-view-head h3 { margin: 0; color: #f7f2e8; font: 720 clamp(1.25rem, 2vw, 1.75rem)/1.1 "Space Grotesk", system-ui, sans-serif; letter-spacing: -.035em; }
+.metals-view-head h3 { margin: 0; color: #f7f2e8; font: 720 clamp(1.25rem, 2vw, 1.75rem)/1.1 var(--font-ui, system-ui, sans-serif); letter-spacing: -.035em; }
 .metals-view-head p { max-width: 780px; margin: 5px 0 0; color: #87898f; font-size: .76rem; line-height: 1.5; }
 .metals-view-content { min-height: 520px; }
 
@@ -392,7 +392,7 @@
 .metals-proof-hero h3 {
     margin: 9px 0 13px;
     color: #fff8e8;
-    font: 750 clamp(2.4rem, 5vw, 5.3rem)/.92 "Space Grotesk", system-ui, sans-serif;
+    font: 750 clamp(2.4rem, 5vw, 5.3rem)/.92 var(--font-ui, system-ui, sans-serif);
     letter-spacing: -.065em;
     overflow-wrap: break-word;
 }
@@ -409,18 +409,18 @@
 .metals-hero-metrics span { padding: 9px; border: 1px solid rgba(233, 199, 118, .14); border-radius: 9px; background: rgba(14, 15, 19, .67); }
 .metals-hero-metrics strong,
 .metals-hero-metrics small { display: block; }
-.metals-hero-metrics strong { color: #f5d47d; font: 750 1.15rem/1 "Space Grotesk", sans-serif; }
+.metals-hero-metrics strong { color: #f5d47d; font: 750 1.15rem/1 var(--font-ui, system-ui, sans-serif); }
 .metals-hero-metrics small { margin-top: 4px; color: #898b8f; font: 600 7px/1.25 "JetBrains Mono", monospace; text-transform: uppercase; }
 
 .metals-assay-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
 .metals-assay-card { display: grid; grid-template-columns: 76px 1fr; gap: 12px; min-width: 0; padding: 14px; border: 1px solid color-mix(in srgb, var(--metal-tone) 20%, transparent); border-radius: 12px; background: linear-gradient(145deg, color-mix(in srgb, var(--metal-tone) 5%, #111319), #0b0c10); }
 .metals-element { position: relative; align-self: start; aspect-ratio: 1; padding: 7px; border: 1px solid color-mix(in srgb, var(--metal-tone) 42%, transparent); border-radius: 8px; color: var(--metal-tone); background: color-mix(in srgb, var(--metal-tone) 7%, #0a0b0e); }
 .metals-element > span { position: absolute; top: 6px; left: 7px; opacity: .7; font: 600 8px/1 "JetBrains Mono", monospace; }
-.metals-element strong { display: block; margin-top: 9px; font: 750 2rem/1 "Space Grotesk", sans-serif; }
+.metals-element strong { display: block; margin-top: 9px; font: 750 2rem/1 var(--font-ui, system-ui, sans-serif); }
 .metals-element small { display: block; overflow: hidden; margin-top: 3px; color: #c6c5c1; font: 600 8px/1.1 "JetBrains Mono", monospace; text-overflow: ellipsis; }
 .metals-assay-copy { min-width: 0; }
 .metals-assay-copy .metals-status { max-width: 100%; overflow: hidden; padding: 3px 6px; text-overflow: ellipsis; white-space: nowrap; }
-.metals-assay-copy h4 { margin: 8px 0 4px; color: #f1ede5; font: 720 1rem/1.15 "Space Grotesk", sans-serif; }
+.metals-assay-copy h4 { margin: 8px 0 4px; color: #f1ede5; font: 720 1rem/1.15 var(--font-ui, system-ui, sans-serif); }
 .metals-assay-copy p { margin: 0; color: #94969b; font-size: .68rem; line-height: 1.45; }
 .metals-assay-copy > small { display: block; margin-top: 8px; color: #74777d; font: 600 7px/1.3 "JetBrains Mono", monospace; text-transform: uppercase; }
 
@@ -431,14 +431,14 @@
 .metals-clock-pair,
 .metals-chain-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .metals-clock-pair > article { padding: 20px; border: 1px solid rgba(234, 201, 123, .17); border-radius: 12px; background: linear-gradient(140deg, rgba(31, 28, 22, .9), rgba(13, 15, 20, .9)); }
-.metals-clock-pair strong { display: block; margin: 10px 0 4px; color: #fff5dd; font: 760 clamp(2.1rem, 4vw, 4.1rem)/.95 "Space Grotesk", sans-serif; letter-spacing: -.06em; }
+.metals-clock-pair strong { display: block; margin: 10px 0 4px; color: #fff5dd; font: 760 clamp(2.1rem, 4vw, 4.1rem)/.95 var(--font-ui, system-ui, sans-serif); letter-spacing: -.06em; }
 .metals-clock-pair small { display: block; color: #a7a7a4; font: 600 9px/1.4 "JetBrains Mono", monospace; }
 .metals-clock-pair p { margin: 13px 0 0; color: #8f9196; font-size: .72rem; line-height: 1.5; }
 
 .metals-panel { margin-top: 10px; padding: 18px; border: 1px solid rgba(233, 201, 126, .16); border-radius: 12px; background: var(--metals-panel); }
 .metals-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 12px; }
 .metals-panel h4,
-.metals-chain-grid h4 { margin: 5px 0 0; color: #f1ede4; font: 720 1.2rem/1.15 "Space Grotesk", sans-serif; }
+.metals-chain-grid h4 { margin: 5px 0 0; color: #f1ede4; font: 720 1.2rem/1.15 var(--font-ui, system-ui, sans-serif); }
 
 .metals-metal-switch { display: flex; flex-wrap: wrap; gap: 5px; }
 .metals-metal-switch button { min-width: 58px; padding: 7px 9px; border: 1px solid rgba(213, 220, 230, .15); border-radius: 8px; color: #989da4; background: #0b0d11; font: 700 11px/1 "JetBrains Mono", monospace; cursor: pointer; }
@@ -462,7 +462,7 @@
 .metals-quote-grid small,
 .metals-quote-grid b { display: block; }
 .metals-quote-grid span { color: #cdb675; font: 700 8px/1.2 "JetBrains Mono", monospace; text-transform: uppercase; }
-.metals-quote-grid strong { margin-top: 7px; color: #f0ece3; font: 720 1.4rem/1 "Space Grotesk", sans-serif; }
+.metals-quote-grid strong { margin-top: 7px; color: #f0ece3; font: 720 1.4rem/1 var(--font-ui, system-ui, sans-serif); }
 .metals-quote-grid small { margin-top: 4px; color: #777b82; font: 500 8px/1.3 "JetBrains Mono", monospace; }
 .metals-quote-grid hr { height: 1px; margin: 11px 0; border: 0; background: rgba(255, 255, 255, .07); }
 .metals-quote-grid b { color: #c7cbd0; font-size: .85rem; }
@@ -475,7 +475,7 @@
 .metals-vnx-hero small { display: block; max-width: 680px; font-size: .72rem; }
 .metals-comparison { align-self: center; display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; padding: 17px; border: 1px solid rgba(169, 191, 217, .15); border-radius: 10px; background: rgba(7, 9, 13, .65); }
 .metals-comparison > span { color: #aeb7c2; font: 650 9px/1.3 "JetBrains Mono", monospace; }
-.metals-comparison > strong { color: #f0e9d8; font: 720 1.1rem/1 "Space Grotesk", sans-serif; text-align: right; }
+.metals-comparison > strong { color: #f0e9d8; font: 720 1.1rem/1 var(--font-ui, system-ui, sans-serif); text-align: right; }
 .metals-comparison > small { grid-column: 1 / -1; margin-bottom: 9px; color: #747981; font: 500 8px/1.3 "JetBrains Mono", monospace; }
 
 .metals-chain-grid { margin-top: 10px; }
@@ -486,7 +486,7 @@
 .metals-ledger-kpis span { padding: 9px; border-radius: 7px; background: rgba(255, 255, 255, .025); }
 .metals-ledger-kpis b,
 .metals-ledger-kpis small { display: block; overflow: hidden; text-overflow: ellipsis; }
-.metals-ledger-kpis b { color: #e4dfd3; font: 700 .9rem/1.1 "Space Grotesk", sans-serif; }
+.metals-ledger-kpis b { color: #e4dfd3; font: 700 .9rem/1.1 var(--font-ui, system-ui, sans-serif); }
 .metals-ledger-kpis small { margin-top: 3px; color: #797d84; font: 500 7px/1.3 "JetBrains Mono", monospace; text-transform: uppercase; }
 
 .metals-contract { display: grid; grid-template-columns: auto 1fr auto; gap: 7px; align-items: center; padding: 8px; border: 1px solid rgba(213, 201, 172, .11); border-radius: 7px; background: rgba(5, 6, 9, .54); }
@@ -507,7 +507,7 @@
 .metals-catalog-grid strong,
 .metals-catalog-grid small { display: block; overflow: hidden; text-overflow: ellipsis; }
 .metals-catalog-grid span { color: #9caac0; font: 700 8px/1.2 "JetBrains Mono", monospace; text-transform: uppercase; }
-.metals-catalog-grid strong { margin-top: 5px; color: #e2ddd1; font: 700 .75rem/1.2 "Space Grotesk", sans-serif; white-space: nowrap; }
+.metals-catalog-grid strong { margin-top: 5px; color: #e2ddd1; font: 700 .75rem/1.2 var(--font-ui, system-ui, sans-serif); white-space: nowrap; }
 .metals-catalog-grid small { margin-top: 5px; font: 650 7px/1.2 "JetBrains Mono", monospace; text-transform: uppercase; white-space: nowrap; }
 .metals-catalog-grid small.is-good { color: #beeaa7; }
 .metals-catalog-grid small.is-warn { color: #ffd094; }
@@ -525,9 +525,9 @@
 .metals-proof-grid p,
 .metals-exclusion-grid p { margin: 7px 0 0; color: #898d93; font-size: .7rem; line-height: 1.48; }
 .metals-proof-grid span { color: #c8ab62; font: 700 8px/1.2 "JetBrains Mono", monospace; text-transform: uppercase; }
-.metals-proof-grid h4 { margin: 7px 0 0; font: 710 1rem/1.1 "Space Grotesk", sans-serif; }
+.metals-proof-grid h4 { margin: 7px 0 0; font: 710 1rem/1.1 var(--font-ui, system-ui, sans-serif); }
 .metals-proof-hero > div:last-child { align-self: center; display: grid; justify-items: start; }
-.metals-proof-hero > div:last-child strong { color: #f2cf74; font: 760 clamp(3rem, 7vw, 6rem)/.85 "Space Grotesk", sans-serif; letter-spacing: -.08em; }
+.metals-proof-hero > div:last-child strong { color: #f2cf74; font: 760 clamp(3rem, 7vw, 6rem)/.85 var(--font-ui, system-ui, sans-serif); letter-spacing: -.08em; }
 .metals-proof-hero > div:last-child span { margin-top: 9px; color: #c2b183; font: 700 9px/1.2 "JetBrains Mono", monospace; text-transform: uppercase; }
 .metals-proof-hero > div:last-child small { margin-top: 5px; color: #7d8188; }
 
@@ -544,7 +544,7 @@
 .metals-table td > small { margin-top: 3px; color: #73777e; font-size: .58rem; }
 
 .metals-pathways { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
-.metals-pathways a { padding: 13px; border: 1px solid rgba(236, 200, 114, .14); border-radius: 9px; color: #e5c975; background: rgba(20, 18, 13, .45); font: 700 .75rem/1.2 "Space Grotesk", sans-serif; text-decoration: none; }
+.metals-pathways a { padding: 13px; border: 1px solid rgba(236, 200, 114, .14); border-radius: 9px; color: #e5c975; background: rgba(20, 18, 13, .45); font: 700 .75rem/1.2 var(--font-ui, system-ui, sans-serif); text-decoration: none; }
 .metals-pathways small { display: block; margin-top: 5px; color: #83868d; font: 500 8px/1.4 "JetBrains Mono", monospace; }
 .metals-pathways a:hover { border-color: rgba(236, 200, 114, .36); }
 
@@ -558,7 +558,7 @@
 .metals-loading > div:last-child,
 .metals-error > div { display: grid; justify-items: center; gap: 7px; }
 .metals-loading strong,
-.metals-error strong { color: #f3e8cc; font: 720 1.2rem/1.2 "Space Grotesk", sans-serif; }
+.metals-error strong { color: #f3e8cc; font: 720 1.2rem/1.2 var(--font-ui, system-ui, sans-serif); }
 .metals-loading span,
 .metals-error span { color: #8a8d93; font-size: .75rem; }
 .metals-loader { width: 68px; height: 68px; margin-bottom: 17px; border: 1px solid rgba(237, 197, 101, .28); border-radius: 50%; background: conic-gradient(from 0deg, transparent, rgba(238, 196, 97, .7), transparent 60%); animation: metals-slow-turn 1.6s linear infinite; }
@@ -600,7 +600,7 @@ html[data-theme="default"] .metals-content { color-scheme: dark; }
 @media (max-width: 700px) {
     #chambers-grid .metals-entry-card,
     #chambers-grid .metals-entry-card.chamber-entry-wide,
-    #chambers-grid .metals-entry-card[data-chamber-layout] { min-height: 286px !important; height: auto !important; }
+    #chambers-grid .metals-entry-card[data-chamber-layout] { min-height: var(--chamber-entry-reserved-height, 320px) !important; height: auto !important; }
     .metals-entry-front {
         align-content: start;
         padding: 1.1rem 12px var(--chamber-footer-clearance) 20px !important;

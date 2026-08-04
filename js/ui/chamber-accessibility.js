@@ -14,6 +14,16 @@ const DIALOG_FOCUSABLE_SELECTOR = [
 
 const dialogStates = new WeakMap();
 const launcherOpens = new WeakMap();
+const CHAMBER_SHELL_EXCLUSIONS = new Set(['release-radar-overlay', 'ctez-overlay']);
+const WIDE_CHAMBER_DIALOG_SELECTOR = [
+    '.capital-content',
+    '.minerals-content',
+    '.uranium-content',
+    '.metals-content',
+    '.ecosystem-content',
+    '.whale-watch-content',
+    '.baker-directory-content'
+].join(',');
 const CHAMBER_INTERACTIVE_SELECTOR = [
     'a[href]',
     'button',
@@ -32,6 +42,34 @@ function visibleFocusableElements(root) {
         && !element.closest('[hidden]')
         && element.getClientRects().length > 0
     ));
+}
+
+function findChamberScrollContainer(dialog) {
+    const candidates = [dialog, ...dialog.querySelectorAll(':scope > .chamber-body, :scope > [class$="-body"]')];
+    return candidates.find((element) => ['auto', 'scroll'].includes(getComputedStyle(element).overflowY)) || dialog;
+}
+
+function normalizeChamberShell(overlay, dialog) {
+    if (!overlay.classList.contains('chamber-overlay')
+        || [...CHAMBER_SHELL_EXCLUSIONS].some((className) => overlay.classList.contains(className))) return;
+
+    const roomSize = dialog.matches('.staking-chamber-content')
+        ? 'narrow'
+        : dialog.matches(WIDE_CHAMBER_DIALOG_SELECTOR) ? 'wide' : 'standard';
+    overlay.classList.add('chamber-shell-normalized');
+    dialog.classList.add('chamber-room-shell');
+    dialog.dataset.roomSize = roomSize;
+
+    const scrollContainer = findChamberScrollContainer(dialog);
+    const basePaddingBottom = getComputedStyle(scrollContainer).paddingBottom || '0px';
+    scrollContainer.classList.add('chamber-room-scroll');
+    if (!scrollContainer.style.getPropertyValue('--chamber-room-base-padding-bottom')) {
+        scrollContainer.style.setProperty('--chamber-room-base-padding-bottom', basePaddingBottom);
+    }
+
+    document.dispatchEvent(new CustomEvent('tezos:chamber-dialog-active', {
+        detail: { overlay, dialog, scrollContainer, roomSize }
+    }));
 }
 
 function ensureLauncherTitle(card, titleSelector, fallbackId) {
@@ -130,6 +168,7 @@ export function activateChamberDialog(overlay, {
     if (titleId) dialog.setAttribute('aria-labelledby', titleId);
     if (label) dialog.setAttribute('aria-label', label);
     overlay.setAttribute('aria-hidden', 'false');
+    normalizeChamberShell(overlay, dialog);
 
     if (!dialogStates.has(overlay)) {
         const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;

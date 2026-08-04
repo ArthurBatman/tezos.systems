@@ -21,6 +21,7 @@ import {
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const MINERALS_CSS_URL = versionedAsset('/css/minerals-chamber.min.css');
+const MARKET_ROOM_CSS_URL = versionedAsset('/css/market-room.min.css');
 const MINERALS_SNAPSHOT_URL = '/data/minerals-snapshot.json';
 const MINERALS_ENTRY_SUMMARY_URL = '/data/minerals-entry-summary.json';
 const DEFAULT_REFRESH_MS = 5 * 60 * 1000;
@@ -224,7 +225,10 @@ function syncMineralsFreshness(snapshot) {
 }
 
 function ensureMineralsCss() {
-    return ensureChamberStylesheet('minerals-chamber-css', MINERALS_CSS_URL);
+    return Promise.all([
+        ensureChamberStylesheet('minerals-chamber-css', MINERALS_CSS_URL),
+        ensureChamberStylesheet('market-room-css', MARKET_ROOM_CSS_URL)
+    ]);
 }
 
 function mineralRows(snapshot) {
@@ -395,7 +399,7 @@ async function resolveMineralsSnapshotRefresh() {
 }
 
 function corePicture(className = '') {
-    return `<figure class="minerals-core-stage ${className}"><picture><source srcset="/assets/minerals/minerals-core-640.webp 640w, /assets/minerals/minerals-core.webp 1536w" sizes="(max-width: 700px) 100vw, 50vw" type="image/webp"><img src="/assets/minerals/minerals-core.webp" width="1536" height="1024" loading="lazy" decoding="async" alt="A dark specimen tableau of polished and raw mineral samples arranged on a circular display."></picture><figcaption>Original mineral-atlas artwork · visual identity, not a specimen-identification guide.</figcaption></figure>`;
+    return `<figure class="minerals-core-stage market-room-core-stage ${className}"><picture><source srcset="/assets/minerals/minerals-core-640.webp 640w, /assets/minerals/minerals-core.webp 1536w" sizes="(max-width: 700px) 100vw, 50vw" type="image/webp"><img src="/assets/minerals/minerals-core.webp" width="1536" height="1024" loading="lazy" decoding="async" alt="A dark specimen tableau of polished and raw mineral samples arranged on a circular display."></picture><figcaption>Original mineral-atlas artwork · visual identity, not a specimen-identification guide.</figcaption></figure>`;
 }
 
 function launcherPicture() {
@@ -693,15 +697,15 @@ function renderView(snapshot) {
 function renderChamber(snapshot) {
     const view = VIEWS.find(({ id }) => id === currentView) || VIEWS[0];
     const freshness = freshnessModel(snapshot);
-    return `<header class="minerals-header" data-quiet-key="minerals-header"><div class="minerals-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>critical-mineral intelligence</span></div><div class="minerals-title-row"><h2 id="minerals-title">${escapeHtml(firstText(snapshot.identity?.title, 'Critical Minerals Chamber'))}</h2><span class="minerals-badge">60 minerals</span><span class="minerals-freshness${freshness.stale ? ' is-stale' : ''}" id="minerals-freshness" aria-live="polite">${escapeHtml(freshness.label)}</span></div><p class="minerals-intro">A complete critical-minerals atlas with annual supply context, monthly market series, selected Etherlink receipts, and explicit evidence gaps kept on their natural clocks.</p><div class="minerals-tabs" role="tablist" aria-label="Critical Minerals Chamber views">${VIEWS.map((item) => `<button class="minerals-tab" id="minerals-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="minerals-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-minerals-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}</div></header><section class="minerals-view-shell" id="minerals-view-panel" role="tabpanel" aria-labelledby="minerals-tab-${view.id}" data-quiet-key="minerals-view-panel"><div class="minerals-view-head"><div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div></div><div class="minerals-view-content" id="minerals-view-content" data-quiet-key="minerals-view-content">${renderView(snapshot)}</div></section><p class="minerals-disclaimer">Information only · public-source observations · no investment, custody, legal, redemption, or execution advice.</p>`;
+    return `<header class="minerals-header market-room-header" data-quiet-key="minerals-header"><div class="minerals-system-strip market-room-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>critical-mineral intelligence</span></div><div class="minerals-title-row market-room-title-row"><h2 class="market-room-title is-editorial" id="minerals-title">${escapeHtml(firstText(snapshot.identity?.title, 'Critical Minerals Chamber'))}</h2><span class="minerals-badge market-room-badge">60 minerals</span><span class="minerals-freshness market-room-freshness${freshness.stale ? ' is-stale' : ''}" id="minerals-freshness" aria-live="polite">${escapeHtml(freshness.label)}</span></div><p class="minerals-intro market-room-intro">A complete critical-minerals atlas with annual supply context, monthly market series, selected Etherlink receipts, and explicit evidence gaps kept on their natural clocks.</p><div class="minerals-tabs market-room-tabs" role="tablist" aria-label="Critical Minerals Chamber views">${VIEWS.map((item) => `<button class="minerals-tab market-room-tab" id="minerals-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="minerals-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-minerals-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}</div></header><section class="minerals-view-shell market-room-view-shell" id="minerals-view-panel" role="tabpanel" aria-labelledby="minerals-tab-${view.id}" data-quiet-key="minerals-view-panel"><div class="minerals-view-head market-room-view-head"><div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div></div><div class="minerals-view-content market-room-view-content" id="minerals-view-content" data-quiet-key="minerals-view-content">${renderView(snapshot)}</div></section><p class="minerals-disclaimer">Information only · public-source observations · no investment, custody, legal, redemption, or execution advice.</p>`;
 }
 
 function renderLoading(body) {
-    body.innerHTML = `<div class="minerals-loading" role="status"><div class="minerals-loader" aria-hidden="true"></div><div><strong>Reading the mineral proofbook</strong><span>Verifying the 60-row atlas and its SHA-256 receipt…</span></div></div>`;
+    body.innerHTML = `<div class="minerals-loading chamber-state chamber-state-loading" role="status"><div class="minerals-loader" aria-hidden="true"></div><div><strong>Reading the mineral proofbook</strong><span>Verifying the 60-row atlas and its SHA-256 receipt…</span></div></div>`;
 }
 
 function renderError(body, error) {
-    body.innerHTML = `<div class="minerals-error" role="alert"><div><strong>Critical-minerals snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><button class="chamber-action" type="button" data-minerals-retry>Retry</button></div></div>`;
+    body.innerHTML = `<div class="minerals-error chamber-state chamber-state-error" role="alert"><div><strong>Critical-minerals snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><button class="chamber-action" type="button" data-minerals-retry>Retry</button></div></div>`;
 }
 
 function renderBody(snapshot, { quiet = false } = {}) {
@@ -964,7 +968,7 @@ function ensureOverlay() {
     overlay.id = 'minerals-modal';
     overlay.className = 'modal-overlay chamber-overlay minerals-overlay';
     overlay.setAttribute('aria-hidden', 'true');
-    overlay.innerHTML = `<div class="modal-content modal-large chamber-content minerals-content" role="dialog" aria-modal="true" aria-labelledby="minerals-title"><button class="modal-close chamber-close" type="button" aria-label="Close Critical Minerals Chamber">&times;</button><div class="minerals-body" id="minerals-chamber-body"></div></div>`;
+    overlay.innerHTML = `<div class="modal-content modal-large chamber-content minerals-content market-room-shell" role="dialog" aria-modal="true" aria-labelledby="minerals-title"><button class="modal-close chamber-close" type="button" aria-label="Close Critical Minerals Chamber">&times;</button><div class="minerals-body market-room-body" id="minerals-chamber-body"></div></div>`;
     overlay.querySelector('.chamber-close').addEventListener('click', closeMineralsChamber);
     overlay.addEventListener('click', (event) => { if (event.target === overlay) closeMineralsChamber(); });
     bindBodyEvents(overlay.querySelector('.minerals-body'));

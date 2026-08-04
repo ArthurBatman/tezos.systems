@@ -1473,6 +1473,14 @@ Current smoke suites:
   reviewed full artifacts until room open, preserves launcher parity, accepts
   a newer verified Capital deploy over a stale in-memory receipt, and falls
   back safely when a projection is unavailable)
+- First-class Chamber dialogs normalize through the shared accessibility seam
+  into narrow, standard, or wide desktop viewports and full-bleed `100dvh`
+  mobile rooms. The same seam identifies the real room scroller so persistent
+  update notices reserve safe reading space without moving focus or scroll.
+- Capital, Uranium, Precious Metals, and Critical Minerals share the lazy
+  `market-room.min.css` structural layer for headers, tabs, view shells, states,
+  tables, and mobile artwork captions. Their palettes and display/editorial
+  title identities remain room-owned.
 - `tezoscrp` (covers the human-identity Recognition Hall, award/month count
   separation, source-complete person history, tied category and annual records,
   official category icons, latest winners, archive filters, `/tezoscrp/`, and
@@ -1506,10 +1514,10 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v556`, including hero search, theme
+- Current aligned shell cache stamp: `v557`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
-  Staking, Maxis, Uranium, Precious Metals, and Critical Minerals lazy CSS
-  loaders.
+  Staking, Maxis, shared market-room, Uranium, Precious Metals, and Critical
+  Minerals lazy CSS loaders.
 - Current Tezos Domains lazy CSS stamp: `v321`.
 - `version.json` is stamped by `.githooks/pre-commit`.
 - The pre-commit hook runs the README guard, refreshes commit-relevant generated

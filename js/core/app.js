@@ -5789,7 +5789,27 @@ window.TezosStats = { refresh };
 const SERVICE_WORKER_UPDATE_CHECK_MS = 60 * 60 * 1000;
 const SERVICE_WORKER_UPDATE_DEFER_MS = 30 * 60 * 1000;
 const SERVICE_WORKER_ACTIVATION_FALLBACK_MS = 8000;
+const SERVICE_WORKER_UPDATE_DEFER_KEY = 'tezos-systems-release-update-deferred-until-v1';
 let releaseUpdateUiPromise = null;
+
+function readReleaseUpdateDeferredUntil() {
+    try {
+        const value = Number(sessionStorage.getItem(SERVICE_WORKER_UPDATE_DEFER_KEY));
+        if (Number.isFinite(value) && value > Date.now()) return value;
+        sessionStorage.removeItem(SERVICE_WORKER_UPDATE_DEFER_KEY);
+    } catch (_) {
+        // Storage can be unavailable in privacy-restricted contexts.
+    }
+    return 0;
+}
+
+function writeReleaseUpdateDeferredUntil(value) {
+    try {
+        sessionStorage.setItem(SERVICE_WORKER_UPDATE_DEFER_KEY, String(value));
+    } catch (_) {
+        // The in-memory deadline still applies for this document.
+    }
+}
 
 function loadReleaseUpdateUi() {
     if (!releaseUpdateUiPromise) releaseUpdateUiPromise = import('../ui/release-update.js');
@@ -5801,7 +5821,7 @@ function registerServiceWorker() {
         let reloadRequested = false;
         let reloading = false;
         let controlledAtRegistration = Boolean(navigator.serviceWorker.controller);
-        let deferredUntil = 0;
+        let deferredUntil = readReleaseUpdateDeferredUntil();
         let deferredTimer = 0;
         let activationFallbackTimer = 0;
 
@@ -5822,6 +5842,7 @@ function registerServiceWorker() {
 
         const deferPrompt = (resurface) => {
             deferredUntil = Date.now() + SERVICE_WORKER_UPDATE_DEFER_MS;
+            writeReleaseUpdateDeferredUntil(deferredUntil);
             scheduleResurface(resurface);
         };
 

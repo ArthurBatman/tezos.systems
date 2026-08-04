@@ -1,0 +1,214 @@
+/* Shared structural layer for source-bounded market Chambers.
+   Palettes, data semantics, and room-specific visual identity remain local. */
+.market-room-shell,
+.market-room-shell * {
+    box-sizing: border-box;
+}
+
+.market-room-shell {
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --radius-pill: 999px;
+    --type-market-room-title: clamp(1.5rem, 3vw, 2.35rem);
+    --type-section-title: clamp(1.05rem, 2vw, 1.35rem);
+    --type-hero-value: clamp(2.2rem, 4vw, 3.5rem);
+    --market-room-inline: var(--space-5, 24px);
+}
+
+.market-room-body {
+    min-width: 0;
+}
+
+.market-room-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    min-width: 0;
+    padding: 18px 64px 0 var(--market-room-inline);
+    backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.market-room-system-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    min-width: 0;
+}
+
+.market-room-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 8px) var(--space-3, 12px);
+    min-width: 0;
+}
+
+.market-room-title {
+    min-width: 0;
+    margin: 0;
+    font-size: var(--type-market-room-title, clamp(1.5rem, 3vw, 2.35rem));
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+}
+
+.market-room-title.is-display {
+    font-family: var(--font-display, 'Orbitron', sans-serif);
+    letter-spacing: 0.02em;
+}
+
+.market-room-title.is-editorial {
+    font-family: var(--font-ui, system-ui, sans-serif);
+    letter-spacing: -0.045em;
+}
+
+.market-room-badge,
+.market-room-freshness {
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+
+.market-room-intro {
+    max-width: 78ch;
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.market-room-tabs {
+    display: flex;
+    gap: var(--space-1, 4px);
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+}
+
+.market-room-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding-inline: var(--space-3, 12px);
+    border-radius: var(--radius-control, 6px);
+}
+
+.market-room-view-shell {
+    min-width: 0;
+    padding: 20px var(--market-room-inline) 32px;
+}
+
+.market-room-view-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-3, 12px);
+    min-width: 0;
+}
+
+.market-room-view-head h3 {
+    font-size: var(--type-section-title, clamp(1.05rem, 2vw, 1.35rem));
+}
+
+.market-room-view-content {
+    min-width: 0;
+}
+
+.market-room-shell :is(
+    .capital-panel,
+    .metals-panel,
+    .minerals-panel,
+    .uranium-panel
+) {
+    border-radius: var(--radius-panel, 10px);
+}
+
+.market-room-shell :is(
+    .capital-table-wrap,
+    .metals-table-wrap,
+    .minerals-table-wrap,
+    .uranium-table-wrap
+) {
+    border-radius: var(--radius-panel, 10px);
+}
+
+.chamber-state {
+    display: grid;
+    min-height: 300px;
+    place-items: center;
+    padding: var(--space-6, 32px);
+}
+
+.chamber-state > div {
+    min-width: 0;
+    max-width: 44rem;
+}
+
+.chamber-state strong,
+.chamber-state span {
+    display: block;
+}
+
+.chamber-state span {
+    margin-top: var(--space-2, 8px);
+    line-height: 1.5;
+}
+
+.chamber-state-error {
+    color: var(--chamber-risk-color, #FF6B7A);
+}
+
+@media (max-width: 759px) {
+    .market-room-shell {
+        --market-room-inline: var(--space-3, 12px);
+    }
+
+    .market-room-header {
+        padding: 10px 46px 0 var(--market-room-inline);
+    }
+
+    .market-room-title-row {
+        align-items: flex-start;
+    }
+
+    .market-room-title {
+        flex-basis: 100%;
+        font-size: clamp(1.45rem, 8vw, 2.2rem);
+    }
+
+    .market-room-intro {
+        font-size: 0.75rem;
+        line-height: 1.48;
+    }
+
+    .market-room-tabs {
+        margin-inline: calc(-1 * var(--market-room-inline));
+        padding-inline: var(--market-room-inline);
+    }
+
+    .market-room-view-shell {
+        padding-top: var(--space-4, 16px);
+        padding-bottom: var(--space-6, 32px);
+    }
+
+    .market-room-core-stage figcaption {
+        top: 10px;
+        right: 10px;
+        bottom: auto;
+        left: 10px;
+        width: auto;
+        max-width: none;
+        overflow: hidden;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .market-room-shell,
+    .market-room-shell * {
+        scroll-behavior: auto !important;
+    }
+}

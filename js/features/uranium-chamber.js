@@ -20,6 +20,7 @@ import {
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const URANIUM_CSS_URL = versionedAsset('/css/uranium-chamber.min.css');
+const MARKET_ROOM_CSS_URL = versionedAsset('/css/market-room.min.css');
 const URANIUM_SNAPSHOT_URL = '/data/uranium-snapshot.json';
 const URANIUM_ENTRY_SUMMARY_URL = '/data/uranium-entry-summary.json';
 const KRAKEN_WS_URL = 'wss://ws.kraken.com/v2';
@@ -283,7 +284,10 @@ function directionClass(value) {
 }
 
 function ensureUraniumCss() {
-    return ensureChamberStylesheet('uranium-chamber-css', URANIUM_CSS_URL);
+    return Promise.all([
+        ensureChamberStylesheet('uranium-chamber-css', URANIUM_CSS_URL),
+        ensureChamberStylesheet('market-room-css', MARKET_ROOM_CSS_URL)
+    ]);
 }
 
 async function validateSnapshot(snapshot) {
@@ -1018,7 +1022,7 @@ function renderClock(label, value, source = '') {
 
 function heroPicture(className = '') {
     return `
-        <figure class="uranium-core-stage ${className}">
+        <figure class="uranium-core-stage market-room-core-stage ${className}">
             <picture>
                 <source srcset="/assets/uranium/uranium-core-640.webp 640w, /assets/uranium/uranium-core.webp 1280w" sizes="(max-width: 700px) 92vw, 46vw" type="image/webp">
                 <img src="/assets/uranium/uranium-core.webp" width="1280" height="853" loading="lazy" decoding="async" alt="Cute cartoon uranium-rock mascot glowing with vivid emerald-green energy.">
@@ -1433,26 +1437,26 @@ function renderChamber(snapshot) {
     const view = VIEWS.find(({ id }) => id === currentView) || VIEWS[0];
     const freshness = freshnessPresentation(snapshot);
     return `
-        <header class="uranium-header" data-quiet-key="uranium-header">
-            <div class="uranium-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>commodity market intelligence</span></div>
-            <div class="uranium-title-row"><h2 id="uranium-title">Uranium Chamber</h2><span class="uranium-badge">xU3O8</span><span class="uranium-freshness${freshness.stale ? ' is-stale' : ''}" id="uranium-freshness" aria-live="polite">${escapeHtml(freshness.label)}</span></div>
-            <p class="uranium-intro">A source-bounded view of xU3O8, physical U3O8 custody receipts, Uranium.io, Kraken price discovery, and Etherlink state—with each claim kept on its natural clock.</p>
-            <div class="uranium-tabs" role="tablist" aria-label="Uranium Chamber views">${VIEWS.map((item) => `<button class="uranium-tab" id="uranium-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="uranium-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-uranium-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}</div>
+        <header class="uranium-header market-room-header" data-quiet-key="uranium-header">
+            <div class="uranium-system-strip market-room-system-strip"><strong>Tezos Systems</strong><span aria-hidden="true">/</span><span>commodity market intelligence</span></div>
+            <div class="uranium-title-row market-room-title-row"><h2 class="market-room-title is-editorial" id="uranium-title">Uranium Chamber</h2><span class="uranium-badge market-room-badge">xU3O8</span><span class="uranium-freshness market-room-freshness${freshness.stale ? ' is-stale' : ''}" id="uranium-freshness" aria-live="polite">${escapeHtml(freshness.label)}</span></div>
+            <p class="uranium-intro market-room-intro">A source-bounded view of xU3O8, physical U3O8 custody receipts, Uranium.io, Kraken price discovery, and Etherlink state—with each claim kept on its natural clock.</p>
+            <div class="uranium-tabs market-room-tabs" role="tablist" aria-label="Uranium Chamber views">${VIEWS.map((item) => `<button class="uranium-tab market-room-tab" id="uranium-tab-${item.id}" type="button" role="tab" aria-selected="${item.id === currentView}" aria-controls="uranium-view-panel" tabindex="${item.id === currentView ? '0' : '-1'}" data-uranium-view="${item.id}">${escapeHtml(item.label)}</button>`).join('')}</div>
         </header>
-        <section class="uranium-view-shell" id="uranium-view-panel" role="tabpanel" aria-labelledby="uranium-tab-${view.id}" data-quiet-key="uranium-view-panel">
-            <div class="uranium-view-head"><div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div></div>
-            <div class="uranium-view-content" id="uranium-view-content" data-quiet-key="uranium-view-content">${renderView(snapshot)}</div>
+        <section class="uranium-view-shell market-room-view-shell" id="uranium-view-panel" role="tabpanel" aria-labelledby="uranium-tab-${view.id}" data-quiet-key="uranium-view-panel">
+            <div class="uranium-view-head market-room-view-head"><div><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p></div></div>
+            <div class="uranium-view-content market-room-view-content" id="uranium-view-content" data-quiet-key="uranium-view-content">${renderView(snapshot)}</div>
         </section>
         <p class="uranium-disclaimer">Information only · public-source observations · not investment, custody, legal, or trading advice.</p>
     `;
 }
 
 function renderLoading(body) {
-    body.innerHTML = '<div class="uranium-loading"><div class="uranium-loader-core" aria-hidden="true"></div><div><strong>Charging the Uranium Chamber…</strong><span>Verifying the generated first-party proofbook.</span></div></div>';
+    body.innerHTML = '<div class="uranium-loading chamber-state chamber-state-loading"><div class="uranium-loader-core" aria-hidden="true"></div><div><strong>Charging the Uranium Chamber…</strong><span>Verifying the generated first-party proofbook.</span></div></div>';
 }
 
 function renderError(body, error) {
-    body.innerHTML = `<div class="uranium-error"><div><strong>Uranium snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><button class="chamber-action" type="button" data-uranium-retry>Retry</button></div></div>`;
+    body.innerHTML = `<div class="uranium-error chamber-state chamber-state-error"><div><strong>Uranium snapshot unavailable</strong><span>${escapeHtml(error?.message || error || 'The generated snapshot could not be loaded.')}</span><button class="chamber-action" type="button" data-uranium-retry>Retry</button></div></div>`;
 }
 
 function renderBody(snapshot, { quiet = false } = {}) {
@@ -1688,9 +1692,9 @@ function ensureOverlay() {
     overlay.className = 'modal-overlay chamber-overlay uranium-overlay';
     overlay.setAttribute('aria-hidden', 'true');
     overlay.innerHTML = `
-        <div class="modal-content modal-large chamber-content uranium-content" role="dialog" aria-modal="true" aria-labelledby="uranium-title">
+        <div class="modal-content modal-large chamber-content uranium-content market-room-shell" role="dialog" aria-modal="true" aria-labelledby="uranium-title">
             <button class="modal-close chamber-close" type="button" aria-label="Close Uranium Chamber">&times;</button>
-            <div class="uranium-body" id="uranium-chamber-body"></div>
+            <div class="uranium-body market-room-body" id="uranium-chamber-body"></div>
         </div>
     `;
     overlay.querySelector('.chamber-close').addEventListener('click', closeUraniumChamber);

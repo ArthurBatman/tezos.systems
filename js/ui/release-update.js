@@ -66,10 +66,15 @@ function scheduleSafeAreaReservation() {
         safeAreaFrame = 0;
         if (!dock || dock.hidden) {
             releaseToastSafeArea(SAFE_AREA_KEY);
+            document.documentElement.style.removeProperty('--release-update-safe-bottom');
+            document.body?.classList.remove('release-update-safe-area-raised');
             return;
         }
         const rect = dock.getBoundingClientRect();
-        reserveToastSafeArea(SAFE_AREA_KEY, window.innerHeight - rect.top + 12);
+        const safeBottom = window.innerHeight - rect.top + 12;
+        reserveToastSafeArea(SAFE_AREA_KEY, safeBottom);
+        document.documentElement.style.setProperty('--release-update-safe-bottom', `${safeBottom}px`);
+        document.body?.classList.add('release-update-safe-area-raised');
     });
 }
 
@@ -161,7 +166,7 @@ function ensureDock() {
         actionButton.textContent = currentPendingLabel;
         Promise.resolve(currentAction()).catch(() => {
             setReleaseUpdateDockState({
-                state: 'ready',
+                state: 'error',
                 title: 'Update needs another try',
                 detail: 'The new build is still ready. Try the update again.',
                 actionLabel: 'Try again'
@@ -179,6 +184,9 @@ function ensureDock() {
     });
 
     window.addEventListener('resize', scheduleSafeAreaReservation, { passive: true });
+    document.addEventListener('tezos:chamber-dialog-active', () => {
+        if (!dock?.hidden) setCollapsed(true);
+    });
     if ('ResizeObserver' in window) {
         resizeObserver = new ResizeObserver(scheduleSafeAreaReservation);
         resizeObserver.observe(dock);
@@ -252,7 +260,8 @@ export function showReleaseUpdateDock({
     });
 
     dock.hidden = false;
-    setCollapsed(!expanded);
+    const chamberActive = Boolean(document.querySelector('.chamber-overlay.active'));
+    setCollapsed(!expanded || chamberActive);
     if (meta === 'Build ready' && isGenericReleaseDetail(detail)) {
         hydrateIncomingReleaseContext(detail);
     }
@@ -289,4 +298,6 @@ export function hideReleaseUpdateDock() {
     dock.classList.remove('is-visible');
     dock.hidden = true;
     releaseToastSafeArea(SAFE_AREA_KEY);
+    document.documentElement.style.removeProperty('--release-update-safe-bottom');
+    document.body?.classList.remove('release-update-safe-area-raised');
 }

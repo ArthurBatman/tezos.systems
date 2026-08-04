@@ -5655,6 +5655,64 @@
     transform: none !important;
     animation: none !important;
 }
+/* Shared component roles. This bundle is render-blocking, so base controls and
+   lazy Chamber rooms can consume the same values without a first-paint gap. */
+:root {
+    --space-4: 16px;
+    --radius-control: 6px;
+    --radius-panel: 10px;
+    --radius-room: 16px;
+    --radius-lg: var(--radius-room);
+    --motion-fast: 150ms;
+    --motion-base: 200ms;
+    --motion-slow: 320ms;
+    --motion-room-enter: 550ms;
+    --ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
+    --type-room-title: clamp(1.15rem, 3.4vw, 1.6rem);
+}
+
+/* Normalized first-class Chamber viewport. Room palettes and internal spacing
+   stay local while the outer geometry follows one narrow/standard/wide model. */
+.chamber-overlay.chamber-shell-normalized {
+    padding: var(--space-4) !important;
+}
+
+.chamber-room-shell[data-room-size] {
+    --room-max-width: 1180px;
+    --room-max-height: 940px;
+    box-sizing: border-box;
+    width: min(var(--room-max-width), calc(100vw - (2 * var(--space-4)))) !important;
+    max-width: var(--room-max-width) !important;
+    height: min(var(--room-max-height), calc(100dvh - (2 * var(--space-4)))) !important;
+    max-height: calc(100dvh - (2 * var(--space-4))) !important;
+    border-radius: var(--radius-room) !important;
+}
+
+.chamber-room-shell[data-room-size="narrow"] { --room-max-width: 900px; }
+.chamber-room-shell[data-room-size="wide"] { --room-max-width: 1480px; }
+
+.chamber-title {
+    min-width: 0;
+    font-size: var(--type-room-title);
+    overflow-wrap: anywhere;
+}
+
+body.release-update-safe-area-raised .chamber-room-scroll {
+    padding-bottom: calc(var(--chamber-room-base-padding-bottom, 0px) + var(--release-update-safe-bottom, 0px)) !important;
+    scroll-padding-bottom: var(--release-update-safe-bottom, 0px);
+}
+
+@media (max-width: 759px) {
+    .chamber-overlay.chamber-shell-normalized { padding: 0 !important; }
+    .chamber-room-shell[data-room-size] {
+        width: 100vw !important;
+        max-width: none !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+    }
+}
+
 /* First-paint shell geometry. This bundle is render-blocking so these rules
    reserve the same layout that Chamber and utility hydration will use. */
 .price-cta {
@@ -5675,15 +5733,17 @@
 }
 
 .chamber-entry-shell-slot {
+    --chamber-entry-reserved-height: 236px;
     width: 100%;
     min-width: 0;
-    min-height: 236px;
+    min-height: var(--chamber-entry-reserved-height);
     border: 1px solid transparent;
     border-radius: var(--radius-lg);
 }
 
 #chambers-grid .chamber-entry-skeleton[data-chamber-layout="featured"] {
-    min-height: 320px;
+    --chamber-entry-reserved-height: 320px;
+    min-height: var(--chamber-entry-reserved-height);
 }
 
 #chambers-grid .chamber-entry-skeleton .chamber-entry-front {
@@ -5708,11 +5768,13 @@
 
 @media (min-width: 760px) {
     #chambers-grid .chamber-entry-shell-slot:is([data-chamber-layout="standard"], [data-chamber-layout="compact"]) {
-        min-height: 248px;
+        --chamber-entry-reserved-height: 248px;
+        min-height: var(--chamber-entry-reserved-height);
     }
 
     #chambers-grid .chamber-entry-shell-slot[data-chamber-layout="wide"] {
-        min-height: 300px;
+        --chamber-entry-reserved-height: 320px;
+        min-height: var(--chamber-entry-reserved-height);
     }
 }
 
@@ -5721,21 +5783,25 @@
    and Tezos X cannot move every category below them during intent hydration. */
 @media (max-width: 759px) {
     #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
-        min-height: 538px;
+        --chamber-entry-reserved-height: 538px;
+        min-height: var(--chamber-entry-reserved-height);
     }
 
     #chambers-grid .chamber-entry-shell-slot[data-chamber-slot="health"] {
-        min-height: 318px;
+        --chamber-entry-reserved-height: 318px;
+        min-height: var(--chamber-entry-reserved-height);
     }
 
     #chambers-grid #tezlink-entry-card[data-chamber-layout="standard"] {
-        min-height: 344px;
+        --chamber-entry-reserved-height: 344px;
+        min-height: var(--chamber-entry-reserved-height);
     }
 }
 
 @media (max-width: 479px) {
     #chambers-grid #network-pulse-entry-card[data-chamber-layout="featured"] {
-        min-height: 428px;
+        --chamber-entry-reserved-height: 428px;
+        min-height: var(--chamber-entry-reserved-height);
     }
 }
 
