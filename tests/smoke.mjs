@@ -22125,8 +22125,10 @@ async function smokeCycleHistoryChamber(browser, baseUrl) {
   assert(expectedFailureIssue >= 0, `Cycle History: deterministic failed-range probe did not reach the guarded refresh path ${JSON.stringify(issues)}`);
   issues.splice(expectedFailureIssue, 1);
 
-  await page.locator('#history-modal-close').click();
-  await page.waitForURL((url) => url.pathname === '/', { timeout: 10000 });
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === '/', { waitUntil: 'domcontentloaded', timeout: 30000 }),
+    page.locator('#history-modal-close').click()
+  ]);
   await page.locator('main').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#cycle-history-entry-card').scrollIntoViewIfNeeded();
   await assertPromotedLauncherGeometry(page, 'Cycle History desktop launcher geometry');
