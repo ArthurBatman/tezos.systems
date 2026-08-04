@@ -242,14 +242,7 @@
 }
 
 .metals-content {
-    width: min(1460px, calc(100vw - 28px));
-    max-width: 1460px;
-    height: min(940px, calc(100dvh - 28px));
-    max-height: calc(100dvh - 28px);
-    padding: 0;
-    overflow: hidden;
     border: 1px solid rgba(237, 200, 112, .29);
-    border-radius: 18px;
     background: var(--metals-ink);
     box-shadow: 0 34px 110px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 250, 230, .03) inset, 0 0 70px rgba(225, 184, 87, .07);
 }
@@ -264,9 +257,6 @@
 }
 
 .metals-body {
-    height: 100%;
-    overflow: auto;
-    overscroll-behavior: contain;
     color: #e4e3df;
     background:
         radial-gradient(circle at 13% -3%, rgba(236, 185, 67, .09), transparent 29%),
@@ -275,19 +265,11 @@
 }
 
 .metals-header {
-    position: sticky;
-    z-index: 11;
-    top: 0;
-    padding: 17px 64px 0 24px;
     border-bottom: 1px solid rgba(235, 200, 119, .14);
     background: rgba(8, 9, 12, .94);
-    backdrop-filter: blur(19px);
 }
 
 .metals-system-strip {
-    display: flex;
-    gap: 9px;
-    align-items: center;
     color: #7f8188;
     font: 600 9px/1.2 "JetBrains Mono", monospace;
     letter-spacing: .085em;
@@ -301,10 +283,6 @@
 .metals-system-strip strong { color: #f1c862; }
 
 .metals-title-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 9px;
     margin-top: 7px;
 }
 
@@ -312,17 +290,23 @@
     max-width: 100%;
     margin: 0;
     color: #fff9eb;
-    font: 740 clamp(1.5rem, 3vw, 2.35rem)/1.05 var(--font-ui, system-ui, sans-serif);
+    font-family: var(--font-ui, system-ui, sans-serif);
+    font-weight: 740;
     letter-spacing: -.045em;
+    line-height: 1.05;
     overflow-wrap: break-word;
 }
 
 .metals-badge,
 .metals-freshness,
 .metals-status {
+    border: 1px solid rgba(237, 199, 108, .22);
+    font-weight: 650;
+}
+
+.metals-status {
     display: inline-flex;
     padding: 4px 8px;
-    border: 1px solid rgba(237, 199, 108, .22);
     border-radius: 999px;
     font: 650 9px/1.25 "JetBrains Mono", monospace;
 }
@@ -334,30 +318,22 @@
 .metals-status.is-warn { color: #ffd094; border-color: rgba(255, 197, 95, .3); }
 .metals-status.is-bad { color: #ff9eab; border-color: rgba(255, 116, 135, .3); }
 
-.metals-intro { max-width: 980px; margin: 8px 0 12px; color: #98999c; font-size: .72rem; line-height: 1.5; overflow-wrap: break-word; }
+.metals-intro { margin: 8px 0 12px; color: #98999c; overflow-wrap: break-word; }
 
-.metals-tabs { display: flex; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
 .metals-tab {
-    position: relative;
-    flex: 0 0 auto;
-    padding: 10px 15px 11px;
-    border: 0;
     color: #8d8f94;
-    background: transparent;
     font: 700 10px/1.2 "JetBrains Mono", monospace;
     letter-spacing: .04em;
     text-transform: uppercase;
-    cursor: pointer;
 }
 .metals-tab::after { content: ''; position: absolute; right: 12px; bottom: 0; left: 12px; height: 2px; background: transparent; transition: background .16s ease; }
 .metals-tab[aria-selected="true"] { color: #f5d584; }
 .metals-tab[aria-selected="true"]::after { background: linear-gradient(90deg, var(--metals-gold), var(--metals-silver)); }
 .metals-tab:focus-visible { outline: 2px solid var(--metals-gold); outline-offset: -3px; border-radius: 6px; }
 
-.metals-view-shell { padding: 22px 24px 34px; }
-.metals-view-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
-.metals-view-head h3 { margin: 0; color: #f7f2e8; font: 720 clamp(1.25rem, 2vw, 1.75rem)/1.1 var(--font-ui, system-ui, sans-serif); letter-spacing: -.035em; }
-.metals-view-head p { max-width: 780px; margin: 5px 0 0; color: #87898f; font-size: .76rem; line-height: 1.5; }
+.metals-view-head { margin-bottom: 15px; }
+.metals-view-head h3 { color: #f7f2e8; font-family: var(--font-ui, system-ui, sans-serif); font-weight: 720; letter-spacing: -.035em; line-height: 1.1; }
+.metals-view-head p { color: #87898f; }
 .metals-view-content { min-height: 520px; }
 
 .metals-kicker,
@@ -399,11 +375,9 @@
 
 .metals-hero-copy p { max-width: 580px; margin: 0; color: #b2b0aa; font-size: .92rem; line-height: 1.65; }
 
-.metals-core-stage { position: relative; margin: 0; min-width: 0; overflow: hidden; }
-.metals-core-stage picture { display: block; width: 100%; height: 100%; }
-.metals-core-stage img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(.9) contrast(1.04); }
+.metals-core-stage img { filter: saturate(.9) contrast(1.04); }
 .metals-core-stage::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #08090d 0, transparent 28%), linear-gradient(0deg, rgba(7, 8, 11, .45), transparent 35%); }
-.metals-core-stage figcaption { position: absolute; z-index: 2; right: 14px; bottom: 12px; max-width: 300px; color: rgba(245, 240, 228, .58); font: 500 8px/1.35 "JetBrains Mono", monospace; text-align: right; }
+.metals-core-stage figcaption { color: rgba(245, 240, 228, .58); }
 
 .metals-hero-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); gap: 6px; margin-top: 28px; }
 .metals-hero-metrics span { padding: 9px; border: 1px solid rgba(233, 199, 118, .14); border-radius: 9px; background: rgba(14, 15, 19, .67); }
@@ -628,19 +602,11 @@ html[data-theme="default"] .metals-content { color-scheme: dark; }
     #chambers-grid .metals-entry-card .chamber-entry-footer { position: absolute; right: var(--chamber-card-inline-padding); bottom: .58rem; left: var(--chamber-card-inline-padding); margin-top: 0; padding-inline: 0; border-color: rgba(239, 200, 105, .16); }
     .metals-entry-card .chamber-expand-cue { color: #f1d17f; border-color: rgba(239, 200, 105, .35); background: rgba(15, 14, 12, .8); }
 
-    .metals-overlay { padding: 0; }
-    .metals-content { flex: 0 0 100vw; width: 100vw; height: 100dvh; max-height: 100dvh !important; padding: 0 !important; border: 0; border-radius: 0; }
-    .metals-header { padding: 14px 48px 0 13px; }
     .metals-intro { margin-bottom: 9px; }
-    .metals-tabs { margin-right: -34px; }
-    .metals-tab { padding-inline: 10px; }
-    .metals-view-shell { padding: 14px 11px 20px; }
-    .metals-view-head { display: block; }
     .metals-hero { display: flex; min-height: 610px; }
     .metals-core-stage.is-room { position: absolute; inset: 0; }
     .metals-core-stage.is-room::after { background: linear-gradient(0deg, #08090d 0, rgba(8, 9, 13, .94) 35%, transparent 72%); }
     .metals-core-stage.is-room img { object-position: 55% 20%; }
-    .metals-core-stage figcaption { top: 10px; right: 10px; bottom: auto; left: 10px; text-align: left; }
     .metals-hero-copy { align-self: end; padding: 25px 18px; background: transparent; }
     .metals-hero-copy h3 { font-size: 2.6rem; }
     .metals-assay-grid { grid-template-columns: 1fr; }

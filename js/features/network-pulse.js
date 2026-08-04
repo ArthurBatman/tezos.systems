@@ -16,7 +16,7 @@ import { siteMapJourneyLinks } from '../core/site-journey.js';
 import { getPulseDomainRows, getPulseHistoryRows } from '../core/pulse-history.mjs';
 import { loadStats, loadStatsTimestamp, saveStats } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, formatLarge, formatPercentage, formatSupply, formatUtcDateTime, pluralize } from '../core/utils.js';
-import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import { openCardHistoryModal } from './history.js';
 
@@ -61,7 +61,6 @@ let lastEntryHistoryRows = [];
 let lastDomainRows = { ...EMPTY_DOMAIN_ROWS };
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
-let focusedBeforeOpen = null;
 let pulseObserver = null;
 let entryEventsReady = false;
 let entryPriceObserver = null;
@@ -1325,19 +1324,6 @@ function unlockPageScroll() {
     savedHtmlOverflow = null;
 }
 
-function focusCloseButton(overlay) {
-    const close = overlay?.querySelector('.chamber-close');
-    window.requestAnimationFrame(() => close?.focus({ preventScroll: true }));
-}
-
-function restoreFocus() {
-    const target = focusedBeforeOpen;
-    focusedBeforeOpen = null;
-    if (target && typeof target.focus === 'function' && document.contains(target)) {
-        window.requestAnimationFrame(() => target.focus({ preventScroll: true }));
-    }
-}
-
 function isInChamberAnchor(href) {
     return href && href.startsWith('#network-pulse-');
 }
@@ -1445,12 +1431,6 @@ function ensureOverlay() {
         if (event.target === overlay) closeNetworkPulseChamber();
     });
     return overlay;
-}
-
-function handleEscape(event) {
-    if (event.key !== 'Escape') return;
-    if (document.getElementById('card-history-modal')?.classList.contains('active')) return;
-    closeNetworkPulseChamber();
 }
 
 function startScrollSpy() {
@@ -1568,29 +1548,29 @@ export async function openNetworkPulseChamber() {
     await ensureNetworkPulseCss();
     const overlay = ensureOverlay();
     const body = overlay.querySelector('.network-pulse-body');
-    focusedBeforeOpen = document.activeElement;
     body.dataset.networkPulseRendered = '0';
     renderNetworkPulseChamber(lastKnownStats(), body, { loading: true, rows: lastHistoryRows, domainRows: lastDomainRows });
-    document.addEventListener('keydown', handleEscape, true);
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
+    activateChamberDialog(overlay, {
+        close: closeNetworkPulseChamber,
+        dialogSelector: '.network-pulse-content',
+        label: 'Network Pulse Chamber',
+        restoreFocusSelector: '#network-pulse-entry-card'
+    });
     lockPageScroll();
     const content = overlay.querySelector('.network-pulse-content');
     if (content) content.scrollTop = 0;
-    focusCloseButton(overlay);
     await refreshNetworkPulseChamber({ force: true });
     startChamberRefresh();
 }
 
 export function closeNetworkPulseChamber() {
-    document.removeEventListener('keydown', handleEscape, true);
     stopChamberRefresh();
     stopScrollSpy();
     const overlay = document.getElementById('network-pulse-modal');
     overlay?.classList.remove('active');
-    overlay?.setAttribute('aria-hidden', 'true');
+    deactivateChamberDialog(overlay);
     unlockPageScroll();
-    restoreFocus();
 }
 
 export function initNetworkPulseChamber() {

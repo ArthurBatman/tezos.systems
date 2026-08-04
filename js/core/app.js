@@ -2618,9 +2618,13 @@ function wireChamberCategory(category) {
     const head = category?.querySelector(':scope > .chamber-category-head');
     if (!head || head.dataset.chamberCategoryWired === '1') return;
     head.dataset.chamberCategoryWired = '1';
+    let scrollRepairSerial = 0;
     head.addEventListener('click', (event) => {
+        const repairSerial = ++scrollRepairSerial;
         const scrollX = window.scrollX;
         const scrollY = window.scrollY;
+        const maxRestoreFrames = 8;
+        let restoreFrame = 0;
         let readerScrollIntent = false;
         const markReaderScrollIntent = () => { readerScrollIntent = true; };
         const markReaderKeyIntent = (keyEvent) => {
@@ -2647,20 +2651,20 @@ function wireChamberCategory(category) {
             html.style.scrollBehavior = previousBehavior;
         };
         const restoreBrowserShift = () => {
-            if (readerScrollIntent || document.activeElement !== head) return;
+            if (repairSerial !== scrollRepairSerial || readerScrollIntent || document.activeElement !== head) {
+                clearScrollIntentListeners();
+                return;
+            }
             if (window.scrollX !== scrollX || window.scrollY !== scrollY) restoreScroll();
+            restoreFrame += 1;
+            if (restoreFrame < maxRestoreFrames) requestAnimationFrame(restoreBrowserShift);
+            else clearScrollIntentListeners();
         };
         event.preventDefault();
         category.open = !category.open;
         category.getBoundingClientRect();
         if (window.scrollX !== scrollX || window.scrollY !== scrollY) restoreScroll();
-        requestAnimationFrame(() => {
-            restoreBrowserShift();
-            requestAnimationFrame(() => {
-                restoreBrowserShift();
-                clearScrollIntentListeners();
-            });
-        });
+        requestAnimationFrame(restoreBrowserShift);
     });
 }
 

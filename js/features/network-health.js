@@ -7,7 +7,7 @@ import { API_URLS } from '../core/config.js';
 import { versionedAsset } from '../core/asset-version.js';
 import { escapeHtml, formatFreshnessStamp, refreshDataFreshnessStates, setDataFreshnessState } from '../core/utils.js';
 import { fetchCycleInfo, fetchWithRetry } from '../core/api.js';
-import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import { quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 
@@ -78,7 +78,6 @@ let chamberRefreshInFlight = false;
 let lastContestedRoundSignalAt = 0;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
-let focusedBeforeChamber = null;
 let activityTapeCache = [];
 let activityTapeCacheAt = 0;
 let activityTapeInFlight = null;
@@ -3486,52 +3485,6 @@ function unlockPageScroll() {
     savedHtmlOverflow = null;
 }
 
-function chamberFocusableElements(overlay) {
-    return [...overlay.querySelectorAll([
-        'a[href]',
-        'button:not([disabled])',
-        'input:not([disabled])',
-        'select:not([disabled])',
-        'textarea:not([disabled])',
-        'summary',
-        '[tabindex]:not([tabindex="-1"])'
-    ].join(','))].filter((element) => element.getClientRects().length > 0 && element.getAttribute('aria-hidden') !== 'true');
-}
-
-function handleChamberKeydown(event) {
-    const overlay = document.getElementById('network-health-modal');
-    if (!overlay?.classList.contains('active')) return;
-    if (document.getElementById('share-modal') || document.getElementById('card-history-modal')?.classList.contains('active')) return;
-
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        closeNetworkHealthChamber();
-        return;
-    }
-    if (event.key !== 'Tab') return;
-
-    const focusable = chamberFocusableElements(overlay);
-    const content = overlay.querySelector('.health-content');
-    if (!focusable.length) {
-        event.preventDefault();
-        content?.focus({ preventScroll: true });
-        return;
-    }
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (!overlay.contains(document.activeElement)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus({ preventScroll: true });
-    } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus({ preventScroll: true });
-    } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus({ preventScroll: true });
-    }
-}
-
 function renderNetworkHealthLoading(body) {
     if (!body) return;
     delete body.dataset.healthRendered;
@@ -3612,22 +3565,17 @@ export async function openNetworkHealthChamber() {
         });
     }
 
-    const wasActive = overlay.classList.contains('active');
-    if (!wasActive) focusedBeforeChamber = document.activeElement;
     renderNetworkHealthLoading(overlay.querySelector('.health-body'));
-    document.addEventListener('keydown', handleChamberKeydown, true);
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
+    activateChamberDialog(overlay, {
+        close: closeNetworkHealthChamber,
+        dialogSelector: '.health-content',
+        label: 'Network Health Chamber',
+        restoreFocusSelector: '.stat-card[data-stat="network-health"]'
+    });
     lockPageScroll();
     const content = overlay.querySelector('.health-content');
     if (content) content.scrollTop = 0;
-    if (!wasActive) {
-        requestAnimationFrame(() => {
-            const target = overlay.querySelector('.chamber-close') || content;
-            target?.focus({ preventScroll: true });
-        });
-    }
-
     try {
         await refreshNetworkHealthChamber({ initial: true });
         startChamberRefresh();
@@ -3646,21 +3594,14 @@ export async function openNetworkHealthChamber() {
 }
 
 export function closeNetworkHealthChamber() {
-    document.removeEventListener('keydown', handleChamberKeydown, true);
     stopChamberRefresh();
     const overlay = document.getElementById('network-health-modal');
-    const wasActive = overlay?.classList.contains('active');
     if (overlay) {
         overlay.classList.remove('active');
-        overlay.setAttribute('aria-hidden', 'true');
+        deactivateChamberDialog(overlay);
     }
     document.getElementById('tooltip-network-health')?.classList.remove('is-open');
     unlockPageScroll();
-    if (wasActive && focusedBeforeChamber?.isConnected) {
-        const target = focusedBeforeChamber;
-        requestAnimationFrame(() => target.focus({ preventScroll: true }));
-    }
-    focusedBeforeChamber = null;
 }
 
 function wireNetworkHealthCard() {

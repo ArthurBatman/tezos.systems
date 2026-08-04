@@ -12,9 +12,7 @@
 }
 
 .minerals-entry-card,
-.minerals-entry-card *,
-.minerals-content,
-.minerals-content * { box-sizing: border-box; }
+.minerals-entry-card * { box-sizing: border-box; }
 
 .minerals-entry-card {
     position: relative;
@@ -238,16 +236,7 @@
 }
 
 .minerals-content {
-    position: relative;
-    width: min(1560px, calc(100vw - 16px));
-    max-width: none !important;
-    height: calc(100dvh - 16px);
-    max-height: none !important;
-    margin: 0 auto;
-    padding: 0 !important;
-    overflow: hidden !important;
     border: 1px solid rgba(109, 229, 228, .31) !important;
-    border-radius: 16px !important;
     color: #dce8e6;
     background:
         radial-gradient(circle at 83% 0%, rgba(64, 205, 207, .1), transparent 28%),
@@ -267,40 +256,33 @@
 }
 
 .minerals-body {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
     scrollbar-color: rgba(104, 217, 220, .35) transparent;
 }
 
 .minerals-header {
-    position: sticky;
-    z-index: 8;
-    top: 0;
-    padding: 15px 54px 0 24px;
     border-bottom: 1px solid rgba(106, 222, 224, .1);
     background: rgba(7, 16, 18, .94);
-    backdrop-filter: blur(18px);
 }
 
-.minerals-system-strip { display: flex; align-items: center; gap: 7px; color: #71898a; font: 650 8px/1.2 "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; }
+.minerals-system-strip { color: #71898a; font: 650 8px/1.2 "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; }
 .minerals-system-strip strong { color: var(--minerals-cyan); }
 
-.minerals-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
-.minerals-title-row h2 { min-width: 0; margin: 0; color: #effffb; font: 760 clamp(1.65rem, 3vw, 2.55rem)/1 var(--font-ui, system-ui, sans-serif); letter-spacing: -.055em; overflow-wrap: anywhere; }
+.minerals-title-row { margin-top: 7px; }
+.minerals-title-row h2 { color: #effffb; font-family: var(--font-ui, system-ui, sans-serif); font-weight: 760; letter-spacing: -.055em; line-height: 1; }
 
 .minerals-badge,
 .minerals-freshness,
+.minerals-status {
+    border: 1px solid rgba(111, 225, 226, .18);
+    font-weight: 650;
+}
+
 .minerals-status {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
     min-height: 21px;
     padding: 3px 7px;
-    border: 1px solid rgba(111, 225, 226, .18);
     border-radius: 999px;
     font: 650 8px/1.25 "JetBrains Mono", monospace;
 }
@@ -312,20 +294,13 @@
 .minerals-status.is-warn { color: #f0c180; border-color: rgba(213, 139, 80, .34); }
 .minerals-status.is-bad { color: #ff9b9a; border-color: rgba(212, 83, 71, .36); }
 
-.minerals-intro { max-width: 1020px; margin: 8px 0 11px; color: #899c9c; font-size: .72rem; line-height: 1.5; overflow-wrap: anywhere; }
-.minerals-tabs { display: flex; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.minerals-intro { margin: 8px 0 11px; color: #899c9c; overflow-wrap: anywhere; }
 
 .minerals-tab {
-    position: relative;
-    flex: 0 0 auto;
-    padding: 9px 13px 11px;
-    border: 0;
     color: #829697;
-    background: transparent;
     font: 700 9px/1.2 "JetBrains Mono", monospace;
     letter-spacing: .045em;
     text-transform: uppercase;
-    cursor: pointer;
 }
 
 .minerals-tab::after { content: ''; position: absolute; right: 12px; bottom: 0; left: 12px; height: 2px; background: transparent; }
@@ -333,10 +308,9 @@
 .minerals-tab[aria-selected="true"]::after { background: linear-gradient(90deg, var(--minerals-cyan), var(--minerals-copper), var(--minerals-oxide)); }
 .minerals-tab:focus-visible { outline: 2px solid var(--minerals-cyan); outline-offset: -3px; border-radius: 6px; }
 
-.minerals-view-shell { min-width: 0; padding: 22px 24px 34px; }
-.minerals-view-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
-.minerals-view-head h3 { margin: 0; color: #ebf7f4; font: 730 clamp(1.25rem, 2vw, 1.75rem)/1.1 var(--font-ui, system-ui, sans-serif); letter-spacing: -.035em; }
-.minerals-view-head p { max-width: 820px; margin: 5px 0 0; color: #7f9293; font-size: .76rem; line-height: 1.5; }
+.minerals-view-head { margin-bottom: 15px; }
+.minerals-view-head h3 { color: #ebf7f4; font-family: var(--font-ui, system-ui, sans-serif); font-weight: 730; letter-spacing: -.035em; line-height: 1.1; }
+.minerals-view-head p { color: #7f9293; }
 .minerals-view-content { min-width: 0; min-height: 520px; }
 
 .minerals-kicker,
@@ -358,11 +332,9 @@
 .minerals-proof-hero h3 { margin: 8px 0 12px; color: #effffb; font: 760 clamp(2rem, 4vw, 4.2rem)/.94 var(--font-ui, system-ui, sans-serif); letter-spacing: -.07em; }
 .minerals-hero-copy p { max-width: 620px; margin: 0; color: #adbfbd; font-size: .92rem; line-height: 1.65; }
 
-.minerals-core-stage { position: relative; min-width: 0; margin: 0; overflow: hidden; }
-.minerals-core-stage picture { display: block; width: 100%; height: 100%; }
-.minerals-core-stage img { display: block; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.08) contrast(1.04); }
+.minerals-core-stage img { filter: saturate(1.08) contrast(1.04); }
 .minerals-core-stage::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #0c2224 0, transparent 30%), linear-gradient(0deg, rgba(5, 13, 14, .48), transparent 38%); }
-.minerals-core-stage figcaption { position: absolute; z-index: 2; right: 14px; bottom: 12px; max-width: 310px; color: rgba(220, 255, 250, .58); font: 500 8px/1.35 "JetBrains Mono", monospace; text-align: right; }
+.minerals-core-stage figcaption { color: rgba(220, 255, 250, .58); }
 
 .minerals-hero-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 28px; }
 .minerals-hero-metrics span { min-width: 0; padding: 9px; border: 1px solid rgba(106, 224, 224, .13); border-radius: 9px; background: rgba(4, 14, 16, .58); }
@@ -671,12 +643,7 @@
 }
 
 @media (max-width: 760px) {
-    .minerals-overlay { padding: 0; }
-    .minerals-content { width: 100vw; height: 100dvh; border-width: 0 !important; border-radius: 0 !important; }
-    .minerals-header { padding: 14px 48px 0 14px; }
-    .minerals-view-shell { padding: 17px 12px 26px; }
     .minerals-view-content { min-height: 420px; }
-    .minerals-intro { font-size: .68rem; }
     .minerals-hero-copy { padding: 28px 20px; }
     .minerals-hero-copy h3,
     .minerals-etherlink-hero h3,
@@ -695,8 +662,6 @@
     .minerals-proof-hero { grid-template-columns: 1fr; padding: 28px 20px; }
     .minerals-basket-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .minerals-integrity { grid-template-columns: 1fr; }
-    .minerals-disclaimer { padding: 0 12px 15px; }
-
     #chambers-grid .minerals-entry-card { min-height: 330px !important; }
     .minerals-entry-front {
         grid-template:
@@ -713,9 +678,8 @@
 }
 
 @media (max-width: 520px) {
-    .minerals-title-row h2 { font-size: 1.55rem; }
     .minerals-freshness { flex-basis: 100%; width: fit-content; }
-    .minerals-tab { padding-right: 10px; padding-left: 10px; font-size: 8px; }
+    .minerals-tab { font-size: 8px; }
     .minerals-atlas-directory { grid-template-columns: 1fr; padding: 7px; }
     .minerals-atlas-card { grid-template-columns: 52px 1fr; }
     .minerals-boundary { grid-template-columns: 1fr; gap: 5px; }
@@ -759,10 +723,7 @@
 }
 
 @media (max-width: 360px) {
-    .minerals-header { padding-left: 10px; }
-    .minerals-view-shell { padding-right: 9px; padding-left: 9px; }
-    .minerals-title-row h2 { font-size: 1.38rem; }
-    .minerals-tab { padding-right: 8px; padding-left: 8px; font-size: 7px; }
+    .minerals-tab { font-size: 7px; }
     .minerals-hero-copy { padding: 24px 14px; }
     .minerals-hero-metrics { grid-template-columns: 1fr 1fr; }
     .minerals-filter-rail button,

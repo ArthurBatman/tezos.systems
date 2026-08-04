@@ -273,14 +273,7 @@
 }
 
 .uranium-content {
-    width: min(1460px, calc(100vw - 28px));
-    max-width: 1460px;
-    height: min(940px, calc(100dvh - 28px));
-    max-height: calc(100dvh - 28px);
-    padding: 0;
-    overflow: hidden;
     border: 1px solid rgba(157, 255, 74, .28);
-    border-radius: 18px;
     background: #040907;
     box-shadow: 0 32px 100px rgba(0, 0, 0, .68), 0 0 0 1px rgba(228, 255, 210, .025) inset, 0 0 65px rgba(118, 255, 44, .08);
 }
@@ -295,9 +288,6 @@
 }
 
 .uranium-body {
-    height: 100%;
-    overflow: auto;
-    overscroll-behavior: contain;
     color: #dce8df;
     background:
         radial-gradient(circle at 13% -3%, rgba(95, 229, 51, .095), transparent 29%),
@@ -306,19 +296,11 @@
 }
 
 .uranium-header {
-    position: sticky;
-    z-index: 11;
-    top: 0;
-    padding: 17px 64px 0 24px;
     border-bottom: 1px solid rgba(157, 255, 74, .13);
     background: rgba(4, 9, 7, .94);
-    backdrop-filter: blur(19px);
 }
 
 .uranium-system-strip {
-    display: flex;
-    gap: 9px;
-    align-items: center;
     color: #718278;
     font: 600 9px/1.2 "JetBrains Mono", monospace;
     letter-spacing: .085em;
@@ -328,27 +310,22 @@
 .uranium-system-strip strong { color: #a4ff71; }
 
 .uranium-title-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 9px;
     margin-top: 7px;
 }
 
 .uranium-title-row h2 {
     margin: 0;
     color: #efffe8;
-    font: 740 clamp(1.5rem, 3vw, 2.35rem)/1.05 var(--font-ui, system-ui, sans-serif);
+    font-family: var(--font-ui, system-ui, sans-serif);
+    font-weight: 740;
     letter-spacing: -.045em;
+    line-height: 1.05;
 }
 
 .uranium-badge,
 .uranium-freshness {
-    display: inline-flex;
-    padding: 4px 8px;
     border: 1px solid rgba(157, 255, 74, .22);
-    border-radius: 999px;
-    font: 650 9px/1.25 "JetBrains Mono", monospace;
+    font-weight: 650;
 }
 
 .uranium-badge {
@@ -361,30 +338,13 @@
 .uranium-freshness.is-stale { color: #ffd093; border-color: rgba(255, 198, 109, .28); }
 
 .uranium-intro {
-    max-width: 920px;
     margin: 8px 0 12px;
     color: #8a9c90;
-    font-size: .72rem;
-    line-height: 1.5;
-}
-
-.uranium-tabs {
-    display: flex;
-    gap: 2px;
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: thin;
 }
 
 .uranium-tab {
-    position: relative;
-    flex: 0 0 auto;
-    padding: 10px 14px 11px;
-    border: 0;
     color: #73857a;
-    background: transparent;
     font: 650 10px/1.2 "JetBrains Mono", monospace;
-    cursor: pointer;
 }
 
 .uranium-tab::after {
@@ -413,27 +373,19 @@
     outline-offset: 2px;
 }
 
-.uranium-view-shell { padding: 18px 20px 26px; }
-
 .uranium-view-head {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 16px;
     margin-bottom: 12px;
 }
 
 .uranium-view-head h3 {
-    margin: 0;
     color: #dfffd1;
-    font: 700 1rem/1.25 "JetBrains Mono", monospace;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    line-height: 1.25;
 }
 
 .uranium-view-head p {
-    margin: 4px 0 0;
     color: #718278;
-    font-size: .68rem;
-    line-height: 1.45;
 }
 
 .uranium-view-content { display: grid; gap: 12px; }
@@ -569,18 +521,7 @@
     cursor: pointer;
 }
 
-.uranium-core-stage {
-    position: relative;
-    margin: 0;
-    min-width: 0;
-    overflow: hidden;
-}
-
-.uranium-core-stage picture,
-.uranium-core-stage img { display: block; width: 100%; height: 100%; }
-
 .uranium-core-stage img {
-    object-fit: cover;
     object-position: center;
 }
 
@@ -598,27 +539,30 @@
 }
 
 .uranium-core-stage figcaption {
-    position: absolute;
-    z-index: 3;
-    right: 13px;
-    bottom: 10px;
-    max-width: calc(100% - 26px);
     padding: 5px 7px;
     border-radius: 5px;
     color: #9cb2a2;
     background: rgba(2, 8, 4, .78);
-    font: 500 8px/1.35 "JetBrains Mono", monospace;
-    text-align: right;
     backdrop-filter: blur(6px);
 }
 
 .uranium-core-stage.is-entry {
+    position: relative;
     height: 100%;
     min-height: 0;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
     border-radius: 12px;
     background: radial-gradient(circle at 50% 45%, rgba(0, 230, 118, .08), transparent 64%);
     border: 1px solid rgba(107, 255, 161, .22);
     box-shadow: 0 0 24px rgba(0, 255, 128, .17), inset 0 0 18px rgba(0, 230, 118, .08);
+}
+.uranium-core-stage.is-entry picture,
+.uranium-core-stage.is-entry img {
+    display: block;
+    width: 100%;
+    height: 100%;
 }
 .uranium-core-stage.is-entry img {
     object-fit: cover;
@@ -1159,20 +1103,12 @@ html[data-theme="clean"] .uranium-chart-provenance { color: #58715d; }
         box-shadow: 0 0 16px rgba(0, 230, 118, .09);
     }
     .uranium-core-stage.is-entry { min-height: 0; }
-    .uranium-overlay { padding: 0; }
-    .uranium-content { flex: 0 0 100vw; width: 100vw; height: 100dvh; max-height: 100dvh !important; padding: 0 !important; border: 0; border-radius: 0; }
-    .uranium-header { padding: 14px 48px 0 13px; }
     .uranium-intro { margin-bottom: 9px; }
-    .uranium-tabs { margin-right: -34px; }
-    .uranium-tab { padding-inline: 10px; }
-    .uranium-view-shell { padding: 14px 11px 20px; }
-    .uranium-view-head { display: block; }
     .uranium-hero-panel { min-height: 460px; }
     .uranium-hero-copy { align-self: end; padding: 22px 18px; }
     .uranium-hero-copy h3 { font-size: 2.25rem; }
     .uranium-core-stage.is-room { min-height: 460px; }
     .uranium-core-stage.is-room img { object-position: 61% center; }
-    .uranium-core-stage figcaption { top: 10px; right: 10px; bottom: auto; left: 10px; text-align: left; }
     .uranium-overview-grid { grid-template-columns: 1fr; }
     .uranium-market-lead,
     .uranium-proof-hero { grid-template-columns: 1fr; }

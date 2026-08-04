@@ -2657,8 +2657,9 @@ async function installFeatureMocks(context, options = {}) {
       }
       if (url.includes('/rights/count?')) return fulfillText(route, '0');
       if (url.includes('/operations/update_consensus_key')) {
-        return fulfillJson(route, [
+        const operations = [
           {
+            id: 910001,
             level: 12000000,
             timestamp: new Date(Date.now() - 14 * 86400000).toISOString(),
             sender: { address: SAMPLE_ADDRESS, alias: 'QA Baker' },
@@ -2668,6 +2669,7 @@ async function installFeatureMocks(context, options = {}) {
             status: 'applied'
           },
           {
+            id: 910002,
             level: 12345000,
             timestamp: new Date(Date.now() - 1 * 86400000).toISOString(),
             sender: { address: SAMPLE_ADDRESS_3, alias: 'Pending Baker' },
@@ -2676,7 +2678,11 @@ async function installFeatureMocks(context, options = {}) {
             activationCycle: 1284,
             status: 'applied'
           }
-        ]);
+        ];
+        const minLevel = Number(new URL(url).searchParams.get('level.ge'));
+        return fulfillJson(route, Number.isFinite(minLevel)
+          ? operations.filter((operation) => operation.level >= minLevel)
+          : operations);
       }
       if (url.includes('/voting/periods/current/voters?') && url.includes('limit=10000')) {
         if (etherlinkPromotion) {
@@ -3553,6 +3559,44 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+async function assertNormalizedChamberShell(page, overlaySelector, dialogSelector, expectedSize, label) {
+  await page.waitForFunction(({ overlaySelector, dialogSelector, expectedSize }) => {
+    const dialog = document.querySelector(overlaySelector)?.querySelector(dialogSelector);
+    if (!dialog) return false;
+    const rect = dialog.getBoundingClientRect();
+    const maxWidths = { narrow: 900, standard: 1180, wide: 1480 };
+    const mobile = window.innerWidth < 760;
+    const expectedWidth = mobile ? window.innerWidth : Math.min(maxWidths[expectedSize], window.innerWidth - 32);
+    const expectedHeight = mobile ? window.innerHeight : Math.min(940, window.innerHeight - 32);
+    return Math.abs(rect.width - expectedWidth) <= 0.25 && Math.abs(rect.height - expectedHeight) <= 0.25;
+  }, { overlaySelector, dialogSelector, expectedSize }, { timeout: 5000 });
+  const geometry = await page.evaluate(({ overlaySelector, dialogSelector }) => {
+    const overlay = document.querySelector(overlaySelector);
+    const dialog = overlay?.querySelector(dialogSelector);
+    const rect = dialog?.getBoundingClientRect();
+    return {
+      normalized: overlay?.classList.contains('chamber-shell-normalized') || false,
+      roomShell: dialog?.classList.contains('chamber-room-shell') || false,
+      roomSize: dialog?.dataset.roomSize || '',
+      width: rect?.width || 0,
+      height: rect?.height || 0,
+      radius: Number.parseFloat(dialog ? getComputedStyle(dialog).borderTopLeftRadius : '0') || 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    };
+  }, { overlaySelector, dialogSelector });
+  const maxWidths = { narrow: 900, standard: 1180, wide: 1480 };
+  const mobile = geometry.viewportWidth < 760;
+  const expectedWidth = mobile ? geometry.viewportWidth : Math.min(maxWidths[expectedSize], geometry.viewportWidth - 32);
+  const expectedHeight = mobile ? geometry.viewportHeight : Math.min(940, geometry.viewportHeight - 32);
+  assert(geometry.normalized && geometry.roomShell && geometry.roomSize === expectedSize,
+    `${label}: shared Chamber shell lifecycle missing ${JSON.stringify(geometry)}`);
+  assert(Math.abs(geometry.width - expectedWidth) <= 2 && Math.abs(geometry.height - expectedHeight) <= 2,
+    `${label}: normalized Chamber geometry drifted ${JSON.stringify({ ...geometry, expectedWidth, expectedHeight })}`);
+  assert(mobile ? geometry.radius <= 0.5 : Math.abs(geometry.radius - 16) <= 0.5,
+    `${label}: normalized Chamber radius drifted ${JSON.stringify(geometry)}`);
+}
+
 async function assertChamberOrder(page, label) {
   const chamberState = await page.evaluate(() => {
     const cardKey = (el) => el.id || el.dataset.stat || '';
@@ -4109,7 +4153,13 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       head?.click();
       return scrollY;
     });
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.waitForFunction((targetScrollY) => {
+      const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
+      const head = category?.querySelector(':scope > .chamber-category-head');
+      return Boolean(category?.open
+        && document.activeElement === head
+        && Math.abs(window.scrollY - targetScrollY) <= 4);
+    }, activationScrollY, { timeout: 3000 });
     const afterToggle = await page.evaluate(() => {
       const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
       return {
@@ -4139,7 +4189,7 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       head?.addEventListener('click', () => {
         const probe = window.__chamberCategoryScrollProbe;
         probe.readerIntent = true;
-        window.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+        head.dispatchEvent(new WheelEvent('wheel', { deltaY: -240, bubbles: true, cancelable: true }));
         const html = document.documentElement;
         const previousBehavior = html.style.scrollBehavior;
         html.style.scrollBehavior = 'auto';
@@ -7214,6 +7264,7 @@ async function smokeStakingChamber(browser, baseUrl) {
 
   await page.locator('#staking-entry-card .chamber-expand-cue').click();
   await page.locator('#staking-chamber-modal.active .staking-chamber-content').waitFor({ state: 'visible', timeout: 10000 });
+  await assertNormalizedChamberShell(page, '#staking-chamber-modal.active', '.staking-chamber-content', 'narrow', label);
   await page.waitForFunction(() => /Showing 4 of 4 complete >10K moves/.test(document.querySelector('#staking-archive-count')?.textContent || ''), null, { timeout: 30000 });
 
   const roomState = await page.evaluate(() => ({
@@ -7293,7 +7344,7 @@ async function smokeStakingChamber(browser, baseUrl) {
       operationRowsInside: rows.every((row) => inside(row.getBoundingClientRect()))
     };
   });
-  assert(mobileState.modalInside && mobileState.modalWidth <= 382 && mobileState.operationRowsInside && mobileState.horizontalOverflow <= 1, `${label}: mobile modal or receipt rows escape the viewport ${JSON.stringify(mobileState)}`);
+  assert(mobileState.modalInside && Math.abs(mobileState.modalWidth - 390) <= 1 && mobileState.operationRowsInside && mobileState.horizontalOverflow <= 1, `${label}: mobile full-bleed modal or receipt rows escape the viewport ${JSON.stringify(mobileState)}`);
   assert(mobileState.controlsMinHeight >= 44, `${label}: mobile filter controls are smaller than 44px ${JSON.stringify(mobileState)}`);
 
   await page.locator('#staking-chamber-modal .chamber-close').click();
@@ -7389,6 +7440,7 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
 
   await page.locator('#network-pulse-entry-card .chamber-entry-title').click();
   await page.locator('#network-pulse-modal.active').waitFor({ state: 'visible', timeout: 10000 });
+  await assertNormalizedChamberShell(page, '#network-pulse-modal.active', '.network-pulse-content', 'standard', label);
   await page.locator('#network-pulse-modal .chamber-close').click();
   await page.locator('#network-pulse-modal').waitFor({ state: 'hidden', timeout: 5000 });
 
@@ -12473,6 +12525,7 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     `network health chamber: finality should show an honest estimate while live cadence samples, saw ${initialFinality} / ${initialFinalityTitle}`
   );
   await page.locator('#network-health-modal.active .health-content').waitFor({ state: 'visible', timeout: 15000 });
+  await assertNormalizedChamberShell(page, '#network-health-modal.active', '.health-content', 'standard', 'network health chamber');
   await page.locator('#network-health-modal.active .chamber-loading-fill').waitFor({ state: 'visible', timeout: 5000 });
   const loaderState = await page.evaluate(async () => {
     const modal = document.querySelector('#network-health-modal');
@@ -13917,6 +13970,7 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     const response = await page.goto(`${baseUrl}/tezoscrp/`, { waitUntil: 'domcontentloaded' });
     assert(response?.ok(), `TezosCRP ${label}: pretty route failed with HTTP ${response?.status()}`);
     await page.locator('#tezoscrp-modal.active .tezoscrp-content').waitFor({ state: 'visible', timeout: 15000 });
+    await assertNormalizedChamberShell(page, '#tezoscrp-modal.active', '.tezoscrp-content', 'standard', `TezosCRP ${label}`);
     await page.locator('#tezoscrp-hall-results .tezoscrp-ranking').waitFor({ state: 'visible', timeout: 15000 });
 
     const initial = await page.evaluate(() => {
@@ -14084,6 +14138,7 @@ async function smokeMaxisChamber(browser, baseUrl) {
   await page.waitForFunction(() => window.location.pathname === '/maxis/' && window.location.hash === '', null, { timeout: 7000 });
   await page.locator('#maxis-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#maxis-modal.active .maxis-content').waitFor({ state: 'visible', timeout: 15000 });
+  await assertNormalizedChamberShell(page, '#maxis-modal.active', '.maxis-content', 'standard', 'tezos maxis chamber');
   await page.locator('#maxis-modal .maxis-experience').waitFor({ state: 'visible', timeout: 15000 });
 
   const desktopLauncher = await readMaxisLauncherGeometry(page);
@@ -18716,6 +18771,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     assert(mobileResponse?.ok(), `metals chamber ${viewport.width}px: route failed with HTTP ${mobileResponse?.status()}`);
     await mobilePage.locator('#metals-modal.active .metals-content').waitFor({ state: 'visible', timeout: 10000 });
     await mobilePage.waitForFunction(() => document.querySelector('#metals-chamber-body')?.dataset.metalsRendered === '1', null, { timeout: 10000 });
+    await assertNormalizedChamberShell(mobilePage, '#metals-modal.active', '.metals-content', 'wide', `metals chamber ${viewport.width}px`);
     const mobileState = await mobilePage.evaluate(() => {
       const content = document.querySelector('#metals-modal .metals-content');
       const body = document.querySelector('#metals-chamber-body');
@@ -19474,10 +19530,10 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   await installFeatureMocks(context);
   await context.addInitScript(() => {
     window.__tezosSystemsIntervals = [];
-    const originalSetInterval = window.setInterval.bind(window);
+    let nextTestIntervalId = 1_000_000;
     window.setInterval = (handler, timeout, ...args) => {
-      const id = originalSetInterval(handler, timeout, ...args);
-      window.__tezosSystemsIntervals.push({ handler, id, timeout });
+      const id = nextTestIntervalId++;
+      window.__tezosSystemsIntervals.push({ handler, id, timeout, args });
       return id;
     };
     localStorage.setItem('tezos-systems-theme', 'matrix');
@@ -20263,6 +20319,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   await page.locator('#chamber-entry-card .card-front').click();
   await page.locator('.chamber-overlay.active .chamber-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#chamber-modal.active .chamber-badge').waitFor({ state: 'visible', timeout: 10000 });
+  await assertNormalizedChamberShell(page, '#chamber-modal.active', '.chamber-content', 'standard', 'L1 Governance chamber');
   await page.locator('#chamber-modal.active .gauge-context-label').waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction(() => document.querySelectorAll('#chamber-current-vote-order .current-vote-row').length >= 2, null, { timeout: 10000 });
   await page.waitForFunction(() => document.querySelectorAll('#chamber-vote-log .vote-log-row').length >= 40, null, { timeout: 10000 });
@@ -20399,6 +20456,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   const lbRequestsBeforeOpen = lbBlockRequests.length;
   await page.evaluate(() => { window.location.hash = 'lb'; });
   await page.locator('#liquidity-baking-modal.active .lb-content').waitFor({ state: 'visible', timeout: 10000 });
+  await assertNormalizedChamberShell(page, '#liquidity-baking-modal.active', '.lb-content', 'standard', 'Liquidity Baking chamber');
   await page.waitForFunction(() => document.querySelectorAll('#lb-baker-vote-list .lb-table-row').length >= 4, null, { timeout: 10000 });
   assert(lbBlockRequests.length === lbRequestsBeforeOpen, `governance testing period: opening LB should reuse the shared card cache before the six-second cadence, saw ${lbBlockRequests.slice(lbRequestsBeforeOpen).map(String).join(', ')}`);
   await page.waitForFunction(() => document.querySelectorAll('#lb-lore-body .lb-lore-item').length >= 3, null, { timeout: 10000 });

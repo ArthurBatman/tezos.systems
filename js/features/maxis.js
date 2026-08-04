@@ -8,7 +8,7 @@ import { versionedAsset } from '../core/asset-version.js';
 import { sha256Text } from '../core/sha256.js';
 import { escapeHtml, formatUtcDateTime } from '../core/utils.js';
 import { isTezDomainName, normalizeTezDomainName, resolveTezDomainAddress } from '../core/tezos-domains.js';
-import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const LEGACY_DATA_URL = '/data/maxis-leaders.json';
@@ -116,7 +116,6 @@ const shardCache = new Map();
 const shardRequestCache = new Map();
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
-let focusedBeforeOpen = null;
 let initComplete = false;
 let requestSerial = 0;
 let summaryRequestSerial = 0;
@@ -3538,36 +3537,13 @@ function ensureEntryCard() {
     return card;
 }
 
-function getFocusable(root) {
-    return [...root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
-        .filter((element) => element.getClientRects().length > 0);
-}
-
-function handleKeydown(event) {
+function closeMaxisDialogLayer() {
     const overlay = document.getElementById('maxis-modal');
-    if (!overlay?.classList.contains('active')) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (chamberState.selectorOpen || overlay.querySelector('.maxis-season-tray.is-open')) {
-            setSelectorOpen(false, { focus: true });
-            return;
-        }
-        closeMaxisChamber();
+    if (chamberState.selectorOpen || overlay?.querySelector('.maxis-season-tray.is-open')) {
+        setSelectorOpen(false, { focus: true });
         return;
     }
-    if (event.key !== 'Tab') return;
-    const focusable = getFocusable(overlay);
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus({ preventScroll: true });
-    } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus({ preventScroll: true });
-    }
+    closeMaxisChamber();
 }
 
 function handleOutsidePointer(event) {
@@ -3722,38 +3698,32 @@ export async function openMaxisChamber() {
         });
     }
     if (overlay.classList.contains('active')) return;
-    focusedBeforeOpen = document.activeElement;
     savedBodyOverflow = document.body.style.overflow;
     savedHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
-    document.addEventListener('keydown', handleKeydown, true);
+    activateChamberDialog(overlay, {
+        close: closeMaxisDialogLayer,
+        dialogSelector: '.maxis-content',
+        titleId: 'maxis-title',
+        label: 'Tezos Maxis Chamber',
+        restoreFocusSelector: '#maxis-entry-card'
+    });
     document.addEventListener('pointerdown', handleOutsidePointer, true);
-    requestAnimationFrame(() => overlay.querySelector('.chamber-close')?.focus({ preventScroll: true }));
     await refreshChamber({ force: true });
 }
 
 export function closeMaxisChamber() {
-    document.removeEventListener('keydown', handleKeydown, true);
     document.removeEventListener('pointerdown', handleOutsidePointer, true);
     const overlay = document.getElementById('maxis-modal');
     if (overlay) {
         overlay.classList.remove('active');
-        overlay.setAttribute('aria-hidden', 'true');
+        deactivateChamberDialog(overlay);
     }
     chamberState.selectorOpen = false;
     document.body.style.overflow = savedBodyOverflow || '';
     document.documentElement.style.overflow = savedHtmlOverflow || '';
-    const focusTarget = focusedBeforeOpen && document.contains(focusedBeforeOpen)
-        ? focusedBeforeOpen
-        : findChamberLauncher('#maxis-entry-card');
-    if (focusTarget) {
-        const target = focusTarget;
-        requestAnimationFrame(() => target.focus({ preventScroll: true }));
-    }
-    focusedBeforeOpen = null;
 }
 
 async function assertEntrySummaryProjection(document) {

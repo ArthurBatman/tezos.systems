@@ -5,7 +5,7 @@
 
 import { escapeHtml } from '../core/utils.js';
 import { versionedAsset } from '../core/asset-version.js';
-import { findChamberLauncher, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 
 const SUMMARY_URL = versionedAsset('/data/tezoscrp-summary.json');
@@ -25,7 +25,6 @@ let summaryPromise = null;
 let dataPromise = null;
 let summaryData = null;
 let fullData = null;
-let focusedBeforeOpen = null;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 
@@ -265,33 +264,6 @@ function ensureEntryCard() {
         titleSelector: '#tezoscrp-entry-title, .stat-label'
     });
     return card;
-}
-
-function getFocusable(root) {
-    return [...root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-        .filter((element) => element.getClientRects().length > 0);
-}
-
-function handleKeydown(event) {
-    const overlay = document.getElementById('tezoscrp-modal');
-    if (!overlay?.classList.contains('active')) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeTezosCrpChamber();
-        return;
-    }
-    if (event.key !== 'Tab') return;
-    const focusable = getFocusable(overlay);
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus({ preventScroll: true });
-    } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus({ preventScroll: true });
-    }
 }
 
 function ensureOverlay() {
@@ -826,18 +798,20 @@ async function loadRoom({ force = false } = {}) {
 export async function openTezosCrpChamber() {
     await ensureStyles();
     const overlay = ensureOverlay();
-    if (!overlay.classList.contains('active')) focusedBeforeOpen = document.activeElement;
     savedBodyOverflow = document.body.style.overflow;
     savedHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
     readRouteState();
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
-    document.addEventListener('keydown', handleKeydown, true);
+    activateChamberDialog(overlay, {
+        close: closeTezosCrpChamber,
+        dialogSelector: '.tezoscrp-content',
+        titleId: 'tezoscrp-title',
+        restoreFocusSelector: '#tezoscrp-entry-card'
+    });
     const content = overlay.querySelector('.tezoscrp-content');
     if (content) content.scrollTop = 0;
-    requestAnimationFrame(() => overlay.querySelector('.chamber-close')?.focus({ preventScroll: true }));
     await loadRoom();
 }
 
@@ -845,13 +819,9 @@ export function closeTezosCrpChamber() {
     const overlay = document.getElementById('tezoscrp-modal');
     if (!overlay?.classList.contains('active')) return;
     overlay.classList.remove('active');
-    overlay.setAttribute('aria-hidden', 'true');
-    document.removeEventListener('keydown', handleKeydown, true);
+    deactivateChamberDialog(overlay);
     document.body.style.overflow = savedBodyOverflow || '';
     document.documentElement.style.overflow = savedHtmlOverflow || '';
-    const focusTarget = focusedBeforeOpen?.isConnected ? focusedBeforeOpen : findChamberLauncher('#tezoscrp-entry-card');
-    requestAnimationFrame(() => focusTarget?.focus({ preventScroll: true }));
-    focusedBeforeOpen = null;
 }
 
 export function initTezosCrpChamber() {

@@ -208,14 +208,7 @@
 }
 
 .capital-content {
-    width: min(1460px, calc(100vw - 28px));
-    max-width: 1460px;
-    height: min(940px, calc(100dvh - 28px));
-    max-height: calc(100dvh - 28px);
-    padding: 0;
-    overflow: hidden;
     border: 1px solid rgba(105, 231, 195, .28);
-    border-radius: 18px;
     background: #08111d;
     box-shadow: 0 30px 90px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .025) inset;
 }
@@ -227,9 +220,6 @@
 }
 
 .capital-body {
-    height: 100%;
-    overflow: auto;
-    overscroll-behavior: contain;
     color: #dce8f4;
     background:
         radial-gradient(circle at 12% 0%, rgba(105, 231, 195, .09), transparent 30%),
@@ -238,19 +228,11 @@
 }
 
 .capital-header {
-    position: sticky;
-    top: 0;
-    z-index: 9;
-    padding: 18px 64px 0 24px;
     border-bottom: 1px solid rgba(148, 163, 184, .14);
     background: rgba(8, 17, 29, .94);
-    backdrop-filter: blur(18px);
 }
 
 .capital-system-strip {
-    display: flex;
-    gap: 10px;
-    align-items: center;
     color: #8aa0b7;
     font: 500 10px/1.2 "JetBrains Mono", monospace;
     letter-spacing: .08em;
@@ -262,24 +244,21 @@
 }
 
 .capital-title-row {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 10px;
     margin-top: 8px;
 }
 
 .capital-title-row h2 {
     margin: 0;
     color: #f5fbff;
-    font: 700 clamp(1.45rem, 3vw, 2.25rem)/1.08 "Orbitron", sans-serif;
+    font-family: "Orbitron", sans-serif;
+    font-weight: 700;
     letter-spacing: -.025em;
+    line-height: 1.08;
 }
 
 .capital-badge,
 .capital-freshness {
-    border-radius: 999px;
-    font: 600 10px/1.2 "JetBrains Mono", monospace;
+    font-weight: 600;
     letter-spacing: .05em;
     text-transform: uppercase;
 }
@@ -302,17 +281,11 @@
 }
 
 .capital-intro {
-    max-width: 930px;
     margin: 8px 0 14px;
     color: #9fb2c5;
-    font-size: .88rem;
-    line-height: 1.55;
 }
 
 .capital-tabs {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
     scrollbar-width: none;
 }
 
@@ -321,15 +294,9 @@
 }
 
 .capital-tab {
-    position: relative;
-    flex: 0 0 auto;
-    padding: 11px 13px 13px;
-    border: 0;
     color: #8ea4ba;
-    background: transparent;
     font: 600 11px/1.2 "JetBrains Mono", monospace;
     letter-spacing: .035em;
-    cursor: pointer;
 }
 
 .capital-tab::after {
@@ -359,30 +326,21 @@
     outline-offset: 2px;
 }
 
-.capital-view-shell {
-    padding: 20px 24px 28px;
-}
-
 .capital-view-head {
-    display: flex;
-    gap: 18px;
-    justify-content: space-between;
-    align-items: flex-end;
     margin-bottom: 15px;
 }
 
 .capital-view-head h3 {
     margin: 0 0 5px;
     color: #f5fbff;
-    font: 700 1.06rem/1.25 "Orbitron", sans-serif;
+    font-family: "Orbitron", sans-serif;
+    font-weight: 700;
+    line-height: 1.25;
 }
 
 .capital-view-head p {
-    max-width: 780px;
     margin: 0;
     color: #8fa5ba;
-    font-size: .78rem;
-    line-height: 1.5;
 }
 
 .capital-range {
@@ -983,21 +941,6 @@
 }
 
 @media (max-width: 700px) {
-    .capital-overlay { padding: 0; }
-
-    .capital-content {
-        flex: 0 0 100vw;
-        width: 100vw;
-        height: 100dvh;
-        max-height: 100dvh !important;
-        padding: 0 !important;
-        border: 0;
-        border-radius: 0;
-    }
-
-    .capital-header { padding: 15px 48px 0 14px; }
-    .capital-view-shell { padding: 15px 12px 22px; }
-    .capital-view-head { display: block; }
     .capital-range-wrap { justify-items: start; margin-top: 12px; }
     .capital-range { width: max-content; max-width: 100%; overflow-x: auto; }
     .capital-cost-section { padding: 12px; }
@@ -1023,8 +966,6 @@
     .capital-entry-price-chart { grid-template-columns: 82px minmax(0, 1fr); gap: 7px; padding-inline: 7px; }
     .capital-kpi-grid { grid-template-columns: 1fr; }
     .capital-kpi { min-height: 94px; }
-    .capital-tabs { margin-right: -34px; }
-    .capital-tab { padding-inline: 10px; }
     .capital-pathways { grid-template-columns: 1fr; }
 }
 

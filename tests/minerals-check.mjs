@@ -104,6 +104,7 @@ const [
   generator,
   feature,
   css,
+  marketCss,
   app,
   siteMap,
   wayfinder,
@@ -122,6 +123,7 @@ const [
   readText('scripts/refresh-minerals-data.mjs'),
   readText('js/features/minerals-chamber.js'),
   readText('css/minerals-chamber.css'),
+  readText('css/market-room.css'),
   readText('js/core/app.js'),
   readText('js/core/site-map.js'),
   readText('js/ui/wayfinder.js'),
@@ -561,11 +563,12 @@ assert.match(css, /\[data-quiet-refreshing="true"\]/);
 assert.match(css, /\[data-quiet-refresh-settled="true"\]/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 for (const selector of [
-  '.minerals-entry-card', '.minerals-content', '.minerals-body', '.minerals-tabs',
+  '.minerals-entry-card', '.minerals-content', '.minerals-body',
   '.minerals-atlas-directory', '.minerals-supply-table', '.minerals-market-console',
   '.minerals-token-grid', '.minerals-proof-grid', '.minerals-coverage-grid',
   '.minerals-group-context-grid'
 ]) assert.ok(css.includes(selector), `CSS selector missing ${selector}`);
+assert.ok(feature.includes('minerals-tabs market-room-tabs') && marketCss.includes('.market-room-tabs'), 'shared Minerals tab structure missing');
 
 // Canonical route, discovery graph, app lifecycle, generated surfaces, and public data API.
 const route = CHAMBER_ROUTES.find(({ slug }) => slug === 'minerals');

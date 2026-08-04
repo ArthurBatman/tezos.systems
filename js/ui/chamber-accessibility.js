@@ -156,7 +156,8 @@ export function activateChamberDialog(overlay, {
     dialogSelector = '[role="dialog"], .chamber-content',
     titleId = '',
     label = '',
-    initialFocusSelector = '.chamber-close'
+    initialFocusSelector = '.chamber-close',
+    restoreFocusSelector = ''
 } = {}) {
     if (!overlay || typeof close !== 'function') return;
     const dialog = overlay.querySelector(dialogSelector);
@@ -206,7 +207,7 @@ export function activateChamberDialog(overlay, {
                 first.focus({ preventScroll: true });
             }
         };
-        dialogStates.set(overlay, { opener, keydown });
+        dialogStates.set(overlay, { opener, keydown, restoreFocusSelector });
         document.addEventListener('keydown', keydown, true);
     }
 
@@ -230,7 +231,13 @@ export function deactivateChamberDialog(overlay, { restoreFocus = true } = {}) {
     }
     overlay.setAttribute('aria-hidden', 'true');
 
-    if (restoreFocus && state?.opener?.isConnected && state.opener !== document.body) {
-        state.opener.focus({ preventScroll: true });
+    const fallbackTarget = state?.restoreFocusSelector
+        ? findChamberLauncher(state.restoreFocusSelector) || document.querySelector(state.restoreFocusSelector)
+        : null;
+    const focusTarget = state?.opener?.isConnected && state.opener !== document.body
+        ? state.opener
+        : fallbackTarget;
+    if (restoreFocus && focusTarget instanceof HTMLElement) {
+        focusTarget.focus({ preventScroll: true });
     }
 }

@@ -10,7 +10,7 @@ import { siteMapRoute } from '../core/site-map.js';
 import { siteMapJourneyLinks } from '../core/site-journey.js';
 import { loadStats, loadStatsTimestamp } from '../core/storage.js';
 import { escapeHtml, formatFreshnessStamp, matchesTextQuery, pluralize, setDataFreshnessState } from '../core/utils.js';
-import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
 import { openCardHistoryModal } from './history.js';
 
@@ -43,7 +43,6 @@ let archiveTableRequest = 0;
 let archiveCacheLoaded = false;
 let archiveBoundaries = { stake: 0, unstake: 0 };
 let overviewData = null;
-let lastFocusedElement = null;
 let savedBodyOverflow = null;
 let savedHtmlOverflow = null;
 let moverTrail = null;
@@ -556,30 +555,6 @@ function unlockPageScroll() {
     document.documentElement.style.overflow = savedHtmlOverflow || '';
     savedBodyOverflow = null;
     savedHtmlOverflow = null;
-}
-
-function handleModalKeydown(event) {
-    const overlay = document.getElementById('staking-chamber-modal');
-    if (!overlay?.classList.contains('active')) return;
-    if (document.getElementById('card-history-modal')?.classList.contains('active')) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeStakingChamber();
-        return;
-    }
-    if (event.key !== 'Tab') return;
-    const focusable = [...overlay.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-        .filter((element) => element.offsetParent !== null);
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-    }
 }
 
 function ensureOverlay() {
@@ -1170,14 +1145,16 @@ async function loadRoom({ force = false } = {}) {
 export async function openStakingChamber() {
     await ensureStakingStyles();
     const overlay = ensureOverlay();
-    if (!overlay.classList.contains('active')) lastFocusedElement = document.activeElement;
     overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
+    activateChamberDialog(overlay, {
+        close: closeStakingChamber,
+        dialogSelector: '.staking-chamber-content',
+        titleId: 'staking-chamber-title',
+        restoreFocusSelector: '#staking-entry-card'
+    });
     lockPageScroll();
-    document.addEventListener('keydown', handleModalKeydown);
     const content = overlay.querySelector('.staking-chamber-content');
     if (content) content.scrollTop = 0;
-    requestAnimationFrame(() => overlay.querySelector('.chamber-close')?.focus({ preventScroll: true }));
     await loadRoom();
 }
 
@@ -1185,13 +1162,10 @@ export function closeStakingChamber() {
     const overlay = document.getElementById('staking-chamber-modal');
     if (!overlay?.classList.contains('active')) return;
     overlay.classList.remove('active');
-    overlay.setAttribute('aria-hidden', 'true');
-    document.removeEventListener('keydown', handleModalKeydown);
+    deactivateChamberDialog(overlay);
     moverTrailRequest += 1;
     moverTrail = null;
     unlockPageScroll();
-    if (lastFocusedElement?.isConnected) lastFocusedElement.focus({ preventScroll: true });
-    lastFocusedElement = null;
 }
 
 export function initStakingChamber() {

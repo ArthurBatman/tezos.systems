@@ -44,6 +44,7 @@ const [
   generator,
   feature,
   css,
+  marketCss,
   app,
   siteMap,
   wayfinder,
@@ -60,6 +61,7 @@ const [
   readText('scripts/refresh-metals-data.mjs'),
   readText('js/features/metals-chamber.js'),
   readText('css/metals-chamber.css'),
+  readText('css/market-room.css'),
   readText('js/core/app.js'),
   readText('js/core/site-map.js'),
   readText('js/ui/wayfinder.js'),
@@ -451,9 +453,10 @@ for (const snippet of [
 assert.match(css, /\[data-quiet-refreshing="true"\]/);
 assert.match(css, /\[data-quiet-refresh-settled="true"\]/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
-for (const selector of ['.metals-entry-card', '.metals-content', '.metals-body', '.metals-tabs', '.metals-assay-grid', '.metals-clock-pair', '.metals-chain-grid', '.metals-proof-grid']) {
+for (const selector of ['.metals-entry-card', '.metals-content', '.metals-body', '.metals-assay-grid', '.metals-clock-pair', '.metals-chain-grid', '.metals-proof-grid']) {
   assert.ok(css.includes(selector), `CSS selector missing ${selector}`);
 }
+assert.ok(feature.includes('metals-tabs market-room-tabs') && marketCss.includes('.market-room-tabs'), 'shared Metals tab structure missing');
 
 const route = CHAMBER_ROUTES.find(({ slug }) => slug === 'metals');
 assert.ok(route);

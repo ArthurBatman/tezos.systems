@@ -4040,6 +4040,8 @@ async function checkChamberEfficiencyContracts() {
   const chamberAccessibility = await readText('js/ui/chamber-accessibility.js');
   const marketRoomStyles = await readText('css/market-room.css');
   const shellExtras = await readText('css/shell-extras.css');
+  const historyChamberStyles = await readText('css/history-chamber.css');
+  const stakingChamberStyles = await readText('css/staking-chamber.css');
   const mainStyles = await readText('css/styles.css');
   const networkPulseStyles = await readText('css/network-pulse.css');
   const dataAssets = await readText('js/core/data-assets.js');
@@ -4165,11 +4167,17 @@ async function checkChamberEfficiencyContracts() {
   ]) {
     if (!marketRoomStyles.includes(snippet)) fail(`market-room component layer is missing contract: ${snippet}`);
   }
+  if (!marketRoomStyles.includes('font-size: var(--type-room-title)')
+    || !stakingChamberStyles.includes('font-size: var(--type-room-title)')
+    || !historyChamberStyles.includes('font-size: var(--type-room-title)')) {
+    fail('shared Chamber title scale must own market, Staking, and Cycle History room titles');
+  }
   for (const snippet of [
     "window.addEventListener('wheel', markReaderScrollIntent, scrollIntentOptions)",
     "window.addEventListener('touchmove', markReaderScrollIntent, scrollIntentOptions)",
-    'if (readerScrollIntent || document.activeElement !== head) return',
-    'restoreBrowserShift();\n                clearScrollIntentListeners();',
+    'const maxRestoreFrames = 8',
+    'if (restoreFrame < maxRestoreFrames) requestAnimationFrame(restoreBrowserShift)',
+    'else clearScrollIntentListeners()',
     'const simulatedAnchoringShift = 369',
     'afterReaderScroll.restoreCallsAfterIntent === 0'
   ]) {
@@ -4207,6 +4215,50 @@ async function checkChamberEfficiencyContracts() {
     const source = await readText(`js/features/${moduleName}`);
     for (const contract of ["versionedAsset('/css/market-room.min.css')", "ensureChamberStylesheet('market-room-css'", 'market-room-shell', 'market-room-header', 'market-room-tabs', 'market-room-view-shell']) {
       if (!source.includes(contract)) fail(`${moduleName} is missing shared market-room contract: ${contract}`);
+    }
+  }
+  for (const moduleName of [
+    'network-pulse.js',
+    'staking-chamber.js',
+    'network-health.js',
+    'maxis.js',
+    'tezoscrp.js',
+    'liquidity-baking.js',
+    'chamber.js'
+  ]) {
+    const source = await readText(`js/features/${moduleName}`);
+    if (!source.includes('activateChamberDialog(overlay') || !source.includes('deactivateChamberDialog(overlay')) {
+      fail(`${moduleName} must use the shared Chamber dialog and shell lifecycle`);
+    }
+  }
+  const marketRoomLegacyStyles = {
+    capital: await readText('css/capital.css'),
+    metals: await readText('css/metals-chamber.css'),
+    minerals: await readText('css/minerals-chamber.css'),
+    uranium: await readText('css/uranium-chamber.css')
+  };
+  const ruleBody = (source, selector) => source.match(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`))?.[1] || '';
+  const ownsProperty = (body, property) => new RegExp(`(?:^|\\n)\\s*${property}\\s*:`, 'm').test(body);
+  for (const [prefix, source] of Object.entries(marketRoomLegacyStyles)) {
+    const content = ruleBody(source, `${prefix}-content`);
+    const header = ruleBody(source, `${prefix}-header`);
+    const title = ruleBody(source, `${prefix}-title-row h2`);
+    const tab = ruleBody(source, `${prefix}-tab`);
+    const coreStage = ruleBody(source, `${prefix}-core-stage`);
+    for (const property of ['width', 'max-width', 'height', 'max-height', 'padding', 'overflow', 'border-radius']) {
+      if (ownsProperty(content, property)) fail(`${prefix} room content must not override shared ${property} geometry`);
+    }
+    for (const property of ['position', 'z-index', 'top', 'padding', 'backdrop-filter']) {
+      if (ownsProperty(header, property)) fail(`${prefix} room header must not override shared ${property} structure`);
+    }
+    if (ownsProperty(title, 'font') || ownsProperty(title, 'font-size')) {
+      fail(`${prefix} room title must not override the shared title scale`);
+    }
+    for (const property of ['position', 'display', 'flex', 'padding', 'border', 'background', 'cursor']) {
+      if (ownsProperty(tab, property)) fail(`${prefix} room tab must not override shared ${property} structure`);
+    }
+    for (const property of ['position', 'min-width', 'margin', 'overflow']) {
+      if (ownsProperty(coreStage, property)) fail(`${prefix} room artwork frame must not override shared ${property} structure`);
     }
   }
   for (const stylesheet of ['css/metals-chamber.css', 'css/minerals-chamber.css', 'css/uranium-chamber.css']) {
@@ -7688,7 +7740,7 @@ async function checkMaxisContracts() {
     ['maxis hash route', "hash === 'maxis'", app],
     ['maxis site map', "id: 'maxis'", siteMap],
     ['maxis entry card', 'id = \'maxis-entry-card\'', maxis],
-    ['maxis stable focus restoration fallback', "findChamberLauncher('#maxis-entry-card')", maxis],
+    ['maxis shared focus restoration lifecycle', 'deactivateChamberDialog(overlay)', maxis],
     ['maxis Ledger Flow address action', '/#ledger-flow=${address}', maxis],
     ['maxis rank tweet action', 'https://twitter.com/intent/tweet?text=${tweetText}', maxis],
     ['maxis route-scoped rank shares', 'function rankShareUrl(category)', maxis],
@@ -8374,7 +8426,6 @@ async function checkMetalsIntegrationContracts() {
     '.metals-entry-card',
     '.metals-content',
     '.metals-body',
-    '.metals-tabs',
     '.metals-tab',
     '.metals-metal-switch',
     '.metals-assay-grid',
@@ -8549,7 +8600,7 @@ async function checkCapitalContracts() {
     || !/lastGood|last-good|last good/i.test(feature)) {
     fail('Capital Chamber must use quiet reconciliation, a visibility gate/catch-up, test interval override, and last-good data');
   }
-  for (const selector of ['.capital-entry-card', '.capital-entry-price-chart', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-view-shell', '.capital-range-wrap', '.capital-range-static', '.capital-cost-section', '.capital-market-price-panel', '.capital-featured-price-chart', '.capital-quality', '.capital-source-receipt']) {
+  for (const selector of ['.capital-entry-card', '.capital-entry-price-chart', '.capital-overlay', '.capital-tabs', '.capital-tab', '.capital-range-wrap', '.capital-range-static', '.capital-cost-section', '.capital-market-price-panel', '.capital-featured-price-chart', '.capital-quality', '.capital-source-receipt']) {
     if (!css.includes(selector)) fail(`Capital Chamber CSS is missing ${selector}`);
   }
   if (!smoke.includes("name: 'capital-chamber'")

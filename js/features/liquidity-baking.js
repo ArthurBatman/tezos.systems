@@ -6,7 +6,7 @@
 import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { escapeHtml, formatFreshnessStamp, matchesTextQuery, setDataFreshnessState } from '../core/utils.js';
-import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from '../core/quiet-refresh.js';
 export { fetchBakerLiquidityBakingVote } from '../core/liquidity-baking-vote.js';
 
@@ -1303,10 +1303,6 @@ function renderLiquidityBaking(data, container, activeFilter = _lbActiveFilter) 
     hydrateLiquidityBakingLore(container);
 }
 
-function handleEscape(e) {
-    if (e.key === 'Escape') closeLiquidityBakingMonitor();
-}
-
 async function refreshLiquidityBakingMonitor({ resetScroll = false, initial = false } = {}) {
     const overlay = document.getElementById('liquidity-baking-modal');
     const body = overlay?.querySelector('.lb-body');
@@ -1389,8 +1385,13 @@ export async function openLiquidityBakingMonitor() {
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeLiquidityBakingMonitor(); });
     }
 
-    document.addEventListener('keydown', handleEscape);
     overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeLiquidityBakingMonitor,
+        dialogSelector: '.lb-content',
+        label: 'Liquidity Baking Monitor',
+        restoreFocusSelector: '#lb-entry-card'
+    });
     lockPageScroll();
     const content = overlay.querySelector('.lb-content');
     if (content) content.scrollTop = 0;
@@ -1413,10 +1414,12 @@ export async function openLiquidityBakingMonitor() {
 }
 
 export function closeLiquidityBakingMonitor() {
-    document.removeEventListener('keydown', handleEscape);
     stopLiquidityBakingLiveRefresh();
     const overlay = document.getElementById('liquidity-baking-modal');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        deactivateChamberDialog(overlay);
+    }
     // Clear the entry card's info tooltip too, so it isn't left stuck on screen
     document.getElementById('tooltip-liquidity-baking')?.classList.remove('is-open');
     unlockPageScroll();

@@ -15,7 +15,7 @@ import { escapeHtml, formatFreshnessStamp, formatLiveCountdown, matchesTextQuery
 import { API_URLS } from '../core/config.js';
 import { loadDataAsset } from '../core/data-assets.js';
 import { fetchCurrentVotingPeriod } from '../core/api.js';
-import { wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
 
 const TZKT = API_URLS.tzkt;
 const HISTORY_CONTEXT_ROWS = 20;
@@ -2110,13 +2110,6 @@ function initEpochNavListeners() {
 
 // ─── Open / Close ───
 
-function handleChamberEscape(e) {
-    if (e.key === 'Escape') {
-        const overlay = document.getElementById('chamber-modal');
-        if (overlay && overlay.classList.contains('active')) closeChamber();
-    }
-}
-
 export async function openChamber() {
     let overlay = document.getElementById('chamber-modal');
     if (!overlay) {
@@ -2141,9 +2134,13 @@ export async function openChamber() {
         overlay.querySelector('.chamber-close').addEventListener('click', closeChamber);
         overlay.addEventListener('click', e => { if (e.target === overlay) closeChamber(); });
     }
-    document.addEventListener('keydown', handleChamberEscape);
-    
     overlay.classList.add('active');
+    activateChamberDialog(overlay, {
+        close: closeChamber,
+        dialogSelector: '.chamber-content',
+        label: 'Tezos L1 Governance Chamber',
+        restoreFocusSelector: '#chamber-entry-card'
+    });
     lockPageScrollForChamber();
     const content = overlay.querySelector('.chamber-content');
     if (content) content.scrollTop = 0;
@@ -2186,9 +2183,11 @@ export async function openChamber() {
 }
 
 export function closeChamber() {
-    document.removeEventListener('keydown', handleChamberEscape);
     const overlay = document.getElementById('chamber-modal');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+        overlay.classList.remove('active');
+        deactivateChamberDialog(overlay);
+    }
     unlockPageScrollForChamber();
 }
 
