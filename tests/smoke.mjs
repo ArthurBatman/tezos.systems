@@ -5150,20 +5150,29 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
       assert(initial.dockWidth >= 580 && initial.dockWidth <= 620.5, `release update dock ${testCase.label}: desktop transmission width drifted ${JSON.stringify(initial)}`);
     }
 
-    const errorPalette = await page.evaluate(async () => {
+    await page.evaluate(() => {
       window.__releaseUpdateUi.setReleaseUpdateDockState({ state: 'error' });
-      await new Promise(resolve => setTimeout(resolve, 220));
+      const action = document.querySelector('[data-release-update-action]');
+      if (action) getComputedStyle(action).backgroundColor;
+    });
+    await page.waitForFunction(() => {
       const dock = document.querySelector('[data-release-update-dock]');
       const card = dock?.querySelector('.release-update-card');
       const action = dock?.querySelector('[data-release-update-action]');
-      const result = {
+      return /239, 35, 60/.test(action ? getComputedStyle(action).backgroundColor : '')
+        && /239, 35, 60/.test(card ? getComputedStyle(card).borderColor : '');
+    }, null, { timeout: 1000 });
+    const errorPalette = await page.evaluate(() => {
+      const dock = document.querySelector('[data-release-update-dock]');
+      const card = dock?.querySelector('.release-update-card');
+      const action = dock?.querySelector('[data-release-update-action]');
+      return {
         actionBg: action ? getComputedStyle(action).backgroundColor : '',
         cardBorder: card ? getComputedStyle(card).borderColor : ''
       };
-      window.__releaseUpdateUi.setReleaseUpdateDockState({ state: 'ready' });
-      return result;
     });
     assert(/239, 35, 60/.test(errorPalette.actionBg) && /239, 35, 60/.test(errorPalette.cardBorder), `release update dock ${testCase.label}: actual failure state must retain clear red semantics ${JSON.stringify(errorPalette)}`);
+    await page.evaluate(() => window.__releaseUpdateUi.setReleaseUpdateDockState({ state: 'ready' }));
 
     await page.evaluate(() => {
       window.__releaseUpdateUi.showReleaseUpdateDock({
