@@ -2119,6 +2119,28 @@
         max-width: calc(100vw - 2rem);
     }
 
+    .hot-today-card:not(.hot-today-card-release) .hot-today-species-mark {
+        top: 0.72rem;
+        right: calc(100% - 3.15rem);
+        opacity: 0.2;
+        transform: scale(0.42);
+        transform-origin: top right;
+    }
+
+    .hot-today-card:not(.hot-today-card-release).is-hot-active .hot-today-species-mark {
+        opacity: 0.34;
+        transform: scale(0.42);
+    }
+
+    .hot-today-card:not(.hot-today-card-release) .hot-today-age {
+        padding: 0.16rem 0.32rem;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--bg-primary) 78%, transparent);
+        color: color-mix(in srgb, var(--text-secondary) 62%, var(--text-primary)) !important;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-secondary) 14%, transparent);
+        white-space: nowrap;
+    }
+
     .hot-today-card.is-spectacle-quiet {
         flex-basis: min(76vw, 280px);
     }

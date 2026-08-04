@@ -8467,6 +8467,24 @@ async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
       const cards = Array.from(document.querySelectorAll('#hot-today-island [data-hot-signal-id]'));
       const indexOf = (id) => cards.findIndex((card) => card.dataset.hotSignalId === id);
       const ribbonCards = cards.filter((card) => card.dataset.hotPersonal === '1');
+      const speciesGeometry = cards
+        .filter((card) => card.querySelector('.hot-today-species-mark'))
+        .map((card) => {
+          const markRect = card.querySelector('.hot-today-species-mark').getBoundingClientRect();
+          const copyRect = card.querySelector('.hot-today-copy').getBoundingClientRect();
+          const ageRect = card.querySelector('.hot-today-age')?.getBoundingClientRect();
+          const overlapWidth = ageRect
+            ? Math.max(0, Math.min(markRect.right, ageRect.right) - Math.max(markRect.left, ageRect.left))
+            : 0;
+          const overlapHeight = ageRect
+            ? Math.max(0, Math.min(markRect.bottom, ageRect.bottom) - Math.max(markRect.top, ageRect.top))
+            : 0;
+          return {
+            id: card.dataset.hotSignalId,
+            copyGap: copyRect.left - markRect.right,
+            ageOverlapArea: overlapWidth * overlapHeight
+          };
+        });
       const geometry = ribbonCards.map((card) => {
         const kicker = card.querySelector('.hot-today-kicker');
         const category = kicker?.firstElementChild;
@@ -8493,6 +8511,7 @@ async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
         cycleIndex: indexOf('personal-cycle-proof'),
         priceIndex: indexOf('personal-price-control'),
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        speciesGeometry,
         geometry
       };
     });
@@ -8519,6 +8538,11 @@ async function smokeLivePulsePersonalRibbons(browser, baseUrl) {
         && personalState.pageOverflow <= 1
         && personalState.geometry.every((item) => item.kickerOverflow <= 1 && item.categoryGap >= 0 && item.ageGap >= 0),
       `live pulse personal ribbons ${label}: ribbon accessibility or geometry regressed ${JSON.stringify(personalState)}`
+    );
+    assert(
+      label !== 'mobile'
+        || personalState.speciesGeometry.every((item) => item.copyGap >= -1 && item.ageOverlapArea <= 1),
+      `live pulse personal ribbons ${label}: decorative species marks re-entered the mobile reading lane ${JSON.stringify(personalState.speciesGeometry)}`
     );
 
     const quietBefore = await page.evaluate(() => {

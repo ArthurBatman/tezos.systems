@@ -6034,6 +6034,14 @@ async function checkNetworkContextNavigationContracts() {
   if (!shellExtras.includes('.hot-today-you') || !shellExtras.includes('.hot-today-you + .hot-today-age')) {
     fail('Live Pulse personal ribbon must remain compact and preserve the age label lane');
   }
+  for (const snippet of [
+    '.hot-today-card:not(.hot-today-card-release) .hot-today-species-mark',
+    'right: calc(100% - 3.15rem)',
+    'transform-origin: top right',
+    '.hot-today-card:not(.hot-today-card-release) .hot-today-age'
+  ]) {
+    if (!shellExtras.includes(snippet)) fail(`Live Pulse mobile reading-lane CSS missing: ${snippet}`);
+  }
   const smoke = await readText('tests/smoke.mjs');
   if (!smoke.includes("name: 'live-pulse-personal-ribbons'")) {
     fail('smoke catalog must include the Live Pulse personal ribbon desktop/mobile suite');

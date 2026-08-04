@@ -5,6 +5,12 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-04',
+        entries: [
+            { type: '🎨', text: 'Live Pulse cards now keep their decorative signal marks inside the icon lane on phones, leaving age labels and card copy clear across every visual species' }
+        ]
+    },
+    {
         date: '2026-08-03',
         entries: [
             { type: '✨', text: 'Liquidity Baking now uses its compact monitor’s lower band for the three most recent unique baker vote switchers, with exact 2,500-block coverage and a truthful no-change state' },
