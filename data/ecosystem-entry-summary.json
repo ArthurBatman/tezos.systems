@@ -1,13 +1,13 @@
 {
-  "contentHash": "9b7036fa1bc330322b64220f28abcb761ccb24013b6864eb2123e52e5c9c1852",
+  "contentHash": "bfdf9afa04d099111b3d1c962c837f2cce9e7e6ea1706dd3899a33f72ae9dde6",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-01T03:53:53.372Z",
+  "generatedAt": "2026-08-05T03:36:06.414Z",
   "source": {
     "path": "data/ecosystem-stats.json",
     "schemaVersion": 1,
-    "generatedAt": "2026-08-01T03:53:53.372Z",
-    "contentHash": "eb2b971dbd30c797c86c2029166d41af408e52017da4700600b0fd95c23121c6",
-    "fileSha256": "1c1e04c5c71c7374bc006d606454e0eebdf123bcb2f4124c72d69f04d78ce74e"
+    "generatedAt": "2026-08-05T03:36:06.414Z",
+    "contentHash": "1c1281bc105067705d70c7cacf7800ea00609d6d81df766bb30ce411ffdef6ad",
+    "fileSha256": "77887c4a678d8808a7b37c46f2ab402dd9a2c68dffb1d84da48082ce3c352569"
   },
   "universe": {
     "eligibleApps": 23,
@@ -25,44 +25,29 @@
     ]
   },
   "completeWeek": {
-    "weekStart": "2026-07-20T00:00:00.000Z",
-    "weekEnd": "2026-07-27T00:00:00.000Z"
+    "weekStart": "2026-07-27T00:00:00.000Z",
+    "weekEnd": "2026-08-03T00:00:00.000Z"
   },
   "partialWeek": {
-    "weekStart": "2026-07-27T00:00:00.000Z",
-    "observedAt": "2026-08-01T03:53:53.372Z",
+    "weekStart": "2026-08-03T00:00:00.000Z",
+    "observedAt": "2026-08-05T03:36:06.414Z",
     "status": "partial",
     "all": {
-      "activeWallets": 243,
-      "interactions": 3728
+      "activeWallets": 140,
+      "interactions": 1655
     },
     "layers": {
       "tezos": {
-        "activeWallets": 195,
-        "interactions": 661
+        "activeWallets": 120,
+        "interactions": 280
       },
       "etherlink": {
-        "activeWallets": 48,
-        "interactions": 3067
+        "activeWallets": 20,
+        "interactions": 1375
       }
     }
   },
   "weeks": [
-    {
-      "weekStart": "2026-01-26T00:00:00.000Z",
-      "all": {
-        "activeWallets": 1470,
-        "interactions": 10434
-      },
-      "tezos": {
-        "activeWallets": 1330,
-        "interactions": 10004
-      },
-      "etherlink": {
-        "activeWallets": 140,
-        "interactions": 430
-      }
-    },
     {
       "weekStart": "2026-02-02T00:00:00.000Z",
       "all": {
@@ -437,76 +422,91 @@
         "activeWallets": 54,
         "interactions": 3811
       }
+    },
+    {
+      "weekStart": "2026-07-27T00:00:00.000Z",
+      "all": {
+        "activeWallets": 294,
+        "interactions": 5021
+      },
+      "tezos": {
+        "activeWallets": 239,
+        "interactions": 919
+      },
+      "etherlink": {
+        "activeWallets": 55,
+        "interactions": 4102
+      }
     }
   ],
   "leaders": {
     "all": [
       {
         "rank": 1,
-        "id": "objkt",
-        "name": "Objkt",
-        "category": "nft",
-        "layers": [
-          "tezos"
-        ],
-        "activeWallets": 861,
-        "interactions": 5812,
-        "wowPct": -6.62,
-        "yoyPct": -43.84
-      },
-      {
-        "rank": 2,
         "id": "teia",
         "name": "Teia",
         "category": "nft",
         "layers": [
           "tezos"
         ],
-        "activeWallets": 205,
-        "interactions": 685,
-        "wowPct": -8.07,
-        "yoyPct": -32.57
+        "activeWallets": 195,
+        "interactions": 802,
+        "wowPct": -4.88,
+        "yoyPct": -31.34
       },
       {
-        "rank": 3,
-        "id": "3route",
-        "name": "3Route",
-        "category": "defi",
+        "rank": 2,
+        "id": "tezos-domains",
+        "name": "Tezos Domains",
+        "category": "identity",
         "layers": [
           "tezos"
         ],
-        "activeWallets": 131,
-        "interactions": 475,
-        "wowPct": -16.56,
-        "yoyPct": -68.2
+        "activeWallets": 49,
+        "interactions": 117,
+        "wowPct": 4.26,
+        "yoyPct": -37.18
+      },
+      {
+        "rank": 3,
+        "id": "etherlink-bridge",
+        "name": "Etherlink EVM Bridge",
+        "category": "bridge",
+        "layers": [
+          "etherlink"
+        ],
+        "activeWallets": 30,
+        "interactions": 55,
+        "wowPct": 3.45,
+        "yoyPct": null
       }
     ],
     "tezos": [
       {
         "rank": 1,
-        "id": "objkt",
-        "name": "Objkt",
-        "category": "nft",
-        "layers": [
-          "tezos"
-        ],
-        "activeWallets": 861,
-        "interactions": 5812,
-        "wowPct": -6.62,
-        "yoyPct": -43.84
-      },
-      {
-        "rank": 2,
         "id": "teia",
         "name": "Teia",
         "category": "nft",
         "layers": [
           "tezos"
         ],
-        "activeWallets": 205,
-        "interactions": 685,
-        "wowPct": -8.07,
-        "yoyPct": -32.57
+        "activeWallets": 195,
+        "interactions": 802,
+        "wowPct": -4.88,
+        "yoyPct": -31.34
+      },
+      {
+        "rank": 2,
+        "id": "tezos-domains",
+        "name": "Tezos Domains",
+        "category": "identity",
+        "layers": [
+          "tezos"
+        ],
+        "activeWallets": 49,
+        "interactions": 117,
+        "wowPct": 4.26,
+        "yoyPct": -37.18
       },
       {
         "rank": 3,
@@ -516,10 +516,10 @@
         "layers": [
           "tezos"
         ],
-        "activeWallets": 131,
-        "interactions": 475,
-        "wowPct": -16.56,
-        "yoyPct": -68.2
+        "activeWallets": 0,
+        "interactions": 0,
+        "wowPct": -100,
+        "yoyPct": -100
       }
     ],
     "etherlink": [
@@ -531,9 +531,9 @@
         "layers": [
           "etherlink"
         ],
-        "activeWallets": 29,
-        "interactions": 77,
-        "wowPct": -38.3,
+        "activeWallets": 30,
+        "interactions": 55,
+        "wowPct": 3.45,
         "yoyPct": null
       },
       {
@@ -545,9 +545,9 @@
           "etherlink"
         ],
         "activeWallets": 14,
-        "interactions": 3646,
-        "wowPct": -12.5,
-        "yoyPct": -87.27
+        "interactions": 4004,
+        "wowPct": 0,
+        "yoyPct": -81.58
       },
       {
         "rank": 3,
@@ -557,10 +557,10 @@
         "layers": [
           "etherlink"
         ],
-        "activeWallets": 10,
-        "interactions": 61,
-        "wowPct": -9.09,
-        "yoyPct": null
+        "activeWallets": 9,
+        "interactions": 23,
+        "wowPct": -10,
+        "yoyPct": 125
       }
     ]
   }
