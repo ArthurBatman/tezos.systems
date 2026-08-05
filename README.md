@@ -143,7 +143,9 @@ tezos.systems/
 │   ├── lib/maxis-evaluator-v2.mjs     # Immutable v2 season scoring/validation
 │   ├── lib/maxis-source-v2.mjs        # Immutable v2 source/query and build adapter
 │   ├── lib/maxis-transactions-v2.mjs  # Immutable v2 transaction checkpoint semantics
-│   ├── refresh-generated-surfaces.mjs  # Commit/scheduled generated-surface orchestrator
+│   ├── refresh-generated-surfaces.mjs  # Manual/pre-commit generated-surface orchestrator
+│   ├── refresh-scheduled-data.mjs      # Failure-isolated scheduled data delivery
+│   ├── check-generated-freshness.mjs   # Cross-family cadence and rollover alarm
 │   ├── generate-chamber-routes.mjs    # Pretty Chamber route generator
 │   ├── generate-chamber-og-images.mjs # Per-Chamber OG image generator
 │   ├── generate-milestone-catalog.mjs # 14-day/100-commit milestone refresh
@@ -1247,14 +1249,27 @@ first. `npm run refresh:milestones` forces a manual refresh. The browser consume
 the union of generated and shared base thresholds plus unexpired crossing
 receipts, so an older manifest cannot suppress a newly shipped target. Octez
 supplies canonical block/cycle truth while TzKT supplies indexed statistics.
-The pre-commit hook runs
-the same orchestrator in
-commit mode so fast-moving generated outputs update with each normal commit.
-`.github/workflows/refresh-governance-surfaces.yml` runs the full scheduled mode
-every six hours and commits only when generated outputs change. Capital,
-Uranium, Ecosystem Activity, Maxis, and Whale Watch surface that configured schedule
-beside the artifact's actual generation or source-observation age; Capital also
-preserves the CoinGecko quote time and last-good status in its compact launcher.
+The pre-commit hook runs `scripts/refresh-generated-surfaces.mjs` in commit mode
+so fast-moving governance/feed outputs update with each normal commit and other
+derived surfaces follow staged source changes. Manual
+`npm run refresh:generated` still rebuilds the complete distribution set.
+`.github/workflows/refresh-governance-surfaces.yml` runs dynamic generated data
+every six hours through `scripts/refresh-scheduled-data.mjs`. Each source family
+runs and validates in an isolated temporary Git worktree. A failed family is
+restored to its exact last-good files while later, unrelated families continue;
+the workflow commits the successful lanes and then remains red with the failed
+lane named in its report. Static CSS, route, sitemap, comparison, and OG outputs
+stay on their source-driven pre-commit/manual paths rather than being rebuilt by
+the data clock. Capital, Uranium, Ecosystem Activity, Maxis, and Whale Watch
+surface the configured schedule beside the artifact's actual generation or
+source-observation age; Capital also preserves the CoinGecko quote time and
+last-good status in its compact launcher.
+`.github/workflows/audit-generated-freshness.yml` independently checks the
+committed result every six hours. It raises an 18-hour delivery alarm for each
+scheduled family, verifies Ecosystem Activity has advanced to the latest
+completed Monday-to-Monday UTC week after an 18-hour Monday grace period, and
+enforces Release Radar, comparison, milestone, TezosCRP, and Supabase freshness
+receipts. The audit never rewrites or promotes stale data.
 `.github/workflows/refresh-chain-comparison.yml` runs on the first day of each
 month, refreshes and validates the comparison receipt, rebakes the standalone
 pages, and commits only a fully verified snapshot.
@@ -1262,8 +1277,8 @@ pages, and commits only a fully verified snapshot.
 Medium feed on the 10th and 25th of each month. It adds only a newly published
 winner period, rebuilds the full and compact artifacts, validates identity and
 category coverage, and commits only when the official archive changes. The
-six-hour generated-surfaces workflow validates this dataset but does not create
-extra TezosCRP polling.
+read-only freshness audit watches this dataset's 45-day delivery envelope; the
+six-hour data writer does not create extra TezosCRP polling.
 
 The Supabase anon key in `js/core/config.js` is public client configuration, not
 a secret. Browser fetch domains must be allowed by the CSP in `index.html`.
@@ -1345,6 +1360,9 @@ Common commands:
 ```bash
 npm run build:css
 npm run refresh:generated
+npm run refresh:generated:scheduled
+npm run test:scheduled-refresh
+npm run check:generated:freshness
 npm run refresh:capital
 npm run check:capital
 npm run refresh:ecosystem -- --backfill
@@ -1406,7 +1424,9 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   strict personal-signal ranking semantics for proven evidence and missing-data
   silence, plus deterministic daily Curio selection, scarcity, replay, and
   truthfulness contracts, plus Release Radar schema, six-gate separation,
-  confidence/horizon, expiry, last-good, and priority-card contracts.
+  confidence/horizon, expiry, last-good, and priority-card contracts, plus
+  deterministic scheduled-lane rollback, partial-success delivery, declared
+  write-scope, artifact-age, and Monday-to-Monday rollover contracts.
 - `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
   monthly coverage, official icon presence, RSS parsing, and conservative alias
   continuity.

@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -460,7 +460,10 @@ function historyRows(chart) {
     const row = rows.get(String(timestamp));
     if (row) row.volumeUsd = round(value, 2);
   }
-  return [...rows.values()].filter((row) => row.timestamp && row.priceUsd !== null).sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  return [...rows.values()]
+    .filter((row) => row.timestamp && row.priceUsd !== null)
+    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
+    .slice(-365);
 }
 
 async function buildCoinGecko() {
@@ -1346,7 +1349,11 @@ async function main() {
   console.log(`Wrote ${ENTRY_PATH} (${Buffer.byteLength(written.entryText)} bytes, ${projection.contentHash.slice(0, 12)})`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+export { historyRows };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

@@ -2,7 +2,8 @@ name: Refresh Generated Surfaces
 
 on:
   schedule:
-    # Keep RSS relays and governance OG previews fresh during active votes.
+    # Refresh dynamic generated data on a six-hour cadence. Each data family is
+    # isolated so one upstream outage cannot block unrelated last-good updates.
     - cron: '17 */6 * * *'
   workflow_dispatch:
 
@@ -31,22 +32,46 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Refresh generated data and distribution surfaces
-        run: npm run refresh:generated:scheduled
+      - name: Refresh isolated generated-data lanes
+        id: refresh
+        continue-on-error: true
+        run: npm run refresh:generated:scheduled -- --report "$RUNNER_TEMP/generated-refresh-report.json"
 
-      - name: Validate generated surfaces
+      - name: Audit complete site contracts
+        id: site_contracts
+        if: always()
+        continue-on-error: true
         run: npm run test:static
 
-      - name: Commit changes when generated surfaces changed
+      - name: Commit successful lane changes
+        if: always()
         run: |
-          if git diff --quiet; then
-            echo "No generated surface changes"
+          if [ ! -s "$RUNNER_TEMP/generated-refresh-report.json" ]; then
+            echo "Scheduled refresh did not produce a complete report; refusing to publish"
+            exit 1
+          fi
+          mapfile -t targets < <(node scripts/refresh-scheduled-data.mjs --print-targets)
+          if [ -z "$(git status --porcelain -- "${targets[@]}")" ]; then
+            echo "No successful generated-data changes"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           ./scripts/stamp-version.sh
-          git add -- $(node scripts/refresh-generated-surfaces.mjs --print-targets) version.json
-          git commit -m "Refresh generated distribution surfaces"
+          git add -- "${targets[@]}" version.json
+          git commit -m "Refresh generated data lanes"
           git push
+
+      - name: Report failed lanes and contract audits
+        if: always()
+        run: |
+          failed=0
+          if ! node scripts/refresh-scheduled-data.mjs --check-report "$RUNNER_TEMP/generated-refresh-report.json"; then
+            failed=1
+          fi
+          if [ "${{ steps.site_contracts.outcome }}" != "success" ]; then
+            echo "Complete site contract audit failed"
+            failed=1
+          fi
+          exit "$failed"

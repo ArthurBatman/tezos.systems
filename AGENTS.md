@@ -32,6 +32,15 @@ the highest-risk gotchas.
   other generated outputs when their source files are already staged. The
   milestone catalog is checked on the same path but regenerates only after 14
   days or 100 commits; `npm run refresh:milestones` forces it manually.
+- Scheduled dynamic data uses `scripts/refresh-scheduled-data.mjs`, not the
+  manual/pre-commit distribution orchestrator. It runs declared source-family
+  lanes in an isolated temporary Git worktree, restores a failed lane to its
+  exact last-good files, continues unrelated lanes, publishes successful lanes,
+  and leaves the Action red with a machine-readable failure report.
+- `.github/workflows/audit-generated-freshness.yml` is a separate read-only
+  six-hour alarm. It enforces an 18-hour generated-data ceiling, the completed
+  Monday-to-Monday Ecosystem rollover after an 18-hour grace period, and the
+  native Release Radar, comparison, milestone, TezosCRP, and Supabase clocks.
 - `index.html` currently serves `css/styles.min.css`, not `css/styles.css`.
   Edit `styles.css` first, then regenerate/minify `styles.min.css`.
 - Playwright callers should use `scripts/lib/playwright-browser.cjs`. It tries
@@ -594,21 +603,36 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   currently every 2 hours.
 - `.github/workflows/refresh-tezoscrp.yml`: checks the official Tezos Commons
   Medium feed on the 10th and 25th monthly and commits only a new official award
-  period. The broader six-hour generated workflow validates but does not poll
-  this feed again.
+  period. The read-only freshness audit watches its 45-day delivery envelope;
+  the six-hour data writer does not poll this feed again.
+- `.github/workflows/refresh-governance-surfaces.yml`: six-hour dynamic-data
+  writer using failure-isolated lanes. One upstream or validator failure must
+  not suppress unrelated successful data; failed lanes retain last-good files
+  and the final report still fails the Action.
+- `.github/workflows/audit-generated-freshness.yml`: independent read-only
+  six-hour audit of committed generated and Supabase delivery clocks.
 - `.github/scripts/collect-data.js`: collects TzKT/Octez stats and writes to
   Supabase, with guardrails against critical zero values.
 - `scripts/refresh-governance-data.mjs`: canonical governance refresh entry
   point. It updates generated governance vote artifacts from TzKT and fails when
   an accepted/current protocol is missing curated lore in
   `data/protocol-data.json`.
-- `scripts/refresh-generated-surfaces.mjs`: generated-surface orchestrator.
+- `scripts/refresh-generated-surfaces.mjs`: manual/pre-commit generated-surface orchestrator.
   Commit mode refreshes governance/feed and root OG on every normal commit, plus
   staged-source outputs for CSS bundles, pretty chamber route shells, sitemap,
-  chamber OG images, and compare pages; scheduled/manual mode refreshes the full
+  chamber OG images, and compare pages; manual all mode refreshes the full
   generated set. `sitemap.xml` is rendered from `js/core/site-map.js`, while
   pretty Chamber shells remain generated from `scripts/lib/chamber-routes.mjs`;
   static contracts keep those two route identities aligned.
+- `scripts/refresh-scheduled-data.mjs`: scheduled dynamic-data runner. Its lane
+  catalog and rollback/publish mechanics live in
+  `scripts/lib/scheduled-refresh-lanes.mjs` and
+  `scripts/lib/scheduled-refresh-runner.mjs`. Targets must be unique and
+  declared; an undeclared write is fatal and publishes nothing from that run.
+- `scripts/check-generated-freshness.mjs`: read-only operational audit for
+  committed artifact age and semantic rollover. Keep deterministic boundary
+  coverage in `tests/generated-freshness-check.mjs` and failure injection in
+  `tests/scheduled-refresh-check.mjs`.
 - `scripts/refresh-tezoscrp-awards.mjs`: parses the official Tezos Commons
   Medium RSS, adds only unseen winner periods, preserves historical category
   names, applies the evidence-backed identity registry, rebuilds the
@@ -651,8 +675,8 @@ fall back for themes such as `nerv`, `abyss`, `moss`, and `warzone`.
   ledgers and complete TzKT big-map key receipts. The command
   `npm run check:maxis-l2-governance` validates the committed reconstruction and
   stable content hash without network access. Pre-commit checks it before other
-  Maxis artifacts; scheduled/manual generated runs refresh and optionally stage
-  it before the remaining Maxis family.
+  Maxis artifacts; the isolated scheduled lane and manual all-mode refresh it
+  before the remaining Maxis family.
 - `scripts/refresh-maxis-data.mjs`: generates the canonical mixed-clock Maxis
   board and frozen protocol-season artifacts. It must run after governance refresh,
   preserve active rules and finalized archives byte-for-byte, open a new season

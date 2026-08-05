@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHAMBER_ROUTES, routeImage, routeUrl } from '../scripts/lib/chamber-routes.mjs';
+import { historyRows } from '../scripts/refresh-uranium-data.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SNAPSHOT_PATH = 'data/uranium-snapshot.json';
@@ -29,6 +30,11 @@ const REQUIRED_SOURCES = [
   'uraniumIssuer',
   'uraniumOracle'
 ];
+
+const inclusiveHistory = Array.from({ length: 366 }, (_, index) => [Date.UTC(2025, 7, 1 + index), index + 1]);
+const boundedHistory = historyRows({ prices: inclusiveHistory, market_caps: [], total_volumes: [] });
+assert.equal(boundedHistory.length, 365, 'inclusive CoinGecko responses must be trimmed to the one-year artifact budget');
+assert.equal(boundedHistory[0].priceUsd, 2, 'history trimming must retain the newest 365 observations');
 
 const readText = (file) => fs.readFile(path.join(ROOT, file), 'utf8');
 const [snapshotText, entryText, feature, uraniumCss, sha256Source, generator, siteMapSource, wayfinder, ogGenerator] = await Promise.all([
@@ -568,6 +574,7 @@ assert(isAscending(snapshot.protocol.history, 'timestamp'), 'protocol history mu
 assert(generator.includes('const MAX_SNAPSHOT_BYTES = 512 * 1024;'), 'generator snapshot budget drifted');
 assert(generator.includes('const MAX_ENTRY_BYTES = 24 * 1024;'), 'generator launcher budget drifted');
 assert(generator.includes('const ENTRY_HISTORY_DAYS = 90;'), 'generator launcher-history budget drifted');
+assert(generator.includes('.slice(-365);'), 'generator must bound CoinGecko daily history even when the API returns an inclusive extra point');
 assert(generator.includes('previousData ?? emptyData()'), 'generator must preserve last-good source data on failure');
 
 assertHttps(snapshot.identity.homepage, 'issuer homepage');

@@ -902,6 +902,11 @@ async function checkRequiredFiles() {
     'widgets/runtime.js',
     'feed.xml',
     'scripts/refresh-generated-surfaces.mjs',
+    'scripts/refresh-scheduled-data.mjs',
+    'scripts/check-generated-freshness.mjs',
+    'scripts/lib/scheduled-refresh-lanes.mjs',
+    'scripts/lib/scheduled-refresh-runner.mjs',
+    'scripts/lib/generated-freshness.mjs',
     'scripts/generate-llms-txt.mjs',
     'scripts/measure-initial-load.mjs',
     'tests/fixtures/initial-load-baseline.json',
@@ -972,6 +977,9 @@ async function checkRequiredFiles() {
     'og/tezoscrp.png',
     '.github/workflows/refresh-tezoscrp.yml',
     '.github/workflows/refresh-chain-comparison.yml',
+    '.github/workflows/audit-generated-freshness.yml',
+    'tests/scheduled-refresh-check.mjs',
+    'tests/generated-freshness-check.mjs',
     'tests/tezoscrp-check.mjs',
     'tests/ecosystem-stats-check.mjs',
     'tests/ledger-flow-check.mjs',
@@ -4606,6 +4614,10 @@ async function checkHistoricalPagination() {
   const backfill = await readText('scripts/backfill-supabase-history.mjs');
   const freshness = await readText('scripts/check-supabase-history-freshness.mjs');
   const generatedWorkflow = await readText('.github/workflows/refresh-governance-surfaces.yml');
+  const generatedFreshnessWorkflow = await readText('.github/workflows/audit-generated-freshness.yml');
+  const scheduledRefresh = await readText('scripts/refresh-scheduled-data.mjs');
+  const scheduledLanes = await readText('scripts/lib/scheduled-refresh-lanes.mjs');
+  const generatedFreshness = await readText('scripts/lib/generated-freshness.mjs');
   const backfillWorkflow = await readText('.github/workflows/backfill-supabase-history.yml');
   const packageJson = await readText('package.json');
   const migration = await readText('supabase/migrations/20260618190000_expand_historical_capture.sql');
@@ -4641,6 +4653,21 @@ async function checkHistoricalPagination() {
   if (!generatedWorkflow.includes("cron: '17 */6 * * *'")
     || !freshnessContracts.includes("GENERATED_PROOFBOOK_SCHEDULE_LABEL = '6h schedule'")) {
     fail('generated proofbook schedule disclosure must match the six-hour workflow cadence');
+  }
+  for (const snippet of ['--report "$RUNNER_TEMP/generated-refresh-report.json"', 'continue-on-error: true', '--check-report', 'refresh-scheduled-data.mjs --print-targets']) {
+    if (!generatedWorkflow.includes(snippet)) fail(`scheduled generated-data workflow must preserve partial success through ${snippet}`);
+  }
+  for (const snippet of ['git', 'worktree', 'runRefreshLanes', 'requires a clean checkout']) {
+    if (!scheduledRefresh.includes(snippet)) fail(`scheduled refresh runner must isolate last-good data through ${snippet}`);
+  }
+  for (const snippet of ['maxis-season', 'ecosystem', 'whales', 'launcher-projections', 'tests/uranium-check.mjs', 'tests/ecosystem-stats-check.mjs']) {
+    if (!scheduledLanes.includes(snippet)) fail(`scheduled lane catalog must independently cover ${snippet}`);
+  }
+  for (const snippet of ['SCHEDULED_FRESHNESS_HOURS = 18', 'ECOSYSTEM_MONDAY_GRACE_HOURS = 18', 'expectedCompletedEcosystemWeek', 'staleAfterHours', 'generatedAtCommitCount']) {
+    if (!generatedFreshness.includes(snippet)) fail(`generated freshness contract must enforce ${snippet}`);
+  }
+  for (const snippet of ["cron: '47 3,9,15,21 * * *'", 'npm run check:generated:freshness', 'npm run check:supabase:freshness', 'contents: read', 'steps.generated.outcome', 'steps.history.outcome']) {
+    if (!generatedFreshnessWorkflow.includes(snippet)) fail(`generated freshness audit workflow must include ${snippet}`);
   }
 
   if (/delay\s*:\s*\([^)]*\)\s*=>\s*[^,\n}]*dataIndex/.test(history)) {
@@ -4756,6 +4783,9 @@ async function checkHistoricalPagination() {
   if (!packageJson.includes('"check:supabase:freshness": "node scripts/check-supabase-history-freshness.mjs"')) {
     fail('package scripts must expose check:supabase:freshness');
   }
+  if (!packageJson.includes('"check:generated:freshness": "node scripts/check-generated-freshness.mjs"')) {
+    fail('package scripts must expose check:generated:freshness');
+  }
   for (const snippet of ['workflow_dispatch:', 'SUPABASE_KEY', 'BACKFILL_DRY_RUN', "node-version: '24'", 'actions/checkout@v7', 'actions/setup-node@v6']) {
     if (!backfillWorkflow.includes(snippet)) {
       fail(`Supabase backfill workflow must include ${snippet}`);
@@ -4766,7 +4796,8 @@ async function checkHistoricalPagination() {
     '.github/workflows/ci.yml',
     '.github/workflows/collect-chamber-history.yml',
     '.github/workflows/collect-data.yml',
-    '.github/workflows/refresh-governance-surfaces.yml'
+    '.github/workflows/refresh-governance-surfaces.yml',
+    '.github/workflows/audit-generated-freshness.yml'
   ];
   for (const file of workflowFiles) {
     const workflow = await readText(file);
@@ -5548,11 +5579,13 @@ async function checkPortableTooling() {
     'check:readme': 'node tests/static-checks.mjs --readme-only',
     'refresh:generated': 'node scripts/refresh-generated-surfaces.mjs --all',
     'refresh:generated:commit': 'node scripts/refresh-generated-surfaces.mjs --mode precommit',
-    'refresh:generated:scheduled': 'node scripts/refresh-generated-surfaces.mjs --mode scheduled',
+    'refresh:generated:scheduled': 'node scripts/refresh-scheduled-data.mjs',
+    'check:generated:freshness': 'node scripts/check-generated-freshness.mjs',
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
+    'test:static': 'node tests/static-checks.mjs && node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
+    'test:scheduled-refresh': 'node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',
     'test:smoke:headed': 'node tests/smoke.mjs --headed',
@@ -5588,6 +5621,9 @@ async function checkPortableTooling() {
     fail('.githooks/pre-commit must guard README sync and run focused README contract checks');
   }
   const generatedRefresh = await readText('scripts/refresh-generated-surfaces.mjs');
+  if (!generatedRefresh.includes("selected === 'scheduled'") || !generatedRefresh.includes('refresh-scheduled-data.mjs')) {
+    fail('manual/pre-commit orchestrator must reject the retired all-or-nothing scheduled mode');
+  }
   for (const expected of ['refresh-governance-data.mjs', 'generate-milestone-catalog.mjs', 'data/milestone-catalog.json', 'refresh-nakamoto-sources.mjs', 'data/nakamoto-sources.json', 'refresh-chain-comparison.mjs', 'data/chain-comparison-verification.json', 'build-css.mjs', 'generate-chamber-routes.mjs', 'generate-chamber-og-images.mjs', 'generate-og-image.js', 'bake-compare-pages.mjs', 'sitemap.xml', 'og-image.png']) {
     if (!generatedRefresh.includes(expected)) {
       fail(`scripts/refresh-generated-surfaces.mjs must coordinate ${expected}`);
@@ -8773,6 +8809,7 @@ async function checkEcosystemActivityContracts() {
     "row?.isError === '0'",
     'blockscoutRateLimited',
     'extendBlockscoutCooldown',
+    'Blockscout request exhausted',
     'BLOCKSCOUT_REQUEST_GAP_MS',
     'prepareBlockscoutHistory',
     '/transactions/csv',

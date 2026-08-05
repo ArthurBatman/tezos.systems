@@ -166,7 +166,9 @@ async function requestBlockscoutJson(url, { attempts = 10 } = {}) {
       await waitForRetry(delay);
     }
   }
-  throw lastError;
+  const request = new URL(url);
+  const address = request.searchParams.get('address');
+  throw new Error(`Blockscout request exhausted ${attempts} attempts${address ? ` for ${address}` : ''}: ${cleanError(lastError)}`);
 }
 
 async function mapLimit(values, limit, worker) {

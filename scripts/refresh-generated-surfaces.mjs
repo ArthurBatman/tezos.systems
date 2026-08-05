@@ -126,7 +126,12 @@ function hasFlag(name) {
 function mode() {
   if (hasFlag('--all')) return 'all';
   if (hasFlag('--precommit')) return 'precommit';
-  return argValue('--mode', 'all');
+  const selected = argValue('--mode', 'all');
+  if (selected === 'scheduled') {
+    throw new Error('Scheduled data must use scripts/refresh-scheduled-data.mjs so source-family failures stay isolated');
+  }
+  if (!['all', 'precommit'].includes(selected)) throw new Error(`Unknown generated-surface mode: ${selected}`);
+  return selected;
 }
 
 function run(command, args, options = {}) {
@@ -169,7 +174,7 @@ function stageTargets(targets) {
 }
 
 function shouldRun(modeName, touched, patterns) {
-  return modeName === 'all' || modeName === 'scheduled' || anyTouched(touched, patterns);
+  return modeName === 'all' || anyTouched(touched, patterns);
 }
 
 async function loadSiteMapModule() {
@@ -293,7 +298,7 @@ async function main() {
     if (shouldStage) stageTargets(LAUNCHER_PROJECTION_TARGETS);
     nodeScript('scripts/refresh-whale-watch-data.mjs', ['--check']);
     ran.push('whale-watch-check');
-  } else if (modeName === 'all' || modeName === 'scheduled') {
+  } else if (modeName === 'all') {
     nodeScript('scripts/refresh-maxis-l2-governance.mjs');
     ran.push('maxis-l2-governance');
     if (shouldStage) stageTargets(MAXIS_L2_GOVERNANCE_TARGETS);
