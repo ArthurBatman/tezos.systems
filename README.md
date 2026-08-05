@@ -224,9 +224,11 @@ canonical `#theme=<name>` direct link, such as `/#theme=valley`; a valid hash
 theme takes precedence over the saved preference from first paint onward.
 Aurora's header title uses a desktop-specific multicolor sweep so the one-line
 wordmark stays as vivid as the wrapped mobile title.
-Character-by-character theme reveals preserve word-level wrapping so compact
-live-data controls keep their settled height while values animate. Visible
-first values reveal after their loading shell arrives, and later reveals run
+Character-by-character theme reveals reserve the settled text geometry: their
+temporary words and glyphs stay inline, and Chamber metric styles target only
+their real label/value children. Initial and changed values therefore cannot
+turn into vertical lettering, resize cards, or replace surrounding view nodes.
+Visible first values reveal after their loading shell arrives, and later reveals run
 only when the verified formatted value changes. Duplicate publishers preserve
 the reveal already in flight instead of canceling it. Offscreen, hidden, and
 reduced-motion updates settle immediately; ambient personality stays
@@ -1535,7 +1537,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v560`, including hero search, theme
+- Current aligned shell cache stamp: `v561`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, shared market-room, Uranium, Precious Metals, and Critical
   Minerals lazy CSS loaders.

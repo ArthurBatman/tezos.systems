@@ -25583,6 +25583,19 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
   const motion = await page.evaluate(async () => {
     const magic = await import('/js/effects/data-magic.js?smoke=live-number-motion');
     const animations = await import('/js/ui/animations.js?smoke=live-number-motion');
+    const loadStyle = (href) => new Promise((resolve, reject) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      link.addEventListener('load', resolve, { once: true });
+      link.addEventListener('error', () => reject(new Error(`Could not load ${href}`)), { once: true });
+      document.head.append(link);
+    });
+    await Promise.all([
+      loadStyle('/css/styles.min.css'),
+      loadStyle('/css/ledger-flow.min.css'),
+      loadStyle('/css/tezos-domains.min.css')
+    ]);
     const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     const settleFrames = async (count = 3) => {
       for (let index = 0; index < count; index += 1) await nextFrame();
@@ -26210,6 +26223,157 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       themeIndex += 1;
     }
 
+    // Character-based themes must occupy the exact settled text geometry in
+    // every Chamber metric family. These are the real component selectors
+    // whose old descendant rules could turn renderer glyphs into block rows.
+    const characterLayoutFamilies = [
+      {
+        key: 'chamber-entry',
+        markup: '<div class="chamber-entry-metric"><span>Label</span><strong>Old</strong></div>'
+      },
+      {
+        key: 'tezlink-entry',
+        markup: '<div class="tezlink-entry-metric"><span>Label</span><strong>Old</strong></div>'
+      },
+      {
+        key: 'metric-grid',
+        markup: '<div class="lb-metric-grid"><div><span>Label</span><strong>Old</strong></div></div>'
+      },
+      {
+        key: 'domains-entry',
+        markup: '<div class="td-entry-metric"><span>Label</span><strong>Old</strong><em>Note</em></div>'
+      },
+      {
+        key: 'domains-pulse',
+        markup: '<div class="td-pulse-metric"><span>Label</span><strong>Old</strong><em>Note</em></div>'
+      },
+      {
+        key: 'ctez-console',
+        markup: '<div class="ctez-console-metric"><span>Label</span><strong>Old</strong></div>'
+      },
+      {
+        key: 'governance-now',
+        markup: '<div class="chamber-now-card"><span>Label</span><strong>Old</strong><small>Note</small></div>'
+      },
+      {
+        key: 'ledger-flow-entry',
+        markup: '<div class="ledger-flow-entry-metrics"><div class="chamber-entry-metric"><span>Label</span><strong>Old</strong><small>Note</small></div></div>'
+      }
+    ];
+    const characterThemes = {
+      clean: '.dm-delta-char',
+      moss: '.dm-mycelial-char',
+      valley: '.dm-mycelial-char',
+      warzone: '.dm-lock-char'
+    };
+    const geometryHost = document.createElement('section');
+    geometryHost.id = 'magic-character-geometry';
+    geometryHost.style.cssText = 'position:fixed;left:-5000px;top:0;width:600px;';
+    const geometryFixtures = characterLayoutFamilies.map((family) => {
+      const slot = document.createElement('div');
+      slot.dataset.magicGeometryFamily = family.key;
+      slot.style.width = '600px';
+      slot.innerHTML = family.markup;
+      const root = slot.firstElementChild;
+      const target = root.querySelector('strong');
+      target.dataset.magicNumber = 'major';
+      target.dataset.magicViewport = 'on';
+      geometryHost.append(slot);
+      return { ...family, slot, root, target, parent: target.parentElement };
+    });
+    document.body.append(geometryHost);
+
+    const focusGuard = document.createElement('button');
+    focusGuard.textContent = 'Reading state';
+    focusGuard.style.cssText = 'position:fixed;left:24px;bottom:24px;';
+    const selectionGuard = document.createElement('p');
+    selectionGuard.textContent = 'Selected reader text stays put';
+    selectionGuard.style.cssText = 'position:fixed;left:-5000px;top:0;';
+    document.body.append(focusGuard, selectionGuard);
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 420);
+    await nextFrame();
+    focusGuard.focus({ preventScroll: true });
+    const guardRange = document.createRange();
+    guardRange.selectNodeContents(selectionGuard);
+    const guardSelection = window.getSelection();
+    guardSelection.removeAllRanges();
+    guardSelection.addRange(guardRange);
+    const readingStateBefore = {
+      scrollY: window.scrollY,
+      focus: document.activeElement,
+      selection: guardSelection.toString(),
+      host: geometryHost
+    };
+
+    const characterGeometry = {};
+    for (const [theme, charSelector] of Object.entries(characterThemes)) {
+      selectTheme(theme);
+      const themeMagic = await import(`/js/effects/data-magic.js?smoke-character-layout=${theme}`);
+      const finalText = `${theme} 2048`;
+      const baselines = geometryFixtures.map((fixture) => {
+        fixture.target.textContent = finalText;
+        const targetRect = fixture.target.getBoundingClientRect();
+        const rootRect = fixture.root.getBoundingClientRect();
+        fixture.target.textContent = 'Old';
+        fixture.target.__dmMagicFinalText = 'Old';
+        return {
+          targetWidth: targetRect.width,
+          targetHeight: targetRect.height,
+          rootWidth: rootRect.width,
+          rootHeight: rootRect.height
+        };
+      });
+      const starts = geometryFixtures.map((fixture) => themeMagic.setMagicValue(fixture.target, finalText, {
+        force: true,
+        changed: true,
+        duration: 96,
+        previousText: 'Old'
+      }));
+      await nextFrame();
+      const active = geometryFixtures.map((fixture, index) => {
+        const targetRect = fixture.target.getBoundingClientRect();
+        const rootRect = fixture.root.getBoundingClientRect();
+        const characters = Array.from(fixture.target.querySelectorAll(charSelector));
+        const words = Array.from(fixture.target.querySelectorAll('.dm-glyph-word'));
+        return {
+          family: fixture.key,
+          started: starts[index],
+          charCount: characters.length,
+          wordCount: words.length,
+          charLines: new Set(characters.map((character) => Math.round(character.getBoundingClientRect().top))).size,
+          inlineChars: characters.every((character) => getComputedStyle(character).display === 'inline-block'),
+          inlineWords: words.every((word) => (
+            getComputedStyle(word).display === 'inline-block'
+              && getComputedStyle(word).whiteSpace === 'nowrap'
+          )),
+          targetWidthDelta: Math.abs(targetRect.width - baselines[index].targetWidth),
+          targetHeightDelta: Math.abs(targetRect.height - baselines[index].targetHeight),
+          rootWidthDelta: Math.abs(rootRect.width - baselines[index].rootWidth),
+          rootHeightDelta: Math.abs(rootRect.height - baselines[index].rootHeight),
+          sameTarget: fixture.root.querySelector('strong') === fixture.target,
+          sameParent: fixture.target.parentElement === fixture.parent
+        };
+      });
+      await settleFrames(14);
+      characterGeometry[theme] = {
+        active,
+        settled: geometryFixtures.map((fixture) => ({
+          family: fixture.key,
+          text: fixture.target.textContent,
+          childCount: fixture.target.children.length,
+          sameTarget: fixture.root.querySelector('strong') === fixture.target,
+          sameParent: fixture.target.parentElement === fixture.parent
+        })),
+        readingState: {
+          scrollDelta: Math.abs(window.scrollY - readingStateBefore.scrollY),
+          focused: document.activeElement === readingStateBefore.focus,
+          selection: window.getSelection().toString(),
+          sameHost: document.getElementById('magic-character-geometry') === readingStateBefore.host
+        }
+      };
+    }
+
     // Reduced motion is an immediate factual commit with no transitional
     // classes, but still calls completion exactly once.
     window.__DATA_MAGIC_TEST__.forceMotion = false;
@@ -26318,6 +26482,7 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
       clipped: clippedResult,
       rapid: rapidResult,
       themes,
+      characterGeometry,
       reduced: reducedResult,
       observer: observerResult,
       moving: movingResult
@@ -26508,6 +26673,36 @@ async function smokeLiveNumberMotion(browser, baseUrl) {
         && result.text === result.finalText
         && result.ariaBusy !== 'true',
       `live number motion: ${theme} personality failed explicit dispatch/accessibility/final-value contract ${JSON.stringify(result)}`
+    );
+  }
+  for (const [theme, result] of Object.entries(motion.characterGeometry)) {
+    assert(
+      result.active.length === 8
+        && result.active.every((family) => (
+          family.started
+            && family.charCount > 0
+            && family.wordCount === 2
+            && family.charLines === 1
+            && family.inlineChars
+            && family.inlineWords
+            && family.targetWidthDelta <= 1
+            && family.targetHeightDelta <= 1
+            && family.rootWidthDelta <= 1
+            && family.rootHeightDelta <= 1
+            && family.sameTarget
+            && family.sameParent
+        ))
+        && result.settled.every((family) => (
+          family.text === `${theme} 2048`
+            && family.childCount === 0
+            && family.sameTarget
+            && family.sameParent
+        ))
+        && result.readingState.scrollDelta <= 1
+        && result.readingState.focused
+        && result.readingState.selection === 'Selected reader text stays put'
+        && result.readingState.sameHost,
+      `live number motion: ${theme} changed settled Chamber geometry or reader/view state ${JSON.stringify(result)}`
     );
   }
   assert(

@@ -416,9 +416,9 @@
     --ledger-flow-metric-color: var(--ledger-flow-first);
 }
 
-.ledger-flow-entry-metrics .chamber-entry-metric span,
-.ledger-flow-entry-metrics .chamber-entry-metric strong,
-.ledger-flow-entry-metrics .chamber-entry-metric small {
+.ledger-flow-entry-metrics .chamber-entry-metric > span,
+.ledger-flow-entry-metrics .chamber-entry-metric > strong,
+.ledger-flow-entry-metrics .chamber-entry-metric > small {
     display: block;
     min-width: 0;
     overflow: hidden;
@@ -426,11 +426,11 @@
     white-space: nowrap;
 }
 
-.ledger-flow-entry-metrics .chamber-entry-metric strong {
+.ledger-flow-entry-metrics .chamber-entry-metric > strong {
     font-size: 0.74rem;
 }
 
-.ledger-flow-entry-metrics .chamber-entry-metric small {
+.ledger-flow-entry-metrics .chamber-entry-metric > small {
     margin-top: 0.16rem;
     color: var(--text-tertiary);
     font-size: 0.47rem;

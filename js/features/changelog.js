@@ -7,6 +7,7 @@ export const CHANGELOG = [
     {
         date: '2026-08-05',
         entries: [
+            { type: '🔧', text: 'Clean, Moss, Valley, and Warzone data reveals now keep every Chamber metric in its settled text geometry, preventing temporary vertical lettering or card and view-state reflow while data arrives' },
             { type: '🔧', text: 'Release Radar now reflects the shipped Tezos X Previewnet 0.8 kernel and merged Octez 25.2 backport train while keeping both clearly separate from an absent 25.2 release and unstarted mainnet governance' }
         ]
     },

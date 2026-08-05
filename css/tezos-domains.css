@@ -127,9 +127,9 @@
     background: rgba(255, 255, 255, 0.035);
 }
 
-.td-entry-metric span,
-.td-entry-metric strong,
-.td-entry-metric em {
+.td-entry-metric > span,
+.td-entry-metric > strong,
+.td-entry-metric > em {
     display: block;
     min-width: 0;
     overflow: hidden;
@@ -137,7 +137,7 @@
     white-space: nowrap;
 }
 
-.td-entry-metric span {
+.td-entry-metric > span {
     color: var(--text-tertiary);
     font-size: 0.49rem;
     font-weight: 850;
@@ -146,7 +146,7 @@
     text-transform: uppercase;
 }
 
-.td-entry-metric strong {
+.td-entry-metric > strong {
     margin-top: 0.2rem;
     color: var(--text-primary);
     font-family: 'JetBrains Mono', monospace;
@@ -156,7 +156,7 @@
     line-height: 1.08;
 }
 
-.td-entry-metric em {
+.td-entry-metric > em {
     margin-top: 0.15rem;
     color: color-mix(in srgb, var(--text-secondary) 78%, transparent);
     font-size: 0.48rem;
@@ -598,9 +598,9 @@
     padding: 0.78rem 0.85rem;
 }
 
-.td-pulse-metric span,
-.td-pulse-metric strong,
-.td-pulse-metric em {
+.td-pulse-metric > span,
+.td-pulse-metric > strong,
+.td-pulse-metric > em {
     display: block;
     min-width: 0;
     overflow: hidden;
@@ -608,7 +608,7 @@
     white-space: nowrap;
 }
 
-.td-pulse-metric span {
+.td-pulse-metric > span {
     color: var(--text-tertiary);
     font-size: 0.55rem;
     font-weight: 900;
@@ -616,7 +616,7 @@
     text-transform: uppercase;
 }
 
-.td-pulse-metric strong {
+.td-pulse-metric > strong {
     margin-top: 0.22rem;
     color: var(--text-primary);
     font-family: 'JetBrains Mono', monospace;
@@ -627,7 +627,7 @@
     line-height: 1;
 }
 
-.td-pulse-metric em {
+.td-pulse-metric > em {
     margin-top: 0.22rem;
     color: var(--text-tertiary);
     font-size: 0.58rem;

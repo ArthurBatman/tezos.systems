@@ -1471,14 +1471,16 @@ export function injectStyles() {
         '.dm-delta-tick{position:relative}',
         '.dm-delta-tick::after{content:"";position:absolute;left:50%;bottom:-0.08em;width:1.5em;height:1px;margin-left:-0.75em;pointer-events:none;' +
             'background:#2563eb;transform-origin:center;animation:dmDeltaLine var(--dm-theme-ms,260ms) ease-out forwards}',
-        '.dm-delta-char{display:inline-block;animation:dmDeltaChar var(--dm-char-ms,170ms) cubic-bezier(0.22,1,0.36,1) both;' +
+        '.dm-delta-char{display:inline-block!important;animation:dmDeltaChar var(--dm-char-ms,170ms) cubic-bezier(0.22,1,0.36,1) both;' +
             'animation-delay:var(--dm-char-delay,0ms)}',
         '@keyframes dmDeltaChar{0%{opacity:0;transform:translateY(2px);color:#2563eb}' +
             '100%{opacity:1;transform:translateY(0);color:inherit}}',
         '@keyframes dmDeltaLine{0%{opacity:0;transform:scaleX(0)}25%{opacity:0.8}100%{opacity:0;transform:scaleX(1)}}',
         // Character reveals retain ordinary word-level wrapping instead of creating
-        // a temporary line-break opportunity between every animated glyph.
-        '.dm-glyph-word{display:inline-block;white-space:nowrap}',
+        // a temporary line-break opportunity between every animated glyph. These
+        // renderer-owned nodes must win over component descendant selectors: a
+        // temporary block glyph would resize the settled card and move the reader.
+        '.dm-glyph-word{display:inline-block!important;white-space:nowrap!important}',
         // Abyss Sonar Echo — center-out resolve with two cyan pressure echoes
         '.dm-sonar-echo{position:relative;animation:dmSonarCore var(--dm-theme-ms,900ms) ease-out}',
         '.dm-sonar-echo::before,.dm-sonar-echo::after{content:attr(data-dm-sonar);position:absolute;inset:0;pointer-events:none;' +
@@ -1491,7 +1493,7 @@ export function injectStyles() {
         '@keyframes dmSonarEchoTwo{16%{opacity:0.28;transform:scale(0.98);filter:blur(0)}' +
             '100%{opacity:0;transform:scale(1.14);filter:blur(5px)}}',
         // Moss Mycelial Bloom — characters grow outward from the changed node
-        '.dm-mycelial-char{display:inline-block;transform-origin:50% 85%;animation:dmMycelialChar var(--dm-char-ms,500ms) ease-out both;' +
+        '.dm-mycelial-char{display:inline-block!important;transform-origin:50% 85%;animation:dmMycelialChar var(--dm-char-ms,500ms) ease-out both;' +
             'animation-delay:var(--dm-char-delay,0ms)}',
         '@keyframes dmMycelialChar{0%{opacity:0.18;transform:scale(0.58);color:#d4a050;text-shadow:0 0 11px rgba(212,160,80,0.86)}' +
             '42%{opacity:1;transform:scale(1.08);color:#66e066;text-shadow:0 0 8px rgba(102,224,102,0.72)}' +
@@ -1510,7 +1512,7 @@ export function injectStyles() {
             'animation:dmTargetBrackets var(--dm-theme-ms,600ms) cubic-bezier(0.22,1,0.36,1) forwards}',
         '.dm-target-lock::after{content:"";position:absolute;top:-0.12em;bottom:-0.12em;left:0;width:1px;pointer-events:none;' +
             'background:#fff1a8;box-shadow:0 0 7px rgba(255,192,0,0.9);animation:dmTargetScan var(--dm-theme-ms,600ms) linear forwards}',
-        '.dm-lock-char{display:inline-block;animation:dmLockChar var(--dm-char-ms,390ms) steps(3,end) both;' +
+        '.dm-lock-char{display:inline-block!important;animation:dmLockChar var(--dm-char-ms,390ms) steps(3,end) both;' +
             'animation-delay:var(--dm-char-delay,0ms)}',
         '@keyframes dmTargetBrackets{0%{opacity:0;transform:scale(1.5)}18%{opacity:0.9}' +
             '72%{opacity:0.72;transform:scale(1)}100%{opacity:0}}',

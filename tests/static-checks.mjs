@@ -8032,11 +8032,14 @@ async function checkTezosCrpContracts() {
 }
 
 async function checkLiveNumberMotionContracts() {
-  const [magic, animations, app, smoke] = await Promise.all([
+  const [magic, animations, app, smoke, styles, ledgerFlowCss, tezosDomainsCss] = await Promise.all([
     readText('js/effects/data-magic.js'),
     readText('js/ui/animations.js'),
     readText('js/core/app.js'),
-    readText('tests/smoke.mjs')
+    readText('tests/smoke.mjs'),
+    readText('css/styles.css'),
+    readText('css/ledger-flow.css'),
+    readText('css/tezos-domains.css')
   ]);
 
   const expectedThemeModes = {
@@ -8063,6 +8066,43 @@ async function checkLiveNumberMotionContracts() {
 
   for (const hook of ['window.__DATA_MAGIC_TEST__', 'flushAmbientForTest']) {
     if (!magic.includes(hook)) fail(`live number motion deterministic browser hook missing ${hook}`);
+  }
+
+  for (const rule of [
+    '.dm-glyph-word{display:inline-block!important;white-space:nowrap!important}',
+    '.dm-delta-char{display:inline-block!important;',
+    '.dm-mycelial-char{display:inline-block!important;',
+    '.dm-lock-char{display:inline-block!important;'
+  ]) {
+    if (!magic.includes(rule)) fail(`character reveal geometry guard missing ${rule}`);
+  }
+  const directMetricSelectors = [
+    ['Tezos X launcher', styles, '.tezlink-entry-metric > span'],
+    ['shared Chamber launcher', styles, '.chamber-entry-metric > span'],
+    ['governance now card', styles, '.chamber-now-card > span'],
+    ['governance watch card', styles, '.chamber-now-watch > div > span'],
+    ['ctez console', styles, '.ctez-console-metric > span'],
+    ['shared room metric grid', styles, '.lb-metric-grid > div > span'],
+    ['Ledger Flow launcher', ledgerFlowCss, '.ledger-flow-entry-metrics .chamber-entry-metric > span'],
+    ['Tezos Domains launcher', tezosDomainsCss, '.td-entry-metric > span'],
+    ['Tezos Domains room pulse', tezosDomainsCss, '.td-pulse-metric > span']
+  ];
+  for (const [label, source, selector] of directMetricSelectors) {
+    if (!source.includes(selector)) fail(`${label} labels must target direct children so reveal glyphs keep settled geometry`);
+  }
+  const broadGlyphSelectors = [
+    ['Tezos X launcher', styles, /\.tezlink-entry-metric\s+(?!>)span\b/],
+    ['shared Chamber launcher', styles, /\.chamber-entry-metric\s+(?!>)span\b/],
+    ['governance now card', styles, /\.chamber-now-card\s+(?!>)span\b/],
+    ['governance watch card', styles, /\.chamber-now-watch\s+(?!>)span\b/],
+    ['ctez console', styles, /\.ctez-console-metric\s+(?!>)span\b/],
+    ['shared room metric grid', styles, /\.lb-metric-grid\s+(?!>)span\b/],
+    ['Ledger Flow launcher', ledgerFlowCss, /\.ledger-flow-entry-metrics\s+\.chamber-entry-metric\s+(?!>)span\b/],
+    ['Tezos Domains launcher', tezosDomainsCss, /\.td-entry-metric\s+(?!>)span\b/],
+    ['Tezos Domains room pulse', tezosDomainsCss, /\.td-pulse-metric\s+(?!>)span\b/]
+  ];
+  for (const [label, source, selector] of broadGlyphSelectors) {
+    if (selector.test(source)) fail(`${label} regained a descendant span selector that can stack temporary reveal glyphs vertically`);
   }
 
   const setterStart = magic.indexOf('export function setMagicNumber');
@@ -8204,12 +8244,19 @@ async function checkLiveNumberMotionContracts() {
     "observerValue.textContent = '82%'",
     "movingValue.textContent = '301'",
     'motion.statusRecovery.started',
-    'motion.sameValueRace.active.flipStarted === false'
+    'motion.sameValueRace.active.flipStarted === false',
+    'const characterLayoutFamilies =',
+    "clean: '.dm-delta-char'",
+    "moss: '.dm-mycelial-char'",
+    "valley: '.dm-mycelial-char'",
+    "warzone: '.dm-lock-char'",
+    'family.rootHeightDelta <= 1',
+    "result.readingState.selection === 'Selected reader text stays put'"
   ]) {
     if (!smoke.includes(snippet)) fail(`live number browser regression contract missing: ${snippet}`);
   }
 
-  pass('live number exact-delta, stale-work, concurrency, selection, clipping, visibility, cancellation, accessibility, reduced-motion, ambient, and theme contracts checked');
+  pass('live number exact-delta, settled Chamber geometry, view-state, stale-work, concurrency, selection, clipping, visibility, cancellation, accessibility, reduced-motion, ambient, and theme contracts checked');
 }
 
 async function checkQuietRefreshContracts() {

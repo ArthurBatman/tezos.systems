@@ -3736,8 +3736,8 @@ body::before {
     background: rgba(77, 212, 255, 0.035);
 }
 
-.tezlink-entry-metric span,
-.tezlink-entry-metric strong {
+.tezlink-entry-metric > span,
+.tezlink-entry-metric > strong {
     display: block;
     overflow: hidden;
     line-height: 1.05;
@@ -3745,7 +3745,7 @@ body::before {
     white-space: nowrap;
 }
 
-.tezlink-entry-metric span {
+.tezlink-entry-metric > span {
     margin-bottom: 0.18rem;
     color: var(--text-tertiary);
     font-size: 0.48rem;
@@ -3754,7 +3754,7 @@ body::before {
     text-transform: uppercase;
 }
 
-.tezlink-entry-metric strong {
+.tezlink-entry-metric > strong {
     color: var(--text-primary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.66rem;
@@ -17976,8 +17976,8 @@ body {
     background: rgba(255, 255, 255, 0.025);
 }
 
-.chamber-entry-metric span,
-.chamber-entry-metric strong {
+.chamber-entry-metric > span,
+.chamber-entry-metric > strong {
     display: block;
     overflow: hidden;
     line-height: 1.05;
@@ -17985,7 +17985,7 @@ body {
     white-space: nowrap;
 }
 
-.chamber-entry-metric span {
+.chamber-entry-metric > span {
     margin-bottom: 0.2rem;
     color: var(--text-tertiary);
     font-size: 0.5rem;
@@ -17994,7 +17994,7 @@ body {
     text-transform: uppercase;
 }
 
-.chamber-entry-metric strong {
+.chamber-entry-metric > strong {
     color: var(--text-primary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
@@ -18440,8 +18440,8 @@ body {
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
 }
 
-.chamber-now-card span,
-.chamber-now-watch span {
+.chamber-now-card > span,
+.chamber-now-watch > div > span {
     display: block;
     margin-bottom: 5px;
     color: var(--text-tertiary, #555);
@@ -18451,7 +18451,7 @@ body {
     text-transform: uppercase;
 }
 
-.chamber-now-card strong {
+.chamber-now-card > strong {
     display: block;
     color: var(--text-primary);
     font-family: 'JetBrains Mono', monospace;
@@ -19423,7 +19423,7 @@ body {
     min-width: 0;
 }
 
-.ctez-console-metric span,
+.ctez-console-metric > span,
 .ctez-oven-cell small,
 .ctez-detail-address span,
 .ctez-detail-meter span {
@@ -19436,7 +19436,7 @@ body {
     overflow-wrap: anywhere;
 }
 
-.ctez-console-metric strong,
+.ctez-console-metric > strong,
 .ctez-oven-cell strong,
 .ctez-detail-address strong,
 .ctez-detail-meter strong {
@@ -19763,7 +19763,7 @@ body {
 [data-theme="matrix"] .ctez-panel-kicker,
 [data-theme="matrix"] .ctez-wallet-status,
 [data-theme="matrix"] .ctez-oven-status,
-[data-theme="matrix"] .ctez-console-metric span,
+[data-theme="matrix"] .ctez-console-metric > span,
 [data-theme="matrix"] .ctez-oven-cell small,
 [data-theme="matrix"] .ctez-detail-address span,
 [data-theme="matrix"] .ctez-detail-meter span,
@@ -20143,7 +20143,7 @@ body {
     padding: 14px;
 }
 
-.ctez-console-metric span,
+.ctez-console-metric > span,
 .ctez-oven-cell small,
 .ctez-detail-address span,
 .ctez-detail-meter span,
@@ -20157,7 +20157,7 @@ body {
     text-transform: uppercase;
 }
 
-.ctez-console-metric strong,
+.ctez-console-metric > strong,
 .ctez-oven-cell strong,
 .ctez-detail-address strong,
 .ctez-detail-meter strong,
@@ -20324,7 +20324,7 @@ body {
 [data-theme="matrix"] .ctez-panel-kicker,
 [data-theme="matrix"] .ctez-wallet-status,
 [data-theme="matrix"] .ctez-oven-status,
-[data-theme="matrix"] .ctez-console-metric span,
+[data-theme="matrix"] .ctez-console-metric > span,
 [data-theme="matrix"] .ctez-oven-cell small,
 [data-theme="matrix"] .ctez-detail-address span,
 [data-theme="matrix"] .ctez-detail-meter span,
@@ -20842,7 +20842,7 @@ body {
     min-width: 0;
 }
 
-.lb-metric-grid span {
+.lb-metric-grid > div > span {
     display: block;
     color: var(--text-tertiary, #555);
     font-size: 0.64rem;
@@ -20851,7 +20851,7 @@ body {
     margin-bottom: 3px;
 }
 
-.lb-metric-grid strong {
+.lb-metric-grid > div > strong {
     display: block;
     color: var(--text-primary);
     font-family: 'JetBrains Mono', monospace;
@@ -26314,7 +26314,7 @@ body[data-theme="hen"]::after {
 [data-theme="hen"] .chain-label,
 [data-theme="hen"] .comparison-label,
 [data-theme="hen"] .baker-stat-label,
-[data-theme="hen"] .chamber-entry-metric span,
+[data-theme="hen"] .chamber-entry-metric > span,
 [data-theme="hen"] .drawer-operator-label {
     color: var(--text-secondary) !important;
     letter-spacing: 0 !important;
@@ -26322,7 +26322,7 @@ body[data-theme="hen"]::after {
 
 [data-theme="hen"] .stat-value,
 [data-theme="hen"] .network-health-score,
-[data-theme="hen"] .chamber-entry-metric strong,
+[data-theme="hen"] .chamber-entry-metric > strong,
 [data-theme="hen"] .comparison-value,
 [data-theme="hen"] .chain-value,
 [data-theme="hen"] .drawer-operator-value {
