@@ -5,6 +5,12 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-05',
+        entries: [
+            { type: '🔧', text: 'Release Radar now reflects the shipped Tezos X Previewnet 0.8 kernel and merged Octez 25.2 backport train while keeping both clearly separate from an absent 25.2 release and unstarted mainnet governance' }
+        ]
+    },
+    {
         date: '2026-08-04',
         entries: [
             { type: '🔧', text: 'Scheduled data now refreshes in failure-isolated families, so one unavailable source keeps its own last-good receipt without blocking Ecosystem Activity or any unrelated Chamber; a separate audit verifies artifact age and Monday-to-Monday rollover' },

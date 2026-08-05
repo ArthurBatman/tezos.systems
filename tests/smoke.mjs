@@ -8258,8 +8258,8 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         && overlayPresentation.boundaryCount === 4
         && overlayPresentation.nextCount === 3
         && overlayPresentation.recentCount === 2
-        && overlayPresentation.historyCount === 4
-        && overlayPresentation.evidenceCount === 8
+        && overlayPresentation.historyCount === 6
+        && overlayPresentation.evidenceCount === 9
         && overlayPresentation.confidenceCount === 4,
       `release radar pulse ${label}: full intelligence overlay lost lanes or receipts ${JSON.stringify(overlayPresentation)}`
     );

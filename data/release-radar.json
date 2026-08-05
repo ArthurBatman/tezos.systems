@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "kind": "tezos-release-radar",
-  "updatedAt": "2026-07-31T15:48:00.000Z",
+  "updatedAt": "2026-08-05T11:01:19.000Z",
   "staleAfterHours": 36,
-  "expiresAt": "2026-08-14T15:48:00.000Z",
+  "expiresAt": "2026-08-19T11:01:19.000Z",
   "sourceRun": {
     "label": "Daily Tezos development tracker",
     "cadence": "Reviewed daily",
@@ -18,10 +18,10 @@
       "confidence": "medium",
       "horizon": "Q3 2026 forecast",
       "stage": "Validating",
-      "summary": "Previewnet and required operator software are advancing; mainnet still waits for a public Tezos X Etherlink kernel proposal.",
+      "summary": "Previewnet kernel 0.8 has shipped while runtime compatibility work continues; mainnet still waits for a public Tezos X Etherlink kernel proposal.",
       "nextSignal": "Public Tezos X Etherlink kernel proposal or final-kernel declaration",
       "route": "/tezosx/",
-      "highlight": "EVM node 0.64 removes one concrete tooling dependency, but it does not start mainnet governance.",
+      "highlight": "Previewnet kernel 0.8 is now released, but test-network progress does not start mainnet governance.",
       "excitement": "medium",
       "gates": [
         {
@@ -34,7 +34,7 @@
           "id": "previewnet",
           "label": "Previewnet stability",
           "status": "validating",
-          "detail": "The public EVM plus Michelson Previewnet is live and remains the proving ground before mainnet."
+          "detail": "The public EVM plus Michelson Previewnet is live, kernel 0.8 has shipped, and validation remains upstream of mainnet."
         },
         {
           "id": "tooling",
@@ -65,25 +65,31 @@
         {
           "label": "Tezos X roadmap update",
           "url": "https://spotlight.tezos.com/tezos-x-from-roadmap-to-reality/",
-          "observedAt": "2026-07-31T15:30:00.000Z",
+          "observedAt": "2026-08-05T11:01:19.000Z",
           "note": "Official roadmap separates Previewnet testing, Etherlink governance, mainnet, and later RISC-V work."
         },
         {
           "label": "Tezos X Previewnet launch",
           "url": "https://spotlight.tezos.com/introducing-tezos-x-previewnet/",
-          "observedAt": "2026-07-31T15:31:00.000Z",
+          "observedAt": "2026-08-05T11:01:19.000Z",
           "note": "Previewnet is public; the post says the mainnet step follows testing through an Etherlink proposal."
         },
         {
-          "label": "EVM node 0.64 release request",
-          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22648",
-          "observedAt": "2026-07-31T15:32:00.000Z",
-          "note": "The merged request explicitly identifies 0.64 as a requirement for the Tezos X Previewnet upgrade."
+          "label": "Tezos X Previewnet kernel 0.8",
+          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22655",
+          "observedAt": "2026-08-05T11:01:19.000Z",
+          "note": "The merged release request records that Previewnet was upgraded to kernel 0.8 on August 3."
+        },
+        {
+          "label": "EVM node 0.64 tag",
+          "url": "https://gitlab.com/tezos/tezos/-/tags/octez-evm-node-v0.64",
+          "observedAt": "2026-08-05T11:01:19.000Z",
+          "note": "0.64 remains the latest protected EVM-node tag in the reviewed canonical tag list."
         },
         {
           "label": "Current Etherlink FAST governance storage",
           "url": "https://tzkt.io/KT19oUVQPnVLuUBYXrBVd46WJnNAMpqkKSwo/storage/",
-          "observedAt": "2026-07-31T15:44:00.000Z",
+          "observedAt": "2026-08-05T11:01:19.000Z",
           "note": "The current proposal window had no winning candidate in the reviewed storage receipt."
         }
       ],
@@ -93,6 +99,12 @@
           "previousConfidence": "medium",
           "confidence": "medium",
           "reason": "EVM node 0.64 shipped and advanced tooling compatibility; confidence did not rise because the public mainnet proposal is still absent."
+        },
+        {
+          "observedAt": "2026-08-05T11:01:19.000Z",
+          "previousConfidence": "medium",
+          "confidence": "medium",
+          "reason": "Previewnet kernel 0.8 shipped, but the reviewed FAST governance window still has no winning mainnet-kernel candidate."
         }
       ]
     },
@@ -103,24 +115,24 @@
       "lifecycle": "forecast",
       "confidence": "low",
       "horizon": "weeks",
-      "stage": "Backport cluster",
-      "summary": "A named 25.2 backport cluster is active, but there is no release tag or public release artifact yet.",
+      "stage": "Backports merged",
+      "summary": "The named 25.2 DAL backport train merged with a passing pipeline on August 5, but there is no 25.2 release tag or public artifact yet.",
       "nextSignal": "Release version bump, candidate packaging, or octez-v25.2 tag",
       "route": "https://gitlab.com/tezos/tezos/-/merge_requests/22623",
-      "highlight": "This is a release signal, not a date: the active work can still change before packaging.",
+      "highlight": "The merged backport train strengthens the release signal, but it does not supply a date or a release artifact.",
       "gates": [],
       "evidence": [
         {
           "label": "25.2 DAL backport cluster",
           "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22623",
-          "observedAt": "2026-07-31T15:40:25.000Z",
-          "note": "The open merge request explicitly targets Octez 25.2."
+          "observedAt": "2026-08-05T11:01:19.000Z",
+          "note": "The merge request targeting Octez 25.2 merged into v25-release on August 5 with a passing pipeline."
         },
         {
           "label": "Canonical Octez tags",
-          "url": "https://gitlab.com/tezos/tezos/-/tags",
-          "observedAt": "2026-07-31T15:41:00.000Z",
-          "note": "25.1 remains the newest tagged Octez release in the reviewed tag list."
+          "url": "https://octez.tezos.com/releases/",
+          "observedAt": "2026-08-05T11:01:19.000Z",
+          "note": "The canonical Octez release page still identifies 25.1 as the latest published release."
         }
       ],
       "history": [
@@ -128,6 +140,12 @@
           "observedAt": "2026-07-28T14:26:52.000Z",
           "confidence": "low",
           "reason": "A merge request named for 25.2 opened against the v25 release branch, creating the first credible near-term signal."
+        },
+        {
+          "observedAt": "2026-08-05T11:01:19.000Z",
+          "previousConfidence": "low",
+          "confidence": "low",
+          "reason": "The DAL backport train merged successfully, but no version bump, package, candidate, or 25.2 tag is published yet."
         }
       ],
       "recentRelease": {
@@ -156,13 +174,13 @@
         {
           "label": "EVM node 0.64 tag",
           "url": "https://gitlab.com/tezos/tezos/-/tags/octez-evm-node-v0.64",
-          "observedAt": "2026-07-31T15:32:00.000Z",
+          "observedAt": "2026-08-05T11:01:19.000Z",
           "note": "Protected canonical tag at commit 12a44fed."
         },
         {
           "label": "EVM node 0.64 release request",
           "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22648",
-          "observedAt": "2026-07-31T15:32:00.000Z",
+          "observedAt": "2026-08-05T11:01:19.000Z",
           "note": "Merged July 30 with a passing pipeline and an explicit Tezos X Previewnet requirement."
         }
       ],
