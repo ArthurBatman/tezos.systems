@@ -6,6 +6,7 @@ import { countProtocolUpgrades, formatProtocolUpgradeOrdinal, getProtocolUpgrade
 import { loadDataAsset } from '../core/data-assets.js';
 import { findSiteMapDestination, siteMapCanonicalRoute } from '../core/site-map.js';
 import { loadStats } from '../core/storage.js';
+import { activateOverlayDialog, deactivateOverlayDialog } from './overlay-stack.js';
 import { releaseToastSafeArea, reserveToastSafeArea } from './toast-queue.js';
 
 let html2canvasLoaded = false;
@@ -1172,18 +1173,16 @@ async function captureAndShare() {
     // Build picker modal
     const existing = document.getElementById('section-picker-modal');
     if (existing) {
-        existing._pickerCleanup?.();
+        existing._pickerCleanup?.({ restoreFocus: false });
         existing.remove();
     }
     
     const modal = document.createElement('div');
     modal.id = 'section-picker-modal';
     modal.className = 'share-modal-overlay';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'section-picker-title');
+    modal.setAttribute('aria-hidden', 'true');
     modal.innerHTML = `
-        <div class="share-modal-content" style="max-width: 460px;">
+        <div class="share-modal-content" role="dialog" aria-modal="true" aria-labelledby="section-picker-title" tabindex="-1" style="max-width: 460px;">
             <div class="share-modal-header">
                 <h3 id="section-picker-title">Select Sections to Capture</h3>
                 <button class="share-modal-close" aria-label="Close section picker">×</button>
@@ -1217,18 +1216,21 @@ async function captureAndShare() {
     requestAnimationFrame(() => modal.classList.add('visible'));
     
     const closeModal = () => {
+        if (modal.dataset.overlayClosing === '1') return;
+        modal.dataset.overlayClosing = '1';
+        deactivateOverlayDialog(modal);
         modal.classList.remove('visible');
         setTimeout(() => modal.remove(), 200);
     };
-    const closeWithCleanup = () => {
-        modal._pickerCleanup?.();
-        closeModal();
-    };
-    const onKeyDown = (e) => {
-        if (e.key === 'Escape') closeWithCleanup();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    modal._pickerCleanup = () => document.removeEventListener('keydown', onKeyDown);
+    const closeWithCleanup = () => closeModal();
+    modal._pickerCleanup = ({ restoreFocus = true } = {}) => deactivateOverlayDialog(modal, { restoreFocus });
+    activateOverlayDialog(modal, {
+        close: closeWithCleanup,
+        dialogSelector: '.share-modal-content',
+        titleId: 'section-picker-title',
+        initialFocusSelector: '.share-modal-close',
+        restoreFocusSelector: '#dashboard-share-btn, #share-dashboard'
+    });
     
     modal.querySelector('.share-modal-close').addEventListener('click', closeWithCleanup);
     modal.querySelector('#section-cancel-btn').addEventListener('click', closeWithCleanup);
@@ -1885,7 +1887,7 @@ export async function captureNetworkMomentShare(moment = {}) {
 export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForRefresh, shareDetails = {}) {
     const existing = document.getElementById('share-modal');
     if (existing) {
-        existing._shareCleanup?.();
+        existing._shareCleanup?.({ restoreFocus: false });
         existing.remove();
     }
     
@@ -1953,11 +1955,9 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
     const modal = document.createElement('div');
     modal.id = 'share-modal';
     modal.className = 'share-modal-overlay';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'share-modal-title');
+    modal.setAttribute('aria-hidden', 'true');
     modal.innerHTML = `
-        <div class="share-modal-content" style="max-height: 90vh; overflow-y: auto;">
+        <div class="share-modal-content" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" tabindex="-1" style="max-height: 90vh; overflow-y: auto;">
             <div class="share-modal-header">
                 <h3 id="share-modal-title">Share: ${escapeHtml(title || 'Snapshot')}</h3>
                 <button class="share-modal-close" aria-label="Close share modal">×</button>
@@ -2069,11 +2069,14 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
     wireRefresh();
     
     const closeModal = () => closeShareModal(modal);
-    const onKeyDown = (e) => {
-        if (e.key === 'Escape') closeModal();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    modal._shareCleanup = () => document.removeEventListener('keydown', onKeyDown);
+    modal._shareCleanup = ({ restoreFocus = true } = {}) => deactivateOverlayDialog(modal, { restoreFocus });
+    activateOverlayDialog(modal, {
+        close: closeModal,
+        dialogSelector: '.share-modal-content',
+        titleId: 'share-modal-title',
+        initialFocusSelector: '.share-modal-close',
+        restoreFocusSelector: '.card-share-btn, #dashboard-share-btn, #share-dashboard'
+    });
 
     modal.querySelector('.share-modal-close').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => {
@@ -2081,7 +2084,8 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
     });
     
     // Download / Save
-    modal.querySelector('#share-download').addEventListener('click', async () => {
+    modal.querySelector('#share-download').addEventListener('click', async (event) => {
+        const downloadButton = event.currentTarget;
         trackShareEvent('download', shareContext);
         const isApple = /iPhone|iPad|iPod|Mac/i.test(navigator.userAgent) && 'ontouchend' in document;
         const isMobile = isApple || /Android/i.test(navigator.userAgent);
@@ -2103,16 +2107,38 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
         if (isMobile) {
             // Fallback: overlay with long-press save
             const dataUrl = canvas.toDataURL('image/png');
+            const existingFallback = document.getElementById('share-mobile-save-overlay');
+            existingFallback?._mobileSaveCleanup?.({ restoreFocus: false });
+            existingFallback?.remove();
             const overlay = document.createElement('div');
+            overlay.id = 'share-mobile-save-overlay';
+            overlay.setAttribute('aria-hidden', 'true');
             overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
             overlay.innerHTML = `
-                <p style="color:#aaa;font-family:sans-serif;font-size:14px;margin-bottom:16px;text-align:center;">Long-press the image → Save to Photos</p>
-                <img src="${dataUrl}" style="max-width:100%;max-height:75vh;border-radius:8px;">
-                <button style="margin-top:20px;padding:12px 32px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;font-size:16px;cursor:pointer;">Close</button>
+                <div class="share-mobile-save-dialog" role="dialog" aria-modal="true" aria-labelledby="share-mobile-save-title" tabindex="-1" style="display:flex;max-width:100%;max-height:100%;flex-direction:column;align-items:center;justify-content:center;">
+                    <p id="share-mobile-save-title" style="color:#aaa;font-family:sans-serif;font-size:14px;margin-bottom:16px;text-align:center;">Long-press the image → Save to Photos</p>
+                    <img src="${dataUrl}" alt="Tezos Systems snapshot ready to save" style="max-width:100%;max-height:75vh;border-radius:8px;">
+                    <button class="share-mobile-save-close" type="button" style="margin-top:20px;padding:12px 32px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:8px;font-size:16px;cursor:pointer;">Close</button>
+                </div>
             `;
-            overlay.querySelector('button').addEventListener('click', () => overlay.remove());
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
             document.body.appendChild(overlay);
+            let closingFallback = false;
+            const closeFallback = ({ restoreFocus = true } = {}) => {
+                if (closingFallback) return;
+                closingFallback = true;
+                deactivateOverlayDialog(overlay, { restoreFocus });
+                overlay.remove();
+            };
+            overlay._mobileSaveCleanup = closeFallback;
+            activateOverlayDialog(overlay, {
+                close: closeFallback,
+                dialogSelector: '.share-mobile-save-dialog',
+                titleId: 'share-mobile-save-title',
+                initialFocusSelector: '.share-mobile-save-close',
+                opener: downloadButton
+            });
+            overlay.querySelector('.share-mobile-save-close').addEventListener('click', closeFallback);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeFallback(); });
         } else {
             // Desktop: standard download
             const link = document.createElement('a');
@@ -2183,6 +2209,8 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
  * Close share modal
  */
 function closeShareModal(modal) {
+    if (!modal || modal.dataset.overlayClosing === '1') return;
+    modal.dataset.overlayClosing = '1';
     modal._shareCleanup?.();
     modal.classList.remove('visible');
     setTimeout(() => modal.remove(), 200);

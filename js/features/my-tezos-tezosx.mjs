@@ -527,6 +527,7 @@ export async function activateMyTezosTezosX({ force = false } = {}) {
     if (force || readLinkedAccounts().length) return refreshMyTezosTezosX({ force });
     renderSummary();
     renderDetails();
+    setStatus('Link an Etherlink account to begin.', 'empty');
     return null;
 }
 

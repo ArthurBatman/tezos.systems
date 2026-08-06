@@ -2625,6 +2625,12 @@ function renderStoryPanel(card, data) {
     if (container.children.length) quietlySyncHtml(container, html);
     else container.innerHTML = html;
 
+    // A cold Story route can finish the account read after the shared wallet
+    // scope has already rendered. Reassert the account-only boundary at the
+    // moment the dossier is published so an active wallet can never look like
+    // the combined "All included wallets" story.
+    container.hidden = readMyTezosScope() === MY_TEZOS_SCOPE_ALL;
+
     container.querySelectorAll('.story-share-btn').forEach(btn => {
         btn.onclick = () => {
             if (data && data.story) {

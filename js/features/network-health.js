@@ -81,6 +81,9 @@ let savedHtmlOverflow = null;
 let activityTapeCache = [];
 let activityTapeCacheAt = 0;
 let activityTapeInFlight = null;
+let activityTapeInFlightPriority = 'normal';
+let activityTapeRequestSequence = 0;
+let activityTapeAppliedSequence = 0;
 let usagePulseCache = null;
 let usagePulseCacheAt = 0;
 let usagePulseInFlight = null;
@@ -88,12 +91,18 @@ let blockTickerAnimationTimer = null;
 let cycleTimingCache = null;
 let cycleTimingCacheAt = 0;
 let cycleTimingInFlight = null;
+let cycleTimingInFlightPriority = 'normal';
+let cycleTimingRequestSequence = 0;
+let cycleTimingAppliedSequence = 0;
 let currentCycleCache = null;
 let protocolConstantsCache = null;
 let protocolConstantsCacheAt = 0;
 let octezVersionsCache = null;
 let octezVersionsCacheAt = 0;
 let octezVersionsInFlight = null;
+let octezVersionsInFlightPriority = 'normal';
+let octezVersionsRequestSequence = 0;
+let octezVersionsAppliedSequence = 0;
 let nakamotoCache = null;
 let nakamotoCacheAt = 0;
 let nakamotoInFlight = null;
@@ -1209,28 +1218,43 @@ function activityMethodLabel(row) {
     return row.count > 1 ? `${row.method} x${row.count}` : row.method;
 }
 
-async function fetchActivityTape({ force = false } = {}) {
-    if (!force && activityTapeCache.length && Date.now() - activityTapeCacheAt < ACTIVITY_TAPE_TTL) {
-        return activityTapeCache;
-    }
-    if (activityTapeInFlight) return activityTapeInFlight;
-
+function startActivityTapeRequest(priority) {
+    const sequence = ++activityTapeRequestSequence;
     const url = `${TZKT}/operations/transactions?status=applied&amount.ge=1000000000&sort.desc=id&limit=${ACTIVITY_TAPE_LIMIT}`;
-    activityTapeInFlight = fetchJson(url)
+    const request = fetchJson(url, 2, { priority })
         .then((rows) => {
-            activityTapeCache = (Array.isArray(rows) ? rows : []).map(normalizeActivityTx);
+            const activity = (Array.isArray(rows) ? rows : []).map(normalizeActivityTx);
+            if (sequence < activityTapeAppliedSequence) return activityTapeCache;
+            activityTapeAppliedSequence = sequence;
+            activityTapeCache = activity;
             activityTapeCacheAt = Date.now();
             return activityTapeCache;
         })
         .catch((error) => {
             console.warn('Network Health activity tape failed:', error);
             return activityTapeCache;
-        })
-        .finally(() => {
-            activityTapeInFlight = null;
         });
+    const trackedRequest = request.finally(() => {
+        if (activityTapeInFlight !== trackedRequest) return;
+        activityTapeInFlight = null;
+        activityTapeInFlightPriority = 'normal';
+    });
 
-    return activityTapeInFlight;
+    activityTapeInFlight = trackedRequest;
+    activityTapeInFlightPriority = priority;
+    return trackedRequest;
+}
+
+async function fetchActivityTape({ force = false, priority = 'normal' } = {}) {
+    if (!force && activityTapeCache.length && Date.now() - activityTapeCacheAt < ACTIVITY_TAPE_TTL) {
+        return activityTapeCache;
+    }
+    if (activityTapeInFlight
+        && (priority !== 'interactive' || activityTapeInFlightPriority === 'interactive')) {
+        return activityTapeInFlight;
+    }
+
+    return startActivityTapeRequest(priority);
 }
 
 function usageWindowStart() {
@@ -1466,13 +1490,9 @@ function buildOctezVersions(rows) {
     };
 }
 
-export async function fetchOctezVersions({ force = false, priority = 'normal' } = {}) {
-    if (!force && octezVersionsCache && Date.now() - octezVersionsCacheAt < OCTEZ_VERSIONS_TTL) {
-        return octezVersionsCache;
-    }
-    if (octezVersionsInFlight) return octezVersionsInFlight;
-
-    octezVersionsInFlight = (async () => {
+function startOctezVersionsRequest(priority) {
+    const sequence = ++octezVersionsRequestSequence;
+    const request = (async () => {
         const fields = 'address,alias,bakingPower,software';
         const rows = [];
         let offset = 0;
@@ -1484,17 +1504,38 @@ export async function fetchOctezVersions({ force = false, priority = 'normal' } 
             if (page.length < OCTEZ_VERSION_PAGE_LIMIT) break;
             offset += OCTEZ_VERSION_PAGE_LIMIT;
         }
-        octezVersionsCache = buildOctezVersions(rows);
+        return buildOctezVersions(rows);
+    })().then((versions) => {
+        if (sequence < octezVersionsAppliedSequence) return octezVersionsCache;
+        octezVersionsAppliedSequence = sequence;
+        octezVersionsCache = versions;
         octezVersionsCacheAt = Date.now();
         return octezVersionsCache;
-    })().catch((error) => {
+    }).catch((error) => {
         console.warn('Network Health Octez version telemetry failed:', error);
         return octezVersionsCache || octezVersionsFallback(error?.message || 'TzKT delegate software fetch failed');
-    }).finally(() => {
+    });
+    const trackedRequest = request.finally(() => {
+        if (octezVersionsInFlight !== trackedRequest) return;
         octezVersionsInFlight = null;
+        octezVersionsInFlightPriority = 'normal';
     });
 
-    return octezVersionsInFlight;
+    octezVersionsInFlight = trackedRequest;
+    octezVersionsInFlightPriority = priority;
+    return trackedRequest;
+}
+
+export async function fetchOctezVersions({ force = false, priority = 'normal' } = {}) {
+    if (!force && octezVersionsCache && Date.now() - octezVersionsCacheAt < OCTEZ_VERSIONS_TTL) {
+        return octezVersionsCache;
+    }
+    if (octezVersionsInFlight
+        && (priority !== 'interactive' || octezVersionsInFlightPriority === 'interactive')) {
+        return octezVersionsInFlight;
+    }
+
+    return startOctezVersionsRequest(priority);
 }
 
 async function fetchProtocolCycleTargetSeconds() {
@@ -1578,28 +1619,44 @@ function buildCycleTiming(rows, targetSeconds) {
     };
 }
 
-async function fetchCycleTiming({ force = false } = {}) {
-    if (!force && cycleTimingCache && Date.now() - cycleTimingCacheAt < CYCLE_TIMING_TTL) {
-        return cycleTimingCache;
-    }
-    if (cycleTimingInFlight) return cycleTimingInFlight;
-
+function startCycleTimingRequest(priority) {
+    const sequence = ++cycleTimingRequestSequence;
     const url = `${TZKT}/statistics/cyclic?limit=${CYCLE_TIMING_LIMIT}&sort.desc=cycle&select=cycle,level,timestamp`;
-    cycleTimingInFlight = Promise.all([
-        fetchJson(url, 2),
+    const request = Promise.all([
+        fetchJson(url, 2, { priority }),
         fetchProtocolCycleTargetSeconds()
     ]).then(([rows, targetSeconds]) => {
-        cycleTimingCache = buildCycleTiming(rows, targetSeconds);
+        const timing = buildCycleTiming(rows, targetSeconds);
+        if (sequence < cycleTimingAppliedSequence) return cycleTimingCache;
+        cycleTimingAppliedSequence = sequence;
+        cycleTimingCache = timing;
         cycleTimingCacheAt = Date.now();
         return cycleTimingCache;
     }).catch((error) => {
         console.warn('Network Health cycle timing failed:', error);
         return cycleTimingCache;
-    }).finally(() => {
+    });
+    const trackedRequest = request.finally(() => {
+        if (cycleTimingInFlight !== trackedRequest) return;
         cycleTimingInFlight = null;
+        cycleTimingInFlightPriority = 'normal';
     });
 
-    return cycleTimingInFlight;
+    cycleTimingInFlight = trackedRequest;
+    cycleTimingInFlightPriority = priority;
+    return trackedRequest;
+}
+
+async function fetchCycleTiming({ force = false, priority = 'normal' } = {}) {
+    if (!force && cycleTimingCache && Date.now() - cycleTimingCacheAt < CYCLE_TIMING_TTL) {
+        return cycleTimingCache;
+    }
+    if (cycleTimingInFlight
+        && (priority !== 'interactive' || cycleTimingInFlightPriority === 'interactive')) {
+        return cycleTimingInFlight;
+    }
+
+    return startCycleTimingRequest(priority);
 }
 
 async function fetchCurrentCycleProgress() {
@@ -1699,12 +1756,12 @@ function summarizeTiming(blocks) {
     };
 }
 
-async function fetchRecentBlocks(limit = LAST_BLOCK_LIMIT) {
+async function fetchRecentBlocks(limit = LAST_BLOCK_LIMIT, { priority = 'normal' } = {}) {
     const fields = 'level,timestamp,producer,proposer,attestationPower,attestationCommittee,payloadRound,blockRound'
         + ',fees,rewardDelegated,rewardStakedOwn,rewardStakedEdge,rewardStakedShared'
         + ',bonusDelegated,bonusStakedOwn,bonusStakedEdge,bonusStakedShared';
     const url = `${TZKT}/blocks?sort.desc=level&limit=${limit}&select=${fields}`;
-    const blocks = await fetchJson(url);
+    const blocks = await fetchJson(url, 2, { priority });
     return addBlockIntervals((Array.isArray(blocks) ? blocks : []).map(normalizeBlock));
 }
 
@@ -1866,13 +1923,13 @@ function normalizeRight(right, type) {
     };
 }
 
-async function fetchMissedRights(type, startLevel, endLevel, limit = MISSED_RIGHTS_LIMIT) {
+async function fetchMissedRights(type, startLevel, endLevel, limit = MISSED_RIGHTS_LIMIT, { priority = 'normal' } = {}) {
     if (!startLevel || !endLevel || startLevel > endLevel) return [];
     const fields = type === 'attestation'
         ? 'level,timestamp,slots,baker,status,type'
         : 'level,timestamp,round,baker,status,type';
     const url = `${TZKT}/rights?sort.desc=level&limit=${limit}&status=missed&type=${type}&level.ge=${startLevel}&level.le=${endLevel}&select=${fields}`;
-    const rights = await fetchJson(url);
+    const rights = await fetchJson(url, 2, { priority });
     return (Array.isArray(rights) ? rights : []).map((right) => normalizeRight(right, type));
 }
 
@@ -1973,9 +2030,10 @@ function updateHealthVerdictPanel(data) {
 }
 
 async function fetchNetworkHealthChamberData() {
+    const requestOptions = { priority: 'interactive' };
     const [blocks, cycleTiming, currentCycle, nakamoto] = await Promise.all([
-        fetchRecentBlocks(CHAMBER_BLOCK_LIMIT),
-        fetchCycleTiming(),
+        fetchRecentBlocks(CHAMBER_BLOCK_LIMIT, requestOptions),
+        fetchCycleTiming(requestOptions),
         fetchCurrentCycleProgress(),
         fetchNakamotoCoefficients()
     ]);
@@ -1985,7 +2043,7 @@ async function fetchNetworkHealthChamberData() {
     const headTimestamp = blocks[0]?.timestamp || null;
     const oldestLevel = blocks[blocks.length - 1]?.level || headLevel;
     const missedBlockStart = Math.max(1, headLevel - MISSED_BLOCK_LOOKBACK);
-    const octezVersionsPromise = fetchOctezVersions();
+    const octezVersionsPromise = fetchOctezVersions(requestOptions);
     let missedAttestations = [];
     let missedBlocks = [];
     let activityTape = [];
@@ -1994,9 +2052,9 @@ async function fetchNetworkHealthChamberData() {
 
     if (headLevel) {
         [missedAttestations, missedBlocks, activityTape, teztaleLens, octezVersions] = await Promise.all([
-            fetchMissedRights('attestation', oldestLevel, headLevel),
-            fetchMissedRights('baking', missedBlockStart, headLevel, 30),
-            fetchActivityTape(),
+            fetchMissedRights('attestation', oldestLevel, headLevel, MISSED_RIGHTS_LIMIT, requestOptions),
+            fetchMissedRights('baking', missedBlockStart, headLevel, 30, requestOptions),
+            fetchActivityTape(requestOptions),
             fetchTeztaleConsensusLens(headLevel),
             octezVersionsPromise
         ]);

@@ -1432,10 +1432,14 @@ node tests/smoke.mjs --base-url http://127.0.0.1:9000 --only governance-lb
   truthfulness contracts, plus Release Radar schema, six-gate separation,
   confidence/horizon, expiry, last-good, and priority-card contracts, plus
   deterministic scheduled-lane rollback, partial-success delivery, declared
-  write-scope, artifact-age, and Monday-to-Monday rollover contracts.
-- `npm run test:tezoscrp`: full/compact archive reconciliation, consecutive
+  write-scope, artifact-age, and Monday-to-Monday rollover contracts. The
+  default static chain also includes the strict TezosCRP archive and Ecosystem
+  generated-artifact checks described below.
+- `npm run test:tezoscrp`: focused full/compact archive reconciliation, consecutive
   monthly coverage, official icon presence, RSS parsing, and conservative alias
   continuity.
+- `npm run test:ecosystem`: focused Ecosystem manifest, completed-week,
+  contract-receipt, projection, and content-hash reconciliation.
 - `npm run test:smoke`: a Playwright browser run against a throwaway local
   server by default. It uses mocked live-data endpoints for deterministic
   feature flows.
@@ -1444,6 +1448,16 @@ Current smoke suites:
 
 - `first-visit-tour`
 - `app-shell`
+- `release-update` (covers the compact-by-default update pill, explicit
+  expansion, Later behavior, activation fallback, and cross-tab worker state)
+- `hero-command-bar`
+- `route-search-state` (covers alias transitions, bare routes, relevant-only
+  TzKT suggestions, query-preserving close, Back/Forward cleanup, and routed
+  title ownership)
+- `breakpoint-accessibility` (covers exact 759/760, 767/768, 899/900,
+  1023/1024, 1179/1180, and 1299/1300 width pairs across the shell, command
+  surface, and Network Health Chamber, plus representative 200% reflow,
+  forced-colors focus, and reduced-motion containment)
 - `tzkt-throttle`
 - `dashboard-desktop`
 - `dashboard-mobile`
@@ -1453,6 +1467,8 @@ Current smoke suites:
 - `my-tezos-baker-activity` (covers shape-correct first-read geometry,
   independent no-gap desktop stacks, and recent delegator/staker rows)
 - `my-tezos-live-signal`
+- `my-tezos-cold-start` (covers lazy-style startup plus an all-wallet Story
+  route that never leaks an active-wallet-only dossier)
 - `my-tezos-drawer-live-refresh`
 - `my-tezos-view-live-refresh` (covers timed live reconciliation across all six
   views, hidden-tab catch-up, and preservation of filters, progressive card
@@ -1502,8 +1518,10 @@ Current smoke suites:
 - First-class Chamber dialogs normalize through the shared accessibility seam
   into narrow, standard, or wide desktop viewports and full-bleed `100dvh`
   mobile rooms. The same seam owns focus containment, Escape, focus return,
-  and the real room scroller so persistent update notices reserve safe reading
-  space without moving focus or scroll.
+  nested topmost-dialog ordering, background isolation, and the real room
+  scroller. Persistent update notices arrive as a compact 44px transmission
+  pill and expand only after direct reader action, without moving focus or
+  scroll.
 - Capital, Uranium, Precious Metals, and Critical Minerals share the lazy
   `market-room.min.css` structural layer for headers, responsive title scale,
   tabs, view shells, states, tables, artwork frames, and mobile captions. Their
@@ -1518,12 +1536,17 @@ Current smoke suites:
 - `ux-regressions`
 - `quiet-refresh` (covers passive Hot Today, nested-scroll, focus, selection,
   in-flow status anchoring, and open-chamber refresh stability)
+- `overlay-stack` (covers Share, Protocol Stories, nested card history, and
+  Native Explorer focus containment, topmost Escape, background isolation,
+  route cleanup, and opener/scroll restoration)
 - `leaderboard-signals` (covers the 2018 OG and through-2021 Veteran tiers,
   accepted-proposal initiator attribution, completed-ballot streaks, factual
   legend copy, quiet refresh, and desktop/mobile containment)
 - `feature-workflows` (covers all sparkline card latest values, history, share, and optional feature flows)
 - `share-actions` (covers share modal copy, editable X post text, optional handle persistence, download, native share, Network Moment image cards, and mobile photo fallback buttons)
 - `info-modals`
+- `cycle-history-chamber` (covers direct range/metric routes, focused charts,
+  close lifecycle, focus restoration, and collision-free mobile controls)
 - `themes`
 - `widget-builder`
 - `hen-mode`
@@ -1541,7 +1564,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v561`, including hero search, theme
+- Current aligned shell cache stamp: `v562`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, shared market-room, Uranium, Precious Metals, and Critical
   Minerals lazy CSS loaders.
@@ -1667,10 +1690,10 @@ and heartbeat affordance from the dashboard polish pass.
 
 - Service worker cache can hide changes during QA. Hard refresh or unregister
   the service worker if local behavior looks stale.
-- A newly installed service worker waits in a bottom-center red System
-  Transmission that names the latest change, then takes control only after the
-  visible Update & reload action is accepted, preventing a mid-session
-  HTML/module split.
+- A newly installed service worker waits in a compact bottom-center System
+  Transmission. The reader can expand it to see the latest change and accept
+  Update & reload; it never takes control automatically, preventing both a
+  blocked reading surface and a mid-session HTML/module split.
   Offline navigations deliberately render `offline.html`; the shell/runtime
   cache is an asset accelerator, not an offline copy of live telemetry.
 - `index.html` serves `css/styles.min.css`; editing only `css/styles.css` is

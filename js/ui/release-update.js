@@ -7,6 +7,7 @@
  */
 
 import { releaseToastSafeArea, reserveToastSafeArea } from './toast-queue.js';
+import { activeOverlayCount } from './overlay-stack.js';
 
 const SAFE_AREA_KEY = 'release-update-dock';
 const ENTER_FRAME_COUNT = 2;
@@ -24,6 +25,8 @@ let currentLater = null;
 let currentPendingLabel = 'Updating…';
 let safeAreaFrame = 0;
 let resizeObserver = null;
+let requestedVisible = false;
+let overlaySuppressed = false;
 
 function isGenericReleaseDetail(value) {
     return value === 'Latest: Tezos Systems fixes and features.'
@@ -90,10 +93,41 @@ function setCollapsed(collapsed, { moveFocus = false } = {}) {
     window.requestAnimationFrame(() => focusTarget?.focus({ preventScroll: true }));
 }
 
+function clearSafeAreaReservation() {
+    releaseToastSafeArea(SAFE_AREA_KEY);
+    document.documentElement.style.removeProperty('--release-update-safe-bottom');
+    document.body?.classList.remove('release-update-safe-area-raised');
+}
+
+function syncOverlaySuppression(activeCount = activeOverlayCount()) {
+    const nextSuppressed = activeCount > 0;
+    if (overlaySuppressed === nextSuppressed && dock?.hidden === (!requestedVisible || nextSuppressed)) return;
+    overlaySuppressed = nextSuppressed;
+    if (!dock) return;
+
+    if (!requestedVisible || overlaySuppressed) {
+        dock.classList.remove('is-visible');
+        dock.hidden = true;
+        clearSafeAreaReservation();
+        return;
+    }
+
+    // A deferred update returns only as the compact pill after the reader
+    // leaves a modal; it never competes with the modal or steals focus.
+    setCollapsed(true);
+    dock.hidden = false;
+    window.requestAnimationFrame(() => {
+        if (!dock || dock.hidden || overlaySuppressed || !requestedVisible) return;
+        dock.classList.add('is-visible');
+        scheduleSafeAreaReservation();
+    });
+}
+
 function ensureDock() {
     if (dock || typeof document === 'undefined') return dock;
 
     dock = document.createElement('aside');
+    dock.id = 'release-update-dock';
     dock.className = 'release-update-dock';
     dock.dataset.releaseUpdateDock = '';
     dock.dataset.state = 'ready';
@@ -184,13 +218,15 @@ function ensureDock() {
     });
 
     window.addEventListener('resize', scheduleSafeAreaReservation, { passive: true });
-    document.addEventListener('tezos:chamber-dialog-active', () => {
-        if (!dock?.hidden) setCollapsed(true);
+    document.addEventListener('tezos:overlay-stack-change', (event) => {
+        syncOverlaySuppression(Number(event.detail?.activeCount) || 0);
     });
     if ('ResizeObserver' in window) {
         resizeObserver = new ResizeObserver(scheduleSafeAreaReservation);
         resizeObserver.observe(dock);
     }
+
+    overlaySuppressed = activeOverlayCount() > 0;
 
     return dock;
 }
@@ -240,11 +276,12 @@ export function showReleaseUpdateDock({
     onAction,
     onLater,
     canDefer = true,
-    expanded = true
+    expanded = false
 } = {}) {
     ensureDock();
     if (!dock) return;
-    const wasVisible = !dock.hidden;
+    const wasVisible = requestedVisible && !dock.hidden;
+    requestedVisible = true;
 
     setReleaseUpdateDockState({
         state,
@@ -259,9 +296,16 @@ export function showReleaseUpdateDock({
         canDefer
     });
 
+    overlaySuppressed = activeOverlayCount() > 0;
+    if (overlaySuppressed) {
+        dock.classList.remove('is-visible');
+        dock.hidden = true;
+        clearSafeAreaReservation();
+        return;
+    }
+
     dock.hidden = false;
-    const chamberActive = Boolean(document.querySelector('.chamber-overlay.active'));
-    setCollapsed(!expanded || chamberActive);
+    setCollapsed(!expanded);
     if (meta === 'Build ready' && isGenericReleaseDetail(detail)) {
         hydrateIncomingReleaseContext(detail);
     }
@@ -273,12 +317,13 @@ export function showReleaseUpdateDock({
     dock.classList.remove('is-visible');
     let frames = 0;
     const enter = () => {
+        if (!dock || dock.hidden || overlaySuppressed || !requestedVisible) return;
         frames += 1;
         if (frames < ENTER_FRAME_COUNT) {
             window.requestAnimationFrame(enter);
             return;
         }
-        dock?.classList.add('is-visible');
+        dock.classList.add('is-visible');
         scheduleSafeAreaReservation();
     };
     window.requestAnimationFrame(enter);
@@ -295,9 +340,8 @@ export function isReleaseUpdateDockCollapsed() {
 
 export function hideReleaseUpdateDock() {
     if (!dock) return;
+    requestedVisible = false;
     dock.classList.remove('is-visible');
     dock.hidden = true;
-    releaseToastSafeArea(SAFE_AREA_KEY);
-    document.documentElement.style.removeProperty('--release-update-safe-bottom');
-    document.body?.classList.remove('release-update-safe-area-raised');
+    clearSafeAreaReservation();
 }

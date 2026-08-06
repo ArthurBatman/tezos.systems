@@ -19,6 +19,7 @@ import {
     wireChamberLauncher
 } from '../ui/chamber-accessibility.js';
 import { ensureChamberStylesheet } from '../ui/chamber-styles.js';
+import { activateOverlayDialog, deactivateOverlayDialog } from '../ui/overlay-stack.js';
 
 const CYCLE_HISTORY_CSS_URL = versionedAsset('/css/history-chamber.min.css');
 const CYCLE_HISTORY_RANGES = new Set(['24h', '7d', '30d', 'all']);
@@ -1666,7 +1667,8 @@ function renderCycleHistoryIntro(modal) {
             <span id="cycle-history-route-status" role="status" aria-live="polite">Choose a range or jump directly to one metric.</span>
         </div>
     `;
-    title.insertAdjacentElement('afterend', intro);
+    const actionRail = modal.querySelector('.cycle-history-header-actions');
+    (actionRail || title).insertAdjacentElement('afterend', intro);
 }
 
 function decorateCycleHistoryChamber(modal) {
@@ -2311,10 +2313,23 @@ export async function openCardHistoryModal(cardId, initialRange = '30d') {
     // Show modal
     modal.dataset.cardHistoryCard = cardId;
     modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
+    activateOverlayDialog(modal, {
+        close: () => closeCardHistoryModal(modal),
+        dialogSelector: '.card-history-content',
+        titleId: 'card-history-title',
+        initialFocusSelector: '.card-history-close'
+    });
 
     await renderCardHistoryChart(modal, config, initialRange);
+}
+
+function closeCardHistoryModal(modal = document.getElementById('card-history-modal')) {
+    if (!modal?.classList.contains('active')) return false;
+    modal.classList.remove('active');
+    deactivateOverlayDialog(modal);
+    cardHistoryRequestId += 1;
+    destroyChartInstance('card-history-canvas');
+    return true;
 }
 
 function setCardHistoryRangeState(modal, range) {
@@ -2384,13 +2399,11 @@ function createCardHistoryModal() {
     modal.id = 'card-history-modal';
     modal.className = 'card-history-modal';
     modal.setAttribute('aria-hidden', 'true');
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
 
     modal.innerHTML = `
-        <div class="card-history-content">
+        <div class="card-history-content" role="dialog" aria-modal="true" aria-labelledby="card-history-title" tabindex="-1">
             <button class="card-history-close" id="card-history-close" aria-label="Close">×</button>
-            <h2 class="card-history-title"></h2>
+            <h2 class="card-history-title" id="card-history-title"></h2>
             <div class="card-history-controls" role="group" aria-label="History range">
                 ${CARD_HISTORY_RANGES.map(({ range, label }) => `
                     <button class="time-range-btn card-history-range-btn${range === '30d' ? ' active' : ''}" type="button" data-range="${range}" aria-pressed="${range === '30d'}">${label}</button>
@@ -2412,28 +2425,13 @@ function createCardHistoryModal() {
 
     // Close button handler
     const closeBtn = modal.querySelector('.card-history-close');
-    const closeModal = () => {
-        modal.classList.remove('active');
-        modal.setAttribute('aria-hidden', 'true');
-        if (!document.querySelector('.chamber-overlay.active')) {
-            document.body.style.overflow = '';
-        }
-        cardHistoryRequestId += 1;
-        destroyChartInstance('card-history-canvas');
-    };
+    const closeModal = () => closeCardHistoryModal(modal);
 
     closeBtn.addEventListener('click', closeModal);
     
     // Click backdrop to close
     modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
-    });
-
-    // ESC key to close
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-            closeModal();
-        }
     });
 
     return modal;

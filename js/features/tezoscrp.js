@@ -335,9 +335,9 @@ function roomHeader() {
         ${overviewMetrics()}
         <div class="tezoscrp-truth-note"><strong>What is counted:</strong> one official category listing equals one award. Monthly recognitions and known published amounts remain separate; most posts do not state a per-person XTZ payout. <strong>Identity continuity:</strong> verified aliases share one record, every published name stays on its receipt, and uncertain lookalikes remain separate.</div>
         <nav class="tezoscrp-tabs" role="tablist" aria-label="TezosCRP Chamber views">
-            ${VIEW_KEYS.map((view) => `<button type="button" role="tab" aria-selected="${state.view === view}" tabindex="${state.view === view ? '0' : '-1'}" data-tezoscrp-view="${view}">${escapeHtml(VIEW_LABELS[view])}</button>`).join('')}
+            ${VIEW_KEYS.map((view) => `<button type="button" id="tezoscrp-tab-${view}" role="tab" aria-selected="${state.view === view}" aria-controls="tezoscrp-view" tabindex="${state.view === view ? '0' : '-1'}" data-tezoscrp-view="${view}">${escapeHtml(VIEW_LABELS[view])}</button>`).join('')}
         </nav>
-        <div class="tezoscrp-view" id="tezoscrp-view"></div>
+        <div class="tezoscrp-view" id="tezoscrp-view" role="tabpanel" aria-labelledby="tezoscrp-tab-${state.view}" tabindex="0"></div>
     `;
 }
 
@@ -730,6 +730,7 @@ function selectView(view) {
         tab.setAttribute('aria-selected', String(selected));
         tab.tabIndex = selected ? 0 : -1;
     });
+    document.getElementById('tezoscrp-view')?.setAttribute('aria-labelledby', `tezoscrp-tab-${view}`);
     renderView();
 }
 

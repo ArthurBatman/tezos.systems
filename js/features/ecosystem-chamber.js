@@ -526,7 +526,7 @@ function renderHistoryPanel(snapshot) {
             <div class="ecosystem-panel-head">
                 <div>
                     <span class="ecosystem-eyebrow">${selected ? escapeHtml(categoryLabel(selected.category)) : 'Historical activity'}</span>
-                    <h3>${escapeHtml(title)}</h3>
+                    <h3 id="ecosystem-detail-title" tabindex="-1">${escapeHtml(title)}</h3>
                     <p>${selected ? escapeHtml(selected.description) : 'Unique wallet-layer identities across the disclosed app universe; no L1/L2 ownership merge is inferred.'}</p>
                 </div>
                 <div class="ecosystem-detail-actions">
@@ -755,14 +755,23 @@ function updateRouteState() {
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
-function selectAndRender({ scrollDetail = false } = {}) {
+function selectAndRender({ scrollDetail = false, focusDetail = false, focusApp = '' } = {}) {
     updateRouteState();
     renderBody(lastSnapshot);
-    if (scrollDetail) {
+    if (scrollDetail || focusDetail || focusApp) {
         requestAnimationFrame(() => {
             const body = document.getElementById('ecosystem-chamber-body');
             const target = document.getElementById('ecosystem-history-detail');
-            if (body && target) body.scrollTo({ top: Math.max(0, target.offsetTop - 12), behavior: 'smooth' });
+            if (focusDetail) {
+                document.getElementById('ecosystem-detail-title')?.focus({ preventScroll: true });
+            } else if (focusApp) {
+                [...document.querySelectorAll('#ecosystem-activity-modal [data-ecosystem-app]')]
+                    .find((candidate) => candidate.dataset.ecosystemApp === focusApp)
+                    ?.focus({ preventScroll: true });
+            }
+            if (scrollDetail && body && target) {
+                body.scrollTo({ top: Math.max(0, target.offsetTop - 12), behavior: 'smooth' });
+            }
         });
     }
 }
@@ -795,12 +804,13 @@ function bindBodyEvents(body) {
         const appId = event.target.closest('[data-ecosystem-app]')?.dataset.ecosystemApp;
         if (appId && lastSnapshot?.apps.some((app) => app.id === appId)) {
             currentApp = appId;
-            selectAndRender({ scrollDetail: true });
+            selectAndRender({ scrollDetail: true, focusDetail: true });
             return;
         }
         if (event.target.closest('[data-ecosystem-clear-app]')) {
+            const previousApp = currentApp;
             currentApp = '';
-            selectAndRender();
+            selectAndRender({ focusApp: previousApp });
             return;
         }
         if (event.target.closest('[data-ecosystem-retry]')) refreshEcosystemChamber({ quiet: false });

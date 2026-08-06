@@ -1664,8 +1664,11 @@ async function installFeatureMocks(context, options = {}) {
           { address: SAMPLE_ADDRESS, alias: 'Quipu community baker' }
         ]);
       }
-      if (query.includes('governance')) {
+      if (query.includes('govern')) {
         return fulfillJson(route, [{ address: SAMPLE_ADDRESS_2, alias: 'Governance Baker Alias' }]);
+      }
+      if (query.includes('frobnicate')) {
+        return fulfillJson(route, [{ address: SAMPLE_ADDRESS, alias: 'Completely Unrelated Baker' }]);
       }
       return fulfillJson(route, []);
     }
@@ -5126,6 +5129,26 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     await dock.waitFor({ state: 'visible', timeout: 5000 });
     await page.waitForFunction(() => document.querySelector('[data-release-update-dock]')?.classList.contains('is-visible'));
     await dock.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
+    const compactArrival = await page.evaluate(() => {
+      const dock = document.querySelector('[data-release-update-dock]');
+      const pill = dock?.querySelector('.release-update-pill');
+      const rect = dock?.getBoundingClientRect();
+      return {
+        cardHidden: dock?.querySelector('.release-update-card')?.hidden ?? false,
+        collapsed: dock?.classList.contains('is-collapsed') || false,
+        height: rect?.height || 0,
+        pillHeight: pill?.getBoundingClientRect().height || 0,
+        pillHidden: pill?.hidden ?? true
+      };
+    });
+    assert(compactArrival.collapsed
+      && compactArrival.cardHidden
+      && !compactArrival.pillHidden
+      && compactArrival.pillHeight >= 44
+      && compactArrival.height <= 48,
+    `release update dock ${testCase.label}: a routine update must arrive as the compact transmission pill ${JSON.stringify(compactArrival)}`);
+    await page.evaluate(() => window.__releaseUpdateUi.expandReleaseUpdateDock());
+    await page.waitForFunction(() => !document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed'));
     const initial = await page.evaluate(({ edge, mobile, reducedMotion }) => {
       const dock = document.querySelector('[data-release-update-dock]');
       const card = dock?.querySelector('.release-update-card');
@@ -5227,6 +5250,7 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     await page.evaluate(() => {
       window.__releaseUpdateUi.showReleaseUpdateDock({
         detail: 'Reload for the latest Tezos Systems fixes and features.',
+        expanded: true,
         onAction: () => { window.__releaseUpdateActions += 1; },
         onLater: () => { window.__releaseUpdateLater += 1; }
       });
@@ -5269,6 +5293,7 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
       const ui = window.__releaseUpdateUi;
       const dock = document.querySelector('[data-release-update-dock]');
       ui.showReleaseUpdateDock({
+        expanded: true,
         onAction: () => { window.__releaseUpdateActions += 1; },
         onLater: () => { window.__releaseUpdateLater += 1; }
       });
@@ -5289,27 +5314,42 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
       dialog.scrollTop = 40;
       accessibility.activateChamberDialog(overlay, { close() {}, label: 'Test Chamber' });
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const dock = document.querySelector('[data-release-update-dock]');
       const result = {
         basePadding: parseFloat(dialog.style.getPropertyValue('--chamber-room-base-padding-bottom')),
         bodySafe: document.body.classList.contains('release-update-safe-area-raised'),
-        collapsed: document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed') || false,
+        dockHidden: dock?.hidden ?? false,
         normalized: overlay.classList.contains('chamber-shell-normalized'),
         paddingBottom: parseFloat(getComputedStyle(dialog).paddingBottom),
         roomSize: dialog.dataset.roomSize || '',
+        safeBottom: document.documentElement.style.getPropertyValue('--release-update-safe-bottom'),
         scrollTop: dialog.scrollTop
       };
       accessibility.deactivateChamberDialog(overlay, { restoreFocus: false });
       overlay.remove();
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      result.resumed = {
+        collapsed: dock?.classList.contains('is-collapsed') || false,
+        dockHidden: dock?.hidden ?? true,
+        focusedDock: Boolean(dock?.contains(document.activeElement)),
+        pillHidden: dock?.querySelector('.release-update-pill')?.hidden ?? true
+      };
       window.__releaseUpdateUi.expandReleaseUpdateDock();
       return result;
     });
     assert(activeChamber.normalized
       && activeChamber.roomSize === 'standard'
-      && activeChamber.collapsed
-      && activeChamber.bodySafe
+      && activeChamber.dockHidden
+      && !activeChamber.bodySafe
       && activeChamber.basePadding >= 20
-      && activeChamber.paddingBottom > activeChamber.basePadding
-      && activeChamber.scrollTop === 40, `release update dock ${testCase.label}: active Chamber collapse/safe-area preservation failed ${JSON.stringify(activeChamber)}`);
+      && Math.abs(activeChamber.paddingBottom - activeChamber.basePadding) <= 1
+      && !activeChamber.safeBottom
+      && activeChamber.scrollTop === 40
+      && !activeChamber.resumed.dockHidden
+      && activeChamber.resumed.collapsed
+      && !activeChamber.resumed.pillHidden
+      && !activeChamber.resumed.focusedDock,
+    `release update dock ${testCase.label}: active modal suppression/compact resume failed ${JSON.stringify(activeChamber)}`);
 
     const action = page.locator('[data-release-update-action]');
     assert(await action.count() === 1, `release update dock ${testCase.label}: expected one primary update action`);
@@ -5450,23 +5490,29 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
     && /System transmission · incoming/i.test(waitingState.transmission)
     && waitingState.waiting === 'installed', `release update lifecycle: waiting worker did not produce the release transmission with current change context ${JSON.stringify(waitingState)}`);
 
+  await updatingPage.locator('.release-update-pill').click();
   await updatingPage.locator('[data-release-update-later]').click();
   await updatingPage.waitForFunction(() => document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed'));
   response = await updatingPage.goto(`${lifecycleBaseUrl}/uranium/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `release update lifecycle: deferred Uranium navigation failed with HTTP ${response?.status()}`);
   await updatingPage.locator('#uranium-modal.active').waitFor({ state: 'visible', timeout: 15000 });
-  await updatingPage.locator('[data-release-update-dock].is-visible').waitFor({ state: 'visible', timeout: 10000 });
+  await updatingPage.locator('[data-release-update-dock]').waitFor({ state: 'attached', timeout: 10000 });
+  await updatingPage.waitForFunction(() => document.querySelector('[data-release-update-dock]')?.hidden === true);
   const deferredRouteState = await updatingPage.evaluate(() => ({
     chamberActive: Boolean(document.querySelector('#uranium-modal.active')),
-    collapsed: document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed') || false,
     deadline: Number(sessionStorage.getItem('tezos-systems-release-update-deferred-until-v1')),
+    dockHidden: document.querySelector('[data-release-update-dock]')?.hidden ?? false,
     pathname: location.pathname
   }));
   assert(deferredRouteState.chamberActive
-    && deferredRouteState.collapsed
+    && deferredRouteState.dockHidden
     && deferredRouteState.deadline > Date.now()
-    && deferredRouteState.pathname === '/uranium/', `release update lifecycle: Later did not survive pretty-route navigation as a collapsed Chamber-safe notice ${JSON.stringify(deferredRouteState)}`);
+    && deferredRouteState.pathname === '/uranium/', `release update lifecycle: Later did not survive pretty-route navigation without competing with its active modal ${JSON.stringify(deferredRouteState)}`);
 
+  await updatingPage.locator('#uranium-modal .chamber-close').click();
+  await updatingPage.waitForFunction(() => !document.querySelector('#uranium-modal.active'));
+  await updatingPage.locator('[data-release-update-dock].is-visible').waitFor({ state: 'visible', timeout: 10000 });
+  await updatingPage.waitForFunction(() => document.querySelector('[data-release-update-dock]')?.classList.contains('is-collapsed'));
   await updatingPage.locator('.release-update-pill').click();
 
   const lifecycleAction = updatingPage.locator('[data-release-update-action]');
@@ -6019,6 +6065,105 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   });
   assert(contractLensState.entrypoints === 2 && contractLensState.sameCode === 1 && /Contract identity/.test(contractLensState.text) && /Smoke Creator/.test(contractLensState.text) && /Related Smoke Deployment/.test(contractLensState.text) && contractLensState.rawCode.includes(`/contracts/${SAMPLE_CONTRACT}/code?format=1`), `hero command bar: native contract lens is incomplete ${JSON.stringify(contractLensState)}`);
   await page.locator('#native-explorer-overlay .native-explorer-close').click();
+
+  const entrypointFailurePattern = `**/v1/contracts/${SAMPLE_CONTRACT}/entrypoints`;
+  await page.route(entrypointFailurePattern, (route) => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'smoke partial source' })
+  }));
+  await page.evaluate((address) => window.TezosNativeExplorer.open('contract', address), SAMPLE_CONTRACT);
+  await page.waitForFunction(() => document.querySelector('#native-explorer-overlay.active .native-explorer-source-status')?.dataset.state === 'partial', null, { timeout: 5000 });
+  const partialContractState = await page.evaluate(() => {
+    const overlay = document.querySelector('#native-explorer-overlay.active');
+    return {
+      text: overlay?.innerText || '',
+      retry: Boolean(overlay?.querySelector('[data-native-retry]')),
+      retainedEntrypoints: overlay?.querySelectorAll('.native-contract-entrypoint').length || 0
+    };
+  });
+  assert(partialContractState.retry && partialContractState.retainedEntrypoints === 2 && /Partial TzKT read/.test(partialContractState.text) && /decoded entrypoints unavailable/.test(partialContractState.text) && /Last-good decoded entrypoints retained/.test(partialContractState.text) && /unavailable fields are not zero/i.test(partialContractState.text), `hero command bar: partial native contract read is not explicit or last-good preserving ${JSON.stringify(partialContractState)}`);
+  await page.unroute(entrypointFailurePattern);
+  await page.locator('#native-explorer-overlay [data-native-retry]').click();
+  await page.waitForFunction(() => document.querySelector('#native-explorer-overlay.active .native-explorer-source-status')?.dataset.state === 'complete', null, { timeout: 5000 });
+  assert(await page.locator('#native-explorer-overlay.active .native-contract-entrypoint').count() === 2, 'hero command bar: native contract retry did not restore the complete entrypoint view');
+  await page.locator('#native-explorer-overlay .native-explorer-close').click();
+
+  const freshPartialPage = await context.newPage();
+  attachIssueCollectors(freshPartialPage, 'hero command bar fresh partial Native Explorer', issues);
+  const freshPartialFailure = (route) => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: 'smoke fresh partial source' })
+  });
+  await freshPartialPage.route(`**/v1/contracts/${SAMPLE_CONTRACT}/same`, freshPartialFailure);
+  await freshPartialPage.route((url) => (
+    url.origin === 'https://api.tzkt.io'
+      && url.pathname === '/v1/operations/transactions'
+      && [url.searchParams.get('sender'), url.searchParams.get('target')].includes(SAMPLE_CONTRACT)
+  ), freshPartialFailure);
+  const freshPartialResponse = await freshPartialPage.goto(`${baseUrl}/?native-fresh-partial=1`, { waitUntil: 'domcontentloaded' });
+  assert(freshPartialResponse?.ok(), `hero command bar: fresh partial Native Explorer fixture failed with HTTP ${freshPartialResponse?.status()}`);
+  await freshPartialPage.waitForFunction(() => Boolean(window.TezosNativeExplorer?.open), null, { timeout: 10000 });
+  await freshPartialPage.evaluate((address) => window.TezosNativeExplorer.open('contract', address), SAMPLE_CONTRACT);
+  await freshPartialPage.waitForFunction(() => document.querySelector('#native-explorer-overlay.active .native-explorer-source-status')?.dataset.state === 'partial', null, { timeout: 5000 });
+  const freshPartialState = await freshPartialPage.evaluate(() => {
+    const overlay = document.querySelector('#native-explorer-overlay.active');
+    window.__nativeFreshPartialEntrypoint = overlay?.querySelector('.native-contract-entrypoint');
+    return {
+      text: overlay?.innerText || '',
+      entrypoints: overlay?.querySelectorAll('.native-contract-entrypoint').length || 0,
+      falseEmptySameCode: /No additional matching deployments were returned/.test(overlay?.innerText || ''),
+      falseZeroRecent: /0 recent flow rows/.test(overlay?.innerText || '')
+    };
+  });
+  assert(
+    freshPartialState.entrypoints === 2
+      && /Related deployments are unavailable for this read/.test(freshPartialState.text)
+      && /Recent TzKT flow is unavailable for this read/.test(freshPartialState.text)
+      && /recent flow unavailable/.test(freshPartialState.text)
+      && !freshPartialState.falseEmptySameCode
+      && !freshPartialState.falseZeroRecent,
+    `hero command bar: fresh partial Native Explorer still presented unavailable sources as empty or zero ${JSON.stringify(freshPartialState)}`
+  );
+
+  await freshPartialPage.unrouteAll({ behavior: 'wait' });
+  await freshPartialPage.route(`**/v1/contracts/${SAMPLE_CONTRACT}/same`, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.fallback();
+  });
+  const freshRetry = freshPartialPage.locator('#native-explorer-overlay [data-native-retry]');
+  await freshRetry.focus();
+  await freshRetry.click();
+  await freshPartialPage.waitForFunction(() => document.querySelector('#native-explorer-overlay [data-native-retry]')?.dataset.nativeRetrying === 'true');
+  const retryPendingState = await freshPartialPage.evaluate(() => {
+    const retry = document.querySelector('#native-explorer-overlay [data-native-retry]');
+    const entrypoint = document.querySelector('#native-explorer-overlay .native-contract-entrypoint');
+    return {
+      retainedEntrypoint: entrypoint === window.__nativeFreshPartialEntrypoint,
+      retainedPartial: document.querySelector('#native-explorer-overlay .native-explorer-source-status')?.dataset.state || '',
+      retryText: retry?.textContent?.trim() || '',
+      retryBusy: retry?.getAttribute('aria-busy') || '',
+      retryDisabled: retry?.getAttribute('aria-disabled') || '',
+      retryFocused: document.activeElement === retry
+    };
+  });
+  assert(
+    retryPendingState.retainedEntrypoint
+      && retryPendingState.retainedPartial === 'partial'
+      && retryPendingState.retryText === 'Retrying…'
+      && retryPendingState.retryBusy === 'true'
+      && retryPendingState.retryDisabled === 'true'
+      && retryPendingState.retryFocused,
+    `hero command bar: Native Explorer retry replaced or defocused the retained partial lens ${JSON.stringify(retryPendingState)}`
+  );
+  await freshPartialPage.waitForFunction(() => (
+    document.querySelector('#native-explorer-overlay .native-explorer-source-status')?.dataset.state === 'complete'
+      && document.activeElement === document.querySelector('#native-explorer-overlay .native-explorer-source-status')
+  ), null, { timeout: 5000 });
+  assert(await freshPartialPage.locator('#native-explorer-overlay .native-contract-match').count() === 1, 'hero command bar: fresh partial retry did not restore the same-code results');
+  await freshPartialPage.unrouteAll({ behavior: 'wait' });
+  await freshPartialPage.close();
   await page.mouse.click(10, 10);
   await page.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.getElementById('hero-search-panel')?.hidden, null, { timeout: 5000 });
 
@@ -6353,6 +6498,648 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   assert(issues.length === 0, `hero command bar browser issues:\n${issues.join('\n')}`);
   log('ok - hero command bar smoke');
+}
+
+async function smokeRouteSearchState(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'aurora');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+
+  const page = await context.newPage();
+  page.setDefaultNavigationTimeout(90000);
+  attachIssueCollectors(page, 'route and search state', issues);
+  const response = await page.goto(`${baseUrl}/?theme=aurora`, { waitUntil: 'commit' });
+  assert(response?.ok(), `route and search state: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 150000 });
+  await page.waitForFunction(() => document.querySelector('#hero-slot')?.dataset.heroSearchWired === '1', null, { timeout: 150000 });
+
+  const input = page.locator('#hero-search-input');
+  await input.fill('frobnicate');
+  await page.waitForFunction(() => {
+    const panel = document.getElementById('hero-search-panel');
+    return document.getElementById('hero-search-input')?.value === 'frobnicate'
+      && !panel?.querySelector('.hero-search-status-row')
+      && /No result matched/i.test(panel?.textContent || '');
+  }, null, { timeout: 10000 });
+  const irrelevantSuggestionState = await page.evaluate(() => ({
+    href: window.location.href,
+    text: document.getElementById('hero-search-panel')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    selectable: document.querySelectorAll('#hero-search-panel [role="option"]').length
+  }));
+  assert(
+    irrelevantSuggestionState.selectable === 0
+      && !/Completely Unrelated Baker|TzKT alias/i.test(irrelevantSuggestionState.text),
+    `route and search state: unrelated on-chain suggestion remained actionable ${JSON.stringify(irrelevantSuggestionState)}`
+  );
+  await input.press('Enter');
+  assert(await page.evaluate((href) => window.location.href === href, irrelevantSuggestionState.href), 'route and search state: Enter navigated an empty nonsense query');
+
+  const partialSuggestionResponse = page.waitForResponse((candidate) => {
+    const url = new URL(candidate.url());
+    return url.origin === 'https://api.tzkt.io' && url.pathname.endsWith('/v1/suggest/accounts/govern');
+  });
+  await input.fill('govern');
+  await partialSuggestionResponse;
+  await page.waitForFunction(() => /Governance Baker Alias/.test(document.getElementById('hero-search-panel')?.textContent || ''), null, { timeout: 10000 });
+  const partialSuggestionState = await page.evaluate(() => document.getElementById('hero-search-panel')?.textContent || '');
+  assert(/Governance Baker Alias/.test(partialSuggestionState) && /TzKT alias/.test(partialSuggestionState), 'route and search state: an intended on-chain alias prefix was filtered out');
+
+  const suffixSuggestionResponse = page.waitForResponse((candidate) => {
+    const url = new URL(candidate.url());
+    return url.origin === 'https://api.tzkt.io' && url.pathname.endsWith('/v1/suggest/accounts/governancexyz');
+  });
+  await input.fill('governancexyz');
+  await suffixSuggestionResponse;
+  await page.waitForFunction(() => !document.querySelector('#hero-search-panel .hero-search-status-row'), null, { timeout: 10000 });
+  const suffixSuggestionState = await page.evaluate(() => document.getElementById('hero-search-panel')?.textContent || '');
+  assert(!/Governance Baker Alias|TzKT alias/.test(suffixSuggestionState), `route and search state: nonsense alias suffix survived relevance gating (${suffixSuggestionState})`);
+
+  await input.press('Escape');
+  await page.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.activeElement?.id !== 'hero-search-input');
+  const offscreenScroll = await page.evaluate(() => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+    return Math.round(window.scrollY);
+  });
+  await page.keyboard.press('/');
+  await page.waitForFunction(() => document.body.classList.contains('hero-search-mode') && document.activeElement?.id === 'hero-search-input');
+  await page.keyboard.press('Escape');
+  const escapeFocusState = await page.evaluate(() => ({
+    active: document.activeElement?.id || document.activeElement?.tagName || '',
+    open: document.body.classList.contains('hero-search-mode'),
+    scrollY: Math.round(window.scrollY),
+    inputBottom: Math.round(document.getElementById('hero-search-input')?.getBoundingClientRect().bottom || 0)
+  }));
+  assert(
+    !escapeFocusState.open
+      && escapeFocusState.active !== 'hero-search-input'
+      && Math.abs(escapeFocusState.scrollY - offscreenScroll) <= 2
+      && escapeFocusState.inputBottom <= 0,
+    `route and search state: Escape restored focus to the offscreen hero ${JSON.stringify({ offscreenScroll, escapeFocusState })}`
+  );
+
+  await page.keyboard.press('/');
+  await page.waitForFunction(() => document.body.classList.contains('hero-search-mode'));
+  await page.locator('#hero-search-close').focus();
+  assert(await page.evaluate(() => document.activeElement?.id === 'hero-search-close'), 'route and search state: close control did not receive focus');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.activeElement?.id !== 'hero-search-close');
+
+  await page.evaluate(() => { window.location.hash = 'search'; });
+  await page.waitForFunction(() => window.location.hash === '#search' && document.body.classList.contains('hero-search-mode'));
+  await page.goBack();
+  await page.waitForFunction(() => !window.location.hash && !document.body.classList.contains('hero-search-mode') && document.activeElement?.id !== 'hero-search-input');
+
+  await page.evaluate(() => {
+    window.location.hash = 'search';
+    window.setTimeout(() => { window.location.hash = 'health'; }, 25);
+  });
+  await page.waitForFunction(() => (
+    window.location.hash === '#health'
+      && document.querySelector('#network-health-modal')?.classList.contains('active')
+      && !document.body.classList.contains('hero-search-mode')
+  ), null, { timeout: 15000 });
+  await page.waitForTimeout(350);
+  const pendingSearchRouteState = await page.evaluate(() => ({
+    hash: window.location.hash,
+    searchOpen: document.body.classList.contains('hero-search-mode'),
+    focus: document.activeElement?.id || document.activeElement?.tagName || '',
+    healthOpen: Boolean(document.querySelector('#network-health-modal.active'))
+  }));
+  assert(
+    pendingSearchRouteState.hash === '#health'
+      && !pendingSearchRouteState.searchOpen
+      && pendingSearchRouteState.focus !== 'hero-search-input'
+      && pendingSearchRouteState.healthOpen,
+    `route and search state: stale #search focus reopened over a destination ${JSON.stringify(pendingSearchRouteState)}`
+  );
+
+  const openHashRoute = async (hash, selector) => {
+    await page.goto(`${baseUrl}/?theme=aurora${hash}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(({ expectedHash, modalSelector }) => (
+      window.location.hash === expectedHash
+        && document.querySelector(modalSelector)?.classList.contains('active')
+    ), { expectedHash: hash, modalSelector: selector }, { timeout: 15000 });
+  };
+
+  await openHashRoute('#crp', '#tezoscrp-modal');
+  assert(/TezosCRP/i.test(await page.title()), `route and search state: bare #crp title is wrong (${await page.title()})`);
+
+  await openHashRoute('#protocol', '#protocol-history-chamber-modal');
+  const bareProtocolState = await page.evaluate(() => ({
+    anthology: Boolean(document.querySelector('#protocol-history-chamber-modal.active')),
+    story: Boolean(document.getElementById('protocol-history-modal')),
+    hash: window.location.hash
+  }));
+  assert(
+    bareProtocolState.anthology && !bareProtocolState.story && bareProtocolState.hash === '#protocol',
+    `route and search state: bare #protocol did not remain an anthology route ${JSON.stringify(bareProtocolState)}`
+  );
+
+  await openHashRoute('#baker', '#baker-directory-modal');
+  assert(/Baker Directory/i.test(await page.title()), `route and search state: bare #baker title is wrong (${await page.title()})`);
+
+  const aliasPairs = [
+    ['#chamber', '#the-chamber', '#chamber-modal'],
+    ['#pulse', '#network-pulse', '#network-pulse-modal'],
+    ['#tezosx', '#tezlink', '#tezlink-modal'],
+    ['#health', '#network-health', '#network-health-modal']
+  ];
+  for (const [canonicalHash, aliasHash, selector] of aliasPairs) {
+    await openHashRoute(canonicalHash, selector);
+    await page.evaluate(({ nextHash, modalSelector }) => {
+      window.__routeAliasState = { closed: false, reopened: false };
+      window.__routeAliasObserver?.disconnect();
+      window.__routeAliasObserver = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === 'attributes' && record.target.matches?.(modalSelector)) {
+            const wasActive = String(record.oldValue || '').split(/\s+/).includes('active');
+            if (wasActive) window.__routeAliasState.closed = true;
+            if (!wasActive && window.__routeAliasState.closed && record.target.classList.contains('active')) {
+              window.__routeAliasState.reopened = true;
+            }
+          }
+          if (record.type === 'childList') {
+            for (const node of record.removedNodes) {
+              if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.(modalSelector) || node.querySelector?.(modalSelector))) {
+                window.__routeAliasState.closed = true;
+              }
+            }
+            for (const node of record.addedNodes) {
+              if (!window.__routeAliasState.closed || node.nodeType !== Node.ELEMENT_NODE) continue;
+              const modal = node.matches?.(modalSelector) ? node : node.querySelector?.(modalSelector);
+              if (modal?.classList.contains('active')) window.__routeAliasState.reopened = true;
+            }
+          }
+        }
+      });
+      window.__routeAliasObserver.observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['class'],
+        attributeOldValue: true
+      });
+      window.location.hash = nextHash;
+    }, { nextHash: aliasHash, modalSelector: selector });
+    await page.waitForFunction(({ expectedHash, modalSelector }) => (
+      window.location.hash === expectedHash
+        && window.__routeAliasState?.closed
+        && window.__routeAliasState?.reopened
+        && document.querySelector(modalSelector)?.classList.contains('active')
+    ), { expectedHash: aliasHash, modalSelector: selector }, { timeout: 15000 });
+    const aliasState = await page.evaluate(() => {
+      window.__routeAliasObserver?.disconnect();
+      return { ...window.__routeAliasState, hash: window.location.hash };
+    });
+    assert(
+      aliasState.closed && aliasState.reopened && aliasState.hash === aliasHash,
+      `route and search state: ${canonicalHash} -> ${aliasHash} corrupted routing ${JSON.stringify(aliasState)}`
+    );
+  }
+
+  await openHashRoute('#health', '#network-health-modal');
+  await page.locator('#network-health-modal.active .chamber-close').click();
+  await page.waitForFunction(() => (
+    window.location.pathname === '/'
+      && window.location.search === '?theme=aurora'
+      && !window.location.hash
+      && !document.querySelector('#network-health-modal')?.classList.contains('active')
+  ), null, { timeout: 10000 });
+
+  await input.fill('network health');
+  await page.waitForFunction(() => document.querySelector('#hero-search-panel .hero-search-result strong')?.textContent?.trim() === 'Network Health', null, { timeout: 10000 });
+  await input.press('Enter');
+  await page.waitForFunction(() => (
+    window.location.pathname === '/health/'
+      && document.querySelector('#network-health-modal')?.classList.contains('active')
+      && !document.body.classList.contains('hero-search-mode')
+      && document.activeElement?.id !== 'hero-search-input'
+  ), null, { timeout: 15000 });
+
+  await page.goBack();
+  await page.waitForFunction(() => (
+    window.location.pathname === '/'
+      && window.location.search === '?theme=aurora'
+      && !window.location.hash
+      && !document.querySelector('.chamber-overlay.active, #history-modal.active, #protocol-history-modal, #native-explorer-overlay.active')
+  ), null, { timeout: 15000 });
+  await page.goForward();
+  await page.waitForFunction(() => (
+    window.location.pathname === '/health/'
+      && document.querySelector('#network-health-modal')?.classList.contains('active')
+      && !document.body.classList.contains('hero-search-mode')
+      && document.activeElement?.id !== 'hero-search-input'
+  ), null, { timeout: 15000 });
+  await page.evaluate(async () => {
+    const { updatePageTitle } = await import('/js/ui/title.js');
+    updatePageTitle({
+      totalBakers: 401,
+      stakingRatio: 72.1,
+      currentIssuanceRate: 3.2,
+      stakeAPY: 5.8
+    });
+  });
+  assert(await page.title() === 'Network Health | tezos.systems', `route and search state: telemetry immediately replaced the Forward title (${await page.title()})`);
+  await page.waitForTimeout(10250);
+  const forwardState = await page.evaluate(() => ({
+    path: window.location.pathname,
+    title: document.title,
+    searchOpen: document.body.classList.contains('hero-search-mode'),
+    focus: document.activeElement?.id || document.activeElement?.tagName || '',
+    healthOpen: Boolean(document.querySelector('#network-health-modal.active'))
+  }));
+  assert(
+    forwardState.path === '/health/'
+      && forwardState.title === 'Network Health | tezos.systems'
+      && !forwardState.searchOpen
+      && forwardState.focus !== 'hero-search-input'
+      && forwardState.healthOpen,
+    `route and search state: Forward did not restore a stable routed room ${JSON.stringify(forwardState)}`
+  );
+
+  const standaloneResponse = await page.goto(`${baseUrl}/health/?theme=aurora`, { waitUntil: 'commit' });
+  assert(standaloneResponse?.ok(), `route and search state: standalone Health route failed with HTTP ${standaloneResponse?.status()}`);
+  await page.waitForFunction(() => (
+    document.documentElement.dataset.chamberRoute === 'health'
+      && document.querySelector('#network-health-modal')?.classList.contains('active')
+  ), null, { timeout: 150000 });
+  await page.evaluate(async () => {
+    const { updatePageTitle } = await import('/js/ui/title.js');
+    updatePageTitle({
+      totalBakers: 401,
+      stakingRatio: 72.1,
+      currentIssuanceRate: 3.2,
+      stakeAPY: 5.8
+    });
+  });
+  const standaloneTitleState = await page.evaluate(() => ({
+    chamberRoute: document.documentElement.dataset.chamberRoute || '',
+    title: document.title
+  }));
+  assert(
+    standaloneTitleState.chamberRoute === 'health'
+      && standaloneTitleState.title === 'Network Health Chamber - Tezos Consensus Status | tezos.systems',
+    `route and search state: standalone route-specific title was overwritten ${JSON.stringify(standaloneTitleState)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `route and search state browser issues:\n${issues.join('\n')}`);
+  log('ok - route and search state smoke');
+}
+
+async function smokeBreakpointAccessibility(browser, baseUrl) {
+  const issues = [];
+  const breakpointWidths = [759, 760, 767, 768, 899, 900, 1023, 1024, 1179, 1180, 1299, 1300];
+  const settleLayout = (page) => page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+  const seedContext = async (context) => {
+    await installFeatureMocks(context);
+    await context.addInitScript(() => {
+      localStorage.setItem('tezos-systems-theme', 'clean');
+      localStorage.setItem('tezos-toured', '1');
+      localStorage.setItem('tezos-welcomed', '1');
+      localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    });
+  };
+  const openDashboard = async (context, label) => {
+    const page = await context.newPage();
+    attachIssueCollectors(page, label, issues);
+    const response = await page.goto(`${baseUrl}/?theme=clean`, { waitUntil: 'commit' });
+    assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
+    await page.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 150000 });
+    await page.waitForFunction(() => document.querySelector('#hero-slot')?.dataset.heroSearchWired === '1', null, { timeout: 150000 });
+    return page;
+  };
+
+  const breakpointContext = await browser.newContext({
+    viewport: { width: breakpointWidths[0], height: 900 },
+    serviceWorkers: 'block'
+  });
+  await seedContext(breakpointContext);
+  const breakpointPage = await openDashboard(breakpointContext, 'breakpoint accessibility matrix');
+  const breakpointInput = breakpointPage.locator('#hero-search-input');
+  await breakpointInput.fill('network health');
+  await breakpointPage.waitForFunction(() => (
+    document.body.classList.contains('hero-search-mode')
+      && document.activeElement?.id === 'hero-search-input'
+      && !document.getElementById('hero-search-panel')?.hidden
+  ));
+
+  for (const width of breakpointWidths) {
+    await breakpointPage.setViewportSize({ width, height: 900 });
+    await settleLayout(breakpointPage);
+    const state = await breakpointPage.evaluate((expectedWidth) => {
+      const rectState = (selector) => {
+        const element = document.querySelector(selector);
+        const rect = element?.getBoundingClientRect();
+        return {
+          selector,
+          present: Boolean(element && rect),
+          width: rect?.width || 0,
+          left: rect?.left || 0,
+          right: rect?.right || 0,
+          top: rect?.top || 0,
+          bottom: rect?.bottom || 0,
+          horizontallyContained: Boolean(rect && rect.left >= -1 && rect.right <= innerWidth + 1)
+        };
+      };
+      const commandDeck = document.querySelector('.command-deck');
+      const focused = document.activeElement?.getBoundingClientRect();
+      return {
+        expectedWidth,
+        width: innerWidth,
+        horizontalOverflow: Math.max(
+          document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          document.body.scrollWidth - document.documentElement.clientWidth
+        ),
+        searchOpen: document.body.classList.contains('hero-search-mode'),
+        focusedInput: document.activeElement?.id === 'hero-search-input',
+        focusContained: Boolean(focused
+          && focused.left >= -1
+          && focused.right <= innerWidth + 1
+          && focused.top >= -1
+          && focused.bottom <= innerHeight + 1),
+        commandPosition: commandDeck ? getComputedStyle(commandDeck).position : '',
+        regions: [
+          rectState('.header-content'),
+          rectState('.command-deck'),
+          rectState('#hero-search-form'),
+          rectState('#hero-search-panel'),
+          rectState('#main-content')
+        ]
+      };
+    }, width);
+    assert(state.width === width, `breakpoint accessibility ${width}px: viewport width drifted ${JSON.stringify(state)}`);
+    assert(state.horizontalOverflow <= 1, `breakpoint accessibility ${width}px: shell/search caused horizontal overflow ${JSON.stringify(state)}`);
+    assert(
+      state.searchOpen && state.focusedInput && state.focusContained,
+      `breakpoint accessibility ${width}px: search focus escaped the visible command surface ${JSON.stringify(state)}`
+    );
+    assert(
+      state.regions.every((region) => region.present && region.width > 0 && region.horizontallyContained),
+      `breakpoint accessibility ${width}px: shell/search geometry escaped the viewport ${JSON.stringify(state)}`
+    );
+    assert(
+      state.commandPosition === (width <= 768 ? 'fixed' : 'relative'),
+      `breakpoint accessibility ${width}px: command surface crossed its responsive mode early or late ${JSON.stringify(state)}`
+    );
+  }
+
+  await breakpointPage.keyboard.press('Escape');
+  await breakpointPage.evaluate(() => { window.location.hash = 'health'; });
+  await breakpointPage.waitForFunction(() => document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 30000 });
+  for (const width of breakpointWidths) {
+    await breakpointPage.setViewportSize({ width, height: 900 });
+    await settleLayout(breakpointPage);
+    await assertNormalizedChamberShell(
+      breakpointPage,
+      '#network-health-modal',
+      '.health-content',
+      'standard',
+      `breakpoint accessibility Health Chamber ${width}px`
+    );
+    await breakpointPage.locator('#network-health-modal .chamber-close').focus();
+    const chamberState = await breakpointPage.evaluate((expectedWidth) => {
+      const dialog = document.querySelector('#network-health-modal .health-content');
+      const close = document.querySelector('#network-health-modal .chamber-close');
+      const dialogRect = dialog?.getBoundingClientRect();
+      const closeRect = close?.getBoundingClientRect();
+      return {
+        expectedWidth,
+        width: innerWidth,
+        horizontalOverflow: Math.max(
+          document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          document.body.scrollWidth - document.documentElement.clientWidth
+        ),
+        focusInDialog: Boolean(dialog?.contains(document.activeElement)),
+        dialogContained: Boolean(dialogRect
+          && dialogRect.left >= -1
+          && dialogRect.right <= innerWidth + 1
+          && dialogRect.top >= -1
+          && dialogRect.bottom <= innerHeight + 1),
+        closeContained: Boolean(closeRect
+          && closeRect.left >= dialogRect.left - 1
+          && closeRect.right <= dialogRect.right + 1
+          && closeRect.top >= dialogRect.top - 1
+          && closeRect.bottom <= dialogRect.bottom + 1)
+      };
+    }, width);
+    assert(
+      chamberState.width === width
+        && chamberState.horizontalOverflow <= 1
+        && chamberState.focusInDialog
+        && chamberState.dialogContained
+        && chamberState.closeContained,
+      `breakpoint accessibility Health Chamber ${width}px: containment/overflow failed ${JSON.stringify(chamberState)}`
+    );
+  }
+  await breakpointContext.close();
+
+  // A 640x450 CSS viewport at DPR 2 models a 1280x900 display reflowed at 200%.
+  const zoomContext = await browser.newContext({
+    viewport: { width: 640, height: 450 },
+    screen: { width: 1280, height: 900 },
+    deviceScaleFactor: 2,
+    serviceWorkers: 'block'
+  });
+  await seedContext(zoomContext);
+  const zoomPage = await openDashboard(zoomContext, '200 percent zoom accessibility');
+  await zoomPage.locator('#hero-search-input').fill('network health');
+  await zoomPage.waitForFunction(() => document.body.classList.contains('hero-search-mode'));
+  const zoomSearchState = await zoomPage.evaluate(() => {
+    const focused = document.activeElement?.getBoundingClientRect();
+    const deck = document.querySelector('.command-deck')?.getBoundingClientRect();
+    return {
+      cssViewport: [innerWidth, innerHeight],
+      dpr: devicePixelRatio,
+      physicalViewport: [innerWidth * devicePixelRatio, innerHeight * devicePixelRatio],
+      focusVisible: document.activeElement?.matches?.(':focus-visible') || false,
+      focusContained: Boolean(focused
+        && focused.left >= -1
+        && focused.right <= innerWidth + 1
+        && focused.top >= -1
+        && focused.bottom <= innerHeight + 1),
+      deckContained: Boolean(deck
+        && deck.left >= -1
+        && deck.right <= innerWidth + 1
+        && deck.top >= -1
+        && deck.bottom <= innerHeight + 1),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(
+    zoomSearchState.cssViewport.join('x') === '640x450'
+      && zoomSearchState.dpr === 2
+      && zoomSearchState.physicalViewport.join('x') === '1280x900'
+      && zoomSearchState.focusVisible
+      && zoomSearchState.focusContained
+      && zoomSearchState.deckContained
+      && zoomSearchState.horizontalOverflow <= 1,
+    `200 percent zoom accessibility: command surface failed reflow/focus containment ${JSON.stringify(zoomSearchState)}`
+  );
+  await zoomPage.keyboard.press('Escape');
+  await zoomPage.evaluate(() => { window.location.hash = 'health'; });
+  await zoomPage.waitForFunction(() => document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 30000 });
+  await assertNormalizedChamberShell(
+    zoomPage,
+    '#network-health-modal',
+    '.health-content',
+    'standard',
+    '200 percent zoom accessibility Health Chamber'
+  );
+  const zoomChamberState = await zoomPage.evaluate(() => {
+    const dialog = document.querySelector('#network-health-modal .health-content');
+    const close = document.querySelector('#network-health-modal .chamber-close');
+    close?.focus();
+    const dialogRect = dialog?.getBoundingClientRect();
+    const closeRect = close?.getBoundingClientRect();
+    return {
+      focusInDialog: Boolean(dialog?.contains(document.activeElement)),
+      dialogContained: Boolean(dialogRect
+        && dialogRect.left >= -1
+        && dialogRect.right <= innerWidth + 1
+        && dialogRect.top >= -1
+        && dialogRect.bottom <= innerHeight + 1),
+      closeContained: Boolean(closeRect
+        && closeRect.left >= dialogRect.left - 1
+        && closeRect.right <= dialogRect.right + 1
+        && closeRect.top >= dialogRect.top - 1
+        && closeRect.bottom <= dialogRect.bottom + 1),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(
+    zoomChamberState.focusInDialog
+      && zoomChamberState.dialogContained
+      && zoomChamberState.closeContained
+      && zoomChamberState.horizontalOverflow <= 1,
+    `200 percent zoom accessibility: Health Chamber escaped the reflowed viewport ${JSON.stringify(zoomChamberState)}`
+  );
+  await zoomContext.close();
+
+  const forcedColorsContext = await browser.newContext({
+    viewport: { width: 900, height: 720 },
+    forcedColors: 'active',
+    serviceWorkers: 'block'
+  });
+  await seedContext(forcedColorsContext);
+  const forcedColorsPage = await openDashboard(forcedColorsContext, 'forced colors accessibility');
+  await forcedColorsPage.locator('#hero-search-input').fill('network health');
+  await forcedColorsPage.keyboard.press('Tab');
+  await forcedColorsPage.keyboard.press('Tab');
+  await forcedColorsPage.waitForFunction(() => document.activeElement?.id === 'hero-search-close');
+  const forcedColorsState = await forcedColorsPage.evaluate(() => {
+    const focused = document.activeElement;
+    const rect = focused?.getBoundingClientRect();
+    const style = focused ? getComputedStyle(focused) : null;
+    return {
+      forcedColors: matchMedia('(forced-colors: active)').matches,
+      active: focused?.id || '',
+      focusVisible: focused?.matches?.(':focus-visible') || false,
+      outlineStyle: style?.outlineStyle || '',
+      outlineWidth: Number.parseFloat(style?.outlineWidth || '0') || 0,
+      focusContained: Boolean(rect
+        && rect.left >= -1
+        && rect.right <= innerWidth + 1
+        && rect.top >= -1
+        && rect.bottom <= innerHeight + 1),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  assert(
+    forcedColorsState.forcedColors
+      && forcedColorsState.active === 'hero-search-close'
+      && forcedColorsState.focusVisible
+      && forcedColorsState.outlineStyle !== 'none'
+      && forcedColorsState.outlineWidth >= 2
+      && forcedColorsState.focusContained
+      && forcedColorsState.horizontalOverflow <= 1,
+    `forced colors accessibility: search focus was not visibly contained ${JSON.stringify(forcedColorsState)}`
+  );
+  await forcedColorsContext.close();
+
+  const reducedMotionContext = await browser.newContext({
+    viewport: { width: 900, height: 720 },
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block'
+  });
+  await seedContext(reducedMotionContext);
+  const reducedMotionPage = await openDashboard(reducedMotionContext, 'reduced motion accessibility');
+  await reducedMotionPage.locator('#hero-search-input').fill('network health');
+  await reducedMotionPage.keyboard.press('Tab');
+  await reducedMotionPage.keyboard.press('Tab');
+  await reducedMotionPage.waitForFunction(() => document.activeElement?.id === 'hero-search-close');
+  const reducedMotionState = await reducedMotionPage.evaluate(() => {
+    const durationIsZero = (value) => String(value || '')
+      .split(',')
+      .every((duration) => Number.parseFloat(duration) === 0);
+    const focused = document.activeElement;
+    const focusedRect = focused?.getBoundingClientRect();
+    const focusedStyle = focused ? getComputedStyle(focused) : null;
+    const motionSelectors = [
+      '.header',
+      '.block-ticker-strip',
+      '.main-content',
+      '.hero-search-form',
+      '.hero-search-submit',
+      '.hero-search-close',
+      '.hero-search-chip'
+    ];
+    const motion = motionSelectors.map((selector) => {
+      const element = document.querySelector(selector);
+      const style = element ? getComputedStyle(element) : null;
+      return {
+        selector,
+        present: Boolean(element),
+        transitionDuration: style?.transitionDuration || '',
+        animationDuration: style?.animationDuration || '',
+        still: Boolean(style
+          && durationIsZero(style.transitionDuration)
+          && (style.animationName === 'none' || durationIsZero(style.animationDuration)))
+      };
+    });
+    return {
+      reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      active: focused?.id || '',
+      focusVisible: focused?.matches?.(':focus-visible') || false,
+      focusStyled: Boolean(focusedStyle
+        && (focusedStyle.outlineStyle !== 'none' || focusedStyle.boxShadow !== 'none')),
+      focusContained: Boolean(focusedRect
+        && focusedRect.left >= -1
+        && focusedRect.right <= innerWidth + 1
+        && focusedRect.top >= -1
+        && focusedRect.bottom <= innerHeight + 1),
+      horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      motion
+    };
+  });
+  assert(
+    reducedMotionState.reducedMotion
+      && reducedMotionState.active === 'hero-search-close'
+      && reducedMotionState.focusVisible
+      && reducedMotionState.focusStyled
+      && reducedMotionState.focusContained
+      && reducedMotionState.horizontalOverflow <= 1,
+    `reduced motion accessibility: search focus/containment failed ${JSON.stringify(reducedMotionState)}`
+  );
+  assert(
+    reducedMotionState.motion.every((entry) => entry.present && entry.still),
+    `reduced motion accessibility: command transition/animation remained active ${JSON.stringify(reducedMotionState.motion)}`
+  );
+  await reducedMotionContext.close();
+
+  assert(issues.length === 0, `breakpoint/accessibility browser issues:\n${issues.join('\n')}`);
+  log('ok - exact breakpoint and accessibility matrix');
 }
 
 async function smokeCycleMilestone(browser, baseUrl) {
@@ -8418,6 +9205,7 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
     );
 
     await page.locator('[data-release-radar-close]').click();
+    await page.waitForFunction(() => document.activeElement === document.querySelector('[data-hot-signal-id="release-radar"] [data-release-radar-open]'));
     const closed = await page.evaluate(() => {
       const overlay = document.getElementById('release-radar-overlay');
       const opener = document.querySelector('[data-hot-signal-id="release-radar"] [data-release-radar-open]');
@@ -9938,6 +10726,7 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
       && allScope.total.includes('1,500,000.00'),
     `my tezos address switch: shared scope did not default every view to the complete wallet total ${JSON.stringify(allScope)}`
   );
+
   await page.selectOption('#my-tezos-wallet-scope', SAMPLE_ADDRESS_2);
   await page.waitForFunction((address) => (
     document.querySelector('#my-tezos-wallet-scope')?.value === address
@@ -10278,6 +11067,49 @@ async function smokeMyTezosAddressSwitch(browser, baseUrl) {
   );
 
   await context.close();
+
+  const coldStoryContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(coldStoryContext);
+  await coldStoryContext.addInitScript(({ first, second }) => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-my-baker-address', second);
+    localStorage.setItem('tezos-systems-saved-addresses', JSON.stringify([
+      { network: 'tezos-l1', address: first, label: 'Primary', included: true, addedAt: Date.now() - 1000 },
+      { network: 'tezos-l1', address: second, label: 'Second', included: true, addedAt: Date.now() }
+    ]));
+  }, { first: SAMPLE_ADDRESS, second: SAMPLE_ADDRESS_2 });
+  const coldStoryPage = await coldStoryContext.newPage();
+  attachIssueCollectors(coldStoryPage, 'my tezos cold all-wallet Story', issues);
+  const coldStoryResponse = await coldStoryPage.goto(`${baseUrl}/my/?view=story`, { waitUntil: 'domcontentloaded' });
+  assert(coldStoryResponse?.ok(), `my tezos cold Story: route failed with HTTP ${coldStoryResponse?.status()}`);
+  await coldStoryPage.waitForFunction(() => (
+    document.querySelector('#my-tezos-drawer')?.classList.contains('open')
+      && document.querySelector('#my-tezos-tab-story')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#my-tezos-story-content .tezos-story-dossier')
+  ), null, { timeout: 20000 });
+  const coldStoryState = await coldStoryPage.evaluate(() => ({
+    scope: document.querySelector('#my-tezos-wallet-scope')?.value || '',
+    boundaryHidden: document.querySelector('#my-tezos-story-scope-boundary')?.hidden,
+    storyHidden: document.querySelector('#my-tezos-story-content')?.hidden,
+    dossierPresent: Boolean(document.querySelector('#my-tezos-story-content .tezos-story-dossier')),
+    includedWallets: JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]')
+      .filter((entry) => entry.included !== false).length
+  }));
+  assert(
+    coldStoryState.scope === 'all'
+      && coldStoryState.includedWallets === 2
+      && coldStoryState.boundaryHidden === false
+      && coldStoryState.storyHidden === true
+      && coldStoryState.dossierPresent,
+    `my tezos cold Story: all-wallet scope exposed one active-wallet dossier ${JSON.stringify(coldStoryState)}`
+  );
+  await coldStoryContext.close();
   assert(issues.length === 0, `my tezos address switch browser issues:\n${issues.join('\n')}`);
   log('ok - my tezos address switch smoke');
 }
@@ -10734,7 +11566,7 @@ async function smokeMyTezosMemory(browser, baseUrl) {
   });
   await installFeatureMocks(context);
   await context.addInitScript(({ first, second }) => {
-    localStorage.setItem('tezos-systems-theme', 'dark');
+    localStorage.setItem('tezos-systems-theme', 'matrix');
     localStorage.setItem('tezos-toured', '1');
     localStorage.setItem('tezos-welcomed', '1');
     localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
@@ -11223,6 +12055,19 @@ async function smokeMyTezosTezosX(browser, baseUrl) {
   const page = await context.newPage();
   attachIssueCollectors(page, 'my tezos tezos x', issues);
   await openMyTezosSmokeView(page, baseUrl, 'tezos-x');
+  await page.waitForFunction(() => document.querySelector('#tezosx-status')?.dataset.state === 'empty', null, { timeout: 5000 });
+
+  const emptyStatus = await page.evaluate(() => ({
+    state: document.querySelector('#tezosx-status')?.dataset.state || '',
+    text: document.querySelector('#tezosx-status')?.textContent?.trim() || '',
+    emptyHeading: document.querySelector('#tezosx-account-list .tezosx-empty strong')?.textContent?.trim() || ''
+  }));
+  assert(
+    emptyStatus.state === 'empty'
+      && emptyStatus.text === 'Link an Etherlink account to begin.'
+      && emptyStatus.emptyHeading === 'No linked Etherlink accounts',
+    `my tezos tezos x: opened empty view retained its pre-activation status copy ${JSON.stringify(emptyStatus)}`
+  );
 
   await page.locator('#tezosx-add-address').fill('not-an-address');
   await page.locator('#tezosx-add-form button[type="submit"]').click();
@@ -12437,7 +13282,77 @@ async function smokeMyTezosPrettyRoute(browser, baseUrl) {
   log('ok - my tezos pretty route (desktop + mobile)');
 }
 
+async function smokeNetworkHealthInteractivePriority(browser, baseUrl) {
+  const issues = [];
+  const backlogTotal = 72;
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(({ total }) => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.removeItem('tezos-systems-network-health');
+
+    Object.defineProperty(window, '__tzktThrottle', {
+      configurable: true,
+      get() {
+        return undefined;
+      },
+      set(throttle) {
+        Object.defineProperty(window, '__tzktThrottle', {
+          configurable: true,
+          writable: true,
+          value: throttle
+        });
+        window.__healthPriorityBacklogTotal = total;
+        window.__healthPriorityBacklogCompleted = 0;
+        const requests = Array.from({ length: total }, (_, index) => (
+          fetch(`https://api.tzkt.io/v1/accounts/count?balance.gt=${index + 1}&health_priority_smoke=${index}`, {
+            cache: 'no-store'
+          }).then(() => {
+            window.__healthPriorityBacklogCompleted += 1;
+          }).catch(() => null)
+        ));
+        window.__healthPriorityBacklogQueuedAtInstall = throttle.queueLength;
+        window.__healthPriorityBacklog = Promise.allSettled(requests);
+      }
+    });
+  }, { total: backlogTotal });
+
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'network health interactive priority', issues);
+  const response = await page.goto(`${baseUrl}/#health`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `network health interactive priority: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#network-health-modal.active .health-content .health-header .chamber-title')
+    .waitFor({ state: 'visible', timeout: 10000 });
+  const state = await page.evaluate(() => ({
+    completed: window.__healthPriorityBacklogCompleted,
+    queueLength: window.__tzktThrottle?.queueLength ?? -1,
+    queuedAtInstall: window.__healthPriorityBacklogQueuedAtInstall,
+    rendered: document.querySelector('#network-health-modal.active .health-body')?.dataset.healthRendered || '',
+    title: document.querySelector('#network-health-modal.active .health-header .chamber-title')?.textContent?.trim() || '',
+    total: window.__healthPriorityBacklogTotal
+  }));
+  assert(
+    state.title === 'Network Health Chamber'
+      && state.rendered === 'true'
+      && state.total === backlogTotal
+      && state.queuedAtInstall === backlogTotal
+      && state.completed < state.total
+      && state.queueLength > 0,
+    `network health interactive priority: the cold Chamber did not render ahead of the ordinary TzKT backlog ${JSON.stringify(state)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `network health interactive priority browser issues:\n${issues.join('\n')}`);
+}
+
 async function smokeNetworkHealthChamber(browser, baseUrl) {
+  await smokeNetworkHealthInteractivePriority(browser, baseUrl);
   const issues = [];
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
@@ -13380,7 +14295,28 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(await page.evaluate(() => document.activeElement === window.__healthLastFocusable), 'network health chamber: Shift+Tab did not wrap from the close button to the last control');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#network-health-modal')?.classList.contains('active'), null, { timeout: 5000 });
-  await page.waitForFunction(() => document.activeElement === document.querySelector('[data-stat="network-health"] .chamber-expand-cue'), null, { timeout: 5000 });
+  try {
+    await page.waitForFunction(() => document.activeElement === document.querySelector('[data-stat="network-health"] .chamber-expand-cue'), null, { timeout: 5000 });
+  } catch (error) {
+    const focusState = await page.evaluate(async () => {
+      const target = document.querySelector('[data-stat="network-health"] .chamber-expand-cue');
+      const active = document.activeElement;
+      const overlayApi = await import('/js/ui/overlay-stack.js');
+      return {
+        active: active?.id || active?.className || active?.tagName || '',
+        activeConnected: active?.isConnected || false,
+        activeInert: Boolean(active?.closest?.('[inert]')),
+        overlayActive: document.querySelector('#network-health-modal')?.classList.contains('active') || false,
+        stackDepth: overlayApi.activeOverlayCount(),
+        targetConnected: target?.isConnected || false,
+        targetInert: Boolean(target?.closest?.('[inert]')),
+        targetRects: target?.getClientRects().length || 0,
+        targetVisibility: target ? getComputedStyle(target).visibility : '',
+        targetDisabled: Boolean(target?.disabled)
+      };
+    });
+    throw new Error(`network health chamber: Escape did not restore the exact launcher ${JSON.stringify(focusState)}\n${error.message}`);
+  }
   assert(await page.evaluate(() => document.querySelector('#network-health-modal')?.getAttribute('aria-hidden') === 'true'), 'network health chamber: closed dialog did not return to aria-hidden=true');
 
   await context.close();
@@ -13982,6 +14918,21 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
         canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '',
         metrics,
         tabs: document.querySelectorAll('#tezoscrp-modal [data-tezoscrp-view]').length,
+        tabsA11y: Array.from(document.querySelectorAll('#tezoscrp-modal [data-tezoscrp-view]')).map((tab) => ({
+          view: tab.dataset.tezoscrpView || '',
+          id: tab.id || '',
+          controls: tab.getAttribute('aria-controls') || '',
+          selected: tab.getAttribute('aria-selected') || '',
+          tabIndex: tab.tabIndex
+        })),
+        tabPanel: (() => {
+          const panel = document.querySelector('#tezoscrp-view');
+          return {
+            role: panel?.getAttribute('role') || '',
+            labelledBy: panel?.getAttribute('aria-labelledby') || '',
+            tabIndex: panel?.tabIndex
+          };
+        })(),
         heroBadges: document.querySelectorAll('#tezoscrp-modal .tezoscrp-hero-badges img').length,
         podiumPlaces: Array.from(document.querySelectorAll('#tezoscrp-hall-results .tezoscrp-ranking > li.is-podium')).map((row) => row.dataset.tezoscrpPlace),
         launcherIdentities: document.querySelectorAll('#tezoscrp-entry-card .tezoscrp-entry-identity-strip > span').length,
@@ -14000,6 +14951,14 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     assert(initial.path === '/tezoscrp/' && initial.canonical === 'https://tezos.systems/tezoscrp/', `TezosCRP ${label}: canonical route mismatch ${JSON.stringify(initial)}`);
     assert(initial.metrics.join('|').includes('2,218') && initial.metrics.join('|').includes('827') && initial.metrics.join('|').includes('69'), `TezosCRP ${label}: baseline totals missing ${JSON.stringify(initial.metrics)}`);
     assert(initial.tabs === 5, `TezosCRP ${label}: expected five archive and records views`);
+    assert(
+      initial.tabsA11y.every((tab) => tab.id === `tezoscrp-tab-${tab.view}` && tab.controls === 'tezoscrp-view')
+        && initial.tabsA11y.filter((tab) => tab.tabIndex === 0 && tab.selected === 'true').length === 1
+        && initial.tabPanel.role === 'tabpanel'
+        && initial.tabPanel.labelledBy === 'tezoscrp-tab-hall'
+        && initial.tabPanel.tabIndex === 0,
+      `TezosCRP ${label}: tabs and shared panel are not programmatically associated ${JSON.stringify({ tabs: initial.tabsA11y, panel: initial.tabPanel })}`
+    );
     assert(initial.heroBadges === 9, `TezosCRP ${label}: expected all nine current category badges in the hero`);
     assert(initial.podiumPlaces.join('|') === '1|2|3', `TezosCRP ${label}: top recognition rows lost their distinct placement treatment ${JSON.stringify(initial.podiumPlaces)}`);
     assert(initial.launcherIdentities === 6, `TezosCRP ${label}: launcher must surface six leading recognition identities`);
@@ -14012,6 +14971,21 @@ async function smokeTezosCrpChamber(browser, baseUrl) {
     }
     assert(/one official category listing equals one award/i.test(initial.truth) && /most posts do not state a per-person XTZ payout/i.test(initial.truth), `TezosCRP ${label}: count truth is missing ${initial.truth}`);
     assert(!initial.pageOverflow && !initial.modalOverflow && !initial.bodyOverflow, `TezosCRP ${label}: initial view overflows ${JSON.stringify(initial)}`);
+
+    await page.locator('#tezoscrp-tab-hall').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction(() => (
+      document.activeElement?.id === 'tezoscrp-tab-records'
+        && document.querySelector('#tezoscrp-tab-records')?.getAttribute('aria-selected') === 'true'
+        && document.querySelector('#tezoscrp-view')?.getAttribute('aria-labelledby') === 'tezoscrp-tab-records'
+    ));
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForFunction(() => (
+      document.activeElement?.id === 'tezoscrp-tab-hall'
+        && document.querySelector('#tezoscrp-tab-hall')?.getAttribute('aria-selected') === 'true'
+        && document.querySelector('#tezoscrp-view')?.getAttribute('aria-labelledby') === 'tezoscrp-tab-hall'
+        && document.querySelector('#tezoscrp-hall-search')
+    ));
 
     await page.locator('#tezoscrp-hall-search').fill('Baking Benjamins');
     await page.waitForFunction(() => document.querySelectorAll('#tezoscrp-hall-results [data-tezoscrp-person]').length === 1);
@@ -18972,16 +19946,20 @@ async function smokeEcosystemActivity(browser, baseUrl) {
 
   await page.locator('#ecosystem-activity-modal [data-ecosystem-app="morpho-blue"]').first().click();
   await page.waitForFunction(() => new URL(location.href).searchParams.get('app') === 'morpho-blue'
-    && /Morpho Blue/i.test(document.querySelector('#ecosystem-history-detail')?.textContent || ''));
+    && /Morpho Blue/i.test(document.querySelector('#ecosystem-history-detail')?.textContent || '')
+    && document.activeElement?.id === 'ecosystem-detail-title');
   const appState = await page.evaluate(() => ({
     proofCards: document.querySelectorAll('#ecosystem-history-detail .ecosystem-proof-card').length,
     contracts: document.querySelectorAll('#ecosystem-history-detail .ecosystem-contract-list a').length,
     proofLinks: document.querySelectorAll('#ecosystem-history-detail .ecosystem-proof-links a').length,
     ledgerSummary: document.querySelector('#ecosystem-history-detail .ecosystem-history-ledger summary')?.textContent?.trim() || '',
-    website: document.querySelector('#ecosystem-history-detail .ecosystem-detail-actions a')?.href || ''
+    website: document.querySelector('#ecosystem-history-detail .ecosystem-detail-actions a')?.href || '',
+    focusedId: document.activeElement?.id || '',
+    focusedTabIndex: document.activeElement?.tabIndex
   }));
   assert(appState.proofCards === 1 && appState.contracts === 1 && appState.proofLinks >= 1
-    && /weekly rows/i.test(appState.ledgerSummary) && /^https:/.test(appState.website),
+    && /weekly rows/i.test(appState.ledgerSummary) && /^https:/.test(appState.website)
+    && appState.focusedId === 'ecosystem-detail-title' && appState.focusedTabIndex === -1,
   `ecosystem activity: app history or proofbook failed ${JSON.stringify(appState)}`);
 
   await page.locator('#ecosystem-activity-modal [data-ecosystem-range="12w"]').click();
@@ -20083,11 +21061,22 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       tabs: document.querySelectorAll('#etherlink-governance-modal [data-etherlink-track]').length,
       tabsA11y: Array.from(document.querySelectorAll('#etherlink-governance-modal [data-etherlink-track]')).map((button) => ({
         track: button.dataset.etherlinkTrack || '',
+        id: button.id || '',
         role: button.getAttribute('role') || '',
         selected: button.getAttribute('aria-selected') || '',
+        controls: button.getAttribute('aria-controls') || '',
+        tabIndex: button.tabIndex,
         active: button.classList.contains('active')
       })),
       activeTab: document.querySelector('#etherlink-governance-modal [data-etherlink-track].active')?.dataset.etherlinkTrack || '',
+      tabPanel: (() => {
+        const panel = document.querySelector('#etherlink-governance-modal [role="tabpanel"]');
+        return {
+          id: panel?.id || '',
+          labelledBy: panel?.getAttribute('aria-labelledby') || '',
+          tabIndex: panel?.tabIndex
+        };
+      })(),
       phaseHero: compactText('#etherlink-governance-phase-hero'),
       phaseSteps: document.querySelectorAll('#etherlink-governance-phase-hero .governance-phase-step').length,
       activePhase: document.querySelector('#etherlink-governance-phase-hero .governance-phase-step.active')?.dataset.stage || '',
@@ -20167,7 +21156,31 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(etherlinkState.tabs === 3, `governance testing period: Etherlink should expose three track tabs, saw ${etherlinkState.tabs}`);
   assert(etherlinkState.tabsA11y.length === 3 && etherlinkState.tabsA11y.every((tab) => tab.role === 'tab'), `governance testing period: Etherlink tabs need role=tab: ${JSON.stringify(etherlinkState.tabsA11y)}`);
   assert(etherlinkState.tabsA11y.every((tab) => tab.selected === String(tab.active)), `governance testing period: Etherlink tabs aria-selected mismatch: ${JSON.stringify(etherlinkState.tabsA11y)}`);
+  assert(
+    etherlinkState.tabsA11y.every((tab) => tab.id === `etherlink-gov-tab-${tab.track}` && tab.controls === 'etherlink-gov-track-panel')
+      && etherlinkState.tabsA11y.filter((tab) => tab.tabIndex === 0).length === 1
+      && etherlinkState.tabPanel.id === 'etherlink-gov-track-panel'
+      && etherlinkState.tabPanel.labelledBy === 'etherlink-gov-tab-fast'
+      && etherlinkState.tabPanel.tabIndex === 0,
+    `governance testing period: Etherlink tabs and panel are not programmatically associated ${JSON.stringify({ tabs: etherlinkState.tabsA11y, panel: etherlinkState.tabPanel })}`
+  );
   assert(etherlinkState.activeTab === 'fast', `governance testing period: Etherlink FAST tab should start active, saw ${etherlinkState.activeTab}`);
+
+  await page.locator('#etherlink-gov-tab-fast').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => (
+    document.activeElement?.id === 'etherlink-gov-tab-slow'
+      && document.querySelector('#etherlink-gov-tab-slow')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#etherlink-gov-track-panel')?.getAttribute('aria-labelledby') === 'etherlink-gov-tab-slow'
+  ));
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction((proposal) => (
+    document.activeElement?.id === 'etherlink-gov-tab-fast'
+      && document.querySelector('#etherlink-gov-tab-fast')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#etherlink-gov-track-panel')?.getAttribute('aria-labelledby') === 'etherlink-gov-tab-fast'
+      && document.querySelector('#etherlink-governance-modal .etherlink-gov-proposal-hash')?.textContent?.includes(proposal)
+  ), ETHERLINK_FAST_PROPOSAL);
+
   assert(etherlinkState.phaseSteps === 4 && etherlinkState.activePhase === 'proposal', `governance testing period: Etherlink phase clock mismatch: ${JSON.stringify(etherlinkState)}`);
   assert(/L2 governance clock/.test(etherlinkState.phaseHero) && /Threshold met/.test(etherlinkState.phaseHero) && /enters Promotion next/.test(etherlinkState.phaseHero), `governance testing period: Etherlink phase guidance missing: ${etherlinkState.phaseHero}`);
   assert(etherlinkState.nowCards === 3 && etherlinkState.watchItems >= 3 && etherlinkState.sourceLinks === 3, `governance testing period: Etherlink current-state layout incomplete: ${JSON.stringify(etherlinkState)}`);
@@ -21198,6 +22211,152 @@ async function smokeUxChanges(browser, baseUrl) {
   await page.locator('#comparison-section.visible').waitFor({ state: 'visible', timeout: 10000 });
   await expectCount(page, '#comparison-section .section-copy-link[data-copy-hash="#compare"]', 1, 'ux compare copy link');
 
+  await page.evaluate(() => { window.location.hash = 'protocol-history'; });
+  await page.locator('#protocol-history-chamber-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#upgrade-effect-toggle').waitFor({ state: 'attached', timeout: 10000 });
+  const upgradeCollapsed = await page.evaluate(() => {
+    const toggle = document.querySelector('#upgrade-effect-toggle');
+    const panel = document.querySelector('#upgrade-effect-panel');
+    return {
+      controls: toggle?.getAttribute('aria-controls') || '',
+      expanded: toggle?.getAttribute('aria-expanded') || '',
+      panelRole: panel?.getAttribute('role') || '',
+      panelLabelledBy: panel?.getAttribute('aria-labelledby') || '',
+      panelAriaHidden: panel?.getAttribute('aria-hidden') || '',
+      panelInert: Boolean(panel?.inert),
+      title: document.querySelector('#upgrade-effect-title')?.textContent?.trim() || ''
+    };
+  });
+  assert(
+    upgradeCollapsed.controls === 'upgrade-effect-panel'
+      && upgradeCollapsed.expanded === 'false'
+      && upgradeCollapsed.panelRole === 'region'
+      && upgradeCollapsed.panelLabelledBy === 'upgrade-effect-title'
+      && upgradeCollapsed.panelAriaHidden === 'true'
+      && upgradeCollapsed.panelInert
+      && upgradeCollapsed.title === 'Protocol upgrade impact',
+    `ux changes: Upgrade Effect collapsed semantics are incomplete ${JSON.stringify(upgradeCollapsed)}`
+  );
+  await page.locator('#upgrade-effect-toggle').click();
+  try {
+    await page.waitForFunction(() => (
+      document.querySelector('#upgrade-effect-toggle')?.getAttribute('aria-expanded') === 'true'
+        && document.querySelector('#upgrade-effect-panel')?.getAttribute('aria-hidden') === 'false'
+        && document.querySelector('#upgrade-effect-canvas')?.getAttribute('role') === 'img'
+    ), null, { timeout: 10000 });
+  } catch (error) {
+    const state = await page.evaluate(() => ({
+      expanded: document.querySelector('#upgrade-effect-toggle')?.getAttribute('aria-expanded') || '',
+      panelHidden: document.querySelector('#upgrade-effect-panel')?.getAttribute('aria-hidden') || '',
+      panelClass: document.querySelector('#upgrade-effect-panel')?.className || '',
+      canvasCount: document.querySelectorAll('#upgrade-effect-canvas').length,
+      canvasRole: document.querySelector('#upgrade-effect-canvas')?.getAttribute('role') || ''
+    }));
+    throw new Error(`ux changes: Upgrade Effect did not expand ${JSON.stringify(state)}\n${error.message}`);
+  }
+  const upgradeExpanded = await page.evaluate(() => {
+    const panel = document.querySelector('#upgrade-effect-panel');
+    const canvas = document.querySelector('#upgrade-effect-canvas');
+    const pills = Array.from(document.querySelectorAll('.upgrade-effect-pill'));
+    return {
+      panelInert: Boolean(panel?.inert),
+      pills: pills.map((pill) => ({
+        id: pill.id || '',
+        pressed: pill.getAttribute('aria-pressed') || '',
+        controls: pill.getAttribute('aria-controls') || ''
+      })),
+      groupRole: document.querySelector('.upgrade-effect-pills')?.getAttribute('role') || '',
+      groupLabel: document.querySelector('.upgrade-effect-pills')?.getAttribute('aria-label') || '',
+      canvasRole: canvas?.getAttribute('role') || '',
+      canvasLabel: canvas?.getAttribute('aria-label') || '',
+      canvasDescribedBy: canvas?.getAttribute('aria-describedby') || '',
+      fallback: canvas?.textContent || '',
+      summary: document.querySelector('#upgrade-effect-chart-summary')?.textContent || ''
+    };
+  });
+  assert(
+    !upgradeExpanded.panelInert
+      && upgradeExpanded.pills.length === 6
+      && upgradeExpanded.pills.filter((pill) => pill.pressed === 'true').length === 1
+      && upgradeExpanded.pills.every((pill) => pill.id.startsWith('upgrade-effect-metric-') && pill.controls === 'upgrade-effect-chart')
+      && upgradeExpanded.groupRole === 'group'
+      && upgradeExpanded.groupLabel === 'Protocol impact metric'
+      && upgradeExpanded.canvasRole === 'img'
+      && /Block Time by Tezos protocol activation/.test(upgradeExpanded.canvasLabel)
+      && upgradeExpanded.canvasDescribedBy === 'upgrade-effect-chart-summary'
+      && /Athens 60s/.test(upgradeExpanded.fallback)
+      && /Ushuaia 6s/.test(upgradeExpanded.summary),
+    `ux changes: Upgrade Effect expanded controls or chart alternative are incomplete ${JSON.stringify(upgradeExpanded)}`
+  );
+
+  await page.evaluate(() => {
+    window.__upgradeEffectRefreshIdentity = {
+      panel: document.querySelector('#upgrade-effect-panel'),
+      toggle: document.querySelector('#upgrade-effect-toggle'),
+      bakers: document.querySelector('#upgrade-effect-metric-bakers')
+    };
+    document.querySelector('#data-status-retry')?.click();
+  });
+  await page.waitForTimeout(750);
+  const upgradeRefreshState = await page.evaluate(() => {
+    const before = window.__upgradeEffectRefreshIdentity || {};
+    const panel = document.querySelector('#upgrade-effect-panel');
+    const toggle = document.querySelector('#upgrade-effect-toggle');
+    const bakers = document.querySelector('#upgrade-effect-metric-bakers');
+    return {
+      samePanel: before.panel === panel && before.panel?.isConnected,
+      sameToggle: before.toggle === toggle && before.toggle?.isConnected,
+      sameBakers: before.bakers === bakers && before.bakers?.isConnected,
+      expanded: toggle?.getAttribute('aria-expanded') || '',
+      panelHidden: panel?.getAttribute('aria-hidden') || '',
+      signature: document.querySelector('#upgrade-timeline')?.dataset.protocolTimelineSignature || ''
+    };
+  });
+  assert(
+    upgradeRefreshState.samePanel
+      && upgradeRefreshState.sameToggle
+      && upgradeRefreshState.sameBakers
+      && upgradeRefreshState.expanded === 'true'
+      && upgradeRefreshState.panelHidden === 'false'
+      && upgradeRefreshState.signature,
+    `ux changes: an identical background protocol refresh detached or collapsed Upgrade Effect ${JSON.stringify(upgradeRefreshState)}`
+  );
+
+  await page.locator('#upgrade-effect-metric-bakers').click();
+  await page.waitForFunction(() => (
+    document.querySelector('#upgrade-effect-metric-bakers')?.getAttribute('aria-pressed') === 'true'
+      && document.querySelectorAll('.upgrade-effect-pill[aria-pressed="true"]').length === 1
+      && /Active Bakers across/.test(document.querySelector('#upgrade-effect-chart-summary')?.textContent || '')
+  ));
+  await page.evaluate(() => {
+    document.querySelector('#upgrade-effect-metric-bakers')?.focus({ preventScroll: true });
+    document.querySelector('#data-status-retry')?.click();
+  });
+  await page.waitForTimeout(750);
+  const selectedMetricRefreshState = await page.evaluate(() => {
+    const before = window.__upgradeEffectRefreshIdentity || {};
+    const bakers = document.querySelector('#upgrade-effect-metric-bakers');
+    return {
+      sameBakers: before.bakers === bakers && before.bakers?.isConnected,
+      focused: document.activeElement === bakers,
+      pressed: bakers?.getAttribute('aria-pressed') || '',
+      expanded: document.querySelector('#upgrade-effect-toggle')?.getAttribute('aria-expanded') || '',
+      summary: document.querySelector('#upgrade-effect-chart-summary')?.textContent || ''
+    };
+  });
+  assert(
+    selectedMetricRefreshState.sameBakers
+      && selectedMetricRefreshState.focused
+      && selectedMetricRefreshState.pressed === 'true'
+      && selectedMetricRefreshState.expanded === 'true'
+      && /Active Bakers across/.test(selectedMetricRefreshState.summary),
+    `ux changes: background protocol refresh reset selected metric or focus ${JSON.stringify(selectedMetricRefreshState)}`
+  );
+  await page.locator('#protocol-history-chamber-modal .chamber-close').click();
+  await page.locator('#protocol-history-chamber-modal').waitFor({ state: 'detached', timeout: 5000 });
+  await page.evaluate(() => { window.location.hash = 'compare'; });
+  await page.locator('#comparison-section.visible').waitFor({ state: 'visible', timeout: 5000 });
+
   const cleanContrast = await page.evaluate(() => {
     const uptimeNode = document.querySelector('.uptime-metric-value, .top-continuity-runtime, #hero-chain-uptime-counter');
     const comparisonNode = document.querySelector('.comparison-col-ethereum .comparison-chain-value');
@@ -21239,7 +22398,31 @@ async function smokeUxChanges(browser, baseUrl) {
   for (const chamber of cleanChambers) {
     await page.goto(`${baseUrl}/?theme=clean#${chamber.hash}`, { waitUntil: 'domcontentloaded' });
     await page.locator(chamber.content).waitFor({ state: 'visible', timeout: 20000 });
-    await page.locator(`${chamber.content} ${chamber.title}`).first().waitFor({ state: 'visible', timeout: 10000 });
+    try {
+      await page.locator(`${chamber.content} ${chamber.title}`).first().waitFor({ state: 'visible', timeout: 10000 });
+    } catch (error) {
+      const readiness = await page.evaluate(({ content, title }) => {
+        const panel = document.querySelector(content);
+        return {
+          url: window.location.href,
+          readyState: document.readyState,
+          titleCount: panel?.querySelectorAll(title).length || 0,
+          bodyText: panel?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 500) || '',
+          overlayClass: panel?.closest('.chamber-overlay')?.className || '',
+          bodyClass: panel?.querySelector('.chamber-body')?.className || '',
+          loading: Boolean(panel?.querySelector('.chamber-loading')),
+          error: panel?.querySelector('.chamber-error')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+          tzktQueueLength: window.__tzktThrottle?.queueLength ?? null,
+          tzktNextDispatchInMs: window.__tzktThrottle?.nextDispatchInMs ?? null,
+          resources: performance.getEntriesByType('resource').slice(-12).map((entry) => ({
+            name: entry.name,
+            duration: Math.round(entry.duration),
+            size: entry.transferSize
+          }))
+        };
+      }, chamber);
+      throw new Error(`ux changes: Clean ${chamber.hash} title did not become ready ${JSON.stringify(readiness)}\n${error.message}`);
+    }
     await page.waitForFunction((selector) => Boolean(getComputedStyle(document.querySelector(selector)).getPropertyValue('--chamber-surface-bg').trim()), chamber.content, { timeout: 5000 });
     const contrast = await page.evaluate(({ content, title }) => {
       const parse = (value) => {
@@ -21748,6 +22931,56 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   });
   await assertPromotedLauncherGeometry(page, 'Whale Watch desktop launcher pair', { desktop: true });
   await expectCount(page, '#whale-watch-modal [role="tab"][data-whale-view]', 5, 'Whale Watch views');
+  const whaleTabState = await page.evaluate(() => ({
+    tabs: Array.from(document.querySelectorAll('#whale-watch-modal [role="tab"][data-whale-view]')).map((tab) => ({
+      view: tab.dataset.whaleView || '',
+      id: tab.id || '',
+      controls: tab.getAttribute('aria-controls') || '',
+      selected: tab.getAttribute('aria-selected') || '',
+      tabIndex: tab.tabIndex,
+      target: (() => {
+        const target = document.getElementById(tab.getAttribute('aria-controls') || '');
+        return {
+          role: target?.getAttribute('role') || '',
+          labelledBy: target?.getAttribute('aria-labelledby') || ''
+        };
+      })()
+    })),
+    panel: (() => {
+      const panel = document.querySelector('#whale-watch-modal [role="tabpanel"]:not([hidden])');
+      return {
+        id: panel?.id || '',
+        labelledBy: panel?.getAttribute('aria-labelledby') || '',
+        tabIndex: panel?.tabIndex
+      };
+    })()
+  }));
+  assert(
+    whaleTabState.tabs.every((tab) => (
+      tab.id === `whale-watch-tab-${tab.view}`
+        && tab.controls === `whale-watch-panel-${tab.view}`
+        && tab.target.role === 'tabpanel'
+        && tab.target.labelledBy === tab.id
+    ))
+      && whaleTabState.tabs.filter((tab) => tab.tabIndex === 0 && tab.selected === 'true').length === 1
+      && whaleTabState.panel.id === 'whale-watch-panel-overview'
+      && whaleTabState.panel.labelledBy === 'whale-watch-tab-overview'
+      && whaleTabState.panel.tabIndex === 0,
+    `Whale Watch: tabs and panels are not programmatically associated ${JSON.stringify(whaleTabState)}`
+  );
+  await page.locator('#whale-watch-tab-overview').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => (
+    document.activeElement?.id === 'whale-watch-tab-live'
+      && document.querySelector('#whale-watch-tab-live')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#whale-watch-panel-live')?.getAttribute('aria-labelledby') === 'whale-watch-tab-live'
+  ));
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(() => (
+    document.activeElement?.id === 'whale-watch-tab-overview'
+      && document.querySelector('#whale-watch-tab-overview')?.getAttribute('aria-selected') === 'true'
+      && document.querySelector('#whale-watch-panel-overview')?.getAttribute('aria-labelledby') === 'whale-watch-tab-overview'
+  ));
   const sourceStripText = await page.locator('#whale-watch-freshness').innerText();
   assert(/6h schedule/.test(sourceStripText) && /window .* → .* UTC/.test(sourceStripText), `Whale Watch: exact archived window and generator cadence missing: ${sourceStripText}`);
   const launcherText = await page.locator('#whale-watch-entry-card').innerText();
@@ -22251,15 +23484,53 @@ async function smokeCycleHistoryChamber(browser, baseUrl) {
     const content = document.querySelector('.cycle-history-content');
     const controls = document.querySelector('.cycle-history-route-controls');
     const focused = document.querySelector('.chart-section[data-history-metric="governance"]');
+    const actions = document.querySelector('.cycle-history-header-actions');
+    const sourceStrip = document.querySelector('.cycle-history-system-strip');
+    const actionRect = actions?.getBoundingClientRect();
+    const stripRect = sourceStrip?.getBoundingClientRect();
+    const actionSizes = Array.from(actions?.querySelectorAll('button') || []).map((button) => {
+      const rect = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      return { width: rect.width, height: rect.height, cssWidth: style.width, cssHeight: style.height, transform: style.transform };
+    });
+    const contentStyle = content ? getComputedStyle(content) : null;
+    const overlayStyle = getComputedStyle(document.querySelector('#history-modal'));
+    const actionAncestors = [];
+    for (let node = actions; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      actionAncestors.push({
+        id: node.id || '',
+        className: typeof node.className === 'string' ? node.className : '',
+        transform: style.transform,
+        zoom: style.zoom,
+        animation: style.animationName
+      });
+    }
     return {
       bodyOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       contentInsideViewport: Boolean(content && content.getBoundingClientRect().left >= -1 && content.getBoundingClientRect().right <= window.innerWidth + 1),
       controlsInsideViewport: Boolean(controls && controls.getBoundingClientRect().right <= window.innerWidth + 1),
       focused: focused?.getAttribute('aria-current') || '',
-      range: document.querySelector('#history-modal')?.dataset.historyRange || ''
+      range: document.querySelector('#history-modal')?.dataset.historyRange || '',
+      actionSizes,
+      contentTransform: contentStyle?.transform || '',
+      contentAnimation: contentStyle?.animationName || '',
+      overlayTransform: overlayStyle.transform,
+      viewportScale: window.visualViewport?.scale || 1,
+      actionAncestors,
+      headerActionsClear: Boolean(actionRect && stripRect && actionRect.bottom <= stripRect.top + 1)
     };
   });
-  assert(mobile.bodyOverflow <= 1 && mobile.contentInsideViewport && mobile.controlsInsideViewport && mobile.focused === 'true' && mobile.range === 'all', `Cycle History: mobile direct focus containment failed ${JSON.stringify(mobile)}`);
+  assert(mobile.bodyOverflow <= 1
+    && mobile.contentInsideViewport
+    && mobile.controlsInsideViewport
+    && mobile.focused === 'true'
+    && mobile.range === 'all'
+    && mobile.headerActionsClear
+    && mobile.overlayTransform === 'none'
+    && mobile.actionSizes.length === 2
+    && mobile.actionSizes.every(({ width, height }) => width >= 43.9 && height >= 43.9),
+  `Cycle History: mobile focus, action geometry, or source-strip containment failed ${JSON.stringify(mobile)}`);
   await page.keyboard.press('Escape');
 
   await context.close();
@@ -25066,11 +26337,21 @@ async function smokeQuietRefresh(browser, baseUrl) {
     const anchor = layoutFixture.querySelector('#quiet-layout-anchor');
     const anchorTop = anchor.getBoundingClientRect().top;
     state.shiftWindowYBefore = window.scrollY;
-    quietlyMutate(shift, () => { shift.hidden = false; });
+    // The mutation root begins above the viewport but spans the row under the
+    // reader. A prepend must keep that row anchored without a delayed restore
+    // overriding a scroll made immediately after reconciliation.
+    quietlyMutate(layoutFixture, () => { shift.hidden = false; });
+    state.compensatedWindowY = window.scrollY;
+    state.anchorDeltaAfterMutation = anchor.getBoundingClientRect().top - anchorTop;
+    const readerScrollBehavior = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    window.scrollTo(0, state.compensatedWindowY + 73);
+    html.style.scrollBehavior = readerScrollBehavior;
+    state.readerWindowY = window.scrollY;
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     state.shiftWindowYAfter = window.scrollY;
-    state.anchorDelta = anchor.getBoundingClientRect().top - anchorTop;
-    quietlyMutate(shift, () => { shift.hidden = true; });
+    quietlyMutate(layoutFixture, () => { shift.hidden = true; });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     document.body.classList.remove('quiet-layout-smoke');
     layoutFixture.remove();
     layoutStyle.remove();
@@ -25082,7 +26363,9 @@ async function smokeQuietRefresh(browser, baseUrl) {
   assert(Math.abs(helperState.scrollLeft - 120) < 1, `quiet refresh: nested scroll reset ${JSON.stringify(helperState)}`);
   assert(Math.abs(helperState.userScrollLeft - 80) < 1, `quiet refresh: a reader scroll made after reconciliation was overridden ${JSON.stringify(helperState)}`);
   assert(helperState.windowY === helperState.expectedWindowY, `quiet refresh: window moved during DOM reconciliation ${JSON.stringify(helperState)}`);
-  assert(Math.abs(helperState.anchorDelta) < 1, `quiet refresh: in-flow status mutation shifted the viewport ${JSON.stringify(helperState)}`);
+  assert(Math.abs(helperState.anchorDeltaAfterMutation) < 1, `quiet refresh: spanning-root prepend shifted the visible row ${JSON.stringify(helperState)}`);
+  assert(Math.abs(helperState.compensatedWindowY - helperState.shiftWindowYBefore - 96) < 1, `quiet refresh: spanning-root prepend did not compensate by its inserted height ${JSON.stringify(helperState)}`);
+  assert(Math.abs(helperState.shiftWindowYAfter - helperState.readerWindowY) < 1, `quiet refresh: delayed spanning-root restore overwrote an immediate reader scroll ${JSON.stringify(helperState)}`);
 
   await page.locator('#hot-today-island').scrollIntoViewIfNeeded();
   await page.waitForFunction(() => (
@@ -27850,6 +29133,744 @@ async function smokeChamberCategories(browser, baseUrl) {
   log('ok - responsive Chamber categories smoke');
 }
 
+async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'overlay stack', issues);
+
+  let response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'commit' });
+  assert(response?.ok(), `overlay stack root failed with HTTP ${response?.status()}`);
+  await page.locator('body').waitFor({ state: 'attached', timeout: 10000 });
+
+  await page.evaluate(async () => {
+    const opener = document.createElement('button');
+    opener.id = 'overlay-stack-share-opener';
+    opener.type = 'button';
+    opener.textContent = 'Open share fixture';
+    document.body.appendChild(opener);
+    opener.focus();
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 18;
+    const share = await import('/js/ui/share.js');
+    share.showShareModal(canvas, 'Overlay stack test', 'Overlay stack test');
+  });
+  await page.locator('#share-modal').waitFor({ state: 'attached', timeout: 5000 });
+  await page.waitForFunction(() => document.getElementById('share-modal')?.classList.contains('visible'));
+  await page.waitForFunction(() => {
+    const overlay = document.getElementById('share-modal');
+    if (!overlay) return false;
+    const style = getComputedStyle(overlay);
+    return style.visibility !== 'hidden' && Number.parseFloat(style.opacity || '1') > 0;
+  });
+  const shareVisibility = await page.evaluate(() => {
+    const overlay = document.getElementById('share-modal');
+    const rect = overlay?.getBoundingClientRect();
+    return {
+      inert: overlay?.hasAttribute('inert') || false,
+      ariaHidden: overlay?.getAttribute('aria-hidden') || '',
+      display: overlay ? getComputedStyle(overlay).display : '',
+      visibility: overlay ? getComputedStyle(overlay).visibility : '',
+      opacity: overlay ? getComputedStyle(overlay).opacity : '',
+      width: rect?.width || 0,
+      height: rect?.height || 0,
+      activeOverlays: Array.from(document.querySelectorAll('.active, .visible')).map((node) => node.id || node.className).slice(0, 12)
+    };
+  });
+  assert(
+    !shareVisibility.inert
+      && shareVisibility.ariaHidden === 'false'
+      && shareVisibility.display !== 'none'
+      && shareVisibility.visibility !== 'hidden'
+      && shareVisibility.width > 0
+      && shareVisibility.height > 0,
+    `overlay stack Share did not become visible ${JSON.stringify(shareVisibility)}`
+  );
+  await page.waitForFunction(() => document.activeElement?.classList.contains('share-modal-close'));
+  const shareOpen = await page.evaluate(() => {
+    const overlay = document.getElementById('share-modal');
+    const dialog = overlay?.querySelector('.share-modal-content');
+    const opener = document.getElementById('overlay-stack-share-opener');
+    return {
+      role: dialog?.getAttribute('role') || '',
+      modal: dialog?.getAttribute('aria-modal') || '',
+      labelledBy: dialog?.getAttribute('aria-labelledby') || '',
+      focusedClose: document.activeElement === dialog?.querySelector('.share-modal-close'),
+      openerInert: opener?.hasAttribute('inert') || false,
+      bodyLocked: document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden'
+    };
+  });
+  assert(
+    shareOpen.role === 'dialog'
+      && shareOpen.modal === 'true'
+      && shareOpen.labelledBy === 'share-modal-title'
+      && shareOpen.focusedClose
+      && shareOpen.openerInert
+      && shareOpen.bodyLocked,
+    `overlay stack Share lifecycle is incomplete ${JSON.stringify(shareOpen)}`
+  );
+  await page.evaluate(() => {
+    const dialog = document.querySelector('#share-modal .share-modal-content');
+    const focusable = Array.from(dialog?.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])') || [])
+      .filter((node) => node.getClientRects().length);
+    focusable.at(-1)?.focus();
+  });
+  await page.keyboard.press('Tab');
+  assert(
+    await page.evaluate(() => document.querySelector('#share-modal .share-modal-content')?.contains(document.activeElement)),
+    'overlay stack Share Tab escaped the dialog'
+  );
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36'
+    });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  });
+  await page.locator('#share-modal #share-download').click();
+  await page.locator('#share-mobile-save-overlay').waitFor({ state: 'visible', timeout: 3000 });
+  await page.waitForFunction(() => document.activeElement?.classList.contains('share-mobile-save-close'));
+  const mobileSaveOpen = await page.evaluate(async () => {
+    const overlayApi = await import('/js/ui/overlay-stack.js');
+    const child = document.getElementById('share-mobile-save-overlay');
+    const parent = document.getElementById('share-modal');
+    const dialog = child?.querySelector('.share-mobile-save-dialog');
+    return {
+      labelledBy: dialog?.getAttribute('aria-labelledby') || '',
+      modal: dialog?.getAttribute('aria-modal') || '',
+      parentInert: parent?.hasAttribute('inert') || false,
+      role: dialog?.getAttribute('role') || '',
+      stackDepth: overlayApi.activeOverlayCount()
+    };
+  });
+  assert(
+    mobileSaveOpen.role === 'dialog'
+      && mobileSaveOpen.modal === 'true'
+      && mobileSaveOpen.labelledBy === 'share-mobile-save-title'
+      && mobileSaveOpen.parentInert
+      && mobileSaveOpen.stackDepth === 2,
+    `overlay stack mobile Share fallback was not contained as a child dialog ${JSON.stringify(mobileSaveOpen)}`
+  );
+  await page.keyboard.press('Tab');
+  assert(
+    await page.evaluate(() => document.querySelector('#share-mobile-save-overlay .share-mobile-save-dialog')?.contains(document.activeElement)),
+    'overlay stack mobile Share fallback let Tab escape the child dialog'
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('#share-mobile-save-overlay').waitFor({ state: 'detached', timeout: 2000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'share-download');
+  const mobileSaveClosed = await page.evaluate(async () => {
+    const overlayApi = await import('/js/ui/overlay-stack.js');
+    const parent = document.getElementById('share-modal');
+    return {
+      bodyLocked: document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden',
+      parentInert: parent?.hasAttribute('inert') || false,
+      parentVisible: parent?.classList.contains('visible') || false,
+      stackDepth: overlayApi.activeOverlayCount()
+    };
+  });
+  assert(
+    mobileSaveClosed.parentVisible
+      && !mobileSaveClosed.parentInert
+      && mobileSaveClosed.bodyLocked
+      && mobileSaveClosed.stackDepth === 1,
+    `overlay stack mobile Share fallback orphaned or unlocked its parent ${JSON.stringify(mobileSaveClosed)}`
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('#share-modal').waitFor({ state: 'detached', timeout: 2000 });
+  const shareClosed = await page.evaluate(() => ({
+    restored: document.activeElement?.id === 'overlay-stack-share-opener',
+    openerInert: document.getElementById('overlay-stack-share-opener')?.hasAttribute('inert') || false,
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    shareClosed.restored && !shareClosed.openerInert && !shareClosed.bodyOverflow && !shareClosed.htmlOverflow,
+    `overlay stack Share close did not restore focus/background ${JSON.stringify(shareClosed)}`
+  );
+  await page.evaluate(() => document.getElementById('overlay-stack-share-opener')?.remove());
+
+  response = await page.goto(`${baseUrl}/#protocol=Ushuaia`, { waitUntil: 'commit' });
+  assert(response?.ok(), `overlay stack direct Protocol Story failed with HTTP ${response?.status()}`);
+  await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 30000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'history-modal-close');
+  const directStory = await page.evaluate(() => {
+    const overlay = document.getElementById('protocol-history-modal');
+    const dialog = overlay?.querySelector('.protocol-history-story-modal');
+    const siblings = Array.from(document.body.children).filter((element) => (
+      element !== overlay && !['SCRIPT', 'STYLE', 'LINK', 'META'].includes(element.tagName)
+    ));
+    return {
+      role: dialog?.getAttribute('role') || '',
+      modal: dialog?.getAttribute('aria-modal') || '',
+      labelledBy: dialog?.getAttribute('aria-labelledby') || '',
+      focusedClose: document.activeElement?.id === 'history-modal-close',
+      backgroundIsolated: siblings.length > 0 && siblings.every((element) => element.hasAttribute('inert')),
+      nonIsolated: siblings.filter((element) => !element.hasAttribute('inert')).map((element) => element.id || element.className || element.tagName),
+      bodyLocked: document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden'
+    };
+  });
+  assert(
+    directStory.role === 'dialog'
+      && directStory.modal === 'true'
+      && directStory.labelledBy === 'protocol-history-story-title'
+      && directStory.focusedClose
+      && directStory.backgroundIsolated
+      && directStory.bodyLocked,
+    `overlay stack direct Protocol Story lifecycle is incomplete ${JSON.stringify(directStory)}`
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('#protocol-history-modal').waitFor({ state: 'detached', timeout: 3000 });
+  await page.waitForFunction(() => !new URLSearchParams(window.location.hash.slice(1)).has('protocol'));
+  await page.waitForFunction(() => (
+    ['header-protocol-chip', 'features-gear', 'hero-search-input'].includes(document.activeElement?.id)
+  ), null, { timeout: 2000 });
+  const directStoryClosed = await page.evaluate(() => ({
+    hash: window.location.hash,
+    active: document.activeElement?.id || document.activeElement?.tagName || '',
+    activeIsFallback: ['header-protocol-chip', 'features-gear', 'hero-search-input'].includes(document.activeElement?.id),
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow,
+    focusFallbacks: ['#header-protocol-chip', '#features-gear', '#hero-search-input'].map((selector) => {
+      const element = document.querySelector(selector);
+      return {
+        selector,
+        connected: element?.isConnected || false,
+        inert: Boolean(element?.closest('[inert]')),
+        rects: element?.getClientRects().length || 0,
+        visibility: element ? getComputedStyle(element).visibility : ''
+      };
+    })
+  }));
+  assert(
+    !directStoryClosed.hash.includes('protocol=')
+      && directStoryClosed.activeIsFallback
+      && !directStoryClosed.bodyOverflow
+      && !directStoryClosed.htmlOverflow,
+    `overlay stack direct Protocol Story close left stale route/focus/scroll ${JSON.stringify(directStoryClosed)}`
+  );
+
+  await page.goto(`${baseUrl}/#protocol-history`, { waitUntil: 'commit' });
+  await page.locator('#protocol-history-chamber-modal.active [data-protocol-open="Quebec"]').first().waitFor({ state: 'visible', timeout: 30000 });
+  const nestedOpener = page.locator('#protocol-history-chamber-modal.active [data-protocol-open="Quebec"]').first();
+  await nestedOpener.click();
+  await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'history-modal-close');
+  const nestedStory = await page.evaluate(() => ({
+    hash: window.location.hash,
+    parentActive: document.getElementById('protocol-history-chamber-modal')?.classList.contains('active') || false,
+    parentInert: document.getElementById('protocol-history-chamber-modal')?.hasAttribute('inert') || false,
+    childFocused: document.activeElement?.id === 'history-modal-close'
+  }));
+  assert(
+    nestedStory.hash === '#protocol-history'
+      && nestedStory.parentActive
+      && nestedStory.parentInert
+      && nestedStory.childFocused,
+    `overlay stack nested Protocol Story did not isolate its parent ${JSON.stringify(nestedStory)}`
+  );
+  await page.keyboard.press('Escape');
+  await page.locator('#protocol-history-modal').waitFor({ state: 'detached', timeout: 3000 });
+  const nestedClosed = await page.evaluate(() => {
+    const parent = document.getElementById('protocol-history-chamber-modal');
+    const opener = parent?.querySelector('[data-protocol-open="Quebec"]');
+    return {
+      active: document.activeElement?.id || document.activeElement?.className || document.activeElement?.tagName || '',
+      hash: window.location.hash,
+      openerConnected: opener?.isConnected || false,
+      openerDisabled: opener?.disabled || false,
+      openerInert: opener?.closest('[inert]') != null,
+      openerRects: opener?.getClientRects().length || 0,
+      openerTag: opener?.tagName || '',
+      openerVisibility: opener ? getComputedStyle(opener).visibility : '',
+      parentActive: parent?.classList.contains('active') || false,
+      parentInert: parent?.hasAttribute('inert') || false,
+      focusInParent: Boolean(parent?.contains(document.activeElement))
+    };
+  });
+  assert(
+    nestedClosed.hash === '#protocol-history'
+      && nestedClosed.parentActive
+      && !nestedClosed.parentInert
+      && nestedClosed.focusInParent,
+    `overlay stack nested Story Escape closed/orphaned the parent ${JSON.stringify(nestedClosed)}`
+  );
+
+  await page.goto(`${baseUrl}/stake/`, { waitUntil: 'commit' });
+  await page.locator('#staking-chamber-modal.active #staking-ratio-history').waitFor({ state: 'visible', timeout: 30000 });
+  await page.locator('#staking-ratio-history').click();
+  await page.locator('#card-history-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'card-history-close');
+  const cardHistory = await page.evaluate(() => {
+    const parent = document.getElementById('staking-chamber-modal');
+    const dialog = document.querySelector('#card-history-modal .card-history-content');
+    return {
+      role: dialog?.getAttribute('role') || '',
+      modal: dialog?.getAttribute('aria-modal') || '',
+      labelledBy: dialog?.getAttribute('aria-labelledby') || '',
+      title: document.getElementById('card-history-title')?.textContent?.trim() || '',
+      parentInert: parent?.hasAttribute('inert') || false,
+      focusedClose: document.activeElement?.id === 'card-history-close'
+    };
+  });
+  assert(
+    cardHistory.role === 'dialog'
+      && cardHistory.modal === 'true'
+      && cardHistory.labelledBy === 'card-history-title'
+      && cardHistory.title
+      && cardHistory.parentInert
+      && cardHistory.focusedClose,
+    `overlay stack shared card history lifecycle is incomplete ${JSON.stringify(cardHistory)}`
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('card-history-modal')?.classList.contains('active'));
+  await page.waitForFunction(() => document.activeElement?.id === 'staking-ratio-history');
+  const cardHistoryClosed = await page.evaluate(() => {
+    const parent = document.getElementById('staking-chamber-modal');
+    return {
+      parentActive: parent?.classList.contains('active') || false,
+      parentInert: parent?.hasAttribute('inert') || false,
+      restored: document.activeElement?.id === 'staking-ratio-history',
+      bodyLocked: document.body.style.overflow === 'hidden'
+    };
+  });
+  assert(
+    cardHistoryClosed.parentActive
+      && !cardHistoryClosed.parentInert
+      && cardHistoryClosed.restored
+      && cardHistoryClosed.bodyLocked,
+    `overlay stack card-history Escape closed/orphaned its Staking parent ${JSON.stringify(cardHistoryClosed)}`
+  );
+
+  await page.goto(`${baseUrl}/#contract=${SAMPLE_CONTRACT}`, { waitUntil: 'commit' });
+  await page.locator('#native-explorer-overlay.active').waitFor({ state: 'visible', timeout: 30000 });
+  await page.waitForFunction(() => document.activeElement?.classList.contains('native-explorer-close'));
+  const nativeOpen = await page.evaluate(() => {
+    const overlay = document.getElementById('native-explorer-overlay');
+    const dialog = overlay?.querySelector('.native-explorer-content');
+    const siblings = Array.from(document.body.children).filter((element) => (
+      element !== overlay && !['SCRIPT', 'STYLE', 'LINK', 'META'].includes(element.tagName)
+    ));
+    return {
+      role: dialog?.getAttribute('role') || '',
+      modal: dialog?.getAttribute('aria-modal') || '',
+      label: dialog?.getAttribute('aria-label') || '',
+      focusedClose: document.activeElement?.classList.contains('native-explorer-close') || false,
+      backgroundIsolated: siblings.length > 0 && siblings.every((element) => element.hasAttribute('inert')),
+      bodyLocked: document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden'
+    };
+  });
+  assert(
+    nativeOpen.role === 'dialog'
+      && nativeOpen.modal === 'true'
+      && nativeOpen.label === 'Tezos native explorer'
+      && nativeOpen.focusedClose
+      && nativeOpen.backgroundIsolated
+      && nativeOpen.bodyLocked,
+    `overlay stack Native Explorer lifecycle is incomplete ${JSON.stringify(nativeOpen)}`
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('native-explorer-overlay')?.classList.contains('active'));
+  await page.waitForFunction(() => !new URLSearchParams(window.location.hash.slice(1)).has('contract'));
+  const nativeClosed = await page.evaluate(() => ({
+    active: document.activeElement?.id || document.activeElement?.tagName || '',
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow,
+    remainingInert: Array.from(document.body.children).filter((element) => (
+      !['SCRIPT', 'STYLE', 'LINK', 'META'].includes(element.tagName)
+      && element.id !== 'my-tezos-drawer'
+      && element.hasAttribute('inert')
+    )).map((element) => element.id || element.className || element.tagName)
+  }));
+  assert(
+    nativeClosed.active !== 'BODY'
+      && !nativeClosed.bodyOverflow
+      && !nativeClosed.htmlOverflow
+      && nativeClosed.remainingInert.length === 0,
+    `overlay stack Native Explorer close did not restore direct-route focus/background ${JSON.stringify(nativeClosed)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `overlay stack browser issues:\n${issues.join('\n')}`);
+  log('ok - shared overlay feature integrations');
+}
+
+async function smokeOverlayStack(browser, baseUrl) {
+  const issues = [];
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    serviceWorkers: 'block'
+  });
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'overlay stack', issues);
+  const response = await page.goto(`${baseUrl}/widgets/block-height.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  assert(response?.ok(), `overlay stack fixture route failed with HTTP ${response?.status()}`);
+
+  await page.evaluate(async () => {
+    const overlayApi = await import('/js/ui/overlay-stack.js');
+    const fallback = document.createElement('button');
+    fallback.id = 'overlay-fixture-fallback';
+    fallback.textContent = 'Fallback';
+    fallback.style.cssText = 'position:fixed;left:4px;top:4px;width:80px;height:32px;';
+    document.body.appendChild(fallback);
+
+    const makeOverlay = (id, label) => {
+      const overlay = document.createElement('div');
+      overlay.id = id;
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;background:#111;z-index:20;';
+      overlay.innerHTML = `
+        <section class="fixture-dialog" style="display:grid;gap:8px;padding:20px;background:#222;">
+          <h2 id="${id}-title">${label}</h2>
+          <button class="fixture-first" type="button">First</button>
+          <button class="fixture-opener" type="button">Open child</button>
+          <button class="fixture-last" type="button">Last</button>
+        </section>
+      `;
+      document.body.appendChild(overlay);
+      return overlay;
+    };
+
+    const parent = makeOverlay('overlay-fixture-parent', 'Parent overlay');
+    const closeParent = () => {
+      overlayApi.deactivateOverlayDialog(parent);
+      parent.remove();
+    };
+    overlayApi.activateOverlayDialog(parent, {
+      close: closeParent,
+      dialogSelector: '.fixture-dialog',
+      titleId: 'overlay-fixture-parent-title',
+      initialFocusSelector: '.fixture-first',
+      restoreFocusSelector: '#overlay-fixture-fallback'
+    });
+
+    const openChild = () => {
+      const child = makeOverlay('overlay-fixture-child', 'Child overlay');
+      child.style.zIndex = '30';
+      const closeChild = () => {
+        overlayApi.deactivateOverlayDialog(child);
+        child.remove();
+      };
+      overlayApi.activateOverlayDialog(child, {
+        close: closeChild,
+        dialogSelector: '.fixture-dialog',
+        titleId: 'overlay-fixture-child-title',
+        initialFocusSelector: '.fixture-first'
+      });
+      return child;
+    };
+    parent.querySelector('.fixture-opener').addEventListener('click', openChild);
+    window.__overlayFixture = { overlayApi, parent, closeParent, openChild };
+  });
+
+  await page.waitForFunction(() => document.activeElement?.matches('#overlay-fixture-parent .fixture-first'));
+  const parentOpen = await page.evaluate(() => {
+    const parent = document.getElementById('overlay-fixture-parent');
+    const dialog = parent?.querySelector('.fixture-dialog');
+    return {
+      role: dialog?.getAttribute('role') || '',
+      modal: dialog?.getAttribute('aria-modal') || '',
+      labelledBy: dialog?.getAttribute('aria-labelledby') || '',
+      fallbackInert: document.getElementById('overlay-fixture-fallback')?.hasAttribute('inert') || false,
+      bodyLocked: document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden'
+    };
+  });
+  assert(
+    parentOpen.role === 'dialog'
+      && parentOpen.modal === 'true'
+      && parentOpen.labelledBy === 'overlay-fixture-parent-title'
+      && parentOpen.fallbackInert
+      && parentOpen.bodyLocked,
+    `overlay stack parent semantics/isolation missing ${JSON.stringify(parentOpen)}`
+  );
+
+  const ownedPortalOpen = await page.evaluate(() => {
+    const portal = document.createElement('div');
+    portal.id = 'overlay-owned-portal';
+    portal.setAttribute('data-overlay-portal-owner', 'overlay-fixture-parent');
+    portal.innerHTML = '<button type="button">Owned portal action</button>';
+    document.body.appendChild(portal);
+    window.__overlayFixture.overlayApi.reconcileOverlayEnvironment();
+    return {
+      portalInert: portal.hasAttribute('inert'),
+      fallbackInert: document.getElementById('overlay-fixture-fallback')?.hasAttribute('inert') || false
+    };
+  });
+  assert(
+    !ownedPortalOpen.portalInert && ownedPortalOpen.fallbackInert,
+    `overlay stack did not keep an exact parent-owned portal interactive ${JSON.stringify(ownedPortalOpen)}`
+  );
+
+  const lockReasserted = await page.evaluate(() => {
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    window.__overlayFixture.overlayApi.reconcileOverlayEnvironment();
+    return document.body.style.overflow === 'hidden'
+      && document.documentElement.style.overflow === 'hidden';
+  });
+  assert(lockReasserted, 'overlay stack did not reassert scroll ownership after a legacy direct style restore');
+
+  await page.locator('#overlay-fixture-parent .fixture-last').focus();
+  await page.keyboard.press('Tab');
+  const parentTabWrapState = await page.evaluate(() => ({
+    active: document.activeElement?.className || document.activeElement?.id || document.activeElement?.tagName || '',
+    exempt: Array.from(document.querySelectorAll('[data-overlay-stack-exempt]')).map((element) => ({
+      id: element.id,
+      hidden: element.hidden,
+      className: element.className
+    }))
+  }));
+  assert(
+    parentTabWrapState.active === 'fixture-first',
+    `overlay stack did not wrap Tab from the final control ${JSON.stringify(parentTabWrapState)}`
+  );
+
+  await page.locator('#overlay-fixture-parent .fixture-opener').click();
+  await page.waitForFunction(() => document.activeElement?.matches('#overlay-fixture-child .fixture-first'));
+  const childOpen = await page.evaluate(() => ({
+    parentInert: document.getElementById('overlay-fixture-parent')?.hasAttribute('inert') || false,
+    childInert: document.getElementById('overlay-fixture-child')?.hasAttribute('inert') || false,
+    parentPortalInert: document.getElementById('overlay-owned-portal')?.hasAttribute('inert') || false,
+    stackDepth: window.__overlayFixture.overlayApi.activeOverlayCount()
+  }));
+  assert(
+    childOpen.parentInert && !childOpen.childInert && childOpen.parentPortalInert && childOpen.stackDepth === 2,
+    `overlay stack child did not isolate its parent ${JSON.stringify(childOpen)}`
+  );
+
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('overlay-fixture-child'));
+  await page.waitForFunction(() => document.activeElement?.matches('#overlay-fixture-parent .fixture-opener'));
+  const childClosed = await page.evaluate(() => ({
+    parentPresent: Boolean(document.getElementById('overlay-fixture-parent')),
+    parentInert: document.getElementById('overlay-fixture-parent')?.hasAttribute('inert') || false,
+    parentPortalInert: document.getElementById('overlay-owned-portal')?.hasAttribute('inert') || false,
+    restoredToOpener: document.activeElement?.matches('#overlay-fixture-parent .fixture-opener') || false,
+    stackDepth: window.__overlayFixture.overlayApi.activeOverlayCount(),
+    bodyLocked: document.body.style.overflow === 'hidden'
+  }));
+  assert(
+    childClosed.parentPresent
+      && !childClosed.parentInert
+      && !childClosed.parentPortalInert
+      && childClosed.restoredToOpener
+      && childClosed.stackDepth === 1
+      && childClosed.bodyLocked,
+    `overlay stack topmost Escape closed/orphaned the parent ${JSON.stringify(childClosed)}`
+  );
+
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('overlay-fixture-parent'));
+  await page.waitForFunction(() => document.activeElement?.id === 'overlay-fixture-fallback');
+  const parentClosed = await page.evaluate(() => ({
+    fallbackFocused: document.activeElement?.id === 'overlay-fixture-fallback',
+    fallbackInert: document.getElementById('overlay-fixture-fallback')?.hasAttribute('inert') || false,
+    stackDepth: window.__overlayFixture.overlayApi.activeOverlayCount(),
+    bodyOverflow: document.body.style.overflow,
+    htmlOverflow: document.documentElement.style.overflow
+  }));
+  assert(
+    parentClosed.fallbackFocused
+      && !parentClosed.fallbackInert
+      && parentClosed.stackDepth === 0
+      && !parentClosed.bodyOverflow
+      && !parentClosed.htmlOverflow,
+    `overlay stack direct fallback/scroll restoration failed ${JSON.stringify(parentClosed)}`
+  );
+
+  await page.evaluate(() => {
+    const { overlayApi } = window.__overlayFixture;
+    const fallback = document.getElementById('overlay-fixture-fallback');
+    fallback.focus();
+    const overlay = document.createElement('div');
+    overlay.id = 'overlay-late-focus-cleanup';
+    overlay.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;background:#111;z-index:20;';
+    overlay.innerHTML = '<div class="fixture-dialog"><button type="button">Close</button></div>';
+    document.body.appendChild(overlay);
+    overlayApi.activateOverlayDialog(overlay, {
+      close() {},
+      dialogSelector: '.fixture-dialog',
+      label: 'Late focus cleanup',
+      restoreFocusSelector: '#overlay-fixture-fallback'
+    });
+    overlayApi.deactivateOverlayDialog(overlay);
+    overlay.remove();
+    requestAnimationFrame(() => {
+      document.body.setAttribute('tabindex', '-1');
+      document.body.focus({ preventScroll: true });
+      document.body.removeAttribute('tabindex');
+    });
+  });
+  await page.waitForFunction(() => document.activeElement?.id === 'overlay-fixture-fallback');
+  assert(
+    await page.evaluate(() => document.activeElement?.id === 'overlay-fixture-fallback'),
+    'overlay stack did not recover focus after late route/fade cleanup moved it to BODY'
+  );
+
+  await page.evaluate(() => {
+    const { overlayApi } = window.__overlayFixture;
+    const choice = document.createElement('button');
+    choice.id = 'overlay-user-focus-choice';
+    choice.type = 'button';
+    choice.textContent = 'Reader choice';
+    document.body.appendChild(choice);
+    const overlay = document.createElement('div');
+    overlay.id = 'overlay-user-focus-guard';
+    overlay.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;background:#111;z-index:20;';
+    overlay.innerHTML = '<div class="fixture-dialog"><button type="button">Close</button></div>';
+    document.body.appendChild(overlay);
+    overlayApi.activateOverlayDialog(overlay, {
+      close() {},
+      dialogSelector: '.fixture-dialog',
+      label: 'Reader focus choice',
+      restoreFocusSelector: '#overlay-fixture-fallback'
+    });
+    overlayApi.deactivateOverlayDialog(overlay);
+    overlay.remove();
+  });
+  await page.locator('#overlay-user-focus-choice').click();
+  await page.waitForTimeout(500);
+  assert(
+    await page.evaluate(() => document.activeElement?.id === 'overlay-user-focus-choice'),
+    'overlay stack focus retry overrode a reader-selected control after close'
+  );
+  await page.evaluate(() => document.getElementById('overlay-user-focus-choice')?.remove());
+
+  await page.evaluate(() => {
+    const { overlayApi } = window.__overlayFixture;
+    const build = (id, z) => {
+      const overlay = document.createElement('div');
+      overlay.id = id;
+      overlay.style.cssText = `position:fixed;inset:0;display:block;z-index:${z};background:#111;`;
+      overlay.innerHTML = `<div class="fixture-dialog"><button type="button">Close</button></div>`;
+      document.body.appendChild(overlay);
+      return overlay;
+    };
+    const parent = build('overlay-orphan-parent', 20);
+    const child = build('overlay-orphan-child', 30);
+    const closeChild = () => {
+      overlayApi.deactivateOverlayDialog(child);
+      child.remove();
+    };
+    overlayApi.activateOverlayDialog(parent, {
+      close: () => {},
+      dialogSelector: '.fixture-dialog',
+      label: 'Orphan parent',
+      restoreFocusSelector: '#overlay-fixture-fallback'
+    });
+    overlayApi.activateOverlayDialog(child, {
+      close: closeChild,
+      dialogSelector: '.fixture-dialog',
+      label: 'Orphan child'
+    });
+    overlayApi.deactivateOverlayDialog(parent);
+    parent.remove();
+  });
+  await page.waitForFunction(() => !document.getElementById('overlay-orphan-parent') && !document.getElementById('overlay-orphan-child'));
+  assert(
+    await page.evaluate(() => window.__overlayFixture.overlayApi.activeOverlayCount() === 0),
+    'overlay stack parent deactivation left a child orphan registered'
+  );
+
+  const throwingChild = await page.evaluate(() => {
+    const { overlayApi } = window.__overlayFixture;
+    const build = (id, z) => {
+      const overlay = document.createElement('div');
+      overlay.id = id;
+      overlay.style.cssText = `position:fixed;inset:0;z-index:${z};background:#111;`;
+      overlay.innerHTML = '<div class="fixture-dialog"><button type="button">Close</button></div>';
+      document.body.appendChild(overlay);
+      return overlay;
+    };
+    let closeErrors = 0;
+    const onCloseError = () => { closeErrors += 1; };
+    document.addEventListener('tezos:overlay-close-error', onCloseError);
+    const parent = build('overlay-throw-parent', 20);
+    const child = build('overlay-throw-child', 30);
+    overlayApi.activateOverlayDialog(parent, {
+      close() {},
+      dialogSelector: '.fixture-dialog',
+      label: 'Throw parent'
+    });
+    overlayApi.activateOverlayDialog(child, {
+      close() { throw new Error('fixture child close failure'); },
+      dialogSelector: '.fixture-dialog',
+      label: 'Throw child'
+    });
+    overlayApi.deactivateOverlayDialog(parent, { restoreFocus: false });
+    parent.remove();
+    child.remove();
+    document.removeEventListener('tezos:overlay-close-error', onCloseError);
+    return {
+      bodyOverflow: document.body.style.overflow,
+      childAriaHidden: child.getAttribute('aria-hidden'),
+      closeErrors,
+      fallbackInert: document.getElementById('overlay-fixture-fallback')?.hasAttribute('inert') || false,
+      htmlOverflow: document.documentElement.style.overflow,
+      stackDepth: overlayApi.activeOverlayCount()
+    };
+  });
+  assert(
+    throwingChild.closeErrors === 1
+      && throwingChild.childAriaHidden === 'true'
+      && throwingChild.stackDepth === 0
+      && !throwingChild.fallbackInert
+      && !throwingChild.bodyOverflow
+      && !throwingChild.htmlOverflow,
+    `overlay stack child-close exception stranded global state ${JSON.stringify(throwingChild)}`
+  );
+
+  await page.evaluate(() => {
+    const { overlayApi } = window.__overlayFixture;
+    const overlay = document.createElement('div');
+    overlay.id = 'overlay-raw-removal';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:20;background:#111;';
+    overlay.innerHTML = '<div class="fixture-dialog"><button type="button">Close</button></div>';
+    document.body.appendChild(overlay);
+    overlayApi.activateOverlayDialog(overlay, {
+      close() {},
+      dialogSelector: '.fixture-dialog',
+      label: 'Raw removal'
+    });
+    overlay.remove();
+  });
+  await page.waitForFunction(() => (
+    !document.body.style.overflow
+      && !document.documentElement.style.overflow
+      && !document.getElementById('overlay-fixture-fallback')?.hasAttribute('inert')
+  ));
+  await page.evaluate(() => document.getElementById('overlay-owned-portal')?.remove());
+  const rawRemoval = await page.evaluate(() => ({
+    bodyOverflow: document.body.style.overflow,
+    fallbackInert: document.getElementById('overlay-fixture-fallback')?.hasAttribute('inert') || false,
+    htmlOverflow: document.documentElement.style.overflow,
+    stackDepth: window.__overlayFixture.overlayApi.activeOverlayCount()
+  }));
+  assert(
+    rawRemoval.stackDepth === 0
+      && !rawRemoval.fallbackInert
+      && !rawRemoval.bodyOverflow
+      && !rawRemoval.htmlOverflow,
+    `overlay stack raw DOM removal left stale global state ${JSON.stringify(rawRemoval)}`
+  );
+
+  await context.close();
+  assert(issues.length === 0, `overlay stack browser issues:\n${issues.join('\n')}`);
+  log('ok - shared overlay stack smoke');
+}
+
 function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
@@ -27857,6 +29878,8 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'release-update', description: 'Persistent desktop/mobile release dock, Later pill, activation fallback, and cross-tab service-worker lifecycle', run: () => smokeReleaseUpdateDock(browser, baseUrl) },
     { name: 'hero-landscape', description: 'Hero continuity signals balance into matching left and right stacks on mobile landscape', run: () => smokeHeroLandscape(browser, baseUrl) },
     { name: 'hero-command-bar', description: 'Hero command bar owns the first-screen retrieval path, protocol deep dives, and command routing', run: () => smokeHeroCommandBar(browser, baseUrl) },
+    { name: 'route-search-state', description: 'Alias transitions, bare routes, search relevance, Escape focus, query preservation, and Back/Forward state stay coherent', run: () => smokeRouteSearchState(browser, baseUrl) },
+    { name: 'breakpoint-accessibility', description: 'Exact paired breakpoints, 200% reflow, forced colors, and reduced motion preserve shell/search/Chamber focus, containment, and horizontal fit', run: () => smokeBreakpointAccessibility(browser, baseUrl) },
     { name: 'cycle-milestone', description: 'Exact cycle milestones survive stale catalogs and quiet reconciliation while dead history breadcrumbs stay removed', run: () => smokeCycleMilestone(browser, baseUrl) },
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
@@ -27909,6 +29932,10 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'ctez', description: 'ctez End of Life opens #ctez with opt-in oven discovery and wallet-reviewed operations', run: () => smokeCtezChamber(browser, baseUrl) },
     { name: 'governance-lb', description: 'Governance cooldown state, Chamber, Tezos X Governance, LB dashboard tile, LB modal, lore, links, smooth refresh', run: () => smokeGovernanceTestingPeriod(browser, baseUrl) },
     { name: 'hash-modal-cleanup', description: 'Hash-routed modal navigation closes stale history and chamber overlays before opening the next room', run: () => smokeHashModalCleanup(browser, baseUrl) },
+    { name: 'overlay-stack', description: 'Share, Protocol Stories, nested card history, Native Explorer, and the shared stack preserve modal focus, isolation, topmost Escape, routes, and scroll', run: async () => {
+      await smokeOverlayFeatureIntegrations(browser, baseUrl);
+      await smokeOverlayStack(browser, baseUrl);
+    } },
     { name: 'ux-regressions', description: 'Clean theme contrast, deep-linked utility sections, share picker contrast, widget utility', run: () => smokeUxChanges(browser, baseUrl) },
     { name: 'live-number-motion', description: 'Only factual live deltas animate, with concurrent quiet updates, newest-value cancellation, reduced motion, stable accessibility, and every theme personality', run: () => smokeLiveNumberMotion(browser, baseUrl) },
     { name: 'quiet-refresh', description: 'Background data reconciliation preserves page, rail, chamber, focus, selection, and animation state', run: () => smokeQuietRefresh(browser, baseUrl) },

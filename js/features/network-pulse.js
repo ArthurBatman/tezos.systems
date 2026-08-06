@@ -1440,14 +1440,20 @@ function startScrollSpy() {
     const body = overlay?.querySelector('.network-pulse-body');
     if (!content || !body || typeof IntersectionObserver === 'undefined') return;
 
-    pulseObserver = new IntersectionObserver((entries) => {
-        const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort((a, b) => (
-                b.intersectionRatio - a.intersectionRatio ||
-                a.boundingClientRect.top - b.boundingClientRect.top
-            ))[0];
-        if (visible?.target?.id) setPulseNavActive(visible.target.id);
+    pulseObserver = new IntersectionObserver(() => {
+        window.requestAnimationFrame(() => {
+            if (!overlay.classList.contains('active')) return;
+            const contentRect = content.getBoundingClientRect();
+            const anchor = contentRect.top + Math.min(110, contentRect.height * 0.22);
+            const visible = Array.from(body.querySelectorAll('.network-pulse-category[id]'))
+                .map((section, index) => ({ section, index, rect: section.getBoundingClientRect() }))
+                .filter(({ rect }) => rect.bottom > contentRect.top + 72 && rect.top < contentRect.bottom - 12)
+                .sort((left, right) => (
+                    Math.abs(left.rect.top - anchor) - Math.abs(right.rect.top - anchor)
+                    || right.index - left.index
+                ))[0];
+            if (visible?.section?.id) setPulseNavActive(visible.section.id);
+        });
     }, { root: content, rootMargin: '-90px 0px -55% 0px', threshold: 0.08 });
 
     body.querySelectorAll('.network-pulse-category[id]').forEach((section) => pulseObserver.observe(section));

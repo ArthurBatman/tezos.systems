@@ -8,6 +8,36 @@ const ROTATE_INTERVAL = 10000; // 10 seconds
 
 let rotateTimer = null;
 let currentIndex = 0;
+let currentVariants = [];
+let routeTitle = '';
+
+function ensureTitleRotation() {
+    if (rotateTimer || currentVariants.length <= 1) return;
+    rotateTimer = setInterval(() => {
+        if (routeTitle) {
+            document.title = routeTitle;
+            return;
+        }
+        currentIndex = (currentIndex + 1) % currentVariants.length;
+        document.title = currentVariants[currentIndex];
+    }, ROTATE_INTERVAL);
+}
+
+/**
+ * Hold a destination title while a routed room is open. Dynamic telemetry can
+ * keep refreshing underneath, but it must not rename browser-history entries.
+ */
+export function setPageTitleRoute(title = '', fallbackTitle = FALLBACK_TITLE) {
+    routeTitle = String(title || '').trim();
+    if (routeTitle) {
+        document.title = routeTitle;
+        return;
+    }
+    document.title = currentVariants[currentIndex % Math.max(1, currentVariants.length)]
+        || fallbackTitle
+        || FALLBACK_TITLE;
+    ensureTitleRotation();
+}
 
 /**
  * Build an array of title strings from current stats
@@ -50,6 +80,17 @@ function buildTitleVariants(stats) {
  */
 export function updatePageTitle(stats) {
     const variants = buildTitleVariants(stats);
+    currentVariants = variants;
+
+    // Clear old timer before any early return so route-title ownership is
+    // deterministic even when a refresh is empty or partial.
+    if (rotateTimer) clearInterval(rotateTimer);
+    rotateTimer = null;
+
+    if (routeTitle) {
+        document.title = routeTitle;
+        return;
+    }
     if (!variants.length) {
         document.title = FALLBACK_TITLE;
         return;
@@ -59,14 +100,6 @@ export function updatePageTitle(stats) {
     document.title = variants[0];
     currentIndex = 0;
 
-    // Clear old timer
-    if (rotateTimer) clearInterval(rotateTimer);
-
     // Only rotate if multiple variants
-    if (variants.length > 1) {
-        rotateTimer = setInterval(() => {
-            currentIndex = (currentIndex + 1) % variants.length;
-            document.title = variants[currentIndex];
-        }, ROTATE_INTERVAL);
-    }
+    ensureTitleRotation();
 }

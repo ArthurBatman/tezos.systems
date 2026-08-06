@@ -1101,6 +1101,11 @@ body::before {
     color: #ff3333;
 }
 
+[data-theme="matrix"] :is(.price-label, .price-mcap) {
+    color: #8cff8c;
+    opacity: 0.9;
+}
+
 @media (max-width: 600px) {
     .price-bar {
         padding: 4px;

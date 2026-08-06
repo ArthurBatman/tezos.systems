@@ -51,17 +51,17 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=561">
-    <link id="shell-extras-css" rel="stylesheet" href="css/shell-extras.min.css?v=561">
-    <link rel="stylesheet" href="css/loading.css?v=561">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=561">
-    <link rel="stylesheet" href="css/site-map.css?v=561">
+    <link rel="stylesheet" href="css/styles.min.css?v=562">
+    <link id="shell-extras-css" rel="stylesheet" href="css/shell-extras.min.css?v=562">
+    <link rel="stylesheet" href="css/loading.css?v=562">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=562">
+    <link rel="stylesheet" href="css/site-map.css?v=562">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=561">
+    <link rel="modulepreload" href="js/core/app.js?v=562">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
@@ -275,7 +275,7 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=561"></script>
+    <script src="js/core/theme-preload.js?v=562"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -357,10 +357,10 @@
 
                 <!-- Feature launcher -->
                 <div class="dock-settings-group">
-                    <button id="features-gear" class="glass-button header-nav-btn" aria-label="Open feature launcher" title="Explore Tezos Systems tools">
+                    <button id="features-gear" class="glass-button header-nav-btn" aria-label="Open feature launcher" aria-haspopup="dialog" aria-controls="features-dropdown" aria-expanded="false" title="Explore Tezos Systems tools">
                         <span aria-hidden="true">🗺️</span> <span class="nav-label">Explore</span>
                     </button>
-                    <div class="settings-dropdown feature-launcher" id="features-dropdown" aria-label="Explore Tezos Systems">
+                    <div class="settings-dropdown feature-launcher" id="features-dropdown" role="dialog" aria-label="Explore Tezos Systems">
                         <div class="feature-launcher-intro">
                             <span class="feature-launcher-intro-copy">
                                 <strong>Explore</strong>
@@ -581,10 +581,10 @@
 
                 <!-- Settings dropdown -->
                 <div class="dock-settings-group">
-                    <button id="settings-gear" class="glass-button header-nav-btn header-setup-btn" aria-label="Open setup and settings" title="Setup">
+                    <button id="settings-gear" class="glass-button header-nav-btn header-setup-btn" aria-label="Open setup and settings" aria-haspopup="dialog" aria-controls="settings-dropdown" aria-expanded="false" title="Setup">
                         <span aria-hidden="true">⚙️</span> <span class="nav-label">Setup</span>
                     </button>
-                    <div class="settings-dropdown" id="settings-dropdown">
+                    <div class="settings-dropdown" id="settings-dropdown" role="dialog" aria-label="Setup and settings">
                         <button id="theme-toggle" class="glass-button" aria-label="Switch to matrix theme" title="Theme: default">
                             <span class="theme-icon">🎨</span> <span class="dropdown-label">Theme</span>
                         </button>
@@ -2155,13 +2155,15 @@
     <div class="modal-overlay chamber-overlay history-overlay" id="history-modal" aria-hidden="true">
         <div class="modal-content modal-large" role="dialog" aria-modal="true" aria-labelledby="history-modal-title" tabindex="-1">
             <button class="modal-close" id="history-modal-close" aria-label="Close">&times;</button>
-            <button class="info-button" id="history-share-btn" aria-label="Share snapshot" title="Share snapshot" style="position: absolute; top: 56px; right: calc(1.5rem + 2px); z-index: 10;">
-                📸
-            </button>
-            <button class="info-button history-copy-link" id="history-copy-link" data-copy-hash="#history" aria-label="Copy Historical Data link" title="Copy Historical Data link" style="position: absolute; top: 56px; right: calc(1.5rem + 44px); z-index: 10;">
-                🔗
-            </button>
             <h3 class="modal-title" id="history-modal-title">Historical Data</h3>
+            <div class="cycle-history-header-actions" role="group" aria-label="Cycle History actions">
+                <button class="info-button" id="history-share-btn" type="button" aria-label="Share snapshot" title="Share snapshot">
+                    📸
+                </button>
+                <button class="info-button history-copy-link" id="history-copy-link" type="button" data-copy-hash="#history" aria-label="Copy Historical Data link" title="Copy Historical Data link">
+                    🔗
+                </button>
+            </div>
 
             <div class="history-controls">
                 <button class="time-range-btn" data-range="24h">24 Hours</button>
@@ -2622,7 +2624,7 @@
               <div id="portfolio-activity-list" class="portfolio-activity-list"></div>
               <p id="portfolio-activity-empty" class="portfolio-history-empty">No applied account activity is loaded yet.</p>
               <div class="portfolio-activity-footer">
-                <button id="portfolio-load-earlier" class="glass-button my-tezos-pill" type="button">Load earlier</button>
+                <button id="portfolio-load-earlier" class="glass-button my-tezos-pill" type="button" aria-busy="false">Load earlier</button>
                 <span id="portfolio-memory-status" aria-live="polite">Transactions load when Portfolio or Transactions opens.</span>
               </div>
             </section>
@@ -2746,8 +2748,8 @@
 
     <!-- Load app as module -->
     <script defer src="js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="js/effects/valley-loader.js?v=561"></script>
-    <script type="module" src="js/core/app.js?v=561"></script>
+    <script type="module" src="js/effects/valley-loader.js?v=562"></script>
+    <script type="module" src="js/core/app.js?v=562"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

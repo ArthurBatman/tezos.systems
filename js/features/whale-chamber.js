@@ -411,8 +411,9 @@ function headerMarkup() {
                 <button class="whale-watch-refresh" type="button" data-whale-action="refresh" aria-label="Refresh Whale Watch data">Refresh</button>
             </div>
             <nav class="whale-watch-tabs" role="tablist" aria-label="Whale Watch views">
-                ${VIEWS.map((view) => `<button id="whale-watch-tab-${view.id}" type="button" role="tab" aria-selected="${currentView === view.id}" tabindex="${currentView === view.id ? '0' : '-1'}" data-whale-view="${view.id}">${escapeHtml(view.label)}</button>`).join('')}
+                ${VIEWS.map((view) => `<button id="whale-watch-tab-${view.id}" type="button" role="tab" aria-selected="${currentView === view.id}" aria-controls="whale-watch-panel-${view.id}" tabindex="${currentView === view.id ? '0' : '-1'}" data-whale-view="${view.id}">${escapeHtml(view.label)}</button>`).join('')}
             </nav>
+            ${VIEWS.filter((view) => view.id !== currentView).map((view) => `<div id="whale-watch-panel-${view.id}" role="tabpanel" aria-labelledby="whale-watch-tab-${view.id}" tabindex="0" hidden inert aria-hidden="true"></div>`).join('')}
             ${sourceStripMarkup()}
         </header>`;
 }
@@ -441,7 +442,7 @@ function overviewMarkup() {
     const dormant = lastArtifact.dormant;
     const named = namedEndpointSample(liveOperations());
     return `
-        <section class="whale-watch-view" id="whale-watch-panel-overview" role="tabpanel" aria-labelledby="whale-watch-tab-overview">
+        <section class="whale-watch-view" id="whale-watch-panel-overview" role="tabpanel" aria-labelledby="whale-watch-tab-overview" tabindex="0">
             <div class="whale-watch-view-heading"><div><p class="whale-watch-eyebrow">Complete paged window</p><h3>Twenty-four hours, counted end to end</h3></div><p>${escapeHtml(transfer.semantics)}</p></div>
             <div class="whale-watch-metrics">
                 <article><span>Applied transfers</span><strong>${exact(transfer.operationCount)}</strong><small>${exact(transfer.operationGroupCount)} operation groups</small></article>
@@ -490,7 +491,7 @@ function liveMarkup() {
     const operations = filteredLiveOperations();
     const snapshot = getWhaleSnapshot();
     return `
-        <section class="whale-watch-view" id="whale-watch-panel-live" role="tabpanel" aria-labelledby="whale-watch-tab-live">
+        <section class="whale-watch-view" id="whale-watch-panel-live" role="tabpanel" aria-labelledby="whale-watch-tab-live" tabindex="0">
             <div class="whale-watch-view-heading"><div><p class="whale-watch-eyebrow">Current bounded observation</p><h3>Live Tape</h3></div><p>Transfers and stake changes use the applied operation's actual amount. Delegation changes qualify by TzKT sender balance and are labeled as balance context, never tez moved. This tape is a sample, not a complete historical total.</p></div>
             ${filtersMarkup()}
             <div class="whale-watch-result-line"><span>${exact(operations.length)} matching operations</span><span>All four TzKT lanes required · last good ${escapeHtml(ageLabel(snapshot.updatedAt))}${liveError ? ' · refresh failed' : ''}</span></div>
@@ -525,7 +526,7 @@ function flowsMarkup() {
         && (!query || storySearchText(story).includes(query))
     ));
     return `
-        <section class="whale-watch-view" id="whale-watch-panel-flows" role="tabpanel" aria-labelledby="whale-watch-tab-flows">
+        <section class="whale-watch-view" id="whale-watch-panel-flows" role="tabpanel" aria-labelledby="whale-watch-tab-flows" tabindex="0">
             <div class="whale-watch-view-heading"><div><p class="whale-watch-eyebrow">Hash-level reconstruction</p><h3>Flow Stories</h3></div><p>Top complete-window groups. Related hops share an operation-group hash; operation ids remain distinct receipts.</p></div>
             ${filtersMarkup({ showType: false })}
             <div class="whale-watch-result-line"><span>${exact(stories.length)} published stories</span><span>Top ${exact(lastArtifact.transfers24h.topFlowStories.length)} by gross observed legs</span></div>
@@ -545,7 +546,7 @@ function dormantMarkup() {
         !query || [record.address, record.alias, record.accountType, record.lastActivityLevel].filter(Boolean).join(' ').toLowerCase().includes(query)
     ));
     return `
-        <section class="whale-watch-view" id="whale-watch-panel-dormant" role="tabpanel" aria-labelledby="whale-watch-tab-dormant">
+        <section class="whale-watch-view" id="whale-watch-panel-dormant" role="tabpanel" aria-labelledby="whale-watch-tab-dormant" tabindex="0">
             <div class="whale-watch-view-heading"><div><p class="whale-watch-eyebrow">Complete large-account scan</p><h3>Deep Sleep</h3></div><p>Accounts holding at least ${compact(lastArtifact.methodology.minimumDormantBalanceXtz)} ꜩ whose TzKT last-activity timestamp is at least ${exact(lastArtifact.methodology.minimumDormantDays)} days old.</p></div>
             <div class="whale-watch-dormant-summary"><div><span>Eligible accounts</span><strong>${exact(lastArtifact.dormant.eligibleCount)}</strong></div><div><span>Observed holdings</span><strong>${xtz(lastArtifact.dormant.eligibleBalanceMutez, 2)}</strong></div><div><span>Coverage</span><strong>${lastArtifact.coverage.largeAccounts.complete ? 'Complete' : 'Partial'}</strong></div></div>
             <div class="whale-watch-filters whale-watch-dormant-filter"><label class="whale-watch-search"><span>Find account</span><input id="whale-watch-search" data-whale-filter="search" type="search" value="${escapeHtml(searchQuery)}" maxlength="80" autocomplete="off" placeholder="Address, alias, type, level…"></label></div>
@@ -612,7 +613,7 @@ function awakeningsMarkup() {
     if (!lastArtifact) return unavailableMarkup('Shared awakening archive is unavailable.', artifactError);
     const events = normalizedAwakenings();
     return `
-        <section class="whale-watch-view" id="whale-watch-panel-awakenings" role="tabpanel" aria-labelledby="whale-watch-tab-awakenings">
+        <section class="whale-watch-view" id="whale-watch-panel-awakenings" role="tabpanel" aria-labelledby="whale-watch-tab-awakenings" tabindex="0">
             <div class="whale-watch-view-heading"><div><p class="whale-watch-eyebrow">Verified post-dormancy activity</p><h3>Awakenings</h3></div><p>The trigger is the earliest applied operation after dormancy. A moved figure appears only for an applied transaction or the actual processed stake/unstake amount; balances, requests, deposits, and activation allocations are never substituted.</p></div>
             ${notificationMarkup()}
             <div class="whale-watch-result-line"><span>${exact(events.length)} awakening receipts</span><span>Shared archive plus deduplicated local observations</span></div>
@@ -623,7 +624,7 @@ function awakeningsMarkup() {
 function unavailableMarkup(title, error = '') {
     const local = getSleepingGiantsSnapshot();
     return `
-        <section class="whale-watch-view whale-watch-unavailable">
+        <section class="whale-watch-view whale-watch-unavailable" id="whale-watch-panel-${escapeHtml(currentView)}" role="tabpanel" aria-labelledby="whale-watch-tab-${escapeHtml(currentView)}" tabindex="0">
             <div><span>🌫️</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(error || 'No last-good shared artifact is available in this session.')}</p><button type="button" data-whale-action="refresh">Retry shared snapshot</button></div>
             ${local.giants.length ? `<p>A local cohort exists, but Whale Watch is withholding it here because the complete generated archive is the canonical shared source.</p>` : ''}
         </section>`;

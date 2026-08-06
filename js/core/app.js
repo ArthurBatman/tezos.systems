@@ -38,7 +38,7 @@ import {
     startLiveTimeTicker,
     debounce
 } from './utils.js';
-import { quietlyMutate } from './quiet-refresh.js';
+import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from './quiet-refresh.js';
 import { versionedAsset } from './asset-version.js';
 import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades, getProtocolUpgradeOrdinal } from './protocol-count.js';
 import {
@@ -53,6 +53,7 @@ import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js
 import { closeCycleHistoryChamber, initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
 import { activateChamberDialog, deactivateChamberDialog, wireChamberLauncher } from '../ui/chamber-accessibility.js';
+import { activateOverlayDialog, deactivateOverlayDialog, reconcileOverlayEnvironment } from '../ui/overlay-stack.js';
 import { setToastGate } from '../ui/toast-queue.js';
 import { fetchProtocols } from '../features/governance.js';
 import { initGovernanceAlerts } from '../features/governance-alerts.js';
@@ -87,7 +88,7 @@ import { initWhaleTracker } from '../features/whales.js';
 import { initSleepingGiants } from '../features/sleeping-giants.js';
 import { initPriceBar } from '../features/price.js';
 import { initStreak } from '../features/streak.js';
-import { updatePageTitle } from '../ui/title.js';
+import { setPageTitleRoute, updatePageTitle } from '../ui/title.js';
 import { REFRESH_INTERVALS, STAKING_TARGET, MAINNET_LAUNCH, API_URLS } from './config.js';
 import { loadDataAsset } from './data-assets.js';
 import { getCalendarElapsedTime, getTezosUptimeAnniversary } from './anniversary.js';
@@ -113,7 +114,8 @@ import { initSiteWayfinder } from '../ui/wayfinder.js';
 
 const MY_TEZOS_CSS_URL = versionedAsset('/css/my-tezos.min.css');
 const PI_VISIBLE_KEY = 'tezos-systems-pi-visible';
-const ROOT_DASHBOARD_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? '' : document.title;
+const STANDALONE_ROUTE_TITLE = document.documentElement.hasAttribute('data-chamber-route') ? document.title : '';
+const ROOT_DASHBOARD_TITLE = STANDALONE_ROUTE_TITLE ? '' : document.title;
 let setMyTezosDrawerOpenState = null;
 
 function isContentiousProtocol(protocol, lore = null) {
@@ -1628,6 +1630,8 @@ const _loadedChamberModules = new Map();
 const _initializedChamberModules = new Set();
 const _openingChamberModules = new Map();
 let _chamberOpenEpoch = 0;
+let _routedOverlayTransitionDepth = 0;
+let _searchRouteFocusTimer = null;
 let _lazyChamberObserver = null;
 let _chamberPairObserver = null;
 let _pendingChamberCategoryKey = '';
@@ -4415,6 +4419,26 @@ function renderProtocolTimeline(protocols) {
     if (!timelineEl) return;
     const isHistoryChamber = Boolean(timelineEl.closest('#protocol-history-chamber-modal'));
     const displayProtocols = isHistoryChamber ? [...protocols].reverse() : protocols;
+    const timelineSignature = JSON.stringify([
+        isHistoryChamber ? 'history' : 'dashboard',
+        displayProtocols.map((protocol) => [
+            protocol.name,
+            protocol.date || '',
+            Boolean(protocol.isCurrent),
+            isContentiousProtocol(protocol),
+            protocol.highlight || '',
+            protocol.debate || ''
+        ])
+    ]);
+
+    // A cached render is commonly followed by the same fresh response. Keep
+    // the live controls mounted so that this background confirmation cannot
+    // detach focus or collapse an Impact panel the reader already opened.
+    if (timelineEl.dataset.protocolTimelineSignature === timelineSignature
+        && timelineEl.querySelector(':scope > .timeline-track')) {
+        initUpgradeEffect();
+        return;
+    }
     
     // Track which years to show labels for (first protocol of each year)
     const yearSeen = new Set();
@@ -4430,7 +4454,7 @@ function renderProtocolTimeline(protocols) {
                     : `${p.name} protocol. Open protocol card.`;
                 return `
                 <div class="timeline-item ${p.isCurrent ? 'current' : ''} ${contentious ? 'contentious' : ''}" 
-                     data-protocol="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(ariaLabel)}">
+                     data-protocol="${escapeHtml(p.name)}" data-quiet-key="protocol-${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(ariaLabel)}">
                     ${escapeHtml(p.name[0])}
                     ${contentious ? '<span class="contention-crowd contention-crowd-left" aria-hidden="true"></span><span class="contention-crowd contention-crowd-right" aria-hidden="true"></span><span class="contention-icon" aria-hidden="true">⚔</span>' : ''}
                     ${showYear ? `<span class="timeline-year">${year}</span>` : ''}
@@ -4438,13 +4462,25 @@ function renderProtocolTimeline(protocols) {
             `}).join('')}
         </div>
     `;
-    timelineEl.innerHTML = timelineHTML;
+    const currentTrack = timelineEl.querySelector(':scope > .timeline-track');
+    if (currentTrack) {
+        quietlySyncElement(currentTrack, timelineHTML);
+    } else {
+        timelineEl.querySelector(':scope > .chamber-loading, :scope > .chamber-error')?.remove();
+        timelineEl.insertAdjacentHTML('afterbegin', timelineHTML);
+    }
+    timelineEl.dataset.protocolTimelineSignature = timelineSignature;
+    const renderGeneration = Number(timelineEl.dataset.protocolRenderGeneration || 0) + 1;
+    timelineEl.dataset.protocolRenderGeneration = String(renderGeneration);
     
     // Render expanded infographic below timeline
-    renderInfographic(displayProtocols, timelineEl, { currentFirst: isHistoryChamber });
+    renderInfographic(displayProtocols, timelineEl, {
+        currentFirst: isHistoryChamber,
+        renderGeneration
+    });
     
     // Load protocol-data.json for rich tooltips, then attach JS tooltips
-    initRichTooltips(protocols);
+    initRichTooltips(protocols, timelineEl, renderGeneration);
     
     // Initialize Upgrade Effect chart (toggle below timeline)
     initUpgradeEffect();
@@ -4455,32 +4491,36 @@ function renderProtocolTimeline(protocols) {
  * Render expanded protocol infographic below the letter timeline
  */
 async function renderInfographic(protocols, timelineEl, options = {}) {
-    // Clean up old instances (timeline gets rebuilt on data refresh)
-    document.querySelectorAll('.infographic-toggle').forEach(function(el) { el.remove(); });
-    document.querySelectorAll('.protocol-infographic').forEach(function(el) { el.remove(); });
-    
     const data = await loadProtocolData();
+    if (!timelineEl.isConnected
+        || Number(timelineEl.dataset.protocolRenderGeneration) !== options.renderGeneration) return;
     const richMap = {};
     if (data?.protocols) {
         data.protocols.forEach(p => { richMap[p.name] = p; });
     }
     
-    // Toggle button
-    const toggleDiv = document.createElement('div');
-    toggleDiv.className = 'infographic-toggle';
-    toggleDiv.innerHTML = `<button class="infographic-toggle-btn protocol-timeline-toggle-btn" type="button" aria-expanded="false">View Timeline ▾</button>`;
-    // Place below the upgrade count.
-    const upgradeCount = document.querySelector('.upgrade-count');
-    if (upgradeCount) {
-        upgradeCount.appendChild(toggleDiv);
-    } else {
-        timelineEl.appendChild(toggleDiv);
+    const featurePanel = timelineEl.closest('.protocol-history-feature-panel, .upgrade-clock-content')
+        || timelineEl.parentElement;
+    const upgradeCount = featurePanel?.querySelector('.upgrade-count');
+    let toggleDiv = upgradeCount?.querySelector('.protocol-timeline-toggle-btn')?.closest('.infographic-toggle');
+    if (!toggleDiv) {
+        toggleDiv = document.createElement('div');
+        toggleDiv.className = 'infographic-toggle';
+        toggleDiv.innerHTML = '<button class="infographic-toggle-btn protocol-timeline-toggle-btn" type="button" aria-expanded="false" aria-controls="protocol-infographic">View Timeline ▾</button>';
+        (upgradeCount || timelineEl).appendChild(toggleDiv);
     }
-    
-    // Infographic container
-    const infographic = document.createElement('div');
-    infographic.className = 'protocol-infographic';
-    infographic.id = 'protocol-infographic';
+
+    let infographic = timelineEl.querySelector(':scope > #protocol-infographic');
+    if (!infographic) {
+        infographic = document.createElement('div');
+        infographic.className = 'protocol-infographic';
+        infographic.id = 'protocol-infographic';
+        infographic.setAttribute('role', 'region');
+        infographic.setAttribute('aria-label', 'Protocol timeline details');
+        infographic.setAttribute('aria-hidden', 'true');
+        infographic.setAttribute('inert', '');
+        timelineEl.appendChild(infographic);
+    }
     
     // Pick a key tag for each protocol (first change, shortened)
     function getTag(p) {
@@ -4514,7 +4554,7 @@ async function renderInfographic(protocols, timelineEl, options = {}) {
             : `${p.name} protocol. Open protocol card.`;
         rowsHTML += `
             <div class="infographic-row ${contentious ? 'contentious' : ''} ${isCurrent ? 'current' : ''}" 
-                 style="animation-delay: ${delay}ms" data-protocol="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(ariaLabel)}">
+                 style="animation-delay: ${delay}ms" data-protocol="${escapeHtml(p.name)}" data-quiet-key="protocol-detail-${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(ariaLabel)}">
                 <div class="infographic-dot"></div>
                 <span class="infographic-letter">${escapeHtml(p.name[0])}</span>
                 <span class="infographic-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
@@ -4526,35 +4566,39 @@ async function renderInfographic(protocols, timelineEl, options = {}) {
         `;
     });
     
-    infographic.innerHTML = `<div class="infographic-inner">${rowsHTML}</div>`;
-    timelineEl.appendChild(infographic);
+    quietlySyncHtml(infographic, `<div class="infographic-inner">${rowsHTML}</div>`);
+    infographic._protocolRichMap = richMap;
     
     // Click on infographic rows — same behavior as clicking timeline letters
     const openInfographicRow = function(row) {
         if (!row) return;
         const name = row.getAttribute('data-protocol');
         if (!name) return;
-        const richP = richMap[name];
+        const currentRichMap = infographic._protocolRichMap || {};
+        const richP = currentRichMap[name];
         if (richP && richP.history) {
             showProtocolHistoryModal(richP.history, name);
         } else if (typeof window.captureProtocol === 'function') {
-            const proto = richMap[name];
+            const proto = currentRichMap[name];
             if (proto) window.captureProtocol(proto);
         }
     };
 
-    infographic.addEventListener('click', function(e) {
-        var row = e.target.closest('.infographic-row');
-        openInfographicRow(row);
-    });
+    if (!infographic.dataset.protocolInfographicWired) {
+        infographic.addEventListener('click', function(e) {
+            const row = e.target.closest('.infographic-row');
+            openInfographicRow(row);
+        });
 
-    infographic.addEventListener('keydown', function(e) {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        const row = e.target.closest('.infographic-row');
-        if (!row) return;
-        e.preventDefault();
-        openInfographicRow(row);
-    });
+        infographic.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const row = e.target.closest('.infographic-row');
+            if (!row) return;
+            e.preventDefault();
+            openInfographicRow(row);
+        });
+        infographic.dataset.protocolInfographicWired = '1';
+    }
     
     // Make rows look clickable
     infographic.querySelectorAll('.infographic-row').forEach(function(row) {
@@ -4563,11 +4607,16 @@ async function renderInfographic(protocols, timelineEl, options = {}) {
     
     // Toggle logic
     const btn = toggleDiv.querySelector('.infographic-toggle-btn');
-    btn.addEventListener('click', () => {
-        const expanded = infographic.classList.toggle('expanded');
-        btn.textContent = expanded ? 'Hide Timeline ▴' : 'View Timeline ▾';
-        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    });
+    if (!btn.dataset.protocolTimelineToggleWired) {
+        btn.addEventListener('click', () => {
+            const expanded = infographic.classList.toggle('expanded');
+            btn.textContent = expanded ? 'Hide Timeline ▴' : 'View Timeline ▾';
+            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            infographic.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+            infographic.toggleAttribute('inert', !expanded);
+        });
+        btn.dataset.protocolTimelineToggleWired = '1';
+    }
 }
 
 /**
@@ -4620,12 +4669,15 @@ function protocolToHistory(protocol) {
 async function openProtocolHistoryByName(protocolName) {
     const target = String(protocolName || '').trim();
     if (!target) return false;
+    // Capture the launcher before the data await: a quiet timeline refresh may
+    // otherwise move focus before the Story joins the overlay stack.
+    const opener = document.activeElement;
     const data = await loadProtocolData();
     const match = data?.protocols?.find((protocol) => protocol.name.toLowerCase() === target.toLowerCase())
         || data?.protocols?.find((protocol) => protocol.name.toLowerCase().includes(target.toLowerCase()));
     const history = protocolToHistory(match);
     if (!match || !history) return false;
-    showProtocolHistoryModal(history, match.name);
+    showProtocolHistoryModal(history, match.name, { opener });
     return true;
 }
 
@@ -4788,14 +4840,22 @@ function printProtocolHistory(history, protocolName) {
     }, 180);
 }
 
-async function initRichTooltips(protocols) {
+async function initRichTooltips(protocols, timelineEl = null, renderGeneration = null) {
     const data = await loadProtocolData();
+    if (timelineEl && (
+        !timelineEl.isConnected
+        || Number(timelineEl.dataset.protocolRenderGeneration) !== renderGeneration
+    )) return;
     const richMap = {};
     if (data?.protocols) {
         data.protocols.forEach(p => { richMap[p.name] = p; });
     }
 
-    // Create shared tooltip element
+    const tooltipOwner = timelineEl?.closest('.chamber-overlay.active, .modal-overlay.active') || null;
+
+    // Create shared tooltip element. It remains a body-level fixed portal so
+    // the room scroller cannot clip it, while ownership keeps it interactive
+    // only when its exact parent dialog is topmost.
     let tooltipEl = document.getElementById('timeline-tooltip');
     if (!tooltipEl) {
         tooltipEl = document.createElement('div');
@@ -4810,6 +4870,9 @@ async function initRichTooltips(protocols) {
         `;
         document.body.appendChild(tooltipEl);
     }
+    if (tooltipOwner?.id) tooltipEl.setAttribute('data-overlay-portal-owner', tooltipOwner.id);
+    else tooltipEl.removeAttribute('data-overlay-portal-owner');
+    reconcileOverlayEnvironment();
     tooltipEl.style.pointerEvents = 'auto';
 
     const hideTooltip = () => {
@@ -4852,22 +4915,30 @@ async function initRichTooltips(protocols) {
         el.style.color = isClean ? '#1A1A2E' : isDark ? '#E8E8E8' : isMatrix ? '#00ff00' : isBubblegum ? '#F0E0F6' : isValley ? '#FFF4D6' : 'var(--text-primary)';
     }
 
-    const items = document.querySelectorAll('.timeline-item');
+    const items = (timelineEl || document).querySelectorAll('.timeline-item');
     items.forEach(item => {
         const name = item.getAttribute('data-protocol');
         const govP = protocols.find(p => p.name === name);
         const richP = richMap[name];
+        item._protocolTooltipContext = { name, govP, richP };
+
+        if (item.dataset.protocolTooltipWired) return;
 
         const openProtocol = (event) => {
-            if (!richP?.history) return false;
+            const context = item._protocolTooltipContext || {};
+            if (!context.richP?.history) return false;
             event?.preventDefault?.();
             event?.stopPropagation?.();
             hideTooltip();
-            showProtocolHistoryModal(richP.history, name);
+            showProtocolHistoryModal(context.richP.history, context.name);
             return true;
         };
 
         item.addEventListener('mouseenter', (e) => {
+            const context = item._protocolTooltipContext || {};
+            const currentName = context.name || item.getAttribute('data-protocol') || '';
+            const currentGovP = context.govP;
+            const currentRichP = context.richP;
             cancelTooltipHide();
             applyTooltipTheme(tooltipEl);
             const _theme = document.body.getAttribute('data-theme');
@@ -4876,18 +4947,18 @@ async function initRichTooltips(protocols) {
             
             let html = '';
             // Title line
-            const headline = richP?.headline || govP?.highlight || 'Network upgrade';
-            html += `<div style="font-weight:700; color:${accent}; font-size:0.82rem; margin-bottom:4px;">${escapeHtml(name)}</div>`;
+            const headline = currentRichP?.headline || currentGovP?.highlight || 'Network upgrade';
+            html += `<div style="font-weight:700; color:${accent}; font-size:0.82rem; margin-bottom:4px;">${escapeHtml(currentName)}</div>`;
             html += `<div style="color:rgba(255,255,255,0.75); margin-bottom:6px; font-style:italic;">${escapeHtml(headline)}</div>`;
             
             // Debate
-            const debate = richP?.debate || govP?.debate;
+            const debate = currentRichP?.debate || currentGovP?.debate;
             if (debate) {
                 html += `<div style="color:${accentDim}; margin-bottom:6px;">📌 ${escapeHtml(debate)}</div>`;
             }
             
             // Changes
-            const changes = richP?.changes;
+            const changes = currentRichP?.changes;
             if (changes && changes.length) {
                 html += `<div style="margin-top:4px; color:rgba(255,255,255,0.6);">`;
                 changes.forEach(c => { html += `<div style="padding-left:8px;">• ${escapeHtml(c)}</div>`; });
@@ -4895,16 +4966,16 @@ async function initRichTooltips(protocols) {
             }
             
             // Date
-            if (richP?.date) {
-                const d = new Date(richP.date + 'T00:00:00Z');
+            if (currentRichP?.date) {
+                const d = new Date(currentRichP.date + 'T00:00:00Z');
                 const dateStr = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
                 html += `<div style="margin-top:6px; color:rgba(255,255,255,0.3); font-size:0.65rem;">${dateStr}</div>`;
             }
 
             // "Read Full History" button for contentious protocols
-            if (richP?.history) {
+            if (currentRichP?.history) {
                 html += `<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08);">
-                    <button class="history-expand-btn" type="button" data-protocol-tooltip-open="${escapeHtml(name)}" style="color:${accent};">
+                    <button class="history-expand-btn" type="button" data-protocol-tooltip-open="${escapeHtml(currentName)}" style="color:${accent};">
                         Read full history
                     </button>
                 </div>`;
@@ -4929,12 +5000,16 @@ async function initRichTooltips(protocols) {
                 openProtocol(event);
             });
         }
+        item.dataset.protocolTooltipWired = '1';
     });
 }
 
-function showProtocolHistoryModal(history, protocolName) {
+function showProtocolHistoryModal(history, protocolName, { opener = null } = {}) {
     const existing = document.getElementById('protocol-history-modal');
-    if (existing) existing.remove();
+    if (existing) {
+        existing._protocolStoryCleanup?.({ restoreFocus: false });
+        existing.remove();
+    }
 
     const _modalTheme = document.body.getAttribute('data-theme');
     const isMatrix = _modalTheme === 'matrix';
@@ -5000,20 +5075,21 @@ function showProtocolHistoryModal(history, protocolName) {
     const modal = document.createElement('div');
     modal.id = 'protocol-history-modal';
     modal.className = 'protocol-history-story-overlay';
+    modal.setAttribute('aria-hidden', 'true');
     modal.style.cssText = `
         position:fixed; inset:0; z-index:10001; display:flex; align-items:center; justify-content:center;
         background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);
         opacity:0; transition:opacity 0.3s ease;
     `;
     modal.innerHTML = `
-        <div class="modal-large protocol-history-story-modal" style="
+        <div class="modal-large protocol-history-story-modal" role="dialog" aria-modal="true" aria-labelledby="protocol-history-story-title" tabindex="-1" style="
             background:${bg}; border:1px solid ${borderColor};
             border-radius:16px; max-width:720px; width:92vw; max-height:85vh; overflow-y:auto;
             padding:32px; position:relative;
             box-shadow:0 0 60px rgba(${accentRgb},0.1), 0 20px 60px rgba(0,0,0,0.5);
         ">
             <div class="protocol-history-story-actions" style="position:absolute; top:16px; right:16px; display:flex; gap:8px; z-index:10;">
-                <button id="history-modal-share" title="Share this history" style="
+                <button id="history-modal-share" title="Share this history" aria-label="Share this protocol history" style="
                     background:rgba(255,255,255,0.08);
                     border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.7);
                     width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:18px;
@@ -5027,7 +5103,7 @@ function showProtocolHistoryModal(history, protocolName) {
                     display:flex; align-items:center; justify-content:center;
                     transition:all 0.2s;
                 ">⎙</button>
-                <button id="history-modal-close" style="
+                <button id="history-modal-close" aria-label="Close protocol history" style="
                     background:rgba(255,255,255,0.08);
                     border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.7);
                     width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:20px;
@@ -5035,7 +5111,7 @@ function showProtocolHistoryModal(history, protocolName) {
                     transition:all 0.2s;
                 ">×</button>
             </div>
-            <div class="protocol-history-story-title" style="font-family:'Orbitron',sans-serif; color:${accent}; font-size:1.3rem; font-weight:700;
+            <div class="protocol-history-story-title" id="protocol-history-story-title" style="font-family:'Orbitron',sans-serif; color:${accent}; font-size:1.3rem; font-weight:700;
                 letter-spacing:2px; text-shadow:0 0 20px rgba(${accentRgb},0.4); margin-bottom:4px;">
                 ⚔ ${escapeHtml(history.title)}
             </div>
@@ -5046,7 +5122,46 @@ function showProtocolHistoryModal(history, protocolName) {
     document.body.appendChild(modal);
     requestAnimationFrame(() => { modal.style.opacity = '1'; });
 
-    const closeModal = () => { modal.style.opacity = '0'; setTimeout(() => modal.remove(), 300); };
+    const clearDirectStoryRoute = () => {
+        const params = new URLSearchParams(window.location.hash.slice(1));
+        if (!params.has('protocol')) return;
+        params.delete('protocol');
+        const remainingHash = params.toString();
+        const nextUrl = `${window.location.pathname}${window.location.search}${remainingHash ? `#${remainingHash}` : ''}`;
+        window.history.replaceState(
+            { ...(window.history.state || {}), tezosSystemsRoute: remainingHash ? 'hash' : 'home' },
+            '',
+            nextUrl
+        );
+        window.dispatchEvent(new CustomEvent('tezos:routechange', {
+            detail: { entryId: remainingHash ? '' : 'home', route: nextUrl, replace: true, current: false }
+        }));
+    };
+    const closeModal = () => {
+        if (modal.dataset.overlayClosing === '1') return;
+        modal.dataset.overlayClosing = '1';
+        deactivateOverlayDialog(modal);
+        modal.style.opacity = '0';
+        modal.style.pointerEvents = 'none';
+        clearDirectStoryRoute();
+        setTimeout(() => modal.remove(), 300);
+    };
+    modal._protocolStoryCleanup = ({ restoreFocus = true } = {}) => (
+        deactivateOverlayDialog(modal, { restoreFocus })
+    );
+    const parentProtocolDialog = document.querySelector('#protocol-history-chamber-modal.active .protocol-history-content');
+    activateOverlayDialog(modal, {
+        close: closeModal,
+        dialogSelector: '.protocol-history-story-modal',
+        titleId: 'protocol-history-story-title',
+        initialFocusSelector: '#history-modal-close',
+        // The parent room may quietly reconcile its protocol buttons while the
+        // Story fades out. Its dialog is the stable nested return target.
+        opener: parentProtocolDialog || opener,
+        restoreFocusTarget: () => [...document.querySelectorAll('#protocol-history-chamber-modal.active [data-protocol-open]')]
+            .find((button) => button.getAttribute('data-protocol-open') === protocolName) || null,
+        restoreFocusSelector: '#header-protocol-chip, #features-gear, #hero-search-input'
+    });
     modal.querySelector('#history-modal-close').addEventListener('click', closeModal);
     modal.querySelector('#history-modal-print').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -5066,7 +5181,6 @@ function showProtocolHistoryModal(history, protocolName) {
         }
     });
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', esc); } });
 }
 
 let protocolHistoryChamberCloseTimer = null;
@@ -5185,8 +5299,6 @@ function closeProtocolHistoryChamber() {
     if (!overlay) return;
     overlay.classList.remove('active');
     deactivateChamberDialog(overlay);
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
     window.clearTimeout(protocolHistoryChamberCloseTimer);
     protocolHistoryChamberCloseTimer = window.setTimeout(() => overlay.remove(), 220);
 }
@@ -5201,10 +5313,9 @@ async function openProtocolHistoryChamber() {
         close: closeProtocolHistoryChamber,
         dialogSelector: '.protocol-history-content',
         titleId: 'protocol-history-chamber-title',
-        label: 'Protocol Anthology Chamber'
+        label: 'Protocol Anthology Chamber',
+        lockScroll: true
     });
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
     const cachedProtocols = getKnownProtocols();
     if (cachedProtocols.length) {
         renderProtocolTimeline(cachedProtocols);
@@ -5855,12 +5966,12 @@ function registerServiceWorker() {
             window.location.reload();
         };
 
-        const showAppliedElsewherePrompt = async ({ forceExpand = true } = {}) => {
+        const showAppliedElsewherePrompt = async () => {
             const [ui, release] = await Promise.all([
                 loadReleaseUpdateUi(),
                 fetchReleaseUpdateMetadata()
             ]);
-            const resurface = () => showAppliedElsewherePrompt({ forceExpand: true });
+            const resurface = () => showAppliedElsewherePrompt();
             ui.showReleaseUpdateDock({
                 state: 'reload',
                 title: 'Update applied in another tab',
@@ -5869,7 +5980,7 @@ function registerServiceWorker() {
                 actionLabel: 'Reload this tab',
                 pendingLabel: 'Reloading…',
                 pillLabel: 'Reload transmission',
-                expanded: forceExpand || Date.now() >= deferredUntil,
+                expanded: false,
                 onAction: reloadThisTab,
                 onLater: () => deferPrompt(resurface)
             });
@@ -5889,10 +6000,10 @@ function registerServiceWorker() {
                 controlledAtRegistration = true;
                 return;
             }
-            showAppliedElsewherePrompt({ forceExpand: Date.now() >= deferredUntil });
+            showAppliedElsewherePrompt();
         });
 
-        const showUpdatePrompt = async (reg, { forceExpand = false } = {}) => {
+        const showUpdatePrompt = async (reg) => {
             if (!reg.waiting || !navigator.serviceWorker.controller) return;
             const [ui, release] = await Promise.all([
                 loadReleaseUpdateUi(),
@@ -5900,7 +6011,7 @@ function registerServiceWorker() {
             ]);
             if (!reg.waiting || !navigator.serviceWorker.controller) return;
 
-            const resurface = () => showUpdatePrompt(reg, { forceExpand: true });
+            const resurface = () => showUpdatePrompt(reg);
             const showReloadFallback = () => {
                 ui.setReleaseUpdateDockState({
                     state: 'reload',
@@ -5926,7 +6037,7 @@ function registerServiceWorker() {
                 actionLabel: 'Update & reload',
                 pendingLabel: 'Updating…',
                 pillLabel: 'Update transmission',
-                expanded: forceExpand || Date.now() >= deferredUntil,
+                expanded: false,
                 onLater: () => deferPrompt(resurface),
                 onAction() {
                     const waiting = reg.waiting;
@@ -5958,7 +6069,7 @@ function registerServiceWorker() {
             let lastUpdateCheck = 0;
             const checkForUpdate = () => {
                 if (document.visibilityState !== 'visible') return;
-                if (reg.waiting) showUpdatePrompt(reg, { forceExpand: Date.now() >= deferredUntil });
+                if (reg.waiting) showUpdatePrompt(reg);
                 if (Date.now() - lastUpdateCheck < SERVICE_WORKER_UPDATE_CHECK_MS) return;
                 lastUpdateCheck = Date.now();
                 reg.update().catch(() => {});
@@ -6189,13 +6300,22 @@ function applyDeepLink() {
     const hash = window.location.hash.slice(1);
     const params = new URLSearchParams(hash);
     const currentEntry = findCurrentSiteMapEntry();
+    const isSearchRoute = hash === 'search' || params.has('search');
     revealChamberCategoryForEntry(currentEntry);
 
-    if (ROOT_DASHBOARD_TITLE) {
-        document.title = currentEntry?.id && currentEntry.id !== 'home'
-            ? `${currentEntry.title} | tezos.systems`
-            : ROOT_DASHBOARD_TITLE;
+    if (!isSearchRoute && _searchRouteFocusTimer !== null) {
+        window.clearTimeout(_searchRouteFocusTimer);
+        _searchRouteFocusTimer = null;
     }
+
+    setPageTitleRoute(
+        STANDALONE_ROUTE_TITLE || (
+            currentEntry?.id && currentEntry.id !== 'home'
+                ? `${currentEntry.title} | tezos.systems`
+                : ''
+        ),
+        ROOT_DASHBOARD_TITLE || undefined
+    );
 
     const showToggleSection = (toggleId, sectionId, options = {}) => {
         const toggle = document.getElementById(toggleId);
@@ -6312,7 +6432,9 @@ function applyDeepLink() {
     const closeHashModalSurfaces = async () => {
         _chamberOpenEpoch += 1;
         setMyTezosDrawerOpenState?.(false, { restoreFocus: false });
-        document.getElementById('protocol-history-modal')?.remove();
+        const protocolStory = document.getElementById('protocol-history-modal');
+        protocolStory?._protocolStoryCleanup?.({ restoreFocus: false });
+        protocolStory?.remove();
         const protocolHistoryChamber = document.getElementById('protocol-history-chamber-modal');
         if (protocolHistoryChamber) {
             protocolHistoryChamber.classList.remove('active');
@@ -6330,12 +6452,15 @@ function applyDeepLink() {
         }
         await Promise.allSettled(closeTasks);
 
-        document.body.style.overflow = '';
-        document.documentElement.style.overflow = '';
+        reconcileOverlayEnvironment();
     };
 
     const openHashModal = (open, label, afterOpen) => {
+        _routedOverlayTransitionDepth += 1;
         closeHashModalSurfaces()
+            .finally(() => {
+                _routedOverlayTransitionDepth = Math.max(0, _routedOverlayTransitionDepth - 1);
+            })
             .then(open)
             .then(() => {
                 if (typeof afterOpen === 'function') afterOpen();
@@ -6515,8 +6640,13 @@ function applyDeepLink() {
     }
 
     // #search — make the command bar the next doorway from any site map.
-    if (params.has('search') || hash === 'search') {
-        setTimeout(() => {
+    if (isSearchRoute) {
+        window.clearTimeout(_searchRouteFocusTimer);
+        _searchRouteFocusTimer = window.setTimeout(() => {
+            _searchRouteFocusTimer = null;
+            const activeHash = window.location.hash.slice(1);
+            const activeParams = new URLSearchParams(activeHash);
+            if (activeHash !== 'search' && !activeParams.has('search')) return;
             const input = document.getElementById('hero-search-input');
             input?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
             input?.focus({ preventScroll: true });
@@ -6639,8 +6769,10 @@ function applyDeepLink() {
         );
     }
 
-    // #tezoscrp / #community-rewards
-    if (params.has('tezoscrp') || hash === 'tezoscrp' || params.has('community-rewards') || hash === 'community-rewards') {
+    // #tezoscrp / #community-rewards / #crp
+    if (params.has('tezoscrp') || hash === 'tezoscrp'
+        || params.has('community-rewards') || hash === 'community-rewards'
+        || params.has('crp') || hash === 'crp') {
         openHashModal(
             () => openChamberFeature('tezoscrp'),
             'Failed to open TezosCRP Recognition Hall'
@@ -6749,16 +6881,16 @@ function applyDeepLink() {
         showToggleSection('comparison-toggle', 'comparison-section', { delay: 500 });
     }
 
-    // #protocol-history — open Protocol History Chamber
-    if (params.has('protocol-history') || hash === 'protocol-history') {
+    // #protocol-history / bare #protocol — open Protocol History Chamber
+    if (params.has('protocol-history') || hash === 'protocol-history' || hash === 'protocol') {
         openHashModal(
             () => openProtocolHistoryChamber(),
             'Failed to open Protocol History Chamber'
         );
     }
 
-    // #leaderboard — open Baker Directory Chamber
-    if (params.has('leaderboard') || hash === 'leaderboard') {
+    // #leaderboard / bare #baker — open Baker Directory Chamber
+    if (params.has('leaderboard') || hash === 'leaderboard' || hash === 'baker') {
         openHashModal(
             () => openChamberFeature('leaderboard'),
             'Failed to open Baker Directory Chamber'
@@ -6812,7 +6944,7 @@ function applyDeepLink() {
     }
 
     // #protocol=Ushuaia
-    if (params.has('protocol')) {
+    if (params.get('protocol')) {
         const protocolName = params.get('protocol');
         openHashModal(
             () => openProtocolHistoryByName(protocolName),
@@ -6867,9 +6999,9 @@ const ROUTED_OVERLAY_ENTRIES = Object.freeze({
     'ecosystem-activity-modal': { entryIds: ['ecosystem'], hashes: ['ecosystem'] },
     'whale-watch-modal': { entryIds: ['whales'], hashes: ['whales', 'giants'] },
     'staking-chamber-modal': { entryIds: ['staking-chamber'], hashes: ['staking', 'stake'] },
-    'baker-directory-modal': { entryIds: ['leaderboard'], hashes: ['leaderboard'] },
+    'baker-directory-modal': { entryIds: ['leaderboard'], hashes: ['leaderboard', 'baker'] },
     'maxis-modal': { entryIds: ['maxis'], hashes: ['maxis', 'tezos-maxis'] },
-    'tezoscrp-modal': { entryIds: ['tezoscrp'], hashes: ['tezoscrp'] },
+    'tezoscrp-modal': { entryIds: ['tezoscrp'], hashes: ['tezoscrp', 'community-rewards', 'crp'] },
     'network-health-modal': { entryIds: ['health'], hashes: ['health', 'network-health'] },
     'tezlink-modal': { entryIds: ['tezosx'], hashes: ['tezosx', 'tezlink'] },
     'etherlink-governance-modal': { entryIds: ['l2-governance'], hashes: ['l2chamber', 'etherlink-governance', 'etherlink-gov', 'etherlink'] },
@@ -6893,6 +7025,10 @@ function routedOverlayOwnsCurrentLocation(overlayId) {
     return route.entryIds.includes(entryId) || route.hashes.includes(currentRouteHashKey());
 }
 
+function dashboardHomeRoutePreservingSearch() {
+    return `/${window.location.search}`;
+}
+
 function initSiteMapRouter() {
     document.addEventListener('click', (event) => {
         if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -6911,10 +7047,15 @@ function initSiteMapRouter() {
             const wasActive = String(mutation.oldValue || '').split(/\s+/).includes('active');
             if (!wasActive || overlay.classList.contains('active')) continue;
             queueMicrotask(() => {
+                if (_routedOverlayTransitionDepth > 0) return;
                 if (overlay.classList.contains('active') || !routedOverlayOwnsCurrentLocation(overlay.id)) return;
                 if (document.documentElement.hasAttribute('data-chamber-route')) return;
-                window.history.replaceState({ ...(window.history.state || {}), tezosSystemsRoute: 'home' }, '', '/');
-                if (ROOT_DASHBOARD_TITLE) document.title = ROOT_DASHBOARD_TITLE;
+                window.history.replaceState(
+                    { ...(window.history.state || {}), tezosSystemsRoute: 'home' },
+                    '',
+                    dashboardHomeRoutePreservingSearch()
+                );
+                setPageTitleRoute('', ROOT_DASHBOARD_TITLE || undefined);
             });
         }
     });

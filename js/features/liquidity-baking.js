@@ -153,7 +153,7 @@ function renderHelpTooltip({ label, title, body, href = LB_OPEN_TEZOS_URL, linkT
     return `
         <details class="lb-help">
             <summary class="lb-help-trigger" aria-label="${escapeHtml(label)}">?</summary>
-            <div class="lb-help-popover" role="tooltip">
+            <div class="lb-help-popover" role="group" aria-label="${escapeHtml(title)} details">
                 <strong>${escapeHtml(title)}</strong>
                 <span>${escapeHtml(body)}</span>
                 <a href="${escapeHtml(href)}"${linkAttrs}>${escapeHtml(linkText)} →</a>

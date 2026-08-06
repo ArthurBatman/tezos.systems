@@ -20,6 +20,7 @@ import {
 } from '../core/search-catalog.js';
 import { resolveTezDomainAddress } from '../core/tezos-domains.js';
 import {
+    findCurrentSiteMapEntry,
     findSiteMapEntry,
     navigateSiteMapEntry,
     searchSiteMap,
@@ -144,6 +145,37 @@ function matchesQuery(result, query) {
 
 function bakerSearchKey(query) {
     return normalizeQuery(query).toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizedAliasText(value) {
+    return String(value || '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+/**
+ * TzKT's suggestion endpoint is intentionally broad. Keep it useful for
+ * partial names, but do not turn an unrelated fuzzy response into the first
+ * keyboard destination. Every meaningful query token must match the start of
+ * an alias token (or vice versa for an already-complete alias).
+ */
+export function isRelevantOnChainSuggestion(query, account) {
+    const normalizedQuery = normalizedAliasText(query);
+    const normalizedAlias = normalizedAliasText(account?.alias);
+    if (normalizedQuery.length < 3 || !normalizedAlias) return false;
+    if (normalizedAlias === normalizedQuery || normalizedAlias.startsWith(`${normalizedQuery} `)) return true;
+
+    const queryTokens = normalizedQuery.split(' ').filter((token) => token.length >= 2);
+    const aliasTokens = normalizedAlias.split(' ').filter(Boolean);
+    if (!queryTokens.length || !aliasTokens.length) return false;
+    return queryTokens.every((queryToken) => aliasTokens.some((aliasToken) => (
+        aliasToken === queryToken
+        || (queryToken.length >= 3 && aliasToken.startsWith(queryToken))
+    )));
 }
 
 function shouldSearchNames(query) {
@@ -861,6 +893,10 @@ export function initHeroSearch() {
     let selectedId = '';
     let results = [];
     let priorFocus = null;
+    let searchRouteWasActive = (() => {
+        const routeParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        return window.location.hash === '#search' || routeParams.has('search');
+    })();
     const inertedElements = new Set();
     let lastAnnouncement = '';
     let liveRegion = document.getElementById('hero-search-status');
@@ -923,6 +959,26 @@ export function initHeroSearch() {
         inertedElements.clear();
     };
 
+    const canRestoreFocus = (target) => {
+        if (!(target instanceof HTMLElement)
+            || target === document.body
+            || target === document.documentElement
+            || !target.isConnected
+            || target.closest('[inert], [hidden]')) return false;
+        const rect = target.getBoundingClientRect();
+        return rect.width > 0
+            && rect.height > 0
+            && rect.bottom > 0
+            && rect.top < window.innerHeight
+            && rect.right > 0
+            && rect.left < window.innerWidth;
+    };
+
+    const blurSearchFocus = () => {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && root.contains(active)) active.blur();
+    };
+
     const setOpen = (next, { restoreFocus = true } = {}) => {
         const wasOpen = isOpen;
         isOpen = Boolean(next);
@@ -945,9 +1001,26 @@ export function initHeroSearch() {
             root.classList.remove('is-browsing-all');
             input.setAttribute('aria-activedescendant', '');
             root.style.removeProperty('--hero-search-available-height');
-            if (restoreFocus && priorFocus instanceof HTMLElement && priorFocus.isConnected) priorFocus.focus();
+            if (restoreFocus && canRestoreFocus(priorFocus)) priorFocus.focus({ preventScroll: true });
+            else if (restoreFocus) blurSearchFocus();
             priorFocus = null;
         }
+    };
+
+    const dismissForRoute = () => {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const isSearchRoute = window.location.hash === '#search' || hashParams.has('search');
+        const wasSearchRoute = searchRouteWasActive;
+        searchRouteWasActive = isSearchRoute;
+        if (isSearchRoute) return;
+        const currentEntry = findCurrentSiteMapEntry();
+        const ownsDestination = (
+            Boolean(window.location.hash)
+            || Boolean(currentEntry?.id && currentEntry.id !== 'home')
+        );
+        if (!ownsDestination && !wasSearchRoute) return;
+        if (isOpen) setOpen(false, { restoreFocus: false });
+        blurSearchFocus();
     };
 
     const syncActiveDescendant = () => {
@@ -982,7 +1055,9 @@ export function initHeroSearch() {
             const promise = fetch(url, { cache: 'no-store', __tezosSystemsPriority: 'interactive' })
                 .then((response) => response.ok ? response.json() : [])
                 .then((matches) => {
-                    accountSuggestionCache.set(key, Array.isArray(matches) ? matches.filter((match) => match?.address) : []);
+                    accountSuggestionCache.set(key, Array.isArray(matches)
+                        ? matches.filter((match) => match?.address && isRelevantOnChainSuggestion(q, match))
+                        : []);
                 })
                 .catch(() => {
                     accountSuggestionCache.set(key, []);
@@ -1170,13 +1245,6 @@ export function initHeroSearch() {
     });
 
     input.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-            if (isOpen) {
-                event.preventDefault();
-                setOpen(false);
-            }
-            return;
-        }
         if (event.key === 'Enter') {
             event.preventDefault();
             if (!isOpen) setOpen(true);
@@ -1208,6 +1276,13 @@ export function initHeroSearch() {
         option?.setAttribute('aria-selected', 'true');
         syncActiveDescendant();
         option?.scrollIntoView({ block: 'nearest' });
+    });
+
+    root.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !isOpen) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
     });
 
     panel.addEventListener('click', (event) => {
@@ -1277,6 +1352,9 @@ export function initHeroSearch() {
     window.addEventListener('resize', syncAvailableHeight);
     window.visualViewport?.addEventListener('resize', syncAvailableHeight);
     window.visualViewport?.addEventListener('scroll', syncAvailableHeight);
+    window.addEventListener('hashchange', dismissForRoute);
+    window.addEventListener('popstate', dismissForRoute);
+    window.addEventListener('tezos:routechange', dismissForRoute);
 
     // Warm the protocol index after first paint, but keep the hero input cheap.
     window.setTimeout(ensureProtocols, 1200);

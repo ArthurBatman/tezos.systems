@@ -1273,7 +1273,7 @@ function renderTab(track) {
     const status = trackStatus(track);
     const isActive = track.key === activeTrackKey;
     return `
-        <button type="button" role="tab" aria-selected="${isActive ? 'true' : 'false'}" class="etherlink-gov-tab ${isActive ? 'active' : ''}" data-etherlink-track="${escapeHtml(track.key)}">
+        <button type="button" id="etherlink-gov-tab-${escapeHtml(track.key)}" role="tab" aria-selected="${isActive ? 'true' : 'false'}" aria-controls="etherlink-gov-track-panel" tabindex="${isActive ? '0' : '-1'}" class="etherlink-gov-tab ${isActive ? 'active' : ''}" data-etherlink-track="${escapeHtml(track.key)}">
             <span>${escapeHtml(track.label)}</span>
             <strong class="${escapeHtml(status.className)}">${escapeHtml(status.label)}</strong>
         </button>
@@ -1534,14 +1534,14 @@ function renderTrackPanel(track) {
     const status = trackStatus(track);
     if (track.phase === 'error') {
         return `
-            <section class="lb-panel etherlink-gov-panel">
+            <section class="lb-panel etherlink-gov-panel" id="etherlink-gov-track-panel" role="tabpanel" aria-labelledby="etherlink-gov-tab-${escapeHtml(track.key)}" tabindex="0" data-track="${escapeHtml(track.key)}">
                 <div class="lb-error"><strong>${escapeHtml(track.label)} unavailable.</strong> ${escapeHtml(track.error)}</div>
             </section>
         `;
     }
 
     return `
-        <div class="etherlink-gov-track-panel" data-track="${escapeHtml(track.key)}">
+        <div class="etherlink-gov-track-panel" id="etherlink-gov-track-panel" role="tabpanel" aria-labelledby="etherlink-gov-tab-${escapeHtml(track.key)}" tabindex="0" data-track="${escapeHtml(track.key)}">
             ${renderL2GovernancePhaseHero(track)}
             ${renderL2GovernanceNow(track)}
             <section class="lb-explainer etherlink-gov-explainer chamber-anim-fade">
@@ -1615,6 +1615,25 @@ function renderChamber(data, container, { quiet = false } = {}) {
             }
             const voterLink = event.target.closest('.etherlink-gov-voter-row[href^="#baker="], .etherlink-gov-voter-link[href^="#baker="]');
             if (voterLink && container.contains(voterLink)) closeEtherlinkGovernanceChamber();
+        });
+        container.addEventListener('keydown', (event) => {
+            const tab = event.target.closest('[role="tab"][data-etherlink-track]');
+            if (!tab || !container.contains(tab) || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            const tracks = (lastRenderedChamberData?.tracks || [])
+                .map((item) => item.key)
+                .filter(Boolean);
+            const index = tracks.indexOf(tab.dataset.etherlinkTrack);
+            if (index < 0 || !tracks.length) return;
+            event.preventDefault();
+            let next = index;
+            if (event.key === 'ArrowLeft') next = (index - 1 + tracks.length) % tracks.length;
+            if (event.key === 'ArrowRight') next = (index + 1) % tracks.length;
+            if (event.key === 'Home') next = 0;
+            if (event.key === 'End') next = tracks.length - 1;
+            activeTrackKey = tracks[next];
+            selectActiveTrackOnNextRender = false;
+            if (lastRenderedChamberData) renderChamber(lastRenderedChamberData, container, { quiet: true });
+            document.getElementById(`etherlink-gov-tab-${activeTrackKey}`)?.focus({ preventScroll: true });
         });
     }
 }

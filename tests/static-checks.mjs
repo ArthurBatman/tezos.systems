@@ -599,8 +599,11 @@ async function checkMyTezosPortfolioContracts() {
   for (const snippet of ['this.inFlight', 'RETRYABLE', 'retry-after', 'this.paused', 'callerRace', 'octezArchive: 6', 'reduceProviderLimit', 'my-tezos-drawer-opened', 'my-tezos-drawer-closed']) {
     if (!broker.includes(snippet)) fail(`My Tezos request broker contract missing: ${snippet}`);
   }
-  for (const snippet of ['syncExactBalanceHistory', 'seriesByAddress', 'aggregateCoverage', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed']) {
+  for (const snippet of ['syncExactBalanceHistory', 'seriesByAddress', 'aggregateCoverage', 'INITIAL_DAYS = 365', 'baselineCreated', 'my-tezos-drawer-closed', 'loadEarlierQueued', 'Finishing the current receipt sync, then loading earlier history', "button.setAttribute('aria-busy', String(busy))"]) {
     if (!memory.includes(snippet)) fail(`My Tezos Memory contract missing: ${snippet}`);
+  }
+  if (!index.includes('id="portfolio-load-earlier" class="glass-button my-tezos-pill" type="button" aria-busy="false"')) {
+    fail('My Tezos Load earlier control must expose its idle busy state before the feature module loads');
   }
   if ((index.match(/id="my-tezos-story-transactions"/g) || []).length !== 1
       || memory.includes('data-memory-show-unseen')) {
@@ -1544,6 +1547,10 @@ async function checkSiteMapGraphContracts() {
     ['contract same-code endpoint', '/same', nativeExplorer],
     ['contract raw-code endpoint', '/code?format=1', nativeExplorer],
     ['stale contract response guard', 'generation !== requestGeneration', nativeExplorer],
+    ['partial Native Explorer source status', 'Partial TzKT read', nativeExplorer],
+    ['Native Explorer last-good preservation', 'reconcileLastGoodLens', nativeExplorer],
+    ['Native Explorer retry control', 'data-native-retry', nativeExplorer],
+    ['Native Explorer unavailable-is-not-zero copy', 'unavailable fields are not zero', nativeExplorer],
     ['TezosCRP archive query route', "url.searchParams.set('q'", tezosCrpSearch]
   ];
   for (const [label, snippet, source, expected = true] of searchContracts) {
@@ -1754,7 +1761,9 @@ async function checkCacheBustAlignment() {
     ['reserveToastSafeArea(SAFE_AREA_KEY', releaseUpdate],
     ['--release-update-safe-bottom', releaseUpdate],
     ['release-update-safe-area-raised', releaseUpdate],
-    ['tezos:chamber-dialog-active', releaseUpdate],
+    ['tezos:overlay-stack-change', releaseUpdate],
+    ['activeOverlayCount', releaseUpdate],
+    ['overlaySuppressed', releaseUpdate],
     ["pill.addEventListener('click'", releaseUpdate],
     ['release-update-transmission-header', releaseUpdate],
     ['System transmission · incoming', releaseUpdate],
@@ -1764,7 +1773,8 @@ async function checkCacheBustAlignment() {
     ['.release-update-dock[data-state="error"]', styles],
     ['--release-accent: #45E0C8', styles],
     ['min-height: 44px', styles],
-    [".release-update-dock.is-collapsed", styles]
+    [".release-update-dock.is-collapsed", styles],
+    ['expanded = false', releaseUpdate]
   ];
   for (const [snippet, source] of releaseUpdateContracts) {
     if (!source.includes(snippet)) fail(`service-worker release dock contract missing: ${snippet}`);
@@ -2014,7 +2024,7 @@ async function checkSelectorContracts() {
     ['hero command bar slot', 'class="hero-slot" id="hero-slot"'],
     ['hero command bar combobox', 'aria-controls="hero-search-panel"'],
     ['Governance alert strip shell', 'class="stats-section governance-alert-section"'],
-    ['History modal direct link copy button', 'id="history-copy-link" data-copy-hash="#history"'],
+    ['History modal direct link copy button', 'id="history-copy-link"'],
     ['Governance SEO nonblank voting fallback', 'data-live="voting-period">Checking TzKT', governanceLanding],
     ['Governance SEO source freshness note', 'data-live="governance-freshness"', governanceLanding],
     ['Governance SEO retry fallback', 'Live governance status is retrying', landingLiveData],
@@ -2152,10 +2162,12 @@ async function checkSelectorContracts() {
   const tezosDomains = await readText('js/features/tezos-domains.js');
   const maxis = await readText('js/features/maxis.js');
   const chamberAccessibility = await readText('js/ui/chamber-accessibility.js');
+  const overlayStack = await readText('js/ui/overlay-stack.js');
   const wallet = await readText('js/core/wallet.js');
   const health = await readText('js/features/network-health.js');
   const networkPulse = await readText('js/features/network-pulse.js');
   const history = await readText('js/features/history.js');
+  const nativeExplorer = await readText('js/features/native-explorer.js');
   const share = await readText('js/ui/share.js');
   const moments = await readText('js/features/moments.js');
   const streak = await readText('js/features/streak.js');
@@ -2233,9 +2245,26 @@ async function checkSelectorContracts() {
     ['shared Chamber title normalization', "title.classList.add('chamber-entry-title')", chamberAccessibility],
     ['shared Chamber full-card launcher', "card.dataset.chamberSurfaceWired !== '1'", chamberAccessibility],
     ['shared Chamber nested control exclusion', 'target.closest(CHAMBER_INTERACTIVE_SELECTOR)', chamberAccessibility],
-    ['shared Chamber focus trap', "event.key !== 'Tab'", chamberAccessibility],
-    ['shared Chamber Escape close', "event.key === 'Escape'", chamberAccessibility],
-    ['shared Chamber opener restoration', 'state?.opener?.isConnected', chamberAccessibility],
+    ['shared overlay focus trap', "event.key !== 'Tab'", overlayStack],
+    ['shared overlay topmost Escape close', "event.key === 'Escape'", overlayStack],
+    ['shared overlay opener restoration', 'state.opener.isConnected', overlayStack],
+    ['shared overlay background isolation', "element.setAttribute('inert', '')", overlayStack],
+    ['shared overlay nested orphan prevention', "reason: 'parent-close'", overlayStack],
+    ['shared overlay raw-removal recovery', 'new MutationObserver', overlayStack],
+    ['shared overlay exception-safe child close', 'tezos:overlay-close-error', overlayStack],
+    ['shared overlay legacy-state reconciliation', 'reconcileOverlayEnvironment', overlayStack],
+    ['Chambers use the shared overlay stack', 'activateOverlayDialog(overlay', chamberAccessibility],
+    ['Share uses the shared overlay stack', 'activateOverlayDialog(modal', share],
+    ['Share mobile save fallback uses the shared overlay stack', 'activateOverlayDialog(overlay', share],
+    ['Share dialog owns its accessible title', 'aria-labelledby="share-modal-title"', share],
+    ['Protocol Stories use the shared overlay stack', 'activateOverlayDialog(modal', app],
+    ['Protocol History Chamber delegates scroll ownership', 'lockScroll: true', app],
+    ['Protocol Stories clear direct route state', 'clearDirectStoryRoute', app],
+    ['Protocol Stories expose an accessible title', 'aria-labelledby="protocol-history-story-title"', app],
+    ['card history uses the shared overlay stack', 'close: () => closeCardHistoryModal(modal)', history],
+    ['card history owns its accessible title', 'aria-labelledby="card-history-title"', history],
+    ['Native Explorer uses the shared overlay stack', 'activateOverlayDialog(overlay', nativeExplorer],
+    ['Native Explorer provides direct-route focus fallback', "restoreFocusSelector: '#hero-search-input, #features-gear'", nativeExplorer],
     ['Protocol Anthology accessible launcher', 'wireChamberLauncher(card', app],
     ['Network Pulse accessible launcher', 'wireChamberLauncher(card', networkPulse],
     ['Tezos L1 Governance accessible launcher', 'wireChamberLauncher(card', chamber],
@@ -3148,6 +3177,14 @@ async function checkSelectorContracts() {
       && headerExploreIndex > headerNftFeedIndex
       && headerSetupIndex > headerExploreIndex)) {
     fail('header actions must stay ordered My Tezos, NFT Feed, Explore, Setup');
+  }
+  for (const snippet of [
+    'id="features-gear" class="glass-button header-nav-btn" aria-label="Open feature launcher" aria-haspopup="dialog" aria-controls="features-dropdown" aria-expanded="false"',
+    'id="features-dropdown" role="dialog" aria-label="Explore Tezos Systems"',
+    'id="settings-gear" class="glass-button header-nav-btn header-setup-btn" aria-label="Open setup and settings" aria-haspopup="dialog" aria-controls="settings-dropdown" aria-expanded="false"',
+    'id="settings-dropdown" role="dialog" aria-label="Setup and settings"'
+  ]) {
+    if (!index.includes(snippet)) fail(`header popup semantics missing: ${snippet}`);
   }
   pass('header action priority and responsive labels checked');
   const networkPulseMobileNavBlock = networkPulseCss.match(/@media\s*\(max-width:\s*759px\)\s*\{[\s\S]*?\.network-pulse-nav\s*\{([\s\S]*?)\n\s*\}/)?.[1] || '';
@@ -4099,7 +4136,7 @@ async function checkChamberEfficiencyContracts() {
     "init: 'initCtezChamber'",
     'exclusiveLaunchers: true',
     'closeFeatureMenu: true',
-    "'tezoscrp-modal': { entryIds: ['tezoscrp'], hashes: ['tezoscrp'] }"
+    "'tezoscrp-modal': { entryIds: ['tezoscrp'], hashes: ['tezoscrp', 'community-rewards', 'crp'] }"
   ]) {
     if (!app.includes(snippet)) fail(`lazy Chamber runtime is missing contract: ${snippet}`);
   }
@@ -5146,6 +5183,14 @@ async function checkStylesheetFreshness() {
     fail('js/ui/theme.js theme list could not be parsed for lazy theme CSS checks');
   }
   const baseCss = await readText('css/styles.min.css');
+  const matrixCss = await readText('css/themes/matrix.css');
+  const shellExtrasCss = await readText('css/shell-extras.css');
+  if (!matrixCss.includes('[data-theme="matrix"] :is(.price-label, .price-mcap)')
+      || !matrixCss.includes('color: #8cff8c')
+      || !shellExtrasCss.includes('[data-theme="matrix"] .hot-today-progress-segment')
+      || !shellExtrasCss.includes('color: #8cff8c')) {
+    fail('Matrix small telemetry labels must keep the explicit high-contrast treatment');
+  }
   const leakedThemes = expectedThemes.filter((theme) => new RegExp(`data-theme\\s*=\\s*["']?${theme}["']?`, 'i').test(baseCss));
   if (leakedThemes.length) {
     fail(`css/styles.min.css should not carry lazy theme selectors: ${leakedThemes.join(', ')}`);
@@ -5584,7 +5629,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
+    'test:static': 'node tests/static-checks.mjs && node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/tezoscrp-check.mjs && node tests/ecosystem-stats-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
     'test:scheduled-refresh': 'node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',

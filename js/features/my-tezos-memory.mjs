@@ -46,6 +46,7 @@ let currentActivities = [];
 let currentHistory = null;
 let activityFilter = 'transfers';
 let unseenOnly = false;
+let loadEarlierQueued = false;
 
 function includedEntries() {
     return readSavedMyTezosEntries().filter((entry) => entry.included !== false);
@@ -95,6 +96,38 @@ function setStatus(message, state = '') {
         status.textContent = message;
         status.dataset.state = state;
     });
+}
+
+function setLoadEarlierState({ busy = false, queued = false } = {}) {
+    const button = document.getElementById('portfolio-load-earlier');
+    if (!button) return;
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+    button.dataset.queued = queued ? 'true' : 'false';
+    button.textContent = queued ? 'Queued…' : busy ? 'Loading…' : 'Load earlier';
+}
+
+function requestEarlierReceipts() {
+    if (syncInFlight) {
+        if (loadEarlierQueued) return;
+        loadEarlierQueued = true;
+        setLoadEarlierState({ busy: true, queued: true });
+        setStatus('Finishing the current receipt sync, then loading earlier history…', 'loading');
+        syncInFlight.finally(() => {
+            if (!loadEarlierQueued) return;
+            loadEarlierQueued = false;
+            if (!memorySurfaceVisible()) {
+                setLoadEarlierState();
+                return;
+            }
+            requestEarlierReceipts();
+        });
+        return;
+    }
+    setLoadEarlierState({ busy: true });
+    syncMemory({ loadEarlier: true })
+        .catch(() => {})
+        .finally(() => setLoadEarlierState());
 }
 
 function renderWhileAway(activities, { baselineCreated = false } = {}) {
@@ -441,7 +474,7 @@ export function initMyTezosMemory() {
     if (initialized) return;
     initialized = true;
     document.getElementById('portfolio-load-earlier')?.addEventListener('click', () => {
-        syncMemory({ loadEarlier: true }).catch(() => {});
+        requestEarlierReceipts();
     });
     document.getElementById('my-tezos-overview-transactions-link')?.addEventListener('click', () => {
         window.dispatchEvent(new CustomEvent('my-tezos-view-request', { detail: { view: 'transactions' } }));

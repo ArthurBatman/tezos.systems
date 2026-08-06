@@ -208,14 +208,36 @@ function setWindowScrollInstantly(left, top) {
     html.style.scrollBehavior = previous;
 }
 
+let scrollAnchorHoldDepth = 0;
+let previousScrollAnchor = '';
+
+function holdNativeScrollAnchoring() {
+    const html = document.documentElement;
+    if (scrollAnchorHoldDepth === 0) previousScrollAnchor = html.style.overflowAnchor;
+    scrollAnchorHoldDepth += 1;
+    html.style.overflowAnchor = 'none';
+}
+
+function releaseNativeScrollAnchoring() {
+    scrollAnchorHoldDepth = Math.max(0, scrollAnchorHoldDepth - 1);
+    if (scrollAnchorHoldDepth === 0) {
+        document.documentElement.style.overflowAnchor = previousScrollAnchor;
+        previousScrollAnchor = '';
+    }
+}
+
 function captureState(root) {
     const active = root.contains(document.activeElement) ? document.activeElement : null;
+    const viewportAnchor = captureViewportAnchor();
     const rootRect = root.getBoundingClientRect();
     return {
         windowX: window.scrollX,
         windowY: window.scrollY,
-        compensateLayoutBeforeViewport: window.scrollY > 0 && rootRect.bottom <= 0,
-        viewportAnchor: captureViewportAnchor(),
+        viewportAnchor,
+        compensateViewportAnchor: rootRect.top < 0 && (
+            rootRect.bottom <= 0
+            || Boolean(viewportAnchor?.element && root.contains(viewportAnchor.element))
+        ),
         active,
         activeLocator: elementLocator(root, active),
         controlSelection: active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
@@ -251,13 +273,11 @@ function restoreState(root, state) {
         const delta = anchor?.isConnected
             ? anchor.getBoundingClientRect().top - state.viewportAnchor.top
             : 0;
-        // Browsers with scroll anchoring may already have compensated for an
-        // in-flow insertion before this layout read. Start from the browser's
-        // resulting position so we complement native anchoring instead of
-        // accidentally undoing it; browsers without anchoring still receive
-        // the full measured delta.
-        state.targetWindowY = state.compensateLayoutBeforeViewport
-            ? window.scrollY + delta
+        // Compensate only when the mutation root began above the viewport and
+        // can move the captured row. An in-view card keeps the exact page
+        // position; a long feed spanning the viewport keeps the visible row.
+        state.targetWindowY = state.compensateViewportAnchor
+            ? state.windowY + delta
             : state.windowY;
     }
     setWindowScrollInstantly(state.windowX, state.targetWindowY);
@@ -284,15 +304,24 @@ function restoreState(root, state) {
 export function quietlyMutate(root, mutate) {
     if (!(root instanceof Element) || typeof mutate !== 'function') return mutate?.();
     const state = captureState(root);
+    holdNativeScrollAnchoring();
     root.dataset.quietRefreshing = 'true';
-    const result = mutate();
-    root.dataset.quietRefreshSettled = 'true';
-    restoreState(root, state);
+    let result;
+    try {
+        result = mutate();
+        root.dataset.quietRefreshSettled = 'true';
+        restoreState(root, state);
+    } catch (error) {
+        delete root.dataset.quietRefreshing;
+        releaseNativeScrollAnchoring();
+        throw error;
+    }
     requestAnimationFrame(() => {
         if (Math.abs(window.scrollY - state.targetWindowY) < 1 && Math.abs(window.scrollX - state.windowX) < 1) {
             setWindowScrollInstantly(state.windowX, state.targetWindowY);
         }
         delete root.dataset.quietRefreshing;
+        releaseNativeScrollAnchoring();
     });
     return result;
 }

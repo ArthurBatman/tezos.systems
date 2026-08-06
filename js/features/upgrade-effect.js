@@ -84,6 +84,15 @@ function getChangeIndices(metricKey) {
     return changes;
 }
 
+function metricTextAlternative(metricKey) {
+    const metric = METRICS.find((item) => item.key === metricKey);
+    if (!metric) return 'Protocol upgrade metric data is unavailable.';
+    const values = PROTOCOLS.map((protocol) => (
+        `${protocol.name} ${metric.format(getValue(protocol, metricKey))}`
+    )).join('; ');
+    return `${metric.label} across ${PROTOCOLS.length} Tezos protocol activations. ${metric.story}. Values by protocol: ${values}.`;
+}
+
 /**
  * Render the step chart
  */
@@ -94,6 +103,8 @@ function renderChart(container, metricKey) {
         canvas = document.createElement('canvas');
         canvas.id = canvasId;
         canvas.style.cssText = 'width:100%; height:280px;';
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-describedby', 'upgrade-effect-chart-summary');
         container.innerHTML = '';
         container.appendChild(canvas);
     }
@@ -118,6 +129,11 @@ function renderChart(container, metricKey) {
     );
 
     const ctx = canvas.getContext('2d');
+    const textAlternative = metricTextAlternative(metricKey);
+    canvas.setAttribute('aria-label', `${metric.label} by Tezos protocol activation`);
+    canvas.textContent = textAlternative;
+    const summary = document.getElementById('upgrade-effect-chart-summary');
+    if (summary) summary.textContent = textAlternative;
     chartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -206,15 +222,24 @@ function renderChart(container, metricKey) {
 function buildPills(container, onSelect) {
     const pills = document.createElement('div');
     pills.className = 'upgrade-effect-pills';
+    pills.setAttribute('role', 'group');
+    pills.setAttribute('aria-label', 'Protocol impact metric');
 
     METRICS.forEach(m => {
         const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = `upgrade-effect-metric-${m.key}`;
         btn.className = 'upgrade-effect-pill' + (m.key === currentMetric ? ' active' : '');
         btn.textContent = m.label;
+        btn.setAttribute('aria-pressed', String(m.key === currentMetric));
+        btn.setAttribute('aria-controls', 'upgrade-effect-chart');
         btn.addEventListener('click', () => {
             currentMetric = m.key;
-            pills.querySelectorAll('.upgrade-effect-pill').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            pills.querySelectorAll('.upgrade-effect-pill').forEach((button) => {
+                const selected = button === btn;
+                button.classList.toggle('active', selected);
+                button.setAttribute('aria-pressed', String(selected));
+            });
             onSelect(m.key);
         });
         pills.appendChild(btn);
@@ -239,14 +264,24 @@ export function initUpgradeEffect() {
     // Toggle button
     const toggleDiv = document.createElement('div');
     toggleDiv.className = 'infographic-toggle';
-    toggleDiv.innerHTML = '<button class="infographic-toggle-btn upgrade-effect-toggle-btn" type="button" aria-expanded="false">View Impact ▾</button>';
+    toggleDiv.innerHTML = '<button class="infographic-toggle-btn upgrade-effect-toggle-btn" id="upgrade-effect-toggle" type="button" aria-expanded="false" aria-controls="upgrade-effect-panel">View Impact ▾</button>';
     upgradeCount.appendChild(toggleDiv);
 
     // Panel
     const panel = document.createElement('div');
     panel.id = 'upgrade-effect-panel';
     panel.className = 'upgrade-effect-panel';
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-labelledby', 'upgrade-effect-title');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.setAttribute('inert', '');
     timelineEl.appendChild(panel);
+
+    const title = document.createElement('h3');
+    title.id = 'upgrade-effect-title';
+    title.className = 'sr-only';
+    title.textContent = 'Protocol upgrade impact';
+    panel.appendChild(title);
 
     // Pills
     buildPills(panel, (metric) => {
@@ -260,6 +295,13 @@ export function initUpgradeEffect() {
     story.textContent = METRICS[0].story;
     panel.appendChild(story);
 
+    const chartSummary = document.createElement('p');
+    chartSummary.id = 'upgrade-effect-chart-summary';
+    chartSummary.className = 'sr-only';
+    chartSummary.setAttribute('aria-live', 'polite');
+    chartSummary.textContent = metricTextAlternative(currentMetric);
+    panel.appendChild(chartSummary);
+
     // Chart container
     const chartContainer = document.createElement('div');
     chartContainer.className = 'upgrade-effect-chart';
@@ -272,6 +314,8 @@ export function initUpgradeEffect() {
         const expanded = panel.classList.toggle('expanded');
         btn.textContent = expanded ? 'Hide Impact ▴' : 'View Impact ▾';
         btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        panel.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+        panel.toggleAttribute('inert', !expanded);
         if (expanded) {
             renderChart(chartContainer, currentMetric);
         }

@@ -5,6 +5,19 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-06',
+        entries: [
+            { type: '🔧', text: 'Share, protocol stories, card history, Native Explorer, and every Chamber now use one topmost dialog stack with reliable focus entry, containment, Escape order, background isolation, and focus return' },
+            { type: '🔧', text: 'L2 Governance, TezosCRP, and Whale Watch tabs now provide complete keyboard navigation and programmatic tab-to-panel relationships' },
+            { type: '🔧', text: 'Protocol History background refreshes now retain the open timeline or Impact view, selected metric, focus, and live controls instead of rebuilding the surface under the reader' },
+            { type: '🔧', text: 'Command search, aliases, browser Back and Forward, and Chamber close routes now preserve one coherent URL, title, query, and visible surface while irrelevant remote account suggestions stay out of keyboard navigation' },
+            { type: '🔧', text: 'My Tezos now honors all-wallet scope on cold Story links, queues earlier-history requests visibly, and keeps Tezos X empty-state copy aligned with the view already on screen' },
+            { type: '🔧', text: 'Native Explorer now labels partial TzKT reads, keeps unavailable fields distinct from real zeroes, timestamps successful coverage, and offers an in-place retry instead of presenting mixed data as complete' },
+            { type: '⚡', text: 'Network Health now gives direct Chamber opens priority over background telemetry so the complete live room does not wait behind the dashboard request queue' },
+            { type: '🎨', text: 'Update notices now arrive as a compact reader-controlled transmission, while Cycle History actions clear their mobile source strip and Matrix telemetry meets small-text contrast targets' }
+        ]
+    },
+    {
         date: '2026-08-05',
         entries: [
             { type: '⚡', text: 'Scheduled Maxis and Ecosystem refreshes now ride through short OBJKT database incidents and split large Etherlink history reads into reliable weekly requests' },
