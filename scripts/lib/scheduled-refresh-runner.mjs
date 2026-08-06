@@ -41,6 +41,17 @@ export function validateLaneDefinitions(lanes) {
     for (const step of [...(lane.refresh || []), ...(lane.validate || [])]) {
       if (!/^(?:scripts|tests)\/[a-z0-9/_-]+\.m?js$/i.test(step?.script || '')) throw new Error(`${lane.id} has an unsafe script path`);
       if (!Array.isArray(step.args) || step.args.some((arg) => typeof arg !== 'string')) throw new Error(`${lane.id} has invalid script arguments`);
+      if (step.attempts != null && (!Number.isInteger(step.attempts) || step.attempts < 1 || step.attempts > 5)) {
+        throw new Error(`${lane.id} has invalid step attempts`);
+      }
+      for (const field of ['retryBaseMs', 'retryCapMs']) {
+        if (step[field] != null && (!Number.isInteger(step[field]) || step[field] < 0 || step[field] > 300_000)) {
+          throw new Error(`${lane.id} has invalid ${field}`);
+        }
+      }
+      if ((step.retryBaseMs != null || step.retryCapMs != null) && (!step.attempts || step.attempts < 2)) {
+        throw new Error(`${lane.id} retry timing requires multiple attempts`);
+      }
     }
   }
   return true;
@@ -79,7 +90,7 @@ async function restoreTargets(root, backupRoot, targets) {
   for (const target of targets) await copyExact(path.join(backupRoot, target), path.join(root, target), { allowMissing: true });
 }
 
-export async function executeNodeStep(step, { cwd, env = process.env, forwardOutput = true } = {}) {
+async function executeNodeStepAttempt(step, { cwd, env, forwardOutput }) {
   await new Promise((resolve, reject) => {
     let stdoutTail = '';
     let stderrTail = '';
@@ -108,6 +119,28 @@ export async function executeNodeStep(step, { cwd, env = process.env, forwardOut
       }
     });
   });
+}
+
+export async function executeNodeStep(step, {
+  cwd,
+  env = process.env,
+  forwardOutput = true,
+  waitForRetry = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+} = {}) {
+  const attempts = step.attempts || 1;
+  const retryBaseMs = step.retryBaseMs || 0;
+  const retryCapMs = step.retryCapMs ?? retryBaseMs;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await executeNodeStepAttempt(step, { cwd, env, forwardOutput });
+      return;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      const delay = Math.min(retryCapMs, retryBaseMs * (2 ** (attempt - 1)));
+      process.stderr.write(`Scheduled refresh step ${step.script} failed; retrying in ${Math.round(delay / 1000)}s (${attempt}/${attempts})\n`);
+      await waitForRetry(delay);
+    }
+  }
 }
 
 export async function runRefreshLanes({

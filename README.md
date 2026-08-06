@@ -1142,6 +1142,9 @@ transitions; `npm run check:comparison` validates the committed receipt offline.
 `npm run refresh:maxis` forces both the canonical
 lane-native-clock Maxis snapshot and the protocol-season manifest, active-season
 summary, frozen rules, transaction checkpoint, and non-empty Passport shards.
+The scheduled Maxis lane retries a failed source build with bounded multi-minute
+backoff outside the frozen evaluator implementation, so a short OBJKT indexer
+incident does not discard an otherwise complete scheduled refresh.
 `npm run refresh:maxis-careers` refreshes the separate exact all-history L1
 Governance career artifact; `npm run check:maxis-careers` validates its source
 receipts and content hash without a network scan.
@@ -1224,7 +1227,8 @@ universe, reconstructs every completed UTC week from the earliest declared app
 start, and writes a separate explicitly partial current-week pulse. Full
 Etherlink backfills use Blockscout's complete per-address transaction CSV
 export once per reviewed contract; routine incremental refreshes use bounded
-JSON ranges with explicit rate-limit pacing. A normal
+JSON ranges split into at most seven-day requests before fetch, with explicit
+rate-limit pacing. A normal
 refresh re-fetches a warm-up cohort plus the latest three completed weeks so
 returning-wallet rates remain reproducible; newly resolved contracts are
 append-only and move that rebuild boundary back to their first eligible week.

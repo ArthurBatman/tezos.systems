@@ -1,4 +1,4 @@
-const command = (script, args = []) => ({ script, args });
+const command = (script, args = [], options = {}) => ({ script, args, ...options });
 
 export const SCHEDULED_REFRESH_LANES = Object.freeze([
   {
@@ -19,7 +19,11 @@ export const SCHEDULED_REFRESH_LANES = Object.freeze([
     id: 'maxis-season',
     label: 'Maxis crowns and protocol season',
     targets: ['data/maxis-leaders.json', 'data/maxis/manifest.json', 'data/maxis/seasons'],
-    refresh: [command('scripts/refresh-maxis-data.mjs')],
+    refresh: [command('scripts/refresh-maxis-data.mjs', [], {
+      attempts: 3,
+      retryBaseMs: 60_000,
+      retryCapMs: 120_000
+    })],
     validate: [command('scripts/refresh-maxis-data.mjs', ['--check'])]
   },
   {

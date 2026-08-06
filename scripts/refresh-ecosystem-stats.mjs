@@ -34,6 +34,7 @@ const BLOCKSCOUT_MAX_ROWS = 10_000;
 const REQUEST_CONCURRENCY = 8;
 const BLOCKSCOUT_REQUEST_CONCURRENCY = 2;
 const BLOCKSCOUT_REQUEST_GAP_MS = 1_200;
+const BLOCKSCOUT_MAX_QUERY_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
 const RECENT_WEEKS_TO_REBUILD = 3;
 const tzktCatalogReceipt = [];
 const execFileAsync = promisify(execFile);
@@ -406,6 +407,16 @@ function compactBlockscoutRow(row) {
 }
 
 async function fetchBlockscoutSlice(address, from, to, depth = 0) {
+  const fromMs = new Date(from).getTime();
+  const toMs = new Date(to).getTime();
+  assert(Number.isFinite(fromMs) && Number.isFinite(toMs) && fromMs < toMs, `Invalid Blockscout range for ${address}`);
+  if (toMs - fromMs > BLOCKSCOUT_MAX_QUERY_RANGE_MS) {
+    assert(depth < 20, `Blockscout range subdivision did not converge for ${address}`);
+    const middle = new Date(fromMs + BLOCKSCOUT_MAX_QUERY_RANGE_MS);
+    const left = await fetchBlockscoutSlice(address, from, middle, depth + 1);
+    const right = await fetchBlockscoutSlice(address, middle, to, depth + 1);
+    return [...left, ...right];
+  }
   const query = new URLSearchParams({
     module: 'account',
     action: 'txlist',
@@ -426,8 +437,6 @@ async function fetchBlockscoutSlice(address, from, to, depth = 0) {
     return rows.map(compactBlockscoutRow).filter(({ timestamp }) => Number.isFinite(timestamp));
   }
   assert(depth < 20, `Blockscout range subdivision did not converge for ${address}`);
-  const fromMs = new Date(from).getTime();
-  const toMs = new Date(to).getTime();
   const middle = new Date(fromMs + Math.floor((toMs - fromMs) / 2));
   assert(middle.getTime() > fromMs && middle.getTime() < toMs, `Blockscout range cannot be divided for ${address}`);
   const left = await fetchBlockscoutSlice(address, from, middle, depth + 1);

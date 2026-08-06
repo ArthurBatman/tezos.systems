@@ -28,6 +28,12 @@ try {
   for (const required of ['data/ecosystem-stats.json', 'data/ecosystem-entry-summary.json', 'data/whale-watch.json', 'data/maxis-leaders.json']) {
     assert(productionTargets.includes(required), `scheduled target inventory is missing ${required}`);
   }
+  const maxisSeasonRefresh = SCHEDULED_REFRESH_LANES.find((lane) => lane.id === 'maxis-season')?.refresh?.[0];
+  assert.deepEqual(
+    { attempts: maxisSeasonRefresh?.attempts, retryBaseMs: maxisSeasonRefresh?.retryBaseMs, retryCapMs: maxisSeasonRefresh?.retryCapMs },
+    { attempts: 3, retryBaseMs: 60_000, retryCapMs: 120_000 },
+    'scheduled Maxis refresh must retry a transient source failure outside the frozen evaluator implementation'
+  );
   assert.equal(pathMatchesTarget('data/maxis/seasons/example/summary.json', 'data/maxis/seasons'), true);
   assert.equal(pathMatchesTarget('data/maxis-season.json', 'data/maxis/seasons'), false);
   assert.throws(() => assertSafeTarget('../outside'), /Unsafe/);
@@ -35,6 +41,9 @@ try {
     { id: 'one', targets: ['data/shared'], refresh: [], validate: [] },
     { id: 'two', targets: ['data/shared/file.json'], refresh: [], validate: [] }
   ]), /overlaps/);
+  assert.throws(() => validateLaneDefinitions([
+    { id: 'bad-retry', targets: ['data/retry.json'], refresh: [{ script: 'scripts/retry.mjs', args: [], attempts: 1, retryBaseMs: 1_000 }], validate: [] }
+  ]), /retry timing requires multiple attempts/);
 
   const write = async (root, relative, value) => {
     await fs.mkdir(path.dirname(path.join(root, relative)), { recursive: true });
@@ -71,6 +80,30 @@ try {
   assert.equal(await read(publish, 'data/four.json'), 'new-four');
   assert.equal(await read(workspace, 'data/two.json'), 'old:data/two.json', 'failed refresh must restore last-good workspace data');
   assert.equal(await read(workspace, 'data/three.json'), 'old:data/three.json', 'failed validation must restore last-good workspace data');
+
+  const retryScript = path.join(temporary, 'retry-step.mjs');
+  const retryCounter = path.join(temporary, 'retry-count.txt');
+  await fs.writeFile(retryScript, `
+    import fs from 'node:fs';
+    const file = process.argv[2];
+    const count = fs.existsSync(file) ? Number(fs.readFileSync(file, 'utf8')) + 1 : 1;
+    fs.writeFileSync(file, String(count));
+    if (count < 3) process.exit(1);
+  `);
+  const retryDelays = [];
+  await executeNodeStep({
+    script: retryScript,
+    args: [retryCounter],
+    attempts: 3,
+    retryBaseMs: 7,
+    retryCapMs: 10
+  }, {
+    cwd: root,
+    forwardOutput: false,
+    waitForRetry: async (milliseconds) => retryDelays.push(milliseconds)
+  });
+  assert.deepEqual(retryDelays, [7, 10], 'scheduled step retries must use bounded exponential backoff');
+  assert.equal(await fs.readFile(retryCounter, 'utf8'), '3', 'scheduled step retries must stop after the first success');
 
   const fatalWorkspace = path.join(temporary, 'fatal-workspace');
   const fatalPublish = path.join(temporary, 'fatal-publish');

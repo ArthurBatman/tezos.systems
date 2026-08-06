@@ -8858,6 +8858,7 @@ async function checkEcosystemActivityContracts() {
     'extendBlockscoutCooldown',
     'Blockscout request exhausted',
     'BLOCKSCOUT_REQUEST_GAP_MS',
+    'BLOCKSCOUT_MAX_QUERY_RANGE_MS',
     'prepareBlockscoutHistory',
     '/transactions/csv',
     'from_period',
@@ -8871,6 +8872,12 @@ async function checkEcosystemActivityContracts() {
     'Raw wallet sets are aggregate-only'
   ]) {
     if (!generator.includes(snippet)) fail(`Ecosystem source/continuity contract is missing: ${snippet}`);
+  }
+  const blockscoutSliceStart = generator.indexOf('async function fetchBlockscoutSlice');
+  const blockscoutPreSplit = generator.indexOf('if (toMs - fromMs > BLOCKSCOUT_MAX_QUERY_RANGE_MS)', blockscoutSliceStart);
+  const blockscoutRequest = generator.indexOf('const payload = await requestBlockscoutJson', blockscoutSliceStart);
+  if (blockscoutSliceStart < 0 || blockscoutPreSplit < blockscoutSliceStart || blockscoutPreSplit > blockscoutRequest) {
+    fail('Ecosystem incremental Blockscout scans must subdivide oversized time ranges before making the request');
   }
   for (const snippet of ['contractUniverseHash', 'retentionRate', 'summarizeApp', 'rankApps', 'snapshotContentHash', 'validateManifest', 'validateSnapshot']) {
     if (!library.includes(snippet)) fail(`Ecosystem deterministic library contract is missing: ${snippet}`);
