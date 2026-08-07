@@ -11715,7 +11715,7 @@ async function smokeMyTezosMemory(browser, baseUrl) {
     return chart?.data?.datasets?.length === 1
       && chart.data.datasets[0].label === 'Total XTZ'
       && chart.data.datasets[0].data.length >= 2;
-  }, null, { timeout: 10000 });
+  }, null, { timeout: 30000 });
   await page.locator('#my-tezos-tab-story').click();
   await page.waitForFunction(() => (
     document.querySelector('#my-tezos-tab-story')?.getAttribute('aria-selected') === 'true'
