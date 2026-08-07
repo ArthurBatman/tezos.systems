@@ -24,14 +24,17 @@ const octez = snapshot.candidates.find((candidate) => candidate.kind === 'octez_
 const evmNode = snapshot.candidates.find((candidate) => candidate.kind === 'evm_node_release');
 assert.deepEqual(tezosX.gates.map((gate) => gate.id), RELEASE_RADAR_TEZOS_X_GATES, 'Tezos X keeps the canonical six-gate dependency order');
 assert.equal(tezosX.gates.find((gate) => gate.id === 'proposal')?.status, 'not_started', 'mainnet proposal remains an explicit independent blocker');
-assert.match(tezosX.summary, /Previewnet kernel 0\.8 has shipped/, 'the reviewed Tezos X lane includes the current Previewnet kernel release');
+assert.match(tezosX.summary, /Previewnet kernel 0\.8 remains the latest published Previewnet release/, 'the reviewed Tezos X lane includes the current Previewnet kernel release');
 assert(tezosX.evidence.some((receipt) => receipt.url.endsWith('/merge_requests/22655')), 'the Previewnet 0.8 claim keeps its primary release receipt');
+assert(tezosX.evidence.some((receipt) => receipt.url.endsWith('/merge_requests/22661')), 'current RuntimeKeyspaces hardening keeps its merged primary receipt');
 assert.equal(octez.confidence, 'low', 'backport activity alone remains low confidence');
 assert.equal(octez.stage, 'Backports merged', 'the Octez lane distinguishes merged backports from a published release');
 assert.match(octez.summary, /no 25\.2 release tag or public artifact yet/, 'the merged 25.2 backports cannot impersonate a release');
 assert(octez.evidence.some((receipt) => receipt.url === 'https://octez.tezos.com/releases/'), 'the Octez lane checks the canonical public release page');
 assert.equal(evmNode.lifecycle, 'released', 'the direct 0.64 tag is a confirmed release, not a forecast');
 assert.equal(evmNode.excitement, 'high', 'the explicit Previewnet dependency is highlighted');
+assert.match(evmNode.summary, /draft Ganesha native-execution work is not a release/, 'draft Ganesha work cannot impersonate a tagged EVM-node release');
+assert(evmNode.evidence.some((receipt) => receipt.url.endsWith('/merge_requests/22678')), 'the next EVM-node development signal keeps its draft primary receipt');
 assert.equal(signal.id, 'release-radar');
 assert.equal(signal.kind, 'state', 'the aggregate forecast does not decay like a one-off event');
 assert(signal.score >= 170 && signal.releaseRadar.excitingCandidateId === evmNode.id, 'the reviewed exciting release leads normal Pulse signals without a fake completion percentage');

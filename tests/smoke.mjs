@@ -9046,7 +9046,7 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
         && overlayPresentation.nextCount === 3
         && overlayPresentation.recentCount === 2
         && overlayPresentation.historyCount === 6
-        && overlayPresentation.evidenceCount === 9
+        && overlayPresentation.evidenceCount === 11
         && overlayPresentation.confidenceCount === 4,
       `release radar pulse ${label}: full intelligence overlay lost lanes or receipts ${JSON.stringify(overlayPresentation)}`
     );
