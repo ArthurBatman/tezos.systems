@@ -7,7 +7,8 @@ export const CHANGELOG = [
     {
         date: '2026-08-07',
         entries: [
-            { type: '🔧', text: 'Release Radar now confirms Previewnet 0.8 and EVM node 0.64 remain the latest published artifacts, records ongoing RuntimeKeyspaces and draft Ganesha work, and keeps Octez 25.2 and Tezos X mainnet explicitly unshipped' }
+            { type: '🔧', text: 'Release Radar now confirms Previewnet 0.8 and EVM node 0.64 remain the latest published artifacts, records ongoing RuntimeKeyspaces and draft Ganesha work, and keeps Octez 25.2 and Tezos X mainnet explicitly unshipped' },
+            { type: '🔧', text: 'Ecosystem Activity now keeps fresh TzKT contract activity receipts while retaining historical aliases, preventing active apps from disappearing from completed-week totals' }
         ]
     },
     {

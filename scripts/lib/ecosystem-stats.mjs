@@ -24,6 +24,14 @@ export function contractUniverseHash(apps) {
   })));
 }
 
+export function mergeResolvedContracts(currentContracts = [], previousContracts = []) {
+  return [...new Map([
+    ...previousContracts,
+    ...currentContracts
+  ].map((contract) => [String(contract?.address || '').toLowerCase(), contract])).values()]
+    .sort((left, right) => left.address.localeCompare(right.address, 'en'));
+}
+
 export function utcWeekStart(value) {
   const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
   if (!Number.isFinite(date.getTime())) throw new Error(`Invalid date: ${value}`);

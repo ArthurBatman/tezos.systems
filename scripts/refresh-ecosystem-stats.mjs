@@ -14,6 +14,7 @@ import {
   emptyMetric,
   iso,
   mergeMetric,
+  mergeResolvedContracts,
   publicMetric,
   rankApps,
   stableHash,
@@ -264,6 +265,7 @@ async function resolveContracts(manifest, previousSnapshot = null) {
     for (const layer of app.layers) {
       const source = layer.contractSource;
       let contracts;
+      let previousContracts = [];
       if (layer.id === 'tezos' && source.type === 'tzkt_alias_catalog') {
         contracts = catalog.filter((contract) => (
           contract.alias
@@ -272,7 +274,7 @@ async function resolveContracts(manifest, previousSnapshot = null) {
         const previousLayer = previousSnapshot?.apps
           ?.find((candidate) => candidate.id === app.id)
           ?.layers?.find((candidate) => candidate.id === layer.id);
-        if (previousLayer?.contracts?.length) contracts.push(...previousLayer.contracts);
+        previousContracts = previousLayer?.contracts || [];
       } else if (layer.id === 'tezos') {
         contracts = source.addresses.map((address) => explicitLookup.get(address) || {
           address,
@@ -290,8 +292,7 @@ async function resolveContracts(manifest, previousSnapshot = null) {
           lastActivityTime: null
         }));
       }
-      contracts = [...new Map(contracts.map((contract) => [contract.address.toLowerCase(), contract])).values()]
-        .sort((left, right) => left.address.localeCompare(right.address, 'en'));
+      contracts = mergeResolvedContracts(contracts, previousContracts);
       assert(contracts.length, `No contracts resolved for ${app.id}/${layer.id}`);
       for (const contract of contracts) {
         const key = `${layer.id}:${contract.address.toLowerCase()}`;

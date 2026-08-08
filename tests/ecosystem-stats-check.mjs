@@ -7,6 +7,7 @@ import {
   contractUniverseHash,
   emptyMetric,
   mergeMetric,
+  mergeResolvedContracts,
   pctChange,
   publicMetric,
   rankApps,
@@ -82,4 +83,19 @@ assert.equal(
   'contract-universe receipts should be address-order and case independent'
 );
 
-console.log('ok - ecosystem stats boundaries, identity model, retention, ranking, and manifest');
+const mergedContracts = mergeResolvedContracts([
+  { address: 'KT1Current', alias: 'Current alias', lastActivityTime: '2026-08-07T12:00:00Z' },
+  { address: 'KT1New', alias: 'New alias', lastActivityTime: '2026-08-07T11:00:00Z' }
+], [
+  { address: 'kt1current', alias: 'Stale alias', lastActivityTime: '2026-07-25T12:00:00Z' },
+  { address: 'KT1Retained', alias: 'Historical alias', lastActivityTime: '2025-01-01T00:00:00Z' }
+]);
+assert.equal(mergedContracts.length, 3, 'previously resolved addresses should remain append-only');
+assert.equal(
+  mergedContracts.find((contract) => contract.address.toLowerCase() === 'kt1current')?.lastActivityTime,
+  '2026-08-07T12:00:00Z',
+  'fresh TzKT contract metadata should replace the previous snapshot receipt'
+);
+assert(mergedContracts.some((contract) => contract.address === 'KT1Retained'), 'historical aliases should remain retained');
+
+console.log('ok - ecosystem stats boundaries, identity model, retention, ranking, contract receipts, and manifest');

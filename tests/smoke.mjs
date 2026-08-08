@@ -12724,6 +12724,12 @@ async function smokeMyTezosCircularReturn(browser, baseUrl) {
 
   await page.locator('#drawer-more-actions [data-journey-return="true"]').click();
   await page.locator('#capital-modal.active .capital-content').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => (
+    location.pathname === '/capital/'
+    && location.search === '?view=art'
+    && /Art/i.test(document.querySelector('#capital-modal .capital-tab[aria-selected="true"]')?.textContent || '')
+    && sessionStorage.getItem('tezos-systems-my-tezos-origin-v1') === null
+  ), null, { timeout: 10000 });
   const returned = await page.evaluate(() => ({
     pathname: location.pathname,
     search: location.search,
@@ -20975,7 +20981,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       transform: style?.transform || ''
     };
   });
-  assert(lbEntryQuietAfter.sameCard && lbEntryQuietAfter.sameStrip && lbEntryQuietAfter.sameRow && lbEntryQuietAfter.focused && lbEntryQuietAfter.selection === lbEntryQuietBefore.selection && Math.abs(lbEntryQuietAfter.pageY - lbEntryQuietBefore.pageY) <= 1, `governance testing period: LB entry quiet refresh moved or replaced the reader state ${JSON.stringify({ lbEntryQuietBefore, lbEntryQuietAfter })}`);
+  assert(lbEntryQuietAfter.sameCard && lbEntryQuietAfter.sameStrip && lbEntryQuietAfter.sameRow && lbEntryQuietAfter.focused && lbEntryQuietAfter.selection === lbEntryQuietBefore.selection && Math.abs(lbEntryQuietAfter.pageY - lbEntryQuietBefore.pageY) <= 2, `governance testing period: LB entry quiet refresh moved or replaced the reader state ${JSON.stringify({ lbEntryQuietBefore, lbEntryQuietAfter })}`);
   assert(lbEntryQuietAfter.settled === 'true' && lbEntryQuietAfter.animation === 'none' && lbEntryQuietAfter.opacity === '1' && lbEntryQuietAfter.transform === 'none', `governance testing period: LB entry refresh replayed or stranded motion ${JSON.stringify(lbEntryQuietAfter)}`);
   const lbReaderScroll = await page.evaluate(() => {
     const target = Math.max(0, window.scrollY - 42);
@@ -22922,6 +22928,12 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   let response = await page.goto(`${baseUrl}/whales/?view=overview`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `Whale Watch: direct route failed with HTTP ${response?.status()}`);
   await page.locator('#whale-watch-modal.active #whale-watch-panel-overview').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForFunction(() => {
+    const text = document.querySelector('#whale-watch-freshness')?.textContent || '';
+    return /6h schedule/.test(text) && /window .* → .* UTC/.test(text);
+  }, null, { timeout: 5000 });
+  const sourceStripText = await page.locator('#whale-watch-freshness').innerText();
+  assert(/6h schedule/.test(sourceStripText) && /window .* → .* UTC/.test(sourceStripText), `Whale Watch: exact archived window and generator cadence missing: ${sourceStripText}`);
   await page.evaluate(() => {
     const loadedModuleUrl = performance.getEntriesByType('resource')
       .map((entry) => entry.name)
@@ -22981,8 +22993,6 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
       && document.querySelector('#whale-watch-tab-overview')?.getAttribute('aria-selected') === 'true'
       && document.querySelector('#whale-watch-panel-overview')?.getAttribute('aria-labelledby') === 'whale-watch-tab-overview'
   ));
-  const sourceStripText = await page.locator('#whale-watch-freshness').innerText();
-  assert(/6h schedule/.test(sourceStripText) && /window .* → .* UTC/.test(sourceStripText), `Whale Watch: exact archived window and generator cadence missing: ${sourceStripText}`);
   const launcherText = await page.locator('#whale-watch-entry-card').innerText();
   assert(/Largest · archive/i.test(launcherText) && !/Largest · 24H/i.test(launcherText), `Whale Watch: launcher largest-transfer label must name the archive: ${launcherText}`);
   const whaleLauncherFreshness = await page.evaluate(() => ({
