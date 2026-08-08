@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "generatedAt": "2026-08-08T13:14:37.592Z",
-  "observedAt": "2026-08-08T13:14:37.592Z",
+  "generatedAt": "2026-08-08T19:01:12.787Z",
+  "observedAt": "2026-08-08T19:01:12.787Z",
   "staleAfterHours": 48,
   "season": {
     "id": "protocol-25-PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY",
@@ -143,33 +143,33 @@
       "source": "TzKT operations/transactions",
       "mode": "exact-incremental-id-keyset-with-tail-reconciliation-v1",
       "statePath": "/data/maxis/seasons/protocol-25-PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY/transaction-state.json",
-      "stateHash": "c4aebec5a9c96bb84115f54d8fe24ed13b4c2128c99a1e4fdf06cee1cc56ead4",
+      "stateHash": "80c7595c8a5950cf1087f8272b5e161f900af89db3e85623f819968d3330e1eb",
       "stateSchema": 1,
       "stateVersion": "maxis-transactions-v2",
       "replayLevels": 128,
       "fromLevelInclusive": 13857889,
-      "levelExclusive": 14412961,
-      "throughExclusive": "2026-08-08T13:14:37.592Z",
-      "boundaryLevel": 14412960,
-      "boundaryHash": "BMApQm2BDbCWFwyvYtyNXrhK8uriBN5VQoaBXBo7joMNEZARThk",
-      "boundaryTimestamp": "2026-08-08T13:14:22.000Z",
+      "levelExclusive": 14416407,
+      "throughExclusive": "2026-08-08T19:01:12.787Z",
+      "boundaryLevel": 14416406,
+      "boundaryHash": "BLBaWDUcLir57iGc7ZJ3N4HxHuxwaMS4mgv8bCiJTsejbiYMpJm",
+      "boundaryTimestamp": "2026-08-08T19:00:55.000Z",
       "boundaryMode": "confirmed-active",
-      "cursorLastId": "2821488342204416",
-      "expectedRawCount": 4684320,
-      "scannedRows": 4684320,
-      "eligibleTopLevelImplicitRows": 3834518,
-      "eligibleAddresses": 12517,
+      "cursorLastId": "2822012370157568",
+      "expectedRawCount": 4694498,
+      "scannedRows": 4694498,
+      "eligibleTopLevelImplicitRows": 3841284,
+      "eligibleAddresses": 12576,
       "clientFilters": {
         "status": "applied",
         "nonce": "null top-level only",
         "sender": "implicit tz1/tz2/tz3/tz4 only"
       },
       "exhaustion": {
-        "terminalPageSize": 199,
+        "terminalPageSize": 212,
         "requestedPageSize": 10000,
-        "terminalCursor": "2821488342204416"
+        "terminalCursor": "2822012370157568"
       },
-      "stateBytes": 4818058,
+      "stateBytes": 4850882,
       "stateBudgetBytes": 16777216,
       "complete": true,
       "completeClaim": "Complete against the observed confirmed TzKT index and matching full-range raw count; the last 128 levels are replacement-replayed on refresh.",
@@ -178,44 +178,44 @@
     "objktListingSales": {
       "source": "OBJKT listing_sale",
       "from": "2026-06-30T00:31:52.000Z",
-      "toExclusive": "2026-08-08T13:14:37.592Z",
-      "observedAt": "2026-08-08T13:14:37.592Z",
-      "rows": 39790,
-      "pages": 80,
+      "toExclusive": "2026-08-08T19:01:12.787Z",
+      "observedAt": "2026-08-08T19:01:12.787Z",
+      "rows": 40251,
+      "pages": 81,
       "pageSize": 500,
       "maximumRows": 500000,
       "complete": true,
       "pagination": {
         "mode": "id-keyset-ascending",
         "firstId": "8741822",
-        "lastId": "8781947",
-        "nextAfter": "8781947",
+        "lastId": "8782408",
+        "nextAfter": "8782408",
         "strictlyIncreasingUniqueIds": true
       }
     },
     "objktMints": {
       "source": "OBJKT new-token event(event_type=mint, token.timestamp in season)",
       "from": "2026-06-30T00:31:52.000Z",
-      "toExclusive": "2026-08-08T13:14:37.592Z",
-      "observedAt": "2026-08-08T13:14:37.592Z",
-      "rows": 24445,
-      "pages": 49,
+      "toExclusive": "2026-08-08T19:01:12.787Z",
+      "observedAt": "2026-08-08T19:01:12.787Z",
+      "rows": 24619,
+      "pages": 50,
       "pageSize": 500,
       "maximumRows": 500000,
       "complete": true,
       "pagination": {
         "mode": "id-keyset-ascending",
         "firstId": "75401845",
-        "lastId": "75740087",
-        "nextAfter": "75740087",
+        "lastId": "75742431",
+        "nextAfter": "75742431",
         "strictlyIncreasingUniqueIds": true
       }
     },
     "appTransactions": {
       "source": "TzKT recognized-contract transactions",
       "from": "2026-06-30T00:31:52.000Z",
-      "toExclusive": "2026-08-08T13:14:37.592Z",
-      "rows": 62829,
+      "toExclusive": "2026-08-08T19:01:12.787Z",
+      "rows": 62955,
       "contracts": 301,
       "maximumRowsPerContractBatch": 600000,
       "complete": true
@@ -251,22 +251,22 @@
     },
     "staking": {
       "source": "TzKT staking operations",
-      "rows": 9761,
+      "rows": 9816,
       "complete": true
     },
     "delegation": {
       "source": "TzKT delegation operations + current accounts",
-      "operations": 1211,
-      "reconciledAccounts": 858,
+      "operations": 1219,
+      "reconciledAccounts": 865,
       "reconciliationMode": "current delegate and balance snapshot",
       "balanceLevel": null,
       "complete": true
     },
     "builder": {
       "source": "TzKT originations + post-deploy transactions",
-      "originations": 1001,
+      "originations": 1007,
       "originatedContracts": 193,
-      "postDeployCalls": 38122,
+      "postDeployCalls": 38413,
       "complete": true
     }
   },
@@ -340,7 +340,7 @@
   "laneStatus": {
     "transaction": {
       "status": "unavailable",
-      "reason": "Transaction was withheld before publication because the complete eligible-wallet Passport tree exceeded the frozen artifact budget: Passport shard 2a is 1097722 bytes, above 1048576",
+      "reason": "Transaction was withheld before publication because the complete eligible-wallet Passport tree exceeded the frozen artifact budget: Passport shard 3e is 1104495 bytes, above 1048576",
       "coverageState": "withheld-artifact-budget",
       "category": "transaction",
       "title": "Transaction Maxi",
@@ -354,7 +354,7 @@
       "reason": null,
       "coverageState": "exhaustive-within-objkt-index",
       "coverage": "OBJKT-indexed listing sales only. Private transfers and sales outside the OBJKT index are not counted.",
-      "eligibleCount": 1956,
+      "eligibleCount": 1968,
       "publishedCount": 500,
       "completePublishedRanking": false
     },
@@ -365,7 +365,7 @@
       "reason": null,
       "coverageState": "exhaustive-within-objkt-index",
       "coverage": "Collaborative-token volume is divided equally across unflagged creators so a single sale is not multiplied.",
-      "eligibleCount": 4561,
+      "eligibleCount": 4587,
       "publishedCount": 500,
       "completePublishedRanking": false
     },
@@ -376,7 +376,7 @@
       "reason": null,
       "coverageState": "exhaustive-within-objkt-index",
       "coverage": "OBJKT-indexed, non-reverted mint events for tokens first created during the season, joined to positive-price primary OBJKT listing sales. Remints of older tokens are excluded.",
-      "eligibleCount": 2168,
+      "eligibleCount": 2180,
       "publishedCount": 500,
       "completePublishedRanking": false
     },
@@ -387,7 +387,7 @@
       "reason": null,
       "coverageState": "curated-taxonomy",
       "coverage": "Curated TzKT-alias taxonomy. Unknown, unlabeled, or newly deployed app contracts are outside coverage until the next season taxonomy is frozen.",
-      "eligibleCount": 638,
+      "eligibleCount": 643,
       "publishedCount": 500,
       "completePublishedRanking": false
     },
@@ -420,8 +420,8 @@
       "reason": null,
       "coverageState": "exhaustive",
       "coverage": "Applied TzKT staking operations. This trajectory lane is separate from the live absolute-stake Crown Hall.",
-      "eligibleCount": 288,
-      "publishedCount": 288,
+      "eligibleCount": 291,
+      "publishedCount": 291,
       "completePublishedRanking": true
     },
     "delegation": {
@@ -431,8 +431,8 @@
       "reason": null,
       "coverageState": "exhaustive-reconciled-snapshot",
       "coverage": "Applied TzKT delegation operations reconciled against snapshot or exact-close state. This is retained in-season assignment, not proof of first-ever acquisition or marketing attribution.",
-      "eligibleCount": 54,
-      "publishedCount": 54,
+      "eligibleCount": 55,
+      "publishedCount": 55,
       "completePublishedRanking": true
     },
     "liquidity": {
@@ -473,8 +473,8 @@
       "reason": null,
       "coverageState": "derived-ready-season-lanes",
       "coverage": "Only ready on-chain season lanes participate. Social sharing never contributes to Unicorn.",
-      "eligibleCount": 13,
-      "publishedCount": 13,
+      "eligibleCount": 14,
+      "publishedCount": 14,
       "completePublishedRanking": true
     }
   },
@@ -550,7 +550,7 @@
       "category": "transaction",
       "title": "Transaction Maxi",
       "status": "unavailable",
-      "reason": "Transaction was withheld before publication because the complete eligible-wallet Passport tree exceeded the frozen artifact budget: Passport shard 2a is 1097722 bytes, above 1048576",
+      "reason": "Transaction was withheld before publication because the complete eligible-wallet Passport tree exceeded the frozen artifact budget: Passport shard 3e is 1104495 bytes, above 1048576",
       "method": "Most successful top-level transactions sent during the protocol season, then distinct active days.",
       "windowKind": "protocol-season"
     },
@@ -611,11 +611,11 @@
     {
       "address": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
       "alias": "sneketoshi.tez",
-      "lastActivity": "2026-08-06T16:51:01.000Z",
-      "volume": 2693225000,
-      "sales": 254,
-      "score": 147,
-      "collectorCount": 147,
+      "lastActivity": "2026-08-08T13:35:13.000Z",
+      "volume": 2694890000,
+      "sales": 255,
+      "score": 148,
+      "collectorCount": 148,
       "tokenCount": 90,
       "activeWeeks": [
         1,
@@ -634,22 +634,22 @@
           "metric": "collectorCount",
           "label": "distinct collectors",
           "unit": "collectors",
-          "value": 147
+          "value": 148
         },
         {
           "metric": "volume",
           "label": "attributed OBJKT sales volume",
           "unit": "mutez",
-          "value": 2693225000
+          "value": 2694890000
         },
         {
           "metric": "sales",
           "label": "sales",
           "unit": "sales",
-          "value": 254
+          "value": 255
         }
       ],
-      "scoreLabel": "147 collectors · 2,693 ꜩ",
+      "scoreLabel": "148 collectors · 2,695 ꜩ",
       "sourceUrl": "https://objkt.com/profile/tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
       "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
       "windowKind": "protocol-season",
@@ -665,14 +665,14 @@
     {
       "address": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
       "alias": "Marcelo Kato",
-      "lastActivity": "2026-08-08T12:15:31.000Z",
-      "editions": 1155,
-      "editionsSold": 932,
-      "score": 325,
-      "successfulDrops": 325,
-      "tokens": 375,
-      "mintOperations": 375,
-      "independentCollectors": 61,
+      "lastActivity": "2026-08-08T18:42:37.000Z",
+      "editions": 1185,
+      "editionsSold": 959,
+      "score": 336,
+      "successfulDrops": 336,
+      "tokens": 387,
+      "mintOperations": 387,
+      "independentCollectors": 62,
       "activeWeeks": [
         1,
         2,
@@ -690,28 +690,28 @@
           "metric": "successfulDrops",
           "label": "successful new drops",
           "unit": "drops",
-          "value": 325
+          "value": 336
         },
         {
           "metric": "tokens",
           "label": "distinct tokens minted",
           "unit": "mints",
-          "value": 375
+          "value": 387
         },
         {
           "metric": "independentCollectors",
           "label": "independent collectors",
           "unit": "collectors",
-          "value": 61
+          "value": 62
         },
         {
           "metric": "editionsSold",
           "label": "editions sold",
           "unit": "editions",
-          "value": 932
+          "value": 959
         }
       ],
-      "scoreLabel": "325 successful drops · 375 mints",
+      "scoreLabel": "336 successful drops · 387 mints",
       "sourceUrl": "https://objkt.com/profile/tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
       "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
       "windowKind": "protocol-season",
@@ -727,7 +727,7 @@
     {
       "address": "tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
       "alias": "Johnny Sins",
-      "lastActivity": "2026-08-08T10:03:58.000Z",
+      "lastActivity": "2026-08-08T16:51:01.000Z",
       "score": 7,
       "appCount": 7,
       "apps": [
@@ -740,7 +740,7 @@
         "youves"
       ],
       "contractCount": 147,
-      "calls": 20484,
+      "calls": 20489,
       "activeWeeks": [
         1,
         2,
@@ -764,7 +764,7 @@
           "metric": "calls",
           "label": "successful calls",
           "unit": "calls",
-          "value": 20484
+          "value": 20489
         },
         {
           "metric": "contractCount",
@@ -773,7 +773,7 @@
           "value": 147
         }
       ],
-      "scoreLabel": "7 apps · 20,484 calls",
+      "scoreLabel": "7 apps · 20,489 calls",
       "sourceUrl": "https://tzkt.io/tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
       "method": "Most distinct recognized DeFi apps used during the protocol season, then successful top-level wallet calls and recognized contracts.",
       "windowKind": "protocol-season",
@@ -906,10 +906,10 @@
     {
       "address": "tz1aRoaRhSpRYvFdyvgWLL6TGyRoGF51wDjM",
       "alias": "Everstake",
-      "lastActivity": "2026-08-07T16:49:43.000Z",
-      "retainedBalance": 66115076644,
-      "score": 86,
-      "retainedAssignments": 86,
+      "lastActivity": "2026-08-08T15:54:13.000Z",
+      "retainedBalance": 86398730754,
+      "score": 88,
+      "retainedAssignments": 88,
       "activeWeeks": [
         1,
         2,
@@ -927,16 +927,16 @@
           "metric": "retainedAssignments",
           "label": "in-season assignments retained",
           "unit": "assignments",
-          "value": 86
+          "value": 88
         },
         {
           "metric": "retainedBalance",
           "label": "retained account balance",
           "unit": "mutez",
-          "value": 66115076644
+          "value": 86398730754
         }
       ],
-      "scoreLabel": "86 retained assignments",
+      "scoreLabel": "88 retained assignments",
       "sourceUrl": "https://tzkt.io/tz1aRoaRhSpRYvFdyvgWLL6TGyRoGF51wDjM",
       "method": "Most non-self wallets whose latest in-season assignment changed baker and still points to that baker with positive account balance, then retained balance.",
       "windowKind": "protocol-season",
@@ -1091,14 +1091,15 @@
         }
       ],
       "points": 3.58,
-      "lastActivity": "2026-07-31T11:35:10.000Z",
+      "lastActivity": "2026-08-08T14:31:01.000Z",
       "breadth": 4,
       "score": 4,
       "activeWeeks": [
         2,
         3,
         4,
-        5
+        5,
+        6
       ],
       "category": "unicorn",
       "title": "Season Unicorn",
@@ -1192,12 +1193,12 @@
       {
         "address": "tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
         "alias": "Bret Jolliffe",
-        "lastActivity": "2026-08-08T13:03:16.000Z",
-        "volume": 8270132129,
-        "purchases": 1945,
-        "score": 314,
-        "artistCount": 314,
-        "tokenCount": 1569,
+        "lastActivity": "2026-08-08T19:00:55.000Z",
+        "volume": 8595060629,
+        "purchases": 2041,
+        "score": 323,
+        "artistCount": 323,
+        "tokenCount": 1632,
         "activeWeeks": [
           1,
           2,
@@ -1215,22 +1216,22 @@
             "metric": "artistCount",
             "label": "distinct artists collected",
             "unit": "artists",
-            "value": 314
+            "value": 323
           },
           {
             "metric": "volume",
             "label": "OBJKT buy volume",
             "unit": "mutez",
-            "value": 8270132129
+            "value": 8595060629
           },
           {
             "metric": "purchases",
             "label": "purchases",
             "unit": "sales",
-            "value": 1945
+            "value": 2041
           }
         ],
-        "scoreLabel": "314 artists · 8,270 ꜩ",
+        "scoreLabel": "323 artists · 8,595 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
         "method": "Most distinct unflagged artists collected through OBJKT listing sales during the protocol season; buy volume and purchase count break ties.",
         "windowKind": "protocol-season",
@@ -1245,7 +1246,7 @@
               "metric": "artistCount",
               "label": "distinct artists collected",
               "unit": "artists",
-              "amount": 1216,
+              "amount": 1207,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -1253,13 +1254,13 @@
                 "metric": "artistCount",
                 "label": "distinct artists collected",
                 "unit": "artists",
-                "amount": 1215
+                "amount": 1206
               },
               {
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 13073869535
+                "amount": 12748941035
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1272,7 +1273,7 @@
               "metric": "artistCount",
               "label": "distinct artists collected",
               "unit": "artists",
-              "amount": 1216,
+              "amount": 1207,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -1280,13 +1281,13 @@
                 "metric": "artistCount",
                 "label": "distinct artists collected",
                 "unit": "artists",
-                "amount": 1215
+                "amount": 1206
               },
               {
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 13073869535
+                "amount": 12748941035
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1349,7 +1350,7 @@
               "metric": "artistCount",
               "label": "distinct artists collected",
               "unit": "artists",
-              "amount": 31,
+              "amount": 40,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -1357,13 +1358,13 @@
                 "metric": "artistCount",
                 "label": "distinct artists collected",
                 "unit": "artists",
-                "amount": 30
+                "amount": 39
               },
               {
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 2157036130
+                "amount": 2481964630
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1400,12 +1401,12 @@
       {
         "address": "tz2EZC7yLhS8uf4U66XfNzimP1pdeiSTNGXx",
         "alias": "edvvard",
-        "lastActivity": "2026-08-08T02:30:55.000Z",
-        "volume": 5682169730,
-        "purchases": 1932,
-        "score": 191,
-        "artistCount": 191,
-        "tokenCount": 703,
+        "lastActivity": "2026-08-08T17:06:52.000Z",
+        "volume": 5706669730,
+        "purchases": 1952,
+        "score": 192,
+        "artistCount": 192,
+        "tokenCount": 711,
         "activeWeeks": [
           1,
           2,
@@ -1423,22 +1424,22 @@
             "metric": "artistCount",
             "label": "distinct artists collected",
             "unit": "artists",
-            "value": 191
+            "value": 192
           },
           {
             "metric": "volume",
             "label": "OBJKT buy volume",
             "unit": "mutez",
-            "value": 5682169730
+            "value": 5706669730
           },
           {
             "metric": "purchases",
             "label": "purchases",
             "unit": "sales",
-            "value": 1932
+            "value": 1952
           }
         ],
-        "scoreLabel": "191 artists · 5,682 ꜩ",
+        "scoreLabel": "192 artists · 5,707 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz2EZC7yLhS8uf4U66XfNzimP1pdeiSTNGXx",
         "method": "Most distinct unflagged artists collected through OBJKT listing sales during the protocol season; buy volume and purchase count break ties.",
         "windowKind": "protocol-season",
@@ -1453,7 +1454,7 @@
               "metric": "artistCount",
               "label": "distinct artists collected",
               "unit": "artists",
-              "amount": 94,
+              "amount": 93,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -1461,13 +1462,13 @@
                 "metric": "artistCount",
                 "label": "distinct artists collected",
                 "unit": "artists",
-                "amount": 93
+                "amount": 92
               },
               {
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 430926271
+                "amount": 406426271
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1480,7 +1481,7 @@
               "metric": "artistCount",
               "label": "distinct artists collected",
               "unit": "artists",
-              "amount": 1339,
+              "amount": 1338,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -1488,13 +1489,13 @@
                 "metric": "artistCount",
                 "label": "distinct artists collected",
                 "unit": "artists",
-                "amount": 1338
+                "amount": 1337
               },
               {
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 15661831934
+                "amount": 15637331934
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1557,7 +1558,7 @@
               "metric": "artistCount",
               "label": "distinct artists collected",
               "unit": "artists",
-              "amount": 16,
+              "amount": 17,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -1565,7 +1566,7 @@
                 "metric": "artistCount",
                 "label": "distinct artists collected",
                 "unit": "artists",
-                "amount": 15
+                "amount": 16
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1596,12 +1597,12 @@
       {
         "address": "tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4",
         "alias": "absurdeity.tez",
-        "lastActivity": "2026-08-08T01:24:37.000Z",
-        "volume": 19919024000,
-        "purchases": 706,
+        "lastActivity": "2026-08-08T14:41:58.000Z",
+        "volume": 19920024000,
+        "purchases": 708,
         "score": 156,
         "artistCount": 156,
-        "tokenCount": 649,
+        "tokenCount": 650,
         "activeWeeks": [
           1,
           2,
@@ -1625,16 +1626,16 @@
             "metric": "volume",
             "label": "OBJKT buy volume",
             "unit": "mutez",
-            "value": 19919024000
+            "value": 19920024000
           },
           {
             "metric": "purchases",
             "label": "purchases",
             "unit": "sales",
-            "value": 706
+            "value": 708
           }
         ],
-        "scoreLabel": "156 artists · 19,919 ꜩ",
+        "scoreLabel": "156 artists · 19,920 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4",
         "method": "Most distinct unflagged artists collected through OBJKT listing sales during the protocol season; buy volume and purchase count break ties.",
         "windowKind": "protocol-season",
@@ -1663,7 +1664,7 @@
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 8611676001
+                "amount": 8610676001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1690,7 +1691,7 @@
                 "metric": "volume",
                 "label": "OBJKT buy volume",
                 "unit": "mutez",
-                "amount": 1424977664
+                "amount": 1423977664
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -1936,8 +1937,8 @@
         "sourceUrl": "https://objkt.com/profile/tz1a8PYGc2Z4tQCJHCYr7tWxMwnAAiifGkxr",
         "method": "Most distinct unflagged artists collected through OBJKT listing sales during the protocol season; buy volume and purchase count break ties.",
         "windowKind": "protocol-season",
-        "previousRank": 14,
-        "delta": 5,
+        "previousRank": 9,
+        "delta": 0,
         "deltaComparable": true,
         "passGap": {
           "next": {
@@ -2040,8 +2041,8 @@
         "sourceUrl": "https://objkt.com/profile/tz1VK6FuYBSuDzWFRtpzRnMAdho7mkGnz19G",
         "method": "Most distinct unflagged artists collected through OBJKT listing sales during the protocol season; buy volume and purchase count break ties.",
         "windowKind": "protocol-season",
-        "previousRank": 9,
-        "delta": -1,
+        "previousRank": 10,
+        "delta": 0,
         "deltaComparable": true,
         "passGap": {
           "next": {
@@ -2098,11 +2099,11 @@
       {
         "address": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
         "alias": "sneketoshi.tez",
-        "lastActivity": "2026-08-06T16:51:01.000Z",
-        "volume": 2693225000,
-        "sales": 254,
-        "score": 147,
-        "collectorCount": 147,
+        "lastActivity": "2026-08-08T13:35:13.000Z",
+        "volume": 2694890000,
+        "sales": 255,
+        "score": 148,
+        "collectorCount": 148,
         "tokenCount": 90,
         "activeWeeks": [
           1,
@@ -2121,22 +2122,22 @@
             "metric": "collectorCount",
             "label": "distinct collectors",
             "unit": "collectors",
-            "value": 147
+            "value": 148
           },
           {
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 2693225000
+            "value": 2694890000
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 254
+            "value": 255
           }
         ],
-        "scoreLabel": "147 collectors · 2,693 ꜩ",
+        "scoreLabel": "148 collectors · 2,695 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
         "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
         "windowKind": "protocol-season",
@@ -2205,7 +2206,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 39,
+              "amount": 40,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2213,13 +2214,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 38
+                "amount": 39
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 1942825001
+                "amount": 1944490001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2232,7 +2233,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 39,
+              "amount": 40,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2240,13 +2241,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 38
+                "amount": 39
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 1942825001
+                "amount": 1944490001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2256,9 +2257,9 @@
       {
         "address": "tz1fGpuMtvMVh6VrgsdpFbWgf3swn2G96cXR",
         "alias": "newpedro.tez",
-        "lastActivity": "2026-08-08T01:53:01.000Z",
-        "volume": 4144253291,
-        "sales": 473,
+        "lastActivity": "2026-08-08T13:45:28.000Z",
+        "volume": 4153133291,
+        "sales": 474,
         "score": 81,
         "collectorCount": 81,
         "tokenCount": 65,
@@ -2285,16 +2286,16 @@
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 4144253291
+            "value": 4153133291
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 473
+            "value": 474
           }
         ],
-        "scoreLabel": "81 collectors · 4,144 ꜩ",
+        "scoreLabel": "81 collectors · 4,153 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz1fGpuMtvMVh6VrgsdpFbWgf3swn2G96cXR",
         "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
         "windowKind": "protocol-season",
@@ -2330,7 +2331,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 67,
+              "amount": 68,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2338,7 +2339,7 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 66
+                "amount": 67
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2415,7 +2416,7 @@
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 2741015704
+                "amount": 2749895704
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2428,7 +2429,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 68,
+              "amount": 69,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2436,13 +2437,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 67
+                "amount": 68
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 1289987413
+                "amount": 1291652413
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2452,12 +2453,12 @@
       {
         "address": "tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
         "alias": "Bret Jolliffe",
-        "lastActivity": "2026-08-07T18:32:31.000Z",
-        "volume": 379413333,
-        "sales": 106,
-        "score": 69,
-        "collectorCount": 69,
-        "tokenCount": 42,
+        "lastActivity": "2026-08-08T18:07:37.000Z",
+        "volume": 404813333,
+        "sales": 113,
+        "score": 71,
+        "collectorCount": 71,
+        "tokenCount": 43,
         "activeWeeks": [
           1,
           2,
@@ -2475,22 +2476,22 @@
             "metric": "collectorCount",
             "label": "distinct collectors",
             "unit": "collectors",
-            "value": 69
+            "value": 71
           },
           {
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 379413333
+            "value": 404813333
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 106
+            "value": 113
           }
         ],
-        "scoreLabel": "69 collectors · 379 ꜩ",
+        "scoreLabel": "71 collectors · 405 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
         "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
         "windowKind": "protocol-season",
@@ -2505,7 +2506,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 12,
+              "amount": 10,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2513,13 +2514,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 11
+                "amount": 9
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 1023824256
+                "amount": 998424256
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2532,7 +2533,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 79,
+              "amount": 78,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2540,13 +2541,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 78
+                "amount": 77
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 2313811668
+                "amount": 2290076668
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2556,11 +2557,11 @@
       {
         "address": "tz2AcZJUMPRq81gr2s2btGyHdnL2hWAaWaUB",
         "alias": "Tati Art",
-        "lastActivity": "2026-08-08T13:06:04.000Z",
-        "volume": 285800000,
-        "sales": 490,
-        "score": 68,
-        "collectorCount": 68,
+        "lastActivity": "2026-08-08T16:42:37.000Z",
+        "volume": 296290000,
+        "sales": 498,
+        "score": 69,
+        "collectorCount": 69,
         "tokenCount": 150,
         "activeWeeks": [
           1,
@@ -2579,22 +2580,22 @@
             "metric": "collectorCount",
             "label": "distinct collectors",
             "unit": "collectors",
-            "value": 68
+            "value": 69
           },
           {
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 285800000
+            "value": 296290000
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 490
+            "value": 498
           }
         ],
-        "scoreLabel": "68 collectors · 286 ꜩ",
+        "scoreLabel": "69 collectors · 296 ꜩ",
         "sourceUrl": "https://objkt.com/profile/tz2AcZJUMPRq81gr2s2btGyHdnL2hWAaWaUB",
         "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
         "windowKind": "protocol-season",
@@ -2609,7 +2610,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 2,
+              "amount": 3,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2617,13 +2618,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 1
+                "amount": 2
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 93613334
+                "amount": 108523334
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2650,7 +2651,7 @@
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 2407425001
+                "amount": 2398600001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2713,7 +2714,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 2,
+              "amount": 3,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2721,13 +2722,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 1
+                "amount": 2
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 44972413
+                "amount": 55462413
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2740,7 +2741,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 81,
+              "amount": 82,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2748,13 +2749,111 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 80
+                "amount": 81
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 2452397413
+                "amount": 2454062413
+              }
+            ],
+            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
+          }
+        }
+      },
+      {
+        "address": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
+        "alias": "Marcelo Kato",
+        "lastActivity": "2026-08-08T18:42:37.000Z",
+        "volume": 505860000,
+        "sales": 977,
+        "score": 63,
+        "collectorCount": 63,
+        "tokenCount": 348,
+        "activeWeeks": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "category": "artist",
+        "title": "Art Maxi",
+        "status": "ready",
+        "rank": 8,
+        "scoreVector": [
+          {
+            "metric": "collectorCount",
+            "label": "distinct collectors",
+            "unit": "collectors",
+            "value": 63
+          },
+          {
+            "metric": "volume",
+            "label": "attributed OBJKT sales volume",
+            "unit": "mutez",
+            "value": 505860000
+          },
+          {
+            "metric": "sales",
+            "label": "sales",
+            "unit": "sales",
+            "value": 977
+          }
+        ],
+        "scoreLabel": "63 collectors · 506 ꜩ",
+        "sourceUrl": "https://objkt.com/profile/tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
+        "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
+        "windowKind": "protocol-season",
+        "previousRank": 9,
+        "delta": 1,
+        "deltaComparable": true,
+        "passGap": {
+          "next": {
+            "targetRank": 7,
+            "targetAddress": "tz1ieNf5wjKukfRcSjwXaUNLdrnbiAWwhJCe",
+            "guaranteedPrimary": {
+              "metric": "collectorCount",
+              "label": "distinct collectors",
+              "unit": "collectors",
+              "amount": 5,
+              "kind": "strictly-exceed-primary"
+            },
+            "conservativeVectorPath": [
+              {
+                "metric": "collectorCount",
+                "label": "distinct collectors",
+                "unit": "collectors",
+                "amount": 4
+              }
+            ],
+            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
+          },
+          "topTen": null,
+          "leader": {
+            "targetRank": 1,
+            "targetAddress": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
+            "guaranteedPrimary": {
+              "metric": "collectorCount",
+              "label": "distinct collectors",
+              "unit": "collectors",
+              "amount": 86,
+              "kind": "strictly-exceed-primary"
+            },
+            "conservativeVectorPath": [
+              {
+                "metric": "collectorCount",
+                "label": "distinct collectors",
+                "unit": "collectors",
+                "amount": 85
+              },
+              {
+                "metric": "volume",
+                "label": "attributed OBJKT sales volume",
+                "unit": "mutez",
+                "amount": 2189030001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2781,7 +2880,7 @@
         "category": "artist",
         "title": "Art Maxi",
         "status": "ready",
-        "rank": 8,
+        "rank": 9,
         "scoreVector": [
           {
             "metric": "collectorCount",
@@ -2806,118 +2905,26 @@
         "sourceUrl": "https://objkt.com/profile/tz1PwqkrfqAgaJ2iSM3SqxwCBs61UoC2H8gA",
         "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
         "windowKind": "protocol-season",
-        "previousRank": 9,
-        "delta": 1,
-        "deltaComparable": true,
-        "passGap": {
-          "next": {
-            "targetRank": 7,
-            "targetAddress": "tz1ieNf5wjKukfRcSjwXaUNLdrnbiAWwhJCe",
-            "guaranteedPrimary": {
-              "metric": "collectorCount",
-              "label": "distinct collectors",
-              "unit": "collectors",
-              "amount": 6,
-              "kind": "strictly-exceed-primary"
-            },
-            "conservativeVectorPath": [
-              {
-                "metric": "collectorCount",
-                "label": "distinct collectors",
-                "unit": "collectors",
-                "amount": 5
-              }
-            ],
-            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
-          },
-          "topTen": null,
-          "leader": {
-            "targetRank": 1,
-            "targetAddress": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
-            "guaranteedPrimary": {
-              "metric": "collectorCount",
-              "label": "distinct collectors",
-              "unit": "collectors",
-              "amount": 86,
-              "kind": "strictly-exceed-primary"
-            },
-            "conservativeVectorPath": [
-              {
-                "metric": "collectorCount",
-                "label": "distinct collectors",
-                "unit": "collectors",
-                "amount": 85
-              }
-            ],
-            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
-          }
-        }
-      },
-      {
-        "address": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
-        "alias": "Marcelo Kato",
-        "lastActivity": "2026-08-08T12:15:31.000Z",
-        "volume": 492860000,
-        "sales": 951,
-        "score": 62,
-        "collectorCount": 62,
-        "tokenCount": 337,
-        "activeWeeks": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6
-        ],
-        "category": "artist",
-        "title": "Art Maxi",
-        "status": "ready",
-        "rank": 9,
-        "scoreVector": [
-          {
-            "metric": "collectorCount",
-            "label": "distinct collectors",
-            "unit": "collectors",
-            "value": 62
-          },
-          {
-            "metric": "volume",
-            "label": "attributed OBJKT sales volume",
-            "unit": "mutez",
-            "value": 492860000
-          },
-          {
-            "metric": "sales",
-            "label": "sales",
-            "unit": "sales",
-            "value": 951
-          }
-        ],
-        "scoreLabel": "62 collectors · 493 ꜩ",
-        "sourceUrl": "https://objkt.com/profile/tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
-        "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
-        "windowKind": "protocol-season",
         "previousRank": 8,
         "delta": -1,
         "deltaComparable": true,
         "passGap": {
           "next": {
             "targetRank": 8,
-            "targetAddress": "tz1PwqkrfqAgaJ2iSM3SqxwCBs61UoC2H8gA",
+            "targetAddress": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
             "guaranteedPrimary": {
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 1,
+              "amount": 2,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
               {
-                "metric": "volume",
-                "label": "attributed OBJKT sales volume",
-                "unit": "mutez",
-                "amount": 4297426035
+                "metric": "collectorCount",
+                "label": "distinct collectors",
+                "unit": "collectors",
+                "amount": 1
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2930,7 +2937,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 86,
+              "amount": 87,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -2938,13 +2945,7 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 85
-              },
-              {
-                "metric": "volume",
-                "label": "attributed OBJKT sales volume",
-                "unit": "mutez",
-                "amount": 2200365001
+                "amount": 86
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -2952,20 +2953,19 @@
         }
       },
       {
-        "address": "tz1PiHDketFFHAPYpMZegnKYZf9DptEfvyRA",
-        "alias": "Eli shams",
-        "lastActivity": "2026-08-08T08:30:55.000Z",
-        "volume": 1057830000,
-        "sales": 114,
+        "address": "tz1gw1zX1MRDBoh9CrefzkJx8qhuqaTQ7jEm",
+        "alias": "Slothzine",
+        "lastActivity": "2026-08-08T16:39:55.000Z",
+        "volume": 1349761000,
+        "sales": 191,
         "score": 58,
         "collectorCount": 58,
-        "tokenCount": 30,
+        "tokenCount": 46,
         "activeWeeks": [
           1,
           2,
           3,
           4,
-          5,
           6
         ],
         "category": "artist",
@@ -2983,17 +2983,17 @@
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 1057830000
+            "value": 1349761000
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 114
+            "value": 191
           }
         ],
-        "scoreLabel": "58 collectors · 1,058 ꜩ",
-        "sourceUrl": "https://objkt.com/profile/tz1PiHDketFFHAPYpMZegnKYZf9DptEfvyRA",
+        "scoreLabel": "58 collectors · 1,350 ꜩ",
+        "sourceUrl": "https://objkt.com/profile/tz1gw1zX1MRDBoh9CrefzkJx8qhuqaTQ7jEm",
         "method": "Most distinct unflagged, non-self collectors of an artist's work in OBJKT listing sales during the protocol season; attributed volume and sales break ties.",
         "windowKind": "protocol-season",
         "previousRank": 11,
@@ -3002,7 +3002,7 @@
         "passGap": {
           "next": {
             "targetRank": 9,
-            "targetAddress": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
+            "targetAddress": "tz1PwqkrfqAgaJ2iSM3SqxwCBs61UoC2H8gA",
             "guaranteedPrimary": {
               "metric": "collectorCount",
               "label": "distinct collectors",
@@ -3016,6 +3016,12 @@
                 "label": "distinct collectors",
                 "unit": "collectors",
                 "amount": 4
+              },
+              {
+                "metric": "volume",
+                "label": "attributed OBJKT sales volume",
+                "unit": "mutez",
+                "amount": 3440525035
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3028,7 +3034,7 @@
               "metric": "collectorCount",
               "label": "distinct collectors",
               "unit": "collectors",
-              "amount": 90,
+              "amount": 91,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3036,13 +3042,13 @@
                 "metric": "collectorCount",
                 "label": "distinct collectors",
                 "unit": "collectors",
-                "amount": 89
+                "amount": 90
               },
               {
                 "metric": "volume",
                 "label": "attributed OBJKT sales volume",
                 "unit": "mutez",
-                "amount": 1635395001
+                "amount": 1345129001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3054,14 +3060,14 @@
       {
         "address": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
         "alias": "Marcelo Kato",
-        "lastActivity": "2026-08-08T12:15:31.000Z",
-        "editions": 1155,
-        "editionsSold": 932,
-        "score": 325,
-        "successfulDrops": 325,
-        "tokens": 375,
-        "mintOperations": 375,
-        "independentCollectors": 61,
+        "lastActivity": "2026-08-08T18:42:37.000Z",
+        "editions": 1185,
+        "editionsSold": 959,
+        "score": 336,
+        "successfulDrops": 336,
+        "tokens": 387,
+        "mintOperations": 387,
+        "independentCollectors": 62,
         "activeWeeks": [
           1,
           2,
@@ -3079,28 +3085,28 @@
             "metric": "successfulDrops",
             "label": "successful new drops",
             "unit": "drops",
-            "value": 325
+            "value": 336
           },
           {
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 375
+            "value": 387
           },
           {
             "metric": "independentCollectors",
             "label": "independent collectors",
             "unit": "collectors",
-            "value": 61
+            "value": 62
           },
           {
             "metric": "editionsSold",
             "label": "editions sold",
             "unit": "editions",
-            "value": 932
+            "value": 959
           }
         ],
-        "scoreLabel": "325 successful drops · 375 mints",
+        "scoreLabel": "336 successful drops · 387 mints",
         "sourceUrl": "https://objkt.com/profile/tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
         "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
         "windowKind": "protocol-season",
@@ -3116,13 +3122,13 @@
       {
         "address": "tz2JPVuwvUZyq1LyFwNz2ghXbJ62pQ1rd9f2",
         "alias": "::NONCEPTUALISM::",
-        "lastActivity": "2026-08-08T12:28:31.000Z",
-        "editions": 301,
+        "lastActivity": "2026-08-08T16:47:43.000Z",
+        "editions": 303,
         "editionsSold": 116,
         "score": 115,
         "successfulDrops": 115,
-        "tokens": 293,
-        "mintOperations": 293,
+        "tokens": 295,
+        "mintOperations": 295,
         "independentCollectors": 14,
         "activeWeeks": [
           1,
@@ -3147,7 +3153,7 @@
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 293
+            "value": 295
           },
           {
             "metric": "independentCollectors",
@@ -3162,7 +3168,7 @@
             "value": 116
           }
         ],
-        "scoreLabel": "115 successful drops · 293 mints",
+        "scoreLabel": "115 successful drops · 295 mints",
         "sourceUrl": "https://objkt.com/profile/tz2JPVuwvUZyq1LyFwNz2ghXbJ62pQ1rd9f2",
         "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
         "windowKind": "protocol-season",
@@ -3177,7 +3183,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 211,
+              "amount": 222,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3185,13 +3191,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 210
+                "amount": 221
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 83
+                "amount": 93
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3204,7 +3210,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 211,
+              "amount": 222,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3212,13 +3218,125 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 210
+                "amount": 221
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 83
+                "amount": 93
+              }
+            ],
+            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
+          }
+        }
+      },
+      {
+        "address": "tz2QrdpoDnE9epLMfGCsDGYH8rfNJ7zyxpjy",
+        "alias": "nuv1914",
+        "lastActivity": "2026-08-08T17:37:49.000Z",
+        "editions": 114,
+        "editionsSold": 91,
+        "score": 82,
+        "successfulDrops": 82,
+        "tokens": 96,
+        "mintOperations": 96,
+        "independentCollectors": 24,
+        "activeWeeks": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "category": "minter",
+        "title": "Mint Maxi",
+        "status": "ready",
+        "rank": 3,
+        "scoreVector": [
+          {
+            "metric": "successfulDrops",
+            "label": "successful new drops",
+            "unit": "drops",
+            "value": 82
+          },
+          {
+            "metric": "tokens",
+            "label": "distinct tokens minted",
+            "unit": "mints",
+            "value": 96
+          },
+          {
+            "metric": "independentCollectors",
+            "label": "independent collectors",
+            "unit": "collectors",
+            "value": 24
+          },
+          {
+            "metric": "editionsSold",
+            "label": "editions sold",
+            "unit": "editions",
+            "value": 91
+          }
+        ],
+        "scoreLabel": "82 successful drops · 96 mints",
+        "sourceUrl": "https://objkt.com/profile/tz2QrdpoDnE9epLMfGCsDGYH8rfNJ7zyxpjy",
+        "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
+        "windowKind": "protocol-season",
+        "previousRank": 4,
+        "delta": 1,
+        "deltaComparable": true,
+        "passGap": {
+          "next": {
+            "targetRank": 2,
+            "targetAddress": "tz2JPVuwvUZyq1LyFwNz2ghXbJ62pQ1rd9f2",
+            "guaranteedPrimary": {
+              "metric": "successfulDrops",
+              "label": "successful new drops",
+              "unit": "drops",
+              "amount": 34,
+              "kind": "strictly-exceed-primary"
+            },
+            "conservativeVectorPath": [
+              {
+                "metric": "successfulDrops",
+                "label": "successful new drops",
+                "unit": "drops",
+                "amount": 33
+              },
+              {
+                "metric": "tokens",
+                "label": "distinct tokens minted",
+                "unit": "mints",
+                "amount": 200
+              }
+            ],
+            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
+          },
+          "topTen": null,
+          "leader": {
+            "targetRank": 1,
+            "targetAddress": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
+            "guaranteedPrimary": {
+              "metric": "successfulDrops",
+              "label": "successful new drops",
+              "unit": "drops",
+              "amount": 255,
+              "kind": "strictly-exceed-primary"
+            },
+            "conservativeVectorPath": [
+              {
+                "metric": "successfulDrops",
+                "label": "successful new drops",
+                "unit": "drops",
+                "amount": 254
+              },
+              {
+                "metric": "tokens",
+                "label": "distinct tokens minted",
+                "unit": "mints",
+                "amount": 292
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3247,7 +3365,7 @@
         "category": "minter",
         "title": "Mint Maxi",
         "status": "ready",
-        "rank": 3,
+        "rank": 4,
         "scoreVector": [
           {
             "metric": "successfulDrops",
@@ -3279,137 +3397,25 @@
         "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
         "windowKind": "protocol-season",
         "previousRank": 3,
-        "delta": 0,
-        "deltaComparable": true,
-        "passGap": {
-          "next": {
-            "targetRank": 2,
-            "targetAddress": "tz2JPVuwvUZyq1LyFwNz2ghXbJ62pQ1rd9f2",
-            "guaranteedPrimary": {
-              "metric": "successfulDrops",
-              "label": "successful new drops",
-              "unit": "drops",
-              "amount": 35,
-              "kind": "strictly-exceed-primary"
-            },
-            "conservativeVectorPath": [
-              {
-                "metric": "successfulDrops",
-                "label": "successful new drops",
-                "unit": "drops",
-                "amount": 34
-              },
-              {
-                "metric": "tokens",
-                "label": "distinct tokens minted",
-                "unit": "mints",
-                "amount": 187
-              }
-            ],
-            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
-          },
-          "topTen": null,
-          "leader": {
-            "targetRank": 1,
-            "targetAddress": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
-            "guaranteedPrimary": {
-              "metric": "successfulDrops",
-              "label": "successful new drops",
-              "unit": "drops",
-              "amount": 245,
-              "kind": "strictly-exceed-primary"
-            },
-            "conservativeVectorPath": [
-              {
-                "metric": "successfulDrops",
-                "label": "successful new drops",
-                "unit": "drops",
-                "amount": 244
-              },
-              {
-                "metric": "tokens",
-                "label": "distinct tokens minted",
-                "unit": "mints",
-                "amount": 269
-              }
-            ],
-            "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
-          }
-        }
-      },
-      {
-        "address": "tz2QrdpoDnE9epLMfGCsDGYH8rfNJ7zyxpjy",
-        "alias": "nuv1914",
-        "lastActivity": "2026-08-07T17:30:19.000Z",
-        "editions": 111,
-        "editionsSold": 90,
-        "score": 81,
-        "successfulDrops": 81,
-        "tokens": 93,
-        "mintOperations": 93,
-        "independentCollectors": 24,
-        "activeWeeks": [
-          1,
-          2,
-          3,
-          4,
-          5,
-          6
-        ],
-        "category": "minter",
-        "title": "Mint Maxi",
-        "status": "ready",
-        "rank": 4,
-        "scoreVector": [
-          {
-            "metric": "successfulDrops",
-            "label": "successful new drops",
-            "unit": "drops",
-            "value": 81
-          },
-          {
-            "metric": "tokens",
-            "label": "distinct tokens minted",
-            "unit": "mints",
-            "value": 93
-          },
-          {
-            "metric": "independentCollectors",
-            "label": "independent collectors",
-            "unit": "collectors",
-            "value": 24
-          },
-          {
-            "metric": "editionsSold",
-            "label": "editions sold",
-            "unit": "editions",
-            "value": 90
-          }
-        ],
-        "scoreLabel": "81 successful drops · 93 mints",
-        "sourceUrl": "https://objkt.com/profile/tz2QrdpoDnE9epLMfGCsDGYH8rfNJ7zyxpjy",
-        "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
-        "windowKind": "protocol-season",
-        "previousRank": 4,
-        "delta": 0,
+        "delta": -1,
         "deltaComparable": true,
         "passGap": {
           "next": {
             "targetRank": 3,
-            "targetAddress": "tz1bPeLLc8uHagf9mM7cPTfX55bsjhzq5Y3W",
+            "targetAddress": "tz2QrdpoDnE9epLMfGCsDGYH8rfNJ7zyxpjy",
             "guaranteedPrimary": {
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 1,
+              "amount": 2,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
               {
-                "metric": "tokens",
-                "label": "distinct tokens minted",
-                "unit": "mints",
-                "amount": 15
+                "metric": "successfulDrops",
+                "label": "successful new drops",
+                "unit": "drops",
+                "amount": 1
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3422,7 +3428,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 245,
+              "amount": 256,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3430,13 +3436,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 244
+                "amount": 255
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 283
+                "amount": 281
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3502,7 +3508,7 @@
         "passGap": {
           "next": {
             "targetRank": 4,
-            "targetAddress": "tz2QrdpoDnE9epLMfGCsDGYH8rfNJ7zyxpjy",
+            "targetAddress": "tz1bPeLLc8uHagf9mM7cPTfX55bsjhzq5Y3W",
             "guaranteedPrimary": {
               "metric": "successfulDrops",
               "label": "successful new drops",
@@ -3521,7 +3527,7 @@
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 10
+                "amount": 24
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3534,7 +3540,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 247,
+              "amount": 258,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3542,13 +3548,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 246
+                "amount": 257
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 292
+                "amount": 304
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3558,13 +3564,13 @@
       {
         "address": "tz1a8PYGc2Z4tQCJHCYr7tWxMwnAAiifGkxr",
         "alias": "neuromech.tez",
-        "lastActivity": "2026-08-07T23:34:16.000Z",
-        "editions": 280,
+        "lastActivity": "2026-08-08T18:58:07.000Z",
+        "editions": 298,
         "editionsSold": 79,
         "score": 69,
         "successfulDrops": 69,
-        "tokens": 102,
-        "mintOperations": 102,
+        "tokens": 104,
+        "mintOperations": 104,
         "independentCollectors": 43,
         "activeWeeks": [
           1,
@@ -3589,7 +3595,7 @@
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 102
+            "value": 104
           },
           {
             "metric": "independentCollectors",
@@ -3604,7 +3610,7 @@
             "value": 79
           }
         ],
-        "scoreLabel": "69 successful drops · 102 mints",
+        "scoreLabel": "69 successful drops · 104 mints",
         "sourceUrl": "https://objkt.com/profile/tz1a8PYGc2Z4tQCJHCYr7tWxMwnAAiifGkxr",
         "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
         "windowKind": "protocol-season",
@@ -3640,7 +3646,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 257,
+              "amount": 268,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3648,13 +3654,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 256
+                "amount": 267
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 274
+                "amount": 284
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3664,13 +3670,13 @@
       {
         "address": "tz1cGFNhLmcoMyfwySaMQmoqP9TZh8RHbBU8",
         "alias": "Theo Laurent",
-        "lastActivity": "2026-08-08T13:04:22.000Z",
-        "editions": 483,
+        "lastActivity": "2026-08-08T17:01:31.000Z",
+        "editions": 488,
         "editionsSold": 109,
         "score": 53,
         "successfulDrops": 53,
-        "tokens": 97,
-        "mintOperations": 97,
+        "tokens": 98,
+        "mintOperations": 98,
         "independentCollectors": 42,
         "activeWeeks": [
           1,
@@ -3695,7 +3701,7 @@
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 97
+            "value": 98
           },
           {
             "metric": "independentCollectors",
@@ -3710,7 +3716,7 @@
             "value": 109
           }
         ],
-        "scoreLabel": "53 successful drops · 97 mints",
+        "scoreLabel": "53 successful drops · 98 mints",
         "sourceUrl": "https://objkt.com/profile/tz1cGFNhLmcoMyfwySaMQmoqP9TZh8RHbBU8",
         "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
         "windowKind": "protocol-season",
@@ -3739,7 +3745,7 @@
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 6
+                "amount": 7
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3752,7 +3758,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 273,
+              "amount": 284,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3760,13 +3766,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 272
+                "amount": 283
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 279
+                "amount": 290
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3776,9 +3782,9 @@
       {
         "address": "tz1fGpuMtvMVh6VrgsdpFbWgf3swn2G96cXR",
         "alias": "newpedro.tez",
-        "lastActivity": "2026-08-08T01:53:01.000Z",
+        "lastActivity": "2026-08-08T13:45:28.000Z",
         "editions": 435,
-        "editionsSold": 384,
+        "editionsSold": 385,
         "score": 47,
         "successfulDrops": 47,
         "tokens": 52,
@@ -3819,7 +3825,7 @@
             "metric": "editionsSold",
             "label": "editions sold",
             "unit": "editions",
-            "value": 384
+            "value": 385
           }
         ],
         "scoreLabel": "47 successful drops · 52 mints",
@@ -3851,7 +3857,7 @@
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 46
+                "amount": 47
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3864,7 +3870,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 279,
+              "amount": 290,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3872,13 +3878,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 278
+                "amount": 289
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 324
+                "amount": 336
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3970,7 +3976,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 285,
+              "amount": 296,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -3978,13 +3984,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 284
+                "amount": 295
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 302
+                "amount": 314
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -3994,13 +4000,13 @@
       {
         "address": "tz1baVue2EZzhXcoHSsdF5tybD1ibkwwPYBk",
         "alias": "hmmlabs.tez",
-        "lastActivity": "2026-08-08T01:27:55.000Z",
-        "editions": 170,
-        "editionsSold": 115,
-        "score": 34,
-        "successfulDrops": 34,
-        "tokens": 42,
-        "mintOperations": 42,
+        "lastActivity": "2026-08-08T15:58:01.000Z",
+        "editions": 185,
+        "editionsSold": 123,
+        "score": 37,
+        "successfulDrops": 37,
+        "tokens": 45,
+        "mintOperations": 45,
         "independentCollectors": 14,
         "activeWeeks": [
           4,
@@ -4016,13 +4022,13 @@
             "metric": "successfulDrops",
             "label": "successful new drops",
             "unit": "drops",
-            "value": 34
+            "value": 37
           },
           {
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 42
+            "value": 45
           },
           {
             "metric": "independentCollectors",
@@ -4034,10 +4040,10 @@
             "metric": "editionsSold",
             "label": "editions sold",
             "unit": "editions",
-            "value": 115
+            "value": 123
           }
         ],
-        "scoreLabel": "34 successful drops · 42 mints",
+        "scoreLabel": "37 successful drops · 45 mints",
         "sourceUrl": "https://objkt.com/profile/tz1baVue2EZzhXcoHSsdF5tybD1ibkwwPYBk",
         "method": "Most season-minted tokens with a positive-price primary creator sale to an independent collector, then distinct mints, collectors, and primary-sale editions.",
         "windowKind": "protocol-season",
@@ -4052,7 +4058,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 8,
+              "amount": 5,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -4060,13 +4066,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 7
+                "amount": 4
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 33
+                "amount": 30
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4079,7 +4085,7 @@
               "metric": "successfulDrops",
               "label": "successful new drops",
               "unit": "drops",
-              "amount": 292,
+              "amount": 300,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -4087,13 +4093,13 @@
                 "metric": "successfulDrops",
                 "label": "successful new drops",
                 "unit": "drops",
-                "amount": 291
+                "amount": 299
               },
               {
                 "metric": "tokens",
                 "label": "distinct tokens minted",
                 "unit": "mints",
-                "amount": 334
+                "amount": 343
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4105,7 +4111,7 @@
       {
         "address": "tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
         "alias": "Johnny Sins",
-        "lastActivity": "2026-08-08T10:03:58.000Z",
+        "lastActivity": "2026-08-08T16:51:01.000Z",
         "score": 7,
         "appCount": 7,
         "apps": [
@@ -4118,7 +4124,7 @@
           "youves"
         ],
         "contractCount": 147,
-        "calls": 20484,
+        "calls": 20489,
         "activeWeeks": [
           1,
           2,
@@ -4142,7 +4148,7 @@
             "metric": "calls",
             "label": "successful calls",
             "unit": "calls",
-            "value": 20484
+            "value": 20489
           },
           {
             "metric": "contractCount",
@@ -4151,7 +4157,7 @@
             "value": 147
           }
         ],
-        "scoreLabel": "7 apps · 20,484 calls",
+        "scoreLabel": "7 apps · 20,489 calls",
         "sourceUrl": "https://tzkt.io/tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
         "method": "Most distinct recognized DeFi apps used during the protocol season, then successful top-level wallet calls and recognized contracts.",
         "windowKind": "protocol-season",
@@ -4237,7 +4243,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 19930
+                "amount": 19935
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4264,7 +4270,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 19930
+                "amount": 19935
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4368,7 +4374,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20202
+                "amount": 20207
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4472,7 +4478,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20471
+                "amount": 20476
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4571,7 +4577,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20476
+                "amount": 20481
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4668,7 +4674,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20446
+                "amount": 20451
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4768,7 +4774,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20448
+                "amount": 20453
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4868,7 +4874,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20455
+                "amount": 20460
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -4967,7 +4973,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20461
+                "amount": 20466
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -5065,7 +5071,7 @@
                 "metric": "calls",
                 "label": "successful calls",
                 "unit": "calls",
-                "amount": 20463
+                "amount": 20468
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -6942,10 +6948,10 @@
       {
         "address": "tz1aRoaRhSpRYvFdyvgWLL6TGyRoGF51wDjM",
         "alias": "Everstake",
-        "lastActivity": "2026-08-07T16:49:43.000Z",
-        "retainedBalance": 66115076644,
-        "score": 86,
-        "retainedAssignments": 86,
+        "lastActivity": "2026-08-08T15:54:13.000Z",
+        "retainedBalance": 86398730754,
+        "score": 88,
+        "retainedAssignments": 88,
         "activeWeeks": [
           1,
           2,
@@ -6963,16 +6969,16 @@
             "metric": "retainedAssignments",
             "label": "in-season assignments retained",
             "unit": "assignments",
-            "value": 86
+            "value": 88
           },
           {
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 66115076644
+            "value": 86398730754
           }
         ],
-        "scoreLabel": "86 retained assignments",
+        "scoreLabel": "88 retained assignments",
         "sourceUrl": "https://tzkt.io/tz1aRoaRhSpRYvFdyvgWLL6TGyRoGF51wDjM",
         "method": "Most non-self wallets whose latest in-season assignment changed baker and still points to that baker with positive account balance, then retained balance.",
         "windowKind": "protocol-season",
@@ -6989,7 +6995,7 @@
         "address": "tz3LV9aGKHDnAZHCtC9SjNtTrKRu678FqSki",
         "alias": "Ledger by Kiln",
         "lastActivity": "2026-08-08T11:08:28.000Z",
-        "retainedBalance": 532752744113,
+        "retainedBalance": 532754987444,
         "score": 85,
         "retainedAssignments": 85,
         "activeWeeks": [
@@ -7015,7 +7021,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 532752744113
+            "value": 532754987444
           }
         ],
         "scoreLabel": "85 retained assignments",
@@ -7033,7 +7039,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 2,
+              "amount": 4,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7041,7 +7047,7 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 1
+                "amount": 3
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7054,7 +7060,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 2,
+              "amount": 4,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7062,7 +7068,7 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 1
+                "amount": 3
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7131,7 +7137,7 @@
                 "metric": "retainedBalance",
                 "label": "retained account balance",
                 "unit": "mutez",
-                "amount": 519840034442
+                "amount": 519842277773
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7144,7 +7150,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 39,
+              "amount": 41,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7152,13 +7158,13 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 38
+                "amount": 40
               },
               {
                 "metric": "retainedBalance",
                 "label": "retained account balance",
                 "unit": "mutez",
-                "amount": 53202366973
+                "amount": 73486021083
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7169,7 +7175,7 @@
         "address": "tz1RCFbB9GpALpsZtu6J58sb74dm8qe6XBzv",
         "alias": "Kraken Baker",
         "lastActivity": "2026-08-06T09:29:46.000Z",
-        "retainedBalance": 867736176535,
+        "retainedBalance": 867749385179,
         "score": 36,
         "retainedAssignments": 36,
         "activeWeeks": [
@@ -7195,7 +7201,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 867736176535
+            "value": 867749385179
           }
         ],
         "scoreLabel": "36 retained assignments",
@@ -7234,7 +7240,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 51,
+              "amount": 53,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7242,7 +7248,7 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 50
+                "amount": 52
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7250,12 +7256,12 @@
         }
       },
       {
-        "address": "tz1P2Po7YM526ughEsRbY4oR9zaUPDZjxFrb",
-        "alias": "P2P.org",
-        "lastActivity": "2026-08-08T10:24:52.000Z",
-        "retainedBalance": 508352941115,
-        "score": 29,
-        "retainedAssignments": 29,
+        "address": "tz1V3yg82mcrPJbegqVCPn6bC8w1CSTRp3f8",
+        "alias": "Staking Shop",
+        "lastActivity": "2026-08-08T17:56:37.000Z",
+        "retainedBalance": 85599611713,
+        "score": 30,
+        "retainedAssignments": 30,
         "activeWeeks": [
           1,
           2,
@@ -7273,17 +7279,17 @@
             "metric": "retainedAssignments",
             "label": "in-season assignments retained",
             "unit": "assignments",
-            "value": 29
+            "value": 30
           },
           {
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 508352941115
+            "value": 85599611713
           }
         ],
-        "scoreLabel": "29 retained assignments",
-        "sourceUrl": "https://tzkt.io/tz1P2Po7YM526ughEsRbY4oR9zaUPDZjxFrb",
+        "scoreLabel": "30 retained assignments",
+        "sourceUrl": "https://tzkt.io/tz1V3yg82mcrPJbegqVCPn6bC8w1CSTRp3f8",
         "method": "Most non-self wallets whose latest in-season assignment changed baker and still points to that baker with positive account balance, then retained balance.",
         "windowKind": "protocol-season",
         "previousRank": 6,
@@ -7297,7 +7303,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 8,
+              "amount": 7,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7305,13 +7311,13 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 7
+                "amount": 6
               },
               {
                 "metric": "retainedBalance",
                 "label": "retained account balance",
                 "unit": "mutez",
-                "amount": 359383235421
+                "amount": 782149773467
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7324,7 +7330,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 58,
+              "amount": 59,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7332,7 +7338,13 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 57
+                "amount": 58
+              },
+              {
+                "metric": "retainedBalance",
+                "label": "retained account balance",
+                "unit": "mutez",
+                "amount": 799119042
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7340,10 +7352,10 @@
         }
       },
       {
-        "address": "tz1V3yg82mcrPJbegqVCPn6bC8w1CSTRp3f8",
-        "alias": "Staking Shop",
-        "lastActivity": "2026-08-07T16:08:43.000Z",
-        "retainedBalance": 60412081300,
+        "address": "tz1P2Po7YM526ughEsRbY4oR9zaUPDZjxFrb",
+        "alias": "P2P.org",
+        "lastActivity": "2026-08-08T10:24:52.000Z",
+        "retainedBalance": 508365554364,
         "score": 29,
         "retainedAssignments": 29,
         "activeWeeks": [
@@ -7369,11 +7381,11 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 60412081300
+            "value": 508365554364
           }
         ],
         "scoreLabel": "29 retained assignments",
-        "sourceUrl": "https://tzkt.io/tz1V3yg82mcrPJbegqVCPn6bC8w1CSTRp3f8",
+        "sourceUrl": "https://tzkt.io/tz1P2Po7YM526ughEsRbY4oR9zaUPDZjxFrb",
         "method": "Most non-self wallets whose latest in-season assignment changed baker and still points to that baker with positive account balance, then retained balance.",
         "windowKind": "protocol-season",
         "previousRank": 5,
@@ -7382,20 +7394,20 @@
         "passGap": {
           "next": {
             "targetRank": 5,
-            "targetAddress": "tz1P2Po7YM526ughEsRbY4oR9zaUPDZjxFrb",
+            "targetAddress": "tz1V3yg82mcrPJbegqVCPn6bC8w1CSTRp3f8",
             "guaranteedPrimary": {
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 1,
+              "amount": 2,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
               {
-                "metric": "retainedBalance",
-                "label": "retained account balance",
-                "unit": "mutez",
-                "amount": 447940859816
+                "metric": "retainedAssignments",
+                "label": "in-season assignments retained",
+                "unit": "assignments",
+                "amount": 1
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7408,7 +7420,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 58,
+              "amount": 60,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7416,13 +7428,7 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 57
-              },
-              {
-                "metric": "retainedBalance",
-                "label": "retained account balance",
-                "unit": "mutez",
-                "amount": 5702995345
+                "amount": 59
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7433,7 +7439,7 @@
         "address": "tz1bA9zZpouVgtMRLijvw5safwDKSxg62r1x",
         "alias": "HiTEZ",
         "lastActivity": "2026-08-08T00:02:28.000Z",
-        "retainedBalance": 71449066615,
+        "retainedBalance": 71457702898,
         "score": 24,
         "retainedAssignments": 24,
         "activeWeeks": [
@@ -7459,7 +7465,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 71449066615
+            "value": 71457702898
           }
         ],
         "scoreLabel": "24 retained assignments",
@@ -7472,7 +7478,7 @@
         "passGap": {
           "next": {
             "targetRank": 6,
-            "targetAddress": "tz1V3yg82mcrPJbegqVCPn6bC8w1CSTRp3f8",
+            "targetAddress": "tz1P2Po7YM526ughEsRbY4oR9zaUPDZjxFrb",
             "guaranteedPrimary": {
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
@@ -7486,6 +7492,12 @@
                 "label": "in-season assignments retained",
                 "unit": "assignments",
                 "amount": 5
+              },
+              {
+                "metric": "retainedBalance",
+                "label": "retained account balance",
+                "unit": "mutez",
+                "amount": 436907851467
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7498,7 +7510,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 63,
+              "amount": 65,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7506,7 +7518,13 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 62
+                "amount": 64
+              },
+              {
+                "metric": "retainedBalance",
+                "label": "retained account balance",
+                "unit": "mutez",
+                "amount": 14941027857
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7517,7 +7535,7 @@
         "address": "tz1azM6fLiNVeqehddnRPU2f8jroyNmg6UWQ",
         "alias": "SuperBaker",
         "lastActivity": "2026-08-03T10:49:34.000Z",
-        "retainedBalance": 781022698504,
+        "retainedBalance": 780960356913,
         "score": 17,
         "retainedAssignments": 17,
         "activeWeeks": [
@@ -7542,7 +7560,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 781022698504
+            "value": 780960356913
           }
         ],
         "scoreLabel": "17 retained assignments",
@@ -7581,7 +7599,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 70,
+              "amount": 72,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7589,7 +7607,7 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 69
+                "amount": 71
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7600,7 +7618,7 @@
         "address": "tz1ZGYjyXgPdJ6a8EXNHmP4jZbJtEQoeRYFQ",
         "alias": "TezOasis",
         "lastActivity": "2026-08-05T03:46:58.000Z",
-        "retainedBalance": 175095361294,
+        "retainedBalance": 175100677534,
         "score": 17,
         "retainedAssignments": 17,
         "activeWeeks": [
@@ -7625,7 +7643,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 175095361294
+            "value": 175100677534
           }
         ],
         "scoreLabel": "17 retained assignments",
@@ -7651,7 +7669,7 @@
                 "metric": "retainedBalance",
                 "label": "retained account balance",
                 "unit": "mutez",
-                "amount": 605927337211
+                "amount": 605859679380
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7664,7 +7682,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 70,
+              "amount": 72,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7672,7 +7690,7 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 69
+                "amount": 71
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7683,7 +7701,7 @@
         "address": "tz1XXayQohB8XRXN7kMoHbf2NFwNiH3oMRQQ",
         "alias": "Bit Cat🐱",
         "lastActivity": "2026-08-07T20:31:22.000Z",
-        "retainedBalance": 60039182108,
+        "retainedBalance": 60039241445,
         "score": 12,
         "retainedAssignments": 12,
         "activeWeeks": [
@@ -7708,7 +7726,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 60039182108
+            "value": 60039241445
           }
         ],
         "scoreLabel": "12 retained assignments",
@@ -7740,7 +7758,7 @@
                 "metric": "retainedBalance",
                 "label": "retained account balance",
                 "unit": "mutez",
-                "amount": 115056179187
+                "amount": 115061436090
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -7753,7 +7771,7 @@
               "metric": "retainedAssignments",
               "label": "in-season assignments retained",
               "unit": "assignments",
-              "amount": 75,
+              "amount": 77,
               "kind": "strictly-exceed-primary"
             },
             "conservativeVectorPath": [
@@ -7761,13 +7779,13 @@
                 "metric": "retainedAssignments",
                 "label": "in-season assignments retained",
                 "unit": "assignments",
-                "amount": 74
+                "amount": 76
               },
               {
                 "metric": "retainedBalance",
                 "label": "retained account balance",
                 "unit": "mutez",
-                "amount": 6075894537
+                "amount": 26359489310
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -8805,11 +8823,11 @@
       {
         "address": "tz1d9pPePCCP3MohZCzm5uriLqAAZrRgdyvs",
         "alias": null,
-        "lastActivity": "2026-08-08T09:26:10.000Z",
+        "lastActivity": "2026-08-08T14:03:28.000Z",
         "score": 3,
         "activeDeployments": 3,
         "independentUsers": 7,
-        "externalCalls": 48,
+        "externalCalls": 53,
         "deployments": 3,
         "activeWeeks": [
           6
@@ -8835,7 +8853,7 @@
             "metric": "externalCalls",
             "label": "independent calls",
             "unit": "calls",
-            "value": 48
+            "value": 53
           },
           {
             "metric": "deployments",
@@ -8995,11 +9013,11 @@
       {
         "address": "tz1Mn66CLYJUmsrYSy23EFtdWBkHgqCooCzi",
         "alias": null,
-        "lastActivity": "2026-08-08T11:46:43.000Z",
+        "lastActivity": "2026-08-08T17:34:49.000Z",
         "score": 2,
         "activeDeployments": 2,
-        "independentUsers": 54,
-        "externalCalls": 380,
+        "independentUsers": 55,
+        "externalCalls": 386,
         "deployments": 3,
         "activeWeeks": [
           5,
@@ -9020,13 +9038,13 @@
             "metric": "independentUsers",
             "label": "independent users",
             "unit": "users",
-            "value": 54
+            "value": 55
           },
           {
             "metric": "externalCalls",
             "label": "independent calls",
             "unit": "calls",
-            "value": 380
+            "value": 386
           },
           {
             "metric": "deployments",
@@ -9035,7 +9053,7 @@
             "value": 3
           }
         ],
-        "scoreLabel": "2 used deployments · 54 users",
+        "scoreLabel": "2 used deployments · 55 users",
         "sourceUrl": "https://tzkt.io/tz1Mn66CLYJUmsrYSy23EFtdWBkHgqCooCzi",
         "method": "Most directly originated contracts from an implicit sender that received successful post-deploy use from another implicit account, then user and call breadth.",
         "windowKind": "protocol-season",
@@ -9151,7 +9169,7 @@
                 "metric": "independentUsers",
                 "label": "independent users",
                 "unit": "users",
-                "amount": 52
+                "amount": 53
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -9182,11 +9200,11 @@
       {
         "address": "tz1QGCWjNpYmcS6T9qFGYSam25e36WeFUCK4",
         "alias": "NFT PROTECTOR",
-        "lastActivity": "2026-08-08T13:12:46.000Z",
+        "lastActivity": "2026-08-08T18:25:07.000Z",
         "score": 1,
         "activeDeployments": 1,
         "independentUsers": 74,
-        "externalCalls": 1967,
+        "externalCalls": 1974,
         "deployments": 1,
         "activeWeeks": [
           4,
@@ -9214,7 +9232,7 @@
             "metric": "externalCalls",
             "label": "independent calls",
             "unit": "calls",
-            "value": 1967
+            "value": 1974
           },
           {
             "metric": "deployments",
@@ -9681,14 +9699,15 @@
           }
         ],
         "points": 3.58,
-        "lastActivity": "2026-07-31T11:35:10.000Z",
+        "lastActivity": "2026-08-08T14:31:01.000Z",
         "breadth": 4,
         "score": 4,
         "activeWeeks": [
           2,
           3,
           4,
-          5
+          5,
+          6
         ],
         "category": "unicorn",
         "title": "Season Unicorn",
@@ -9735,15 +9754,15 @@
           },
           {
             "category": "minter",
-            "rank": 79
+            "rank": 78
           },
           {
             "category": "builder",
             "rank": 15
           }
         ],
-        "points": 2.24,
-        "lastActivity": "2026-08-08T13:11:28.000Z",
+        "points": 2.25,
+        "lastActivity": "2026-08-08T17:18:49.000Z",
         "breadth": 4,
         "score": 4,
         "activeWeeks": [
@@ -9769,7 +9788,7 @@
             "metric": "points",
             "label": "normalized rank points",
             "unit": "points",
-            "value": 2.24
+            "value": 2.25
           }
         ],
         "scoreLabel": "4 qualifying lanes",
@@ -9795,7 +9814,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 1.3400999999999998
+                "amount": 1.3301
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -9816,7 +9835,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 1.3400999999999998
+                "amount": 1.3301
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -9945,7 +9964,7 @@
           }
         ],
         "points": 2.88,
-        "lastActivity": "2026-08-08T01:02:55.000Z",
+        "lastActivity": "2026-08-08T13:35:13.000Z",
         "breadth": 3,
         "score": 3,
         "activeWeeks": [
@@ -10049,7 +10068,7 @@
           }
         ],
         "points": 2.73,
-        "lastActivity": "2026-08-08T10:17:16.000Z",
+        "lastActivity": "2026-08-08T18:58:07.000Z",
         "breadth": 3,
         "score": 3,
         "activeWeeks": [
@@ -10141,7 +10160,7 @@
         "categories": [
           {
             "category": "collector",
-            "rank": 32
+            "rank": 31
           },
           {
             "category": "defi",
@@ -10152,8 +10171,8 @@
             "rank": 9
           }
         ],
-        "points": 2.35,
-        "lastActivity": "2026-08-08T13:10:04.000Z",
+        "points": 2.36,
+        "lastActivity": "2026-08-08T13:35:13.000Z",
         "breadth": 3,
         "score": 3,
         "activeWeeks": [
@@ -10179,7 +10198,7 @@
             "metric": "points",
             "label": "normalized rank points",
             "unit": "points",
-            "value": 2.35
+            "value": 2.36
           }
         ],
         "scoreLabel": "3 qualifying lanes",
@@ -10205,7 +10224,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 0.3800999999999999
+                "amount": 0.3701000000000001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10232,7 +10251,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 1.2301
+                "amount": 1.2201000000000002
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10309,7 +10328,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 0.2901
+                "amount": 0.3000999999999998
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10353,15 +10372,15 @@
           },
           {
             "category": "artist",
-            "rank": 8
+            "rank": 9
           },
           {
             "category": "minter",
             "rank": 70
           }
         ],
-        "points": 1.79,
-        "lastActivity": "2026-08-08T13:00:52.000Z",
+        "points": 1.78,
+        "lastActivity": "2026-08-08T13:32:13.000Z",
         "breadth": 3,
         "score": 3,
         "activeWeeks": [
@@ -10387,7 +10406,7 @@
             "metric": "points",
             "label": "normalized rank points",
             "unit": "points",
-            "value": 1.79
+            "value": 1.78
           }
         ],
         "scoreLabel": "3 qualifying lanes",
@@ -10413,7 +10432,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 0.2701
+                "amount": 0.2801
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10440,7 +10459,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 1.7901
+                "amount": 1.8001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10517,7 +10536,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 0.04010000000000004
+                "amount": 0.030100000000000026
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10565,11 +10584,11 @@
           },
           {
             "category": "minter",
-            "rank": 25
+            "rank": 24
           }
         ],
-        "points": 1.63,
-        "lastActivity": "2026-08-08T11:53:07.000Z",
+        "points": 1.64,
+        "lastActivity": "2026-08-08T18:57:31.000Z",
         "breadth": 3,
         "score": 3,
         "activeWeeks": [
@@ -10595,7 +10614,7 @@
             "metric": "points",
             "label": "normalized rank points",
             "unit": "points",
-            "value": 1.63
+            "value": 1.64
           }
         ],
         "scoreLabel": "3 qualifying lanes",
@@ -10621,7 +10640,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 0.12010000000000011
+                "amount": 0.1101000000000001
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10648,7 +10667,7 @@
                 "metric": "points",
                 "label": "normalized rank points",
                 "unit": "points",
-                "amount": 1.9501000000000002
+                "amount": 1.9401000000000002
               }
             ],
             "caveat": "The guaranteed path strictly exceeds the primary metric. The conservative vector path ignores a later-activity tie-break and can overstate the static-snapshot minimum; it also cannot predict other wallets moving."
@@ -10700,25 +10719,25 @@
         "rank": 2,
         "address": "tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
         "alias": "Bret Jolliffe",
-        "scoreLabel": "314 artists · 8,270 ꜩ",
+        "scoreLabel": "323 artists · 8,595 ꜩ",
         "scoreVector": [
           {
             "metric": "artistCount",
             "label": "distinct artists collected",
             "unit": "artists",
-            "value": 314
+            "value": 323
           },
           {
             "metric": "volume",
             "label": "OBJKT buy volume",
             "unit": "mutez",
-            "value": 8270132129
+            "value": 8595060629
           },
           {
             "metric": "purchases",
             "label": "purchases",
             "unit": "sales",
-            "value": 1945
+            "value": 2041
           }
         ],
         "sourceUrl": "https://objkt.com/profile/tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
@@ -10751,14 +10770,14 @@
           }
         ],
         "sourceUrl": "https://objkt.com/profile/tz1VK6FuYBSuDzWFRtpzRnMAdho7mkGnz19G",
-        "delta": -1,
-        "previousRank": 9
+        "delta": 0,
+        "previousRank": 10
       },
       "topHundred": {
         "rank": 100,
-        "address": "tz1iB8Ayco6yPe2nBUJ8kbcF7CitAW8Aid74",
-        "alias": "shortcut.tez",
-        "scoreLabel": "34 artists · 811 ꜩ",
+        "address": "tz1QHsVw8wD6MJnRGxvFN9wxzZaUoJht2ESZ",
+        "alias": "zlaser.tez",
+        "scoreLabel": "34 artists · 1,079 ꜩ",
         "scoreVector": [
           {
             "metric": "artistCount",
@@ -10770,20 +10789,20 @@
             "metric": "volume",
             "label": "OBJKT buy volume",
             "unit": "mutez",
-            "value": 811030000
+            "value": 1079000000
           },
           {
             "metric": "purchases",
             "label": "purchases",
             "unit": "sales",
-            "value": 40
+            "value": 66
           }
         ],
-        "sourceUrl": "https://objkt.com/profile/tz1iB8Ayco6yPe2nBUJ8kbcF7CitAW8Aid74",
+        "sourceUrl": "https://objkt.com/profile/tz1QHsVw8wD6MJnRGxvFN9wxzZaUoJht2ESZ",
         "delta": -1,
         "previousRank": 99
       },
-      "eligibleCount": 1956,
+      "eligibleCount": 1968,
       "publishedDeepCount": 500
     },
     "artist": {
@@ -10791,25 +10810,25 @@
         "rank": 1,
         "address": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
         "alias": "sneketoshi.tez",
-        "scoreLabel": "147 collectors · 2,693 ꜩ",
+        "scoreLabel": "148 collectors · 2,695 ꜩ",
         "scoreVector": [
           {
             "metric": "collectorCount",
             "label": "distinct collectors",
             "unit": "collectors",
-            "value": 147
+            "value": 148
           },
           {
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 2693225000
+            "value": 2694890000
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 254
+            "value": 255
           }
         ],
         "sourceUrl": "https://objkt.com/profile/tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
@@ -10847,9 +10866,9 @@
       },
       "topTen": {
         "rank": 10,
-        "address": "tz1PiHDketFFHAPYpMZegnKYZf9DptEfvyRA",
-        "alias": "Eli shams",
-        "scoreLabel": "58 collectors · 1,058 ꜩ",
+        "address": "tz1gw1zX1MRDBoh9CrefzkJx8qhuqaTQ7jEm",
+        "alias": "Slothzine",
+        "scoreLabel": "58 collectors · 1,350 ꜩ",
         "scoreVector": [
           {
             "metric": "collectorCount",
@@ -10861,16 +10880,16 @@
             "metric": "volume",
             "label": "attributed OBJKT sales volume",
             "unit": "mutez",
-            "value": 1057830000
+            "value": 1349761000
           },
           {
             "metric": "sales",
             "label": "sales",
             "unit": "sales",
-            "value": 114
+            "value": 191
           }
         ],
-        "sourceUrl": "https://objkt.com/profile/tz1PiHDketFFHAPYpMZegnKYZf9DptEfvyRA",
+        "sourceUrl": "https://objkt.com/profile/tz1gw1zX1MRDBoh9CrefzkJx8qhuqaTQ7jEm",
         "delta": 1,
         "previousRank": 11
       },
@@ -10903,7 +10922,7 @@
         "delta": 0,
         "previousRank": 100
       },
-      "eligibleCount": 4561,
+      "eligibleCount": 4587,
       "publishedDeepCount": 500
     },
     "minter": {
@@ -10911,31 +10930,31 @@
         "rank": 1,
         "address": "tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
         "alias": "Marcelo Kato",
-        "scoreLabel": "325 successful drops · 375 mints",
+        "scoreLabel": "336 successful drops · 387 mints",
         "scoreVector": [
           {
             "metric": "successfulDrops",
             "label": "successful new drops",
             "unit": "drops",
-            "value": 325
+            "value": 336
           },
           {
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 375
+            "value": 387
           },
           {
             "metric": "independentCollectors",
             "label": "independent collectors",
             "unit": "collectors",
-            "value": 61
+            "value": 62
           },
           {
             "metric": "editionsSold",
             "label": "editions sold",
             "unit": "editions",
-            "value": 932
+            "value": 959
           }
         ],
         "sourceUrl": "https://objkt.com/profile/tz1cwAZrXrvKKkFoYJvPqHTHuAeNXzmhR5jm",
@@ -10946,7 +10965,7 @@
         "rank": 2,
         "address": "tz2JPVuwvUZyq1LyFwNz2ghXbJ62pQ1rd9f2",
         "alias": "::NONCEPTUALISM::",
-        "scoreLabel": "115 successful drops · 293 mints",
+        "scoreLabel": "115 successful drops · 295 mints",
         "scoreVector": [
           {
             "metric": "successfulDrops",
@@ -10958,7 +10977,7 @@
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 293
+            "value": 295
           },
           {
             "metric": "independentCollectors",
@@ -10981,19 +11000,19 @@
         "rank": 10,
         "address": "tz1baVue2EZzhXcoHSsdF5tybD1ibkwwPYBk",
         "alias": "hmmlabs.tez",
-        "scoreLabel": "34 successful drops · 42 mints",
+        "scoreLabel": "37 successful drops · 45 mints",
         "scoreVector": [
           {
             "metric": "successfulDrops",
             "label": "successful new drops",
             "unit": "drops",
-            "value": 34
+            "value": 37
           },
           {
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 42
+            "value": 45
           },
           {
             "metric": "independentCollectors",
@@ -11005,7 +11024,7 @@
             "metric": "editionsSold",
             "label": "editions sold",
             "unit": "editions",
-            "value": 115
+            "value": 123
           }
         ],
         "sourceUrl": "https://objkt.com/profile/tz1baVue2EZzhXcoHSsdF5tybD1ibkwwPYBk",
@@ -11014,9 +11033,9 @@
       },
       "topHundred": {
         "rank": 100,
-        "address": "tz1MfRet1eKjFUE1MF5v3ngivMAXb7cKhwJ7",
-        "alias": "armina",
-        "scoreLabel": "10 successful drops · 12 mints",
+        "address": "tz1RX9GWY9mUToTdcanKy6rgLc4TsgnqUYUt",
+        "alias": "skomra.tez",
+        "scoreLabel": "10 successful drops · 15 mints",
         "scoreVector": [
           {
             "metric": "successfulDrops",
@@ -11028,26 +11047,26 @@
             "metric": "tokens",
             "label": "distinct tokens minted",
             "unit": "mints",
-            "value": 12
+            "value": 15
           },
           {
             "metric": "independentCollectors",
             "label": "independent collectors",
             "unit": "collectors",
-            "value": 46
+            "value": 30
           },
           {
             "metric": "editionsSold",
             "label": "editions sold",
             "unit": "editions",
-            "value": 87
+            "value": 71
           }
         ],
-        "sourceUrl": "https://objkt.com/profile/tz1MfRet1eKjFUE1MF5v3ngivMAXb7cKhwJ7",
-        "delta": -1,
-        "previousRank": 99
+        "sourceUrl": "https://objkt.com/profile/tz1RX9GWY9mUToTdcanKy6rgLc4TsgnqUYUt",
+        "delta": -2,
+        "previousRank": 98
       },
-      "eligibleCount": 2168,
+      "eligibleCount": 2180,
       "publishedDeepCount": 500
     },
     "defi": {
@@ -11055,7 +11074,7 @@
         "rank": 1,
         "address": "tz1dgVeTDwo5G9w9Ky6AUJGurTvDb1NNE5UK",
         "alias": "Johnny Sins",
-        "scoreLabel": "7 apps · 20,484 calls",
+        "scoreLabel": "7 apps · 20,489 calls",
         "scoreVector": [
           {
             "metric": "appCount",
@@ -11067,7 +11086,7 @@
             "metric": "calls",
             "label": "successful calls",
             "unit": "calls",
-            "value": 20484
+            "value": 20489
           },
           {
             "metric": "contractCount",
@@ -11167,7 +11186,7 @@
         "delta": 0,
         "previousRank": 100
       },
-      "eligibleCount": 638,
+      "eligibleCount": 643,
       "publishedDeepCount": 500
     },
     "gaming": {
@@ -11360,21 +11379,21 @@
       },
       "topHundred": {
         "rank": 100,
-        "address": "tz2BLFmxMJXW66u1jKpqmSC7Xmh3jMNKYBeU",
+        "address": "tz1TP3LaztTnf7MogRDf4nrwDimvLsrqYDki",
         "alias": null,
-        "scoreLabel": "1,450 ꜩ net new stake",
+        "scoreLabel": "1,600 ꜩ net new stake",
         "scoreVector": [
           {
             "metric": "netStake",
             "label": "net new stake",
             "unit": "mutez",
-            "value": 1450000000
+            "value": 1600000000
           },
           {
             "metric": "grossStake",
             "label": "gross stake added",
             "unit": "mutez",
-            "value": 1450000000
+            "value": 1600000000
           },
           {
             "metric": "stakeOperations",
@@ -11383,31 +11402,31 @@
             "value": 1
           }
         ],
-        "sourceUrl": "https://tzkt.io/tz2BLFmxMJXW66u1jKpqmSC7Xmh3jMNKYBeU",
-        "delta": 0,
-        "previousRank": 100
+        "sourceUrl": "https://tzkt.io/tz1TP3LaztTnf7MogRDf4nrwDimvLsrqYDki",
+        "delta": -2,
+        "previousRank": 98
       },
-      "eligibleCount": 288,
-      "publishedDeepCount": 288
+      "eligibleCount": 291,
+      "publishedDeepCount": 291
     },
     "delegation": {
       "leader": {
         "rank": 1,
         "address": "tz1aRoaRhSpRYvFdyvgWLL6TGyRoGF51wDjM",
         "alias": "Everstake",
-        "scoreLabel": "86 retained assignments",
+        "scoreLabel": "88 retained assignments",
         "scoreVector": [
           {
             "metric": "retainedAssignments",
             "label": "in-season assignments retained",
             "unit": "assignments",
-            "value": 86
+            "value": 88
           },
           {
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 66115076644
+            "value": 86398730754
           }
         ],
         "sourceUrl": "https://tzkt.io/tz1aRoaRhSpRYvFdyvgWLL6TGyRoGF51wDjM",
@@ -11430,7 +11449,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 532752744113
+            "value": 532754987444
           }
         ],
         "sourceUrl": "https://tzkt.io/tz3LV9aGKHDnAZHCtC9SjNtTrKRu678FqSki",
@@ -11453,7 +11472,7 @@
             "metric": "retainedBalance",
             "label": "retained account balance",
             "unit": "mutez",
-            "value": 60039182108
+            "value": 60039241445
           }
         ],
         "sourceUrl": "https://tzkt.io/tz1XXayQohB8XRXN7kMoHbf2NFwNiH3oMRQQ",
@@ -11461,8 +11480,8 @@
         "previousRank": 10
       },
       "topHundred": null,
-      "eligibleCount": 54,
-      "publishedDeepCount": 54
+      "eligibleCount": 55,
+      "publishedDeepCount": 55
     },
     "liquidity": {
       "leader": {
@@ -11622,7 +11641,7 @@
             "metric": "externalCalls",
             "label": "independent calls",
             "unit": "calls",
-            "value": 48
+            "value": 53
           },
           {
             "metric": "deployments",
@@ -11714,7 +11733,7 @@
             "metric": "points",
             "label": "normalized rank points",
             "unit": "points",
-            "value": 2.24
+            "value": 2.25
           }
         ],
         "sourceUrl": "https://tzkt.io/tz2QhmKtUWRyArfaqfBedvVdidgKpCcckMXV",
@@ -11737,7 +11756,7 @@
             "metric": "points",
             "label": "normalized rank points",
             "unit": "points",
-            "value": 1.63
+            "value": 1.64
           }
         ],
         "sourceUrl": "https://tzkt.io/tz1LTd9oQKEkQzJzL3xJHj8Sr7ESPw21dFo2",
@@ -11745,8 +11764,8 @@
         "previousRank": 10
       },
       "topHundred": null,
-      "eligibleCount": 13,
-      "publishedDeepCount": 13
+      "eligibleCount": 14,
+      "publishedDeepCount": 14
     }
   },
   "honors": {
@@ -11866,7 +11885,7 @@
           "checkpointTo": "2026-07-26T03:56:45.622Z"
         }
       ],
-      "comparedWith": "2026-08-08T07:18:04.052Z"
+      "comparedWith": "2026-08-08T13:14:37.592Z"
     },
     "topTenDebut": {
       "status": "ready",
@@ -12544,7 +12563,7 @@
           "firstRecordedAt": "2026-08-08T13:14:37.592Z"
         }
       ],
-      "newSinceLastSnapshot": 1
+      "newSinceLastSnapshot": 0
     },
     "activeWeekStreak": {
       "status": "ready",
@@ -12698,7 +12717,7 @@
         "address": "tz1bdUW4hshuUjt7wyE61xaBNydPb29NcqEh",
         "alias": "lex.tez",
         "breadth": 6,
-        "rankSum": 2953,
+        "rankSum": 2973,
         "lanes": [
           {
             "category": "collector",
@@ -12706,11 +12725,11 @@
           },
           {
             "category": "artist",
-            "rank": 2318
+            "rank": 2335
           },
           {
             "category": "minter",
-            "rank": 589
+            "rank": 592
           },
           {
             "category": "defi",
@@ -12731,7 +12750,7 @@
           "address": "tz1bdUW4hshuUjt7wyE61xaBNydPb29NcqEh",
           "alias": "lex.tez",
           "breadth": 6,
-          "rankSum": 2953,
+          "rankSum": 2973,
           "lanes": [
             {
               "category": "collector",
@@ -12739,11 +12758,11 @@
             },
             {
               "category": "artist",
-              "rank": 2318
+              "rank": 2335
             },
             {
               "category": "minter",
-              "rank": 589
+              "rank": 592
             },
             {
               "category": "defi",
@@ -12763,23 +12782,23 @@
           "address": "tz1NxEjghX2ATrTeKTDGKS1pUfde7vJA3Und",
           "alias": "Side Effects - Plektani Art",
           "breadth": 5,
-          "rankSum": 850,
+          "rankSum": 854,
           "lanes": [
             {
               "category": "collector",
-              "rank": 159
+              "rank": 160
             },
             {
               "category": "artist",
-              "rank": 166
+              "rank": 167
             },
             {
               "category": "minter",
-              "rank": 320
+              "rank": 321
             },
             {
               "category": "defi",
-              "rank": 202
+              "rank": 203
             },
             {
               "category": "gaming",
@@ -12791,11 +12810,11 @@
           "address": "tz1MGMeqz7n5rh671qpt14joC9nHNH36wwZj",
           "alias": "Plektani Art - Christina S.",
           "breadth": 5,
-          "rankSum": 1090,
+          "rankSum": 1098,
           "lanes": [
             {
               "category": "collector",
-              "rank": 150
+              "rank": 152
             },
             {
               "category": "artist",
@@ -12803,11 +12822,11 @@
             },
             {
               "category": "minter",
-              "rank": 449
+              "rank": 454
             },
             {
               "category": "defi",
-              "rank": 320
+              "rank": 321
             },
             {
               "category": "gaming",
@@ -12819,19 +12838,19 @@
           "address": "tz2K1rDmszPuzVQYUcyDFxeSm7ZEJdDvhXx4",
           "alias": "opeculiar",
           "breadth": 5,
-          "rankSum": 1276,
+          "rankSum": 1289,
           "lanes": [
             {
               "category": "collector",
-              "rank": 575
+              "rank": 581
             },
             {
               "category": "artist",
-              "rank": 251
+              "rank": 253
             },
             {
               "category": "minter",
-              "rank": 333
+              "rank": 338
             },
             {
               "category": "defi",
@@ -12844,50 +12863,22 @@
           ]
         },
         {
-          "address": "tz1bYbSpByuVfVkdjkvHXYcM1UcuLiiuxa67",
-          "alias": "paraxeno-glitch.tez",
-          "breadth": 5,
-          "rankSum": 1688,
-          "lanes": [
-            {
-              "category": "collector",
-              "rank": 346
-            },
-            {
-              "category": "artist",
-              "rank": 624
-            },
-            {
-              "category": "minter",
-              "rank": 177
-            },
-            {
-              "category": "defi",
-              "rank": 528
-            },
-            {
-              "category": "gaming",
-              "rank": 13
-            }
-          ]
-        },
-        {
           "address": "tz1UoCQkFj4f6t5MbMW6PE1Byc3hmAkDLosr",
           "alias": "nips.tez",
           "breadth": 5,
-          "rankSum": 1796,
+          "rankSum": 1402,
           "lanes": [
             {
               "category": "collector",
-              "rank": 110
+              "rank": 112
             },
             {
               "category": "artist",
-              "rank": 1518
+              "rank": 1142
             },
             {
               "category": "minter",
-              "rank": 106
+              "rank": 86
             },
             {
               "category": "defi",
@@ -12900,26 +12891,54 @@
           ]
         },
         {
-          "address": "tz1Qi77tcJn9foeHHP1QHj6UX1m1vLVLMbuY",
-          "alias": "skllzrmy.tez",
+          "address": "tz1bYbSpByuVfVkdjkvHXYcM1UcuLiiuxa67",
+          "alias": "paraxeno-glitch.tez",
           "breadth": 5,
-          "rankSum": 2155,
+          "rankSum": 1699,
           "lanes": [
             {
               "category": "collector",
-              "rank": 420
+              "rank": 348
             },
             {
               "category": "artist",
-              "rank": 392
+              "rank": 628
             },
             {
               "category": "minter",
-              "rank": 753
+              "rank": 177
             },
             {
               "category": "defi",
-              "rank": 588
+              "rank": 533
+            },
+            {
+              "category": "gaming",
+              "rank": 13
+            }
+          ]
+        },
+        {
+          "address": "tz1Qi77tcJn9foeHHP1QHj6UX1m1vLVLMbuY",
+          "alias": "skllzrmy.tez",
+          "breadth": 5,
+          "rankSum": 2168,
+          "lanes": [
+            {
+              "category": "collector",
+              "rank": 421
+            },
+            {
+              "category": "artist",
+              "rank": 397
+            },
+            {
+              "category": "minter",
+              "rank": 755
+            },
+            {
+              "category": "defi",
+              "rank": 593
             },
             {
               "category": "gaming",
@@ -12931,19 +12950,19 @@
           "address": "tz1ZqwVKtZTME1ygmumGXu8Wv9jRAiYjNbYM",
           "alias": "pinkbrain.tez",
           "breadth": 5,
-          "rankSum": 2267,
+          "rankSum": 2279,
           "lanes": [
             {
               "category": "collector",
-              "rank": 550
+              "rank": 555
             },
             {
               "category": "artist",
-              "rank": 1000
+              "rank": 1003
             },
             {
               "category": "minter",
-              "rank": 695
+              "rank": 699
             },
             {
               "category": "defi",
@@ -12959,27 +12978,27 @@
           "address": "tz1iD7LwGyJMtUQ7pRB5Rb4y1jXTTBYf8PWV",
           "alias": "Richard F. Yates",
           "breadth": 5,
-          "rankSum": 3882,
+          "rankSum": 3907,
           "lanes": [
             {
               "category": "collector",
-              "rank": 1923
+              "rank": 1933
             },
             {
               "category": "artist",
-              "rank": 666
+              "rank": 668
             },
             {
               "category": "minter",
-              "rank": 446
+              "rank": 452
             },
             {
               "category": "defi",
-              "rank": 624
+              "rank": 629
             },
             {
               "category": "staking",
-              "rank": 223
+              "rank": 225
             }
           ]
         },
@@ -12987,27 +13006,27 @@
           "address": "tz1YnrHicLxJ3zMp2rDJWBoHkdPqdTnZ9E4x",
           "alias": "Chanekee",
           "breadth": 5,
-          "rankSum": 6430,
+          "rankSum": 6461,
           "lanes": [
             {
               "category": "collector",
-              "rank": 1920
+              "rank": 1930
             },
             {
               "category": "artist",
-              "rank": 2655
+              "rank": 2668
             },
             {
               "category": "minter",
-              "rank": 1015
+              "rank": 1016
             },
             {
               "category": "defi",
-              "rank": 605
+              "rank": 610
             },
             {
               "category": "staking",
-              "rank": 235
+              "rank": 237
             }
           ]
         }
@@ -19573,11 +19592,95 @@
           "rankAtDebut": 1946,
           "scoreLabelAtDebut": "1 artists · 0 ꜩ",
           "firstRecordedAt": "2026-08-08T13:14:37.592Z"
+        },
+        {
+          "address": "tz1VUq7pxQHGZemen2T7m9EvWRX89Brs32sk",
+          "alias": null,
+          "rankAtDebut": 872,
+          "scoreLabelAtDebut": "3 artists · 972 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1dtJ73VLfz4DQJ3TkM9QfSBVemVT433buu",
+          "alias": "cNieves",
+          "rankAtDebut": 991,
+          "scoreLabelAtDebut": "3 artists · 18 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1SS8bXLZjaXvswE8KVsWWtSYsMf1mXxqXu",
+          "alias": "zbliatkas.tez",
+          "rankAtDebut": 1138,
+          "scoreLabelAtDebut": "2 artists · 46 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1cUicaZkRAJYrgohFQseC3cRvGrPXWXhhk",
+          "alias": "Jamal_Mpd",
+          "rankAtDebut": 1254,
+          "scoreLabelAtDebut": "2 artists · 8 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1TsDemSfFemr8nwGAsHnLHbPG7Lb8VBQME",
+          "alias": "--)  (--",
+          "rankAtDebut": 1353,
+          "scoreLabelAtDebut": "1 artists · 254 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1e8EBebJmRwAP3LRGvSFSG2JgThNemS6jM",
+          "alias": "Crypt0_Ron1n",
+          "rankAtDebut": 1386,
+          "scoreLabelAtDebut": "1 artists · 111 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1LK1xQSNqan5Whn87XMMFaLkNcHxcphTuA",
+          "alias": "evolving.tez",
+          "rankAtDebut": 1411,
+          "scoreLabelAtDebut": "1 artists · 74 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1LfK7siwEC1vYYTktb8iGK93X78pVdG1XA",
+          "alias": null,
+          "rankAtDebut": 1502,
+          "scoreLabelAtDebut": "1 artists · 25 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1NMygFh31nYmiLxpZnuR6nHNKbnT6VkbiX",
+          "alias": "manikvisuals.tez",
+          "rankAtDebut": 1790,
+          "scoreLabelAtDebut": "1 artists · 4 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1RPgefwd6Nh2E4LcZzBdheYLhRc4ieaPko",
+          "alias": "ArtH",
+          "rankAtDebut": 1804,
+          "scoreLabelAtDebut": "1 artists · 3 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1Yq9nGbiLAZSqDKB5zd4MqoDJgbWhHeuVB",
+          "alias": "ainaz eghbal",
+          "rankAtDebut": 1963,
+          "scoreLabelAtDebut": "1 artists · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1guuZ7ddi3Wws7G1nxq5eGzAdGRNDknYzf",
+          "alias": "Aillyy",
+          "rankAtDebut": 1967,
+          "scoreLabelAtDebut": "1 artists · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
         }
       ],
-      "recordedCount": 924,
-      "newSinceLastSnapshot": 5,
-      "comparedWith": "2026-08-08T07:18:04.052Z",
+      "recordedCount": 936,
+      "newSinceLastSnapshot": 12,
+      "comparedWith": "2026-08-08T13:14:37.592Z",
       "claimScope": "first recorded since the prior same-season snapshot; not first-ever on-chain"
     },
     "artistDebut": {
@@ -37021,11 +37124,193 @@
           "rankAtDebut": 4071,
           "scoreLabelAtDebut": "1 collectors · 1 ꜩ",
           "firstRecordedAt": "2026-08-08T13:14:37.592Z"
+        },
+        {
+          "address": "tz1WBqEMra52wrcrWy8AtQwuibQb5cSeYaEU",
+          "alias": "Antonin Jousse",
+          "rankAtDebut": 1578,
+          "scoreLabelAtDebut": "2 collectors · 169 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1V7MkP1N5bBJasgDxyBvmGLxRBnjcwaNvG",
+          "alias": "monogrid.tez",
+          "rankAtDebut": 2211,
+          "scoreLabelAtDebut": "1 collectors · 25,000 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1h5ggjuAGW33VPksGmpBru2B3Cn868uxsh",
+          "alias": "itsgalo.tez",
+          "rankAtDebut": 2569,
+          "scoreLabelAtDebut": "1 collectors · 29 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1btE1etVTqn8tsXU4ai9mkaj2ReZpbYde6",
+          "alias": "Fabian Pixels",
+          "rankAtDebut": 2648,
+          "scoreLabelAtDebut": "1 collectors · 25 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz2GmWe6WZdAaGdjYK8NBenRFYb8XekQHZ3s",
+          "alias": "alurwaktu",
+          "rankAtDebut": 2704,
+          "scoreLabelAtDebut": "1 collectors · 20 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1LSLUQ1bXw3TmuR8V2fRx5QjxQp3E9U86Z",
+          "alias": "mosio.tez",
+          "rankAtDebut": 2882,
+          "scoreLabelAtDebut": "1 collectors · 14 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1RVWbyCWUWp3K28aEV2rWJtQ2Y13YBJBek",
+          "alias": "Tresset HICMIX",
+          "rankAtDebut": 3164,
+          "scoreLabelAtDebut": "1 collectors · 8 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1PBArJZ5FX6uKdGQwuHZ7NcyMCffN5z3Xa",
+          "alias": "ccddbb.tez",
+          "rankAtDebut": 3333,
+          "scoreLabelAtDebut": "1 collectors · 6 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1L1NXs3vgh1Xpo8Gb6NhdhNCXZmXcwDeuB",
+          "alias": "Subhran Karmakar",
+          "rankAtDebut": 3375,
+          "scoreLabelAtDebut": "1 collectors · 5 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1SSFMRmhFFcpsw6KZmQaRgFV46X6BMo3mV",
+          "alias": "silverecho.tez",
+          "rankAtDebut": 3376,
+          "scoreLabelAtDebut": "1 collectors · 5 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1WWsTaHe5zLgayoTTbbAFAK3E3uVt68ehw",
+          "alias": "Oleg Ivlev",
+          "rankAtDebut": 3673,
+          "scoreLabelAtDebut": "1 collectors · 3 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1XGg8jYB893NgccTBFk7QwPKPLT6JquBL9",
+          "alias": "Nahid Eshghi",
+          "rankAtDebut": 3870,
+          "scoreLabelAtDebut": "1 collectors · 2 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1MzY6y6RZTpmk4FUHcvt4H4Ckznb3eMNYc",
+          "alias": "protozoo.tez",
+          "rankAtDebut": 4004,
+          "scoreLabelAtDebut": "1 collectors · 2 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1bgKfbwo6GN9BQYeJj3VYQ8MqBjCxVN3ni",
+          "alias": "Digital Minds",
+          "rankAtDebut": 4303,
+          "scoreLabelAtDebut": "1 collectors · 1 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1Rs9yZqAka9T3fS3PTn9pUnMpkggUJM22d",
+          "alias": null,
+          "rankAtDebut": 4387,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1NjN2T3jPYa3UkByD3K1ATe1xWk96LNLsr",
+          "alias": "TEZOGEN",
+          "rankAtDebut": 4388,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1Wbaii4z9X6RxUiuTHEdjZC7DRBCGgYagw",
+          "alias": "Jessica Luz",
+          "rankAtDebut": 4389,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1ZnnE6RdGPHJCfCDcR2Xrk8sLSJ1UoG6uh",
+          "alias": "Scarabeloutis",
+          "rankAtDebut": 4405,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1LChH5Vd3Kiq3j5YAE3S4ptd4PqU5QPRiF",
+          "alias": null,
+          "rankAtDebut": 4406,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1MtKGbDrAe3uAMqLsuSxBixLqS4DxUHvNn",
+          "alias": "kuragin.tez",
+          "rankAtDebut": 4407,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz2MHqnLnzdVT2XeocAAfRr78TxviqVaADnT",
+          "alias": "Deuz Exxa",
+          "rankAtDebut": 4426,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1RTgQe5NvWweSwkUDVkepc8boaewQFDFxs",
+          "alias": "Ryan Annett",
+          "rankAtDebut": 4456,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1QT2LAZdR8jjeQXCEBTWjhd9sUhvRtasRj",
+          "alias": null,
+          "rankAtDebut": 4457,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1dhn7VgNLPXVcDTC1zAuYSixtqNdAT74ta",
+          "alias": null,
+          "rankAtDebut": 4524,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz1Y3DW8iYYyPyQ5C59q2nCdRignFWuLZM4P",
+          "alias": "observeth",
+          "rankAtDebut": 4526,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
+        },
+        {
+          "address": "tz2DoaGhehRuteNf8SJxUFofK4FrKPtx5R1i",
+          "alias": "Alex Larch",
+          "rankAtDebut": 4576,
+          "scoreLabelAtDebut": "1 collectors · 0 ꜩ",
+          "firstRecordedAt": "2026-08-08T19:01:12.787Z"
         }
       ],
-      "recordedCount": 2480,
-      "newSinceLastSnapshot": 6,
-      "comparedWith": "2026-08-08T07:18:04.052Z",
+      "recordedCount": 2506,
+      "newSinceLastSnapshot": 26,
+      "comparedWith": "2026-08-08T13:14:37.592Z",
       "claimScope": "first recorded since the prior same-season snapshot; not first-ever on-chain"
     },
     "comeback": {
@@ -37034,8 +37319,8 @@
     }
   },
   "history": {
-    "snapshotCount": 89,
-    "previousGeneratedAt": "2026-08-08T07:18:04.052Z",
+    "snapshotCount": 90,
+    "previousGeneratedAt": "2026-08-08T13:14:37.592Z",
     "topTenByLane": {
       "transaction": [
         "tz1LonSbajvsh48sEp35EHrYNAWi6hUXz1vX",
@@ -37254,7 +37539,7 @@
     }
   },
   "passports": {
-    "indexedAddresses": 14015,
+    "indexedAddresses": 14044,
     "shardCount": 64,
     "nonemptyShards": [
       "00",
@@ -37325,72 +37610,72 @@
     "shardAlgorithm": "sha256-first-byte-mask-3f-v1",
     "algorithm": "sha256-compact-json-v1",
     "shardHashes": {
-      "10": "8de333f3e4872055a88c6246c6d49fe18384e7cbabcc0b40f2841ff6c2c17567",
-      "11": "bbb08535842db42a74658637e947b4b782e0e5172385d7f8bb7ebb8136c7a358",
-      "12": "ad5e606127682127f126df160b45facf101b84ee272d6b6a1e57d0a5fb501b80",
-      "13": "2ad56a98296e473e91eb628a17f224a42072c76d3056ef7109650526a4be7c03",
-      "14": "e309bf5de04b55f6da2fb7ed7a0fe57d89817be4e13365436d15101e0e08b2be",
-      "15": "ba2685e66a4057243ee94951c65b61f4b99b9decae8a7ad4ccc41490c2bcd9e5",
-      "16": "2b1c8e74a6f079441b523c173f67d3bea9ed8b6c985f0d47cea3db97827c0532",
-      "17": "7f4255049de78f9856e7a10651abfe2a7bd6f1d6cc7828862beae5c4139d4ced",
-      "18": "cd48b909dbf35928fb4a15bb1ed5e28239c23898789b050917bb3c23c7e5e8d9",
-      "19": "717cf19c5dbfa17383cdef8fc619a9499fc9d5b5883aa532680edcd54f33c1f5",
-      "20": "46dfd520f6e20b03bd8ebcf0743254c0fe48de8878ce6d0d3f96a6a015dc4ec8",
-      "21": "b51ee98d924f38902a81334c222a84d27c8265987d737faab02a40b1cc21f64e",
-      "22": "a15b0b201339bfb3d5acf04e30456863219b87ef07391b8e174962148ac80dd6",
-      "23": "ef35ae699c7c1bafdedb34a552d6716bfe4d132a353f3884fedf202399c473a4",
-      "24": "30af7f0d0003c828cba6f2e8175f6dece4a69617d46992b0c0589872a4758bcd",
-      "25": "522e52cd524549449a756b2de4651252645e79cbad1e70d226d14ab731cccbd9",
-      "26": "10155f9bf36b1414b67d304cf0130ec913f2ebaa48f9fb0d31ca27234f19adc2",
-      "27": "07e681ba05f8854f41c5397154ceb3522a58119c34307c7926d91f34e10c024f",
-      "28": "bdc565b5bf0a07f9087a1f8e20ad6adc372e2d60e88b28b98a7fb5e00484f1eb",
-      "29": "d47531dffe95c03544beef2decffeff9a4fee8009226f1a7752550de6aa86e7e",
-      "30": "2d9c2147171f9568fdcb98036d2d970e87ca8b1b596e842dcc51b1d667ec7a1b",
-      "31": "7d07d44f2a04c6d267ae055c6a2fb766f05ccb938a5c2e7312926cf9eb80eee5",
-      "32": "5759c67d299ef7ebec3d83974c624e432b826a757cce1d683e213dff52a57173",
-      "33": "a495a3456dc07a3fe61d0619f2c692bb124087cd6429fd4618c65f3ebb88cf80",
-      "34": "b0009a7c2e8420c4054a3340c62e33e0373a826e96345b4ce779abda54a51dff",
-      "35": "86e41702a9d221424ac73d461f3819c06b80a9fa8a26b3695957bd74d25e2cae",
-      "36": "8c3095617d75013cd742e60698f0a509ee12d7c8101bbadb19d4b06d5c5d6d0d",
-      "37": "6b762b767960e64ee466e73e0749bfd60303a04938a343a6046d95cfb0593782",
-      "38": "da7611ae36c1fd9403f28b955ee87c7bcb4b419ff588a85f3dab0e6afe8c47ed",
-      "39": "6cd934b7f82c496c32d5e04179b840d900eb89b3c7ede0fb6268eda5db48bbe7",
-      "00": "3942b55914d24b82f0b5c787736721a575c753bc199a2ce394f506df84e44b4c",
-      "01": "36f38d2b2ffbd3e7bf6314d5842678eb9cb1a803f4969ee39d931f3a49319cf2",
-      "02": "fe13aeb369710e185734332def1c757384879f18949ef0beb5d07db2af054be6",
-      "03": "1fa408c532e1174e34b88f69825fd3b2bbba8d3590e68dd8b5eeeaab3aa215d6",
-      "04": "bd4752c2d588037bbb3cb3f8d0001a8850e7bd51aa02aec93688c92b71db4988",
-      "05": "6eb649e1dfc422cbdcd2cba6afff89db634713d754d76b8d181223ef89b83211",
-      "06": "5cf18e57083e243eeadc83c38f85616afe2686de442f03048d00415c3716c97c",
-      "07": "3865dd119d0496079d854cb4132f7934384ec6a6550f994a12f36b48f9fa964a",
-      "08": "9a30fa3bef8ff27a39c6cd133f266468a430073c1d8587602613f2f47c0088c7",
-      "09": "a8d6dd1a5bace9529f84528094a3a78bde6108c307a73dfca7b2cbde926ec41a",
-      "0a": "5efa36f95db4ad608f3148f41e54878ff5c1023ccac8a6a362687ea7106613be",
-      "0b": "46a3bf19a4b5772f3104841be1f8a8494d05f28d33372dec3165543f8395c52d",
-      "0c": "c410c34887ae2b7af455445ba4f4f1e5680e709c302bfc0fe3a44e2e19cb1419",
-      "0d": "8947a1433414e279f1663df17b28508f32b5e80d7331c39b726981d2a5acbc94",
-      "0e": "09f8b844679f7be0e4ba04618a947f4afafbdc1b7cfcca099f02772070788a96",
-      "0f": "7cb4b850bfbfe1b977b932b58042ebe93a4376c1d873d3c3abf4006940a2d876",
-      "1a": "e3b05721495c88fe23190d5645ba6115c3afd07bbcc4b8a9fe4571cfe4d4a021",
-      "1b": "e46acee4f6391c2941c1e66b5db17b1b58b62c4be084c3f986a61743a833f1be",
-      "1c": "76a43959aaa8d72f2b65943b82e02504b1803b32c5155276623a544c00789409",
-      "1d": "43acdcb4b0a4fc89bab3cc72c8f2d125cd07ba3b86e245e48c642725fa12d622",
-      "1e": "0cb8a51fc89b4ad7f5b6b30a5d054d0a190dc2c2a51f90911da3b24e8a17f803",
-      "1f": "67c05e93e51df18dd9ccaba83dfc937c98a92d5bfeb269eb0d4ffbabec48f75f",
-      "2a": "a1e34ab402354faefd988c701e5aac650e3111a3504765ba4534545ceb8e3c31",
-      "2b": "7094aa16f8d22ab11f152035fda5c7452fbaaf42300f258303c48df476e228e7",
-      "2c": "f3e67580a428f425db60a9d91c00a1bd0e7ea7744614ccc8d34170146f3dc627",
-      "2d": "5045c1e014d71da9559e4ed79d643499d828d621d4eba19db398c89961c920bb",
-      "2e": "64fe61db2d6b5c7d4665267745840c4c113c3d46e3ad7beba211fc42d34cb3b9",
-      "2f": "54928290d8d133dbba7ec60d0918d0d326e1a78dbacbbd8c1430f037c8f89159",
-      "3a": "fd573927a12f96011b887850f221f9b4f9c4e59c24695a3db97acba9637afbb8",
-      "3b": "479bc3b00c08ef70fa3635c785099b3b93dc15f642f59577f3b00a1b6cb7f165",
-      "3c": "a41953ac52c577fa97fcdc54058f762463740b36475ec7f6e90c8c451329f27c",
-      "3d": "797a8e2e4336d58b9f68e491b8c479bcfc3f9fd4b28b62178d374e44e5537653",
-      "3e": "4b57f2b65384aeacdce383cf6ce9115c44e61f2600181394dfe69a09856e441b",
-      "3f": "fca386a5961e6b9e3be7e1a263a07cc17480d5d80771b0603ddc16dd1ac917a5"
+      "10": "a9005e83245f69d00592f34fe60a6f73ca0d138eb628de20abaa2c7de63daee8",
+      "11": "09588125b17f2cffcc890d75540ca4f54940671376598fe1a3b08abf46203232",
+      "12": "9c7fa8232f74a53713cf54cbc9f2c999996890a6b353cc4bea396d4baff99e6d",
+      "13": "dbf603366e1c040e9384cc599c49c37da574707e2e4a20325ed0a6e895bf15d7",
+      "14": "45af1f52fff2461052eba340e81f89160d974963ed2a56cd43d2d7f8ad5a805b",
+      "15": "ff67f7035be2c241980cc3f149948bf77b3a6905ac3fcb86309c817116b93035",
+      "16": "4c11659ce1e9521d1c9206e330f449713ff45c8ecc73a0327aa4e766466a01af",
+      "17": "c753b24f385a259ebca2aea7f09ea61d71c76fe58cdbcbdd7ff9e2ea15752b4d",
+      "18": "f642a2aea8534b27210670510d7e9d1bb78ae2850c3796a5e819765a2a872186",
+      "19": "321512605e8c54de29b6f720a7a3505ce3710776f4fe243ffa73c11166aecc36",
+      "20": "320604210b4413010d5aec6a34ad38cde44c9cda68d0d758e5b6fd02f68a2571",
+      "21": "ec37cf06be09bbfcc0469546d32cd8c11377d18707752214e4415b042f5d2c8a",
+      "22": "581c605ceedec00d3a52a412ec2994a530201a91af1e6d1a6a55a53b3966f574",
+      "23": "bca26d9a28c39a424fe8ceee299a7a56c1d2e2eb28e465911348cab24e74a4db",
+      "24": "8184769204e70b1df9614b516856c8aceb5dc08bb69a233cef1b4ac8e2440531",
+      "25": "44375b06d6c2491e67f971acd6578c13cddff72849b93d7e4b16d60312d73f24",
+      "26": "aca855374e5caee52fd01ef20aad5e74ece50e81715aea8cc539de14bc9d8b07",
+      "27": "3b68dc708f4bb7f66158192b9e544cc3a5484f0476b70f17a5779c20eb945320",
+      "28": "1d07b8d396e177ef7c58621e1e5440136cbffeca118b5b3bd52e8461f9545d0f",
+      "29": "5485217c0a830344d0dfe2a77d18d6bfed2b1278099ea8d842a15345db8e3e43",
+      "30": "8c7889aa9fe439c1a2d12a71ce4b1995a8f445c514f3a6deb39002971caf7216",
+      "31": "25c96f30a970035b6c81c99172e1256a8c761436bd3ad85435732ecf706d2e64",
+      "32": "4beb3d43f48c9ad3525fb5c7bb41bb5d54901887e1bbd70e95a7b63d9f3217be",
+      "33": "611c4d4c4e7cd2f2380556263c43a03dcb69511753d74127be2784c84b946955",
+      "34": "5c6dcca5e05819df1733ca928573d7a10a58557862ee7504e8bfc5bd6158de9c",
+      "35": "8bfe0da0f6ceb70b4b2a6d92543d444bf9e32a8e56584228d90b68d3a11264ea",
+      "36": "68afec051f74b9ceae476cc271ae94efd0696a5c54e2b9b8b30b8162d4459af9",
+      "37": "10690754a57aeeda9affdbb8ef6c235272d228fd978c21376cabee85ea3b3a6e",
+      "38": "e4596a1d5909e66ea58ebcd5860775017a6ce5c979c70cf0b2a71fac81234b8f",
+      "39": "44fb52d2155141e5a27381ebf5636e5838d3a8ff831ca4b5c89d6e06ba3acf28",
+      "00": "b6d29cb6f61cceba92ce039a500cf41ce9af91dc5e6e65655b7ef0201e20dae9",
+      "01": "5cd8ebb02a26f6167fd868613b3707aa9c2e9c2a47c17a5c1fb40a3bb1ce459d",
+      "02": "4bfeb990eaa101c449ff7ac04150bfda959794746a9ab1a9bd72fba3abd50c3a",
+      "03": "0038eea862174fa08d5ff1cc02bfcf247906c3d6cddf41e025d624c62b018bf4",
+      "04": "fb392f121100b1acddb5d036f039d51dcba91ca8906465f4d7286946a3934cfb",
+      "05": "f4c9af320b2e700b2d87879bdeed7ef63274e7433dd276378d2fbe1179f8c524",
+      "06": "930615990d6b102c8dbc226b78070ef6ccdada5c4c086db5ac1c26c4dc4f9418",
+      "07": "8aa52857341181cc9783579d618f898cb5890ffc3a4ba337593e0da2f4b2dd51",
+      "08": "23b32f5de381638fa6cad358ee9024e6142e2306552b0a6acd85346335a67a6d",
+      "09": "e06f999d6282d55a559216073c5a775772d2f9fc846d13d1eded27bd7f61f2d2",
+      "0a": "47f916a670c76724dd29fc24be41bab42d255c6d2b8716fac262d530da4f074a",
+      "0b": "20d977eabd4777af2462f4b1589eb3e3d7488af5c42d6d3d95717464ce380e03",
+      "0c": "e8c4eac106772a3626a47441cca3d80e61d209f5b72c5e287d5982a9f2ff001b",
+      "0d": "5c56dcb0ea8d1555abc7f5a4ebc0cb8636db087d65a21faacdfe66e4dc32ebcd",
+      "0e": "56386a8206626e26406606cc7db2ed1fb82a47ee56bd09c4a25d9f64f9629154",
+      "0f": "470babff56b7a98b075c312e5fb08398331efa9177da57631399efc9cbb9478d",
+      "1a": "3530c8bc256d8e0abf1f84348a037a8bfaedad76d1d896bb1ca821b78bd9590e",
+      "1b": "316c89410a40d624e15db3f35fb04aa0b1fe8431ea3ac1dc0f8e8472646b2182",
+      "1c": "9018a2e7136b1bf8a5d139e3adcd0f0863cf1e512fe569f7fb625b5af5f4ca23",
+      "1d": "186760ce4528366152e460fb00c25ba0b244f47214986e6658d2beb1ec8c9a00",
+      "1e": "c72068bb770729e51b43ac91a1817343582f46f38f7c569fc6418a899a2998f3",
+      "1f": "7dfca5fd509fe2490f234e97d7235f8fe581afb271044cab2c4d7c6a9d3bc51c",
+      "2a": "4e3f67a2c6787d70df17d37a54121e3973176fa19c06ec0d05dfe8ce06e1518c",
+      "2b": "b7225c5475038717c709c8ac81c2a41252e07873fda411a6e7b450d3f236d4e9",
+      "2c": "001b42f48f17538f1585e5cb971b9669b0c562c934f535609d1d71d4b8879946",
+      "2d": "7c66a98b5732d8d8cfa9502dc666529560693cc691868de9b9790ed99210962a",
+      "2e": "ec8ab0c38d43a4037dcb3f17947fadcc2cd6c7274772dd9e0feec2b441985e19",
+      "2f": "710984b0e900edffb9997ae2ea1f974eda354c9e2627f6cbcad3c0c78971c3f9",
+      "3a": "641eec86a464fdb4dfba1fdb3429b3d8055b741a82aa1b66d4daa11279ae2b5c",
+      "3b": "7cc6409d329b9d52148f52fd4cb8f54be47647e4d429ecb870cb815b1715ea07",
+      "3c": "1e0f9345afe07778327edb19b2029e5f3420870d5fc7c06b5f04efb22e9b4472",
+      "3d": "cec79cbd04122dc1c3e729dcc6674f10000269aeecfdb5764dbf270219f09ab1",
+      "3e": "eafe3290a21419c4db04d44168f62743e4c8490a6bf938eda6d5f907c65d1c07",
+      "3f": "280a43c7b99ae75e577ae128000642982cebdfb162527b51b5fb1c905c8b70ed"
     },
-    "contentRoot": "d12b8ec2afdd4f8aa6163c7d0a523c116ba5ffbca4abd0613108bfdf061f2485",
+    "contentRoot": "d3de34391a075de4c068180ea0718d1d20ddf03ef52d4a9feb4ed808d6df0d33",
     "pathTemplate": "/data/maxis/seasons/protocol-25-PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY/passports/{shard}.json"
   },
   "offchainBadges": {
@@ -37406,14 +37691,14 @@
     "schema": 1,
     "measurement": "utf8-pretty-core-compact-shards-v1",
     "rulesBytes": 329074,
-    "summaryBytes": 1331400,
-    "transactionStateBytes": 4818058,
-    "passportShardsBytes": 44143285,
-    "totalBytes": 50621817,
+    "summaryBytes": 1341791,
+    "transactionStateBytes": 4850882,
+    "passportShardsBytes": 44319559,
+    "totalBytes": 50841306,
     "shardCount": 64,
     "maxShard": {
       "shard": "2a",
-      "bytes": 827391
+      "bytes": 826452
     },
     "limits": {
       "transactionStateBytes": 16777216,
