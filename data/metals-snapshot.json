@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-11T07:44:13.859Z",
+  "generatedAt": "2026-08-11T13:48:08.241Z",
   "identity": {
     "id": "precious-metals",
     "name": "Precious Metals Chamber",
@@ -160,9 +160,9 @@
         "marketSymbol": "XAU",
         "currency": "USD",
         "unit": "USD per troy ounce",
-        "priceUsdPerTroyOunce": 4359,
-        "observedAt": "2026-08-11T07:43:35.000Z",
-        "retrievedAt": "2026-08-11T07:43:43.505Z",
+        "priceUsdPerTroyOunce": 4404.299805,
+        "observedAt": "2026-08-11T13:47:36.000Z",
+        "retrievedAt": "2026-08-11T13:47:53.021Z",
         "sourceKey": "goldApiXau",
         "methodology": "A current USD value returned by Gold API's unauthenticated price endpoint; its response does not disclose contributing venues, upstream inputs, or venue weighting.",
         "limitations": [
@@ -227,9 +227,9 @@
         "marketSymbol": "XAG",
         "currency": "USD",
         "unit": "USD per troy ounce",
-        "priceUsdPerTroyOunce": 64.476997,
-        "observedAt": "2026-08-11T07:43:35.000Z",
-        "retrievedAt": "2026-08-11T07:43:43.504Z",
+        "priceUsdPerTroyOunce": 65.315002,
+        "observedAt": "2026-08-11T13:47:35.000Z",
+        "retrievedAt": "2026-08-11T13:47:53.019Z",
         "sourceKey": "goldApiXag",
         "methodology": "A current USD value returned by Gold API's unauthenticated price endpoint; its response does not disclose contributing venues, upstream inputs, or venue weighting.",
         "limitations": [
@@ -294,9 +294,9 @@
         "marketSymbol": "XPT",
         "currency": "USD",
         "unit": "USD per troy ounce",
-        "priceUsdPerTroyOunce": 1743,
-        "observedAt": "2026-08-11T07:43:38.000Z",
-        "retrievedAt": "2026-08-11T07:43:43.506Z",
+        "priceUsdPerTroyOunce": 1768,
+        "observedAt": "2026-08-11T13:47:38.000Z",
+        "retrievedAt": "2026-08-11T13:47:53.266Z",
         "sourceKey": "goldApiXpt",
         "methodology": "A current USD value returned by Gold API's unauthenticated price endpoint; its response does not disclose contributing venues, upstream inputs, or venue weighting.",
         "limitations": [
@@ -361,9 +361,9 @@
         "marketSymbol": "XPD",
         "currency": "USD",
         "unit": "USD per troy ounce",
-        "priceUsdPerTroyOunce": 1390,
-        "observedAt": "2026-08-11T07:43:37.000Z",
-        "retrievedAt": "2026-08-11T07:43:43.506Z",
+        "priceUsdPerTroyOunce": 1396,
+        "observedAt": "2026-08-11T13:47:37.000Z",
+        "retrievedAt": "2026-08-11T13:47:53.265Z",
         "sourceKey": "goldApiXpd",
         "methodology": "A current USD value returned by Gold API's unauthenticated price endpoint; its response does not disclose contributing venues, upstream inputs, or venue weighting.",
         "limitations": [
@@ -17790,18 +17790,18 @@
       }
     },
     "market": {
-      "status": "stale",
+      "status": "ok",
       "sourceKey": "coinGeckoVnxau",
       "coin": {
         "id": "vnx-gold",
         "name": "VNX Gold",
         "symbol": "VNXAU",
-        "priceUsd": 137.58,
-        "change24hPct": -0.4065,
-        "marketCapUsd": 6067004,
+        "priceUsd": 142.09,
+        "change24hPct": 3.4256,
+        "marketCapUsd": 6266165,
         "totalSupply": 44100,
         "circulatingSupply": 44100,
-        "observedAt": "2026-08-10T08:08:45.773Z",
+        "observedAt": "2026-08-11T13:47:44.717Z",
         "platforms": {
           "base": "0xac3fe22294beaed9d1fd752323a6d06d12ff3098",
           "ethereum": "0x6d57b2e05f26c26b549231c866bdd39779e4a488",
@@ -17812,11 +17812,6 @@
         }
       },
       "priceHistoryUsd": [
-        {
-          "date": "2025-08-11",
-          "timestamp": "2025-08-11T00:00:00.000Z",
-          "priceUsd": 110.1264
-        },
         {
           "date": "2025-08-12",
           "timestamp": "2025-08-12T00:00:00.000Z",
@@ -19635,35 +19630,40 @@
         {
           "date": "2026-08-10",
           "timestamp": "2026-08-10T00:00:00.000Z",
-          "priceUsd": 137.837456
+          "priceUsd": 137.845533
         },
         {
-          "date": "2026-08-10",
-          "timestamp": "2026-08-10T08:07:10.000Z",
-          "priceUsd": 137.576083
+          "date": "2026-08-11",
+          "timestamp": "2026-08-11T00:00:00.000Z",
+          "priceUsd": 137.377599
+        },
+        {
+          "date": "2026-08-11",
+          "timestamp": "2026-08-11T13:46:00.000Z",
+          "priceUsd": 142.09624
         }
       ],
       "venueMappings": [
-        {
-          "identifier": "xt",
-          "name": "XT.COM",
-          "base": "VNXAU",
-          "target": "USDT",
-          "lastUsd": 136.96,
-          "volumeUsd": 14211.05,
-          "observedAt": "2026-08-10T08:07:02.000Z",
-          "trustScore": null,
-          "isAnomaly": false,
-          "isStale": false
-        },
         {
           "identifier": "raydium-clmm",
           "name": "Raydium (CLMM)",
           "base": "9TPL8DROGJ7JTHSQ4MOMAOZ6UHTCVX2SEMQIPOPMNA8R",
           "target": "EPJFWDD5AUFQSSQEM2QN1XZYBAPC8G4WEGGKZWYTDT1V",
-          "lastUsd": 139.06,
-          "volumeUsd": 4974.81,
-          "observedAt": "2026-08-10T05:53:05.000Z",
+          "lastUsd": 143.61,
+          "volumeUsd": 43406,
+          "observedAt": "2026-08-11T13:44:16.000Z",
+          "trustScore": null,
+          "isAnomaly": false,
+          "isStale": false
+        },
+        {
+          "identifier": "xt",
+          "name": "XT.COM",
+          "base": "VNXAU",
+          "target": "USDT",
+          "lastUsd": 136.98,
+          "volumeUsd": 14159.1,
+          "observedAt": "2026-08-11T13:46:22.000Z",
           "trustScore": null,
           "isAnomaly": false,
           "isStale": false
@@ -19673,9 +19673,9 @@
           "name": "Orca",
           "base": "9TPL8DROGJ7JTHSQ4MOMAOZ6UHTCVX2SEMQIPOPMNA8R",
           "target": "AYMATZ4TCL9SWNEEV9KVYZ45CHVHDZ6KUGJTJPZLPU9P",
-          "lastUsd": 140.15,
-          "volumeUsd": 388.54,
-          "observedAt": "2026-08-10T01:42:20.000Z",
+          "lastUsd": 143.72,
+          "volumeUsd": 6249.77,
+          "observedAt": "2026-08-11T13:45:34.000Z",
           "trustScore": null,
           "isAnomaly": false,
           "isStale": false
@@ -19685,9 +19685,9 @@
           "name": "Aerodrome SlipStream",
           "base": "0XAC3FE22294BEAED9D1FD752323A6D06D12FF3098",
           "target": "0X833589FCD6EDB6E08F4C7C32D4F71B54BDA02913",
-          "lastUsd": 138.74,
-          "volumeUsd": 334.12,
-          "observedAt": "2026-08-10T07:37:02.000Z",
+          "lastUsd": 141.15,
+          "volumeUsd": 3770.98,
+          "observedAt": "2026-08-11T13:38:15.000Z",
           "trustScore": null,
           "isAnomaly": false,
           "isStale": false
@@ -19706,11 +19706,11 @@
         "symbol": "VNXAU",
         "type": "ERC-20",
         "decimals": 18,
-        "totalSupplyExact": "31587.32294",
-        "totalSupply": 31587.32294,
+        "totalSupplyExact": "31549.53062",
+        "totalSupply": 31549.53062,
         "holdersCount": 111,
-        "exchangeRateUsd": 137.63,
-        "observedAt": "2026-08-11T07:43:44.371Z"
+        "exchangeRateUsd": 143.44,
+        "observedAt": "2026-08-11T13:47:53.467Z"
       },
       "counters": {
         "transfersCount": 11586,
@@ -19738,8 +19738,8 @@
           "name": "DackieV3Pool",
           "isContract": true,
           "isVerifiedContract": true,
-          "balanceExact": "3199.627529908793643584",
-          "balance": 3199.62752991
+          "balanceExact": "3161.83560207076932683",
+          "balance": 3161.83560207
         },
         {
           "address": "0x9f0a19Cd14D2924aF2e57A85Bf980C57384ed7Db",
@@ -19778,8 +19778,8 @@
           "name": null,
           "isContract": false,
           "isVerifiedContract": false,
-          "balanceExact": "7.157195891154553931",
-          "balance": 7.15719589
+          "balanceExact": "7.156803729178870685",
+          "balance": 7.15680373
         },
         {
           "address": "0x150a0D516C0ceFa39f980Da57d5422E91A94238b",
@@ -20119,6 +20119,126 @@
         }
       ],
       "latestTransfers": [
+        {
+          "transactionHash": "0x8c2a68fdae691571c6a0c392cf489db16469f233ba7403e979eeda9cf99d3652",
+          "blockNumber": 50769126,
+          "logIndex": 3,
+          "timestamp": "2026-08-11T13:02:04.000Z",
+          "from": {
+            "address": "0x1B32e4660E441588960018863e83b15F3C01050B",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "to": {
+            "address": "0x0000000000000000000000000000000000000000",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "amountExact": "37.79199",
+          "amount": 37.79199
+        },
+        {
+          "transactionHash": "0xf8216ddeea50ec25cd0027e6346a55b171bb154ca1a69db4f85088c6b4c2cbfc",
+          "blockNumber": 50769124,
+          "logIndex": 1,
+          "timestamp": "2026-08-11T13:02:02.000Z",
+          "from": {
+            "address": "0x1B32e4660E441588960018863e83b15F3C01050B",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "to": {
+            "address": "0x0000000000000000000000000000000000000000",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "amountExact": "0.00033",
+          "amount": 0.00033
+        },
+        {
+          "transactionHash": "0x1ea27b367736448a09b4bf6ca1fe7b0577519b232a805c591a4da67263f34ccf",
+          "blockNumber": 50769069,
+          "logIndex": 1,
+          "timestamp": "2026-08-11T13:01:07.000Z",
+          "from": {
+            "address": "0x31B017723F6eb8E7CfdE0D8B5fc5272c767b3b86",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "to": {
+            "address": "0x1B32e4660E441588960018863e83b15F3C01050B",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "amountExact": "37.791927838024316754",
+          "amount": 37.79192784
+        },
+        {
+          "transactionHash": "0x0991caf3d0bb8e160bcdfb2a2730239198e58afc8022e21e1af927fdad52b3bd",
+          "blockNumber": 50769057,
+          "logIndex": 0,
+          "timestamp": "2026-08-11T13:00:56.000Z",
+          "from": {
+            "address": "0x2Db1004655Ce2A5B7fA12ECACe28CF1215973a82",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "to": {
+            "address": "0x31B017723F6eb8E7CfdE0D8B5fc5272c767b3b86",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "amountExact": "37.791927838024316754",
+          "amount": 37.79192784
+        },
+        {
+          "transactionHash": "0xdeea2054b11ca3b6bf2a748a214ad9b873c96feef4f55600959ac06d45e61a5d",
+          "blockNumber": 50769004,
+          "logIndex": 5,
+          "timestamp": "2026-08-11T13:00:01.000Z",
+          "from": {
+            "address": "0x8F10B468b06c6FD214B65F87778827F7D113f996",
+            "name": null,
+            "isContract": true,
+            "isVerifiedContract": false
+          },
+          "to": {
+            "address": "0x2Db1004655Ce2A5B7fA12ECACe28CF1215973a82",
+            "name": null,
+            "isContract": false,
+            "isVerifiedContract": false
+          },
+          "amountExact": "37.791927838024316754",
+          "amount": 37.79192784
+        },
+        {
+          "transactionHash": "0xdeea2054b11ca3b6bf2a748a214ad9b873c96feef4f55600959ac06d45e61a5d",
+          "blockNumber": 50769004,
+          "logIndex": 1,
+          "timestamp": "2026-08-11T13:00:01.000Z",
+          "from": {
+            "address": "0x86D2f4eF99915652bFC3Adf29683752334582B4D",
+            "name": "DackieV3Pool",
+            "isContract": true,
+            "isVerifiedContract": true
+          },
+          "to": {
+            "address": "0x8F10B468b06c6FD214B65F87778827F7D113f996",
+            "name": null,
+            "isContract": true,
+            "isVerifiedContract": false
+          },
+          "amountExact": "37.791927838024316754",
+          "amount": 37.79192784
+        },
         {
           "transactionHash": "0x10a28eb6db5843506260de1000b44742e7232d8f4a357aa989ec6745110a3f7a",
           "blockNumber": 50714625,
@@ -20998,126 +21118,6 @@
           },
           "amountExact": "18.100560800246128313",
           "amount": 18.1005608
-        },
-        {
-          "transactionHash": "0xe93deeeb6ef45f49e795226a58916407420e28b1f09fdec6fef4c16adcbd2f2b",
-          "blockNumber": 50505304,
-          "logIndex": 4,
-          "timestamp": "2026-08-07T23:04:02.000Z",
-          "from": {
-            "address": "0x1B32e4660E441588960018863e83b15F3C01050B",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "to": {
-            "address": "0x0000000000000000000000000000000000000000",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "amountExact": "21.71636",
-          "amount": 21.71636
-        },
-        {
-          "transactionHash": "0xd1d99998800a78d5b7988b93896124a21974f5d8e3e7b393207e6b9638269676",
-          "blockNumber": 50505041,
-          "logIndex": 1,
-          "timestamp": "2026-08-07T22:59:06.000Z",
-          "from": {
-            "address": "0x31B017723F6eb8E7CfdE0D8B5fc5272c767b3b86",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "to": {
-            "address": "0x1B32e4660E441588960018863e83b15F3C01050B",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "amountExact": "21.716362118454857459",
-          "amount": 21.71636212
-        },
-        {
-          "transactionHash": "0xc020d1f4ec61600caab4d960d1d38abc21d68cd054e6321e03ac562c466d6bb0",
-          "blockNumber": 50505010,
-          "logIndex": 0,
-          "timestamp": "2026-08-07T22:58:26.000Z",
-          "from": {
-            "address": "0x2Db1004655Ce2A5B7fA12ECACe28CF1215973a82",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "to": {
-            "address": "0x31B017723F6eb8E7CfdE0D8B5fc5272c767b3b86",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "amountExact": "21.716362118454857459",
-          "amount": 21.71636212
-        },
-        {
-          "transactionHash": "0x2efc3e7d5e1dcef871a8303dbb6c99dec268fc9cd6ad74649623d57108819fcb",
-          "blockNumber": 50504968,
-          "logIndex": 5,
-          "timestamp": "2026-08-07T22:57:37.000Z",
-          "from": {
-            "address": "0x8F10B468b06c6FD214B65F87778827F7D113f996",
-            "name": null,
-            "isContract": true,
-            "isVerifiedContract": false
-          },
-          "to": {
-            "address": "0x2Db1004655Ce2A5B7fA12ECACe28CF1215973a82",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "amountExact": "21.716362118454857459",
-          "amount": 21.71636212
-        },
-        {
-          "transactionHash": "0x2efc3e7d5e1dcef871a8303dbb6c99dec268fc9cd6ad74649623d57108819fcb",
-          "blockNumber": 50504968,
-          "logIndex": 1,
-          "timestamp": "2026-08-07T22:57:37.000Z",
-          "from": {
-            "address": "0x86D2f4eF99915652bFC3Adf29683752334582B4D",
-            "name": "DackieV3Pool",
-            "isContract": true,
-            "isVerifiedContract": true
-          },
-          "to": {
-            "address": "0x8F10B468b06c6FD214B65F87778827F7D113f996",
-            "name": null,
-            "isContract": true,
-            "isVerifiedContract": false
-          },
-          "amountExact": "21.716362118454857459",
-          "amount": 21.71636212
-        },
-        {
-          "transactionHash": "0xdcf26a0207b3e3fe4cdc5389e60b41feccbcd164d3965e35db7bf31bd1edd050",
-          "blockNumber": 50503332,
-          "logIndex": 1,
-          "timestamp": "2026-08-07T22:26:02.000Z",
-          "from": {
-            "address": "0x1B32e4660E441588960018863e83b15F3C01050B",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "to": {
-            "address": "0x0000000000000000000000000000000000000000",
-            "name": null,
-            "isContract": false,
-            "isVerifiedContract": false
-          },
-          "amountExact": "21.73406",
-          "amount": 21.73406
         }
       ],
       "coverage": {
@@ -21387,11 +21387,11 @@
         "https://gold-api.com/terms"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:35.000Z",
-      "retrievedAt": "2026-08-11T07:43:42.880Z",
-      "checkedAt": "2026-08-11T07:43:42.880Z",
+      "observedAt": "2026-08-11T13:47:36.000Z",
+      "retrievedAt": "2026-08-11T13:47:52.551Z",
+      "checkedAt": "2026-08-11T13:47:52.551Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.880Z",
+      "lastGoodAt": "2026-08-11T13:47:52.551Z",
       "error": null,
       "receipt": {
         "responseSymbol": "XAU",
@@ -21409,11 +21409,11 @@
         "https://gold-api.com/terms"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:35.000Z",
-      "retrievedAt": "2026-08-11T07:43:42.913Z",
-      "checkedAt": "2026-08-11T07:43:42.913Z",
+      "observedAt": "2026-08-11T13:47:35.000Z",
+      "retrievedAt": "2026-08-11T13:47:52.585Z",
+      "checkedAt": "2026-08-11T13:47:52.585Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.913Z",
+      "lastGoodAt": "2026-08-11T13:47:52.585Z",
       "error": null,
       "receipt": {
         "responseSymbol": "XAG",
@@ -21431,11 +21431,11 @@
         "https://gold-api.com/terms"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:38.000Z",
-      "retrievedAt": "2026-08-11T07:43:42.914Z",
-      "checkedAt": "2026-08-11T07:43:42.914Z",
+      "observedAt": "2026-08-11T13:47:38.000Z",
+      "retrievedAt": "2026-08-11T13:47:52.586Z",
+      "checkedAt": "2026-08-11T13:47:52.586Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.914Z",
+      "lastGoodAt": "2026-08-11T13:47:52.586Z",
       "error": null,
       "receipt": {
         "responseSymbol": "XPT",
@@ -21453,11 +21453,11 @@
         "https://gold-api.com/terms"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:37.000Z",
-      "retrievedAt": "2026-08-11T07:43:42.916Z",
-      "checkedAt": "2026-08-11T07:43:42.916Z",
+      "observedAt": "2026-08-11T13:47:37.000Z",
+      "retrievedAt": "2026-08-11T13:47:52.591Z",
+      "checkedAt": "2026-08-11T13:47:52.591Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.916Z",
+      "lastGoodAt": "2026-08-11T13:47:52.591Z",
       "error": null,
       "receipt": {
         "responseSymbol": "XPD",
@@ -21477,10 +21477,10 @@
       ],
       "status": "ok",
       "observedAt": "2026-07-31T23:59:59.999Z",
-      "retrievedAt": "2026-08-11T07:43:42.917Z",
-      "checkedAt": "2026-08-11T07:43:42.917Z",
+      "retrievedAt": "2026-08-11T13:47:52.592Z",
+      "checkedAt": "2026-08-11T13:47:52.592Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.917Z",
+      "lastGoodAt": "2026-08-11T13:47:52.592Z",
       "error": null,
       "receipt": {
         "workbookSha256": "74fd37443c5cd82759e0c4d8879ecd6c65b99ce109ddab24c0e199e6c211f231",
@@ -21544,10 +21544,10 @@
       ],
       "status": "ok",
       "observedAt": "2025-12-31T23:59:59.000Z",
-      "retrievedAt": "2026-08-11T07:43:42.926Z",
-      "checkedAt": "2026-08-11T07:43:42.926Z",
+      "retrievedAt": "2026-08-11T13:47:52.602Z",
+      "checkedAt": "2026-08-11T13:47:52.602Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.926Z",
+      "lastGoodAt": "2026-08-11T13:47:52.602Z",
       "error": null,
       "receipt": {
         "fileSha256": "1557e3257f63e769e1894be5a89c1ca31d4c058c069f082da5ed2a5098c58ed0",
@@ -21564,13 +21564,13 @@
         "https://api.coingecko.com/api/v3/coins/vnx-gold/market_chart?vs_currency=usd&days=365&interval=daily",
         "https://api.coingecko.com/api/v3/coins/vnx-gold/tickers"
       ],
-      "status": "stale",
-      "observedAt": "2026-08-10T08:08:45.773Z",
-      "retrievedAt": "2026-08-10T08:09:02.200Z",
-      "checkedAt": "2026-08-11T07:43:42.918Z",
+      "status": "ok",
+      "observedAt": "2026-08-11T13:47:44.717Z",
+      "retrievedAt": "2026-08-11T13:47:52.593Z",
+      "checkedAt": "2026-08-11T13:47:52.593Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-10T08:09:02.200Z",
-      "error": "https://api.coingecko.com/api/v3/coins/vnx-gold/tickers returned HTTP 429",
+      "lastGoodAt": "2026-08-11T13:47:52.593Z",
+      "error": null,
       "receipt": {
         "historyObservations": 366,
         "venueMappings": 4,
@@ -21588,11 +21588,11 @@
         "https://explorer.etherlink.com/api/v2/tokens/0x93f5475da60143c50e8be3fed10c143b0cf8b9e9/transfers"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:44.371Z",
-      "retrievedAt": "2026-08-11T07:43:42.921Z",
-      "checkedAt": "2026-08-11T07:43:42.921Z",
+      "observedAt": "2026-08-11T13:47:53.467Z",
+      "retrievedAt": "2026-08-11T13:47:52.596Z",
+      "checkedAt": "2026-08-11T13:47:52.596Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.921Z",
+      "lastGoodAt": "2026-08-11T13:47:52.596Z",
       "error": null,
       "receipt": {
         "returnedHolders": 50,
@@ -21609,11 +21609,11 @@
         "https://explorer.etherlink.com/api/v2/smart-contracts/0x93f5475da60143c50e8be3fed10c143b0cf8b9e9"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:44.696Z",
-      "retrievedAt": "2026-08-11T07:43:42.924Z",
-      "checkedAt": "2026-08-11T07:43:42.924Z",
+      "observedAt": "2026-08-11T13:47:54.085Z",
+      "retrievedAt": "2026-08-11T13:47:52.599Z",
+      "checkedAt": "2026-08-11T13:47:52.599Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.924Z",
+      "lastGoodAt": "2026-08-11T13:47:52.599Z",
       "error": null,
       "receipt": {
         "implementationEndpoint": "https://explorer.etherlink.com/api/v2/smart-contracts/0x83B787F31c15A3428ea10B0ef4dAe59B40E18f12",
@@ -21630,11 +21630,11 @@
         "https://api.tzkt.io/v1/bigmaps?contract=KT1LSH97386CURN9FgRNqdQJoHaHY6e1vxUv&limit=100"
       ],
       "status": "ok",
-      "observedAt": "2026-08-11T07:43:43.920Z",
-      "retrievedAt": "2026-08-11T07:43:42.924Z",
-      "checkedAt": "2026-08-11T07:43:42.924Z",
+      "observedAt": "2026-08-11T13:47:53.864Z",
+      "retrievedAt": "2026-08-11T13:47:52.600Z",
+      "checkedAt": "2026-08-11T13:47:52.600Z",
       "reviewedAt": null,
-      "lastGoodAt": "2026-08-11T07:43:42.924Z",
+      "lastGoodAt": "2026-08-11T13:47:52.600Z",
       "error": null,
       "receipt": {
         "indexedTokenRows": 0,
@@ -21644,5 +21644,5 @@
       }
     }
   },
-  "contentHash": "5bc7d52e957704196ec023de89b9bc061699458e3a3f91fd7d40cbf405cef424"
+  "contentHash": "a047e4d28c94b2d684cc68ed4331fa83820dcc97aa56236af330c51f97d254fe"
 }
