@@ -660,8 +660,21 @@ function summaryRows(snapshot) {
     return (snapshot.weeks || []).slice(-26);
 }
 
-function summaryLeader(snapshot) {
-    return snapshot.leaders?.all?.[0] || snapshot.rankings?.all?.[0] || null;
+function summaryLeaders(snapshot) {
+    const ranked = snapshot.leaders?.all || snapshot.rankings?.all || [];
+    return Array.from({ length: 3 }, (_unused, index) => ranked[index] || null);
+}
+
+function entryLeaderMarkup(leader, index) {
+    const rank = leader?.rank || index + 1;
+    const layers = (leader?.layers || []).map((layer) => layerLabel(layer)).join(' + ') || 'Layer building';
+    return `
+        <div class="ecosystem-entry-tile ecosystem-entry-leader" role="listitem" data-ecosystem-leader-rank="${rank}">
+            <small>#${rank} app · ${escapeHtml(leader ? categoryLabel(leader.category) : 'Building')} · ${escapeHtml(layers)}</small>
+            <strong>${escapeHtml(leader?.name || 'Building')}</strong>
+            <em>${escapeHtml(formatNumber(leader?.activeWallets))} active wallets</em>
+        </div>
+    `;
 }
 
 function entrySparkline(rows) {
@@ -684,19 +697,33 @@ function entryMarkup(snapshot) {
     const rows = summaryRows(snapshot);
     const latest = metricFor(rows.at(-1), 'all');
     const partial = metricFor(snapshot.partialWeek, 'all');
-    const leader = summaryLeader(snapshot);
+    const leaders = summaryLeaders(snapshot);
+    const completedWeek = snapshot.completeWeek?.weekStart || rows.at(-1)?.weekStart;
+    const layerUniverse = snapshot.universe?.layers || {};
     return `
-        <div class="ecosystem-entry-copy">
+        <div class="ecosystem-entry-heading">
             <div class="ecosystem-entry-title-line"><h2 class="stat-label" id="ecosystem-entry-title">Ecosystem Activity</h2><span>Weekly</span></div>
-            <div class="stat-value ecosystem-entry-value">${escapeHtml(formatNumber(latest?.activeWallets))}</div>
-            <div class="stat-description">active wallet-layer identities · completed week</div>
+            <p>Top apps and ecosystem totals · completed Monday-to-Monday UTC week</p>
         </div>
-        <div class="ecosystem-entry-kpis">
-            <span><small>Leader</small><strong>${escapeHtml(leader?.name || 'Building')}</strong><em>${escapeHtml(formatNumber(leader?.activeWallets))} wallets</em></span>
-            <span><small>Apps</small><strong>${escapeHtml(formatNumber(snapshot.universe?.eligibleApps))}</strong><em>L1 + Etherlink</em></span>
-            <span class="is-partial"><small>This week</small><strong>${escapeHtml(formatNumber(partial?.activeWallets))}</strong><em>partial, not ranked</em></span>
+        <div class="ecosystem-entry-kpis ecosystem-entry-grid" role="list" aria-label="Top apps and weekly ecosystem summary">
+            ${leaders.map(entryLeaderMarkup).join('')}
+            <div class="ecosystem-entry-tile ecosystem-entry-summary ecosystem-entry-completed" role="listitem">
+                <small>Completed week · ${escapeHtml(formatWeek(completedWeek))}</small>
+                <strong class="ecosystem-entry-value">${escapeHtml(formatNumber(latest?.activeWallets))}</strong>
+                <em>active wallet-layer identities</em>
+                <div class="ecosystem-entry-chart">${entrySparkline(rows)}<span>26-week pulse</span></div>
+            </div>
+            <div class="ecosystem-entry-tile ecosystem-entry-summary" role="listitem">
+                <small>Tracked apps</small>
+                <strong>${escapeHtml(formatNumber(snapshot.universe?.eligibleApps))}</strong>
+                <em>${escapeHtml(formatNumber(layerUniverse.tezos))} L1 · ${escapeHtml(formatNumber(layerUniverse.etherlink))} Etherlink</em>
+            </div>
+            <div class="ecosystem-entry-tile ecosystem-entry-summary is-partial" role="listitem">
+                <small>This week · partial</small>
+                <strong>${escapeHtml(formatNumber(partial?.activeWallets))}</strong>
+                <em>partial, not ranked</em>
+            </div>
         </div>
-        <div class="ecosystem-entry-chart">${entrySparkline(rows)}<span>26-week active-wallet pulse · ${escapeHtml(formatTimestamp(snapshot.generatedAt))}</span></div>
     `;
 }
 
@@ -944,7 +971,7 @@ function markEcosystemEntryUnavailable(error) {
         value.setAttribute('aria-live', 'polite');
     }
     const kpis = card.querySelector('.ecosystem-entry-kpis');
-    if (kpis) kpis.innerHTML = '<span><small>Generated ledger</small><strong>Unavailable</strong><em>No verified launcher receipt</em></span>';
+    if (kpis) kpis.innerHTML = '<div class="ecosystem-entry-tile ecosystem-entry-summary"><small>Generated ledger</small><strong class="ecosystem-entry-value">Unavailable</strong><em>No verified launcher receipt</em></div>';
     const history = card.querySelector('.ecosystem-entry-empty');
     if (history) history.textContent = 'Open the Chamber to retry the weekly ledger.';
     card.classList.add('chamber-data-stale');
@@ -1001,9 +1028,8 @@ function ensureEntryCard() {
         <button class="card-copy-link" type="button" data-copy-hash="#ecosystem" aria-label="Copy Ecosystem Activity direct link" title="Copy Ecosystem Activity link">&#128279;</button>
         <div class="card-inner">
             <div class="card-front chamber-entry-front ecosystem-entry-front" id="ecosystem-entry-front">
-                <div class="ecosystem-entry-copy"><div class="ecosystem-entry-title-line"><h2 class="stat-label" id="ecosystem-entry-title">Ecosystem Activity</h2><span>Weekly</span></div><div class="stat-value ecosystem-entry-value">Loading history</div><div class="stat-description">Tezos L1 + Etherlink dapp activity</div></div>
-                <div class="ecosystem-entry-kpis"><span><small>Generated ledger</small><strong>Loading</strong><em>first-party JSON</em></span></div>
-                <div class="ecosystem-entry-empty">Loading weekly active wallets</div>
+                <div class="ecosystem-entry-heading"><div class="ecosystem-entry-title-line"><h2 class="stat-label" id="ecosystem-entry-title">Ecosystem Activity</h2><span>Weekly</span></div><p>Loading the completed-week app ranking</p></div>
+                <div class="ecosystem-entry-kpis ecosystem-entry-grid"><div class="ecosystem-entry-tile ecosystem-entry-summary"><small>Generated ledger</small><strong class="ecosystem-entry-value">Loading</strong><em>first-party JSON</em></div></div>
             </div>
         </div>
     `;

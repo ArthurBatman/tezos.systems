@@ -8950,6 +8950,8 @@ async function checkEcosystemActivityContracts() {
     "const RANGES = Object.freeze([",
     'data-ecosystem-category',
     'data-ecosystem-app',
+    'data-ecosystem-leader-rank',
+    'Top apps and ecosystem totals',
     'Download full JSON',
     'Contract-universe SHA-256',
     'quietlySyncHtml(body, markup)',
@@ -8962,6 +8964,8 @@ async function checkEcosystemActivityContracts() {
   }
   for (const selector of [
     '.ecosystem-entry-card',
+    '.ecosystem-entry-grid',
+    '.ecosystem-entry-tile',
     '.ecosystem-overlay',
     '.ecosystem-overlay.active .ecosystem-content',
     '.ecosystem-tabs',
@@ -8978,6 +8982,11 @@ async function checkEcosystemActivityContracts() {
     || !css.includes('animation: none;')
     || !css.includes('position: relative;')) {
     fail('Ecosystem mobile shell must suppress entrance geometry and let the header scroll with the room');
+  }
+  if (!css.includes('.ecosystem-entry-leader:nth-child(2)')
+    || !smoke.includes('Ecosystem launcher desktop grid must show three ranked apps above three equal summary tiles')
+    || !smoke.includes('Ecosystem launcher mobile grid must retain only the lead app and three summary tiles')) {
+    fail('Ecosystem launcher must retain its six-tile desktop ranking and compact mobile layout contract');
   }
   if (!smoke.includes("name: 'ecosystem-activity'")
     || !smoke.includes('window.__ECOSYSTEM_CHAMBER_REFRESH_MS__')

@@ -539,7 +539,9 @@ inline modal styles in `js/core/app.js`.
   aggregate inputs only and are not published in the browser artifact. The
   homepage fetches a compact projection;
   the complete history waits for an explicit room open and then follows the
-  quiet-refresh contract.
+  quiet-refresh contract. That compact launcher shows the completed-week top
+  three above three summary tiles on desktop, while narrow phones retain the
+  lead app plus completed-week, tracked-app, and partial-week summaries.
 - Staking Chamber with direct `#staking` and `/stake/` access, while the existing
   `/staking/` guide remains the explanatory staking page. Its narrow launcher
   keeps one latest applied stake and one latest applied unstake strictly over

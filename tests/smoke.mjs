@@ -16312,6 +16312,37 @@ async function smokeLauncherProjections(browser, baseUrl) {
   }, null, { timeout: 25000 });
   await page.waitForTimeout(250);
 
+  const ecosystemDesktopLayout = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('#ecosystem-entry-card .ecosystem-entry-tile')].map((tile) => {
+      const rect = tile.getBoundingClientRect();
+      return {
+        rank: tile.dataset.ecosystemLeaderRank || '',
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        visible: getComputedStyle(tile).display !== 'none'
+      };
+    });
+    const visible = tiles.filter((tile) => tile.visible);
+    const rowCounts = Object.values(visible.reduce((rows, tile) => {
+      rows[tile.top] = (rows[tile.top] || 0) + 1;
+      return rows;
+    }, {}));
+    return {
+      total: tiles.length,
+      visible: visible.length,
+      leaderRanks: visible.filter((tile) => tile.rank).map((tile) => tile.rank),
+      rowCounts,
+      widthDelta: Math.max(...visible.map((tile) => tile.width)) - Math.min(...visible.map((tile) => tile.width))
+    };
+  });
+  assert(ecosystemDesktopLayout.total === 6
+    && ecosystemDesktopLayout.visible === 6
+    && ecosystemDesktopLayout.leaderRanks.join(',') === '1,2,3'
+    && ecosystemDesktopLayout.rowCounts.length === 2
+    && ecosystemDesktopLayout.rowCounts.every((count) => count === 3)
+    && ecosystemDesktopLayout.widthDelta <= 1,
+  `Ecosystem launcher desktop grid must show three ranked apps above three equal summary tiles: ${JSON.stringify(ecosystemDesktopLayout)}`);
+
   assert(hasPath('/data/capital-entry-summary.json'), `Capital launcher projection was not requested: ${initialPaths.join(', ')}`);
   assert(hasPath('/data/ecosystem-entry-summary.json'), `Ecosystem launcher projection was not requested: ${initialPaths.join(', ')}`);
   assert(hasPath('/data/maxis/entry-summary.json'), `Maxis launcher projection was not requested: ${initialPaths.join(', ')}`);
@@ -16407,6 +16438,40 @@ async function smokeLauncherProjections(browser, baseUrl) {
       && maxisIdentities === 10
       && !/Unavailable/.test(visibleText);
   }, null, { timeout: 30000 });
+  const mobileEcosystemCategory = noSubtlePage.locator('.chamber-category[data-chamber-category="ecosystem"]');
+  if ((await mobileEcosystemCategory.getAttribute('open')) === null) {
+    await mobileEcosystemCategory.locator(':scope > .chamber-category-head').click();
+  }
+  await noSubtlePage.waitForFunction(() => document.querySelector('#ecosystem-entry-card')?.getClientRects().length > 0);
+  const ecosystemMobileLayout = await noSubtlePage.evaluate(() => {
+    const tiles = [...document.querySelectorAll('#ecosystem-entry-card .ecosystem-entry-tile')].map((tile) => {
+      const rect = tile.getBoundingClientRect();
+      return {
+        rank: tile.dataset.ecosystemLeaderRank || '',
+        top: Math.round(rect.top),
+        visible: getComputedStyle(tile).display !== 'none'
+      };
+    });
+    const visible = tiles.filter((tile) => tile.visible);
+    const rowCounts = Object.values(visible.reduce((rows, tile) => {
+      rows[tile.top] = (rows[tile.top] || 0) + 1;
+      return rows;
+    }, {}));
+    return {
+      total: tiles.length,
+      visible: visible.length,
+      visibleLeaderRanks: visible.filter((tile) => tile.rank).map((tile) => tile.rank),
+      rowCounts,
+      weeklyPillVisible: getComputedStyle(document.querySelector('#ecosystem-entry-card .ecosystem-entry-title-line span')).display !== 'none'
+    };
+  });
+  assert(ecosystemMobileLayout.total === 6
+    && ecosystemMobileLayout.visible === 4
+    && ecosystemMobileLayout.visibleLeaderRanks.join(',') === '1'
+    && ecosystemMobileLayout.rowCounts.length === 2
+    && ecosystemMobileLayout.rowCounts.every((count) => count === 2)
+    && !ecosystemMobileLayout.weeklyPillVisible,
+  `Ecosystem launcher mobile grid must retain only the lead app and three summary tiles: ${JSON.stringify(ecosystemMobileLayout)}`);
   assert(noSubtlePaths.includes('/data/capital-entry-summary.json')
     && noSubtlePaths.includes('/data/ecosystem-entry-summary.json')
     && noSubtlePaths.includes('/data/maxis/entry-summary.json'),
