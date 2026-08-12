@@ -158,10 +158,10 @@ async function checkHomeLayoutContracts() {
     readText('README.md'),
     readText('js/features/changelog.js')
   ]);
-  const expectedIds = ['ticker', 'search', 'live-pulse', 'explore', 'moments', 'handoff'];
+  const expectedIds = ['ticker', 'search', 'live-pulse', 'explore', 'moments', 'handoff', 'credits'];
   const registryIds = [...layout.matchAll(/Object\.freeze\(\{ id: '([^']+)'/g)].map((match) => match[1]);
   if (JSON.stringify(registryIds) !== JSON.stringify(expectedIds)) {
-    fail(`Home layout registry must contain exactly the six ordered blocks: ${JSON.stringify(registryIds)}`);
+    fail(`Home layout registry must contain exactly the seven ordered blocks: ${JSON.stringify(registryIds)}`);
   }
   for (const source of [preload, layout]) {
     if (!source.includes('tezos-systems-home-layout-v1') || !source.includes('version: 1') || !source.includes('hidden')) {
@@ -183,6 +183,7 @@ async function checkHomeLayoutContracts() {
     if (!index.includes(`data-home-hide="${id}"`)) fail(`Home layout inline Hide action missing for ${id}`);
   }
   if (!handoff.includes('data-home-hide="handoff"')) fail('Keep Exploring must render its inline Hide action');
+  if (!index.includes('data-home-hide="credits"') || !index.includes('class="footer-last-line"')) fail('Credits must render its Hide action on the final build line');
   for (const legacyKey of [
     'tezos-systems-chambers-visible',
     'tezos-systems-collapsed-hot-today-island',
@@ -209,8 +210,11 @@ async function checkHomeLayoutContracts() {
   for (const snippet of ['hotTodaySurfaceVisible()', 'stopHotTodaySurfaceTimers()', "event.detail?.id === 'live-pulse'", 'hotTodayQuietRestore']) {
     if (!briefing.includes(snippet)) fail(`Live Pulse hidden/quiet restoration contract missing: ${snippet}`);
   }
-  for (const permanent of ['id="settings-gear"', 'id="my-tezos-btn"', 'id="site-footer"', '>Source</a>', '>MPL-2.0</a>']) {
-    if (!index.includes(permanent)) fail(`Permanent Home recovery or legal surface missing: ${permanent}`);
+  for (const recovery of ['id="settings-gear"', 'id="my-tezos-btn"']) {
+    if (!index.includes(recovery)) fail(`Permanent Home recovery surface missing: ${recovery}`);
+  }
+  for (const footerContract of ['id="site-footer"', '>Source</a>', '>MPL-2.0</a>', 'data-home-block="credits"']) {
+    if (!index.includes(footerContract)) fail(`Managed credits or legal surface missing: ${footerContract}`);
   }
   if (!styles.includes('@media (max-width: 600px)')
     || !styles.includes('min-height: 44px')
@@ -228,7 +232,7 @@ async function checkHomeLayoutContracts() {
   if (!smoke.includes("name: 'home-layout'") || !smoke.includes('async function smokeHomeLayout')) fail('Focused home-layout browser suite is missing');
   if (!readme.includes('Customize home') || !readme.includes('tezos-systems-home-layout-v1')) fail('README must document the device-local Home layout contract');
   if (!changelog.includes('Customize home')) fail('User-facing changelog must mention Customize home');
-  pass('device-local six-block Home layout, recovery, migration, route, tour, and Live Pulse contracts checked');
+  pass('device-local seven-block Home layout, recovery, migration, route, tour, and Live Pulse contracts checked');
 }
 
 async function checkMyTezosPortfolioContracts() {
@@ -9098,10 +9102,18 @@ async function checkEcosystemActivityContracts() {
 }
 
 async function checkChamberCategoryContracts() {
-  const [siteMapSource, app, styles] = await Promise.all([
+  const [siteMapSource, app, styles, shellStyles, index, preload, manager, tour, readme, changelog, smoke] = await Promise.all([
     readText('js/core/site-map.js'),
     readText('js/core/app.js'),
-    readText('css/styles.css')
+    readText('css/styles.css'),
+    readText('css/shell-extras.css'),
+    readText('index.html'),
+    readText('js/core/home-layout-preload.js'),
+    readText('js/ui/chamber-categories.js'),
+    readText('js/features/tooltip-tour.js'),
+    readText('README.md'),
+    readText('js/features/changelog.js'),
+    readText('tests/smoke.mjs')
   ]);
   const expectedCategories = [
     {
@@ -9234,13 +9246,16 @@ async function checkChamberCategoryContracts() {
   );
 
   for (const contract of [
-    "document.createElement('details')",
-    "document.createElement('summary')",
+    "document.createElement('section')",
+    "document.createElement('button')",
     "category.className = 'chamber-card-pair chamber-category'",
     "window.matchMedia('(min-width: 760px)').matches",
     "categoryConfig.key === 'network'",
     'categoryConfig.key === _pendingChamberCategoryKey',
-    'if (category) category.open = true',
+    'setChamberCategoryExpanded(category, true)',
+    "setChamberCategoryVisible(categoryKey, true, 'deep-link')",
+    "setChamberRoomVisible(entry.id, true, 'deep-link')",
+    'card.dataset.chamberEntryId = entryId',
     'card.dataset.chamberLayout = target.layout',
     'quietlyMutate(grid, () => {',
     'grid.querySelector(',
@@ -9253,7 +9268,7 @@ async function checkChamberCategoryContracts() {
     '.chamber-category-name',
     '.chamber-category-question',
     '.chamber-category-count',
-    '.chamber-category:not([open]) > .chamber-category-cards',
+    '.chamber-category[data-chamber-expanded="false"] > .chamber-category-cards',
     '#chambers-grid > .stat-card',
     '.chamber-entry-card[data-chamber-layout="featured"]',
     '.chamber-entry-card[data-chamber-layout="wide"]',
@@ -9261,6 +9276,48 @@ async function checkChamberCategoryContracts() {
   ]) {
     assert(styles.includes(selector), `Chamber category CSS is missing ${selector}`);
   }
+  for (const selector of ['.chamber-category-toggle', '.chamber-category-hide', '.chamber-room-hide', '.home-layout-topic-group']) {
+    assert(shellStyles.includes(selector), `Chamber category shell CSS is missing ${selector}`);
+  }
+
+  const categoryIds = expectedCategories.map(({ key }) => key);
+  for (const source of [preload, manager]) {
+    assert(source.includes('tezos-systems-explore-layout-v1'), 'Explore layout preload and manager must share one storage key');
+    assert(source.includes('version: 1') && source.includes('hiddenCategories') && source.includes('hiddenRooms'), 'Explore layout preference must retain the version 1 category and room schema');
+  }
+  for (const id of categoryIds) {
+    assert(index.includes(`data-chamber-category-hide="${id}"`), `missing inline Hide control for Chamber category ${id}`);
+    assert(index.includes(`data-chamber-category-toggle="${id}"`), `missing Customize home switch for Chamber category ${id}`);
+    assert(shellStyles.includes(`[data-chamber-categories-hidden~="${id}"]`), `missing first-paint CSS token for Chamber category ${id}`);
+  }
+  for (const { id } of expectedEntries) {
+    assert(index.includes(`data-chamber-room-toggle="${id}"`), `missing Customize home switch for Chamber room ${id}`);
+    assert(shellStyles.includes(`[data-chamber-rooms-hidden~="${id}"]`), `missing first-paint CSS token for Chamber room ${id}`);
+  }
+  assert(app.includes('createChamberRoomHideButton(entryId)')
+    && app.includes('button.dataset.chamberRoomHide = entryId'), 'every rendered Chamber footer must receive an accessible inline Hide control');
+  for (const contract of [
+    'data-chamber-categories-hidden',
+    'data-chamber-rooms-hidden',
+    'data-chamber-categories-preview',
+    'setHomeBlockVisible',
+    "window.addEventListener('storage', syncFromStorage)",
+    "window.dispatchEvent(new CustomEvent('tezos:explore-layout-change'",
+    'showAllChamberCategories',
+    'showUndoToast'
+  ]) {
+    assert(preload.includes(contract) || manager.includes(contract) || shellStyles.includes(contract), `missing Chamber category visibility contract: ${contract}`);
+  }
+  assert(index.includes('id="chamber-category-show-all"')
+    && index.includes('data-chamber-category-count')
+    && index.includes('data-chamber-room-count')
+    && index.includes('Show all Chambers'), 'Customize home must provide topic and room counts plus Show all recovery');
+  assert(tour.includes("tezosSystemsChamberCategories?.beginPreview?.('guided-tour')")
+    && tour.includes("tezosSystemsChamberCategories?.endPreview?.('guided-tour')"), 'guided tour must temporarily reveal saved-hidden Chamber categories');
+  assert(readme.includes('tezos-systems-explore-layout-v1')
+    && readme.includes('tezos-systems-chamber-categories-v1')
+    && changelog.includes('each of its 21 Chamber launchers'), 'README and user-facing changelog must document Explore layout visibility and migration');
+  assert(smoke.includes('tezos-systems-explore-layout-v1') && smoke.includes('Show all Chambers'), 'browser suite must cover Explore layout persistence and recovery');
 
   const perimeterAnimationSelectors = [...styles.matchAll(/([^{}]+)\{[^{}]*animation:\s*entryCardPulse\b[^{}]*\}/g)]
     .map((match) => match[1].trim());
@@ -9270,7 +9327,7 @@ async function checkChamberCategoryContracts() {
     'infinite Chamber perimeter animation must be reserved for explicit risk/watch state'
   );
 
-  pass('seven responsive Chamber categories, 21 unique entry facets, density-aware layouts, reusable disclosures, and risk-only attention checked');
+  pass('seven persistent Chamber categories, 21 individually hideable entry facets, progressive recovery, and risk-only attention checked');
 }
 
 async function checkPromotedChamberContracts() {

@@ -355,6 +355,7 @@
     function end(markComplete = true) {
         if (markComplete) localStorage.setItem(TOUR_KEY, '1');
         window.tezosSystemsHomeLayout?.endPreview?.('guided-tour');
+        window.tezosSystemsChamberCategories?.endPreview?.('guided-tour');
         document.removeEventListener('keydown', onKey);
         window.removeEventListener('resize', schedulePosition);
         window.removeEventListener('scroll', schedulePosition);
@@ -384,6 +385,7 @@
         removeNudge();
         stopWatchingActiveSurfaces();
         window.tezosSystemsHomeLayout?.beginPreview?.('guided-tour');
+        window.tezosSystemsChamberCategories?.beginPreview?.('guided-tour');
         create();
         show(0);
     }

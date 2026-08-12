@@ -9,7 +9,8 @@ export const HOME_BLOCKS = Object.freeze([
     Object.freeze({ id: 'live-pulse', label: 'Live Pulse', selectors: ['#governance-alert-strip', '#hot-today-island'] }),
     Object.freeze({ id: 'explore', label: 'Explore Tezos', selectors: ['#chambers-section'] }),
     Object.freeze({ id: 'moments', label: 'Network Moments', selectors: ['#moments-section'] }),
-    Object.freeze({ id: 'handoff', label: 'Keep Exploring', selectors: ['#recruit-section'] })
+    Object.freeze({ id: 'handoff', label: 'Keep Exploring', selectors: ['#recruit-section'] }),
+    Object.freeze({ id: 'credits', label: 'Credits and sources', selectors: ['#site-footer'] })
 ]);
 
 const VALID_IDS = new Set(HOME_BLOCKS.map((block) => block.id));
@@ -85,7 +86,7 @@ function captureLayoutAnchor(id, nextHiddenIds = hiddenIds) {
     const candidates = HOME_BLOCKS.slice(index + 1)
         .filter((block) => !nextHiddenIds.has(block.id))
         .flatMap((block) => blockElements(block));
-    candidates.push(document.getElementById('site-footer'));
+    if (id !== 'credits') candidates.push(document.getElementById('site-footer'));
     const element = candidates.find(isRendered);
     return element ? { element, top: element.getBoundingClientRect().top } : null;
 }

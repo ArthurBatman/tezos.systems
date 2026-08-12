@@ -70,7 +70,7 @@ tezos.systems/
 │   │   ├── storage.js                 # localStorage/sessionStorage wrappers
 │   │   └── utils.js                   # Formatting, sanitization, utility helpers
 │   ├── features/                      # Governance, LB, bakers, market, feeds, widgets
-│   ├── ui/                            # Theme, Home layout, share, toast queue, gauge, title, animations
+│   ├── ui/                            # Theme, Home/Explore visibility, share, toast queue, gauge, title, animations
 │   └── effects/                       # Matrix, themed backgrounds, audio/vibes, data-magic text reveals
 ├── data/
 │   ├── protocol-data.json             # Activated protocol timeline and lore
@@ -309,30 +309,43 @@ inline modal styles in `js/core/app.js`.
 
 ## Main Surfaces
 
-- Setup starts with **Customize home**, a device-local six-switch layout for
+- Setup starts with **Customize home**, a device-local seven-switch layout for
   the latest block ticker, search/command deck, Live Pulse (including its
   governance strip), Explore Tezos, Network Moments, and the Keep Exploring
-  handoff. Every block is shown by default and also has an inline Hide action
-  with Undo. The header, Setup, My Tezos, and legal/source footer are permanent
-  recovery surfaces; Chamber cards are not individually hidden and blocks are
-  not reordered. Preferences use
+  handoff, plus the Credits and sources footer. Every block is shown by default
+  and also has an inline eye-off action with Undo. The header, Setup, and My
+  Tezos are permanent recovery surfaces; blocks are not reordered. Preferences use
   `tezos-systems-home-layout-v1` with the shape
-  `{ "version": 1, "hidden": ["ticker", "search", "live-pulse", "explore", "moments", "handoff"] }`,
+  `{ "version": 1, "hidden": ["ticker", "search", "live-pulse", "explore", "moments", "handoff", "credits"] }`,
   synchronize between open tabs, and never leave the current browser/device.
   Explicit Home deep links and the `/` search shortcut reveal and save their
-  target, while the guided tour temporarily reveals all six without changing
+  target, while the guided tour temporarily reveals all seven without changing
   the saved layout.
+- Explore's seven topics and all 21 individual Chamber launchers are independently
+  hideable. Topic headers and Chamber cards provide quick eye-off actions with
+  Undo, while **Choose Explore Chambers** in Customize home keeps a compact
+  topic-first manager with individual room switches and one Show all recovery.
+  Choices use `tezos-systems-explore-layout-v1` with the shape
+  `{ "version": 1, "hiddenCategories": ["network"], "hiddenRooms": ["pulse"] }`.
+  They stay private to the browser, synchronize across open tabs, and hide
+  before first paint. A topic header disappears when its final visible Chamber
+  is hidden; hiding the final Chamber hides the empty Explore block. Explicit
+  Home Chamber links restore and save their target, while full Chamber routes
+  continue opening without changing Home preferences. Valid preferences from
+  `tezos-systems-chamber-categories-v1` migrate automatically.
 - Explore is a progressively disclosed launcher rather than a second dashboard:
   the question-led Explore Tezos topics stay central, the three canonical starter rooms fit in the first
   mobile view, and live signals, baker tools, account tools, markets, publishing,
   and recovery open only when requested. Its mobile corner gift launcher owns a
   dedicated in-flow slot beside the top price rail and scrolls away with that
   rail instead of painting over telemetry or the centered wordmark.
-- Explore Tezos is visible by default and organizes all 18 room launchers into
+- Explore Tezos is visible by default and organizes all 21 room launchers into
   seven question-led topics: Network, Capital, Ecosystem, Bakers, Governance,
   People & Accounts, and History. ctez Oven Exit and KT1 Multisig Recovery stay off the
   default topic grid and open from Explore's collapsed Recovery tools drawer or
   the corner gift tray launcher.
+  Each visible topic keeps independent expand/collapse and eye-off controls;
+  hiding a topic removes its complete row, including the collapsed header.
   Each Chamber row is wrapped responsively so wide cards keep their companion
   card instead of creating desktop grid holes; cards also keep a canonical
   app-shell open affordance in the fixed footer rail, card-level direct-link

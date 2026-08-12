@@ -200,7 +200,7 @@ export function renderSiteHandoff(container, {
                     <p>You reached the end of ${escapeHtml(currentTitle)}. Follow one line deeper, or open the complete system map.</p>
                 </div>
                 ${container.id === 'recruit-section' ? `
-                    <button class="home-block-hide" type="button" data-home-hide="handoff" aria-label="Hide Keep Exploring" title="Hide Keep Exploring">
+                    <button class="home-block-hide site-handoff-hide" type="button" data-home-hide="handoff" aria-label="Hide Keep Exploring" title="Hide Keep Exploring">
                         <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
                         <span class="home-block-hide-label">Hide</span>
                     </button>

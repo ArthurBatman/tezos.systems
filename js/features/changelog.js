@@ -5,6 +5,14 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-12',
+        entries: [
+            { type: '✨', text: 'Every Explore Tezos topic and each of its 21 Chamber launchers can now be hidden independently, with instant Undo, open-tab sync, first-paint persistence, and one Show all recovery' },
+            { type: '🎨', text: 'Customize home now uses a compact topic-first Chamber manager, while topic headers and card footers keep their eye-off actions obvious, keyboard-safe, and unobtrusive' },
+            { type: '🎨', text: 'The Handoff eye now aligns with the full section edge instead of floating over its copy, and Credits and sources can be hidden from the final build line or restored in Customize home' }
+        ]
+    },
+    {
         date: '2026-08-11',
         entries: [
             { type: '✨', text: 'Customize home now lets each browser hide any of six major Home blocks from Setup or the block itself, with instant Undo, open-tab sync, deep-link recovery, and one-tap Show all' },

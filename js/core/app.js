@@ -17,6 +17,12 @@ import { renderSiteHandoff } from './site-handoff.js';
 import { initSiteJourneyCapture } from './site-journey.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
 import { initHomeLayout, isHomeBlockVisible, setHomeBlockVisible } from '../ui/home-layout.js';
+import {
+    initChamberCategories,
+    isChamberRoomVisible,
+    setChamberCategoryVisible,
+    setChamberRoomVisible
+} from '../ui/chamber-categories.js';
 import { flipCard, revealStat, showLoading, showError } from '../ui/animations.js';
 import {
     blockTick,
@@ -283,6 +289,7 @@ async function init() {
     // Initialize theme
     safe('theme', initTheme);
     safe('homeLayout', initHomeLayout);
+    safe('chamberCategories', initChamberCategories);
     safe('myTezosCss', ensureMyTezosCss);
 
     // Initialize arcade effects
@@ -1996,6 +2003,18 @@ function createChamberExpandCue() {
     return cue;
 }
 
+function createChamberRoomHideButton(entryId) {
+    const button = document.createElement('button');
+    const label = findSiteMapEntry(entryId)?.title || 'Chamber';
+    button.className = 'chamber-room-hide';
+    button.type = 'button';
+    button.dataset.chamberRoomHide = entryId;
+    button.setAttribute('aria-label', `Hide ${label}`);
+    button.title = `Hide ${label}`;
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>';
+    return button;
+}
+
 function getChamberInfoKey(card) {
     return card?.id || card?.dataset?.stat || 'chamber-card';
 }
@@ -2198,7 +2217,20 @@ function syncChamberEntryFooter(card) {
     const cue = footer.querySelector(':scope > .chamber-expand-cue')
         || card.querySelector(':scope > .chamber-expand-cue, :scope .card-inner + .chamber-expand-cue')
         || createChamberExpandCue();
+    const entryId = card.dataset.chamberEntryId;
+    let hide = footer.querySelector(':scope > .chamber-room-hide');
+    if (entryId && CHAMBER_CARD_TARGETS[entryId]) {
+        if (!hide) hide = createChamberRoomHideButton(entryId);
+        if (hide.dataset.chamberRoomHide !== entryId) {
+            hide.replaceWith(createChamberRoomHideButton(entryId));
+            hide = footer.querySelector(':scope > .chamber-room-hide');
+        }
+        if (hide && hide.parentElement !== footer) footer.appendChild(hide);
+    } else if (hide) {
+        hide.remove();
+    }
     if (cue && cue.parentElement !== footer) footer.appendChild(cue);
+    if (hide && cue && hide.nextElementSibling !== cue) footer.insertBefore(hide, cue);
     footer.hidden = !label && !footer.querySelector('.chamber-expand-cue');
 }
 
@@ -2210,20 +2242,23 @@ window.syncChamberEntryFooters = syncChamberEntryFooters;
 function updateChamberPairState(pair) {
     if (!pair) return;
     const cards = Array.from(pair.querySelectorAll(':scope > .chamber-category-cards > .stat-card'));
-    const wideCount = cards.filter((card) => card.classList.contains('chamber-entry-wide')).length;
-    pair.dataset.cardCount = String(cards.length);
+    const visibleCards = cards.filter((card) => isChamberRoomVisible(card.dataset.chamberEntryId));
+    const wideCount = visibleCards.filter((card) => card.classList.contains('chamber-entry-wide')).length;
+    pair.dataset.cardCount = String(visibleCards.length);
     pair.dataset.wideCount = String(wideCount);
     const count = pair.querySelector(':scope > .chamber-category-head .chamber-category-count');
     if (count) {
-        const value = String(cards.length).padStart(2, '0');
+        const value = String(visibleCards.length).padStart(2, '0');
         if (count.textContent !== value) count.textContent = value;
-        count.setAttribute('aria-label', `${cards.length} ${cards.length === 1 ? 'room' : 'rooms'}`);
+        count.setAttribute('aria-label', `${visibleCards.length} ${visibleCards.length === 1 ? 'room' : 'rooms'}`);
     }
 }
 
 function updateAllChamberPairStates() {
     document.querySelectorAll('#chambers-grid > .chamber-category').forEach(updateChamberPairState);
 }
+
+window.addEventListener('tezos:explore-layout-sync', updateAllChamberPairStates);
 
 function getKnownProtocols() {
     if (Array.isArray(state.protocols) && state.protocols.length) return state.protocols;
@@ -2619,12 +2654,26 @@ function ensureProtocolHistoryEntryCard() {
     return card;
 }
 
+function setChamberCategoryExpanded(category, expanded) {
+    if (!category) return;
+    const nextExpanded = Boolean(expanded);
+    category.dataset.chamberExpanded = String(nextExpanded);
+    const toggle = category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle');
+    const cards = category.querySelector(':scope > .chamber-category-cards');
+    toggle?.setAttribute('aria-expanded', String(nextExpanded));
+    if (cards) cards.hidden = !nextExpanded;
+}
+
+function isChamberCategoryExpanded(category) {
+    return category?.dataset.chamberExpanded === 'true';
+}
+
 function wireChamberCategory(category) {
-    const head = category?.querySelector(':scope > .chamber-category-head');
-    if (!head || head.dataset.chamberCategoryWired === '1') return;
-    head.dataset.chamberCategoryWired = '1';
+    const toggle = category?.querySelector(':scope > .chamber-category-head > .chamber-category-toggle');
+    if (!toggle || toggle.dataset.chamberCategoryWired === '1') return;
+    toggle.dataset.chamberCategoryWired = '1';
     let scrollRepairSerial = 0;
-    head.addEventListener('click', (event) => {
+    toggle.addEventListener('click', () => {
         const repairSerial = ++scrollRepairSerial;
         const scrollX = window.scrollX;
         const scrollY = window.scrollY;
@@ -2656,7 +2705,7 @@ function wireChamberCategory(category) {
             html.style.scrollBehavior = previousBehavior;
         };
         const restoreBrowserShift = () => {
-            if (repairSerial !== scrollRepairSerial || readerScrollIntent || document.activeElement !== head) {
+            if (repairSerial !== scrollRepairSerial || readerScrollIntent || document.activeElement !== toggle) {
                 clearScrollIntentListeners();
                 return;
             }
@@ -2665,8 +2714,7 @@ function wireChamberCategory(category) {
             if (restoreFrame < maxRestoreFrames) requestAnimationFrame(restoreBrowserShift);
             else clearScrollIntentListeners();
         };
-        event.preventDefault();
-        category.open = !category.open;
+        setChamberCategoryExpanded(category, !isChamberCategoryExpanded(category));
         category.getBoundingClientRect();
         if (window.scrollX !== scrollX || window.scrollY !== scrollY) restoreScroll();
         requestAnimationFrame(restoreBrowserShift);
@@ -2674,15 +2722,21 @@ function wireChamberCategory(category) {
 }
 
 function createChamberCategory(categoryConfig) {
-    const category = document.createElement('details');
+    const category = document.createElement('section');
     category.className = 'chamber-card-pair chamber-category';
     category.dataset.chamberCategory = categoryConfig.key;
-    category.open = window.matchMedia('(min-width: 760px)').matches
+    const expanded = window.matchMedia('(min-width: 760px)').matches
         || categoryConfig.key === 'network'
         || categoryConfig.key === _pendingChamberCategoryKey;
 
-    const head = document.createElement('summary');
+    const head = document.createElement('div');
     head.className = 'chamber-category-head';
+
+    const toggle = document.createElement('button');
+    toggle.className = 'chamber-category-toggle';
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.setAttribute('aria-controls', `chamber-category-${categoryConfig.key}-cards`);
 
     const name = document.createElement('span');
     name.className = 'chamber-category-name';
@@ -2708,26 +2762,44 @@ function createChamberCategory(categoryConfig) {
     cue.setAttribute('aria-hidden', 'true');
     cue.textContent = '⌄';
 
+    const hide = document.createElement('button');
+    hide.className = 'chamber-category-hide';
+    hide.type = 'button';
+    hide.dataset.chamberCategoryHide = categoryConfig.key;
+    hide.setAttribute('aria-label', `Hide ${categoryConfig.label} category`);
+    hide.title = `Hide ${categoryConfig.label}`;
+    hide.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>';
+
     const cards = document.createElement('div');
     cards.className = 'chamber-category-cards';
+    cards.id = `chamber-category-${categoryConfig.key}-cards`;
+    cards.hidden = !expanded;
 
-    head.append(name, question, rule, count, cue);
+    toggle.append(name, question, rule, count, cue);
+    head.append(toggle, hide);
     category.append(head, cards);
+    category.dataset.chamberExpanded = String(expanded);
     wireChamberCategory(category);
     return category;
 }
 
-function revealChamberCategory(categoryKey) {
+function revealChamberCategory(categoryKey, { savePreference = false } = {}) {
     if (!categoryKey) return;
     _pendingChamberCategoryKey = categoryKey;
+    if (savePreference) setChamberCategoryVisible(categoryKey, true, 'deep-link');
     const category = document.querySelector(
         `#chambers-grid > .chamber-category[data-chamber-category="${categoryKey}"]`
     );
-    if (category) category.open = true;
+    if (category) setChamberCategoryExpanded(category, true);
 }
 
-function revealChamberCategoryForEntry(entry) {
-    revealChamberCategory(entry?.chamberCategory || '');
+function revealChamberCategoryForEntry(entry, options = {}) {
+    if (options.savePreference && CHAMBER_CARD_TARGETS[entry?.id]) {
+        setChamberRoomVisible(entry.id, true, 'deep-link');
+        revealChamberCategory(entry?.chamberCategory || '', { ...options, savePreference: false });
+        return;
+    }
+    revealChamberCategory(entry?.chamberCategory || '', options);
 }
 
 function orderChambersSurface() {
@@ -2746,9 +2818,9 @@ function orderChambersSurface() {
             );
             if (!category) category = createChamberCategory(categoryConfig);
             if (category.dataset.chamberShell === '1' && category.dataset.chamberShellInitialized !== '1') {
-                category.open = window.matchMedia('(min-width: 760px)').matches
+                setChamberCategoryExpanded(category, window.matchMedia('(min-width: 760px)').matches
                     || categoryConfig.key === 'network'
-                    || categoryConfig.key === _pendingChamberCategoryKey;
+                    || categoryConfig.key === _pendingChamberCategoryKey);
                 category.dataset.chamberShellInitialized = '1';
             }
             wireChamberCategory(category);
@@ -2760,6 +2832,7 @@ function orderChambersSurface() {
                 if (!target) return;
                 const card = document.querySelector(target.selector);
                 if (!card) return;
+                card.dataset.chamberEntryId = entryId;
                 card.dataset.chamberLayout = target.layout;
                 const reservedSlot = categoryCards?.querySelector(`:scope > [data-chamber-slot="${entryId}"]`);
                 if (reservedSlot && card.parentElement !== categoryCards) reservedSlot.replaceWith(card);
@@ -2775,7 +2848,7 @@ function orderChambersSurface() {
 
             const cardCount = categoryCards?.querySelectorAll(':scope > .stat-card').length || 0;
             if (cardCount) {
-                if (categoryConfig.key === _pendingChamberCategoryKey) category.open = true;
+                if (categoryConfig.key === _pendingChamberCategoryKey) setChamberCategoryExpanded(category, true);
                 const expectedNode = previousCategory
                     ? previousCategory.nextElementSibling
                     : grid.firstElementChild;
@@ -2789,6 +2862,7 @@ function orderChambersSurface() {
 
         grid.dataset.chambersOrder = orderedCards.map((card) => card.id || card.dataset.stat || '').join(',');
         syncChamberEntryFooters(grid);
+        updateAllChamberPairStates();
     });
 
     if (!_chamberPairObserver) {
@@ -6299,7 +6373,9 @@ function applyDeepLink() {
     const params = new URLSearchParams(hash);
     const currentEntry = findCurrentSiteMapEntry();
     const isSearchRoute = hash === 'search' || params.has('search');
-    revealChamberCategoryForEntry(currentEntry);
+    revealChamberCategoryForEntry(currentEntry, {
+        savePreference: !document.documentElement.hasAttribute('data-chamber-route')
+    });
 
     if (!isSearchRoute && _searchRouteFocusTimer !== null) {
         window.clearTimeout(_searchRouteFocusTimer);

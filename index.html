@@ -51,17 +51,17 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=564">
-    <link id="shell-extras-css" rel="stylesheet" href="css/shell-extras.min.css?v=564">
-    <link rel="stylesheet" href="css/loading.css?v=564">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=564">
-    <link rel="stylesheet" href="css/site-map.css?v=564">
+    <link rel="stylesheet" href="css/styles.min.css?v=567">
+    <link id="shell-extras-css" rel="stylesheet" href="css/shell-extras.min.css?v=567">
+    <link rel="stylesheet" href="css/loading.css?v=567">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=567">
+    <link rel="stylesheet" href="css/site-map.css?v=567">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=564">
+    <link rel="modulepreload" href="js/core/app.js?v=567">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
@@ -275,8 +275,8 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=564"></script>
-    <script src="js/core/home-layout-preload.js?v=564"></script>
+    <script src="js/core/theme-preload.js?v=567"></script>
+    <script src="js/core/home-layout-preload.js?v=567"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -587,7 +587,7 @@
                     </button>
                     <div class="settings-dropdown" id="settings-dropdown" role="dialog" aria-label="Setup and settings">
                         <button id="customize-home-btn" class="glass-button customize-home-trigger" aria-label="Customize home layout" title="Choose which home blocks are shown">
-                            <span aria-hidden="true">☷</span> <span class="dropdown-label">Customize home</span><span class="home-layout-count" data-home-layout-count>6 shown</span>
+                            <span aria-hidden="true">☷</span> <span class="dropdown-label">Customize home</span><span class="home-layout-count" data-home-layout-count>7 shown</span>
                         </button>
                         <div class="dropdown-divider"></div>
                         <button id="theme-toggle" class="glass-button" aria-label="Switch to matrix theme" title="Theme: default">
@@ -809,17 +809,17 @@
             </div>
 
             <div class="stats-grid chambers-paired-grid" id="chambers-grid">
-                <details class="chamber-card-pair chamber-category" data-chamber-category="network" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">Network</span><span class="chamber-category-question">What is the chain doing now?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="3 rooms">03</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards">
+                <section class="chamber-card-pair chamber-category" data-chamber-category="network" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-network-cards"><span class="chamber-category-name" role="heading" aria-level="3">Network</span><span class="chamber-category-question">What is the chain doing now?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="3 rooms">03</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="network" aria-label="Hide Network category" title="Hide Network"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-network-cards">
                         <article id="network-pulse-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="pulse" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Network Pulse</h2><div class="stat-value">Live network room</div><p class="stat-description">Consensus, economy, governance, activity, and ecosystem signals.</p></div></div></article>
                         <div class="chamber-entry-shell-slot" data-chamber-slot="health" data-chamber-layout="standard" aria-hidden="true"></div>
                         <article id="tezlink-entry-card" class="stat-card chamber-entry-card chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="tezosx" data-chamber-layout="standard" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Tezos X</h2><div class="stat-value">L1 + L2</div><p class="stat-description">Tezos X progress and Etherlink network signals.</p></div></div></article>
                     </div>
-                </details>
-                <details class="chamber-card-pair chamber-category" data-chamber-category="capital" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">Capital</span><span class="chamber-category-question">Where is value sitting and moving?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="6 rooms">06</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards">
+                </section>
+                <section class="chamber-card-pair chamber-category" data-chamber-category="capital" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-capital-cards"><span class="chamber-category-name" role="heading" aria-level="3">Capital</span><span class="chamber-category-question">Where is value sitting and moving?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="6 rooms">06</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="capital" aria-label="Hide Capital category" title="Hide Capital"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-capital-cards">
                         <article id="capital-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="capital" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Capital Chamber</h2><div class="stat-value">Cross-layer proofbook</div><p class="stat-description">Tezos and Etherlink capital intelligence.</p></div></div></article>
                         <article id="minerals-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="minerals" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Critical Minerals</h2><div class="stat-value">60-material atlas</div><p class="stat-description">Supply evidence, public market series, and bounded Etherlink receipts.</p></div></div></article>
                         <article id="uranium-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="uranium" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Uranium</h2><div class="stat-value">xU3O8</div><p class="stat-description">Market, on-chain, custody, and reserve evidence on separate clocks.</p></div></div></article>
@@ -827,42 +827,42 @@
                         <article id="whale-watch-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="whales" data-chamber-layout="wide" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Whale Watch</h2><div class="stat-value">Large flows</div><p class="stat-description">Receipt-backed transfers, dormant accounts, and awakenings.</p></div></div></article>
                         <article id="staking-entry-card" class="stat-card chamber-entry-card chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="staking-chamber" data-chamber-layout="compact" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Staking Chamber</h2><div class="stat-value">&gt;10K ꜩ</div><p class="stat-description">Large explicit stake and unstake receipts.</p></div></div></article>
                     </div>
-                </details>
-                <details class="chamber-card-pair chamber-category" data-chamber-category="ecosystem" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">Ecosystem</span><span class="chamber-category-question">Which apps are seeing on-chain activity?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="1 room">01</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards"><article id="ecosystem-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="ecosystem" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Ecosystem Activity</h2><div class="stat-value">Weekly activity</div><p class="stat-description">Reviewed Tezos L1 and Etherlink application cohorts.</p></div></div></article></div>
-                </details>
-                <details class="chamber-card-pair chamber-category" data-chamber-category="bakers" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">Bakers</span><span class="chamber-category-question">Who is securing Tezos and upgrading its keys?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="2 rooms">02</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards">
+                </section>
+                <section class="chamber-card-pair chamber-category" data-chamber-category="ecosystem" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-ecosystem-cards"><span class="chamber-category-name" role="heading" aria-level="3">Ecosystem</span><span class="chamber-category-question">Which apps are seeing on-chain activity?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="1 room">01</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="ecosystem" aria-label="Hide Ecosystem category" title="Hide Ecosystem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-ecosystem-cards"><article id="ecosystem-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="ecosystem" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Ecosystem Activity</h2><div class="stat-value">Weekly activity</div><p class="stat-description">Reviewed Tezos L1 and Etherlink application cohorts.</p></div></div></article></div>
+                </section>
+                <section class="chamber-card-pair chamber-category" data-chamber-category="bakers" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-bakers-cards"><span class="chamber-category-name" role="heading" aria-level="3">Bakers</span><span class="chamber-category-question">Who is securing Tezos and upgrading its keys?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="2 rooms">02</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="bakers" aria-label="Hide Bakers category" title="Hide Bakers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-bakers-cards">
                         <article id="baker-directory-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="leaderboard" data-chamber-layout="wide" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Baker Directory</h2><div class="stat-value">Discover bakers</div><p class="stat-description">Factual filters, governance signals, and direct profiles.</p></div></div></article>
                         <div class="chamber-entry-shell-slot" data-chamber-slot="tz4" data-chamber-layout="compact" aria-hidden="true"></div>
                     </div>
-                </details>
-                <details class="chamber-card-pair chamber-category" data-chamber-category="governance" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">Governance</span><span class="chamber-category-question">What is Tezos deciding?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="3 rooms">03</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards">
+                </section>
+                <section class="chamber-card-pair chamber-category" data-chamber-category="governance" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-governance-cards"><span class="chamber-category-name" role="heading" aria-level="3">Governance</span><span class="chamber-category-question">What is Tezos deciding?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="3 rooms">03</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="governance" aria-label="Hide Governance category" title="Hide Governance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-governance-cards">
                         <article id="chamber-entry-card" class="stat-card chamber-entry-card chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="chamber" data-chamber-layout="standard" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Tezos L1 Governance</h2><div class="stat-value">Current vote room</div><p class="stat-description">Voting periods, proposals, ballots, and quorum context.</p></div></div></article>
                         <article id="etherlink-governance-entry-card" class="stat-card chamber-entry-card chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="l2-governance" data-chamber-layout="standard" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Tezos X Governance</h2><div class="stat-value">L2 decisions</div><p class="stat-description">FAST, SLOW, and Sequencer governance receipts.</p></div></div></article>
                         <article id="lb-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="liquidity-baking" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Liquidity Baking</h2><div class="stat-value">Protocol market maker</div><p class="stat-description">Subsidy, EMA, and bounded block history.</p></div></div></article>
                     </div>
-                </details>
-                <details class="chamber-card-pair chamber-category" data-chamber-category="people" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">People &amp; Accounts</span><span class="chamber-category-question">Who is here, and what have they done?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="4 rooms">04</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards">
+                </section>
+                <section class="chamber-card-pair chamber-category" data-chamber-category="people" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-people-cards"><span class="chamber-category-name" role="heading" aria-level="3">People &amp; Accounts</span><span class="chamber-category-question">Who is here, and what have they done?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="4 rooms">04</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="people" aria-label="Hide People &amp; Accounts category" title="Hide People &amp; Accounts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-people-cards">
                         <article id="ledger-flow-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="ledger-flow" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Ledger Flow</h2><div class="stat-value">Account transfer map</div><p class="stat-description">Bounded address-level receipts and counterparties.</p></div></div></article>
                         <article id="tezos-domains-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="domains" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Tezos Domains</h2><div class="stat-value">.tez names</div><p class="stat-description">Registration, marketplace, and expiring-name signals.</p></div></div></article>
                         <article id="maxis-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="maxis" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Tezos Maxis</h2><div class="stat-value">Crowns and passports</div><p class="stat-description">Career, season, and receipt-backed achievement lanes.</p></div></div></article>
                         <article id="tezoscrp-entry-card" class="stat-card chamber-entry-card chamber-entry-wide chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="tezoscrp" data-chamber-layout="featured" data-updated-label="Loads when viewed" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">TezosCRP Recognition Hall</h2><div class="stat-value">Community recognition</div><p class="stat-description">Official monthly categories, recipients, and source receipts.</p></div></div></article>
                     </div>
-                </details>
-                <details class="chamber-card-pair chamber-category" data-chamber-category="history" data-chamber-shell="1" open>
-                    <summary class="chamber-category-head"><span class="chamber-category-name" role="heading" aria-level="3">History</span><span class="chamber-category-question">What happened before now?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="2 rooms">02</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></summary>
-                    <div class="chamber-category-cards">
+                </section>
+                <section class="chamber-card-pair chamber-category" data-chamber-category="history" data-chamber-shell="1" data-chamber-expanded="true">
+                    <div class="chamber-category-head"><button class="chamber-category-toggle" type="button" aria-expanded="true" aria-controls="chamber-category-history-cards"><span class="chamber-category-name" role="heading" aria-level="3">History</span><span class="chamber-category-question">What happened before now?</span><span class="chamber-category-rule" aria-hidden="true"></span><span class="chamber-category-count" aria-label="2 rooms">02</span><span class="chamber-category-cue" aria-hidden="true">⌄</span></button><button class="chamber-category-hide" type="button" data-chamber-category-hide="history" aria-label="Hide History category" title="Hide History"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg></button></div>
+                    <div class="chamber-category-cards" id="chamber-category-history-cards">
                         <article id="protocol-history-entry-card" class="stat-card chamber-entry-card chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="anthology" data-chamber-layout="standard" data-updated-label="Loads with the shell" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Protocol Anthology</h2><div class="stat-value">Amendment archive</div><p class="stat-description">Protocol lore, impact, disputes, and receipts.</p></div></div></article>
                         <article id="cycle-history-entry-card" class="stat-card chamber-entry-card chamber-entry-skeleton" data-chamber-skeleton data-chamber-entry-id="history" data-chamber-layout="standard" data-updated-label="Loads with the shell" aria-busy="true"><div class="card-inner"><div class="card-front chamber-entry-front"><h2 class="stat-label chamber-entry-title">Cycle History</h2><div class="stat-value">Historical signals</div><p class="stat-description">Source-specific ranges across captured network ledgers.</p></div></div></article>
                     </div>
-                </details>
+                </section>
             </div>
         </section>
 
@@ -2162,13 +2162,19 @@
     <section id="recruit-section" data-site-handoff data-site-context="home" data-home-block="handoff"></section>
 
     <!-- Footer -->
-    <footer class="footer site-footer-separate" id="site-footer" role="contentinfo" data-site-footer data-site-context="home">
+    <footer class="footer site-footer-separate" id="site-footer" role="contentinfo" data-site-footer data-site-context="home" data-home-block="credits">
         <div class="site-footer-inner" data-site-footer-attribution>
             <span class="powered-by">Built by <a href="mailto:primate@tez.capital">Primate</a> — baker behind <a href="https://x.com/BakingBenjamins" target="_blank" rel="noopener"><strong>Baking Benjamins</strong></a> and co-founding member of <a href="https://tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
             <span class="footer-baker-support">Support this work: delegate or stake to <a href="/#my-baker=bakingbenjamins.tez">BakingBenjamins.tez</a> or <a href="/#my-baker=baking.tez">baking.tez</a></span>
             <span class="footer-contribute"><a href="/landing.html">Start here</a> · <a href="https://github.com/Primate411/tezos.systems/issues" target="_blank" rel="noopener">Issues</a> · <a href="https://github.com/Primate411/tezos.systems/pulls" target="_blank" rel="noopener">PRs</a> · <a href="https://github.com/Primate411/tezos.systems" target="_blank" rel="noopener">Source</a> · <a href="/LICENSE" rel="license">MPL-2.0</a></span>
             <span class="footer-source-line">Data from <a href="https://tzkt.io" target="_blank" rel="noopener">TzKT</a> · RPC by <a href="https://eu.rpc.tez.capital" target="_blank" rel="noopener">Tez Capital</a></span>
-            <p id="build-version" class="build-version"></p>
+            <div class="footer-last-line">
+                <p id="build-version" class="build-version"></p>
+                <button class="home-block-hide footer-credits-hide" type="button" data-home-hide="credits" aria-label="Hide Credits and sources" title="Hide Credits and sources">
+                    <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
+                    <span class="home-block-hide-label">Hide</span>
+                </button>
+            </div>
         </div>
     </footer>
 
@@ -2187,11 +2193,84 @@
                 <label class="home-layout-option"><span><strong>Search and command deck</strong><small>Search every feature or jump with a slash command.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="search" checked><i aria-hidden="true"></i></label>
                 <label class="home-layout-option"><span><strong>Live Pulse</strong><small>Ranked live signals and the governance alert strip.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="live-pulse" checked><i aria-hidden="true"></i></label>
                 <label class="home-layout-option"><span><strong>Explore Tezos</strong><small>The complete topic-based Chamber launcher.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="explore" checked><i aria-hidden="true"></i></label>
+                <details class="home-layout-topics" id="home-layout-topics">
+                    <summary><span><strong>Choose Explore Chambers</strong><small>Open a topic to show or hide its individual rooms.</small></span><span class="home-layout-topic-count" data-chamber-room-count>21 shown</span><span class="home-layout-topics-cue" aria-hidden="true">⌄</span></summary>
+                    <div class="home-layout-topic-options">
+                        <details class="home-layout-topic-group" data-chamber-topic-group="network">
+                            <summary><span><strong>Network</strong><small>What is the chain doing now?</small></span><span data-chamber-topic-room-count="network">3/3</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">Network Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole Network topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="network" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Network Pulse</strong><small>Live consensus, economy, market, and activity.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="pulse" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Network Health</strong><small>Blocks, consensus timing, versions, and rights.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="health" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Tezos X</strong><small>Etherlink activity, gas, TVL, and transactions.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="tezosx" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                        <details class="home-layout-topic-group" data-chamber-topic-group="capital">
+                            <summary><span><strong>Capital</strong><small>Where is value sitting and moving?</small></span><span data-chamber-topic-room-count="capital">6/6</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">Capital Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole Capital topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="capital" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Capital Chamber</strong><small>Cross-layer markets and asset intelligence.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="capital" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Critical Minerals</strong><small>Strategic supply, market, and chain evidence.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="minerals" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Uranium</strong><small>xU3O8 markets, token activity, and proofbook.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="uranium" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Precious Metals</strong><small>Eight metals and bounded VNXAU evidence.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="metals" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Whale Watch</strong><small>Large transfers, grouped flows, and awakenings.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="whales" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Staking Chamber</strong><small>Large stake and unstake moves.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="staking-chamber" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                        <details class="home-layout-topic-group" data-chamber-topic-group="ecosystem">
+                            <summary><span><strong>Ecosystem</strong><small>Which apps are seeing on-chain activity?</small></span><span data-chamber-topic-room-count="ecosystem">1/1</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">Ecosystem Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole Ecosystem topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="ecosystem" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Ecosystem Activity</strong><small>Weekly activity for reviewed L1 and L2 apps.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="ecosystem" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                        <details class="home-layout-topic-group" data-chamber-topic-group="bakers">
+                            <summary><span><strong>Bakers</strong><small>Who is securing Tezos and upgrading its keys?</small></span><span data-chamber-topic-room-count="bakers">2/2</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">Baker Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole Bakers topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="bakers" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Baker Directory</strong><small>Discover and compare Tezos bakers.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="leaderboard" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>tz4 Adoption</strong><small>BLS keys, switches, power, and holdouts.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="tz4" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                        <details class="home-layout-topic-group" data-chamber-topic-group="governance">
+                            <summary><span><strong>Governance</strong><small>What is Tezos deciding?</small></span><span data-chamber-topic-room-count="governance">3/3</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">Governance Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole Governance topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="governance" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Tezos L1 Governance</strong><small>Current vote, quorum, ballots, and context.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="chamber" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Tezos X Governance</strong><small>FAST, SLOW, and sequencer tracks.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="l2-governance" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Liquidity Baking</strong><small>Votes, EMA, subsidy state, and lore.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="liquidity-baking" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                        <details class="home-layout-topic-group" data-chamber-topic-group="people">
+                            <summary><span><strong>People &amp; Accounts</strong><small>Who is here, and what have they done?</small></span><span data-chamber-topic-room-count="people">4/4</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">People and Account Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole People topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="people" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Ledger Flow</strong><small>Bounded sent and received tez paths.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="ledger-flow" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Tezos Domains</strong><small>.tez lookup, registrations, auctions, and offers.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="domains" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Tezos Maxis</strong><small>Crowns, seasons, Passports, and Champions.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="maxis" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>TezosCRP Recognition Hall</strong><small>Official community award history.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="tezoscrp" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                        <details class="home-layout-topic-group" data-chamber-topic-group="history">
+                            <summary><span><strong>History</strong><small>What happened before now?</small></span><span data-chamber-topic-room-count="history">2/2</span><span aria-hidden="true">⌄</span></summary>
+                            <fieldset><legend class="visually-hidden">History Chambers to show</legend>
+                                <label class="home-layout-option home-layout-topic-option home-layout-topic-master"><span><strong>Whole History topic</strong><small>Hide or restore the complete group.</small></span><input type="checkbox" role="switch" data-chamber-category-toggle="history" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Protocol Anthology</strong><small>Tezos upgrades, debates, and amendment lore.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="anthology" checked><i aria-hidden="true"></i></label>
+                                <label class="home-layout-option home-layout-topic-option"><span><strong>Cycle History</strong><small>Historical network signals and charts.</small></span><input type="checkbox" role="switch" data-chamber-room-toggle="history" checked><i aria-hidden="true"></i></label>
+                            </fieldset>
+                        </details>
+                    </div>
+                    <div class="home-layout-topics-footer">
+                        <span><span data-chamber-room-count>21 shown</span> · <span data-chamber-category-count>7 topics</span></span>
+                        <button class="glass-button home-layout-show-all" id="chamber-category-show-all" type="button">Show all Chambers</button>
+                    </div>
+                </details>
                 <label class="home-layout-option"><span><strong>Network Moments</strong><small>Milestone timeline when the network crosses a threshold.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="moments" checked><i aria-hidden="true"></i></label>
                 <label class="home-layout-option"><span><strong>Keep Exploring</strong><small>The next-signal handoff and complete site map.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="handoff" checked><i aria-hidden="true"></i></label>
+                <label class="home-layout-option"><span><strong>Credits and sources</strong><small>Builder, support, source, license, data, and build details.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="credits" checked><i aria-hidden="true"></i></label>
             </fieldset>
             <div class="home-layout-footer">
-                <span class="home-layout-footer-count" data-home-layout-count>6 shown</span>
+                <span class="home-layout-footer-count" data-home-layout-count>7 shown</span>
                 <button class="glass-button home-layout-show-all" id="home-layout-show-all" type="button">Show all</button>
             </div>
         </div>
@@ -2794,8 +2873,8 @@
 
     <!-- Load app as module -->
     <script defer src="js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="js/effects/valley-loader.js?v=564"></script>
-    <script type="module" src="js/core/app.js?v=564"></script>
+    <script type="module" src="js/effects/valley-loader.js?v=567"></script>
+    <script type="module" src="js/core/app.js?v=567"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

@@ -3611,8 +3611,10 @@ async function assertChamberOrder(page, label) {
         question: category.querySelector(':scope > .chamber-category-head .chamber-category-question')?.textContent?.trim() || '',
         count: category.querySelector(':scope > .chamber-category-head .chamber-category-count')?.textContent?.trim() || '',
         countLabel: category.querySelector(':scope > .chamber-category-head .chamber-category-count')?.getAttribute('aria-label') || '',
-        open: category.open,
+        open: category.dataset.chamberExpanded === 'true',
         tagName: category.tagName,
+        toggleTag: category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.tagName || '',
+        hideTag: category.querySelector(':scope > .chamber-category-head > .chamber-category-hide')?.tagName || '',
         cards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).map(cardKey),
         layouts: Array.from(
           category.querySelectorAll(':scope > .chamber-category-cards > .stat-card'),
@@ -3638,7 +3640,7 @@ async function assertChamberOrder(page, label) {
     assert(actual?.key === expected.key, `${label}: Chamber category ${index + 1} key mismatch ${JSON.stringify(actual)}`);
     assert(actual?.label === expected.label, `${label}: Chamber category ${expected.key} label mismatch ${JSON.stringify(actual)}`);
     assert(actual?.question === expected.question, `${label}: Chamber category ${expected.key} question mismatch ${JSON.stringify(actual)}`);
-    assert(actual?.tagName === 'DETAILS', `${label}: Chamber category ${expected.key} must use native disclosure semantics ${JSON.stringify(actual)}`);
+    assert(actual?.tagName === 'SECTION' && actual?.toggleTag === 'BUTTON' && actual?.hideTag === 'BUTTON', `${label}: Chamber category ${expected.key} must separate disclosure and Hide buttons ${JSON.stringify(actual)}`);
     assert(actual?.cards.join(',') === expected.cards.join(','), `${label}: Chamber category ${expected.key} membership mismatch ${JSON.stringify(actual)}`);
     assert(actual?.layouts.join(',') === expected.layouts.join(','), `${label}: Chamber category ${expected.key} density layout mismatch ${JSON.stringify(actual)}`);
     assert(actual?.count === String(expected.cards.length).padStart(2, '0'), `${label}: Chamber category ${expected.key} visible count mismatch ${JSON.stringify(actual)}`);
@@ -4123,7 +4125,7 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       document.querySelectorAll('#chambers-grid > .chamber-category'),
       (category) => ({
         key: category.dataset.chamberCategory || '',
-        open: category.open,
+        open: category.dataset.chamberExpanded === 'true',
         visibleCards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).filter((card) => card.getClientRects().length > 0).length
       })
     ));
@@ -4131,12 +4133,12 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       initialCategories.every((category) => category.open === (category.key === 'network')),
       `${label}: mobile must initialize only Network open ${JSON.stringify(initialCategories)}`
     );
-    const capitalHead = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+    const capitalHead = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle');
     await page.evaluate(() => {
       const html = document.documentElement;
       const previousBehavior = html.style.scrollBehavior;
       html.style.scrollBehavior = 'auto';
-      document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head')
+      document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle')
         ?.scrollIntoView({ block: 'center', behavior: 'auto' });
       html.style.scrollBehavior = previousBehavior;
     });
@@ -4144,13 +4146,13 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     const beforeToggle = await page.evaluate(() => ({ scrollY: window.scrollY, active: document.activeElement?.className || '' }));
     const simulatedAnchoringShift = 369;
     await page.evaluate((shift) => {
-      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle');
       head?.addEventListener('click', () => {
         requestAnimationFrame(() => window.scrollBy(0, shift));
       }, { once: true });
     }, simulatedAnchoringShift);
     const activationScrollY = await page.evaluate(() => {
-      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle');
       head?.focus({ preventScroll: true });
       const scrollY = window.scrollY;
       head?.click();
@@ -4158,8 +4160,8 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     });
     await page.waitForFunction((targetScrollY) => {
       const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
-      const head = category?.querySelector(':scope > .chamber-category-head');
-      return Boolean(category?.open
+      const head = category?.querySelector(':scope > .chamber-category-head > .chamber-category-toggle');
+      return Boolean(category?.dataset.chamberExpanded === 'true'
         && document.activeElement === head
         && Math.abs(window.scrollY - targetScrollY) <= 4);
     }, activationScrollY, { timeout: 3000 });
@@ -4167,14 +4169,14 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
       return {
         scrollY: window.scrollY,
-        open: category?.open || false,
-        focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head')
+        open: category?.dataset.chamberExpanded === 'true',
+        focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')
       };
     });
     assert(afterToggle.open && afterToggle.focused, `${label}: mobile disclosure toggle must remain focused and open ${JSON.stringify(afterToggle)}`);
     assert(Math.abs(afterToggle.scrollY - activationScrollY) <= 4, `${label}: mobile disclosure toggle did not repair a ${simulatedAnchoringShift}px browser anchor shift ${JSON.stringify({ beforeToggle, activationScrollY, afterToggle })}`);
     await page.evaluate(() => {
-      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+      const head = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle');
       const nativeScrollTo = window.scrollTo;
       window.__chamberCategoryScrollProbe = {
         nativeScrollTo,
@@ -4209,8 +4211,8 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
       const probe = window.__chamberCategoryScrollProbe;
       const state = {
         scrollY: window.scrollY,
-        open: category?.open || false,
-        focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head'),
+        open: category?.dataset.chamberExpanded === 'true',
+        focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head > .chamber-category-toggle'),
         restoreCallsAfterIntent: probe?.restoreCallsAfterIntent ?? -1,
         targetY: probe?.targetY ?? -1,
         appliedY: probe?.appliedY ?? -1
@@ -4228,7 +4230,10 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     );
     await page.evaluate(() => {
       document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
-        category.open = true;
+        category.dataset.chamberExpanded = 'true';
+        category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+        const cards = category.querySelector(':scope > .chamber-category-cards');
+        if (cards) cards.hidden = false;
       });
     });
   }
@@ -16439,8 +16444,8 @@ async function smokeLauncherProjections(browser, baseUrl) {
       && !/Unavailable/.test(visibleText);
   }, null, { timeout: 30000 });
   const mobileEcosystemCategory = noSubtlePage.locator('.chamber-category[data-chamber-category="ecosystem"]');
-  if ((await mobileEcosystemCategory.getAttribute('open')) === null) {
-    await mobileEcosystemCategory.locator(':scope > .chamber-category-head').click();
+  if ((await mobileEcosystemCategory.getAttribute('data-chamber-expanded')) !== 'true') {
+    await mobileEcosystemCategory.locator(':scope > .chamber-category-head > .chamber-category-toggle').click();
   }
   await noSubtlePage.waitForFunction(() => document.querySelector('#ecosystem-entry-card')?.getClientRects().length > 0);
   const ecosystemMobileLayout = await noSubtlePage.evaluate(() => {
@@ -17417,6 +17422,286 @@ async function smokeUraniumChamber(browser, baseUrl) {
   };
 
   const issues = [];
+  const categoryStorageKey = 'tezos-systems-explore-layout-v1';
+  const legacyCategoryStorageKey = 'tezos-systems-chamber-categories-v1';
+  const categoryIds = ['network', 'capital', 'ecosystem', 'bakers', 'governance', 'people', 'history'];
+  const roomIds = ['pulse', 'health', 'tezosx', 'capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber', 'ecosystem', 'leaderboard', 'tz4', 'chamber', 'l2-governance', 'liquidity-baking', 'ledger-flow', 'domains', 'maxis', 'tezoscrp', 'anthology', 'history'];
+  const preferenceContext = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(preferenceContext);
+  await preferenceContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    if (!sessionStorage.getItem('__explore-layout-smoke-seeded')) {
+      localStorage.removeItem('tezos-systems-explore-layout-v1');
+      localStorage.removeItem('tezos-systems-chamber-categories-v1');
+      sessionStorage.setItem('__explore-layout-smoke-seeded', '1');
+    }
+  });
+  const preferencePage = await preferenceContext.newPage();
+  attachIssueCollectors(preferencePage, 'Chamber category preferences', issues);
+  let preferenceResponse = await preferencePage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(preferenceResponse?.ok(), `Chamber category preferences failed with HTTP ${preferenceResponse?.status()}`);
+  await preferencePage.waitForFunction(() => Boolean(window.tezosSystemsChamberCategories), null, { timeout: 15000 });
+  await preferencePage.waitForFunction(() => document.querySelectorAll('[data-chamber-room-hide]').length === 21, null, { timeout: 15000 });
+  const defaultPreferenceState = await preferencePage.evaluate(() => ({
+    categoryRoot: document.documentElement.getAttribute('data-chamber-categories-hidden'),
+    roomRoot: document.documentElement.getAttribute('data-chamber-rooms-hidden'),
+    stored: localStorage.getItem('tezos-systems-explore-layout-v1'),
+    shownCategories: [...document.querySelectorAll('#chambers-grid > .chamber-category')].filter((category) => getComputedStyle(category).display !== 'none').length,
+    shownRooms: [...document.querySelectorAll('#chambers-grid [data-chamber-entry-id]')].filter((room) => getComputedStyle(room).display !== 'none').length,
+    categoryHideButtons: document.querySelectorAll('[data-chamber-category-hide]').length,
+    roomHideButtons: document.querySelectorAll('[data-chamber-room-hide]').length,
+    roomSwitches: document.querySelectorAll('[data-chamber-room-toggle]').length,
+    independentControls: [...document.querySelectorAll('#chambers-grid > .chamber-category')].every((category) => (
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.tagName === 'BUTTON'
+      && category.querySelector(':scope > .chamber-category-head > .chamber-category-hide')?.tagName === 'BUTTON'
+    ))
+  }));
+  assert(defaultPreferenceState.categoryRoot === ''
+    && defaultPreferenceState.roomRoot === ''
+    && defaultPreferenceState.stored === null
+    && defaultPreferenceState.shownCategories === 7
+    && defaultPreferenceState.shownRooms === 21
+    && defaultPreferenceState.categoryHideButtons === 7
+    && defaultPreferenceState.roomHideButtons === 21
+    && defaultPreferenceState.roomSwitches === 21
+    && defaultPreferenceState.independentControls,
+  `Chamber category default/recovery controls failed ${JSON.stringify(defaultPreferenceState)}`);
+
+  const mineralsHide = preferencePage.locator('[data-chamber-room-hide="minerals"]');
+  await mineralsHide.scrollIntoViewIfNeeded();
+  await mineralsHide.click();
+  await preferencePage.waitForFunction(() => getComputedStyle(document.querySelector('[data-chamber-entry-id="minerals"]')).display === 'none');
+  let categoryToast = preferencePage.locator('.home-layout-toast.is-visible');
+  await categoryToast.waitFor({ state: 'visible', timeout: 9000 });
+  assert(!(await categoryToast.locator('button').evaluate((button) => document.activeElement === button)), 'Chamber pointer Hide stole focus into Undo');
+  assert((await categoryToast.textContent())?.includes('Critical Minerals hidden'), 'Chamber Undo toast did not name the hidden room');
+  await categoryToast.locator('button').click();
+  await categoryToast.waitFor({ state: 'detached', timeout: 3000 });
+
+  const domainsHide = preferencePage.locator('[data-chamber-room-hide="domains"]');
+  await domainsHide.focus();
+  await preferencePage.keyboard.press('Enter');
+  categoryToast = preferencePage.locator('.home-layout-toast.is-visible');
+  await categoryToast.waitFor({ state: 'visible', timeout: 9000 });
+  await preferencePage.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Undo');
+  await categoryToast.locator('button').click();
+  await categoryToast.waitFor({ state: 'detached', timeout: 3000 });
+
+  const capitalHide = preferencePage.locator('[data-chamber-category-hide="capital"]');
+  await capitalHide.scrollIntoViewIfNeeded();
+  await capitalHide.click();
+  await preferencePage.waitForFunction(() => getComputedStyle(document.querySelector('[data-chamber-category="capital"]')).display === 'none');
+  categoryToast = preferencePage.locator('.home-layout-toast.is-visible');
+  await categoryToast.waitFor({ state: 'visible', timeout: 9000 });
+  assert(!(await categoryToast.locator('button').evaluate((button) => document.activeElement === button)), 'Chamber category pointer Hide stole focus into Undo');
+  await categoryToast.locator('button').click();
+  await categoryToast.waitFor({ state: 'detached', timeout: 3000 });
+
+  const governanceHide = preferencePage.locator('[data-chamber-category-hide="governance"]');
+  await governanceHide.focus();
+  await preferencePage.keyboard.press('Enter');
+  categoryToast = preferencePage.locator('.home-layout-toast.is-visible');
+  await categoryToast.waitFor({ state: 'visible', timeout: 9000 });
+  await preferencePage.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Undo');
+  await categoryToast.locator('button').click();
+  await categoryToast.waitFor({ state: 'detached', timeout: 3000 });
+
+  await preferencePage.evaluate(() => window.tezosSystemsHomeLayout.open());
+  await preferencePage.locator('#home-layout-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+  await preferencePage.locator('#home-layout-topics > summary').click();
+  await preferencePage.locator('[data-chamber-topic-group="network"] > summary').click();
+  const topicPanelState = await preferencePage.evaluate(() => ({
+    homeRows: document.querySelectorAll('.home-layout-options > .home-layout-option').length,
+    topicGroups: document.querySelectorAll('.home-layout-topic-group').length,
+    categoryRows: document.querySelectorAll('[data-chamber-category-toggle]').length,
+    roomRows: document.querySelectorAll('[data-chamber-room-toggle]').length,
+    roomCount: document.querySelector('[data-chamber-room-count]')?.textContent?.trim(),
+    categoryCount: document.querySelector('[data-chamber-category-count]')?.textContent?.trim(),
+    controls: [...document.querySelectorAll('[data-chamber-topic-group="network"] .home-layout-topic-option')].map((row) => row.getBoundingClientRect().height),
+    showAllText: document.getElementById('chamber-category-show-all')?.textContent?.trim()
+  }));
+  assert(topicPanelState.homeRows === 7
+    && topicPanelState.topicGroups === 7
+    && topicPanelState.categoryRows === 7
+    && topicPanelState.roomRows === 21
+    && topicPanelState.roomCount === '21 shown'
+    && topicPanelState.categoryCount === '7 topics'
+    && topicPanelState.controls.every((height) => height >= 44)
+    && topicPanelState.showAllText === 'Show all Chambers',
+  `Customize home topic disclosure failed ${JSON.stringify(topicPanelState)}`);
+  await preferencePage.locator('[data-chamber-topic-group="ecosystem"] > summary').click();
+  await preferencePage.locator('[data-chamber-room-toggle="ecosystem"]').click();
+  await preferencePage.keyboard.press('Escape');
+  await preferencePage.reload({ waitUntil: 'domcontentloaded' });
+  await preferencePage.waitForFunction(() => Boolean(window.tezosSystemsChamberCategories));
+  const persistedCategory = await preferencePage.evaluate(() => ({
+    categoryRoot: document.documentElement.getAttribute('data-chamber-categories-hidden'),
+    roomRoot: document.documentElement.getAttribute('data-chamber-rooms-hidden'),
+    display: getComputedStyle(document.querySelector('[data-chamber-category="ecosystem"]')).display,
+    preference: JSON.parse(localStorage.getItem('tezos-systems-explore-layout-v1'))
+  }));
+  assert(persistedCategory.categoryRoot === 'ecosystem'
+    && persistedCategory.roomRoot === 'ecosystem'
+    && persistedCategory.display === 'none'
+    && persistedCategory.preference.version === 1
+    && persistedCategory.preference.hiddenCategories.join(',') === 'ecosystem'
+    && persistedCategory.preference.hiddenRooms.join(',') === 'ecosystem',
+  `Chamber room reload persistence failed ${JSON.stringify(persistedCategory)}`);
+
+  const corruptCategoryValue = '{"version":1,"hiddenCategories":[],"hiddenRooms":["unknown-room"]}';
+  await preferencePage.evaluate(({ key, raw }) => {
+    localStorage.setItem(key, raw);
+    localStorage.setItem('chamber-category-unrelated-smoke', 'keep-me');
+  }, { key: categoryStorageKey, raw: corruptCategoryValue });
+  await preferencePage.reload({ waitUntil: 'domcontentloaded' });
+  await preferencePage.waitForFunction(() => Boolean(window.tezosSystemsChamberCategories));
+  const corruptCategoryState = await preferencePage.evaluate((key) => ({
+    categoryRoot: document.documentElement.getAttribute('data-chamber-categories-hidden'),
+    roomRoot: document.documentElement.getAttribute('data-chamber-rooms-hidden'),
+    raw: localStorage.getItem(key),
+    unrelated: localStorage.getItem('chamber-category-unrelated-smoke')
+  }), categoryStorageKey);
+  assert(corruptCategoryState.categoryRoot === ''
+    && corruptCategoryState.roomRoot === ''
+    && corruptCategoryState.raw === corruptCategoryValue
+    && corruptCategoryState.unrelated === 'keep-me',
+  `Chamber category corrupt fallback failed ${JSON.stringify(corruptCategoryState)}`);
+
+  await preferencePage.evaluate(() => window.tezosSystemsChamberCategories.showAllChamberCategories('cross-tab-reset'));
+  const categorySecondPage = await preferenceContext.newPage();
+  attachIssueCollectors(categorySecondPage, 'Chamber category second tab', issues);
+  preferenceResponse = await categorySecondPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(preferenceResponse?.ok(), `Chamber category second tab failed with HTTP ${preferenceResponse?.status()}`);
+  await categorySecondPage.waitForFunction(() => Boolean(window.tezosSystemsChamberCategories));
+  await preferencePage.evaluate(() => window.tezosSystemsChamberCategories.setChamberRoomVisible('minerals', false, 'cross-tab-smoke'));
+  await categorySecondPage.waitForFunction(() => document.documentElement.getAttribute('data-chamber-rooms-hidden') === 'minerals');
+  await categorySecondPage.evaluate(() => window.tezosSystemsChamberCategories.setChamberRoomVisible('minerals', true, 'cross-tab-smoke'));
+  await preferencePage.waitForFunction(() => document.documentElement.getAttribute('data-chamber-rooms-hidden') === '');
+  await categorySecondPage.close();
+
+  await preferencePage.evaluate((ids) => ids.forEach((id) => window.tezosSystemsChamberCategories.setChamberRoomVisible(id, false, 'hide-all-smoke')), roomIds);
+  const allTopicsHidden = await preferencePage.evaluate(() => ({
+    explore: window.tezosSystemsHomeLayout.isHomeBlockVisible('explore'),
+    categoryRoot: document.documentElement.getAttribute('data-chamber-categories-hidden')?.split(/\s+/).filter(Boolean).length,
+    roomRoot: document.documentElement.getAttribute('data-chamber-rooms-hidden')?.split(/\s+/).filter(Boolean).length,
+    setup: getComputedStyle(document.getElementById('settings-gear')).display,
+    footer: getComputedStyle(document.getElementById('site-footer')).display
+  }));
+  assert(!allTopicsHidden.explore && allTopicsHidden.categoryRoot === 7 && allTopicsHidden.roomRoot === 21 && allTopicsHidden.setup !== 'none' && allTopicsHidden.footer !== 'none',
+    `Hiding every Chamber left an empty Explore block or lost recovery ${JSON.stringify(allTopicsHidden)}`);
+  await preferencePage.evaluate(() => window.tezosSystemsChamberCategories.setChamberRoomVisible('pulse', true, 'single-room-recovery'));
+  await preferencePage.waitForFunction(() => window.tezosSystemsHomeLayout.isHomeBlockVisible('explore'));
+  await preferencePage.evaluate(() => window.tezosSystemsHomeLayout.open());
+  await preferencePage.locator('#home-layout-topics > summary').click();
+  await preferencePage.locator('#chamber-category-show-all').click();
+  await preferencePage.waitForFunction(() => document.documentElement.getAttribute('data-chamber-categories-hidden') === ''
+    && document.documentElement.getAttribute('data-chamber-rooms-hidden') === '');
+  await preferencePage.keyboard.press('Escape');
+
+  await preferencePage.evaluate(() => {
+    window.tezosSystemsChamberCategories.setChamberCategoryVisible('people', false, 'deep-link-setup');
+    window.tezosSystemsChamberCategories.setChamberRoomVisible('domains', false, 'deep-link-setup');
+  });
+  await preferencePage.evaluate(() => { location.hash = '#domains'; });
+  await preferencePage.waitForFunction(() => window.tezosSystemsChamberCategories.isChamberCategoryVisible('people')
+    && window.tezosSystemsChamberCategories.isChamberRoomVisible('domains'));
+  await preferencePage.locator('#tezos-domains-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  await preferencePage.locator('#tezos-domains-modal.active .chamber-close').click();
+
+  await preferencePage.evaluate(() => {
+    history.replaceState(null, '', '/');
+    window.tezosSystemsChamberCategories.setChamberRoomVisible('capital', false, 'tour-setup');
+  });
+  const tourCategoryPreference = await preferencePage.evaluate((key) => localStorage.getItem(key), categoryStorageKey);
+  await preferencePage.evaluate(() => window.TezosSystemsTour.replay());
+  await preferencePage.locator('#tour-overlay').waitFor({ state: 'visible', timeout: 6000 });
+  const tourCategoryState = await preferencePage.evaluate((key) => ({
+    preview: document.documentElement.getAttribute('data-chamber-categories-preview'),
+    display: getComputedStyle(document.querySelector('[data-chamber-entry-id="capital"]')).display,
+    stored: localStorage.getItem(key)
+  }), categoryStorageKey);
+  assert(tourCategoryState.preview === 'all' && tourCategoryState.display !== 'none' && tourCategoryState.stored === tourCategoryPreference,
+    `Guided tour changed or failed to reveal Chamber rooms ${JSON.stringify(tourCategoryState)}`);
+  await preferencePage.keyboard.press('Escape');
+  await preferencePage.locator('#tour-overlay').waitFor({ state: 'detached', timeout: 5000 });
+  await preferencePage.waitForFunction(() => getComputedStyle(document.querySelector('[data-chamber-entry-id="capital"]')).display === 'none');
+
+  await preferencePage.goto(`${baseUrl}/history/`, { waitUntil: 'domcontentloaded' });
+  await preferencePage.waitForFunction(() => Boolean(window.tezosSystemsChamberCategories));
+  await preferencePage.evaluate(() => window.tezosSystemsChamberCategories.setChamberRoomVisible('history', false, 'pretty-route-setup'));
+  await preferencePage.reload({ waitUntil: 'domcontentloaded' });
+  await preferencePage.locator('#history-modal.active').waitFor({ state: 'visible', timeout: 15000 });
+  const prettyHiddenPreference = await preferencePage.evaluate((key) => ({
+    hiddenRooms: JSON.parse(localStorage.getItem(key)).hiddenRooms,
+    display: getComputedStyle(document.querySelector('[data-chamber-entry-id="history"]')).display
+  }), categoryStorageKey);
+  assert(prettyHiddenPreference.hiddenRooms.includes('history') && prettyHiddenPreference.display === 'none',
+    `Full Chamber route changed its hidden Home room preference ${JSON.stringify(prettyHiddenPreference)}`);
+  await preferenceContext.close();
+
+  const migrationContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  await installFeatureMocks(migrationContext);
+  await migrationContext.addInitScript(() => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.removeItem('tezos-systems-explore-layout-v1');
+    localStorage.setItem('tezos-systems-chamber-categories-v1', JSON.stringify({ version: 1, hidden: ['bakers'] }));
+  });
+  const migrationPage = await migrationContext.newPage();
+  preferenceResponse = await migrationPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(preferenceResponse?.ok(), `Explore layout migration failed with HTTP ${preferenceResponse?.status()}`);
+  await migrationPage.waitForFunction(() => Boolean(window.tezosSystemsChamberCategories));
+  const migratedPreference = await migrationPage.evaluate(({ currentKey, legacyKey }) => ({
+    root: document.documentElement.getAttribute('data-chamber-categories-hidden'),
+    current: JSON.parse(localStorage.getItem(currentKey)),
+    legacy: localStorage.getItem(legacyKey)
+  }), { currentKey: categoryStorageKey, legacyKey: legacyCategoryStorageKey });
+  assert(migratedPreference.root === 'bakers'
+    && migratedPreference.current.version === 1
+    && migratedPreference.current.hiddenCategories.join(',') === 'bakers'
+    && migratedPreference.current.hiddenRooms.length === 0
+    && migratedPreference.legacy === null,
+  `Explore layout legacy migration failed ${JSON.stringify(migratedPreference)}`);
+  await migrationContext.close();
+
+  const categoryFirstPaintContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  await installFeatureMocks(categoryFirstPaintContext);
+  await categoryFirstPaintContext.addInitScript(() => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-explore-layout-v1', JSON.stringify({ version: 1, hiddenCategories: [], hiddenRooms: ['minerals'] }));
+  });
+  let releaseCategoryApp;
+  const categoryAppGate = new Promise((resolve) => { releaseCategoryApp = resolve; });
+  await categoryFirstPaintContext.route('**/js/core/app.js*', async (route) => {
+    await categoryAppGate;
+    await route.continue();
+  });
+  const categoryFirstPaintPage = await categoryFirstPaintContext.newPage();
+  attachIssueCollectors(categoryFirstPaintPage, 'Chamber category first paint', issues);
+  const categoryNavigation = categoryFirstPaintPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  await categoryFirstPaintPage.locator('[data-chamber-entry-id="minerals"]').waitFor({ state: 'attached', timeout: 10000 });
+  const categoryBeforeApp = await categoryFirstPaintPage.evaluate(() => ({
+    appReady: Boolean(window.tezosSystemsChamberCategories),
+    display: getComputedStyle(document.querySelector('[data-chamber-entry-id="minerals"]')).display,
+    categoryRoot: document.documentElement.getAttribute('data-chamber-categories-hidden'),
+    roomRoot: document.documentElement.getAttribute('data-chamber-rooms-hidden')
+  }));
+  assert(!categoryBeforeApp.appReady && categoryBeforeApp.display === 'none' && categoryBeforeApp.categoryRoot === '' && categoryBeforeApp.roomRoot === 'minerals',
+    `Chamber room first-paint preload failed ${JSON.stringify(categoryBeforeApp)}`);
+  releaseCategoryApp();
+  preferenceResponse = await categoryNavigation;
+  assert(preferenceResponse?.ok(), `Chamber category first-paint navigation failed with HTTP ${preferenceResponse?.status()}`);
+  await categoryFirstPaintContext.close();
+
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
@@ -17574,7 +17859,11 @@ async function smokeUraniumChamber(browser, baseUrl) {
     await page.evaluate(async (activeTheme) => {
       document.body.dataset.theme = activeTheme;
       const capital = document.querySelector('.chamber-category[data-chamber-category="capital"]');
-      if (capital) capital.open = true;
+      if (capital) {
+        capital.dataset.chamberExpanded = 'true';
+        const cards = capital.querySelector(':scope > .chamber-category-cards');
+        if (cards) cards.hidden = false;
+      }
       await document.fonts?.ready;
     }, theme);
     // Theme changes interpolate card borders in OKLab for 300ms. Sample the
@@ -18708,7 +18997,11 @@ async function smokeMineralsChamber(browser, baseUrl) {
     ), null, { timeout: 10000 });
     await mobilePage.evaluate(async () => {
       const capital = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
-      if (capital) capital.open = true;
+      if (capital) {
+        capital.dataset.chamberExpanded = 'true';
+        const cards = capital.querySelector(':scope > .chamber-category-cards');
+        if (cards) cards.hidden = false;
+      }
       await document.fonts?.ready;
     });
     await mobilePage.locator('#minerals-entry-card').scrollIntoViewIfNeeded();
@@ -21972,14 +22265,15 @@ async function smokeHashModalCleanup(browser, baseUrl) {
 async function smokeHomeLayout(browser, baseUrl) {
   const issues = [];
   const storageKey = 'tezos-systems-home-layout-v1';
-  const ids = ['ticker', 'search', 'live-pulse', 'explore', 'moments', 'handoff'];
+  const ids = ['ticker', 'search', 'live-pulse', 'explore', 'moments', 'handoff', 'credits'];
   const selectors = {
     ticker: '#block-ticker-strip',
     search: '#upgrade-clock',
     'live-pulse': '#hot-today-island',
     explore: '#chambers-section',
     moments: '#moments-section',
-    handoff: '#recruit-section'
+    handoff: '#recruit-section',
+    credits: '#site-footer'
   };
   const initVisitor = () => {
     localStorage.setItem('tezos-toured', '1');
@@ -22028,12 +22322,12 @@ async function smokeHomeLayout(browser, baseUrl) {
   }), ids);
   assert(defaultState.hidden === ''
     && defaultState.stored === null
-    && defaultState.count === '6 shown'
+    && defaultState.count === '7 shown'
     && defaultState.commandPlacement.contained
     && defaultState.commandPlacement.gap >= 4
     && defaultState.commandPlacement.gap <= 16
     && defaultState.commandPlacement.centerDelta <= 12
-    && defaultState.hideLabels.length === 6
+    && defaultState.hideLabels.length === 7
     && defaultState.hideLabels.every((label) => label.width <= 1 && label.height <= 1 && label.position === 'absolute' && label.clipPath !== 'none')
     && defaultState.switches.every(Boolean)
     && defaultState.visible.every(Boolean),
@@ -22048,7 +22342,7 @@ async function smokeHomeLayout(browser, baseUrl) {
   const overlayState = await page.evaluate(() => ({
     bodyOverflow: document.body.style.overflow,
     mainInert: document.querySelector('main')?.hasAttribute('inert') || false,
-    rowCount: document.querySelectorAll('.home-layout-option').length,
+    rowCount: document.querySelectorAll('.home-layout-options > .home-layout-option').length,
     sheet: (() => {
       const rect = document.querySelector('.home-layout-sheet')?.getBoundingClientRect();
       return rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null;
@@ -22056,7 +22350,7 @@ async function smokeHomeLayout(browser, baseUrl) {
   }));
   assert(overlayState.bodyOverflow === 'hidden'
     && overlayState.mainInert
-    && overlayState.rowCount === 6
+    && overlayState.rowCount === 7
     && overlayState.sheet?.left >= 0
     && overlayState.sheet?.right <= 1440,
   `home layout: desktop dialog/overlay stack geometry failed ${JSON.stringify(overlayState)}`);
@@ -22108,7 +22402,7 @@ async function smokeHomeLayout(browser, baseUrl) {
     if (id === 'ticker') {
       assert(!(await toast.locator('button').evaluate((button) => document.activeElement === button)), 'home layout: pointer hide stole focus into Undo');
     }
-    await toast.locator('button').click();
+    await toast.locator('button').click({ force: true });
     await page.waitForFunction((blockId) => !document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes(blockId), id);
     await toast.waitFor({ state: 'detached', timeout: 3000 });
   }
@@ -22139,14 +22433,14 @@ async function smokeHomeLayout(browser, baseUrl) {
     license: Boolean(document.querySelector('#site-footer a[rel="license"]')),
     reserved: Object.fromEntries(Object.entries(blockSelectors).map(([id, selector]) => [id, getComputedStyle(document.querySelector(selector)).display]))
   }), selectors);
-  assert(allHidden.hidden.length === 6
+  assert(allHidden.hidden.length === 7
     && allHidden.setup !== 'none'
     && allHidden.myTezos !== 'none'
-    && allHidden.footer !== 'none'
+    && allHidden.footer === 'none'
     && allHidden.source
     && allHidden.license
     && Object.values(allHidden.reserved).every((display) => display === 'none'),
-  `home layout: hide-all lost recovery/legal surfaces or reserved space ${JSON.stringify(allHidden)}`);
+  `home layout: hide-all lost recovery, managed credits, or reserved-space behavior ${JSON.stringify(allHidden)}`);
   await page.locator('#home-layout-show-all').click();
   await page.waitForFunction(() => document.documentElement.getAttribute('data-home-hidden') === '');
   await page.keyboard.press('Escape');
@@ -22254,7 +22548,7 @@ async function smokeHomeLayout(browser, baseUrl) {
     hidden: document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).filter(Boolean).length,
     stored: localStorage.getItem(key)
   }), storageKey);
-  assert(!tourRestore.preview && tourRestore.hidden === 6 && tourRestore.stored === tourPreference,
+  assert(!tourRestore.preview && tourRestore.hidden === 7 && tourRestore.stored === tourPreference,
     `home layout: tour end changed the saved layout ${JSON.stringify(tourRestore)}`);
   await context.close();
 
@@ -22307,11 +22601,19 @@ async function smokeHomeLayout(browser, baseUrl) {
     await mobilePage.locator('#settings-gear').click();
     await mobilePage.locator('#customize-home-btn').click();
     await mobilePage.locator('#home-layout-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+    await mobilePage.locator('#home-layout-topics > summary').click();
+    await mobilePage.locator('[data-chamber-topic-group="network"] > summary').click();
     const mobileGeometry = await mobilePage.evaluate(() => {
       const sheet = document.querySelector('.home-layout-sheet');
       const sheetRect = sheet?.getBoundingClientRect();
-      const rows = [...document.querySelectorAll('.home-layout-option')].map((row) => row.getBoundingClientRect().height);
+      const rows = [...document.querySelectorAll('.home-layout-options > .home-layout-option')].map((row) => row.getBoundingClientRect().height);
+      const topicRows = [...document.querySelectorAll('.home-layout-topic-option')].map((row) => row.getBoundingClientRect().height);
+      const topicGroups = [...document.querySelectorAll('.home-layout-topic-group > summary')].map((row) => row.getBoundingClientRect().height);
       const hideTargets = [...document.querySelectorAll('.home-block-hide')].map((button) => {
+        const rect = button.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+      const categoryHideTargets = [...document.querySelectorAll('.chamber-category-hide')].map((button) => {
         const rect = button.getBoundingClientRect();
         return { width: rect.width, height: rect.height };
       });
@@ -22322,7 +22624,10 @@ async function smokeHomeLayout(browser, baseUrl) {
         top: sheetRect?.top,
         overflow: document.documentElement.scrollWidth - innerWidth,
         rows,
+        topicRows,
+        topicGroups,
         hideTargets,
+        categoryHideTargets,
         switchTransition: getComputedStyle(document.querySelector('.home-layout-option i')).transitionDuration,
         viewport: { width: innerWidth, height: innerHeight }
       };
@@ -22332,9 +22637,15 @@ async function smokeHomeLayout(browser, baseUrl) {
       && mobileGeometry.top >= -1
       && mobileGeometry.bottom <= mobileGeometry.viewport.height + 1
       && mobileGeometry.overflow <= 1
-      && mobileGeometry.rows.length === 6
+      && mobileGeometry.rows.length === 7
       && mobileGeometry.rows.every((height) => height >= 44)
-      && mobileGeometry.hideTargets.every((target) => !target.width || (target.width >= 44 && target.height >= 44)),
+      && mobileGeometry.topicRows.length === 28
+      && mobileGeometry.topicRows.filter((height) => height > 0).length === 4
+      && mobileGeometry.topicRows.every((height) => height === 0 || height >= 44)
+      && mobileGeometry.topicGroups.length === 7
+      && mobileGeometry.topicGroups.every((height) => height >= 44)
+      && mobileGeometry.hideTargets.every((target) => !target.width || (target.width >= 44 && target.height >= 44))
+      && mobileGeometry.categoryHideTargets.every((target) => !target.width || (target.width >= 44 && target.height >= 44)),
     `home layout: ${width}px bottom sheet/touch containment failed ${JSON.stringify(mobileGeometry)}`);
     if (reducedMotion === 'reduce') {
       assert(mobileGeometry.switchTransition.split(',').every((duration) => duration.trim() === '0s'),
@@ -29367,7 +29678,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   const directHashState = await page.evaluate(() => ({
     active: document.querySelector('#tezos-domains-modal')?.classList.contains('active') || false,
     openCategories: Array.from(
-      document.querySelectorAll('#chambers-grid > .chamber-category[open]'),
+      document.querySelectorAll('#chambers-grid > .chamber-category[data-chamber-expanded="true"]'),
       (category) => category.dataset.chamberCategory
     )
   }));
@@ -29380,12 +29691,12 @@ async function smokeChamberCategories(browser, baseUrl) {
   await page.locator('#tezos-domains-modal.active .chamber-close').click();
   await page.locator('#tezos-domains-modal.active').waitFor({ state: 'hidden', timeout: 5000 });
   await hydrateDenseLayoutCards(page);
-  const capitalSummary = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head');
+  const capitalSummary = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle');
   await page.evaluate(() => {
     const html = document.documentElement;
     const previousBehavior = html.style.scrollBehavior;
     html.style.scrollBehavior = 'auto';
-    document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head')
+    document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle')
       ?.scrollIntoView({ block: 'center', behavior: 'auto' });
     html.style.scrollBehavior = previousBehavior;
   });
@@ -29396,8 +29707,8 @@ async function smokeChamberCategories(browser, baseUrl) {
   const toggleAfter = await page.evaluate(() => {
     const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
     return {
-      open: category?.open || false,
-      focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head'),
+      open: category?.dataset.chamberExpanded === 'true',
+      focused: document.activeElement === category?.querySelector(':scope > .chamber-category-head > .chamber-category-toggle'),
       scrollY: window.scrollY
     };
   });
@@ -29443,7 +29754,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   const refreshState = await page.evaluate(() => {
     const saved = window.__chamberCategoryRegression;
     const categories = Array.from(document.querySelectorAll('#chambers-grid > .chamber-category'));
-    const openCategories = categories.filter((category) => category.open).map((category) => category.dataset.chamberCategory);
+    const openCategories = categories.filter((category) => category.dataset.chamberExpanded === 'true').map((category) => category.dataset.chamberCategory);
     return {
       wrappersSame: categories.length === saved?.categories?.length
         && categories.every((category, index) => category === saved.categories[index]),
@@ -29473,13 +29784,13 @@ async function smokeChamberCategories(browser, baseUrl) {
   assert(response?.ok(), `Chamber categories pretty route failed with HTTP ${response?.status()}`);
   await page.locator('#history-modal.active').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForFunction(() => (
-    document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="history"]')?.open === true
+    document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="history"]')?.dataset.chamberExpanded === 'true'
   ), null, { timeout: 10000 });
   const prettyRouteState = await page.evaluate(() => ({
     active: document.querySelector('#history-modal')?.classList.contains('active') || false,
     historyOpen: document.querySelector(
       '#chambers-grid > .chamber-category[data-chamber-category="history"]'
-    )?.open || false
+    )?.dataset.chamberExpanded === 'true'
   }));
   assert(
     prettyRouteState.active && prettyRouteState.historyOpen,
@@ -29519,7 +29830,7 @@ async function smokeChamberCategories(browser, baseUrl) {
         viewportWidth: innerWidth,
         gridWidth: grid?.getBoundingClientRect().width || 0,
         pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-        allOpen: Array.from(document.querySelectorAll('#chambers-grid > .chamber-category')).every((category) => category.open),
+        allOpen: Array.from(document.querySelectorAll('#chambers-grid > .chamber-category')).every((category) => category.dataset.chamberExpanded === 'true'),
         cards: Object.fromEntries(cards.map((card) => {
           const front = card.querySelector('.card-front');
           const rect = card.getBoundingClientRect();
@@ -29569,7 +29880,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   }
 
   assert(issues.length === 0, `Chamber categories browser issues:\n${issues.join('\n')}`);
-  log('ok - responsive Chamber categories smoke');
+  log('ok - responsive Chamber topics and 21 room preferences, Hide/Undo, recovery, route, tour, and first-paint smoke');
 }
 
 async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
@@ -30324,7 +30635,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'tzkt-throttle', description: 'Browser-local TzKT fetch queue keeps visitor requests at six starts per second', run: () => smokeTzktThrottle(browser, baseUrl) },
     { name: 'dashboard-desktop', description: 'Desktop dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 1440, height: 1000 }, 'desktop') },
     { name: 'dashboard-mobile', description: 'Mobile dashboard chrome, menus, widgets utility, calculator, drawer, share picker', run: () => smokeDashboard(browser, baseUrl, { width: 390, height: 844 }, 'mobile') },
-    { name: 'chamber-categories', description: 'Seven responsive Chamber disclosures, exact membership, reusable organization, direct-route reveal, and risk-only attention', run: () => smokeChamberCategories(browser, baseUrl) },
+    { name: 'chamber-categories', description: 'Seven responsive topics and 21 individually hideable Chambers with persistent Hide/Undo, recovery, sync, route reveal, and first-paint state', run: () => smokeChamberCategories(browser, baseUrl) },
     { name: 'lazy-chamber-loading', description: 'Chamber code, projections, and CSS remain deferred until intent; hydration preserves focus; failed modules and styles retry without unstyled rooms', run: () => smokeLazyChamberLoading(browser, baseUrl) },
     { name: 'network-pulse-launcher', description: 'Network Pulse lower launcher row hydrates from collected history without opening the modal or enabling legacy full stats', run: () => smokeNetworkPulseLauncher(browser, baseUrl) },
     { name: 'launcher-projections', description: 'Capital, Ecosystem Activity, and Maxis hydrate from compact summaries, defer reviewed full artifacts until room open, preserve parity, and fall back safely', run: () => smokeLauncherProjections(browser, baseUrl) },
