@@ -51,17 +51,17 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="/css/styles.min.css?v=562">
-    <link id="shell-extras-css" rel="stylesheet" href="/css/shell-extras.min.css?v=562">
-    <link rel="stylesheet" href="/css/loading.css?v=562">
-    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=562">
-    <link rel="stylesheet" href="/css/site-map.css?v=562">
+    <link rel="stylesheet" href="/css/styles.min.css?v=564">
+    <link id="shell-extras-css" rel="stylesheet" href="/css/shell-extras.min.css?v=564">
+    <link rel="stylesheet" href="/css/loading.css?v=564">
+    <link id="hero-search-css" rel="stylesheet" href="/css/hero-search.css?v=564">
+    <link rel="stylesheet" href="/css/site-map.css?v=564">
     <link rel="stylesheet" href="/css/hen-mode.css?v=98">
     <script src="/js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="/js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="/js/core/app.js?v=562">
+    <link rel="modulepreload" href="/js/core/app.js?v=564">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/config.js">
     <link rel="modulepreload" href="/js/core/data-assets.js">
@@ -148,7 +148,8 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="/js/core/theme-preload.js?v=562"></script>
+    <script src="/js/core/theme-preload.js?v=564"></script>
+    <script src="/js/core/home-layout-preload.js?v=564"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -458,6 +459,10 @@
                         <span aria-hidden="true">⚙️</span> <span class="nav-label">Setup</span>
                     </button>
                     <div class="settings-dropdown" id="settings-dropdown" role="dialog" aria-label="Setup and settings">
+                        <button id="customize-home-btn" class="glass-button customize-home-trigger" aria-label="Customize home layout" title="Choose which home blocks are shown">
+                            <span aria-hidden="true">☷</span> <span class="dropdown-label">Customize home</span><span class="home-layout-count" data-home-layout-count>6 shown</span>
+                        </button>
+                        <div class="dropdown-divider"></div>
                         <button id="theme-toggle" class="glass-button" aria-label="Switch to matrix theme" title="Theme: default">
                             <span class="theme-icon">🎨</span> <span class="dropdown-label">Theme</span>
                         </button>
@@ -560,7 +565,7 @@
     </header>
 
     <!-- Live block ticker -->
-    <section class="block-ticker-strip" id="block-ticker-strip" aria-label="Latest Tezos block" data-magic="off">
+    <section class="block-ticker-strip" id="block-ticker-strip" aria-label="Latest Tezos block" data-magic="off" data-home-block="ticker">
         <button class="block-ticker-button" id="block-ticker-button" type="button" aria-label="Open Network Health Chamber">
             <span class="block-ticker-kicker" aria-label="Live block signal">
                 <span class="uptime-pulse-dot block-ticker-pulse" id="uptime-pulse-dot" title="Network healthy — blocks on schedule"></span>
@@ -569,10 +574,14 @@
                 <span class="block-ticker-placeholder">Syncing latest head block</span>
             </span>
         </button>
+        <button class="home-block-hide home-block-hide-compact" type="button" data-home-hide="ticker" aria-label="Hide Latest block ticker" title="Hide Latest block ticker">
+            <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
+            <span class="home-block-hide-label">Hide</span>
+        </button>
     </section>
 
     <!-- Command Deck -->
-    <section class="upgrade-clock command-deck" id="upgrade-clock" aria-label="Tezos Systems command surface">
+    <section class="upgrade-clock command-deck" id="upgrade-clock" aria-label="Tezos Systems command surface" data-home-block="search">
         <div class="upgrade-clock-content command-deck-content">
             <div class="hero-slot" id="hero-slot">
                 <form class="hero-search-form" id="hero-search-form" role="search" autocomplete="off">
@@ -597,6 +606,10 @@
                 <div class="hero-search-chips" id="hero-search-chips" aria-label="Suggested searches"><button class="hero-search-chip" type="button" data-hero-browse-all="true">All 83</button><button class="hero-search-chip" type="button" data-hero-route="/my/" data-hero-entry="my-tezos">Wallet or .tez</button><button class="hero-search-chip" type="button" data-hero-route="/pulse/" data-hero-entry="pulse">/pulse</button><button class="hero-search-chip" type="button" data-hero-route="/stake/" data-hero-entry="staking-chamber">/stake</button><button class="hero-search-chip" type="button" data-hero-route="/maxis/" data-hero-entry="maxis">/maxis</button><button class="hero-search-chip" type="button" data-hero-route="/health/" data-hero-entry="health">/health</button><button class="hero-search-chip" type="button" data-hero-route="/domains/" data-hero-entry="domains">/domains</button><button class="hero-search-chip" type="button" data-hero-route="/ledger-flow/" data-hero-entry="ledger-flow">/flow</button><button class="hero-search-chip" type="button" data-hero-query="KT1">KT1</button><button class="hero-search-chip" type="button" data-hero-query="/theme">/theme</button></div>
                 <div class="hero-search-panel" id="hero-search-panel" role="listbox" aria-label="Tezos Systems search results" hidden></div>
             </div>
+            <button class="home-block-hide command-deck-hide" type="button" data-home-hide="search" aria-label="Hide Search and command deck" title="Hide Search and command deck">
+                <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
+                <span class="home-block-hide-label">Hide</span>
+            </button>
         </div>
     </section>
 
@@ -611,17 +624,14 @@
     <!-- Main content -->
     <main class="main-content" id="main-content" role="main">
 
-        <section class="stats-section governance-alert-section" id="governance-alert-strip" aria-live="polite" hidden></section>
+        <section class="stats-section governance-alert-section" id="governance-alert-strip" aria-live="polite" data-home-block="live-pulse" hidden></section>
 
-        <section class="stats-section hot-today-section" id="hot-today-island" data-pulse-state="loading" aria-busy="true" aria-live="off">
+        <section class="stats-section hot-today-section" id="hot-today-island" data-pulse-state="loading" aria-busy="true" aria-live="off" data-home-block="live-pulse">
             <div class="section-header feature-section-header hot-today-head">
                 <div class="feature-section-heading">
                     <span class="feature-kicker">Live pulse</span>
                     <div class="feature-section-title-row">
                         <h2 class="section-title">What's hot today</h2>
-                        <button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true" aria-controls="hot-today-content" aria-label="Collapse Live Pulse">
-                            <span class="section-chevron" aria-hidden="true">▾</span>
-                        </button>
                     </div>
                 </div>
                 <div class="feature-section-actions" data-section-actions>
@@ -629,6 +639,10 @@
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                         </svg>
+                    </button>
+                    <button class="home-block-hide" type="button" data-home-hide="live-pulse" aria-label="Hide Live Pulse" title="Hide Live Pulse">
+                        <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
+                        <span class="home-block-hide-label">Hide</span>
                     </button>
                 </div>
             </div>
@@ -646,15 +660,12 @@
         </section>
 
         <!-- Chambers Section -->
-        <section class="stats-section chamber-suite-section" id="chambers-section">
+        <section class="stats-section chamber-suite-section" id="chambers-section" data-home-block="explore">
             <div class="section-header feature-section-header">
                 <div class="feature-section-heading">
                     <span class="feature-kicker">Explore Tezos</span>
                     <div class="feature-section-title-row">
                         <h2 class="section-title">Choose a topic</h2>
-                        <button class="section-collapse-button" type="button" data-section-collapse aria-expanded="true" aria-controls="chambers-grid" aria-label="Collapse Explore Tezos">
-                            <span class="section-chevron" aria-hidden="true">▾</span>
-                        </button>
                     </div>
                 </div>
                 <div class="feature-section-actions" data-section-actions>
@@ -662,6 +673,10 @@
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                         </svg>
+                    </button>
+                    <button class="home-block-hide" type="button" data-home-hide="explore" aria-label="Hide Explore Tezos" title="Hide Explore Tezos">
+                        <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
+                        <span class="home-block-hide-label">Hide</span>
                     </button>
                 </div>
             </div>
@@ -922,10 +937,16 @@
         </section>
 
         <!-- Network Moments (milestone alerts) -->
-        <section class="stats-section" id="moments-section" style="display:none;">
+        <section class="stats-section" id="moments-section" data-home-block="moments" style="display:none;">
             <div class="section-header">
                 <h2 class="section-title">🎯 Network Moments</h2>
-                <button class="glass-button moments-dismiss-all" id="moments-dismiss-all" aria-label="Dismiss all moments" title="Dismiss all">✕</button>
+                <div class="home-block-header-actions">
+                    <button class="glass-button moments-dismiss-all" id="moments-dismiss-all" aria-label="Dismiss all moments" title="Dismiss all">✕</button>
+                    <button class="home-block-hide" type="button" data-home-hide="moments" aria-label="Hide Network Moments" title="Hide Network Moments">
+                        <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
+                        <span class="home-block-hide-label">Hide</span>
+                    </button>
+                </div>
             </div>
             <div id="moments-timeline-content" class="moments-timeline">
                 <div class="moments-empty">
@@ -2011,7 +2032,7 @@
     </div>
 
     <!-- Final navigation handoff -->
-    <section id="recruit-section" data-site-handoff data-site-context="home"></section>
+    <section id="recruit-section" data-site-handoff data-site-context="home" data-home-block="handoff"></section>
 
     <!-- Footer -->
     <footer class="footer site-footer-separate" id="site-footer" role="contentinfo" data-site-footer data-site-context="home">
@@ -2023,6 +2044,31 @@
             <p id="build-version" class="build-version"></p>
         </div>
     </footer>
+
+    <!-- Device-local Home layout controls -->
+    <div class="modal-overlay home-layout-modal" id="home-layout-modal" aria-hidden="true">
+        <div class="modal-content home-layout-sheet" role="dialog" aria-modal="true" aria-labelledby="home-layout-title" aria-describedby="home-layout-description" tabindex="-1">
+            <button class="modal-close" id="home-layout-close" type="button" aria-label="Close Customize home">&times;</button>
+            <div class="home-layout-heading">
+                <span class="feature-kicker">Your home</span>
+                <h2 class="modal-title" id="home-layout-title">Customize home</h2>
+                <p id="home-layout-description">Keep what earns its space. Your choices stay private to this browser and update open tabs.</p>
+            </div>
+            <fieldset class="home-layout-options">
+                <legend class="visually-hidden">Home blocks to show</legend>
+                <label class="home-layout-option"><span><strong>Latest block ticker</strong><small>Current head, baker, freshness, and attestation health.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="ticker" checked><i aria-hidden="true"></i></label>
+                <label class="home-layout-option"><span><strong>Search and command deck</strong><small>Search every feature or jump with a slash command.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="search" checked><i aria-hidden="true"></i></label>
+                <label class="home-layout-option"><span><strong>Live Pulse</strong><small>Ranked live signals and the governance alert strip.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="live-pulse" checked><i aria-hidden="true"></i></label>
+                <label class="home-layout-option"><span><strong>Explore Tezos</strong><small>The complete topic-based Chamber launcher.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="explore" checked><i aria-hidden="true"></i></label>
+                <label class="home-layout-option"><span><strong>Network Moments</strong><small>Milestone timeline when the network crosses a threshold.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="moments" checked><i aria-hidden="true"></i></label>
+                <label class="home-layout-option"><span><strong>Keep Exploring</strong><small>The next-signal handoff and complete site map.</small></span><input type="checkbox" role="switch" data-home-layout-toggle="handoff" checked><i aria-hidden="true"></i></label>
+            </fieldset>
+            <div class="home-layout-footer">
+                <span class="home-layout-footer-count" data-home-layout-count>6 shown</span>
+                <button class="glass-button home-layout-show-all" id="home-layout-show-all" type="button">Show all</button>
+            </div>
+        </div>
+    </div>
 
     <!-- History Modal -->
     <div class="modal-overlay chamber-overlay history-overlay" id="history-modal" aria-hidden="true">
@@ -2621,8 +2667,8 @@
 
     <!-- Load app as module -->
     <script defer src="/js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="/js/effects/valley-loader.js?v=562"></script>
-    <script type="module" src="/js/core/app.js?v=562"></script>
+    <script type="module" src="/js/effects/valley-loader.js?v=564"></script>
+    <script type="module" src="/js/core/app.js?v=564"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

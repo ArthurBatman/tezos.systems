@@ -34,6 +34,7 @@ import {
     suggestSiteMapQuery
 } from '../core/site-map.js';
 import { getAvailableThemes, openThemePicker, setTheme } from '../ui/theme.js';
+import { setHomeBlockVisible } from '../ui/home-layout.js';
 
 const HERO_SEARCH_CSS_URL = versionedAsset('/css/hero-search.css');
 
@@ -1344,6 +1345,7 @@ export function initHeroSearch() {
         if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
         if (isTextEntryTarget(event.target) || isBlockingOverlayActive()) return;
         event.preventDefault();
+        setHomeBlockVisible('search', true, 'search-shortcut');
         priorFocus = document.activeElement;
         input.focus();
         input.select();
@@ -1361,6 +1363,11 @@ export function initHeroSearch() {
 
     root.dataset.heroSearchWired = '1';
 
-    const searchHash = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('search');
-    if (searchHash) applyQuery(searchHash);
+    const searchParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const searchHash = searchParams.get('search');
+    if (window.location.hash === '#search' || searchParams.has('search')) {
+        setHomeBlockVisible('search', true, 'deep-link');
+        if (searchHash) applyQuery(searchHash);
+        else requestAnimationFrame(() => input.focus({ preventScroll: true }));
+    }
 }

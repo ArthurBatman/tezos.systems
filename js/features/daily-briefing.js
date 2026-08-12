@@ -12,6 +12,7 @@ import { quietlySyncHtml } from '../core/quiet-refresh.js';
 import { findSiteMapEntry } from '../core/site-map.js';
 import { countExplicitLinkedEtherlinkAccounts } from '../core/site-journey.js';
 import { activateChamberDialog, deactivateChamberDialog } from '../ui/chamber-accessibility.js';
+import { isHomeBlockVisible } from '../ui/home-layout.js';
 import {
   describePersonalSignalRelevance,
   rankSignalsByPersonalRelevance
@@ -188,6 +189,8 @@ let lastPersonalContextAddress = '';
 let personalizationWired = false;
 let hotTodayWired = false;
 let hotTodayRealtimeWired = false;
+let hotTodayVisibilityWired = false;
+let hotTodayQuietRestore = false;
 let hotTodayLiveTimer = null;
 let hotTodayExpiryTimer = null;
 let hotTodayInitialTimer = null;
@@ -2550,6 +2553,7 @@ function scheduleHotSignalExpiryRefresh(signals = hotTodaySignals) {
     window.clearTimeout(hotTodayExpiryTimer);
     hotTodayExpiryTimer = null;
   }
+  if (!hotTodaySurfaceVisible()) return;
   const now = Date.now();
   const nextExpiry = Math.min(...(signals || [])
     .map(signal => finiteNumber(signal?.expiresAt))
@@ -2587,16 +2591,20 @@ function receiveHotSignal(event) {
 
 function scheduleHotSignalRender() {
   if (typeof window === 'undefined') return;
+  if (!hotTodaySurfaceVisible()) {
+    rerenderCachedBriefing();
+    return;
+  }
   if (hotSignalRenderTimer) return;
   const elapsed = Date.now() - lastHotSignalRenderAt;
   const wait = Math.max(0, HOT_SIGNAL_RENDER_THROTTLE_MS - elapsed);
   hotSignalRenderTimer = window.setTimeout(() => {
     hotSignalRenderTimer = null;
     lastHotSignalRenderAt = Date.now();
-    if (lastStats?.cycle) {
+    if (lastStats?.cycle && hotTodaySurfaceVisible()) {
       renderToHotIsland(lastStats.cycle, hotTodayBriefingSentences, lastStats);
-      rerenderCachedBriefing();
     }
+    rerenderCachedBriefing();
   }, wait);
 }
 
@@ -2756,6 +2764,7 @@ function refreshHotTodayLiveMetrics() {
     activeDailyCurio = null;
     void prepareDailyCurio();
   }
+  if (!hotTodaySurfaceVisible()) return;
   const island = document.getElementById('hot-today-island');
   if (!island || island.hidden) return;
   setHotTodayLiveText('clock', hotTodayClockLabel(now));
@@ -3668,8 +3677,9 @@ function renderHotSignal(signal, index) {
     ? signal.milestoneStatus
     : '';
   const milestoneStatusText = milestoneStatus === 'crossed' ? 'Confirmed on-chain' : milestoneStatus === 'near' ? 'Approaching on-chain' : '';
-  const milestoneArriving = milestoneStatus === 'crossed'
+  const milestoneArrivalClaimed = milestoneStatus === 'crossed'
     && claimMilestoneArrival(seenMilestoneArrivals, milestoneArrivalIdentity(signal));
+  const milestoneArriving = milestoneArrivalClaimed && !hotTodayQuietRestore;
   const breakingClass = signal.breaking && !milestoneStatus ? ' is-hot-breaking' : '';
   const milestoneClass = milestoneStatus ? ` is-milestone-${milestoneStatus}` : '';
   const milestoneArrivalClass = milestoneArriving ? ' is-milestone-arriving' : '';
@@ -3809,22 +3819,65 @@ function wireHotTodayRealtime() {
   if (!hotTodayRealtimeWired) {
     hotTodayRealtimeWired = true;
     window.addEventListener('block-pulse', () => {
-      refreshHotTodayLiveMetrics();
+      if (hotTodaySurfaceVisible()) refreshHotTodayLiveMetrics();
     });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        refreshHotTodayLiveMetrics();
+        if (hotTodaySurfaceVisible()) refreshHotTodayLiveMetrics();
         schedulePulseHistoryLoad();
         void loadReleaseRadarSignal();
       }
     });
   }
-  if (!hotTodayLiveTimer) {
+  if (hotTodaySurfaceVisible() && !hotTodayLiveTimer) {
     hotTodayLiveTimer = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || !hotTodaySurfaceVisible()) return;
       refreshHotTodayLiveMetrics();
     }, HOT_TODAY_LIVE_TICK_MS);
   }
+}
+
+function hotTodaySurfaceVisible() {
+  return isHomeBlockVisible('live-pulse')
+    || document.documentElement.getAttribute('data-home-layout-preview') === 'all';
+}
+
+function stopHotTodaySurfaceTimers() {
+  [
+    ['interval', hotTodayLiveTimer, value => { hotTodayLiveTimer = value; }],
+    ['timeout', hotTodayExpiryTimer, value => { hotTodayExpiryTimer = value; }],
+    ['timeout', hotTodayInitialTimer, value => { hotTodayInitialTimer = value; }],
+    ['timeout', hotSignalRenderTimer, value => { hotSignalRenderTimer = value; }]
+  ].forEach(([kind, timer, assign]) => {
+    if (!timer) return;
+    if (kind === 'interval') window.clearInterval(timer);
+    else window.clearTimeout(timer);
+    assign(null);
+  });
+}
+
+function syncHotTodaySurfaceVisibility() {
+  if (!hotTodaySurfaceVisible()) {
+    stopHotTodaySurfaceTimers();
+    return;
+  }
+  wireHotTodayRealtime();
+  hotTodayQuietRestore = true;
+  try {
+    if (lastStats?.cycle) renderToHotIsland(lastStats.cycle, hotTodayBriefingSentences, lastStats);
+    else renderHotTodayState(lastHotTodayDataState || 'loading', lastStats || {});
+  } finally {
+    hotTodayQuietRestore = false;
+  }
+}
+
+function wireHotTodayVisibility() {
+  if (hotTodayVisibilityWired) return;
+  hotTodayVisibilityWired = true;
+  window.addEventListener('tezos:home-layout-change', (event) => {
+    if (event.detail?.id === 'live-pulse') syncHotTodaySurfaceVisibility();
+  });
+  window.addEventListener('tezos:home-layout-preview', syncHotTodaySurfaceVisibility);
 }
 
 function wireHotTodayProgressNavigation(island) {
@@ -3891,6 +3944,7 @@ function renderHotTodayState(state, stats = lastStats || {}) {
   const quiet = state === 'quiet';
   lastHotTodayDataState = state;
   if (!loading) hotTodaySignals = [];
+  if (!hotTodaySurfaceVisible()) return;
   const title = quiet ? 'The network is steady' : 'Live Pulse is unavailable';
   const text = quiet
     ? 'No signal clears the headline threshold in the latest available read.'
@@ -3971,6 +4025,7 @@ function renderToHotIsland(cycle, sentences, stats = lastStats || {}) {
   const content = document.getElementById('hot-today-content');
   if (!island || !content) return;
   hotTodayBriefingSentences = Array.isArray(sentences) ? sentences : [];
+  if (!hotTodaySurfaceVisible()) return;
   const briefingSignals = (Array.isArray(sentences) ? sentences : [])
     .map(normalizeSignal)
     .filter(signal => signal.text);
@@ -4303,11 +4358,14 @@ export async function initHotTodayIsland(stats, xtzPrice) {
   lastXtzPrice = xtzPrice ?? lastXtzPrice;
   const island = document.getElementById('hot-today-island');
   if (!island || !document.getElementById('hot-today-content')) return;
-  renderHotTodayState('loading', mergedStats);
-  hotTodayInitialTimer = window.setTimeout(() => {
-    hotTodayInitialTimer = null;
-    if (lastHotTodayDataState === 'loading') renderHotTodayState('unavailable', mergedStats);
-  }, HOT_TODAY_INITIAL_TIMEOUT_MS);
+  wireHotTodayVisibility();
+  if (hotTodaySurfaceVisible()) {
+    renderHotTodayState('loading', mergedStats);
+    hotTodayInitialTimer = window.setTimeout(() => {
+      hotTodayInitialTimer = null;
+      if (lastHotTodayDataState === 'loading') renderHotTodayState('unavailable', mergedStats);
+    }, HOT_TODAY_INITIAL_TIMEOUT_MS);
+  }
   wireNetworkContextNavigation(island);
   wireHotTodayRealtime();
   schedulePulseHistoryLoad();
@@ -4326,6 +4384,7 @@ export async function updateHotTodayIsland(stats, xtzPrice) {
     renderToHotIsland(briefing.cycle, briefing.sentences, mergedStats);
   } catch (error) {
     console.warn('Live Pulse refresh failed; preserving the last-good surface.', error);
+    if (!hotTodaySurfaceVisible()) return;
     if (hotTodaySignals.length && hotTodayHasRendered) {
       lastHotTodayDataState = 'stale';
       document.getElementById('hot-today-island')?.setAttribute('data-pulse-state', 'stale');

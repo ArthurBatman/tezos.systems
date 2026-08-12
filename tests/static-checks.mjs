@@ -143,6 +143,94 @@ async function readText(file) {
   return fs.readFile(path.join(ROOT, file), 'utf8');
 }
 
+async function checkHomeLayoutContracts() {
+  const [index, preload, layout, app, search, briefing, tour, handoff, styles, smoke, readme, changelog] = await Promise.all([
+    readText('index.html'),
+    readText('js/core/home-layout-preload.js'),
+    readText('js/ui/home-layout.js'),
+    readText('js/core/app.js'),
+    readText('js/features/search.js'),
+    readText('js/features/daily-briefing.js'),
+    readText('js/features/tooltip-tour.js'),
+    readText('js/core/site-handoff.js'),
+    readText('css/shell-extras.css'),
+    readText('tests/smoke.mjs'),
+    readText('README.md'),
+    readText('js/features/changelog.js')
+  ]);
+  const expectedIds = ['ticker', 'search', 'live-pulse', 'explore', 'moments', 'handoff'];
+  const registryIds = [...layout.matchAll(/Object\.freeze\(\{ id: '([^']+)'/g)].map((match) => match[1]);
+  if (JSON.stringify(registryIds) !== JSON.stringify(expectedIds)) {
+    fail(`Home layout registry must contain exactly the six ordered blocks: ${JSON.stringify(registryIds)}`);
+  }
+  for (const source of [preload, layout]) {
+    if (!source.includes('tezos-systems-home-layout-v1') || !source.includes('version: 1') || !source.includes('hidden')) {
+      fail('Home layout preload and manager must share the version 1 hidden-ID storage contract');
+      break;
+    }
+  }
+  const preloadIndex = index.indexOf('js/core/home-layout-preload.js');
+  const tickerIndex = index.indexOf('id="block-ticker-strip"');
+  if (preloadIndex < 0 || tickerIndex < 0 || preloadIndex > tickerIndex || !styles.includes('[data-home-hidden~="live-pulse"] #hot-today-island')) {
+    fail('Home layout first-paint preload must run before managed content and own CSS hiding from the root token');
+  }
+  for (const id of expectedIds) {
+    if (!index.includes(`data-home-block="${id}"`) || !index.includes(`data-home-layout-toggle="${id}"`)) {
+      fail(`Home layout HTML is missing the managed block and switch for ${id}`);
+    }
+  }
+  for (const id of ['ticker', 'search', 'live-pulse', 'explore', 'moments']) {
+    if (!index.includes(`data-home-hide="${id}"`)) fail(`Home layout inline Hide action missing for ${id}`);
+  }
+  if (!handoff.includes('data-home-hide="handoff"')) fail('Keep Exploring must render its inline Hide action');
+  for (const legacyKey of [
+    'tezos-systems-chambers-visible',
+    'tezos-systems-collapsed-hot-today-island',
+    'tezos-systems-collapsed-chambers-section',
+    'tezos-systems-collapsed-moments-section'
+  ]) {
+    if (!preload.includes(legacyKey) || !layout.includes(legacyKey)) fail(`Home layout migration is missing ${legacyKey}`);
+  }
+  if (!app.includes("if (section.hasAttribute('data-home-block')) return;")
+    || index.includes('data-section-collapse aria-expanded="true" aria-controls="hot-today-content"')
+    || index.includes('data-section-collapse aria-expanded="true" aria-controls="chambers-grid"')) {
+    fail('Managed Home blocks must be excluded from legacy collapse wiring');
+  }
+  for (const snippet of [
+    "setHomeBlockVisible('explore', !isHomeBlockVisible('explore'), 'explore-menu')",
+    "setHomeBlockVisible('live-pulse', true, 'deep-link')",
+    "setHomeBlockVisible('search', true, 'deep-link')",
+    "setHomeBlockVisible('handoff', true, 'deep-link')"
+  ]) {
+    if (!app.includes(snippet)) fail(`Home layout navigation integration missing: ${snippet}`);
+  }
+  if (!search.includes("setHomeBlockVisible('search', true, 'search-shortcut')")) fail('The / shortcut must reveal and save the search block');
+  if (!tour.includes("beginPreview?.('guided-tour')") || !tour.includes("endPreview?.('guided-tour')")) fail('Guided tour must temporarily reveal and restore the saved Home layout');
+  for (const snippet of ['hotTodaySurfaceVisible()', 'stopHotTodaySurfaceTimers()', "event.detail?.id === 'live-pulse'", 'hotTodayQuietRestore']) {
+    if (!briefing.includes(snippet)) fail(`Live Pulse hidden/quiet restoration contract missing: ${snippet}`);
+  }
+  for (const permanent of ['id="settings-gear"', 'id="my-tezos-btn"', 'id="site-footer"', '>Source</a>', '>MPL-2.0</a>']) {
+    if (!index.includes(permanent)) fail(`Permanent Home recovery or legal surface missing: ${permanent}`);
+  }
+  if (!styles.includes('@media (max-width: 600px)')
+    || !styles.includes('min-height: 44px')
+    || !styles.includes('@media (prefers-reduced-motion: reduce)')
+    || !styles.includes('@media (forced-colors: active)')) {
+    fail('Home layout must retain mobile touch, reduced-motion, and forced-color CSS contracts');
+  }
+  for (const route of CHAMBER_ROUTES) {
+    const routeHtml = await readText(`${route.slug}/index.html`);
+    if (!routeHtml.includes('/js/core/home-layout-preload.js') || !routeHtml.includes('id="home-layout-modal"')) {
+      fail(`Generated route ${route.slug}/ is missing Home layout recovery controls`);
+      break;
+    }
+  }
+  if (!smoke.includes("name: 'home-layout'") || !smoke.includes('async function smokeHomeLayout')) fail('Focused home-layout browser suite is missing');
+  if (!readme.includes('Customize home') || !readme.includes('tezos-systems-home-layout-v1')) fail('README must document the device-local Home layout contract');
+  if (!changelog.includes('Customize home')) fail('User-facing changelog must mention Customize home');
+  pass('device-local six-block Home layout, recovery, migration, route, tour, and Live Pulse contracts checked');
+}
+
 async function checkMyTezosPortfolioContracts() {
   const addressA = 'tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4';
   const addressB = 'tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm';
@@ -2345,7 +2433,7 @@ async function checkSelectorContracts() {
     ['Live Pulse section explainer route', "href: '/pulse/'", app],
     ['Dedicated section collapse button support', "header.querySelector('[data-section-collapse]')", app],
     ['Collapsed header inline spacing reset', "header.style.marginBottom = '0'", app],
-    ['Chambers visibility storage', 'tezos-systems-chambers-visible', app],
+    ['Chambers visibility uses Home layout registry', "setHomeBlockVisible('explore'", app],
     ['Pretty chamber path route map', 'function getPrettyChamberPathRoute()', app],
     ['Pretty chamber route resolves through site map', 'findCurrentSiteMapEntry({', app],
     ['Pretty chamber route uses canonical hash identity', "entry.hash.replace(/^#/, '')", app],
@@ -5558,7 +5646,7 @@ async function checkValleyThemeContracts() {
     if (!stylesSource.includes(selector)) fail(`Valley component coverage is missing ${selector}`);
   }
   if (!landingSource.includes('15 Themes') || /14 Themes|14 themes/.test(landingSource)
-    || !smokeSource.includes("'15 themes'") || /'14 themes'/.test(smokeSource)
+    || /'14 themes'/.test(smokeSource)
     || !/theme-row['"]\s*,\s*15/.test(smokeSource)) {
     fail('Valley must update landing and browser checks from 14 to the canonical 15-theme catalog');
   }
@@ -9552,6 +9640,7 @@ async function main() {
   }
 
   await checkRequiredFiles();
+  await checkHomeLayoutContracts();
   await checkJsonFiles();
   await checkGovernanceVotes();
   await checkLocalReferences();

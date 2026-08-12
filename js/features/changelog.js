@@ -7,6 +7,8 @@ export const CHANGELOG = [
     {
         date: '2026-08-11',
         entries: [
+            { type: '✨', text: 'Customize home now lets each browser hide any of six major Home blocks from Setup or the block itself, with instant Undo, open-tab sync, deep-link recovery, and one-tap Show all' },
+            { type: '🎨', text: 'Home block Hide controls now use the eye-off symbol without repeating the word, sit inside their block controls, and retain descriptive screen-reader labels' },
             { type: '🎨', text: 'Ecosystem Activity now leads with the top three completed-week apps above three matching desktop summary tiles, while phones retain a compact lead-app and weekly-summary view' }
         ]
     },

@@ -16,6 +16,7 @@ import {
 import { renderSiteHandoff } from './site-handoff.js';
 import { initSiteJourneyCapture } from './site-journey.js';
 import { initTheme, openThemePicker, setTheme, getAvailableThemes } from '../ui/theme.js';
+import { initHomeLayout, isHomeBlockVisible, setHomeBlockVisible } from '../ui/home-layout.js';
 import { flipCard, revealStat, showLoading, showError } from '../ui/animations.js';
 import {
     blockTick,
@@ -281,6 +282,7 @@ async function init() {
 
     // Initialize theme
     safe('theme', initTheme);
+    safe('homeLayout', initHomeLayout);
     safe('myTezosCss', ensureMyTezosCss);
 
     // Initialize arcade effects
@@ -1476,7 +1478,6 @@ function initNavButtons() {
 // ==========================================
 // CHAMBERS SURFACE
 // ==========================================
-const CHAMBERS_VISIBLE_KEY = 'tezos-systems-chambers-visible';
 const CHAMBER_CARD_TARGETS = Object.freeze({
     pulse: { selector: '#network-pulse-entry-card', layout: 'featured' },
     health: { selector: '[data-stat="network-health"]', layout: 'standard' },
@@ -2839,27 +2840,23 @@ function initProtocolHistoryHeaderLauncher() {
 }
 
 function initChambersToggle() {
-    const section = document.getElementById('chambers-section');
     const toggleBtn = document.getElementById('chambers-toggle');
-    if (!section || !toggleBtn) return;
+    if (!toggleBtn) return;
 
     function updateVis(isVisible) {
-        section.style.display = isVisible ? '' : 'none';
         setLauncherToggleState(toggleBtn, isVisible);
         toggleBtn.title = `Tezos Chambers: ${isVisible ? 'Showing' : 'Hidden'}`;
     }
 
     toggleBtn.addEventListener('click', () => {
-        const stored = localStorage.getItem(CHAMBERS_VISIBLE_KEY);
-        const isVisible = stored !== 'false';
-        const newState = !isVisible;
-        localStorage.setItem(CHAMBERS_VISIBLE_KEY, String(newState));
-        updateVis(newState);
+        setHomeBlockVisible('explore', !isHomeBlockVisible('explore'), 'explore-menu');
     });
 
-    // Default ON: first visitors see the command deck and Chambers.
-    const stored = localStorage.getItem(CHAMBERS_VISIBLE_KEY);
-    updateVis(stored !== 'false');
+    window.addEventListener('tezos:home-layout-change', (event) => {
+        if (event.detail?.id === 'explore') updateVis(event.detail.visible);
+    });
+
+    updateVis(isHomeBlockVisible('explore'));
 }
 
 function updateTz4ChamberTile(stats) {
@@ -5511,6 +5508,7 @@ function initCollapsibleSections() {
         // Find the parent section (works for .stats-section, .my-baker-section, etc.)
         const section = header.closest('section');
         if (!section) return;
+        if (section.hasAttribute('data-home-block')) return;
 
         // Find collapsible content: first sibling container after the header
         // For stats-section: .stats-grid or .stats-grid-2 or .comparison-grid
@@ -6383,19 +6381,7 @@ function applyDeepLink() {
     };
 
     const ensureChambersVisible = () => {
-        const section = document.getElementById('chambers-section');
-        if (!section || getComputedStyle(section).display !== 'none') return;
-
-        const toggle = document.getElementById('chambers-toggle');
-        if (toggle && localStorage.getItem(CHAMBERS_VISIBLE_KEY) === 'false') {
-            toggle.click();
-            return;
-        }
-
-        localStorage.setItem(CHAMBERS_VISIBLE_KEY, 'true');
-        section.style.display = '';
-        setLauncherToggleState(toggle, true);
-        if (toggle) toggle.title = 'Tezos Chambers: Showing';
+        setHomeBlockVisible('explore', true, 'deep-link');
     };
 
     const scrollToElement = (target, options = {}) => {
@@ -6641,6 +6627,7 @@ function applyDeepLink() {
 
     // #search — make the command bar the next doorway from any site map.
     if (isSearchRoute) {
+        setHomeBlockVisible('search', true, 'deep-link');
         window.clearTimeout(_searchRouteFocusTimer);
         _searchRouteFocusTimer = window.setTimeout(() => {
             _searchRouteFocusTimer = null;
@@ -6656,6 +6643,7 @@ function applyDeepLink() {
 
     // #site-map — land on the complete manifest-backed directory.
     if (params.has('site-map') || hash === 'site-map') {
+        setHomeBlockVisible('handoff', true, 'deep-link');
         setTimeout(() => scrollToElementAfterLayout(() => document.getElementById('site-map'), { block: 'start' }), 150);
     }
 
@@ -6782,6 +6770,7 @@ function applyDeepLink() {
     // #hot-today / #hot-today=category
     if (params.has('hot-today') || hash === 'hot-today') {
         const category = params.get('hot-today');
+        setHomeBlockVisible('live-pulse', true, 'deep-link');
         scrollToElementAfterLayout(() => document.getElementById('hot-today-island'), { block: 'center' });
         if (category) {
             setTimeout(() => activateHotTodaySignal(category), 900);

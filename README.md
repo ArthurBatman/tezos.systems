@@ -65,11 +65,12 @@ tezos.systems/
 │   │   ├── etherlink-governance-contracts.mjs # Reviewed L2 governance lineage
 │   │   ├── tzkt-throttle.js           # Browser-local TzKT request pacing
 │   │   ├── protocol-count.js          # Human-facing upgrade count convention
+│   │   ├── home-layout-preload.js      # Render-blocking saved Home visibility
 │   │   ├── wallet.js                  # Lazy Octez.Connect wallet bridge
 │   │   ├── storage.js                 # localStorage/sessionStorage wrappers
 │   │   └── utils.js                   # Formatting, sanitization, utility helpers
 │   ├── features/                      # Governance, LB, bakers, market, feeds, widgets
-│   ├── ui/                            # Theme, share, toast queue, gauge, title, animations
+│   ├── ui/                            # Theme, Home layout, share, toast queue, gauge, title, animations
 │   └── effects/                       # Matrix, themed backgrounds, audio/vibes, data-magic text reveals
 ├── data/
 │   ├── protocol-data.json             # Activated protocol timeline and lore
@@ -308,6 +309,19 @@ inline modal styles in `js/core/app.js`.
 
 ## Main Surfaces
 
+- Setup starts with **Customize home**, a device-local six-switch layout for
+  the latest block ticker, search/command deck, Live Pulse (including its
+  governance strip), Explore Tezos, Network Moments, and the Keep Exploring
+  handoff. Every block is shown by default and also has an inline Hide action
+  with Undo. The header, Setup, My Tezos, and legal/source footer are permanent
+  recovery surfaces; Chamber cards are not individually hidden and blocks are
+  not reordered. Preferences use
+  `tezos-systems-home-layout-v1` with the shape
+  `{ "version": 1, "hidden": ["ticker", "search", "live-pulse", "explore", "moments", "handoff"] }`,
+  synchronize between open tabs, and never leave the current browser/device.
+  Explicit Home deep links and the `/` search shortcut reveal and save their
+  target, while the guided tour temporarily reveals all six without changing
+  the saved layout.
 - Explore is a progressively disclosed launcher rather than a second dashboard:
   the question-led Explore Tezos topics stay central, the three canonical starter rooms fit in the first
   mobile view, and live signals, baker tools, account tools, markets, publishing,

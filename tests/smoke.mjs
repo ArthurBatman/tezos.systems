@@ -21969,6 +21969,385 @@ async function smokeHashModalCleanup(browser, baseUrl) {
   log('ok - hash modal cleanup smoke');
 }
 
+async function smokeHomeLayout(browser, baseUrl) {
+  const issues = [];
+  const storageKey = 'tezos-systems-home-layout-v1';
+  const ids = ['ticker', 'search', 'live-pulse', 'explore', 'moments', 'handoff'];
+  const selectors = {
+    ticker: '#block-ticker-strip',
+    search: '#upgrade-clock',
+    'live-pulse': '#hot-today-island',
+    explore: '#chambers-section',
+    moments: '#moments-section',
+    handoff: '#recruit-section'
+  };
+  const initVisitor = () => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    if (!sessionStorage.getItem('__home-layout-smoke-seeded')) {
+      localStorage.removeItem('tezos-systems-home-layout-v1');
+      sessionStorage.setItem('__home-layout-smoke-seeded', '1');
+    }
+  };
+
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(context);
+  await context.addInitScript(initVisitor);
+  const page = await context.newPage();
+  attachIssueCollectors(page, 'home layout', issues);
+  let response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `home layout: dashboard failed with HTTP ${response?.status()}`);
+  await page.waitForFunction(() => Boolean(window.tezosSystemsHomeLayout), null, { timeout: 15000 });
+  await page.locator('[data-home-hide="handoff"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  const defaultState = await page.evaluate((blockIds) => ({
+    commandPlacement: (() => {
+      const content = document.querySelector('.command-deck-content')?.getBoundingClientRect();
+      const form = document.querySelector('#hero-search-form')?.getBoundingClientRect();
+      const hide = document.querySelector('.command-deck-hide')?.getBoundingClientRect();
+      return {
+        contained: Boolean(content && hide && hide.left >= content.left && hide.right <= content.right),
+        gap: form && hide ? hide.left - form.right : 999,
+        centerDelta: form && hide ? Math.abs((form.top + form.bottom) / 2 - (hide.top + hide.bottom) / 2) : 999
+      };
+    })(),
+    count: document.querySelector('[data-home-layout-count]')?.textContent?.trim(),
+    hidden: document.documentElement.getAttribute('data-home-hidden'),
+    hideLabels: [...document.querySelectorAll('.home-block-hide-label')].map((label) => {
+      const rect = label.getBoundingClientRect();
+      const style = getComputedStyle(label);
+      return { width: rect.width, height: rect.height, position: style.position, clipPath: style.clipPath };
+    }),
+    stored: localStorage.getItem('tezos-systems-home-layout-v1'),
+    switches: blockIds.map((id) => document.querySelector(`[data-home-layout-toggle="${id}"]`)?.checked),
+    visible: blockIds.map((id) => window.tezosSystemsHomeLayout.isHomeBlockVisible(id))
+  }), ids);
+  assert(defaultState.hidden === ''
+    && defaultState.stored === null
+    && defaultState.count === '6 shown'
+    && defaultState.commandPlacement.contained
+    && defaultState.commandPlacement.gap >= 4
+    && defaultState.commandPlacement.gap <= 16
+    && defaultState.commandPlacement.centerDelta <= 12
+    && defaultState.hideLabels.length === 6
+    && defaultState.hideLabels.every((label) => label.width <= 1 && label.height <= 1 && label.position === 'absolute' && label.clipPath !== 'none')
+    && defaultState.switches.every(Boolean)
+    && defaultState.visible.every(Boolean),
+  `home layout: default state is not all-visible ${JSON.stringify(defaultState)}`);
+
+  await page.locator('#settings-gear').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#settings-dropdown.open').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#customize-home-btn').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#home-layout-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+  const overlayState = await page.evaluate(() => ({
+    bodyOverflow: document.body.style.overflow,
+    mainInert: document.querySelector('main')?.hasAttribute('inert') || false,
+    rowCount: document.querySelectorAll('.home-layout-option').length,
+    sheet: (() => {
+      const rect = document.querySelector('.home-layout-sheet')?.getBoundingClientRect();
+      return rect ? { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom } : null;
+    })()
+  }));
+  assert(overlayState.bodyOverflow === 'hidden'
+    && overlayState.mainInert
+    && overlayState.rowCount === 6
+    && overlayState.sheet?.left >= 0
+    && overlayState.sheet?.right <= 1440,
+  `home layout: desktop dialog/overlay stack geometry failed ${JSON.stringify(overlayState)}`);
+
+  for (const theme of ['matrix', 'clean', 'valley']) {
+    const themeState = await page.evaluate((nextTheme) => {
+      document.body.dataset.theme = nextTheme;
+      document.documentElement.dataset.theme = nextTheme;
+      const sheet = document.querySelector('.home-layout-sheet');
+      const rect = sheet?.getBoundingClientRect();
+      return {
+        background: sheet ? getComputedStyle(sheet).backgroundColor : '',
+        contained: Boolean(rect && rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight)
+      };
+    }, theme);
+    assert(themeState.contained && themeState.background !== 'rgba(0, 0, 0, 0)', `home layout: ${theme} dialog lost containment or surface color ${JSON.stringify(themeState)}`);
+  }
+
+  for (const id of ids) {
+    const toggle = page.locator(`[data-home-layout-toggle="${id}"]`);
+    await toggle.click();
+    await page.waitForFunction((blockId) => document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes(blockId), id);
+    assert(!(await toggle.isChecked()), `home layout: ${id} switch did not hide its block`);
+    await toggle.click();
+    await page.waitForFunction((blockId) => !document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes(blockId), id);
+    assert(await toggle.isChecked(), `home layout: ${id} switch did not restore its block`);
+  }
+
+  const keyboardToggle = page.locator('[data-home-layout-toggle="ticker"]');
+  await keyboardToggle.focus();
+  await page.keyboard.press('Space');
+  assert(!(await keyboardToggle.isChecked()), 'home layout: native switch was not keyboard operable');
+  await page.keyboard.press('Space');
+  assert(await keyboardToggle.isChecked(), 'home layout: native switch did not restore from keyboard');
+  await page.keyboard.press('Escape');
+  await page.locator('#home-layout-modal.active').waitFor({ state: 'detached', timeout: 5000 });
+  await page.waitForFunction(() => document.activeElement?.id === 'settings-gear', null, { timeout: 3000 });
+
+  await page.evaluate(() => { document.getElementById('moments-section').style.display = ''; });
+  for (const id of ids) {
+    await page.evaluate(() => window.tezosSystemsHomeLayout.showAllHomeBlocks('smoke-reset'));
+    if (id === 'moments') await page.evaluate(() => { document.getElementById('moments-section').style.display = ''; });
+    const hide = page.locator(`[data-home-hide="${id}"]`).first();
+    await hide.scrollIntoViewIfNeeded();
+    await hide.click();
+    await page.waitForFunction((blockId) => document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes(blockId), id);
+    const toast = page.locator('.home-layout-toast.is-visible');
+    await toast.waitFor({ state: 'visible', timeout: 9000 });
+    if (id === 'ticker') {
+      assert(!(await toast.locator('button').evaluate((button) => document.activeElement === button)), 'home layout: pointer hide stole focus into Undo');
+    }
+    await toast.locator('button').click();
+    await page.waitForFunction((blockId) => !document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes(blockId), id);
+    await toast.waitFor({ state: 'detached', timeout: 3000 });
+  }
+
+  const liveHide = page.locator('[data-home-hide="live-pulse"]');
+  await liveHide.scrollIntoViewIfNeeded();
+  await liveHide.focus();
+  await page.keyboard.press('Enter');
+  const keyboardToast = page.locator('.home-layout-toast.is-visible');
+  await keyboardToast.waitFor({ state: 'visible', timeout: 9000 });
+  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Undo', null, { timeout: 3000 });
+  await keyboardToast.locator('button').click();
+  await keyboardToast.waitFor({ state: 'detached', timeout: 3000 });
+
+  await page.locator('#settings-gear').click();
+  await page.locator('#customize-home-btn').click();
+  await page.locator('#home-layout-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+  for (const id of ids) {
+    const toggle = page.locator(`[data-home-layout-toggle="${id}"]`);
+    if (await toggle.isChecked()) await toggle.click();
+  }
+  const allHidden = await page.evaluate((blockSelectors) => ({
+    hidden: document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).filter(Boolean),
+    setup: getComputedStyle(document.getElementById('settings-gear')).display,
+    myTezos: getComputedStyle(document.getElementById('my-tezos-btn')).display,
+    footer: getComputedStyle(document.getElementById('site-footer')).display,
+    source: Boolean(document.querySelector('#site-footer a[href*="github.com/Primate411/tezos.systems"]')),
+    license: Boolean(document.querySelector('#site-footer a[rel="license"]')),
+    reserved: Object.fromEntries(Object.entries(blockSelectors).map(([id, selector]) => [id, getComputedStyle(document.querySelector(selector)).display]))
+  }), selectors);
+  assert(allHidden.hidden.length === 6
+    && allHidden.setup !== 'none'
+    && allHidden.myTezos !== 'none'
+    && allHidden.footer !== 'none'
+    && allHidden.source
+    && allHidden.license
+    && Object.values(allHidden.reserved).every((display) => display === 'none'),
+  `home layout: hide-all lost recovery/legal surfaces or reserved space ${JSON.stringify(allHidden)}`);
+  await page.locator('#home-layout-show-all').click();
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-home-hidden') === '');
+  await page.keyboard.press('Escape');
+
+  await page.evaluate(() => window.tezosSystemsHomeLayout.setHomeBlockVisible('live-pulse', false, 'persistence-smoke'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.tezosSystemsHomeLayout));
+  const persisted = await page.evaluate(() => ({
+    hidden: document.documentElement.getAttribute('data-home-hidden'),
+    display: getComputedStyle(document.getElementById('hot-today-island')).display,
+    preference: JSON.parse(localStorage.getItem('tezos-systems-home-layout-v1'))
+  }));
+  assert(persisted.hidden.includes('live-pulse')
+    && persisted.display === 'none'
+    && persisted.preference.version === 1
+    && persisted.preference.hidden.includes('live-pulse'),
+  `home layout: reload persistence failed ${JSON.stringify(persisted)}`);
+
+  const corruptValue = '{"version":1,"hidden":["unknown-block"]}';
+  await page.evaluate(({ key, raw }) => {
+    localStorage.setItem(key, raw);
+    localStorage.setItem('home-layout-unrelated-smoke', 'keep-me');
+  }, { key: storageKey, raw: corruptValue });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.tezosSystemsHomeLayout));
+  const corruptFallback = await page.evaluate((key) => ({
+    hidden: document.documentElement.getAttribute('data-home-hidden'),
+    raw: localStorage.getItem(key),
+    unrelated: localStorage.getItem('home-layout-unrelated-smoke')
+  }), storageKey);
+  assert(corruptFallback.hidden === '' && corruptFallback.raw === corruptValue && corruptFallback.unrelated === 'keep-me',
+    `home layout: corrupt-state fallback deleted or honored invalid state ${JSON.stringify(corruptFallback)}`);
+
+  await page.evaluate(() => window.tezosSystemsHomeLayout.showAllHomeBlocks('cross-tab-reset'));
+  const secondPage = await context.newPage();
+  attachIssueCollectors(secondPage, 'home layout second tab', issues);
+  response = await secondPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `home layout second tab: dashboard failed with HTTP ${response?.status()}`);
+  await secondPage.waitForFunction(() => Boolean(window.tezosSystemsHomeLayout));
+  await page.evaluate(() => window.tezosSystemsHomeLayout.setHomeBlockVisible('explore', false, 'cross-tab-smoke'));
+  await secondPage.waitForFunction(() => document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes('explore'));
+  await secondPage.evaluate(() => window.tezosSystemsHomeLayout.setHomeBlockVisible('explore', true, 'cross-tab-smoke'));
+  await page.waitForFunction(() => !document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).includes('explore'));
+  await secondPage.close();
+
+  await page.evaluate(() => window.tezosSystemsHomeLayout.setHomeBlockVisible('explore', false, 'deep-link-setup'));
+  await page.evaluate(() => { location.hash = '#chambers'; });
+  await page.waitForFunction(() => window.tezosSystemsHomeLayout.isHomeBlockVisible('explore'));
+  await page.evaluate(() => window.tezosSystemsHomeLayout.setHomeBlockVisible('live-pulse', false, 'deep-link-setup'));
+  await page.evaluate(() => { location.hash = '#hot-today'; });
+  await page.waitForFunction(() => window.tezosSystemsHomeLayout.isHomeBlockVisible('live-pulse'));
+  await page.evaluate(() => {
+    history.replaceState(null, '', '/');
+    window.tezosSystemsHomeLayout.setHomeBlockVisible('search', false, 'shortcut-setup');
+  });
+  await page.keyboard.press('/');
+  await page.waitForFunction(() => window.tezosSystemsHomeLayout.isHomeBlockVisible('search') && document.activeElement?.id === 'hero-search-input');
+
+  await page.evaluate(() => {
+    document.getElementById('hero-search-input')?.blur();
+    window.__homeLayoutPulseContent = document.getElementById('hot-today-content');
+    window.tezosSystemsHomeLayout.setHomeBlockVisible('live-pulse', false, 'pulse-hidden-smoke');
+    window.dispatchEvent(new CustomEvent('hot-signal', {
+      detail: {
+        id: 'home-layout-hidden-signal',
+        category: 'network',
+        title: 'Hidden pulse update',
+        text: 'This signal must not reveal the hidden surface.',
+        detail: 'Hidden Live Pulse smoke',
+        createdAt: Date.now(),
+        ttlMs: 60000,
+        live: true
+      }
+    }));
+  });
+  await page.waitForTimeout(450);
+  const hiddenPulse = await page.evaluate(() => ({
+    display: getComputedStyle(document.getElementById('hot-today-island')).display,
+    sameContent: window.__homeLayoutPulseContent === document.getElementById('hot-today-content')
+  }));
+  assert(hiddenPulse.display === 'none' && hiddenPulse.sameContent, `home layout: hidden Live Pulse was revealed or replaced ${JSON.stringify(hiddenPulse)}`);
+  await page.evaluate(() => window.tezosSystemsHomeLayout.setHomeBlockVisible('live-pulse', true, 'pulse-restore-smoke'));
+  await page.waitForFunction(() => getComputedStyle(document.getElementById('hot-today-island')).display !== 'none');
+  const restoredPulse = await page.evaluate(() => ({
+    arriving: document.querySelectorAll('#hot-today-island .is-milestone-arriving').length,
+    sameContent: window.__homeLayoutPulseContent === document.getElementById('hot-today-content')
+  }));
+  assert(restoredPulse.sameContent && restoredPulse.arriving === 0, `home layout: Live Pulse restoration replayed or replaced reading state ${JSON.stringify(restoredPulse)}`);
+
+  await page.evaluate((blockIds) => blockIds.forEach((id) => window.tezosSystemsHomeLayout.setHomeBlockVisible(id, false, 'tour-layout-setup')), ids);
+  const tourPreference = await page.evaluate((key) => localStorage.getItem(key), storageKey);
+  await page.evaluate(() => window.TezosSystemsTour.replay());
+  await page.locator('#tour-overlay').waitFor({ state: 'visible', timeout: 6000 });
+  const tourReveal = await page.evaluate((key) => ({
+    preview: document.documentElement.getAttribute('data-home-layout-preview'),
+    tickerDisplay: getComputedStyle(document.getElementById('block-ticker-strip')).display,
+    stored: localStorage.getItem(key)
+  }), storageKey);
+  assert(tourReveal.preview === 'all' && tourReveal.tickerDisplay !== 'none' && tourReveal.stored === tourPreference,
+    `home layout: guided tour did not temporarily reveal without saving ${JSON.stringify(tourReveal)}`);
+  await page.keyboard.press('Escape');
+  await page.locator('#tour-overlay').waitFor({ state: 'detached', timeout: 5000 });
+  const tourRestore = await page.evaluate((key) => ({
+    preview: document.documentElement.hasAttribute('data-home-layout-preview'),
+    hidden: document.documentElement.getAttribute('data-home-hidden')?.split(/\s+/).filter(Boolean).length,
+    stored: localStorage.getItem(key)
+  }), storageKey);
+  assert(!tourRestore.preview && tourRestore.hidden === 6 && tourRestore.stored === tourPreference,
+    `home layout: tour end changed the saved layout ${JSON.stringify(tourRestore)}`);
+  await context.close();
+
+  const firstPaintContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  await installFeatureMocks(firstPaintContext);
+  await firstPaintContext.addInitScript(() => {
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.setItem('tezos-systems-home-layout-v1', JSON.stringify({ version: 1, hidden: ['live-pulse'] }));
+  });
+  let releaseApp;
+  const appGate = new Promise((resolve) => { releaseApp = resolve; });
+  await firstPaintContext.route('**/js/core/app.js*', async (route) => {
+    await appGate;
+    await route.continue();
+  });
+  const firstPaintPage = await firstPaintContext.newPage();
+  attachIssueCollectors(firstPaintPage, 'home layout first paint', issues);
+  const navigation = firstPaintPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  await firstPaintPage.locator('#hot-today-island').waitFor({ state: 'attached', timeout: 10000 });
+  const beforeApp = await firstPaintPage.evaluate(() => ({
+    appReady: Boolean(window.tezosSystemsHomeLayout),
+    display: getComputedStyle(document.getElementById('hot-today-island')).display,
+    root: document.documentElement.getAttribute('data-home-hidden')
+  }));
+  assert(!beforeApp.appReady && beforeApp.display === 'none' && beforeApp.root === 'live-pulse',
+    `home layout: first-paint preload did not hide before app initialization ${JSON.stringify(beforeApp)}`);
+  releaseApp();
+  response = await navigation;
+  assert(response?.ok(), `home layout first paint: dashboard failed with HTTP ${response?.status()}`);
+  await firstPaintContext.close();
+
+  for (const { width, reducedMotion } of [
+    { width: 320, reducedMotion: 'no-preference' },
+    { width: 390, reducedMotion: 'reduce' }
+  ]) {
+    const mobileContext = await browser.newContext({
+      viewport: { width, height: 760 },
+      reducedMotion,
+      serviceWorkers: 'block'
+    });
+    await installFeatureMocks(mobileContext);
+    await mobileContext.addInitScript(initVisitor);
+    const mobilePage = await mobileContext.newPage();
+    attachIssueCollectors(mobilePage, `home layout ${width}px`, issues);
+    response = await mobilePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+    assert(response?.ok(), `home layout ${width}px: dashboard failed with HTTP ${response?.status()}`);
+    await mobilePage.waitForFunction(() => Boolean(window.tezosSystemsHomeLayout));
+    await mobilePage.locator('#settings-gear').click();
+    await mobilePage.locator('#customize-home-btn').click();
+    await mobilePage.locator('#home-layout-modal.active').waitFor({ state: 'visible', timeout: 5000 });
+    const mobileGeometry = await mobilePage.evaluate(() => {
+      const sheet = document.querySelector('.home-layout-sheet');
+      const sheetRect = sheet?.getBoundingClientRect();
+      const rows = [...document.querySelectorAll('.home-layout-option')].map((row) => row.getBoundingClientRect().height);
+      const hideTargets = [...document.querySelectorAll('.home-block-hide')].map((button) => {
+        const rect = button.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+      return {
+        bottom: sheetRect?.bottom,
+        left: sheetRect?.left,
+        right: sheetRect?.right,
+        top: sheetRect?.top,
+        overflow: document.documentElement.scrollWidth - innerWidth,
+        rows,
+        hideTargets,
+        switchTransition: getComputedStyle(document.querySelector('.home-layout-option i')).transitionDuration,
+        viewport: { width: innerWidth, height: innerHeight }
+      };
+    });
+    assert(mobileGeometry.left >= -1
+      && mobileGeometry.right <= mobileGeometry.viewport.width + 1
+      && mobileGeometry.top >= -1
+      && mobileGeometry.bottom <= mobileGeometry.viewport.height + 1
+      && mobileGeometry.overflow <= 1
+      && mobileGeometry.rows.length === 6
+      && mobileGeometry.rows.every((height) => height >= 44)
+      && mobileGeometry.hideTargets.every((target) => !target.width || (target.width >= 44 && target.height >= 44)),
+    `home layout: ${width}px bottom sheet/touch containment failed ${JSON.stringify(mobileGeometry)}`);
+    if (reducedMotion === 'reduce') {
+      assert(mobileGeometry.switchTransition.split(',').every((duration) => duration.trim() === '0s'),
+        `home layout: reduced motion retained switch transitions ${mobileGeometry.switchTransition}`);
+    }
+    await mobilePage.keyboard.press('Escape');
+    await mobileContext.close();
+  }
+
+  assert(issues.length === 0, `home layout browser issues:\n${issues.join('\n')}`);
+  log('ok - customizable Home layout state, recovery, persistence, sync, tour, Live Pulse, and responsive accessibility smoke');
+}
+
 async function smokeFirstVisitTour(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
@@ -22014,7 +22393,7 @@ async function smokeFirstVisitTour(browser, baseUrl) {
     { selector: '#my-tezos-btn', label: 'my tezos step', snippets: ['Make it yours', 'Network Context'] },
     { selector: '#recruit-section .site-handoff-head', label: 'Handoff step', snippets: ['Follow the lifeline', 'complete map stays folded'] },
     { selector: '#features-gear', label: 'explore step', snippets: ['Explore without the wall of choices', 'Network Pulse', 'folded by category'] },
-    { selector: '#settings-gear', label: 'settings step', snippets: ['Tune and export', '15 themes'] }
+    { selector: '#settings-gear', label: 'settings step', snippets: ['Make the Home yours', 'Customize home', 'Themes'] }
   ];
 
   async function readTourGeometry(currentPage, selector) {
@@ -24274,62 +24653,47 @@ async function smokeInfoModals(browser, baseUrl) {
     }, contract.panel, { timeout: 5000 });
   }
 
-  const collapsibleSections = [
+  const managedHomeSections = [
     { section: '#hot-today-island', content: '#hot-today-content', label: 'Live Pulse' },
     { section: '#chambers-section', content: '#chambers-grid', label: 'Explore Tezos' }
   ];
-  for (const contract of collapsibleSections) {
-    await page.evaluate(({ section, content, label }) => {
+  for (const contract of managedHomeSections) {
+    const managedState = await page.evaluate(({ section, content, label }) => {
       const sectionNode = document.querySelector(section);
       const contentNode = document.querySelector(content);
       window[`__sectionHelp${label.replace(/\s+/g, '')}`] = { sectionNode, contentNode };
-    }, contract);
-    const toggle = page.locator(`${contract.section} [data-section-collapse]`);
-    await toggle.click();
-    await page.waitForFunction((selector) => document.querySelector(selector)?.classList.contains('collapsed'), contract.section, { timeout: 5000 });
-    await page.waitForFunction((selector) => {
-      const node = document.querySelector(selector);
-      if (!node) return false;
-      const style = getComputedStyle(node);
-      return Number.parseFloat(style.maxHeight) <= 0.5 && Number.parseFloat(style.opacity) <= 0.01;
-    }, contract.content, { timeout: 5000 });
-    const collapsed = await page.evaluate(({ section, content, label }) => {
-      const sectionNode = document.querySelector(section);
-      const contentNode = document.querySelector(content);
-      const saved = window[`__sectionHelp${label.replace(/\s+/g, '')}`];
       return {
-        sameSection: saved?.sectionNode === sectionNode,
-        sameContent: saved?.contentNode === contentNode,
-        expanded: sectionNode?.querySelector('[data-section-collapse]')?.getAttribute('aria-expanded') || '',
-        maxHeight: Number.parseFloat(getComputedStyle(contentNode).maxHeight),
-        opacity: Number.parseFloat(getComputedStyle(contentNode).opacity)
+        collapseButtons: sectionNode?.querySelectorAll('[data-section-collapse]').length || 0,
+        hideButtons: sectionNode?.querySelectorAll('[data-home-hide]').length || 0,
+        collapsed: sectionNode?.classList.contains('collapsed') || false,
+        sameContent: window[`__sectionHelp${label.replace(/\s+/g, '')}`]?.contentNode === contentNode,
+        sameSection: window[`__sectionHelp${label.replace(/\s+/g, '')}`]?.sectionNode === sectionNode
       };
     }, contract);
     assert(
-      collapsed.sameSection
-        && collapsed.sameContent
-        && collapsed.expanded === 'false'
-        && collapsed.maxHeight <= 0.5
-        && collapsed.opacity <= 0.01,
-      `${contract.label} collapse contract failed ${JSON.stringify(collapsed)}`
+      managedState.sameSection
+        && managedState.sameContent
+        && managedState.collapseButtons === 0
+        && managedState.hideButtons === 1
+        && !managedState.collapsed,
+      `${contract.label} managed shown/hidden contract failed ${JSON.stringify(managedState)}`
     );
-    await toggle.click();
-    await page.waitForFunction((selector) => !document.querySelector(selector)?.classList.contains('collapsed'), contract.section, { timeout: 5000 });
-    await page.waitForFunction((selector) => {
-      const node = document.querySelector(selector);
-      return node && Number.parseFloat(getComputedStyle(node).opacity) >= 0.99;
-    }, contract.content, { timeout: 5000 });
-    const expanded = await page.evaluate(({ section, content, label }) => {
+    const stateKey = contract.section === '#hot-today-island' ? 'live-pulse' : 'explore';
+    await page.evaluate((id) => window.tezosSystemsHomeLayout.setHomeBlockVisible(id, false, 'feature-workflow-smoke'), stateKey);
+    await page.waitForFunction((selector) => getComputedStyle(document.querySelector(selector)).display === 'none', contract.section);
+    await page.evaluate((id) => window.tezosSystemsHomeLayout.setHomeBlockVisible(id, true, 'feature-workflow-smoke'), stateKey);
+    await page.waitForFunction((selector) => getComputedStyle(document.querySelector(selector)).display !== 'none', contract.section);
+    const restored = await page.evaluate(({ section, content, label }) => {
       const sectionNode = document.querySelector(section);
       const contentNode = document.querySelector(content);
       const saved = window[`__sectionHelp${label.replace(/\s+/g, '')}`];
       return {
         sameSection: saved?.sectionNode === sectionNode,
         sameContent: saved?.contentNode === contentNode,
-        expanded: sectionNode?.querySelector('[data-section-collapse]')?.getAttribute('aria-expanded') || ''
+        collapsed: sectionNode?.classList.contains('collapsed') || false
       };
     }, contract);
-    assert(expanded.sameSection && expanded.sameContent && expanded.expanded === 'true', `${contract.label} expand contract failed ${JSON.stringify(expanded)}`);
+    assert(restored.sameSection && restored.sameContent && !restored.collapsed, `${contract.label} show restoration changed content identity ${JSON.stringify(restored)}`);
   }
 
   const sectionHeaderState = await page.evaluate(() => ({
@@ -29949,6 +30313,7 @@ async function smokeOverlayStack(browser, baseUrl) {
 function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
+    { name: 'home-layout', description: 'Six device-local Home switches, inline Hide/Undo, persistence, tab sync, deep-link recovery, tour preview, Live Pulse gating, and responsive accessibility', run: () => smokeHomeLayout(browser, baseUrl) },
     { name: 'app-shell', description: 'Version metadata, service worker, manifest, icons, robots, sitemap, and shell assets', run: () => smokeAppShell(browser, baseUrl) },
     { name: 'release-update', description: 'Persistent desktop/mobile release dock, Later pill, activation fallback, and cross-tab service-worker lifecycle', run: () => smokeReleaseUpdateDock(browser, baseUrl) },
     { name: 'hero-landscape', description: 'Hero continuity signals balance into matching left and right stacks on mobile landscape', run: () => smokeHeroLandscape(browser, baseUrl) },

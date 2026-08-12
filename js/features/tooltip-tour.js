@@ -48,8 +48,8 @@
         },
         {
             target: '#settings-gear',
-            title: 'Tune and export',
-            text: 'Settings keeps 15 themes, Ultra, share captures, data export, About, shortcuts, and changelog nearby. HEN mode stays available from the corner launcher.',
+            title: 'Make the Home yours',
+            text: 'Setup starts with Customize home, where you can show only the blocks you use. All 15 themes, Ultra, sharing, export, shortcuts, and changelog stay nearby.',
         },
     ];
 
@@ -354,6 +354,7 @@
 
     function end(markComplete = true) {
         if (markComplete) localStorage.setItem(TOUR_KEY, '1');
+        window.tezosSystemsHomeLayout?.endPreview?.('guided-tour');
         document.removeEventListener('keydown', onKey);
         window.removeEventListener('resize', schedulePosition);
         window.removeEventListener('scroll', schedulePosition);
@@ -382,6 +383,7 @@
     function startTour() {
         removeNudge();
         stopWatchingActiveSurfaces();
+        window.tezosSystemsHomeLayout?.beginPreview?.('guided-tour');
         create();
         show(0);
     }
