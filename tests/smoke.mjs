@@ -8972,6 +8972,7 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
           ? Math.max(...priorityLineCenters.map((center) => Math.abs(center - priorityCenter)))
           : 999,
         compactWarningCount: card?.querySelectorAll('.release-radar-stale-note, [role="status"]').length || 0,
+        adjacentLabel: card?.querySelector('.release-radar-pulse-release small')?.textContent?.trim() || '',
         activeCount: island?.querySelectorAll('.hot-today-card.is-hot-active').length || 0,
         railCount: island?.querySelectorAll('[data-hot-progress-index]').length || 0,
         cardCount: island?.querySelectorAll('[data-hot-signal-index]').length || 0
@@ -8980,13 +8981,14 @@ async function smokeReleaseRadarPulse(browser, baseUrl) {
     assert(
       presentation.releaseIndex >= 0
         && presentation.releaseIndex <= 1
-        && presentation.score >= 170
+        && ((presentation.adjacentLabel === 'Shipped · exciting' && presentation.score === 176)
+          || (presentation.adjacentLabel === 'Adjacent lane' && presentation.score === 166))
         && (presentation.priority === 'EVERYONE WATCH'
           || (presentation.priority === 'REVIEW DUE'
             && /Forecast review due\. Last reviewed/i.test(presentation.priorityTitle)
             && presentation.compactWarningCount === 0
             && !/Treat horizons as stale/i.test(presentation.text))),
-      `release radar pulse ${label}: the important forecast left the top priority pair ${JSON.stringify(presentation)}`
+      `release radar pulse ${label}: the priority forecast or its 14-day release transition drifted ${JSON.stringify(presentation)}`
     );
     assert(
       presentation.embeddedGateCount === 0
