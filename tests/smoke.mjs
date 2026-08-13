@@ -5583,7 +5583,7 @@ async function smokeReleaseUpdateDock(browser, baseUrl) {
   log('ok - persistent responsive release update dock and service-worker lifecycle smoke');
 }
 
-async function smokeHeroLandscape(browser, baseUrl) {
+async function smokeHeroIntermediate(browser, baseUrl) {
   const issues = [];
   const context = await browser.newContext({
     viewport: { width: 844, height: 390 },
@@ -5598,13 +5598,30 @@ async function smokeHeroLandscape(browser, baseUrl) {
   });
 
   const page = await context.newPage();
-  attachIssueCollectors(page, 'hero mobile landscape', issues);
+  attachIssueCollectors(page, 'hero intermediate', issues);
   const response = await page.goto(`${baseUrl}/?theme=aurora`, { waitUntil: 'domcontentloaded' });
-  assert(response?.ok(), `hero mobile landscape: dashboard failed with HTTP ${response?.status()}`);
+  assert(response?.ok(), `hero intermediate: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('#hero-search-input').waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
   await page.waitForFunction(() => document.querySelector('#header-activity-button')?.dataset.headerActivityWired === '1', null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent?.trim() || ''), null, { timeout: 10000 });
+  await page.evaluate(() => {
+    const values = new Map([
+      ['hero-chain-uptime-bakers', '195'],
+      ['hero-chain-uptime-finality', '12s'],
+      ['hero-chain-uptime-staked', '29.9%'],
+      ['hero-chain-uptime-issuance', '3.02%']
+    ]);
+    for (const [id, value] of values) {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    }
+    document.querySelector('#top-continuity-panel')?.classList.remove('hero-arrival-pending');
+    document.querySelectorAll('#top-continuity-panel .top-continuity-stat').forEach((pill) => {
+      pill.classList.remove('is-loading');
+      pill.classList.add('hero-arrived');
+    });
+  });
 
   const state = await page.evaluate(() => {
     const row = document.querySelector('.top-continuity-row');
@@ -5622,36 +5639,77 @@ async function smokeHeroLandscape(browser, baseUrl) {
     const panelRect = rect(panel);
     const pillRects = pills.map((pill) => rect(pill));
     return {
-      breakpoint: matchMedia('(min-width: 561px) and (max-width: 960px) and (orientation: landscape)').matches,
+      breakpoint: matchMedia('(min-width: 641px) and (max-width: 1279px)').matches,
       leftDisplay: left ? getComputedStyle(left).display : '',
       rowColumns: row ? getComputedStyle(row).gridTemplateColumns : '',
       pillColumns: panel?.querySelector('.top-continuity-stats')
         ? getComputedStyle(panel.querySelector('.top-continuity-stats')).gridTemplateColumns
         : '',
-      ageAboveActivity: Boolean(historyRect && activityRect && historyRect.bottom <= activityRect.top + 1),
-      leftAligned: Boolean(historyRect && activityRect && Math.abs(historyRect.left - activityRect.left) <= 2),
-      equalColumns: Boolean(leftRect && panelRect && Math.abs(leftRect.width - panelRect.width) <= 2),
-      balancedHeight: Boolean(leftRect && panelRect && Math.abs(leftRect.height - panelRect.height) <= 8),
+      ageBesideActivity: Boolean(historyRect && activityRect
+        && Math.abs((historyRect.top + historyRect.height / 2) - (activityRect.top + activityRect.height / 2)) <= 4),
+      pillsBelowLead: Boolean(leftRect && panelRect && leftRect.bottom <= panelRect.top + 1),
+      fullWidthRows: Boolean(rowRect && leftRect && panelRect
+        && Math.abs(leftRect.width - rowRect.width) <= 2
+        && Math.abs(panelRect.width - rowRect.width) <= 2),
       pillCount: pills.length,
-      twoPillRows: pillRects.length === 4
-        && Math.abs(pillRects[0].top - pillRects[1].top) <= 2
-        && Math.abs(pillRects[2].top - pillRects[3].top) <= 2
-        && pillRects[2].top - pillRects[0].top >= 20,
+      onePillRow: pillRects.length === 4
+        && pillRects.every((pillRect) => Math.abs(
+          (pillRect.top + pillRect.height / 2)
+          - (pillRects[0].top + pillRects[0].height / 2)
+        ) <= 2)
+        && pillRects.every((pillRect, index) => index === 0 || pillRect.left >= pillRects[index - 1].right - 1),
       rowInsideViewport: Boolean(rowRect && rowRect.left >= -1 && rowRect.right <= innerWidth + 1),
       activityOverflow: activityLine ? activityLine.scrollWidth - activityLine.clientWidth : 999,
       documentOverflow: document.documentElement.scrollWidth - innerWidth
     };
   });
 
-  assert(state.breakpoint && state.leftDisplay === 'grid', `hero mobile landscape: balance breakpoint did not collapse the left rail ${JSON.stringify(state)}`);
-  assert(state.ageAboveActivity && state.leftAligned, `hero mobile landscape: age and 1H activity should form one aligned left stack ${JSON.stringify(state)}`);
-  assert(state.equalColumns && state.balancedHeight, `hero mobile landscape: left and right signal groups should carry equal visual weight ${JSON.stringify(state)}`);
-  assert(state.pillCount === 4 && state.twoPillRows, `hero mobile landscape: network signals should remain a two-by-two pill grid ${JSON.stringify(state)}`);
-  assert(state.rowInsideViewport && state.activityOverflow <= 1 && state.documentOverflow <= 1, `hero mobile landscape: responsive signal row escaped or clipped ${JSON.stringify(state)}`);
+  assert(state.breakpoint && state.leftDisplay === 'flex', `hero intermediate: breakpoint did not keep uptime and 1H activity on one line ${JSON.stringify(state)}`);
+  assert(state.ageBesideActivity, `hero intermediate: uptime and 1H activity should share the lead row ${JSON.stringify(state)}`);
+  assert(state.pillsBelowLead && state.fullWidthRows, `hero intermediate: network signals should occupy a full-width row below uptime and 1H activity ${JSON.stringify(state)}`);
+  assert(state.pillCount === 4 && state.onePillRow, `hero intermediate: network signals should remain one uninterrupted four-pill row ${JSON.stringify(state)}`);
+  assert(state.rowInsideViewport && state.activityOverflow <= 1 && state.documentOverflow <= 1, `hero intermediate: responsive signal row escaped or clipped ${JSON.stringify(state)}`);
+
+  await page.setViewportSize({ width: 641, height: 900 });
+  const lowerEdge = await page.evaluate(() => {
+    const pills = Array.from(document.querySelectorAll('#top-continuity-panel .top-continuity-stat'));
+    const rects = pills.map((pill) => pill.getBoundingClientRect());
+    const center = (rect) => rect.top + rect.height / 2;
+    return {
+      breakpoint: matchMedia('(min-width: 641px) and (max-width: 1279px)').matches,
+      oneRow: rects.length === 4 && rects.every((rect) => Math.abs(center(rect) - center(rects[0])) <= 2),
+      contentFits: pills.every((pill) => pill.scrollWidth - pill.clientWidth <= 1),
+      documentOverflow: document.documentElement.scrollWidth - innerWidth
+    };
+  });
+  assert(
+    lowerEdge.breakpoint && lowerEdge.oneRow && lowerEdge.contentFits && lowerEdge.documentOverflow <= 1,
+    `hero intermediate: 641px lower edge clipped or wrapped the four-pill row ${JSON.stringify(lowerEdge)}`
+  );
+
+  await page.setViewportSize({ width: 640, height: 900 });
+  const mobileEdge = await page.evaluate(() => {
+    const rects = Array.from(document.querySelectorAll('#top-continuity-panel .top-continuity-stat'))
+      .map((pill) => pill.getBoundingClientRect());
+    const center = (rect) => rect.top + rect.height / 2;
+    return {
+      mobile: matchMedia('(max-width: 640px)').matches,
+      intermediate: matchMedia('(min-width: 641px) and (max-width: 1279px)').matches,
+      twoByTwo: rects.length === 4
+        && Math.abs(center(rects[0]) - center(rects[1])) <= 2
+        && Math.abs(center(rects[2]) - center(rects[3])) <= 2
+        && center(rects[2]) - center(rects[0]) >= 20,
+      documentOverflow: document.documentElement.scrollWidth - innerWidth
+    };
+  });
+  assert(
+    mobileEdge.mobile && !mobileEdge.intermediate && mobileEdge.twoByTwo && mobileEdge.documentOverflow <= 1,
+    `hero intermediate: 640px mobile boundary lost its compact two-by-two grid ${JSON.stringify(mobileEdge)}`
+  );
 
   await context.close();
-  assert(issues.length === 0, `hero mobile landscape browser issues:\n${issues.join('\n')}`);
-  log('ok - hero mobile-landscape continuity balance');
+  assert(issues.length === 0, `hero intermediate browser issues:\n${issues.join('\n')}`);
+  log('ok - hero intermediate continuity rows');
 }
 
 async function smokeHeroCommandBar(browser, baseUrl) {
@@ -30705,7 +30763,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'home-layout', description: 'Six device-local Home switches, inline Hide/Undo, persistence, tab sync, deep-link recovery, tour preview, Live Pulse gating, and responsive accessibility', run: () => smokeHomeLayout(browser, baseUrl) },
     { name: 'app-shell', description: 'Version metadata, service worker, manifest, icons, robots, sitemap, and shell assets', run: () => smokeAppShell(browser, baseUrl) },
     { name: 'release-update', description: 'Persistent desktop/mobile release dock, Later pill, activation fallback, and cross-tab service-worker lifecycle', run: () => smokeReleaseUpdateDock(browser, baseUrl) },
-    { name: 'hero-landscape', description: 'Hero continuity signals balance into matching left and right stacks on mobile landscape', run: () => smokeHeroLandscape(browser, baseUrl) },
+    { name: 'hero-landscape', description: 'Hero continuity signals form one uptime/activity row above one uninterrupted four-pill row at intermediate widths', run: () => smokeHeroIntermediate(browser, baseUrl) },
     { name: 'hero-command-bar', description: 'Hero command bar owns the first-screen retrieval path, protocol deep dives, and command routing', run: () => smokeHeroCommandBar(browser, baseUrl) },
     { name: 'route-search-state', description: 'Alias transitions, bare routes, search relevance, Escape focus, query preservation, and Back/Forward state stay coherent', run: () => smokeRouteSearchState(browser, baseUrl) },
     { name: 'breakpoint-accessibility', description: 'Exact paired breakpoints, 200% reflow, forced colors, and reduced motion preserve shell/search/Chamber focus, containment, and horizontal fit', run: () => smokeBreakpointAccessibility(browser, baseUrl) },

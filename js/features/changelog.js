@@ -5,6 +5,12 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-13',
+        entries: [
+            { type: '🎨', text: 'Intermediate Home headers now keep mainnet age and 1H activity together above one uninterrupted row of baker, finality, staking, and issuance pills' }
+        ]
+    },
+    {
         date: '2026-08-12',
         entries: [
             { type: '✨', text: 'Every Explore Tezos topic and each of its 21 Chamber launchers can now be hidden independently, with instant Undo, open-tab sync, first-paint persistence, and one Show all recovery' },
