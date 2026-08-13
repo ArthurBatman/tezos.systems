@@ -9,7 +9,9 @@ export const CHANGELOG = [
         entries: [
             { type: '✨', text: 'Every Explore Tezos topic and each of its 21 Chamber launchers can now be hidden independently, with instant Undo, open-tab sync, first-paint persistence, and one Show all recovery' },
             { type: '🎨', text: 'Customize home now uses a compact topic-first Chamber manager, while topic headers and card footers keep their eye-off actions obvious, keyboard-safe, and unobtrusive' },
-            { type: '🎨', text: 'The Handoff eye now aligns with the full section edge instead of floating over its copy, and Credits and sources can be hidden from the final build line or restored in Customize home' }
+            { type: '🎨', text: 'The Handoff eye now aligns with the full section edge instead of floating over its copy, and Credits and sources can be hidden from the final build line or restored in Customize home' },
+            { type: '🔧', text: 'Chain Heartbeat updates now keep stable DOM and reader state, retain last-good data, pause while hidden, respect reduced motion, and announce only genuinely new blocks' },
+            { type: '✨', text: 'The Home block strip is now a live Chain Heartbeat with the landed block, exact next R0 proposer right, per-block operation receipts, a 16-block cadence rail, and curated on-chain signals' }
         ]
     },
     {

@@ -310,7 +310,7 @@ inline modal styles in `js/core/app.js`.
 ## Main Surfaces
 
 - Setup starts with **Customize home**, a device-local seven-switch layout for
-  the latest block ticker, search/command deck, Live Pulse (including its
+  the Chain Heartbeat ticker, search/command deck, Live Pulse (including its
   governance strip), Explore Tezos, Network Moments, and the Keep Exploring
   handoff, plus the Credits and sources footer. Every block is shown by default
   and also has an inline eye-off action with Undo. The header, Setup, and My
@@ -352,13 +352,21 @@ inline modal styles in `js/core/app.js`.
   controls, a matching section info button, and quiet source-aware freshness
   stamps that distinguish generated archive age, live source observation, and
   the oldest contributing source in a multi-ledger room.
-- A live block ticker sits as its own island below the header/title row and
-  above the command deck.
-  It uses the Network Health block feed to show the latest block, baker,
-  attestation health, attested power, round, and age in a single
-  animated strip with stable-width volatile numbers, compact baker names, and a
-  clean whole-line transition.
-  Clicking the strip opens the Network Health Chamber.
+- The live **Chain Heartbeat** sits as its own island below the header/title row
+  and above the command deck. It keeps the landed block and producer beside the
+  exact next round-zero baking right, a local one-second due clock, applied
+  per-block transaction/call/token/staking receipts, a 16-block
+  cadence/attestation rail, and at most two curated consensus, staking, or large
+  transfer signals. The next baker is explicitly an R0 right rather than a
+  guarantee, operation categories may overlap, and an unavailable receipt stays
+  `--` instead of becoming zero. Attestation power remains a completed block
+  receipt; the strip does not pretend an immutable block is progressively
+  assembling. Six-second visible-tab polling and the existing `block-pulse`
+  hook quietly reconcile stable keyed DOM, retain the last good line on source
+  failure, and perform one catch-up when the tab becomes visible. Only a newly
+  landed, current block pulses; countdown ticks do not enter the polite live
+  region or replay the arrival animation. Clicking the strip opens the Network
+  Health Chamber.
 - The header keeps the current protocol beside the Tezos Systems title and
   orders its right-side navigation as My Tezos, NFT Feed, Explore, then Setup.
   My Tezos stays expanded with its emoji and label at narrow widths; desktop

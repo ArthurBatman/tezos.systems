@@ -51,17 +51,17 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#45E0C8">
     <link rel="manifest" href="/site.webmanifest">
 
-    <link rel="stylesheet" href="css/styles.min.css?v=567">
-    <link id="shell-extras-css" rel="stylesheet" href="css/shell-extras.min.css?v=567">
-    <link rel="stylesheet" href="css/loading.css?v=567">
-    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=567">
-    <link rel="stylesheet" href="css/site-map.css?v=567">
+    <link rel="stylesheet" href="css/styles.min.css?v=568">
+    <link id="shell-extras-css" rel="stylesheet" href="css/shell-extras.min.css?v=568">
+    <link rel="stylesheet" href="css/loading.css?v=568">
+    <link id="hero-search-css" rel="stylesheet" href="css/hero-search.css?v=568">
+    <link rel="stylesheet" href="css/site-map.css?v=568">
     <link rel="stylesheet" href="css/hen-mode.css?v=98">
     <script src="js/core/hen-init.js?v=79" defer></script>
 
     <!-- Modulepreload critical JS for parallel fetch -->
     <link rel="modulepreload" href="js/core/tzkt-throttle.js">
-    <link rel="modulepreload" href="js/core/app.js?v=567">
+    <link rel="modulepreload" href="js/core/app.js?v=568">
     <link rel="modulepreload" href="js/core/api.js">
     <link rel="modulepreload" href="js/core/config.js">
     <link rel="modulepreload" href="js/core/data-assets.js">
@@ -275,8 +275,8 @@
     <!-- Apply saved/default theme before first paint to prevent the theme flash.
          Classic (render-blocking) external script — CSP forbids inline scripts,
          and ES modules are deferred so they'd paint first. -->
-    <script src="js/core/theme-preload.js?v=567"></script>
-    <script src="js/core/home-layout-preload.js?v=567"></script>
+    <script src="js/core/theme-preload.js?v=568"></script>
+    <script src="js/core/home-layout-preload.js?v=568"></script>
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="top-utility-row">
     <div id="corner-gift-tray" class="corner-gift-tray" aria-label="Corner tools">
@@ -692,15 +692,35 @@
     </header>
 
     <!-- Live block ticker -->
-    <section class="block-ticker-strip" id="block-ticker-strip" aria-label="Latest Tezos block" data-magic="off" data-home-block="ticker">
+    <section class="block-ticker-strip" id="block-ticker-strip" aria-label="Live Tezos Chain Heartbeat" data-magic="off" data-home-block="ticker" data-feed-state="loading">
         <button class="block-ticker-button" id="block-ticker-button" type="button" aria-label="Open Network Health Chamber">
-            <span class="block-ticker-kicker" aria-label="Live block signal">
+            <span class="block-ticker-kicker" aria-hidden="true">
                 <span class="uptime-pulse-dot block-ticker-pulse" id="uptime-pulse-dot" title="Network healthy — blocks on schedule"></span>
             </span>
-            <span class="block-ticker-line" id="block-ticker-line" aria-live="polite">
-                <span class="block-ticker-placeholder">Syncing latest head block</span>
+            <span class="block-ticker-line" id="block-ticker-line" aria-live="off">
+                <span class="chain-heartbeat-now" data-quiet-key="current-block">
+                    <span class="chain-heartbeat-eyebrow">Block landed</span>
+                    <span class="block-ticker-placeholder">Syncing latest head</span>
+                </span>
+                <span class="chain-heartbeat-next" data-quiet-key="next-right">
+                    <span class="chain-heartbeat-eyebrow">Next R0 proposer</span>
+                    <span class="block-ticker-placeholder">Right syncing</span>
+                </span>
+                <span class="chain-heartbeat-composition" data-quiet-key="block-composition">
+                    <span class="chain-heartbeat-eyebrow">This block</span>
+                    <span class="block-ticker-placeholder">Receipts syncing</span>
+                </span>
+                <span class="chain-heartbeat-history" data-quiet-key="block-history">
+                    <span class="chain-heartbeat-eyebrow">Recent cadence</span>
+                    <span class="chain-heartbeat-rail is-loading" aria-hidden="true"></span>
+                </span>
+                <span class="chain-heartbeat-events" data-quiet-key="block-signals">
+                    <span class="chain-heartbeat-eyebrow">Signal</span>
+                    <span class="block-ticker-placeholder">Listening</span>
+                </span>
             </span>
         </button>
+        <span class="sr-only" id="chain-heartbeat-announcer" aria-live="polite" aria-atomic="true"></span>
         <button class="home-block-hide home-block-hide-compact" type="button" data-home-hide="ticker" aria-label="Hide Latest block ticker" title="Hide Latest block ticker">
             <svg class="home-block-hide-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 002.7 2.7M9.9 4.2A10.8 10.8 0 0112 4c5.2 0 8.8 5.3 8.8 5.3a13 13 0 01-2.3 2.7M6.2 6.2A15.7 15.7 0 003.2 9.3S6.8 14.7 12 14.7c1 0 1.9-.2 2.7-.5"/></svg>
             <span class="home-block-hide-label">Hide</span>
@@ -2873,8 +2893,8 @@
 
     <!-- Load app as module -->
     <script defer src="js/features/hen-mode.js?v=95"></script>
-    <script type="module" src="js/effects/valley-loader.js?v=567"></script>
-    <script type="module" src="js/core/app.js?v=567"></script>
+    <script type="module" src="js/effects/valley-loader.js?v=568"></script>
+    <script type="module" src="js/core/app.js?v=568"></script>
     <!-- My Baker Info Modal -->
     <div class="modal-overlay" id="my-baker-modal" aria-hidden="true">
         <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="my-baker-modal-title" tabindex="-1">

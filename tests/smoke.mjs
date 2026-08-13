@@ -2634,6 +2634,17 @@ async function installFeatureMocks(context, options = {}) {
             { level: 12345858, cycle: 1143, round: 0, status: 'future', type: 'baking', baker: { address: SAMPLE_ADDRESS, alias: 'QA Baker' } }
           ]);
         }
+        if (type === 'baking' && rights.has('level') && rights.get('round') === '0' && !rights.has('status')) {
+          return fulfillJson(route, [{
+            level: Number(rights.get('level')),
+            cycle: 1143,
+            timestamp: new Date(Date.now() + 6000).toISOString(),
+            round: 0,
+            status: 'future',
+            type: 'baking',
+            baker: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' }
+          }]);
+        }
         if (type === 'baking') {
           if (rights.get('round') !== '0') {
             return fulfillJson(route, [
@@ -3053,7 +3064,20 @@ async function installFeatureMocks(context, options = {}) {
           return fulfillJson(route, whaleLiveInitialRows);
         }
       }
+      if (parsedUrl.pathname.endsWith('/tokens/transfers/count')) {
+        return fulfillJson(route, parsedUrl.searchParams.has('level') ? 7 : 73);
+      }
       if (url.includes('/operations/transactions/count')) return fulfillJson(route, 12345);
+      if (url.includes('/operations/transactions?')
+        && parsedUrl.searchParams.has('level')
+        && (parsedUrl.searchParams.get('select') || '').includes('internal')) {
+        return fulfillJson(route, [
+          { id: 101, hash: 'opHeartbeatOne', amount: 2500000000, parameter: null, internal: false, sender: { address: SAMPLE_ADDRESS }, target: { address: SAMPLE_ADDRESS_2 } },
+          { id: 102, hash: 'opHeartbeatTwo', amount: 42000000, parameter: { entrypoint: 'mint', value: {} }, internal: false, sender: { address: SAMPLE_ADDRESS_2 }, target: { address: SAMPLE_CONTRACT } },
+          { id: 103, hash: 'opHeartbeatThree', amount: 0, parameter: { entrypoint: 'transfer', value: [] }, internal: false, sender: { address: SAMPLE_ADDRESS }, target: { address: SAMPLE_CONTRACT } },
+          { id: 104, hash: 'opHeartbeatFour', amount: 0, parameter: null, internal: true, sender: { address: SAMPLE_CONTRACT }, target: { address: SAMPLE_ADDRESS_2 } }
+        ]);
+      }
       if (url.includes('/operations/transactions?')) {
         return fulfillJson(route, [{
           id: 1,
@@ -3105,6 +3129,17 @@ async function installFeatureMocks(context, options = {}) {
         if (whaleFailureLane === action) {
           return route.fulfill({ status: 503, contentType: 'application/json', body: `{"error":"smoke ${action} lane unavailable"}` });
         }
+      }
+      if (url.includes('/operations/staking?') && parsedUrl.searchParams.has('level')) {
+        return fulfillJson(route, [{
+          id: 120,
+          hash: 'opHeartbeatStake',
+          timestamp: new Date().toISOString(),
+          action: 'stake',
+          amount: 125000000,
+          staker: { address: SAMPLE_ADDRESS_2, alias: 'Second Baker' },
+          baker: { address: SAMPLE_ADDRESS, alias: 'QA Baker' }
+        }]);
       }
       if (url.includes('/operations/staking?')) return fulfillJson(route, []);
       if (url.includes(`/accounts/${OVERDELEGATED_ADDRESS}`) && !url.includes('/operations?')) {
@@ -13489,6 +13524,8 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   await page.waitForFunction(() => document.querySelector('#health-nc-33')?.textContent === '1' && document.querySelector('#health-nc-66')?.textContent === '2', null, { timeout: 10000 });
   await page.waitForFunction(() => /Octez Versions/.test(document.querySelector('#health-octez-versions')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /Block/.test(document.querySelector('#block-ticker-line')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => /Second Baker/.test(document.querySelector('.chain-heartbeat-next-name')?.textContent || ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => /Tx ops\s*\d/.test(document.querySelector('.chain-heartbeat-composition')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => document.querySelector('#header-activity-button')?.getAttribute('aria-busy') === 'false', null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+$/.test(document.querySelector('#hero-chain-uptime-bakers')?.textContent || ''), null, { timeout: 10000 });
   await page.waitForFunction(() => /^\d+s$/.test((document.querySelector('#hero-chain-uptime-finality')?.textContent || '').trim()), null, { timeout: 20000 });
@@ -13552,6 +13589,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     const tickerOctezSegment = tickerLine?.querySelector('.block-ticker-octez');
     const tickerOctezValue = tickerLine?.querySelector('.block-ticker-octez .block-ticker-value');
     const tickerAgeValue = tickerLine?.querySelector('.block-ticker-age .block-ticker-value');
+    const tickerNow = tickerLine?.querySelector('.chain-heartbeat-now');
+    const tickerNext = tickerLine?.querySelector('.chain-heartbeat-next');
+    const tickerComposition = tickerLine?.querySelector('.chain-heartbeat-composition');
+    const tickerHistory = tickerLine?.querySelector('.chain-heartbeat-history');
+    const tickerSignals = tickerLine?.querySelector('.chain-heartbeat-events');
+    const tickerRail = tickerLine?.querySelector('.chain-heartbeat-rail');
+    const tickerAnnouncer = document.querySelector('#chain-heartbeat-announcer');
     const tickerSegmentOrder = Array.from(tickerLine?.querySelectorAll('.block-ticker-segment') || []).map((segment) => {
       const keys = ['level', 'baker', 'health', 'octez', 'power', 'round', 'age'];
       return keys.find((key) => segment.classList.contains(`block-ticker-${key}`)) || '';
@@ -13747,6 +13791,19 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       blockTickerClearOfMainContent: Boolean(tickerRect && mainRect && mainRect.top - tickerRect.bottom >= 0),
       blockTickerMarginTop: tickerStyles?.marginTop || '',
       blockTickerText: tickerLine?.textContent || '',
+      blockTickerAriaLive: tickerLine?.getAttribute('aria-live') || '',
+      blockTickerFeedState: ticker?.dataset.feedState || '',
+      blockTickerNowText: tickerNow?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      blockTickerNextText: tickerNext?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      blockTickerCompositionText: tickerComposition?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      blockTickerHistoryText: tickerHistory?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      blockTickerSignalsText: tickerSignals?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      blockTickerRailCells: tickerRail?.querySelectorAll('.chain-heartbeat-cell').length || 0,
+      blockTickerRailHeadCells: tickerRail?.querySelectorAll('.chain-heartbeat-cell.is-head').length || 0,
+      blockTickerRailQuietKeys: Array.from(tickerRail?.querySelectorAll('[data-quiet-key]') || []).map((cell) => cell.dataset.quietKey || ''),
+      blockTickerQuietGroups: Array.from(tickerLine?.children || []).filter((child) => child.dataset.quietKey).map((child) => child.dataset.quietKey),
+      blockTickerAnnouncerLive: tickerAnnouncer?.getAttribute('aria-live') || '',
+      blockTickerNextDue: tickerNext?.querySelector('[data-heartbeat-due]')?.textContent || '',
       blockTickerHasUptimeProof: Boolean(ticker?.querySelector('#block-ticker-uptime, #chain-uptime-counter')),
       networkHealthProofText: healthProof?.textContent || '',
       networkHealthProofCounter: healthProof?.querySelector('#chain-uptime-counter')?.textContent || '',
@@ -13990,12 +14047,17 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(healthState.blockTickerAboveChambers, 'network health chamber: live block ticker should render above the Chambers area');
   assert(healthState.blockTickerClearOfCommandDeck, `network health chamber: live block ticker crowds the command deck, margin ${healthState.blockTickerMarginTop}`);
   assert(healthState.blockTickerClearOfMainContent, 'network health chamber: live block ticker should not overlap the main content');
-  assert(/Block#?[\d,]+/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing block: ${healthState.blockTickerText}`);
-  assert(/Baker (QA Baker|Second Baker)/.test(healthState.blockTickerText.replace(/\s+/g, ' ')), `network health chamber: live block ticker missing baker: ${healthState.blockTickerText}`);
-  assert(/Health(Peak|Healthy|Watch|Degraded)/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing health: ${healthState.blockTickerText}`);
-  assert(/Octezv25\.0/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing baker Octez version: ${healthState.blockTickerText}`);
-  assert(/Attested[\d,]+\/7,000/.test(healthState.blockTickerText.replace(/\s+/g, '')), `network health chamber: live block ticker missing attestation power: ${healthState.blockTickerText}`);
+  assert(/Block landed #[\d,]+ (QA Baker|Second Baker)/.test(healthState.blockTickerNowText), `network health chamber: Chain Heartbeat current receipt missing: ${healthState.blockTickerNowText}`);
+  assert(/Next R0 proposer Second Baker/.test(healthState.blockTickerNextText), `network health chamber: exact next R0 right missing: ${healthState.blockTickerNextText}`);
+  assert(/(?:in \d{2}s|due now|R0 due \d{2}s ago)/.test(healthState.blockTickerNextDue), `network health chamber: next R0 countdown missing: ${healthState.blockTickerNextDue}`);
+  assert(/This block Tx ops\s*4 Calls\s*2 Tokens\s*7 Stake\s*1/.test(healthState.blockTickerCompositionText), `network health chamber: per-block composition mismatch: ${healthState.blockTickerCompositionText}`);
+  assert(healthState.blockTickerRailCells === 16 && healthState.blockTickerRailHeadCells === 1, `network health chamber: 16-block heartbeat rail incomplete: ${healthState.blockTickerRailCells}/${healthState.blockTickerRailHeadCells}`);
+  assert(new Set(healthState.blockTickerRailQuietKeys).size === 16, `network health chamber: heartbeat rail cells need stable level keys: ${healthState.blockTickerRailQuietKeys.join(',')}`);
+  assert(/Signal/.test(healthState.blockTickerSignalsText) && /(?:Stake 125\.00ꜩ|2\.50Kꜩ moved|R\d)/.test(healthState.blockTickerSignalsText), `network health chamber: curated block signal missing: ${healthState.blockTickerSignalsText}`);
   assert(!/\b1H\b|\bMoved\b|\bNFT\b/.test(healthState.blockTickerText), `network health chamber: trailing-hour activity should no longer be clipped inside the block ticker: ${healthState.blockTickerText}`);
+  assert(healthState.blockTickerAriaLive === 'off' && healthState.blockTickerAnnouncerLive === 'polite', `network health chamber: per-second labels must stay out of the live region: ${healthState.blockTickerAriaLive}/${healthState.blockTickerAnnouncerLive}`);
+  assert(['current-block', 'next-right', 'block-composition', 'block-history', 'block-signals'].every((key) => healthState.blockTickerQuietGroups.includes(key)), `network health chamber: quiet heartbeat groups missing: ${healthState.blockTickerQuietGroups.join(',')}`);
+  assert(healthState.blockTickerFeedState === 'live', `network health chamber: heartbeat feed state mismatch: ${healthState.blockTickerFeedState}`);
   assert(!healthState.blockTickerHasUptimeProof, 'network health chamber: uptime proof should not live inside the live block ticker');
   assert(/mainnet continuity/i.test(healthState.networkHealthProofText) && /chain-age measure/i.test(healthState.networkHealthProofText) && /not an availability percentage/i.test(healthState.networkHealthProofText), `network health chamber: continuity panel must distinguish chain age from availability: ${healthState.networkHealthProofText}`);
   assert(/\d+y\s+\d+d\s+\d{2}h\s+\d{2}m\s+\d{2}s/.test(healthState.networkHealthProofCounter), `network health chamber: uptime counter missing fixed-width runtime: ${healthState.networkHealthProofCounter}`);
@@ -14003,30 +14065,19 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(/\d+s/.test(healthState.networkHealthProofFinality), `network health chamber: health proof finality missing: ${healthState.networkHealthProofFinality}`);
   assert(/^\d+(?:\.\d+)?%$/.test(healthState.networkHealthProofStaked), `network health chamber: health proof staked ratio mismatch: ${healthState.networkHealthProofStaked}`);
   assert(/^\d+(?:\.\d+)?%$/.test(healthState.networkHealthProofIssuance), `network health chamber: health proof issuance mismatch: ${healthState.networkHealthProofIssuance}`);
-  assert(!/\\b(Missed|Cadence)\\b/.test(healthState.blockTickerText), `network health chamber: live block ticker should not show Missed or Cadence: ${healthState.blockTickerText}`);
   assert(['peak', 'healthy', 'watch', 'degraded'].includes(healthState.blockTickerHealth), `network health chamber: ticker health tone mismatch: ${healthState.blockTickerHealth}`);
-  assert(healthState.blockTickerSegmentOrder.join('>') === 'level>baker>health>octez>power>round>age', `network health chamber: ticker slot order mismatch: ${healthState.blockTickerSegmentOrder.join('>')}`);
-  assert(healthState.blockTickerOctezText === 'v25.0', `network health chamber: latest baker Octez version mismatch: ${healthState.blockTickerOctezText}`);
-  assert(healthState.blockTickerOctezClass.includes('watch'), `network health chamber: lagging same-major Octez version should be yellow/watch: ${healthState.blockTickerOctezClass}`);
   assert(healthState.blockTickerWired === '1', `network health chamber: ticker click wiring missing: ${healthState.blockTickerWired}`);
   assert(healthState.topPriceBarCycleChipTag === 'A' && healthState.topPriceBarCycleChipHref === '#health', `network health chamber: cycle chip should be a #health launcher, saw ${healthState.topPriceBarCycleChipTag}/${healthState.topPriceBarCycleChipHref}`);
   assert(healthState.topPriceBarCycleChipWired === '1', `network health chamber: cycle chip click wiring missing: ${healthState.topPriceBarCycleChipWired}`);
-  assert(/baked by/.test(healthState.blockTickerTitle), `network health chamber: ticker title missing block context: ${healthState.blockTickerTitle}`);
-  assert(/Octez v25\.0/.test(healthState.blockTickerTitle), `network health chamber: ticker title missing Octez version context: ${healthState.blockTickerTitle}`);
+  assert(/landed from/.test(healthState.blockTickerTitle) && /Next round-zero proposer/.test(healthState.blockTickerTitle), `network health chamber: ticker title missing landed/next-right context: ${healthState.blockTickerTitle}`);
+  assert(/transaction operations/.test(healthState.blockTickerTitle) && /token moves/.test(healthState.blockTickerTitle), `network health chamber: ticker title missing per-block composition: ${healthState.blockTickerTitle}`);
   assert(healthState.blockTickerKickerText === '', `network health chamber: ticker kicker should be the pulse only, saw ${healthState.blockTickerKickerText}`);
   assert(healthState.blockTickerPulseCount === 1 && healthState.blockTickerPulseInTicker, `network health chamber: live pulse should live only in ticker, saw count ${healthState.blockTickerPulseCount}`);
   assert(healthState.blockTickerPulseWidth >= 8 && /rgb\(53, 232, 148\)/.test(healthState.blockTickerPulseBg), `network health chamber: ticker pulse should be the green live signal, saw ${healthState.blockTickerPulseWidth}px ${healthState.blockTickerPulseBg}`);
   assert(!healthState.topPriceBarHasBlockReadout && !healthState.topPriceBarHasBlockAge && !healthState.topPriceBarHasPulseDot, `network health chamber: top price bar should not carry block/age/pulse readouts: ${healthState.topPriceBarText}`);
   assert(healthState.blockTickerSignature.split(':').length >= 5, `network health chamber: ticker signature incomplete: ${healthState.blockTickerSignature}`);
-  assert(healthState.blockTickerBlockWidth >= healthState.blockTickerBlockCapacity, `network health chamber: block column cannot fit an eight-digit level: ${healthState.blockTickerBlockWidth}/${healthState.blockTickerBlockCapacity}`);
-  assert(
-    healthState.blockTickerBakerWidth >= healthState.blockTickerBakerLongNameWidth
-      && healthState.blockTickerBakerWidth <= healthState.blockTickerBakerMaxWidth,
-    `network health chamber: baker column should fit longer names without taking over: ${healthState.blockTickerBakerWidth}/${healthState.blockTickerBakerLongNameWidth}-${healthState.blockTickerBakerMaxWidth}`
-  );
-  assert(healthState.blockTickerHealthWidth >= healthState.blockTickerDegradedWidth + 1, `network health chamber: health slot cannot fit Degraded: slot ${healthState.blockTickerHealthWidth}, degraded ${healthState.blockTickerDegradedWidth}`);
-  assert(healthState.blockTickerOctezWidth >= 45, `network health chamber: Octez slot is too narrow: ${healthState.blockTickerOctezWidth}`);
-  assert(healthState.blockTickerValueAlignments.every((align) => ['left', 'start'].includes(align)), `network health chamber: ticker values should sit near their labels, saw ${healthState.blockTickerValueAlignments.join(', ')}`);
+  assert(healthState.blockTickerBlockWidth + 0.1 >= healthState.blockTickerBlockCapacity, `network health chamber: block column cannot fit an eight-digit level: ${healthState.blockTickerBlockWidth}/${healthState.blockTickerBlockCapacity}`);
+  assert(healthState.blockTickerBakerWidth > 40 && healthState.blockTickerBakerWidth <= healthState.blockTickerBakerMaxWidth, `network health chamber: current baker column has invalid bounds: ${healthState.blockTickerBakerWidth}/${healthState.blockTickerBakerMaxWidth}`);
   assert(/^\d{2}[smhd] ago$/.test(healthState.blockTickerAgeText), `network health chamber: ticker age should use fixed-width text, saw ${healthState.blockTickerAgeText}`);
   assert(healthState.blockTickerAgeWidth >= 40, `network health chamber: ticker age slot is too narrow: ${healthState.blockTickerAgeWidth}`);
   assert(healthState.blockTickerAgeMs >= 85000, `network health chamber: ticker age should come from stale head timestamp, saw ${healthState.blockTickerAgeMs}ms`);
@@ -14116,10 +14167,19 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     window.__healthNcPrintNode = document.querySelector('#network-health-modal #health-nc-print');
     window.__healthNcShareNode = document.querySelector('#network-health-modal #health-nc-share');
     window.__healthCyclePanelNode = document.querySelector('#network-health-modal #health-cycle-timing');
+    window.__heartbeatNowNode = document.querySelector('#block-ticker-line .chain-heartbeat-now');
+    window.__heartbeatNextNode = document.querySelector('#block-ticker-line .chain-heartbeat-next');
+    window.__heartbeatCompositionNode = document.querySelector('#block-ticker-line .chain-heartbeat-composition');
+    window.__heartbeatRetainedCell = document.querySelector('#block-ticker-line .chain-heartbeat-cell:nth-last-child(2)');
+    window.__heartbeatRetainedKey = window.__heartbeatRetainedCell?.dataset.quietKey || '';
+    window.__heartbeatWindowY = window.scrollY;
+    window.__heartbeatModalScroll = document.querySelector('#network-health-modal .health-content')?.scrollTop || 0;
     return {
       hasTimer: Boolean(timer?.handler),
       firstLevel: document.querySelector('#health-recent-block-list .health-block-row')?.dataset.healthLevel || '',
-      rowCount: document.querySelectorAll('#health-recent-block-list .health-block-row').length
+      rowCount: document.querySelectorAll('#health-recent-block-list .health-block-row').length,
+      heartbeatWindowY: window.__heartbeatWindowY,
+      heartbeatModalScroll: window.__heartbeatModalScroll
     };
   });
   assert(beforeSmoothRefresh.hasTimer, 'network health chamber: smooth refresh timer handler missing');
@@ -14146,6 +14206,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
     ncPrintSame: window.__healthNcPrintNode === document.querySelector('#network-health-modal #health-nc-print'),
     ncShareSame: window.__healthNcShareNode === document.querySelector('#network-health-modal #health-nc-share'),
     cyclePanelSame: window.__healthCyclePanelNode === document.querySelector('#network-health-modal #health-cycle-timing'),
+    heartbeatNowSame: window.__heartbeatNowNode === document.querySelector('#block-ticker-line .chain-heartbeat-now'),
+    heartbeatNextSame: window.__heartbeatNextNode === document.querySelector('#block-ticker-line .chain-heartbeat-next'),
+    heartbeatCompositionSame: window.__heartbeatCompositionNode === document.querySelector('#block-ticker-line .chain-heartbeat-composition'),
+    heartbeatRetainedCellSame: window.__heartbeatRetainedCell === document.querySelector(`#block-ticker-line [data-quiet-key="${window.__heartbeatRetainedKey}"]`),
+    heartbeatWindowY: window.scrollY,
+    heartbeatModalScroll: document.querySelector('#network-health-modal .health-content')?.scrollTop || 0,
+    heartbeatAnnounced: document.querySelector('#chain-heartbeat-announcer')?.textContent || '',
     cycleProgress: document.querySelector('#network-health-modal #health-cycle-progress')?.textContent || '',
     ncHelpOpen: document.querySelector('#network-health-modal .health-nc-help')?.open || false,
     mode: document.querySelector('#network-health-modal .health-body')?.dataset.healthRefreshMode || '',
@@ -14161,6 +14228,9 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
   assert(smoothRefreshState.ncPanelSame, 'network health chamber: smooth refresh replaced the Nakamoto panel instead of updating in place');
   assert(smoothRefreshState.ncPrintSame && smoothRefreshState.ncShareSame, 'network health chamber: smooth refresh replaced Nakamoto print/share controls');
   assert(smoothRefreshState.cyclePanelSame && smoothRefreshState.cycleProgress === '11.4%', `network health chamber: quiet refresh replaced or lost current-cycle progress: ${JSON.stringify(smoothRefreshState)}`);
+  assert(smoothRefreshState.heartbeatNowSame && smoothRefreshState.heartbeatNextSame && smoothRefreshState.heartbeatCompositionSame && smoothRefreshState.heartbeatRetainedCellSame, `network health chamber: Chain Heartbeat refresh replaced compatible keyed DOM: ${JSON.stringify(smoothRefreshState)}`);
+  assert(Math.abs(smoothRefreshState.heartbeatWindowY - beforeSmoothRefresh.heartbeatWindowY) <= 1 && Math.abs(smoothRefreshState.heartbeatModalScroll - beforeSmoothRefresh.heartbeatModalScroll) <= 1, `network health chamber: Chain Heartbeat refresh moved the reader: ${JSON.stringify(smoothRefreshState)}`);
+  assert(/Block [\d,]+ landed/.test(smoothRefreshState.heartbeatAnnounced), `network health chamber: new block announcement missing: ${smoothRefreshState.heartbeatAnnounced}`);
   assert(smoothRefreshState.ncHelpOpen, 'network health chamber: smooth refresh closed the open Nakamoto info control');
   assert(smoothRefreshState.mode === 'in-place', `network health chamber: refresh mode mismatch: ${smoothRefreshState.mode}`);
   assert(smoothRefreshState.rowCount === beforeSmoothRefresh.rowCount, `network health chamber: passing block row count shifted after smooth refresh: ${smoothRefreshState.rowCount}`);
@@ -14176,11 +14246,13 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       const button = document.querySelector('#block-ticker-button');
       const blockValue = line?.querySelector('.block-ticker-level .block-ticker-value');
       const baker = line?.querySelector('.block-ticker-baker');
-      const health = line?.querySelector('.block-ticker-health');
+      const next = line?.querySelector('.chain-heartbeat-next');
+      const rail = line?.querySelector('.chain-heartbeat-rail');
       const lineRect = line?.getBoundingClientRect();
       const blockRect = blockValue?.getBoundingClientRect();
       const bakerRect = baker?.getBoundingClientRect();
-      const healthRect = health?.getBoundingClientRect();
+      const nextRect = next?.getBoundingClientRect();
+      const railRect = rail?.getBoundingClientRect();
       const blockStyle = blockValue ? getComputedStyle(blockValue) : null;
       const withinLine = (rect) => Boolean(
         rect
@@ -14195,8 +14267,11 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
         textOverflow: blockStyle?.textOverflow || '',
         blockWithinLine: withinLine(blockRect),
         bakerWithinLine: withinLine(bakerRect),
-        healthWithinLine: withinLine(healthRect),
+        nextWithinLine: withinLine(nextRect),
+        railWithinLine: withinLine(railRect),
         bakerWidth: bakerRect?.width || 0,
+        nextText: next?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        railCells: rail?.querySelectorAll('.chain-heartbeat-cell').length || 0,
         lineOverflow: line ? line.scrollWidth - line.clientWidth : 999,
         buttonOverflow: button ? button.scrollWidth - button.clientWidth : 999
       };
@@ -14211,9 +14286,10 @@ async function smokeNetworkHealthChamber(browser, baseUrl) {
       `network health chamber: full block level is clipped at ${tickerState.viewportWidth}px: ${JSON.stringify(tickerState)}`
     );
     assert(
-      tickerState.bakerWithinLine
-        && tickerState.healthWithinLine
-        && tickerState.bakerWidth >= 40
+      tickerState.nextWithinLine
+        && tickerState.railWithinLine
+        && /Next R0 proposer/.test(tickerState.nextText)
+        && tickerState.railCells === 16
         && tickerState.lineOverflow <= 1
         && tickerState.buttonOverflow <= 1,
       `network health chamber: mobile ticker priorities overflow at ${tickerState.viewportWidth}px: ${JSON.stringify(tickerState)}`

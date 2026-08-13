@@ -16,7 +16,8 @@ const TEZTALE = API_URLS.teztale;
 const OCTEZ_MAINNET = API_URLS.octezMainnet;
 const POWER_PER_BLOCK = 7000;
 const TARGET_BLOCK_SECONDS = 6;
-const LAST_BLOCK_LIMIT = 5;
+const LAST_BLOCK_LIMIT = 16;
+const HEALTH_CARD_BLOCK_LIMIT = 5;
 const CHAMBER_BLOCK_LIMIT = 16;
 const TEZTALE_BLOCK_LOOKBACK = 12;
 const TEZTALE_QUORUM_TARGET = 2 / 3;
@@ -39,6 +40,10 @@ const ACTIVITY_TAPE_LIMIT = 5;
 const USAGE_PULSE_TTL = 60 * 1000;
 const USAGE_WINDOW_MS = 60 * 60 * 1000;
 const USAGE_AMOUNT_PAGE_LIMIT = 10000;
+const HEARTBEAT_ACTIVITY_LIMIT = 10000;
+const HEARTBEAT_STAKING_LIMIT = 20;
+const HEARTBEAT_SUPPLEMENT_MAX_AGE = 2 * 60 * 1000;
+const HEARTBEAT_ACTIVITY_CACHE_LIMIT = 24;
 const CYCLE_TIMING_LIMIT = 8;
 const CYCLE_TIMING_TTL = 10 * 60 * 1000;
 const CONTESTED_ROUND_HOT_SIGNAL_TTL = 30 * 60 * 1000;
@@ -88,6 +93,12 @@ let usagePulseCache = null;
 let usagePulseCacheAt = 0;
 let usagePulseInFlight = null;
 let blockTickerAnimationTimer = null;
+let heartbeatData = null;
+let heartbeatNextRightCache = null;
+let heartbeatNextRightInFlight = null;
+let heartbeatActivityInFlight = null;
+const heartbeatActivityCache = new Map();
+let heartbeatVisibilityWired = false;
 let cycleTimingCache = null;
 let cycleTimingCacheAt = 0;
 let cycleTimingInFlight = null;
@@ -209,6 +220,16 @@ function formatTickerAge(timestamp) {
     return `${Math.min(days, 99).toString().padStart(2, '0')}d ago`;
 }
 
+function formatHeartbeatDue(timestamp) {
+    if (!timestamp) return 'right syncing';
+    const timestampMs = new Date(timestamp).getTime();
+    if (!Number.isFinite(timestampMs)) return 'right syncing';
+    const diffSeconds = Math.ceil((timestampMs - Date.now()) / 1000);
+    if (diffSeconds > 0) return `in ${String(Math.min(diffSeconds, 99)).padStart(2, '0')}s`;
+    if (diffSeconds >= -1) return 'due now';
+    return `R0 due ${String(Math.min(Math.abs(diffSeconds), 99)).padStart(2, '0')}s ago`;
+}
+
 function getHeadTimestamp(data) {
     return data?.headTimestamp || data?.blocks?.[0]?.timestamp || null;
 }
@@ -221,6 +242,9 @@ function refreshHealthAgeLabels(root = document) {
     root.querySelectorAll('[data-health-age]').forEach((element) => {
         const formatter = element.dataset.healthAgeFormat === 'ticker' ? formatTickerAge : formatAge;
         element.textContent = formatter(element.dataset.healthAge);
+    });
+    root.querySelectorAll('[data-heartbeat-due]').forEach((element) => {
+        element.textContent = formatHeartbeatDue(element.dataset.heartbeatDue);
     });
     refreshDataFreshnessStates(root);
 }
@@ -294,56 +318,38 @@ function latestBlockStatus(block) {
     };
 }
 
-function findOctezVersionBaker(octezVersions, address) {
-    if (!address || !Array.isArray(octezVersions?.bakers)) return null;
-    return octezVersions.bakers.find((baker) => baker.address === address) || null;
-}
-
-function tickerOctezSignal(producer, octezVersions) {
-    const software = findOctezVersionBaker(octezVersions, producer?.address)?.software
-        || normalizeOctezSoftware(producer?.software);
-    const latestVersion = octezVersions?.latestVersion || '';
-    const status = classifyOctezVersion(software.version, latestVersion);
-    const colors = {
-        current: '#35e894',
-        watch: '#f5b84b',
-        critical: '#ff6b7a'
-    };
-    return {
-        value: software.known ? software.version : '--',
-        className: status.className,
-        label: status.label,
-        latestVersion: status.latestVersion,
-        known: software.known,
-        color: colors[status.className] || ''
-    };
-}
-
 function blockTickerFallback(message, className = 'loading') {
     const line = document.getElementById('block-ticker-line');
     const strip = document.getElementById('block-ticker-strip');
     if (!line || !strip) return;
+    if (className === 'degraded' && line.dataset.heartbeatLevel) {
+        strip.dataset.feedState = 'stale';
+        strip.querySelector('.block-ticker-pulse')?.classList.add('stale');
+        return;
+    }
     const signature = `fallback:${className}:${message}`;
     if (line.dataset.blockTickerSignature === signature) return;
     line.dataset.blockTickerSignature = signature;
     line.dataset.blockTickerTransitionCount = '0';
     strip.dataset.blockHealth = className;
-    line.innerHTML = `<span class="block-ticker-placeholder">${escapeHtml(message)}</span>`;
+    strip.dataset.feedState = className;
+    strip.querySelector('.block-ticker-pulse')?.classList.toggle('stale', className === 'degraded');
+    quietlySyncHtml(line, `<span class="block-ticker-placeholder">${escapeHtml(message)}</span>`);
 }
 
 function animateBlockTicker(strip, line, changed) {
     if (!strip) return;
     strip.classList.remove('is-updating');
-    void strip.offsetWidth;
     if (line) line.dataset.blockTickerTransitionCount = changed ? '1' : '0';
     strip.dataset.tickerTransitionCount = changed ? '1' : '0';
     if (!changed) return;
+    void strip.offsetWidth;
     strip.classList.add('is-updating');
     if (blockTickerAnimationTimer) window.clearTimeout(blockTickerAnimationTimer);
     blockTickerAnimationTimer = window.setTimeout(() => {
         strip.classList.remove('is-updating');
         blockTickerAnimationTimer = null;
-    }, 520);
+    }, 720);
 }
 
 function usageSlotContent(slot, usage) {
@@ -432,59 +438,122 @@ function patchTickerUsage(usage) {
     const line = document.getElementById('header-activity-line');
     if (!line || !usage?.updatedAt) return;
     const stamp = String(usage.updatedAt);
-    if (line.dataset.usagePulseStamp === stamp) return;
-    updateHeaderActivity(usage);
+    if (line.dataset.usagePulseStamp !== stamp) updateHeaderActivity(usage);
 }
 
-function renderBlockTickerLine(block, timestamp, octezVersions) {
+function heartbeatMetric(value) {
+    return Number.isFinite(Number(value)) ? formatCount(Number(value)) : '--';
+}
+
+function heartbeatRailHeight(score) {
+    const value = Number(score);
+    if (!Number.isFinite(value)) return 42;
+    return Math.round(Math.max(36, Math.min(100, 36 + (value - 94) * (64 / 6))));
+}
+
+function renderHeartbeatRail(blocks) {
+    const history = (Array.isArray(blocks) ? blocks : []).slice(0, LAST_BLOCK_LIMIT).reverse();
+    const title = history.length
+        ? `${history.length}-block cadence. Newest block is at the right edge; height is attestation power, amber or red marks slower or contested blocks.`
+        : 'Recent block cadence is syncing.';
+    const cells = history.map((block, index) => {
+        const status = latestBlockStatus(block);
+        const round = Number(block.blockRound) || 0;
+        const cadence = Number(block.intervalSeconds);
+        const cadenceClass = Number.isFinite(cadence) && cadence > TARGET_BLOCK_SECONDS + 2 ? 'is-slow' : '';
+        const roundClass = round > 0 ? 'is-contested' : '';
+        const headClass = index === history.length - 1 ? 'is-head' : '';
+        const cellTitle = `Block ${formatCount(block.level)} · ${formatSeconds(cadence)} · R${formatCount(round)} · ${formatCount(block.power)}/${formatCount(block.committee)} attested`;
+        return `<span class="chain-heartbeat-cell ${status.className} ${cadenceClass} ${roundClass} ${headClass}" data-quiet-key="heartbeat-block-${block.level}" style="--heartbeat-height:${heartbeatRailHeight(block.score)}%" title="${escapeHtml(cellTitle)}" aria-hidden="true"></span>`;
+    }).join('');
+    return `<span class="chain-heartbeat-rail" data-quiet-key="recent-blocks" aria-label="${escapeHtml(title)}" title="${escapeHtml(title)}">${cells}</span>`;
+}
+
+function heartbeatSignalRows(block, activity) {
+    const signals = [];
+    const round = Number(block?.blockRound) || 0;
+    const score = Number(block?.score);
+    if (round > 0) signals.push({ className: 'watch', label: `R${formatCount(round)} recovery` });
+    if (Number.isFinite(score) && score < 98.5) {
+        signals.push({ className: score < 95 ? 'degraded' : 'watch', label: `${formatPct(score)}% attested` });
+    }
+    const staking = activity?.stakingRows?.[0];
+    if (staking) {
+        const action = String(staking.action || 'stake').replace(/^./, (letter) => letter.toUpperCase());
+        const amount = Number(staking.amount) / 1e6;
+        signals.push({ className: 'stake', label: `${action} ${formatTezAmount(amount)}ꜩ` });
+    }
+    if (Number(activity?.largestTransfer?.amount) >= 1e9) {
+        signals.push({ className: 'transfer', label: `${formatTezAmount(Number(activity.largestTransfer.amount) / 1e6)}ꜩ moved` });
+    }
+    if (!signals.length) {
+        const status = latestBlockStatus(block);
+        signals.push({ className: status.className, label: `R${formatCount(round)} · ${status.label} attestations` });
+    }
+    return signals.slice(0, 2);
+}
+
+function renderHeartbeatSignals(block, activity) {
+    return heartbeatSignalRows(block, activity).map((signal) => (
+        `<span class="chain-heartbeat-signal ${signal.className}">${escapeHtml(signal.label)}</span>`
+    )).join('');
+}
+
+function renderBlockTickerLine(block, blocks, nextRight, activity) {
     const status = latestBlockStatus(block);
     const producer = block?.producer || {};
     const name = bakerName(producer);
+    const right = nextRight?.level === block.level + 1 ? nextRight : null;
+    const rightName = right ? bakerName(right.baker) : 'Right syncing';
     const round = Number.isFinite(Number(block?.blockRound)) ? `R${formatCount(block.blockRound)}` : 'R--';
-    const octez = tickerOctezSignal(producer, octezVersions);
-    const octezTitle = octez.known
-        ? `Octez ${octez.value}: ${octez.label}${octez.latestVersion ? `; latest observed ${octez.latestVersion}` : ''}`
-        : 'Octez version unavailable for this baker';
-    const octezStyle = octez.color ? ` style="color:${octez.color}"` : '';
-    const minted = block?.mintedMutez === null ? '--' : `${formatTezAmount(block.mintedMutez / 1e6)}<small>ꜩ</small>`;
-    const fees = block?.feesMutez === null ? '--' : `${formatTezAmount(block.feesMutez / 1e6)}<small>ꜩ</small>`;
+    const compositionTitle = activity
+        ? `Applied operations in block ${formatCount(block.level)}. Categories overlap: contract calls and token moves can be produced by transaction operations.`
+        : `Per-block operation receipts for block ${formatCount(block.level)} are syncing.`;
 
     return `
-        <span class="block-ticker-segment block-ticker-level">
-            <span class="block-ticker-label">Block</span>
-            <strong class="block-ticker-value">#${formatCount(block.level)}</strong>
+        <span class="chain-heartbeat-now" data-quiet-key="current-block">
+            <span class="chain-heartbeat-eyebrow">Block landed</span>
+            <span class="block-ticker-segment block-ticker-level">
+                <strong class="block-ticker-value">#${formatCount(block.level)}</strong>
+            </span>
+            <span class="block-ticker-segment block-ticker-baker">
+                <strong class="block-ticker-value" title="${escapeHtml(producer.address || name)}">${escapeHtml(name)}</strong>
+            </span>
+            <span class="block-ticker-segment block-ticker-age">
+                <strong class="block-ticker-value" data-health-age="${escapeHtml(block.timestamp || '')}" data-health-age-format="ticker">${escapeHtml(formatTickerAge(block.timestamp))}</strong>
+            </span>
         </span>
-        <span class="block-ticker-segment block-ticker-baker">
-            <span class="block-ticker-label">Baker</span>
-            <strong class="block-ticker-value" title="${escapeHtml(producer.address || name)}">${escapeHtml(name)}</strong>
+        <span class="chain-heartbeat-next" data-quiet-key="next-right">
+            <span class="chain-heartbeat-eyebrow">Next R0 proposer</span>
+            <strong class="chain-heartbeat-next-name" title="${escapeHtml(right?.baker?.address || rightName)}">${escapeHtml(rightName)}</strong>
+            <span class="chain-heartbeat-due" data-heartbeat-due="${escapeHtml(right?.timestamp || '')}">${escapeHtml(formatHeartbeatDue(right?.timestamp))}</span>
         </span>
-        <span class="block-ticker-segment block-ticker-health ${status.className}">
+        <span class="chain-heartbeat-composition" data-quiet-key="block-composition" title="${escapeHtml(compositionTitle)}">
+            <span class="chain-heartbeat-eyebrow">This block</span>
+            <span class="chain-heartbeat-metric"><span>Tx ops</span><strong>${heartbeatMetric(activity?.txCount)}</strong></span>
+            <span class="chain-heartbeat-metric"><span>Calls</span><strong>${heartbeatMetric(activity?.contractCalls)}</strong></span>
+            <span class="chain-heartbeat-metric"><span>Tokens</span><strong>${heartbeatMetric(activity?.tokenTransfers)}</strong></span>
+            <span class="chain-heartbeat-metric"><span>Stake</span><strong>${heartbeatMetric(activity?.stakingCount)}</strong></span>
+        </span>
+        <span class="chain-heartbeat-history" data-quiet-key="block-history">
+            <span class="chain-heartbeat-eyebrow">Last ${Math.min((blocks || []).length, LAST_BLOCK_LIMIT)}</span>
+            ${renderHeartbeatRail(blocks)}
+        </span>
+        <span class="chain-heartbeat-events" data-quiet-key="block-signals">
+            <span class="chain-heartbeat-eyebrow">Signal</span>
+            <span class="chain-heartbeat-signal-list">${renderHeartbeatSignals(block, activity)}</span>
+        </span>
+        <span class="block-ticker-segment block-ticker-health ${status.className} block-ticker-health-accessory" aria-hidden="true">
             <span class="block-ticker-label">Health</span>
             <strong class="block-ticker-value">${escapeHtml(status.label)}</strong>
         </span>
-        <span class="block-ticker-segment block-ticker-octez ${octez.className}" data-ticker-priority="core">
-            <span class="block-ticker-label">Octez</span>
-            <strong class="block-ticker-value" title="${escapeHtml(octezTitle)}"${octezStyle}>${escapeHtml(octez.value)}</strong>
-        </span>
-        <span class="block-ticker-segment block-ticker-power" data-ticker-priority="core">
+        <span class="block-ticker-segment block-ticker-power block-ticker-power-accessory" aria-hidden="true">
             <span class="block-ticker-label">Attested</span>
             <strong class="block-ticker-value">${formatCount(block.power)}<small>/${formatCount(block.committee)}</small></strong>
         </span>
-        <span class="block-ticker-segment block-ticker-minted" data-ticker-priority="wide">
-            <span class="block-ticker-label">Minted</span>
-            <strong class="block-ticker-value" title="XTZ minted by this block: baking and attestation rewards plus bonuses">${minted}</strong>
-        </span>
-        <span class="block-ticker-segment block-ticker-fees" data-ticker-priority="wide">
-            <span class="block-ticker-label">Fees</span>
-            <strong class="block-ticker-value" title="Total transaction fees paid in this block">${fees}</strong>
-        </span>
-        <span class="block-ticker-segment block-ticker-round" data-ticker-priority="optional">
+        <span class="block-ticker-segment block-ticker-round block-ticker-round-accessory" aria-hidden="true">
             <span class="block-ticker-label">Round</span>
             <strong class="block-ticker-value">${escapeHtml(round)}</strong>
-        </span>
-        <span class="block-ticker-segment block-ticker-age" data-ticker-priority="optional">
-            <span class="block-ticker-label">Age</span>
-            <strong class="block-ticker-value" data-health-age="${escapeHtml(timestamp || '')}" data-health-age-format="ticker">${escapeHtml(formatTickerAge(timestamp))}</strong>
         </span>
     `;
 }
@@ -523,7 +592,112 @@ function dispatchContestedRoundHotSignal(block) {
     });
 }
 
-function updateBlockTicker(data, { error = false } = {}) {
+function heartbeatSupplementIsCurrent(block) {
+    const observed = new Date(block?.timestamp).getTime();
+    return Number.isFinite(observed) && Date.now() - observed <= HEARTBEAT_SUPPLEMENT_MAX_AGE;
+}
+
+async function fetchHeartbeatNextRight(level) {
+    if (!Number.isFinite(level) || level <= 0) return null;
+    if (heartbeatNextRightCache?.level === level) return heartbeatNextRightCache;
+    if (heartbeatNextRightInFlight?.level === level) return heartbeatNextRightInFlight.promise;
+
+    const url = `${TZKT}/rights?type=baking&level=${level}&round=0&limit=1`;
+    const promise = fetchJson(url, 1, { priority: 'interactive' })
+        .then((rows) => {
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const right = row ? {
+                type: 'baking',
+                level: Number(row.level) || level,
+                timestamp: row.timestamp || null,
+                round: Number(row.round) || 0,
+                baker: row.baker || {}
+            } : null;
+            if (right && (!heartbeatNextRightCache || right.level >= heartbeatNextRightCache.level)) {
+                heartbeatNextRightCache = right;
+            }
+            return right;
+        })
+        .catch((error) => {
+            console.warn('Chain Heartbeat next R0 right failed:', error);
+            return null;
+        })
+        .finally(() => {
+            if (heartbeatNextRightInFlight?.promise === promise) heartbeatNextRightInFlight = null;
+        });
+    heartbeatNextRightInFlight = { level, promise };
+    return promise;
+}
+
+function trimHeartbeatActivityCache() {
+    while (heartbeatActivityCache.size > HEARTBEAT_ACTIVITY_CACHE_LIMIT) {
+        heartbeatActivityCache.delete(heartbeatActivityCache.keys().next().value);
+    }
+}
+
+async function fetchHeartbeatActivity(level) {
+    if (!Number.isFinite(level) || level <= 0) return null;
+    const cached = heartbeatActivityCache.get(level);
+    if (cached && (cached.complete || Date.now() - cached.updatedAt < LIVE_REFRESH_INTERVAL)) return cached;
+    if (heartbeatActivityInFlight?.level === level) return heartbeatActivityInFlight.promise;
+
+    const txFields = 'id,hash,timestamp,amount,sender,target,parameter,internal';
+    const stakingFields = 'id,hash,timestamp,action,amount,staker,baker';
+    const requests = [
+        fetchJson(`${TZKT}/operations/transactions?level=${level}&status=applied&select=${txFields}&limit=${HEARTBEAT_ACTIVITY_LIMIT}`, 1, { priority: 'interactive' }),
+        fetchJson(`${TZKT}/tokens/transfers/count?level=${level}`, 1, { priority: 'interactive' }),
+        fetchJson(`${TZKT}/operations/staking?level=${level}&status=applied&select=${stakingFields}&limit=${HEARTBEAT_STAKING_LIMIT}`, 1, { priority: 'interactive' })
+    ];
+    const promise = Promise.allSettled(requests)
+        .then(([transactionsResult, tokenTransfersResult, stakingResult]) => {
+            const transactions = transactionsResult.status === 'fulfilled' && Array.isArray(transactionsResult.value)
+                ? transactionsResult.value
+                : null;
+            const stakingRows = stakingResult.status === 'fulfilled' && Array.isArray(stakingResult.value)
+                ? stakingResult.value
+                : null;
+            const tokenTransfers = tokenTransfersResult.status === 'fulfilled' && Number.isFinite(Number(tokenTransfersResult.value))
+                ? Number(tokenTransfersResult.value)
+                : null;
+            const largestTransfer = transactions?.reduce((largest, row) => (
+                Number(row?.amount) > Number(largest?.amount || 0) ? row : largest
+            ), null) || null;
+            const activity = {
+                level,
+                txCount: transactions ? transactions.length : null,
+                contractCalls: transactions ? transactions.filter((row) => row?.parameter != null).length : null,
+                tokenTransfers,
+                stakingCount: stakingRows ? stakingRows.length : null,
+                stakingRows: stakingRows || [],
+                largestTransfer,
+                complete: transactions !== null && tokenTransfers !== null && stakingRows !== null,
+                updatedAt: Date.now()
+            };
+            heartbeatActivityCache.set(level, activity);
+            trimHeartbeatActivityCache();
+            return activity;
+        })
+        .finally(() => {
+            if (heartbeatActivityInFlight?.promise === promise) heartbeatActivityInFlight = null;
+        });
+    heartbeatActivityInFlight = { level, promise };
+    return promise;
+}
+
+function requestHeartbeatSupplements(data) {
+    const latest = data?.blocks?.[0];
+    if (!latest || !heartbeatSupplementIsCurrent(latest) || document.visibilityState !== 'visible') return;
+    const level = Number(latest.level);
+    const refreshIfCurrent = () => {
+        if (Number(heartbeatData?.blocks?.[0]?.level) === level) {
+            updateBlockTicker(heartbeatData, { supplemental: true });
+        }
+    };
+    fetchHeartbeatNextRight(level + 1).then(refreshIfCurrent);
+    fetchHeartbeatActivity(level).then(refreshIfCurrent);
+}
+
+function updateBlockTicker(data, { error = false, supplemental = false } = {}) {
     const strip = document.getElementById('block-ticker-strip');
     const button = document.getElementById('block-ticker-button');
     const line = document.getElementById('block-ticker-line');
@@ -545,42 +719,64 @@ function updateBlockTicker(data, { error = false } = {}) {
         blockTickerFallback(error ? 'Live block feed unavailable' : 'Syncing latest head block', error ? 'degraded' : 'loading');
         return;
     }
+    heartbeatData = data;
 
     dispatchContestedRoundHotSignal(latest);
-    fetchUsagePulse().then(patchTickerUsage);
+    if (!supplemental) fetchUsagePulse().then(patchTickerUsage);
 
-    const timestamp = getHeadTimestamp(data);
     const status = latestBlockStatus(latest);
     const producerName = bakerName(latest.producer);
-    const octez = tickerOctezSignal(latest.producer, data?.octezVersions);
+    const nextRight = heartbeatNextRightCache?.level === latest.level + 1 ? heartbeatNextRightCache : null;
+    const activity = heartbeatActivityCache.get(latest.level) || null;
     const signature = [
         latest.level,
         latest.producer?.address || producerName,
         latest.power,
         latest.committee,
         latest.blockRound,
-        octez.value,
-        octez.className,
-        octez.latestVersion
+        nextRight?.baker?.address || '',
+        nextRight?.timestamp || '',
+        activity?.updatedAt || ''
     ].join(':');
-    const octezTitle = octez.known
-        ? ` Octez ${octez.value}: ${octez.label}${octez.latestVersion ? `; latest observed ${octez.latestVersion}.` : '.'}`
-        : ' Octez version unavailable for this baker.';
-    const title = `Block ${formatCount(latest.level)} baked by ${producerName}. ${status.label}: ${formatCount(latest.power)} / ${formatCount(latest.committee)} attested, ${formatCount(latest.missedPower)} missed, round ${formatCount(latest.blockRound)}.${octezTitle}`;
+    const activityTitle = activity
+        ? ` This block has ${heartbeatMetric(activity.txCount)} transaction operations, ${heartbeatMetric(activity.contractCalls)} contract calls, ${heartbeatMetric(activity.tokenTransfers)} token moves, and ${heartbeatMetric(activity.stakingCount)} staking operations.`
+        : ' Per-block operation receipts are syncing.';
+    const nextTitle = nextRight
+        ? ` Next round-zero proposer for block ${formatCount(nextRight.level)}: ${bakerName(nextRight.baker)}, ${formatHeartbeatDue(nextRight.timestamp)}.`
+        : ' Next round-zero proposer is syncing.';
+    const receiptTitle = `Block ${formatCount(latest.level)} landed from ${producerName}. ${status.label}: ${formatCount(latest.power)} / ${formatCount(latest.committee)} attested, round ${formatCount(latest.blockRound)}.${nextTitle}${activityTitle}`;
+    const title = error ? `Live source delayed; showing the last good receipt. ${receiptTitle}` : receiptTitle;
 
     strip.dataset.blockHealth = status.className;
+    strip.dataset.feedState = error ? 'stale' : 'live';
+    strip.querySelector('.block-ticker-pulse')?.classList.toggle('stale', error);
     button.title = title;
     button.setAttribute('aria-label', `Open Network Health Chamber. ${title}`);
 
     if (line.dataset.blockTickerSignature === signature) {
         refreshHealthAgeLabels(strip);
+        if (!supplemental && !error) requestHeartbeatSupplements(data);
         return;
     }
 
     const previousSignature = line.dataset.blockTickerSignature || '';
+    const previousLevel = Number(line.dataset.heartbeatLevel) || 0;
+    const headChanged = Boolean(previousLevel && previousLevel !== latest.level);
     line.dataset.blockTickerSignature = signature;
-    line.innerHTML = renderBlockTickerLine(latest, timestamp, data?.octezVersions);
-    animateBlockTicker(strip, line, Boolean(previousSignature && previousSignature !== signature));
+    line.dataset.heartbeatLevel = String(latest.level);
+    quietlySyncHtml(line, renderBlockTickerLine(latest, data.blocks, nextRight, activity));
+    const arrivedRecently = heartbeatSupplementIsCurrent(latest);
+    animateBlockTicker(strip, line, Boolean(headChanged && arrivedRecently && document.visibilityState === 'visible'));
+
+    if (headChanged) {
+        const announcer = document.getElementById('chain-heartbeat-announcer');
+        if (announcer) {
+            announcer.textContent = `Block ${formatCount(latest.level)} landed from ${producerName}, round ${formatCount(latest.blockRound)}, ${formatCount(latest.power)} of ${formatCount(latest.committee)} attested.`;
+        }
+    } else if (!previousSignature) {
+        line.dataset.blockTickerTransitionCount = '0';
+    }
+    if (!supplemental && !error) requestHeartbeatSupplements(data);
 }
 
 function wireCycleChipHealthLauncher() {
@@ -1886,7 +2082,7 @@ async function fetchNetworkHealth({ forcePeriods = false } = {}) {
         fetchCycleTiming(),
         fetchOctezVersions()
     ]);
-    const summary = summarizeBlocks(lastBlocks);
+    const summary = summarizeBlocks(lastBlocks.slice(0, HEALTH_CARD_BLOCK_LIMIT));
     const headLevel = lastBlocks[0]?.level || 0;
     const headTimestamp = lastBlocks[0]?.timestamp || null;
     const now = new Date();
@@ -2215,7 +2411,7 @@ function renderCycleTimingPanel(data) {
     `;
 }
 
-function renderNetworkHealth(data) {
+function renderNetworkHealth(data, { error = false } = {}) {
     const scoreEl = document.getElementById('network-health-front');
     const statusEl = document.getElementById('network-health-status');
     const blocksEl = document.getElementById('network-health-blocks');
@@ -2236,7 +2432,7 @@ function renderNetworkHealth(data) {
         statusEl.title = 'Status combines recent attestation power, missed baking rights, block round, and cadence.';
     }
 
-    blocksEl.innerHTML = data.blocks.map(renderBlock).join('');
+    blocksEl.innerHTML = data.blocks.slice(0, HEALTH_CARD_BLOCK_LIMIT).map(renderBlock).join('');
     periodsEl.innerHTML = data.periods.map(renderPeriod).join('');
 
     if (backEl) {
@@ -2249,7 +2445,7 @@ function renderNetworkHealth(data) {
     }
 
     if (descEl) {
-        descEl.textContent = `${formatCompactPower(data.summary.totalPower)} / ${formatCompactPower(data.summary.totalCommittee)} power across last 5 blocks`;
+        descEl.textContent = `${formatCompactPower(data.summary.totalPower)} / ${formatCompactPower(data.summary.totalCommittee)} power across last ${HEALTH_CARD_BLOCK_LIMIT} blocks`;
     }
 
     const card = document.querySelector('.stat-card[data-stat="network-health"]');
@@ -2261,7 +2457,7 @@ function renderNetworkHealth(data) {
 
     ensureHealthEntryTape();
     refreshNetworkHealthTape();
-    updateBlockTicker(data);
+    updateBlockTicker(data, { error });
 }
 
 function renderNetworkHealthError() {
@@ -3691,7 +3887,7 @@ export async function refreshNetworkHealth({ force = false } = {}) {
         })
         .catch((error) => {
             console.warn('Network health refresh failed:', error);
-            if (cachedData) renderNetworkHealth(cachedData);
+            if (cachedData) renderNetworkHealth(cachedData, { error: true });
             else renderNetworkHealthError();
             return cachedData;
         })
@@ -3709,6 +3905,14 @@ export function initNetworkHealth() {
     wireCycleChipHealthLauncher();
     wireNetworkHealthCard();
     startHealthAgeTicker();
+    if (!heartbeatVisibilityWired) {
+        heartbeatVisibilityWired = true;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            refreshHealthAgeLabels(document);
+            refreshNetworkHealth();
+        });
+    }
 
     cachedData = loadCachedData();
     if (cachedData) {

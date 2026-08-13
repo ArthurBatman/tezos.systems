@@ -2966,12 +2966,19 @@ async function checkSelectorContracts() {
     ['live block ticker renderer', 'function updateBlockTicker', health],
     ['live block ticker fixed age formatter', 'function formatTickerAge', health],
     ['live block ticker transition count hook', 'blockTickerTransitionCount', health],
-    ['live block ticker opts out of data-magic text reveals', 'id="block-ticker-strip" aria-label="Latest Tezos block" data-magic="off"', index],
-    ['live block ticker Octez slot', 'block-ticker-octez', health],
+    ['Chain Heartbeat opts out of data-magic text reveals', 'id="block-ticker-strip" aria-label="Live Tezos Chain Heartbeat" data-magic="off"', index],
+    ['Chain Heartbeat countdown stays outside live region', 'id="block-ticker-line" aria-live="off"', index],
+    ['Chain Heartbeat dedicated block announcer', 'id="chain-heartbeat-announcer" aria-live="polite"', index],
+    ['Chain Heartbeat exact next R0 right', 'function fetchHeartbeatNextRight', health],
+    ['Chain Heartbeat per-block activity receipts', 'function fetchHeartbeatActivity', health],
+    ['Chain Heartbeat 16-block rail', 'function renderHeartbeatRail', health],
+    ['Chain Heartbeat quiet reconciliation', 'quietlySyncHtml(line, renderBlockTickerLine', health],
+    ['Chain Heartbeat visibility-gated supplements', "document.visibilityState !== 'visible'", health],
     ['live block ticker health feed hook', 'updateBlockTicker(data)', health],
     ['price bar cycle health wiring', 'function wireCycleChipHealthLauncher', health],
     ['live block ticker styles', '.block-ticker-strip', styles],
-    ['live block ticker Octez styles', '.block-ticker-octez', styles],
+    ['Chain Heartbeat rail styles', '.chain-heartbeat-rail', heroSearchCss],
+    ['Chain Heartbeat reduced-motion arrival', '.block-ticker-strip.is-updating .chain-heartbeat-cell.is-head::after', heroSearchCss],
     ['network health continuity panel styles', '.health-continuity-panel', styles],
     ['network health continuity runtime styles', '.health-continuity-runtime', styles],
     ['chain uptime counter updater', "document.getElementById('chain-uptime-counter')", app],
@@ -3319,6 +3326,20 @@ async function checkSelectorContracts() {
   }
   if (styles.includes('.block-ticker-strip.is-updating .block-ticker-line') || styles.includes('blockTickerAperture')) {
     fail('live block ticker text changes must stay unanimated');
+  }
+  const chainHeartbeatUpdateBlock = health.match(/function updateBlockTicker[\s\S]*?function wireCycleChipHealthLauncher/)?.[0] || '';
+  const chainHeartbeatActivityBlock = health.match(/async function fetchHeartbeatActivity[\s\S]*?function requestHeartbeatSupplements/)?.[0] || '';
+  if (!chainHeartbeatUpdateBlock.includes('quietlySyncHtml(line, renderBlockTickerLine')) {
+    fail('Chain Heartbeat updates must reconcile compatible DOM nodes in place');
+  }
+  if (chainHeartbeatUpdateBlock.includes('line.innerHTML')) {
+    fail('Chain Heartbeat background updates must not replace the full live line');
+  }
+  if (!chainHeartbeatActivityBlock.includes('Promise.allSettled') || !chainHeartbeatActivityBlock.includes('tokenTransfers !== null')) {
+    fail('Chain Heartbeat composition must preserve partial-source unknowns instead of coercing unavailable data to zero');
+  }
+  if (!health.includes("document.addEventListener('visibilitychange'") || !health.includes("document.visibilityState !== 'visible'")) {
+    fail('Chain Heartbeat polling and catch-up must remain visibility gated');
   }
   if (henMode.includes('feed.insertBefore(output, grid())')) {
     fail('HEN CLI output must stay off-flow instead of inserting before the grid');
