@@ -2449,6 +2449,87 @@
     background: linear-gradient(90deg, rgba(89, 243, 166, 0.72), rgba(143, 179, 255, 0.42), transparent);
 }
 
+#etherlink-governance-entry-card[data-etherlink-governance-state="watch"] {
+    border-color: color-mix(in srgb, var(--chamber-watch-color) 28%, transparent) !important;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--chamber-watch-color) 9%, transparent), rgba(245, 214, 91, 0.018)),
+        var(--glass-bg, rgba(255, 255, 255, 0.03));
+}
+
+#etherlink-governance-entry-card[data-etherlink-governance-state="risk"] {
+    border-color: color-mix(in srgb, var(--chamber-risk-color) 34%, transparent) !important;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--chamber-risk-color) 11%, transparent), rgba(255, 107, 122, 0.018)),
+        var(--glass-bg, rgba(255, 255, 255, 0.03));
+    box-shadow: 0 0 22px color-mix(in srgb, var(--chamber-risk-color) 10%, transparent) !important;
+}
+
+#chambers-grid #etherlink-governance-entry-card[data-etherlink-governance-state="watch"] .etherlink-gov-entry-value,
+#chambers-grid #etherlink-governance-entry-card[data-etherlink-governance-state="watch"] .chamber-entry-status,
+#etherlink-governance-entry-card .chamber-entry-status.watch {
+    color: var(--chamber-watch-color) !important;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--chamber-watch-color) 22%, transparent) !important;
+    transition: none !important;
+}
+
+#chambers-grid #etherlink-governance-entry-card[data-etherlink-governance-state="risk"] .etherlink-gov-entry-value,
+#chambers-grid #etherlink-governance-entry-card[data-etherlink-governance-state="risk"] .chamber-entry-status,
+#etherlink-governance-entry-card .chamber-entry-status.risk {
+    color: var(--chamber-risk-color) !important;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--chamber-risk-color) 24%, transparent) !important;
+    transition: none !important;
+}
+
+.etherlink-gov-entry-metric.watch strong,
+.etherlink-gov-tab strong.watch {
+    color: var(--chamber-watch-color);
+}
+
+.etherlink-gov-header .chamber-badge.watch {
+    background: color-mix(in srgb, var(--chamber-watch-color) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--chamber-watch-color) 26%, transparent);
+    color: var(--chamber-watch-color);
+}
+
+.etherlink-gov-entry-gates {
+    display: grid !important;
+    gap: 0.14rem;
+    overflow: visible !important;
+    white-space: normal !important;
+}
+
+.etherlink-gov-entry-gates span {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 1.08;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.etherlink-gov-entry-gates span.good,
+.etherlink-governance-now .chamber-now-card.good strong {
+    color: var(--chamber-live-color);
+}
+
+.etherlink-gov-entry-gates span.watch,
+.etherlink-governance-now .chamber-now-card.watch strong {
+    color: var(--chamber-watch-color);
+}
+
+.etherlink-gov-entry-gates span.risk,
+.etherlink-governance-now .chamber-now-card.risk strong {
+    color: var(--chamber-risk-color);
+}
+
+#chambers-grid #etherlink-governance-entry-card[data-etherlink-governance-state="watch"]:hover {
+    border-color: var(--chamber-watch-color) !important;
+}
+
+#chambers-grid #etherlink-governance-entry-card[data-etherlink-governance-state="risk"]:hover {
+    border-color: var(--chamber-risk-color) !important;
+}
+
 .etherlink-governance-source-links {
     position: relative;
     display: flex;

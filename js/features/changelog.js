@@ -7,7 +7,8 @@ export const CHANGELOG = [
     {
         date: '2026-08-13',
         entries: [
-            { type: '🎨', text: 'Intermediate Home headers now keep mainnet age and 1H activity together above one uninterrupted row of baker, finality, staking, and issuance pills' }
+            { type: '🎨', text: 'Intermediate Home headers now keep mainnet age and 1H activity together above one uninterrupted row of baker, finality, staking, and issuance pills' },
+            { type: '🔧', text: 'Tezos X Promotion cards now show quorum and Yea as separate gates, reserve green for passing proposals, and call out votes that can no longer reach supermajority' }
         ]
     },
     {

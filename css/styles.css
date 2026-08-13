@@ -3920,7 +3920,7 @@ body::before {
 }
 
 .etherlink-gov-entry-metric.risk strong {
-    color: #f5d65b;
+    color: var(--chamber-risk-color);
 }
 
 .etherlink-gov-entry-metric.muted strong {
@@ -3970,9 +3970,9 @@ body::before {
 }
 
 .etherlink-gov-header .chamber-badge.risk {
-    background: rgba(245, 214, 91, 0.12);
-    border: 1px solid rgba(245, 214, 91, 0.26);
-    color: #f5d65b;
+    background: color-mix(in srgb, var(--chamber-risk-color) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--chamber-risk-color) 28%, transparent);
+    color: var(--chamber-risk-color);
 }
 
 .etherlink-gov-header .chamber-badge.muted {
@@ -4040,7 +4040,7 @@ body::before {
 }
 
 .etherlink-gov-tab strong.risk {
-    color: #f5d65b;
+    color: var(--chamber-risk-color);
 }
 
 .etherlink-gov-tab strong.muted {

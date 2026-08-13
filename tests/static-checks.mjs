@@ -2579,6 +2579,10 @@ async function checkSelectorContracts() {
     ['Tezos X Governance highest-priority hot score', 'score: 260', etherlinkGovernance],
     ['Tezos X Governance historic hot treatment', "spectacle: 'historic'", etherlinkGovernance],
     ['Tezos X Governance breaking hot treatment', 'breaking: true', etherlinkGovernance],
+    ['Tezos X Governance two-gate Promotion verdict', "headline: 'CANNOT PASS'", etherlinkGovernance],
+    ['Tezos X Governance maximum possible supermajority', 'maximumPromotionSupermajority', etherlinkGovernance],
+    ['Tezos X Governance visible quorum and Yea gates', 'class="etherlink-gov-entry-gates"', etherlinkGovernance],
+    ['Tezos X Governance hydrates its launcher class', "card.classList.add('etherlink-governance-entry-card')", etherlinkGovernance],
     ['Tezos X Governance official docs path', 'How L2 governance works', etherlinkGovernance],
     ['Tezos X card copy link', 'data-copy-hash="#tezosx"', tezlink],
     ['Tezos X direct footer link', 'Direct: /tezosx/', tezlink],
@@ -3549,6 +3553,7 @@ async function checkSelectorContracts() {
   const chamberRendererStyleContracts = [
     ['Tezos X Governance timeline row style', '.etherlink-gov-table .etherlink-gov-timeline-row', styles],
     ['Tezos X Governance timeline row removes browser underline', 'a.etherlink-gov-timeline-row:hover', styles],
+    ['Tezos X Governance failure-red launcher state', '[data-etherlink-governance-state="risk"] .etherlink-gov-entry-value', shellExtrasCss],
     ['Tezos X Governance recent baker quorum styles', '.etherlink-gov-baker-vote-row', shellExtrasCss],
     ['tz4 monthly bar rail style', '.tz4-month-bars', styles],
     ['tz4 monthly bar column style', '.tz4-month-bar {', styles],

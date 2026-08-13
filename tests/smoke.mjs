@@ -1489,7 +1489,8 @@ async function installFeatureMocks(context, options = {}) {
   const networkHealthBlocksDelayMs = Number(options.networkHealthBlocksDelayMs) || 0;
   const etherlinkQuiet = Boolean(options.etherlinkQuiet);
   const etherlinkNullProposal = Boolean(options.etherlinkNullProposal);
-  const etherlinkPromotion = Boolean(options.etherlinkPromotion);
+  const etherlinkPromotionFailure = Boolean(options.etherlinkPromotionFailure);
+  const etherlinkPromotion = Boolean(options.etherlinkPromotion) || etherlinkPromotionFailure;
   const governanceNoProposal = Boolean(options.governanceNoProposal);
   const governanceLiveVote = Boolean(options.governanceLiveVote);
   const governanceAdoptionPeriod = Boolean(options.governanceAdoptionPeriod);
@@ -2733,7 +2734,7 @@ async function installFeatureMocks(context, options = {}) {
             promotion_supermajority: '80'
           },
           last_winner: null,
-          voting_context: etherlinkQuiet ? null : {
+          voting_context: etherlinkQuiet || etherlinkPromotionFailure ? null : {
             period_index: '401',
             total_voting_power: ETHERLINK_TOTAL_VOTING_POWER,
             period: etherlinkPromotion
@@ -2770,7 +2771,19 @@ async function installFeatureMocks(context, options = {}) {
             promotion_supermajority: '75'
           },
           last_winner: null,
-          voting_context: null
+          voting_context: etherlinkPromotionFailure ? {
+            period_index: '41',
+            total_voting_power: '654200097180881',
+            period: {
+              promotion: {
+                winner_candidate: '007a6ac98660fa68cab09abfb3a59be93ccf4a5d47aeb44a00ffb0a3babdba448a',
+                yea_voting_power: '84856459995',
+                nay_voting_power: '215727025713721',
+                pass_voting_power: '0',
+                total_voting_power: '654200097180881'
+              }
+            }
+          } : null
         });
       }
       if (url.includes(`/contracts/${ETHERLINK_SEQUENCER_CONTRACT}/storage`)) {
@@ -21772,7 +21785,7 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
       opHref: row.querySelector('.etherlink-gov-vote-op')?.href || ''
     }))
   }));
-  assert(promotionBakerState.entryValue === '37.2%', `Tezos X promotion baker quorum list: entry participation mismatch ${promotionBakerState.entryValue}`);
+  assert(promotionBakerState.entryValue === 'PASSING', `Tezos X promotion baker quorum list: entry outcome mismatch ${promotionBakerState.entryValue}`);
   assert(promotionBakerState.title === 'Full Promotion vote ledger · first to latest', `Tezos X promotion baker quorum list: title mismatch ${promotionBakerState.title}`);
   assert(/Who made up the quorum/.test(promotionBakerState.text) && /27 baker receipts · complete/.test(promotionBakerState.text) && /15% quorum \(98\.5M XTZ\)/.test(promotionBakerState.text), `Tezos X promotion baker quorum list: threshold context missing ${promotionBakerState.text}`);
   assert(promotionBakerState.rows.length === 27 && promotionBakerState.rows[0].baker === 'Ledger Baker 1' && promotionBakerState.rows.at(-1).baker === 'QA Baker', `Tezos X promotion baker quorum list: first-to-latest order is wrong ${JSON.stringify(promotionBakerState.rows)}`);
@@ -21799,6 +21812,99 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(promotionMobileState.visibleRows === 27 && promotionMobileState.rowColumns === 2, `Tezos X promotion baker quorum list: mobile must keep the complete baker receipt ledger scannable ${JSON.stringify(promotionMobileState)}`);
   await promotionContext.close();
   assert(promotionIssues.length === 0, `Tezos X promotion baker quorum list browser issues:\n${promotionIssues.join('\n')}`);
+
+  const failedPromotionIssues = [];
+  const failedPromotionContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(failedPromotionContext, { etherlinkPromotionFailure: true });
+  await failedPromotionContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+  });
+  const failedPromotionPage = await failedPromotionContext.newPage();
+  attachIssueCollectors(failedPromotionPage, 'Tezos X failed Promotion outcome', failedPromotionIssues);
+  const failedPromotionResponse = await failedPromotionPage.goto(`${baseUrl}/l2chamber/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(failedPromotionResponse?.ok(), `Tezos X failed Promotion outcome: page failed with HTTP ${failedPromotionResponse?.status()}`);
+  await failedPromotionPage.waitForFunction(() => Boolean(document.getElementById('shell-extras-css')?.sheet), null, { timeout: 5000 });
+  await failedPromotionPage.waitForFunction(() => document.querySelector('#etherlink-governance-entry-value')?.textContent?.trim() === 'CANNOT PASS', null, { timeout: 15000 });
+  await failedPromotionPage.waitForFunction(() => document.querySelector('#etherlink-governance-modal .chamber-badge')?.textContent?.trim() === 'Promotion cannot pass', null, { timeout: 15000 });
+  const failedPromotionState = await failedPromotionPage.evaluate(() => {
+    const card = document.querySelector('#etherlink-governance-entry-card');
+    const value = document.querySelector('#etherlink-governance-entry-value');
+    const mini = document.querySelector('#etherlink-governance-entry-mini');
+    const slow = Array.from(document.querySelectorAll('.etherlink-gov-entry-metric'))
+      .find((metric) => /SLOW/.test(metric.textContent || ''));
+    const badge = document.querySelector('#etherlink-governance-modal .chamber-badge');
+    const slowGates = slow ? Array.from(slow.querySelectorAll('.etherlink-gov-entry-gates span')) : [];
+    const nowCards = Array.from(document.querySelectorAll('#etherlink-governance-now .chamber-now-card'));
+    const participationCard = nowCards.find((item) => /Participation/.test(item.textContent || ''));
+    const yeaCard = nowCards.find((item) => /Yea supermajority/.test(item.textContent || ''));
+    return {
+      headline: value?.textContent?.trim() || '',
+      headlineColor: value ? getComputedStyle(value).color : '',
+      state: card?.dataset.etherlinkGovernanceState || '',
+      live: card?.dataset.etherlinkGovernanceLive || '',
+      riskClass: card?.classList.contains('chamber-entry-risk') || false,
+      liveClass: card?.classList.contains('chamber-entry-live') || false,
+      mini: mini?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      miniColor: mini ? getComputedStyle(mini).color : '',
+      slowText: slow?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      slowOutcome: slow?.dataset.governanceOutcome || '',
+      slowGateOutcomes: slowGates.map((gate) => gate.dataset.governanceOutcome || ''),
+      slowGateColors: slowGates.map((gate) => getComputedStyle(gate).color),
+      badge: badge?.textContent?.trim() || '',
+      badgeColor: badge ? getComputedStyle(badge).color : '',
+      nowSummary: document.querySelector('#etherlink-governance-now .chamber-now-main p')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      participationOutcome: participationCard?.dataset.governanceOutcome || '',
+      participationColor: participationCard?.querySelector('strong') ? getComputedStyle(participationCard.querySelector('strong')).color : '',
+      yeaOutcome: yeaCard?.dataset.governanceOutcome || '',
+      yeaColor: yeaCard?.querySelector('strong') ? getComputedStyle(yeaCard.querySelector('strong')).color : '',
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth
+    };
+  });
+  assert(failedPromotionState.headline === 'CANNOT PASS'
+    && failedPromotionState.state === 'risk'
+    && failedPromotionState.live === 'true'
+    && failedPromotionState.riskClass
+    && !failedPromotionState.liveClass,
+  `Tezos X failed Promotion outcome: overall state is not explicit ${JSON.stringify(failedPromotionState)}`);
+  assert(/SLOW: Promotion cannot pass/.test(failedPromotionState.mini)
+    && /SLOW Quorum 33\.0% \/ 5%\s*Yea 0\.0% \/ 75%/.test(failedPromotionState.slowText)
+    && failedPromotionState.slowOutcome === 'risk'
+    && failedPromotionState.slowGateOutcomes.join(',') === 'good,risk',
+  `Tezos X failed Promotion outcome: the two independent gates are not visible ${JSON.stringify(failedPromotionState)}`);
+  assert(failedPromotionState.headlineColor === 'rgb(255, 107, 122)'
+    && failedPromotionState.miniColor === 'rgb(255, 107, 122)'
+    && failedPromotionState.slowGateColors.join(',') === 'rgb(53, 232, 148),rgb(255, 107, 122)'
+    && failedPromotionState.badgeColor === 'rgb(255, 107, 122)'
+    && failedPromotionState.participationOutcome === 'good'
+    && failedPromotionState.participationColor === 'rgb(53, 232, 148)'
+    && failedPromotionState.yeaOutcome === 'risk'
+    && failedPromotionState.yeaColor === 'rgb(255, 107, 122)',
+  `Tezos X failed Promotion outcome: failure red did not replace success green ${JSON.stringify(failedPromotionState)}`);
+  assert(failedPromotionState.badge === 'Promotion cannot pass'
+    && /cannot pass this Promotion vote/.test(failedPromotionState.nowSummary)
+    && /at most 67\.0% against 75% required/.test(failedPromotionState.nowSummary),
+  `Tezos X failed Promotion outcome: detailed explanation is missing the terminal supermajority math ${JSON.stringify(failedPromotionState)}`);
+  assert(failedPromotionState.pageOverflow <= 2, `Tezos X failed Promotion outcome: desktop card overflow ${JSON.stringify(failedPromotionState)}`);
+
+  await failedPromotionPage.setViewportSize({ width: 390, height: 844 });
+  const failedPromotionMobile = await failedPromotionPage.evaluate(() => ({
+    headline: document.querySelector('#etherlink-governance-entry-value')?.textContent?.trim() || '',
+    metricOverflows: Array.from(document.querySelectorAll('#etherlink-governance-entry-metrics .etherlink-gov-entry-metric'))
+      .map((metric) => metric.scrollWidth - metric.clientWidth),
+    pageOverflow: document.documentElement.scrollWidth - window.innerWidth
+  }));
+  assert(failedPromotionMobile.headline === 'CANNOT PASS'
+    && failedPromotionMobile.pageOverflow <= 2
+    && failedPromotionMobile.metricOverflows.every((overflow) => overflow <= 2),
+  `Tezos X failed Promotion outcome: mobile state overflows or loses the verdict ${JSON.stringify(failedPromotionMobile)}`);
+  await failedPromotionContext.close();
+  assert(failedPromotionIssues.length === 0, `Tezos X failed Promotion outcome browser issues:\n${failedPromotionIssues.join('\n')}`);
 
   await page.locator('#etherlink-governance-modal [data-etherlink-track="slow"]').click();
   const etherlinkSlowState = await page.evaluate(() => ({

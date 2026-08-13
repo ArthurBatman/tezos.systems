@@ -820,15 +820,53 @@ function trackStatus(track) {
     if (track.phase === 'error') return { label: 'Data delayed', className: 'risk' };
     if (track.phase === 'proposal' && track.proposal) {
         const met = Number.isFinite(track.proposalProgress) && track.proposalProgress >= track.proposalRequired;
-        return { label: met ? 'Proposal quorum met' : 'Proposal live', className: met ? 'good' : 'live' };
+        return {
+            label: met ? 'Proposal quorum met' : 'Proposal below quorum',
+            className: met ? 'good' : 'watch',
+            headline: met ? formatPercent(track.proposalProgress) : 'BELOW QUORUM'
+        };
     }
     if (track.phase === 'promotion' && track.promotion) {
         const quorumMet = Number.isFinite(track.promotion.participation) && track.promotion.participation >= track.promotionRequired;
         const yayMet = Number.isFinite(track.promotion.supermajority) && track.promotion.supermajority >= track.supermajorityRequired;
-        return { label: quorumMet && yayMet ? 'Promotion passing' : 'Promotion live', className: quorumMet && yayMet ? 'good' : 'risk' };
+        if (quorumMet && yayMet) {
+            return { label: 'Promotion passing', className: 'good', headline: 'PASSING' };
+        }
+        if (!promotionCanStillPass(track)) {
+            return { label: 'Promotion cannot pass', className: 'risk', headline: 'CANNOT PASS' };
+        }
+        return { label: 'Promotion not passing', className: 'watch', headline: 'NOT PASSING' };
     }
     if (track.phase === 'empty' || !hasActiveTrackPayload(track)) return { label: 'No active proposal', className: 'muted' };
     return { label: 'Active period', className: 'live' };
+}
+
+function promotionRemainingVotingPower(track) {
+    const promotion = track?.promotion;
+    if (!promotion) return 0n;
+    const total = toBigInt(promotion.totalVotingPower);
+    const cast = toBigInt(promotion.yea) + toBigInt(promotion.nay) + toBigInt(promotion.pass);
+    return total > cast ? total - cast : 0n;
+}
+
+function maximumPromotionSupermajority(track) {
+    const promotion = track?.promotion;
+    if (!promotion || toBigInt(promotion.totalVotingPower) <= 0n) return null;
+    const remaining = promotionRemainingVotingPower(track);
+    const maximumYea = toBigInt(promotion.yea) + remaining;
+    const maximumDecisive = maximumYea + toBigInt(promotion.nay);
+    return maximumDecisive > 0n ? bigPercent(maximumYea, maximumDecisive) : 100;
+}
+
+function promotionCanStillPass(track) {
+    const promotion = track?.promotion;
+    if (!promotion || !Number.isFinite(track?.supermajorityRequired)) return true;
+    const remaining = promotionRemainingVotingPower(track);
+    const maximumYea = toBigInt(promotion.yea) + remaining;
+    const maximumDecisive = maximumYea + toBigInt(promotion.nay);
+    if (maximumDecisive <= 0n) return true;
+    const requiredBps = BigInt(Math.max(0, Math.round(track.supermajorityRequired * 100)));
+    return maximumYea * 10000n >= maximumDecisive * requiredBps;
 }
 
 function trackLastActivity(track) {
@@ -864,11 +902,11 @@ function dispatchEtherlinkGovernanceHotSignal(data) {
     const payload = track.phase === 'promotion' ? track.promotion?.candidate : track.proposal?.winner;
     const label = proposalLabel(payload);
     const period = track.phase === 'promotion' ? 'promotion ballot' : 'proposal upvote window';
-    const progress = track.phase === 'promotion' ? track.promotion?.participation : track.proposalProgress;
-    const required = track.phase === 'promotion' ? track.promotionRequired : track.proposalRequired;
-    const thresholdMet = Number.isFinite(progress) && Number.isFinite(required) && progress >= required;
+    const status = trackStatus(track);
     const next = track.phase === 'promotion'
-        ? 'Cooldown is next if quorum and supermajority both pass.'
+        ? (!promotionCanStillPass(track)
+            ? 'The proposal can no longer reach the required Yea supermajority.'
+            : 'Cooldown is next if quorum and supermajority both pass.')
         : 'Promotion is next when this window closes.';
     const voteState = track.phase === 'promotion'
         ? `Participation ${formatPercent(track.promotion?.participation)} / ${formatPercent(track.promotionRequired, 0)}; Yea ${formatPercent(track.promotion?.supermajority)} / ${formatPercent(track.supermajorityRequired, 0)}.`
@@ -883,7 +921,7 @@ function dispatchEtherlinkGovernanceHotSignal(data) {
         breaking: true,
         score: 260,
         title: 'L2 VOTE OPEN NOW',
-        detail: `${track.label} ${period}${thresholdMet ? ' · threshold met' : ''}`,
+        detail: `${track.label} ${period} · ${status.label}`,
         text: `${label}: ${voteState} ${trackCountdown(track)}. ${next}`,
         route: '/l2chamber/',
         ttlMs: ENTRY_REFRESH_MS * 2
@@ -1027,6 +1065,10 @@ function trackNowSummary(track) {
         if (quorumMet && yayMet) {
             return `${proposalLabel(track.promotion.candidate)} is currently passing both Promotion gates. Ballots remain open until the period ends; Cooldown follows if the final receipt still clears both thresholds.`;
         }
+        const maximum = maximumPromotionSupermajority(track);
+        if (!promotionCanStillPass(track) && Number.isFinite(maximum)) {
+            return `${proposalLabel(track.promotion.candidate)} cannot pass this Promotion vote. Quorum is ${quorumMet ? 'met' : 'not met'}, but even if all remaining voting power votes Yea, support can reach at most ${formatPercent(maximum)} against ${formatPercent(track.supermajorityRequired, 0)} required.`;
+        }
         return `${proposalLabel(track.promotion.candidate)} is in the binding Yea / Nay / Pass ballot. It must clear both ${formatPercent(track.promotionRequired, 0)} participation and ${formatPercent(track.supermajorityRequired, 0)} Yea supermajority.`;
     }
     if (track.phase === 'adoption') {
@@ -1047,10 +1089,13 @@ function trackWatchItems(track) {
         ];
     }
     if (track.phase === 'promotion' && track.promotion) {
+        const maximum = maximumPromotionSupermajority(track);
         return [
             `Participation is ${formatPercent(track.promotion.participation)} against ${formatPercent(track.promotionRequired, 0)} required.`,
             `Yea supermajority is ${formatPercent(track.promotion.supermajority)} against ${formatPercent(track.supermajorityRequired, 0)} required.`,
-            'If both gates clear, Cooldown lasts about one day before an account triggers the approved change.'
+            !promotionCanStillPass(track) && Number.isFinite(maximum)
+                ? `The maximum possible Yea supermajority is now ${formatPercent(maximum)}; this proposal cannot advance to Cooldown.`
+                : 'If both gates clear, Cooldown lasts about one day before an account triggers the approved change.'
         ];
     }
     return [
@@ -1113,9 +1158,12 @@ function renderL2GovernanceNow(track) {
             { label: 'Window closes', value: trackCountdown(track), detail: endTime }
         ];
     } else if (track.phase === 'promotion' && track.promotion) {
+        const quorumMet = Number.isFinite(track.promotion.participation) && track.promotion.participation >= track.promotionRequired;
+        const yeaMet = Number.isFinite(track.promotion.supermajority) && track.promotion.supermajority >= track.supermajorityRequired;
+        const yeaOutcome = yeaMet ? 'good' : promotionCanStillPass(track) ? 'watch' : 'risk';
         cards = [
-            { label: 'Participation', value: formatPercent(track.promotion.participation), detail: `${formatPercent(track.promotionRequired, 0)} required` },
-            { label: 'Yea supermajority', value: formatPercent(track.promotion.supermajority), detail: `${formatPercent(track.supermajorityRequired, 0)} required` },
+            { label: 'Participation', value: formatPercent(track.promotion.participation), detail: `${formatPercent(track.promotionRequired, 0)} required`, outcome: quorumMet ? 'good' : 'watch' },
+            { label: 'Yea supermajority', value: formatPercent(track.promotion.supermajority), detail: `${formatPercent(track.supermajorityRequired, 0)} required`, outcome: yeaOutcome },
             { label: 'Ballot closes', value: trackCountdown(track), detail: endTime }
         ];
     }
@@ -1133,7 +1181,7 @@ function renderL2GovernanceNow(track) {
             </div>
             <div class="chamber-now-grid">
                 ${cards.map((card) => `
-                    <div class="chamber-now-card">
+                    <div class="chamber-now-card${card.outcome ? ` ${escapeHtml(card.outcome)}` : ''}"${card.outcome ? ` data-governance-outcome="${escapeHtml(card.outcome)}"` : ''}>
                         <span>${escapeHtml(card.label)}</span>
                         <strong>${escapeHtml(card.value)}</strong>
                         <small>${escapeHtml(card.detail)}</small>
@@ -1187,13 +1235,14 @@ function renderEntryMetrics(data) {
         const last = trackLastActivity(track);
         const value = track.phase === 'proposal' && track.proposal
             ? `${formatPercent(track.proposalProgress)} / ${formatPercent(track.proposalRequired, 0)}`
-            : track.phase === 'promotion' && track.promotion
-                ? `${formatPercent(track.promotion.participation)} / ${formatPercent(track.promotionRequired, 0)}`
-                : last ? `${formatAge(last.time)}` : track.phase === 'empty' ? 'Idle' : status.label;
+            : last ? `${formatAge(last.time)}` : track.phase === 'empty' ? 'Idle' : status.label;
+        const metric = track.phase === 'promotion' && track.promotion
+            ? `<strong class="etherlink-gov-entry-gates"><span class="${track.promotion.participation >= track.promotionRequired ? 'good' : 'watch'}" data-governance-outcome="${track.promotion.participation >= track.promotionRequired ? 'good' : 'watch'}">Quorum ${escapeHtml(formatPercent(track.promotion.participation))} / ${escapeHtml(formatPercent(track.promotionRequired, 0))}</span><span class="${track.promotion.supermajority >= track.supermajorityRequired ? 'good' : promotionCanStillPass(track) ? 'watch' : 'risk'}" data-governance-outcome="${track.promotion.supermajority >= track.supermajorityRequired ? 'good' : promotionCanStillPass(track) ? 'watch' : 'risk'}">Yea ${escapeHtml(formatPercent(track.promotion.supermajority))} / ${escapeHtml(formatPercent(track.supermajorityRequired, 0))}</span></strong>`
+            : `<strong>${escapeHtml(value)}</strong>`;
         return `
-            <div class="tezlink-entry-metric etherlink-gov-entry-metric ${status.className}">
+            <div class="tezlink-entry-metric etherlink-gov-entry-metric ${status.className}" data-governance-outcome="${escapeHtml(status.className)}">
                 <span>${escapeHtml(track.label)}</span>
-                <strong>${escapeHtml(value)}</strong>
+                ${metric}
             </div>
         `;
     }).join('');
@@ -1202,6 +1251,7 @@ function renderEntryMetrics(data) {
 function renderEntryCard(data) {
     const card = document.getElementById('etherlink-governance-entry-card');
     if (!card) return;
+    card.classList.add('etherlink-governance-entry-card');
     const main = topTrack(data);
     const status = trackStatus(main);
     const activeTrack = hasActiveProposalTrack(data);
@@ -1210,14 +1260,15 @@ function renderEntryCard(data) {
     if (quiet) {
         value = 'No Proposal';
     } else if (main.phase === 'proposal' && main.proposal) {
-        value = formatPercent(main.proposalProgress);
+        value = status.headline || formatPercent(main.proposalProgress);
     } else if (main.phase === 'promotion' && main.promotion) {
-        value = formatPercent(main.promotion.participation);
+        value = status.headline || formatPercent(main.promotion.participation);
     }
     card.classList.toggle('chamber-entry-live', status.className === 'live' || status.className === 'good');
-    card.classList.toggle('chamber-entry-risk', status.className === 'risk');
+    card.classList.toggle('chamber-entry-risk', status.className === 'watch' || status.className === 'risk');
     card.classList.toggle('chamber-entry-wide', activeTrack);
-    card.dataset.etherlinkGovernanceLive = status.className === 'live' || status.className === 'good' ? 'true' : 'false';
+    card.dataset.etherlinkGovernanceLive = activeTrack ? 'true' : 'false';
+    card.dataset.etherlinkGovernanceState = status.className;
     card.dataset.etherlinkGovernanceSize = activeTrack ? 'wide' : 'compact';
     const valueEl = document.getElementById('etherlink-governance-entry-value');
     const descriptionEl = document.getElementById('etherlink-governance-entry-description');
@@ -1235,7 +1286,14 @@ function renderEntryCard(data) {
         }
     }
     if (miniEl) {
-        miniEl.classList.toggle('live', status.className === 'live' || status.className === 'good');
+        miniEl.classList.remove('live', 'watch', 'risk');
+        if (status.className === 'live' || status.className === 'good') {
+            miniEl.classList.add('live');
+        } else if (status.className === 'watch') {
+            miniEl.classList.add('watch');
+        } else if (status.className === 'risk') {
+            miniEl.classList.add('risk');
+        }
         const bakerCount = Number(main.bakerVoteCount || 0);
         miniEl.textContent = quiet
             ? 'No active L2 governance proposal · refresh 60s'
@@ -1257,6 +1315,9 @@ function renderEntryError() {
     const metricsEl = document.getElementById('etherlink-governance-entry-metrics');
     if (card) {
         card.classList.remove('chamber-entry-wide', 'chamber-entry-live');
+        card.classList.add('chamber-entry-risk');
+        card.dataset.etherlinkGovernanceLive = 'false';
+        card.dataset.etherlinkGovernanceState = 'risk';
         card.dataset.etherlinkGovernanceSize = 'compact';
     }
     if (metricsEl) {
@@ -1264,7 +1325,8 @@ function renderEntryError() {
         metricsEl.innerHTML = '';
     }
     if (mini) {
-        mini.classList.remove('live');
+        mini.classList.remove('live', 'watch');
+        mini.classList.add('risk');
         mini.textContent = 'Tezos X governance data delayed';
     }
 }
