@@ -4983,7 +4983,7 @@ async function checkHistoricalPagination() {
     }
   }
   const ciWorkflow = await readText('.github/workflows/ci.yml');
-  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke', 'needs: browser-smoke', 'pages: write', 'id-token: write', 'actions/configure-pages@v5', 'actions/upload-pages-artifact@v5', 'include-hidden-files: true', 'actions/deploy-pages@v5']) {
+  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke', 'needs: browser-smoke', 'pages: write', 'id-token: write', 'actions/configure-pages@v6', 'actions/upload-pages-artifact@v5', 'include-hidden-files: true', 'actions/deploy-pages@v5']) {
     if (!ciWorkflow.includes(snippet)) fail(`site validation workflow must include ${snippet}`);
   }
 
