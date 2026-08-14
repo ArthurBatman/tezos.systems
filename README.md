@@ -1609,7 +1609,10 @@ Run `npm run test:smoke:list` for the current suite descriptions.
 The `Validate Site` workflow deploys pushes to `main` only after static contracts
 and the full browser smoke suite pass. GitHub Pages must use **GitHub Actions** as
 its build source; the workflow uploads the validated repository artifact and
-preserves dot-prefixed public paths such as `.well-known`.
+preserves dot-prefixed public paths such as `.well-known`. Scheduled repository
+writers explicitly dispatch that workflow after a bot-authored commit because
+GitHub does not emit another push-triggered workflow from its own token; their
+generated-data updates therefore pass the same validation gate before Pages.
 
 Before deploying JS, CSS, or data-dependency changes, review cache and version
 metadata:

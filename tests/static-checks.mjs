@@ -4774,6 +4774,8 @@ async function checkHistoricalPagination() {
   const freshness = await readText('scripts/check-supabase-history-freshness.mjs');
   const generatedWorkflow = await readText('.github/workflows/refresh-governance-surfaces.yml');
   const generatedFreshnessWorkflow = await readText('.github/workflows/audit-generated-freshness.yml');
+  const comparisonWorkflow = await readText('.github/workflows/refresh-chain-comparison.yml');
+  const tezoscrpWorkflow = await readText('.github/workflows/refresh-tezoscrp.yml');
   const globalCollectorWorkflow = await readText('.github/workflows/collect-data.yml');
   const chamberCollectorWorkflow = await readText('.github/workflows/collect-chamber-history.yml');
   const scheduledRefresh = await readText('scripts/refresh-scheduled-data.mjs');
@@ -4832,6 +4834,15 @@ async function checkHistoricalPagination() {
   }
   if (generatedFreshnessWorkflow.includes('exit "$failed"')) {
     fail('generated freshness audit must reconcile one incident instead of failing every unchanged scheduled run');
+  }
+  for (const [label, workflow] of [
+    ['generated surfaces', generatedWorkflow],
+    ['chain comparison', comparisonWorkflow],
+    ['TezosCRP', tezoscrpWorkflow]
+  ]) {
+    for (const snippet of ['actions: write', 'GH_TOKEN: ${{ github.token }}', 'gh workflow run ci.yml --ref main']) {
+      if (!workflow.includes(snippet)) fail(`${label} repository writer must dispatch validated Pages delivery through ${snippet}`);
+    }
   }
 
   if (/delay\s*:\s*\([^)]*\)\s*=>\s*[^,\n}]*dataIndex/.test(history)) {
@@ -4983,7 +4994,7 @@ async function checkHistoricalPagination() {
     }
   }
   const ciWorkflow = await readText('.github/workflows/ci.yml');
-  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke', 'needs: browser-smoke', 'pages: write', 'id-token: write', 'actions/configure-pages@v6', 'actions/upload-pages-artifact@v5', 'include-hidden-files: true', 'actions/deploy-pages@v5']) {
+  for (const snippet of ['pull_request:', 'branches: [main]', 'workflow_dispatch:', "github.event_name == 'workflow_dispatch'", 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke', 'needs: browser-smoke', 'pages: write', 'id-token: write', 'actions/configure-pages@v6', 'actions/upload-pages-artifact@v5', 'include-hidden-files: true', 'actions/deploy-pages@v5']) {
     if (!ciWorkflow.includes(snippet)) fail(`site validation workflow must include ${snippet}`);
   }
 

@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: tezos-systems-repository-writer
@@ -49,6 +50,8 @@ jobs:
           npm run test:static
 
       - name: Commit a new official award period
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- data/tezoscrp-awards.json data/tezoscrp-summary.json; then
             echo "No TezosCRP changes to commit"
@@ -62,3 +65,4 @@ jobs:
           git add -- data/tezoscrp-awards.json data/tezoscrp-summary.json version.json
           git commit -m "Refresh TezosCRP awards"
           git push
+          gh workflow run ci.yml --ref main

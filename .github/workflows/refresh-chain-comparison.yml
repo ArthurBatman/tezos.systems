@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: tezos-systems-repository-writer
@@ -41,6 +42,8 @@ jobs:
         run: npm run test:static
 
       - name: Commit a fully verified monthly snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet; then
             echo "No comparison changes"
@@ -61,3 +64,4 @@ jobs:
             version.json
           git commit -m "Refresh monthly chain comparison"
           git push
+          gh workflow run ci.yml --ref main
