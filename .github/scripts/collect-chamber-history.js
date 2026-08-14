@@ -1,6 +1,8 @@
 // Chamber history collector for GitHub Actions
 // Writes smaller domain snapshots that do not fit the 2-hour tezos_history row.
 
+const { postSupabaseJson, TEMPORARY_FAILURE_EXIT_CODE } = require('./supabase-write.js');
+
 const TZKT_API = 'https://api.tzkt.io/v1';
 const OCTEZ_RPC = 'https://eu.rpc.tez.capital';
 const COINGECKO_URL = 'https://api.coingecko.com/api/v3/simple/price?ids=tezos&vs_currencies=usd,eur,btc&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true';
@@ -288,25 +290,13 @@ async function postSnapshot(table, payload, options = {}) {
     throw new Error('Supabase credentials not configured');
   }
 
-  const query = options.onConflict ? `?on_conflict=${options.onConflict}` : '';
-  const prefer = options.onConflict
-    ? 'return=minimal,resolution=merge-duplicates'
-    : 'return=minimal';
-  const response = await fetch(`${supabaseUrl}/rest/v1/${table}${query}`, {
-    method: 'POST',
-    headers: {
-      apikey: supabaseKey,
-      Authorization: `Bearer ${supabaseKey}`,
-      'Content-Type': 'application/json',
-      Prefer: prefer
-    },
-    body: JSON.stringify(payload)
+  await postSupabaseJson({
+    endpoint: `${supabaseUrl}/rest/v1/${table}`,
+    supabaseKey,
+    payload,
+    label: table,
+    onConflict: options.onConflict || ''
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`${table} insert failed: HTTP ${response.status} - ${error}`);
-  }
 }
 
 async function main() {
@@ -327,15 +317,17 @@ async function main() {
       writes += 1;
       console.log(`Stored ${item.table}`);
     } catch (error) {
-      failures.push(`${item.table}: ${error.message}`);
+      failures.push({ table: item.table, error });
       console.error(`Failed ${item.table}:`, error);
     }
   }
 
   if (failures.length) {
     console.error(`Chamber history completed with ${failures.length} failure(s):`);
-    for (const failure of failures) console.error(`- ${failure}`);
-    if (writes === 0) process.exit(1);
+    for (const failure of failures) console.error(`- ${failure.table}: ${failure.error.message}`);
+    const hardFailures = failures.filter(failure => !failure.error?.retriable);
+    process.exitCode = hardFailures.length ? 1 : TEMPORARY_FAILURE_EXIT_CODE;
+    return;
   }
 
   console.log(`Chamber history stored ${writes}/${collectors.length} snapshots`);

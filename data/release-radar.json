@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "kind": "tezos-release-radar",
-  "updatedAt": "2026-08-07T17:20:27.000Z",
+  "updatedAt": "2026-08-14T05:54:33.000Z",
   "staleAfterHours": 36,
-  "expiresAt": "2026-08-21T17:20:27.000Z",
+  "expiresAt": "2026-08-28T05:54:33.000Z",
   "sourceRun": {
     "label": "Daily Tezos development tracker",
     "cadence": "Reviewed daily",
@@ -18,23 +18,23 @@
       "confidence": "medium",
       "horizon": "Q3 2026 forecast",
       "stage": "Validating",
-      "summary": "Previewnet kernel 0.8 remains the latest published Previewnet release while RuntimeKeyspaces hardening continues on master; mainnet still waits for a public Tezos X Etherlink kernel proposal.",
+      "summary": "Tezos X kernel 0.9 was cut on master on August 13 and the Previewnet installer was corrected on August 11; mainnet still waits for a public Tezos X Etherlink kernel proposal.",
       "nextSignal": "Public Tezos X Etherlink kernel proposal or final-kernel declaration",
       "route": "/tezosx/",
-      "highlight": "RuntimeKeyspaces work merged into master on August 7, but development progress does not start mainnet governance.",
+      "highlight": "The kernel 0.9 code release is meaningful progress, but it does not start mainnet governance or prove a production deployment.",
       "excitement": "medium",
       "gates": [
         {
           "id": "runtime",
           "label": "Runtime hardening",
           "status": "active",
-          "detail": "RuntimeKeyspaces integration and cross-runtime correctness work remain active, including the August 7 block-execution handle merge."
+          "detail": "Kernel 0.9 was cut on master on August 13 while cross-runtime correctness and RISC-V hardening continue."
         },
         {
           "id": "previewnet",
           "label": "Previewnet stability",
           "status": "validating",
-          "detail": "The public EVM plus Michelson Previewnet is live, kernel 0.8 has shipped, and validation remains upstream of mainnet."
+          "detail": "The public EVM plus Michelson Previewnet remains live and its reset installer was corrected on August 11; validation remains upstream of mainnet."
         },
         {
           "id": "tooling",
@@ -65,38 +65,38 @@
         {
           "label": "Tezos X roadmap update",
           "url": "https://spotlight.tezos.com/tezos-x-from-roadmap-to-reality/",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "Official roadmap separates Previewnet testing, Etherlink governance, mainnet, and later RISC-V work."
         },
         {
           "label": "Tezos X Previewnet launch",
           "url": "https://spotlight.tezos.com/introducing-tezos-x-previewnet/",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "Previewnet is public; the post says the mainnet step follows testing through an Etherlink proposal."
         },
         {
-          "label": "Tezos X Previewnet kernel 0.8",
-          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22655",
-          "observedAt": "2026-08-07T17:20:27.000Z",
-          "note": "The merged release request records that Previewnet was upgraded to kernel 0.8 on August 3."
+          "label": "Tezos X kernel 0.9 release",
+          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22732",
+          "observedAt": "2026-08-14T05:54:33.000Z",
+          "note": "The release cut merged on master on August 13; it is a code artifact, not proof of Previewnet deployment or mainnet activation."
         },
         {
-          "label": "Tezos X RuntimeKeyspaces block execution",
-          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22661",
-          "observedAt": "2026-08-07T17:20:27.000Z",
-          "note": "The August 7 merged master request threads the new storage handle through block execution; it is hardening work, not a mainnet proposal or release."
+          "label": "Previewnet installer correction",
+          "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22695",
+          "observedAt": "2026-08-14T05:54:33.000Z",
+          "note": "The reset installer was corrected on August 11; this operational fix is not a mainnet proposal or activation."
         },
         {
           "label": "EVM node 0.64 tag",
           "url": "https://gitlab.com/tezos/tezos/-/tags/octez-evm-node-v0.64",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "0.64 remains the latest protected EVM-node tag in the reviewed canonical tag list."
         },
         {
           "label": "Current Etherlink FAST governance storage",
           "url": "https://tzkt.io/KT19oUVQPnVLuUBYXrBVd46WJnNAMpqkKSwo/storage/",
-          "observedAt": "2026-08-07T17:20:27.000Z",
-          "note": "The current proposal window had no winning candidate in the reviewed storage receipt."
+          "observedAt": "2026-08-14T05:54:33.000Z",
+          "note": "The current proposal window had no winning candidate in the reviewed storage receipt, so mainnet governance has not begun."
         }
       ],
       "history": [
@@ -111,6 +111,12 @@
           "previousConfidence": "medium",
           "confidence": "medium",
           "reason": "Previewnet kernel 0.8 shipped, but the reviewed FAST governance window still has no winning mainnet-kernel candidate."
+        },
+        {
+          "observedAt": "2026-08-14T05:54:33.000Z",
+          "previousConfidence": "medium",
+          "confidence": "medium",
+          "reason": "Kernel 0.9 was cut on master and the Previewnet installer was corrected, but the reviewed FAST governance window still has no winning mainnet-kernel candidate."
         }
       ]
     },
@@ -122,7 +128,7 @@
       "confidence": "low",
       "horizon": "weeks",
       "stage": "Backports merged",
-      "summary": "The named 25.2 DAL backport train merged with a passing pipeline on August 5, but there is no 25.2 release tag or public artifact yet.",
+      "summary": "As reviewed August 14, the named 25.2 DAL backport train is merged but there is still no 25.2 release tag or public artifact.",
       "nextSignal": "Release version bump, candidate packaging, or octez-v25.2 tag",
       "route": "https://gitlab.com/tezos/tezos/-/merge_requests/22623",
       "highlight": "The merged backport train strengthens the release signal, but it does not supply a date or a release artifact.",
@@ -131,13 +137,13 @@
         {
           "label": "25.2 DAL backport cluster",
           "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22623",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "The merge request targeting Octez 25.2 merged into v25-release on August 5 with a passing pipeline."
         },
         {
           "label": "Canonical Octez tags",
           "url": "https://octez.tezos.com/releases/",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "The canonical Octez release page still identifies 25.1 as the latest published release."
         }
       ],
@@ -180,20 +186,20 @@
         {
           "label": "EVM node 0.64 tag",
           "url": "https://gitlab.com/tezos/tezos/-/tags/octez-evm-node-v0.64",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "Protected canonical tag at commit 12a44fed."
         },
         {
           "label": "EVM node 0.64 release request",
           "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22648",
-          "observedAt": "2026-08-07T17:20:27.000Z",
+          "observedAt": "2026-08-14T05:54:33.000Z",
           "note": "Merged July 30 with a passing pipeline and an explicit Tezos X Previewnet requirement."
         },
         {
           "label": "Draft EVM-node Ganesha native execution",
           "url": "https://gitlab.com/tezos/tezos/-/merge_requests/22678",
-          "observedAt": "2026-08-07T17:20:27.000Z",
-          "note": "The open draft targets master and has no release tag; it is a development signal, not a shipped operator artifact."
+          "observedAt": "2026-08-14T05:54:33.000Z",
+          "note": "The request remains an open draft targeting master with no release tag; it is a development signal, not a shipped operator artifact."
         }
       ],
       "history": [

@@ -1002,6 +1002,8 @@ async function checkRequiredFiles() {
     'scripts/lib/scheduled-refresh-lanes.mjs',
     'scripts/lib/scheduled-refresh-runner.mjs',
     'scripts/lib/generated-freshness.mjs',
+    '.github/scripts/supabase-write.js',
+    'tests/supabase-write-check.mjs',
     'scripts/generate-llms-txt.mjs',
     'scripts/measure-initial-load.mjs',
     'tests/fixtures/initial-load-baseline.json',
@@ -4766,10 +4768,14 @@ async function checkHistoricalPagination() {
   const history = await readText('js/features/history.js');
   const index = await readText('index.html');
   const collector = await readText('.github/scripts/collect-data.js');
+  const chamberCollector = await readText('.github/scripts/collect-chamber-history.js');
+  const supabaseWrite = await readText('.github/scripts/supabase-write.js');
   const backfill = await readText('scripts/backfill-supabase-history.mjs');
   const freshness = await readText('scripts/check-supabase-history-freshness.mjs');
   const generatedWorkflow = await readText('.github/workflows/refresh-governance-surfaces.yml');
   const generatedFreshnessWorkflow = await readText('.github/workflows/audit-generated-freshness.yml');
+  const globalCollectorWorkflow = await readText('.github/workflows/collect-data.yml');
+  const chamberCollectorWorkflow = await readText('.github/workflows/collect-chamber-history.yml');
   const scheduledRefresh = await readText('scripts/refresh-scheduled-data.mjs');
   const scheduledLanes = await readText('scripts/lib/scheduled-refresh-lanes.mjs');
   const generatedFreshness = await readText('scripts/lib/generated-freshness.mjs');
@@ -4818,11 +4824,14 @@ async function checkHistoricalPagination() {
   for (const snippet of ['maxis-season', 'ecosystem', 'whales', 'launcher-projections', 'tests/uranium-check.mjs', 'tests/ecosystem-stats-check.mjs']) {
     if (!scheduledLanes.includes(snippet)) fail(`scheduled lane catalog must independently cover ${snippet}`);
   }
-  for (const snippet of ['SCHEDULED_FRESHNESS_HOURS = 18', 'ECOSYSTEM_MONDAY_GRACE_HOURS = 18', 'expectedCompletedEcosystemWeek', 'staleAfterHours', 'generatedAtCommitCount']) {
+  for (const snippet of ['SCHEDULED_FRESHNESS_HOURS = 18', 'SCHEDULED_FRESHNESS_HOURS_BY_ARTIFACT', 'nakamoto: 30', 'ECOSYSTEM_MONDAY_GRACE_HOURS = 18', 'acceptableCompletedEcosystemWeeks', 'staleAfterHours', 'generatedAtCommitCount']) {
     if (!generatedFreshness.includes(snippet)) fail(`generated freshness contract must enforce ${snippet}`);
   }
-  for (const snippet of ["cron: '47 3,9,15,21 * * *'", 'npm run check:generated:freshness', 'npm run check:supabase:freshness', 'contents: read', 'steps.generated.outcome', 'steps.history.outcome']) {
+  for (const snippet of ["cron: '47 3,9,15,21 * * *'", 'npm run check:generated:freshness', 'npm run check:supabase:freshness', 'contents: read', 'issues: write', 'actions/github-script@v8', 'tezos-systems-generated-freshness-incident', 'freshness-signature', "state: 'closed'", 'steps.generated.outcome', 'steps.history.outcome']) {
     if (!generatedFreshnessWorkflow.includes(snippet)) fail(`generated freshness audit workflow must include ${snippet}`);
+  }
+  if (generatedFreshnessWorkflow.includes('exit "$failed"')) {
+    fail('generated freshness audit must reconcile one incident instead of failing every unchanged scheduled run');
   }
 
   if (/delay\s*:\s*\([^)]*\)\s*=>\s*[^,\n}]*dataIndex/.test(history)) {
@@ -4862,6 +4871,19 @@ async function checkHistoricalPagination() {
   }
   if (/legacy payload|legacyDataPoint|retrying legacy/i.test(collector)) {
     fail('historical collector must fail on Supabase schema drift instead of silently retrying a legacy payload');
+  }
+  for (const snippet of ['postSupabaseJson', 'TEMPORARY_FAILURE_EXIT_CODE']) {
+    if (!collector.includes(snippet) || !chamberCollector.includes(snippet)) {
+      fail(`both historical collectors must share the Supabase delivery contract through ${snippet}`);
+    }
+  }
+  for (const snippet of ['DEFAULT_ATTEMPTS = 5', 'isRetryableSupabaseStatus', 'confirmTimestampStored', 'retryAfterMilliseconds', 'alreadyStored']) {
+    if (!supabaseWrite.includes(snippet)) fail(`Supabase write delivery must preserve ${snippet}`);
+  }
+  for (const snippet of ['status=$?', '"$status" -eq 75', 'GITHUB_STEP_SUMMARY', 'exit "$status"']) {
+    if (!globalCollectorWorkflow.includes(snippet) || !chamberCollectorWorkflow.includes(snippet)) {
+      fail(`both historical collector workflows must downgrade only exhausted temporary writes through ${snippet}`);
+    }
   }
   for (const table of ['market_history', 'network_health_history', 'governance_period_history', 'tezosx_history']) {
     if (!migration.includes(`create table if not exists public.${table}`)) {
@@ -4961,7 +4983,7 @@ async function checkHistoricalPagination() {
     }
   }
   const ciWorkflow = await readText('.github/workflows/ci.yml');
-  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke']) {
+  for (const snippet of ['pull_request:', 'branches: [main]', 'npm run test:static', 'playwright install --with-deps chromium', 'npm run test:smoke', 'needs: browser-smoke', 'pages: write', 'id-token: write', 'actions/configure-pages@v5', 'actions/upload-pages-artifact@v5', 'include-hidden-files: true', 'actions/deploy-pages@v5']) {
     if (!ciWorkflow.includes(snippet)) fail(`site validation workflow must include ${snippet}`);
   }
 
@@ -5747,7 +5769,7 @@ async function checkPortableTooling() {
     'refresh:milestones': 'node scripts/generate-milestone-catalog.mjs --force',
     'refresh:nakamoto': 'node scripts/refresh-nakamoto-sources.mjs',
     test: 'npm run test:static && npm run test:smoke',
-    'test:static': 'node tests/static-checks.mjs && node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/tezoscrp-check.mjs && node tests/ecosystem-stats-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
+    'test:static': 'node tests/static-checks.mjs && node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs && node tests/supabase-write-check.mjs && node tests/anniversary-check.mjs && node tests/ledger-flow-check.mjs && node tests/pulse-history-check.mjs && node tests/personal-signal-relevance-check.mjs && node tests/live-pulse-curio-check.mjs && node tests/release-radar-check.mjs && node tests/baker-governance-signals-check.mjs && node tests/tezoscrp-check.mjs && node tests/ecosystem-stats-check.mjs && node tests/uranium-check.mjs && node tests/metals-check.mjs && node tests/minerals-check.mjs && node tests/chamber-polling-check.mjs && node tests/service-worker-cache-check.mjs && npm run check:routes:chambers',
     'test:scheduled-refresh': 'node tests/scheduled-refresh-check.mjs && node tests/generated-freshness-check.mjs',
     'test:smoke': 'node tests/smoke.mjs',
     'test:smoke:list': 'node tests/smoke.mjs --list',

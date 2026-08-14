@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { evaluateGeneratedFreshness, expectedCompletedEcosystemWeek } from '../scripts/lib/generated-freshness.mjs';
+import {
+  acceptableCompletedEcosystemWeeks,
+  evaluateGeneratedFreshness,
+  expectedCompletedEcosystemWeek
+} from '../scripts/lib/generated-freshness.mjs';
 
 function fixtures(now, overrides = {}) {
   const recent = new Date(new Date(now).getTime() - (2 * 60 * 60 * 1000)).toISOString();
@@ -39,6 +43,16 @@ assert.deepEqual(expectedCompletedEcosystemWeek(beforeGrace), {
   weekStart: '2026-07-20T00:00:00.000Z',
   weekEnd: '2026-07-27T00:00:00.000Z'
 });
+assert.deepEqual(acceptableCompletedEcosystemWeeks(beforeGrace), [
+  {
+    weekStart: '2026-07-20T00:00:00.000Z',
+    weekEnd: '2026-07-27T00:00:00.000Z'
+  },
+  {
+    weekStart: '2026-07-27T00:00:00.000Z',
+    weekEnd: '2026-08-03T00:00:00.000Z'
+  }
+]);
 const afterGrace = '2026-08-03T19:00:00.000Z';
 assert.deepEqual(expectedCompletedEcosystemWeek(afterGrace), {
   weekStart: '2026-07-27T00:00:00.000Z',
@@ -47,6 +61,32 @@ assert.deepEqual(expectedCompletedEcosystemWeek(afterGrace), {
 
 const healthy = evaluateGeneratedFreshness({ artifacts: fixtures(afterGrace), now: afterGrace, commitCount: 960 });
 assert.equal(healthy.ok, true, JSON.stringify(healthy.issues));
+
+const earlyCompletedWeek = evaluateGeneratedFreshness({
+  artifacts: fixtures(beforeGrace, {
+    ecosystem: {
+      generatedAt: '2026-08-03T02:00:00.000Z',
+      completeWeek: acceptableCompletedEcosystemWeeks(beforeGrace)[1]
+    }
+  }),
+  now: beforeGrace,
+  commitCount: 960
+});
+assert.equal(earlyCompletedWeek.ok, true, JSON.stringify(earlyCompletedWeek.issues));
+
+const dailyNakamoto = evaluateGeneratedFreshness({
+  artifacts: fixtures(afterGrace, { nakamoto: { updatedAt: '2026-08-02T19:00:00.000Z' } }),
+  now: afterGrace,
+  commitCount: 960
+});
+assert.equal(dailyNakamoto.issues.some((issue) => issue.id === 'nakamoto'), false);
+
+const staleNakamoto = evaluateGeneratedFreshness({
+  artifacts: fixtures(afterGrace, { nakamoto: { updatedAt: '2026-08-02T12:00:00.000Z' } }),
+  now: afterGrace,
+  commitCount: 960
+});
+assert(staleNakamoto.issues.some((issue) => issue.id === 'nakamoto' && issue.limitHours === 30));
 
 const staleScheduled = evaluateGeneratedFreshness({
   artifacts: fixtures(afterGrace, { ecosystem: { generatedAt: '2026-08-02T00:00:00.000Z', completeWeek: expectedCompletedEcosystemWeek(afterGrace) } }),
@@ -75,4 +115,4 @@ assert(milestoneCommits.issues.some((issue) => issue.id === 'milestones' && issu
 const milestoneTime = evaluateGeneratedFreshness({ artifacts: fixtures('2026-08-20T00:00:00.000Z'), now: '2026-08-20T00:00:00.000Z', commitCount: 960 });
 assert(milestoneTime.issues.some((issue) => issue.id === 'milestones' && issue.overdueByTime));
 
-console.log('ok - generated freshness contracts cover scheduled age, Monday rollover, manual review, and milestone cadence');
+console.log('ok - generated freshness contracts cover source-specific age, Monday rollover, manual review, and milestone cadence');

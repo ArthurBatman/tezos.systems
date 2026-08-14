@@ -1,6 +1,8 @@
 // Data collection script for GitHub Actions
 // Fetches current Tezos stats and stores them in Supabase
 
+const { postSupabaseJson, TEMPORARY_FAILURE_EXIT_CODE } = require('./supabase-write.js');
+
 const TZKT_API = 'https://api.tzkt.io/v1';
 const OCTEZ_RPC = 'https://eu.rpc.tez.capital'; // Better for GitHub Actions
 const LB_EMA_DISABLE_THRESHOLD = 1000000000;
@@ -472,28 +474,18 @@ async function collectData() {
       throw new Error('Supabase credentials not configured');
     }
 
-    const postHistory = async (payload) => fetch(`${supabaseUrl}/rest/v1/tezos_history`, {
-      method: 'POST',
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(payload)
+    await postSupabaseJson({
+      endpoint: `${supabaseUrl}/rest/v1/tezos_history`,
+      supabaseKey,
+      payload: dataPoint,
+      label: 'tezos_history'
     });
-
-    let response = await postHistory(dataPoint);
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Supabase error: ${response.status} - ${error}`);
-    }
 
     console.log('Data stored successfully in Supabase');
 
   } catch (error) {
     console.error('Collection failed:', error);
-    process.exit(1);
+    process.exitCode = error?.retriable ? TEMPORARY_FAILURE_EXIT_CODE : 1;
   }
 }
 

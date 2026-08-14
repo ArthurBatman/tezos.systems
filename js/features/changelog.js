@@ -5,6 +5,15 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-14',
+        entries: [
+            { type: '🔧', text: 'Release Radar now records the Tezos X kernel 0.9 code release while keeping mainnet governance unstarted and Octez 25.1 and EVM node 0.64 as the latest public tags' },
+            { type: '🔧', text: 'Generated-data monitoring now respects the daily Nakamoto source clock, accepts an early completed Ecosystem week on Monday, and maintains one recoverable freshness incident instead of repeating the same failure alert' },
+            { type: '🔧', text: 'Historical collectors now retry temporary Supabase outages without duplicating ambiguous writes, preserve last-good ledgers within their freshness budget, and still fail hard credential or schema errors' },
+            { type: '🔧', text: 'Production publishing now waits for the complete static and browser validation suite before a main-branch build can reach GitHub Pages' }
+        ]
+    },
+    {
         date: '2026-08-13',
         entries: [
             { type: '🎨', text: 'Intermediate Home headers now keep mainnet age and 1H activity together above one uninterrupted row of baker, finality, staking, and issuance pills' },

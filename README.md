@@ -19,7 +19,8 @@ minification, Playwright, governance refresh scripts, and shared git hooks.
 
 ## Current Reality
 
-- Live hosting: GitHub Pages from `main`, with custom domain from `CNAME`.
+- Live hosting: GitHub Pages with custom domain from `CNAME`; the validation
+  workflow publishes a `main` artifact only after static and browser checks pass.
 - Local server: `npm run serve`, which runs `python3 -m http.server 9000`.
 - Served stylesheet: `css/styles.min.css`; edit `css/styles.css` first, then
   run `npm run build:css`.
@@ -158,7 +159,8 @@ tezos.systems/
 │   └── generate-og-image.js           # Valley root OG social-card generator
 ├── .github/scripts/
 │   ├── collect-data.js                # 2-hour global Supabase history row
-│   └── collect-chamber-history.js     # 30-minute chamber/domain snapshots
+│   ├── collect-chamber-history.js     # 30-minute chamber/domain snapshots
+│   └── supabase-write.js              # Idempotence-aware bounded write retries
 ├── .githooks/pre-commit               # Shared local hook wrapper
 ├── LICENSE                             # Mozilla Public License 2.0 terms
 ├── NOTICE                              # Project attribution and license scope
@@ -1308,11 +1310,15 @@ surface the configured schedule beside the artifact's actual generation or
 source-observation age; Capital also preserves the CoinGecko quote time and
 last-good status in its compact launcher.
 `.github/workflows/audit-generated-freshness.yml` independently checks the
-committed result every six hours. It raises an 18-hour delivery alarm for each
-scheduled family, verifies Ecosystem Activity has advanced to the latest
-completed Monday-to-Monday UTC week after an 18-hour Monday grace period, and
+committed result every six hours. It raises an 18-hour delivery alarm by default
+and a 30-hour alarm for the once-daily Edinburgh EDI Nakamoto source, accepts
+either the previous or newly completed Ecosystem week during Monday's 18-hour
+grace period, then requires the newest Monday-to-Monday UTC week. It also
 enforces Release Radar, comparison, milestone, TezosCRP, and Supabase freshness
-receipts. The audit never rewrites or promotes stale data.
+receipts. The audit never rewrites or promotes stale data. It maintains one
+GitHub issue for the current failure signature, updates that issue only when the
+failing contracts change, and closes it automatically after recovery so an
+unchanged incident does not generate a new failed-workflow email every six hours.
 `.github/workflows/refresh-chain-comparison.yml` runs on the first day of each
 month, refreshes and validates the comparison receipt, rebakes the standalone
 pages, and commits only a fully verified snapshot.
@@ -1331,7 +1337,13 @@ collector should use a service-role or equivalent server-side secret for
 `SUPABASE_KEY`; the browser anon key should remain read-only under RLS.
 `.github/workflows/collect-data.yml` writes the 2-hour global `tezos_history`
 row, while `.github/workflows/collect-chamber-history.yml` writes 30-minute
-market, Network Health, Tezos X, and governance-period snapshots.
+market, Network Health, Tezos X, and governance-period snapshots. Both retry
+temporary Supabase transport, rate-limit, and 5xx failures with bounded backoff
+and confirm the exact timestamp before retrying an ambiguous write. If those
+retries are exhausted, the workflow keeps the last-good ledger and records a
+warning; the shared five-hour freshness audit opens one incident only if the
+delivery budget is actually exceeded. Authentication, schema, and other hard
+write failures still fail immediately.
 The Cycle History Chamber reads those domain tables directly for trend charts
 plus expanded `tezos_history` fields such as total staked, APY, tz4 power,
 protocol issuance, and Liquidity Baking EMA. It starts with a captured-signal
@@ -1594,14 +1606,17 @@ Run `npm run test:smoke:list` for the current suite descriptions.
 
 ## Deployment, Hooks, And Versioning
 
-Deploy by pushing `main`; GitHub Pages serves the committed files as-is.
+The `Validate Site` workflow deploys pushes to `main` only after static contracts
+and the full browser smoke suite pass. GitHub Pages must use **GitHub Actions** as
+its build source; the workflow uploads the validated repository artifact and
+preserves dot-prefixed public paths such as `.well-known`.
 
 Before deploying JS, CSS, or data-dependency changes, review cache and version
 metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v570`, including hero search, theme
+- Current aligned shell cache stamp: `v571`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, shared market-room, Uranium, Precious Metals, and Critical
   Minerals lazy CSS loaders.

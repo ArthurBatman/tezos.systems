@@ -22,4 +22,15 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: node .github/scripts/collect-data.js
+        run: |
+          set +e
+          node .github/scripts/collect-data.js
+          status=$?
+          set -e
+          if [ "$status" -eq 75 ]; then
+            echo "::warning::Supabase remained temporarily unavailable after bounded retries; the freshness audit will escalate only if the last-good history exceeds its delivery budget."
+            echo "### Temporary Supabase delivery interruption" >> "$GITHUB_STEP_SUMMARY"
+            echo "The last-good global history remains published. The freshness audit will open one incident if the five-hour delivery budget is exceeded." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          exit "$status"

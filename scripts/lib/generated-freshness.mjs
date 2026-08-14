@@ -5,6 +5,12 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 export const SCHEDULED_FRESHNESS_HOURS = 18;
+export const SCHEDULED_FRESHNESS_HOURS_BY_ARTIFACT = Object.freeze({
+  // The Edinburgh EDI source normally advances once per UTC day. Its
+  // content-change clock must tolerate that source cadence plus scheduler
+  // jitter without masking a missed daily publication.
+  nakamoto: 30
+});
 export const ECOSYSTEM_MONDAY_GRACE_HOURS = 18;
 
 export const GENERATED_FRESHNESS_FILES = Object.freeze({
@@ -84,6 +90,24 @@ export function expectedCompletedEcosystemWeek(nowValue, graceHours = ECOSYSTEM_
   };
 }
 
+export function acceptableCompletedEcosystemWeeks(nowValue, graceHours = ECOSYSTEM_MONDAY_GRACE_HOURS) {
+  const nowMs = new Date(nowValue).getTime();
+  if (!Number.isFinite(nowMs)) throw new Error(`Invalid freshness clock: ${nowValue}`);
+  const currentMonday = mondayUtcAtOrBefore(nowMs);
+  const currentCompleted = {
+    weekStart: iso(currentMonday - (7 * DAY_MS)),
+    weekEnd: iso(currentMonday)
+  };
+  if (nowMs >= currentMonday + (graceHours * HOUR_MS)) return [currentCompleted];
+  return [
+    {
+      weekStart: iso(currentMonday - (14 * DAY_MS)),
+      weekEnd: iso(currentMonday - (7 * DAY_MS))
+    },
+    currentCompleted
+  ];
+}
+
 function addIssue(issues, id, message, details = {}) {
   issues.push({ id, message, ...details });
 }
@@ -100,19 +124,24 @@ export function evaluateGeneratedFreshness({ artifacts, now = new Date(), commit
       continue;
     }
     const ageHours = (nowMs - observed) / HOUR_MS;
-    if (ageHours > SCHEDULED_FRESHNESS_HOURS) {
-      addIssue(issues, id, `${id} is ${ageHours.toFixed(1)} hours old; scheduled limit is ${SCHEDULED_FRESHNESS_HOURS} hours`, {
+    const limitHours = SCHEDULED_FRESHNESS_HOURS_BY_ARTIFACT[id] || SCHEDULED_FRESHNESS_HOURS;
+    if (ageHours > limitHours) {
+      addIssue(issues, id, `${id} is ${ageHours.toFixed(1)} hours old; scheduled limit is ${limitHours} hours`, {
         observedAt: iso(observed),
-        ageHours
+        ageHours,
+        limitHours
       });
     }
   }
 
   const completeWeek = artifacts.ecosystem?.completeWeek;
-  const expectedWeek = expectedCompletedEcosystemWeek(nowMs);
-  if (completeWeek?.weekStart !== expectedWeek.weekStart || completeWeek?.weekEnd !== expectedWeek.weekEnd) {
+  const acceptableWeeks = acceptableCompletedEcosystemWeeks(nowMs);
+  const accepted = acceptableWeeks.some((week) => (
+    completeWeek?.weekStart === week.weekStart && completeWeek?.weekEnd === week.weekEnd
+  ));
+  if (!accepted) {
     addIssue(issues, 'ecosystem-week', `Ecosystem completed week is not the required Monday-to-Monday UTC window`, {
-      expected: expectedWeek,
+      expected: acceptableWeeks,
       actual: completeWeek || null
     });
   }
