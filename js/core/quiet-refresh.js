@@ -188,6 +188,21 @@ function scrollableElements(root) {
     ));
 }
 
+function scrollableAncestors(root) {
+    const ancestors = [];
+    for (let element = root.parentElement; element; element = element.parentElement) {
+        if (element instanceof HTMLElement && (
+            element.scrollTop
+            || element.scrollLeft
+            || element.scrollHeight > element.clientHeight + 1
+            || element.scrollWidth > element.clientWidth + 1
+        )) {
+            ancestors.push(element);
+        }
+    }
+    return ancestors;
+}
+
 function captureViewportAnchor() {
     if (!window.scrollY) return null;
     const x = Math.max(1, Math.min(window.innerWidth - 1, window.innerWidth / 2));
@@ -248,7 +263,7 @@ function captureState(root) {
             }
             : null,
         selection: captureSelection(root),
-        scrollers: scrollableElements(root).map((element) => ({
+        scrollers: [...new Set([...scrollableAncestors(root), ...scrollableElements(root)])].map((element) => ({
             element,
             locator: element === root ? null : elementLocator(root, element),
             top: element.scrollTop,

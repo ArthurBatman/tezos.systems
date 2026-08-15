@@ -10,6 +10,7 @@ export const CHANGELOG = [
             { type: '🎨', text: 'Protocol Anthology is now an editorial field guide with a current-chapter cover, three learning lenses, era shelves, larger chapter cards, and a 60-second brief in every reader' },
             { type: '✨', text: 'Protocol Anthology is now a searchable newest-first library with a direct URL for every chapter, labeled link, native, image, and print sharing, source receipts, and previous or next reading' },
             { type: '🔧', text: 'Jakarta’s Toggle Vote chapter now records Ithaca’s one-third threshold, Jakarta’s reset to 50%, the official symmetry rationale, and the case against compounding the change' },
+            { type: '🔧', text: 'Quiet background refresh now preserves scrollable ancestor panels as well as the refreshed surface, keeping nested readers fixed in place' },
             { type: '✨', text: 'Every protocol chapter now has a clean share URL with chapter-specific social metadata, a reading-progress rail, direct native and image sharing, printable receipts, and mobile reading controls' },
         ]
     },
