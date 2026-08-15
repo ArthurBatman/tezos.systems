@@ -834,7 +834,14 @@ function runResult(result) {
         return true;
     }
     if (result.action === 'protocol') {
-        navigateHash(`#protocol=${encodeURIComponent(result.value)}`);
+        const slug = String(result.value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        window.location.href = slug
+            ? `/anthology/${encodeURIComponent(slug)}/`
+            : '/anthology/';
         return true;
     }
     if (result.action === 'theme') {

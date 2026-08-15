@@ -1963,7 +1963,7 @@ export function showShareModal(canvas, tweetTextOrOptions, title, allOptionsForR
                 <button class="share-modal-close" aria-label="Close share modal">×</button>
             </div>
             <div class="share-modal-preview">
-                <img src="${canvas.toDataURL('image/png')}" alt="Snapshot" />
+                <img src="${canvas.toDataURL('image/png')}" alt="${escapeHtml(shareDetails.alt || `${title || 'Tezos Systems'} share image preview`)}" />
             </div>
             ${pickerHtml}
             <div class="tweet-compose" style="padding:14px 20px 16px;display:grid;gap:10px;border-bottom:1px solid var(--glass-border);">
@@ -2317,6 +2317,15 @@ function protocolShareMeta(protocol, protocols = []) {
     };
 }
 
+function protocolStorySharePath(protocol) {
+    const slug = String(protocol?.name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return slug ? `/anthology/${encodeURIComponent(slug)}/` : '/anthology/';
+}
+
 function getThemeColors() {
     const currentTheme = document.body.getAttribute('data-theme');
     const themeColors = {
@@ -2625,7 +2634,7 @@ export async function initProtocolShare() {
 
     // Add "Share Timeline" button
     const badgesContainer = document.querySelector('.upgrade-badges');
-    const historyHeader = document.querySelector('#protocol-history-chamber-modal .protocol-history-chamber-header')
+    const historyHeader = document.querySelector('#protocol-history-chamber-modal .protocol-history-feature-panel')
         || document.querySelector('#protocol-history-feature .section-header');
     const timelineButtonHost = badgesContainer || historyHeader;
     if (timelineButtonHost) {
@@ -2634,33 +2643,14 @@ export async function initProtocolShare() {
             btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'timeline-share-btn';
-            btn.innerHTML = '📸';
+            btn.textContent = 'Timeline image';
             btn.setAttribute('aria-label', 'Share the full protocol timeline');
             btn.title = 'Share the full protocol timeline';
-            btn.style.cssText = `
-                background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-                color: rgba(255,255,255,0.5); width: 36px; height: 36px; border-radius: 8px;
-                cursor: pointer; font-size: 16px;
-                display: flex; align-items: center; justify-content: center;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                flex-shrink: 0;
-                opacity: 1; pointer-events: auto;
-            `;
+            btn.classList.add('protocol-history-chamber-link');
             if (badgesContainer) badgesContainer.insertBefore(btn, badgesContainer.firstChild);
             else timelineButtonHost.appendChild(btn);
         }
         if (!btn.dataset.protocolShareButtonWired) {
-            btn.addEventListener('mouseenter', () => {
-                const c = getThemeColors();
-                btn.style.borderColor = c.brand;
-                btn.style.color = c.brand;
-                btn.style.background = `rgba(${c.brand === '#00d4ff' ? '0,212,255' : '0,255,0'},0.1)`;
-            });
-            btn.addEventListener('mouseleave', () => {
-                btn.style.borderColor = 'rgba(255,255,255,0.1)';
-                btn.style.color = 'rgba(255,255,255,0.5)';
-                btn.style.background = 'rgba(255,255,255,0.05)';
-            });
             btn.addEventListener('click', () => captureTimeline(protocols));
             btn.dataset.protocolShareButtonWired = '1';
         }
@@ -2669,8 +2659,6 @@ export async function initProtocolShare() {
             || document.querySelector('#protocol-history-feature')
             || document.querySelector('.upgrade-clock-content');
         if (timelineSection && !timelineSection.dataset.timelineShareHoverWired) {
-            btn.style.opacity = '1';
-            btn.style.pointerEvents = 'auto';
             timelineSection.dataset.timelineShareHoverWired = '1';
         }
     }
@@ -2680,13 +2668,14 @@ export async function initProtocolShare() {
  * Build a purpose-built 1200×630px share card DOM element for a protocol history
  */
 function buildProtocolHistoryCardDOM(protocol, ordinalLabel) {
-    const { brand: accent, bg, brandRgb } = getThemeColors();
+    const { brand: accent, bg, brandRgb, isClean } = getThemeColors();
+    const cardBg = isClean ? '#0b1220' : bg;
     const accent10 = accent + '1a';
     const accent30 = accent + '4d';
 
     const card = document.createElement('div');
     card.style.cssText = `
-        width: 1200px; height: 630px; background: ${bg};
+        width: 1200px; height: 630px; background: ${cardBg};
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         color: #e0e0e0; position: fixed; left: -9999px; top: 0;
         overflow: hidden; box-sizing: border-box;
@@ -2845,7 +2834,7 @@ function buildProtocolHistoryCardDOM(protocol, ordinalLabel) {
             <!-- Footer -->
             <div style="flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);margin-top:14px;">
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <div style="font-size:13px;font-weight:600;color:${accent};letter-spacing:0.5px;">tezos.systems</div>
+                <div style="font-size:13px;font-weight:600;color:${accent};letter-spacing:0.5px;">tezos.systems${escapeHtml(protocolStorySharePath(protocol))}</div>
                 </div>
                 <div style="font-size:11px;color:rgba(255,255,255,0.25);font-family:'JetBrains Mono',monospace;">${escapeHtml(protocol.name)} · ${protocol.date ? protocol.date.slice(0, 7) : ''}</div>
             </div>
@@ -2926,14 +2915,18 @@ async function captureProtocolHistory(protocolName) {
         card = null;
 
         // Get tweet options for this protocol
-        const suffix = '\n\ntezos.systems';
+        const suffix = `\n\ntezos.systems${protocolStorySharePath(protocol)}`;
         const protoOpts = await getProtocolTweetOptions(protocol, shareMeta.tweetOrdinal, total);
         const allOptions = protoOpts.map(o => ({
             ...o,
             text: o.text + suffix
         }));
         const displayOptions = pickRandomOptions(allOptions, 4);
-        showShareModal(canvas, displayOptions, `⚔ ${protocolName} History`, allOptions);
+        showShareModal(canvas, displayOptions, `${protocolName} Protocol`, allOptions, {
+            url: protocolStorySharePath(protocol),
+            context: `protocol-${String(protocol.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+            alt: `${protocolName} Protocol Anthology share card with its chapter number, key changes, and direct story link.`
+        });
     } catch (error) {
         console.error('History capture failed:', error);
         showNotification('Screenshot failed. Try again.', 'error');

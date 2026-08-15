@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUTPUT_FILE = path.join(ROOT, 'llms.txt');
 const OPENAPI_FILE = path.join(ROOT, '.well-known', 'openapi.json');
+const PROTOCOL_DATA_FILE = path.join(ROOT, 'data', 'protocol-data.json');
 
 async function loadSiteMapModule() {
   const source = await fs.readFile(path.join(ROOT, 'js/core/site-map.js'), 'utf8');
@@ -26,11 +27,13 @@ function oneLine(value) {
 }
 
 export async function renderLlmsTxt() {
-  const [{ SITE_MAP, siteMapSitemapEntries }, openApiText] = await Promise.all([
+  const [{ SITE_MAP, siteMapSitemapEntries }, openApiText, protocolDataText] = await Promise.all([
     loadSiteMapModule(),
-    fs.readFile(OPENAPI_FILE, 'utf8')
+    fs.readFile(OPENAPI_FILE, 'utf8'),
+    fs.readFile(PROTOCOL_DATA_FILE, 'utf8')
   ]);
   const openApi = JSON.parse(openApiText);
+  const protocolData = JSON.parse(protocolDataText);
   const destinationDetails = new Map(SITE_MAP.map((entry) => [entry.id, entry.detail]));
   const destinations = siteMapSitemapEntries();
   const dataEntries = Object.entries(openApi.paths || {})
@@ -54,6 +57,14 @@ export async function renderLlmsTxt() {
       || destinationDetails.get(destination.parentId)
       || 'A canonical Tezos Systems destination.';
     lines.push(`- [${oneLine(destination.title)}](${absoluteSiteUrl(destination.href)}): ${oneLine(detail)}`);
+  }
+
+  for (const protocol of protocolData.protocols || []) {
+    const slug = String(protocol?.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!slug) continue;
+    const title = protocol.history?.title || `${protocol.name} Protocol`;
+    const detail = protocol.history?.subtitle || protocol.headline || 'A Protocol Anthology chapter.';
+    lines.push(`- [${oneLine(title)}](${absoluteSiteUrl(`/anthology/${slug}/`)}): ${oneLine(detail)}`);
   }
 
   lines.push('', '## Public JSON data', '');

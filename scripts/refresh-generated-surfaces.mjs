@@ -54,6 +54,7 @@ const CSS_SOURCE_PATTERNS = [
   /^package(?:-lock)?\.json$/
 ];
 const ROUTE_TARGETS = CHAMBER_ROUTES.map((route) => `${route.slug}/index.html`);
+const ANTHOLOGY_ROUTE_TARGETS = ['anthology'];
 const CHAMBER_OG_TARGETS = CHAMBER_ROUTES.map((route) => `og/${route.slug}.png`);
 const SITEMAP_TARGETS = ['sitemap.xml'];
 const LLMS_TARGETS = ['llms.txt'];
@@ -83,6 +84,7 @@ const GENERATED_TARGETS = unique([
   ...GOVERNANCE_TARGETS,
   ...CSS_TARGETS,
   ...ROUTE_TARGETS,
+  ...ANTHOLOGY_ROUTE_TARGETS,
   ...CHAMBER_OG_TARGETS,
   ...COMPARE_PAGES,
   ...SITEMAP_TARGETS,
@@ -214,6 +216,12 @@ async function renderSitemap() {
 
   siteMapSitemapEntries().forEach((entry) => {
     add(sitemapUrl(entry.href, entry.changefreq, entry.priority));
+  });
+
+  const protocolData = JSON.parse(await fs.readFile(path.join(ROOT, 'data/protocol-data.json'), 'utf8'));
+  (protocolData.protocols || []).forEach((protocol) => {
+    const slug = String(protocol?.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (slug) add(sitemapUrl(`/anthology/${slug}/`, 'monthly', '0.7'));
   });
 
   const body = entries
@@ -370,13 +378,16 @@ async function main() {
   const routeTouched = shouldRun(modeName, touched, [
     /^index\.html$/,
     /^scripts\/generate-chamber-routes\.mjs$/,
+    /^scripts\/generate-anthology-routes\.mjs$/,
     /^scripts\/lib\/chamber-routes\.mjs$/,
+    /^data\/protocol-data\.json$/,
     ...ROUTE_TARGETS
   ]);
   if (routeTouched) {
     ran.push('routes');
     nodeScript('scripts/generate-chamber-routes.mjs');
-    if (shouldStage) stageTargets(ROUTE_TARGETS);
+    nodeScript('scripts/generate-anthology-routes.mjs');
+    if (shouldStage) stageTargets([...ROUTE_TARGETS, ...ANTHOLOGY_ROUTE_TARGETS]);
   }
 
   if (routeTouched || shouldRun(modeName, touched, [
@@ -397,6 +408,7 @@ async function main() {
     /^scripts\/generate-llms-txt\.mjs$/,
     /^scripts\/refresh-generated-surfaces\.mjs$/,
     /^js\/core\/site-map\.js$/,
+    /^data\/protocol-data\.json$/,
     /^\.well-known\/openapi\.json$/,
     /^llms\.txt$/
   ])) {

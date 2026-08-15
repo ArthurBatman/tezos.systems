@@ -68,8 +68,8 @@
     "check:release-radar": "node tests/release-radar-check.mjs",
     "build:css": "node scripts/build-css.mjs",
     "og:chambers": "node scripts/generate-chamber-og-images.mjs",
-    "routes:chambers": "node scripts/generate-chamber-routes.mjs",
-    "check:routes:chambers": "node scripts/generate-chamber-routes.mjs --check",
+    "routes:chambers": "node scripts/generate-chamber-routes.mjs && node scripts/generate-anthology-routes.mjs",
+    "check:routes:chambers": "node scripts/generate-chamber-routes.mjs --check && node scripts/generate-anthology-routes.mjs --check",
     "bake:compare": "node scripts/bake-compare-pages.mjs",
     "refresh:governance": "node scripts/refresh-governance-data.mjs",
     "update:governance-votes": "node scripts/update-governance-votes.mjs"

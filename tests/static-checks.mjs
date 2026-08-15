@@ -1188,6 +1188,16 @@ async function checkGovernanceVotes() {
   if (countedUpgradeTotal !== 21) {
     fail(`protocol-data counted upgrade total should be 21 with Paris C excluded, got ${countedUpgradeTotal}`);
   }
+  const jakarta = protocols.find((protocol) => protocol.name === 'Jakarta');
+  const jakartaStory = JSON.stringify(jakarta?.history || {});
+  if (!jakartaStory.includes('one-third') || !jakartaStory.includes('50%') || !jakartaStory.includes('Pass and reversibility')) {
+    fail('Jakarta anthology story must explain the Ithaca one-third to Jakarta 50% reset and the counterargument');
+  }
+  const jakartaSources = new Set((jakarta?.history?.sources || []).map((source) => source.url));
+  if (!jakartaSources.has('https://octez.tezos.com/docs/protocols/013_jakarta.html')
+    || !jakartaSources.has('https://octez.tezos.com/docs/protocols/012_ithaca.html')) {
+    fail('Jakarta anthology story must retain official Jakarta and Ithaca source receipts');
+  }
 
   if (hoursSince(data.generatedAt) > 72) {
     fail('governance-votes is older than 72 hours; run npm run refresh:governance');
@@ -1990,6 +2000,11 @@ async function checkSitemapCoverage() {
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
   const { siteMapSitemapEntries } = await import(moduleUrl);
   const expected = new Set(siteMapSitemapEntries().map((entry) => new URL(entry.href, 'https://tezos.systems').toString()));
+  const protocolData = JSON.parse(await readText('data/protocol-data.json'));
+  for (const protocol of protocolData.protocols || []) {
+    const slug = String(protocol?.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (slug) expected.add(`https://tezos.systems/anthology/${slug}/`);
+  }
 
   for (const url of expected) {
     if (!locs.has(url)) fail(`sitemap.xml missing ${url}`);
@@ -2112,7 +2127,7 @@ async function checkSelectorContracts() {
     ['Tezos Handoff choose-for-me route', 'Choose for me', siteHandoffSource],
     ['hero command bar slash-tip placeholder', 'Press / to search every feature or paste any Tezos ID…'],
     ['timeline share fallback host', 'document.querySelector(\'.upgrade-badges\')'],
-    ['timeline share protocol history chamber fallback', 'document.querySelector(\'#protocol-history-chamber-modal .protocol-history-chamber-header\')'],
+    ['timeline share protocol history chamber fallback', 'document.querySelector(\'#protocol-history-chamber-modal .protocol-history-feature-panel\')'],
     ['header protocol chip', 'id="header-protocol-chip" href="#protocol-history"'],
     ['command deck shell', 'class="upgrade-clock command-deck"'],
     ['hero command bar slot', 'class="hero-slot" id="hero-slot"'],
@@ -2306,7 +2321,7 @@ async function checkSelectorContracts() {
     ['Domains hash route', "hash === 'domains'", app],
     ['Domains legacy hash route', "hash === 'tezos-domains'", app],
     ['Domains modal cleanup', 'closeTezosDomainsChamber', app],
-    ['Protocol history hash route', "params.has('protocol')", app],
+    ['Protocol history legacy hash route', "params.get('protocol')", app],
     ['Protocol History Chamber hash route', "hash === 'protocol-history'", app],
     ['Protocol history global opener', 'window.openProtocolHistoryByName = openProtocolHistoryByName', app],
     ['Protocol History Chamber global opener', 'window.openProtocolHistoryChamber = openProtocolHistoryChamber', app],
@@ -2318,19 +2333,22 @@ async function checkSelectorContracts() {
     ['Protocol Anthology crawlable route source', "slug: 'anthology'", chamberRoutes],
     ['Protocol Anthology card anatomy', 'protocol-history-entry-anthology', app],
     ['Protocol Anthology recent spines', 'protocol-history-entry-spine-item', app],
-    ['Protocol Anthology curator board', 'protocol-history-anthology-board', app],
+    ['Protocol Anthology library host', 'protocol-history-anthology-board', app],
     ['Protocol Anthology real-data renderer', 'function renderProtocolAnthologyBoard', app],
-    ['Protocol Anthology protocol open chips', 'data-protocol-open', app],
-    ['Protocol Anthology living archive strip', 'protocol-anthology-live', app],
-    ['Protocol Anthology clash map renderer', 'protocol-anthology-clash-map', app],
-    ['Protocol Anthology metrics styles', '.protocol-anthology-metrics', heroSearchCss],
-    ['Protocol Anthology shelves styles', '.protocol-anthology-shelves', heroSearchCss],
-    ['Protocol Anthology clash styles', '.protocol-anthology-clash', heroSearchCss],
+    ['Protocol Anthology protocol page links', 'protocolStoryPath(protocol)', app],
+    ['Protocol Anthology searchable index', 'protocol-anthology-search', app],
+    ['Protocol Anthology filter controls', 'data-anthology-filter', app],
+    ['Protocol Anthology chapter list styles', '.protocol-anthology-chapter', heroSearchCss],
+    ['Protocol Anthology reader styles', '.protocol-story-article', heroSearchCss],
     ['Protocol Anthology timeline crowd styles', '.contention-crowd', heroSearchCss],
     ['Protocol History Chamber modal', "overlay.id = 'protocol-history-chamber-modal'", app],
-    ['Protocol History Chamber timeline launcher', 'data-protocol-history-jump="timeline"', app],
-    ['Protocol History Chamber impact launcher', 'data-protocol-history-jump="impact"', app],
+    ['Protocol History Chamber technical disclosure', 'protocol-anthology-tools', app],
+    ['Protocol History chapter pretty route', '/anthology/${encodeURIComponent(slug)}/', app],
+    ['Protocol search opens canonical Anthology chapter URLs', '/anthology/${encodeURIComponent(slug)}/', search],
     ['Protocol History stable read button', 'history-expand-btn', app],
+    ['Protocol History copy-link action', 'history-modal-copy-link', app],
+    ['Protocol History native-share action', 'history-modal-native-share', app],
+    ['Protocol History image action', 'history-modal-share', app],
     ['Protocol History print button', 'history-modal-print', app],
     ['Protocol History print helper', 'function printProtocolHistory', app],
     ['Protocol History Chamber reveal helper', 'function revealProtocolHistorySection', app],

@@ -220,15 +220,25 @@
         "sections": [
           {
             "heading": "From Escape to Toggle",
-            "content": "Jakarta transformed the LB \"Escape Hatch\" into a more sophisticated \"Toggle Vote\" system. Instead of a binary escape mechanism, bakers now had three options: On, Off, or Pass.\n\nThis made deactivation reversible \u2014 LB could be turned off and then turned back on through ongoing democratic votes. Technically elegant, but it effectively enshrined LB as a permanent governance debate."
+            "content": "Jakarta replaced the binary Liquidity Baking escape flag with three explicit choices: On, Off, or Pass. Pass leaves the exponential moving average (EMA) unchanged; Off pushes it toward stopping the subsidy; On pushes it toward continuing or restarting the subsidy.\n\nThe protocol also made deactivation reversible. If Off votes carried the EMA across the threshold, the subsidy stopped \u2014 but later On votes could move the EMA back below the threshold and restart it.\n\nAt the same time, Jakarta raised the escape threshold from the one-third level introduced by Ithaca back to 50%. The official Jakarta notes said the reset accounted for the new symmetry introduced by Pass."
           },
           {
             "heading": "The Entrenchment Concern",
-            "content": "Critics saw the Toggle Vote as further entrenching a controversial mechanism into the protocol. Rather than resolving the LB debate, Jakarta made it a permanent fixture of Tezos governance.\n\nThe entities benefiting from LB \u2014 farmers extracting yield from the subsidy \u2014 were unlikely to vote to turn it off. The toggle vote structure arguably favored continuation over removal."
+            "content": "That 50% reset compounded the entrenchment concern. Critics argued that Pass and reversibility cut the other way: abstentions no longer moved the EMA at all, and an Off crossing no longer ended the subsidy permanently. Both changes reduced the risk of an accidental or irreversible shutdown, so they did not obviously justify making the Off hurdle harder than Ithaca's one-third threshold.\n\nThe result was structurally favorable to continuation. Stopping required the EMA to reach 50% among the On and Off signal, while restarting required only enough later On votes to bring it back below that line. This was a moving per-block signal, not a one-time ballot, but the asymmetry became a central part of the criticism."
           },
           {
             "heading": "Why It Matters",
             "content": "Jakarta completed the Liquidity Baking Trilogy. Three consecutive protocol upgrades had their governance conversations dominated by a single controversial feature.\n\nThe Toggle Vote became the template for ongoing economic policy debates in Tezos \u2014 a permanent democratic mechanism for managing protocol-level economic interventions."
+          }
+        ],
+        "sources": [
+          {
+            "label": "Official Jakarta protocol changes",
+            "url": "https://octez.tezos.com/docs/protocols/013_jakarta.html"
+          },
+          {
+            "label": "Official Ithaca protocol changes",
+            "url": "https://octez.tezos.com/docs/protocols/012_ithaca.html"
           }
         ]
       },

@@ -5,6 +5,15 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-15',
+        entries: [
+            { type: '🎨', text: 'Protocol Anthology is now an editorial field guide with a current-chapter cover, three learning lenses, era shelves, larger chapter cards, and a 60-second brief in every reader' },
+            { type: '✨', text: 'Protocol Anthology is now a searchable newest-first library with a direct URL for every chapter, labeled link, native, image, and print sharing, source receipts, and previous or next reading' },
+            { type: '🔧', text: 'Jakarta’s Toggle Vote chapter now records Ithaca’s one-third threshold, Jakarta’s reset to 50%, the official symmetry rationale, and the case against compounding the change' },
+            { type: '✨', text: 'Every protocol chapter now has a clean share URL with chapter-specific social metadata, a reading-progress rail, direct native and image sharing, printable receipts, and mobile reading controls' },
+        ]
+    },
+    {
         date: '2026-08-14',
         entries: [
             { type: '🔧', text: 'Release Radar now records the Tezos X kernel 0.9 code release while keeping mainnet governance unstarted and Octez 25.1 and EVM node 0.64 as the latest public tags' },

@@ -149,6 +149,7 @@ tezos.systems/
 │   ├── refresh-scheduled-data.mjs      # Failure-isolated scheduled data delivery
 │   ├── check-generated-freshness.mjs   # Cross-family cadence and rollover alarm
 │   ├── generate-chamber-routes.mjs    # Pretty Chamber route generator
+│   ├── generate-anthology-routes.mjs  # Per-chapter Anthology share-route generator
 │   ├── generate-chamber-og-images.mjs # Per-Chamber OG image generator
 │   ├── generate-milestone-catalog.mjs # 14-day/100-commit milestone refresh
 │   ├── bake-compare-pages.mjs         # Static compare-page content baker
@@ -1619,7 +1620,7 @@ metadata:
 
 - `index.html` serves `css/styles.min.css?v=...` and `js/core/app.js?v=...`.
 - `sw.js` uses `CACHE_NAME = 'tezos-systems-v...'`.
-- Current aligned shell cache stamp: `v571`, including hero search, theme
+- Current aligned shell cache stamp: `v573`, including hero search, theme
   bundles, and the Baker Directory, Ledger Flow, Network Pulse, Network Health,
   Staking, Maxis, shared market-room, Uranium, Precious Metals, and Critical
   Minerals lazy CSS loaders.

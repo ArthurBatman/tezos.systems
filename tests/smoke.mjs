@@ -5988,9 +5988,9 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await page.locator('#header-protocol-chip').click();
   await page.waitForFunction(() => window.location.hash === '#protocol-history', null, { timeout: 5000 });
-  await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item').first().waitFor({ state: 'visible', timeout: 10000 });
-  const firstProtocolInHistory = await page.locator('#protocol-history-chamber-modal #upgrade-timeline .timeline-item').first().getAttribute('data-protocol');
-  assert(firstProtocolInHistory === 'Ushuaia', `hero command bar: Protocol History Chamber should start at current protocol, saw ${firstProtocolInHistory}`);
+  await page.locator('#protocol-history-chamber-modal.active .protocol-anthology-list .protocol-anthology-chapter').first().waitFor({ state: 'visible', timeout: 10000 });
+  const firstProtocolInHistory = await page.locator('#protocol-history-chamber-modal .protocol-anthology-list .protocol-anthology-chapter').first().getAttribute('data-protocol-open');
+  assert(firstProtocolInHistory === 'Ushuaia', `hero command bar: Protocol Anthology should start at current protocol, saw ${firstProtocolInHistory}`);
   await page.keyboard.press('/');
   const modalSlashState = await page.evaluate(() => ({
     modalActive: Boolean(document.querySelector('#protocol-history-chamber-modal.active')),
@@ -6287,22 +6287,48 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.waitForFunction(() => /Protocol Anthology|protocol-history/i.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
   await page.keyboard.press('Enter');
   await page.waitForURL((url) => url.pathname === '/anthology/' && !url.hash, { timeout: 5000 });
-  await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item').first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.waitForFunction(() => /Curator's desk/i.test(document.querySelector('#protocol-history-chamber-modal')?.textContent || ''), null, { timeout: 10000 });
+  await page.locator('#protocol-history-chamber-modal.active .protocol-anthology-chapter').first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => /Find a protocol/i.test(document.querySelector('#protocol-history-chamber-modal')?.textContent || ''), null, { timeout: 10000 });
   const historyChamberText = await page.locator('#protocol-history-chamber-modal').innerText();
-  assert(/Protocol History Chamber/i.test(historyChamberText) && /Impact/i.test(historyChamberText), `hero command bar: Protocol History Chamber did not preserve timeline/impact surface: ${historyChamberText.slice(0, 320)}`);
-  assert(/Curator's desk/i.test(historyChamberText) && /Long reads/i.test(historyChamberText) && /Economic governance shelf/i.test(historyChamberText), `hero command bar: Protocol Anthology board missing real archive context: ${historyChamberText.slice(0, 420)}`);
+  assert(/Protocol Anthology/i.test(historyChamberText) && /Technical timeline & impact/i.test(historyChamberText), `hero command bar: Protocol Anthology did not preserve its advanced timeline/impact surface: ${historyChamberText.slice(0, 320)}`);
+  assert(/Find a protocol/i.test(historyChamberText) && /Deep reads/i.test(historyChamberText) && /newest first/i.test(historyChamberText), `hero command bar: Protocol Anthology library missing readable discovery controls: ${historyChamberText.slice(0, 420)}`);
   const anthologyState = await page.evaluate(() => ({
-    metricCount: document.querySelectorAll('#protocol-history-chamber-modal .protocol-anthology-metric').length,
-    featureCount: document.querySelectorAll('#protocol-history-chamber-modal .protocol-anthology-feature').length,
-    shelfCount: document.querySelectorAll('#protocol-history-chamber-modal .protocol-anthology-shelf').length,
-    quebecLinks: document.querySelectorAll('#protocol-history-chamber-modal [data-protocol-open="Quebec"]').length
+    chapterCount: document.querySelectorAll('#protocol-history-chamber-modal .protocol-anthology-list .protocol-anthology-chapter').length,
+    filterCount: document.querySelectorAll('#protocol-history-chamber-modal [data-anthology-filter]').length,
+    hasSearch: Boolean(document.querySelector('#protocol-history-chamber-modal #protocol-anthology-search')),
+    quebecHref: document.querySelector('#protocol-history-chamber-modal [data-protocol-open="Quebec"]')?.getAttribute('href') || ''
   }));
-  assert(anthologyState.metricCount >= 4 && anthologyState.featureCount >= 3 && anthologyState.shelfCount >= 3 && anthologyState.quebecLinks >= 1, `hero command bar: Protocol Anthology anatomy incomplete: ${JSON.stringify(anthologyState)}`);
+  assert(anthologyState.chapterCount >= 22 && anthologyState.filterCount === 3 && anthologyState.hasSearch && anthologyState.quebecHref === '/anthology/quebec/', `hero command bar: Protocol Anthology library anatomy incomplete: ${JSON.stringify(anthologyState)}`);
+  await page.locator('#protocol-anthology-search').fill('toggle vote');
+  const filteredAnthology = await page.evaluate(() => ({
+    visible: [...document.querySelectorAll('.protocol-anthology-list .protocol-anthology-chapter')]
+      .filter((chapter) => !chapter.hidden)
+      .map((chapter) => chapter.getAttribute('data-protocol-open')),
+    count: document.getElementById('protocol-anthology-results')?.textContent || ''
+  }));
+  assert(filteredAnthology.visible.length === 1 && filteredAnthology.visible[0] === 'Jakarta' && /1 chapter/.test(filteredAnthology.count), `hero command bar: Protocol Anthology search was not precise ${JSON.stringify(filteredAnthology)}`);
+  await page.locator('#protocol-anthology-search').fill('');
   await page.locator('#protocol-history-chamber-modal [data-protocol-open="Quebec"]').first().click();
+  await page.waitForFunction(() => window.location.pathname === '/anthology/quebec/', null, { timeout: 5000 });
   await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 10000 });
   const anthologyProtocolText = await page.locator('#protocol-history-modal').innerText();
   assert(/Quebec\/Qena Wars|Quebec Protocol/i.test(anthologyProtocolText), `hero command bar: anthology protocol chip did not open real Quebec history: ${anthologyProtocolText.slice(0, 320)}`);
+  const storyActions = await page.evaluate(() => ({
+    copy: Boolean(document.getElementById('history-modal-copy-link')),
+    nativeShare: Boolean(document.getElementById('history-modal-native-share')),
+    image: Boolean(document.getElementById('history-modal-share')),
+    print: Boolean(document.getElementById('history-modal-print')),
+    pagination: document.querySelectorAll('#protocol-history-modal [data-protocol-story-nav]').length
+  }));
+  assert(storyActions.copy && storyActions.nativeShare && storyActions.image && storyActions.print && storyActions.pagination >= 1, `hero command bar: anthology story sharing/navigation controls incomplete ${JSON.stringify(storyActions)}`);
+  await page.locator('#protocol-history-modal #history-modal-close').click();
+  await page.locator('#protocol-history-modal').waitFor({ state: 'detached', timeout: 5000 });
+  await page.waitForFunction(() => window.location.pathname === '/anthology/' && !new URLSearchParams(window.location.search).has('protocol'), null, { timeout: 5000 });
+  await page.locator('#protocol-history-chamber-modal [data-protocol-open="Jakarta"]').first().click();
+  await page.waitForFunction(() => window.location.pathname === '/anthology/jakarta/', null, { timeout: 5000 });
+  const jakartaStory = await page.locator('#protocol-history-modal').innerText();
+  const jakartaSources = await page.locator('#protocol-history-modal .protocol-story-sources a').count();
+  assert(/one-third/i.test(jakartaStory) && /50%/.test(jakartaStory) && /Pass/.test(jakartaStory) && jakartaSources >= 2, `hero command bar: Jakarta story omitted threshold reset or official receipts: ${jakartaStory.slice(0, 520)}`);
   await page.locator('#protocol-history-modal #history-modal-close').click();
   await page.locator('#protocol-history-modal').waitFor({ state: 'detached', timeout: 5000 });
   await page.locator('#protocol-history-chamber-modal .chamber-close').click();
@@ -6310,13 +6336,21 @@ async function smokeHeroCommandBar(browser, baseUrl) {
 
   await page.locator('#hero-search-input').fill('Granada');
   await page.waitForFunction(() => /Granada/.test(document.querySelector('#hero-search-panel')?.textContent || ''), null, { timeout: 5000 });
-  await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.location.hash === '#protocol=Granada', null, { timeout: 5000 });
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === '/anthology/granada/', { waitUntil: 'domcontentloaded', timeout: 10000 }),
+    page.keyboard.press('Enter')
+  ]);
   await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 10000 });
+  const granadaStoryUrl = new URL(page.url());
+  assert(granadaStoryUrl.pathname === '/anthology/granada/', `hero command bar: Granada story URL mismatch: ${granadaStoryUrl}`);
   const protocolText = await page.locator('#protocol-history-modal').innerText();
   assert(/Liquidity Baking Wars Begin|Granada Protocol/.test(protocolText), `hero command bar: protocol modal text mismatch: ${protocolText.slice(0, 320)}`);
   await page.locator('#protocol-history-modal #history-modal-close').click();
   await page.locator('#protocol-history-modal').waitFor({ state: 'detached', timeout: 5000 });
+  if (await page.locator('#protocol-history-chamber-modal.active .chamber-close').count()) {
+    await page.locator('#protocol-history-chamber-modal.active .chamber-close').click();
+    await page.locator('#protocol-history-chamber-modal').waitFor({ state: 'detached', timeout: 5000 });
+  }
 
   await page.keyboard.press('/');
   await page.locator('#hero-search-input').fill('/calculator');
@@ -23216,7 +23250,8 @@ async function smokeUxChanges(browser, baseUrl) {
 
   await page.evaluate(() => { window.location.hash = 'protocol-history'; });
   await page.locator('#protocol-history-chamber-modal.active').waitFor({ state: 'visible', timeout: 15000 });
-  await page.locator('#upgrade-effect-toggle').waitFor({ state: 'attached', timeout: 10000 });
+  await page.locator('#protocol-history-chamber-modal .protocol-anthology-tools > summary').click();
+  await page.locator('#upgrade-effect-toggle').waitFor({ state: 'visible', timeout: 10000 });
   const upgradeCollapsed = await page.evaluate(() => {
     const toggle = document.querySelector('#upgrade-effect-toggle');
     const panel = document.querySelector('#upgrade-effect-panel');
@@ -24849,6 +24884,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
 
   await page.locator('#protocol-history-entry-card').scrollIntoViewIfNeeded();
   await page.locator('#protocol-history-entry-card .chamber-expand-cue').click();
+  await page.locator('#protocol-history-chamber-modal .protocol-anthology-tools > summary').click();
   await page.locator('#protocol-history-chamber-modal.active #upgrade-timeline .timeline-item[data-protocol="Quebec"]').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.timeline-share-btn').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('.timeline-share-btn').click();
@@ -24863,6 +24899,10 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   await quebecReadButton.hover();
   await quebecReadButton.click();
   await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#protocol-history-modal #history-modal-copy-link').click();
+  await page.waitForFunction(() => /Chapter link copied/.test(document.getElementById('protocol-story-share-status')?.textContent || ''), null, { timeout: 5000 });
+  const copiedProtocolStoryUrl = await page.evaluate(() => navigator.clipboard.readText());
+  assert(copiedProtocolStoryUrl === `${baseUrl}/anthology/quebec/`, `feature workflows protocol history copied the wrong URL: ${copiedProtocolStoryUrl}`);
   await page.locator('#protocol-history-modal #history-modal-print').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#protocol-history-modal #history-modal-share').click();
   await expectShareModal(page, 'feature workflows protocol history share', issues);
@@ -30294,7 +30334,7 @@ async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
   );
   await page.evaluate(() => document.getElementById('overlay-stack-share-opener')?.remove());
 
-  response = await page.goto(`${baseUrl}/#protocol=Ushuaia`, { waitUntil: 'commit' });
+  response = await page.goto(`${baseUrl}/anthology/ushuaia/`, { waitUntil: 'commit' });
   assert(response?.ok(), `overlay stack direct Protocol Story failed with HTTP ${response?.status()}`);
   await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 30000 });
   await page.waitForFunction(() => document.activeElement?.id === 'history-modal-close');
@@ -30309,6 +30349,8 @@ async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
       modal: dialog?.getAttribute('aria-modal') || '',
       labelledBy: dialog?.getAttribute('aria-labelledby') || '',
       focusedClose: document.activeElement?.id === 'history-modal-close',
+      parentActive: document.getElementById('protocol-history-chamber-modal')?.classList.contains('active') || false,
+      parentInert: document.getElementById('protocol-history-chamber-modal')?.hasAttribute('inert') || false,
       backgroundIsolated: siblings.length > 0 && siblings.every((element) => element.hasAttribute('inert')),
       nonIsolated: siblings.filter((element) => !element.hasAttribute('inert')).map((element) => element.id || element.className || element.tagName),
       bodyLocked: document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden'
@@ -30319,55 +30361,54 @@ async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
       && directStory.modal === 'true'
       && directStory.labelledBy === 'protocol-history-story-title'
       && directStory.focusedClose
+      && directStory.parentActive
+      && directStory.parentInert
       && directStory.backgroundIsolated
       && directStory.bodyLocked,
     `overlay stack direct Protocol Story lifecycle is incomplete ${JSON.stringify(directStory)}`
   );
   await page.keyboard.press('Escape');
   await page.locator('#protocol-history-modal').waitFor({ state: 'detached', timeout: 3000 });
-  await page.waitForFunction(() => !new URLSearchParams(window.location.hash.slice(1)).has('protocol'));
-  await page.waitForFunction(() => (
-    ['header-protocol-chip', 'features-gear', 'hero-search-input'].includes(document.activeElement?.id)
-  ), null, { timeout: 2000 });
+  await page.waitForFunction(() => !new URLSearchParams(window.location.search).has('protocol'));
+  await page.waitForFunction(() => document.getElementById('protocol-history-chamber-modal')?.contains(document.activeElement), null, { timeout: 2000 });
   const directStoryClosed = await page.evaluate(() => ({
+    pathname: window.location.pathname,
+    search: window.location.search,
     hash: window.location.hash,
     active: document.activeElement?.id || document.activeElement?.tagName || '',
-    activeIsFallback: ['header-protocol-chip', 'features-gear', 'hero-search-input'].includes(document.activeElement?.id),
+    parentActive: document.getElementById('protocol-history-chamber-modal')?.classList.contains('active') || false,
+    focusInParent: document.getElementById('protocol-history-chamber-modal')?.contains(document.activeElement) || false,
     bodyOverflow: document.body.style.overflow,
-    htmlOverflow: document.documentElement.style.overflow,
-    focusFallbacks: ['#header-protocol-chip', '#features-gear', '#hero-search-input'].map((selector) => {
-      const element = document.querySelector(selector);
-      return {
-        selector,
-        connected: element?.isConnected || false,
-        inert: Boolean(element?.closest('[inert]')),
-        rects: element?.getClientRects().length || 0,
-        visibility: element ? getComputedStyle(element).visibility : ''
-      };
-    })
+    htmlOverflow: document.documentElement.style.overflow
   }));
   assert(
-    !directStoryClosed.hash.includes('protocol=')
-      && directStoryClosed.activeIsFallback
-      && !directStoryClosed.bodyOverflow
-      && !directStoryClosed.htmlOverflow,
+    directStoryClosed.pathname === '/anthology/'
+      && !directStoryClosed.search.includes('protocol=')
+      && directStoryClosed.parentActive
+      && directStoryClosed.focusInParent
+      && directStoryClosed.bodyOverflow === 'hidden'
+      && directStoryClosed.htmlOverflow === 'hidden',
     `overlay stack direct Protocol Story close left stale route/focus/scroll ${JSON.stringify(directStoryClosed)}`
   );
 
-  await page.goto(`${baseUrl}/#protocol-history`, { waitUntil: 'commit' });
+  await page.goto(`${baseUrl}/#protocol-history`, { waitUntil: 'domcontentloaded' });
+  await page.waitForURL((url) => url.pathname === '/' && url.hash === '#protocol-history', { timeout: 5000 });
   await page.locator('#protocol-history-chamber-modal.active [data-protocol-open="Quebec"]').first().waitFor({ state: 'visible', timeout: 30000 });
   const nestedOpener = page.locator('#protocol-history-chamber-modal.active [data-protocol-open="Quebec"]').first();
   await nestedOpener.click();
   await page.locator('#protocol-history-modal').waitFor({ state: 'visible', timeout: 5000 });
   await page.waitForFunction(() => document.activeElement?.id === 'history-modal-close');
   const nestedStory = await page.evaluate(() => ({
+    pathname: window.location.pathname,
+    search: window.location.search,
     hash: window.location.hash,
     parentActive: document.getElementById('protocol-history-chamber-modal')?.classList.contains('active') || false,
     parentInert: document.getElementById('protocol-history-chamber-modal')?.hasAttribute('inert') || false,
     childFocused: document.activeElement?.id === 'history-modal-close'
   }));
   assert(
-    nestedStory.hash === '#protocol-history'
+    nestedStory.pathname === '/anthology/quebec/'
+      && !nestedStory.search
       && nestedStory.parentActive
       && nestedStory.parentInert
       && nestedStory.childFocused,
@@ -30380,6 +30421,8 @@ async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
     const opener = parent?.querySelector('[data-protocol-open="Quebec"]');
     return {
       active: document.activeElement?.id || document.activeElement?.className || document.activeElement?.tagName || '',
+      pathname: window.location.pathname,
+      search: window.location.search,
       hash: window.location.hash,
       openerConnected: opener?.isConnected || false,
       openerDisabled: opener?.disabled || false,
@@ -30393,7 +30436,8 @@ async function smokeOverlayFeatureIntegrations(browser, baseUrl) {
     };
   });
   assert(
-    nestedClosed.hash === '#protocol-history'
+    nestedClosed.pathname === '/anthology/'
+      && !new URLSearchParams(nestedClosed.search).has('protocol')
       && nestedClosed.parentActive
       && !nestedClosed.parentInert
       && nestedClosed.focusInParent,

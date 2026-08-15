@@ -2323,14 +2323,54 @@ function protocolDate(protocol) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function protocolYear(protocol) {
-    return protocolDate(protocol)?.getUTCFullYear() || null;
-}
-
 function formatProtocolDate(protocol) {
     const date = protocolDate(protocol);
     if (!date) return '';
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+function protocolRouteSlug(value) {
+    return String(value?.name || value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function protocolStoryPath(value) {
+    const slug = protocolRouteSlug(value);
+    return slug ? `/anthology/${encodeURIComponent(slug)}/` : '/anthology/';
+}
+
+function protocolStoryUrl(value) {
+    return new URL(protocolStoryPath(value), window.location.origin).toString();
+}
+
+function findProtocolByRouteValue(protocols, value) {
+    const target = protocolRouteSlug(value);
+    if (!target || !Array.isArray(protocols)) return null;
+    return protocols.find((protocol) => protocolRouteSlug(protocol) === target)
+        || protocols.find((protocol) => String(protocol?.name || '').toLowerCase() === String(value || '').trim().toLowerCase())
+        || null;
+}
+
+function getProtocolStoryRouteValue() {
+    const queryValue = new URLSearchParams(window.location.search).get('protocol');
+    if (queryValue) return queryValue;
+    const match = window.location.pathname.match(/^\/anthology\/([^/]+)\/?$/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : '';
+}
+
+function setProtocolStoryRoute(protocol, { replace = false } = {}) {
+    const path = protocolStoryPath(protocol);
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current === path && !window.location.hash) return;
+    const method = replace ? 'replaceState' : 'pushState';
+    window.history[method]({
+        ...(window.history.state || {}),
+        tezosSystemsRoute: 'anthology-protocol',
+        protocol: protocolRouteSlug(protocol)
+    }, '', path);
 }
 
 function buildProtocolLoreMap(data) {
@@ -2375,49 +2415,12 @@ function mergeProtocolLore(protocols, loreData) {
     });
 }
 
-function protocolEraLabel(protocol) {
-    const year = protocolYear(protocol);
-    if (!year) return 'Archive shelf';
-    if (year <= 2020) return 'Origins shelf';
-    if (year === 2021) return 'Capability shelf';
-    if (year <= 2023) return 'Finality and rollups shelf';
-    if (year <= 2025) return 'Economic governance shelf';
-    return 'Tezos X runway shelf';
-}
-
 function summarizeProtocolSpan(protocols) {
     const dates = protocols.map(protocolDate).filter(Boolean).sort((a, b) => a - b);
     if (!dates.length) return 'dates syncing';
     const first = dates[0].getUTCFullYear();
     const last = dates[dates.length - 1].getUTCFullYear();
     return first === last ? String(first) : `${first}-${last}`;
-}
-
-function chooseFeaturedAnthologyChapters(protocols, currentProtocol) {
-    const chosen = [];
-    const add = (protocol, label) => {
-        if (!protocol?.name || chosen.some((item) => item.protocol.name === protocol.name)) return;
-        chosen.push({ protocol, label });
-    };
-
-    add(currentProtocol, 'Current chapter');
-    add(protocols.find((protocol) => protocol.history && protocol.name !== currentProtocol?.name), 'Newest long read');
-    add(protocols.find((protocol) => protocol.name === 'Oxford')
-        || protocols.find((protocol) => /rejected|rejection|promotion/i.test(`${protocol.debate || ''} ${protocol.history?.title || ''}`)), 'Governance could say no');
-    add(protocols.find((protocol) => protocol.name === 'Granada'), 'Economic fault line');
-    add(protocols.find((protocol) => protocol.name === 'Ithaca'), 'Finality arrives');
-
-    return chosen.slice(0, 4);
-}
-
-function buildAnthologyMetric(label, value, note) {
-    return `
-        <div class="protocol-anthology-metric">
-            <span>${escapeHtml(label)}</span>
-            <strong>${escapeHtml(value)}</strong>
-            <small>${escapeHtml(note)}</small>
-        </div>
-    `;
 }
 
 function renderProtocolAlphabetMarch(protocols = [], currentProtocol = null) {
@@ -2442,28 +2445,134 @@ function renderProtocolAlphabetMarch(protocols = [], currentProtocol = null) {
     `;
 }
 
-function buildAnthologyChapterButton(protocol, label = null) {
-    const historyCount = Array.isArray(protocol?.history?.sections) ? protocol.history.sections.length : 0;
-    const detail = label || (historyCount ? `${historyCount} scene${historyCount === 1 ? '' : 's'}` : formatProtocolDate(protocol) || 'open');
-    const classes = ['protocol-anthology-chip'];
-    if (protocol?.history || protocol?.contention || protocol?.debate) classes.push('has-clash');
+function anthologyChapterSearchText(protocol) {
+    return [
+        protocol?.name,
+        protocol?.headline,
+        protocol?.debate,
+        protocol?.history?.title,
+        protocol?.history?.subtitle,
+        ...protocolAnthologyTopics(protocol),
+        ...(protocol?.changes || [])
+    ].filter(Boolean).join(' ').toLowerCase();
+}
+
+const ANTHOLOGY_LENS_META = Object.freeze({
+    governance: {
+        eyebrow: 'Rules & power',
+        title: 'How Tezos decides',
+        copy: 'Proposal thresholds, ballot mechanics, rejections, and governance flashpoints.',
+        trail: 'Babylon · Granada · Oxford · Quebec'
+    },
+    scaling: {
+        eyebrow: 'Speed & scale',
+        title: 'How Tezos got faster',
+        copy: 'Shorter blocks, rollups, the DAL, and the infrastructure behind Tezos X.',
+        trail: 'Granada · Mumbai · Paris · Ushuaia'
+    },
+    economics: {
+        eyebrow: 'Money & incentives',
+        title: 'How the economics moved',
+        copy: 'Liquidity Baking, staking, issuance, rewards, and the arguments around them.',
+        trail: 'Granada · Ithaca · Oxford · Quebec'
+    }
+});
+
+function protocolAnthologyTopics(protocol) {
+    const text = [
+        protocol?.name,
+        protocol?.headline,
+        protocol?.debate,
+        protocol?.history?.title,
+        protocol?.history?.subtitle,
+        ...(protocol?.changes || [])
+    ].filter(Boolean).join(' ').toLowerCase();
+    const topics = [];
+    if (/govern|vote|proposal|ballot|quorum|adoption|rejection|amendment|threshold/.test(text)) topics.push('governance');
+    if (/rollup|dal|block time|bandwidth|throughput|gas|scal|operation|pvm/.test(text)) topics.push('scaling');
+    if (/liquidity|issuance|inflation|reward|stake|staking|delegation|slashing|subsid|economic|baking threshold/.test(text)) topics.push('economics');
+    if (/consensus|tenderbake|emmy|finality|attestation|baker|bls|randomness/.test(text)) topics.push('consensus');
+    return topics.length ? topics : ['protocol'];
+}
+
+function protocolAnthologyEra(protocol) {
+    const year = protocolDate(protocol)?.getUTCFullYear() || 0;
+    if (year <= 2020) return { id: 'foundations', title: 'Foundations', span: '2019–2020', copy: 'The first amendments proved the chain could change itself.' };
+    if (year <= 2022) return { id: 'expansion', title: 'Expansion & finality', span: '2021–2022', copy: 'Economic experiments, faster blocks, and Tenderbake reshaped the network.' };
+    if (year <= 2024) return { id: 'rollups', title: 'The rollup era', span: '2023–2024', copy: 'Smart Rollups, the DAL, and staking economics moved toward production.' };
+    return { id: 'scale', title: 'Tezos X runway', span: '2025–now', copy: 'Faster consensus and more data capacity opened the current scaling chapter.' };
+}
+
+function protocolAnthologyTone(protocol) {
+    const ordinal = Number(getProtocolUpgradeOrdinal(protocol, [])) || Number(protocol?.number) || 1;
+    return ['mint', 'violet', 'coral'][Math.abs(ordinal) % 3];
+}
+
+function protocolBriefExcerpt(value, maxLength = 260) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= maxLength) return text;
+    const clipped = text.slice(0, maxLength + 1);
+    const boundary = clipped.lastIndexOf(' ');
+    return `${clipped.slice(0, boundary > maxLength * 0.7 ? boundary : maxLength).trim()}…`;
+}
+
+function buildAnthologyChapterLink(protocol, protocols, { featured = false } = {}) {
+    const ordinal = getProtocolUpgradeOrdinal(protocol, protocols);
+    const longRead = Boolean(protocol?.history?.sections?.length);
+    const debated = Boolean(protocol?.debate || protocol?.contention || protocol?.history);
+    const classes = ['protocol-anthology-chapter'];
+    if (featured) classes.push('is-featured');
+    if (protocol?.isCurrent) classes.push('is-current');
+    const topics = protocolAnthologyTopics(protocol);
+    const badges = topics.slice(0, 3).map((topic) => `<span>${escapeHtml(topic)}</span>`).join('');
+    const ordinalLabel = ordinal === null ? 'Follow-up' : `Chapter ${String(ordinal).padStart(2, '0')}`;
     return `
-        <button class="${classes.join(' ')}" type="button" data-protocol-open="${escapeHtml(protocol.name)}">
-            <strong>${escapeHtml(protocol.name)}</strong>
-            <small>${escapeHtml(detail)}</small>
-        </button>
+        <a class="${classes.join(' ')}"
+           href="${escapeHtml(protocolStoryPath(protocol))}"
+           data-protocol-open="${escapeHtml(protocol.name)}"
+           data-anthology-topics="${escapeHtml(topics.join(' '))}"
+           data-anthology-tone="${protocolAnthologyTone(protocol)}"
+           data-anthology-long-read="${longRead ? 'true' : 'false'}"
+           data-anthology-debated="${debated ? 'true' : 'false'}"
+           data-anthology-search="${escapeHtml(anthologyChapterSearchText(protocol))}">
+            <span class="protocol-anthology-chapter-number"><small>${escapeHtml(ordinalLabel)}</small><b>${escapeHtml(String(protocolDate(protocol)?.getUTCFullYear() || ''))}</b></span>
+            <span class="protocol-anthology-chapter-copy">
+                <span class="protocol-anthology-chapter-heading">
+                    <strong>${escapeHtml(protocol.name)}</strong>
+                    <time datetime="${escapeHtml(protocol.date || '')}">${escapeHtml(formatProtocolDate(protocol))}</time>
+                </span>
+                <span class="protocol-anthology-chapter-summary">${escapeHtml(protocol.history?.title || protocol.headline || 'Open protocol context')}</span>
+                ${protocol?.changes?.[0] ? `<span class="protocol-anthology-chapter-move"><b>Key move</b> ${escapeHtml(protocol.changes[0])}</span>` : ''}
+                ${badges ? `<span class="protocol-anthology-chapter-badges">${badges}</span>` : ''}
+            </span>
+            <span class="protocol-anthology-chapter-open" aria-hidden="true"><small>${longRead ? 'Deep read' : 'Quick read'}</small><b>Open →</b></span>
+        </a>
     `;
 }
 
-function buildAnthologyClashButton(protocol, label = null) {
-    const detail = label || protocol?.history?.title || protocol?.debate || protocol?.headline || 'Governance clash';
-    return `
-        <button class="protocol-anthology-clash" type="button" data-protocol-open="${escapeHtml(protocol.name)}">
-            <span class="protocol-anthology-crowds" aria-hidden="true"></span>
-            <strong>${escapeHtml(protocol.name)}</strong>
-            <small>${escapeHtml(detail)}</small>
-        </button>
-    `;
+function applyAnthologyLibraryFilters(board) {
+    const input = board.querySelector('#protocol-anthology-search');
+    const activeFilter = board.querySelector('[data-anthology-filter].is-active')?.dataset.anthologyFilter || 'all';
+    const activeLens = board.dataset.anthologyLens || 'all';
+    const query = String(input?.value || '').trim().toLowerCase();
+    let visible = 0;
+    board.querySelectorAll('.protocol-anthology-list .protocol-anthology-chapter').forEach((chapter) => {
+        const filterMatch = activeFilter === 'all'
+            || (activeFilter === 'long' && chapter.dataset.anthologyLongRead === 'true')
+            || (activeFilter === 'debate' && chapter.dataset.anthologyDebated === 'true');
+        const lensMatch = activeLens === 'all'
+            || String(chapter.dataset.anthologyTopics || '').split(/\s+/).includes(activeLens);
+        const searchMatch = !query || chapter.dataset.anthologySearch.includes(query);
+        chapter.hidden = !(filterMatch && lensMatch && searchMatch);
+        if (!chapter.hidden) visible += 1;
+    });
+    board.querySelectorAll('.protocol-anthology-era').forEach((era) => {
+        era.hidden = !era.querySelector('.protocol-anthology-chapter:not([hidden])');
+    });
+    const count = board.querySelector('#protocol-anthology-results');
+    if (count) count.textContent = `${visible} chapter${visible === 1 ? '' : 's'}`;
+    const empty = board.querySelector('.protocol-anthology-empty');
+    if (empty) empty.hidden = visible !== 0;
 }
 
 async function renderProtocolAnthologyBoard(protocols, currentProtocol = null) {
@@ -2484,89 +2593,142 @@ async function renderProtocolAnthologyBoard(protocols, currentProtocol = null) {
     renderProtocolAlphabetMarch(enriched, current);
     const longReads = enriched.filter((protocol) => protocol.history?.sections?.length);
     const debated = enriched.filter((protocol) => protocol.debate || protocol.contention || protocol.history);
-    const blockTimes = enriched.map((protocol) => Number(protocol.blockTime)).filter((time) => Number.isFinite(time) && time > 0);
-    const slowest = blockTimes.length ? Math.max(...blockTimes) : null;
-    const fastest = blockTimes.length ? Math.min(...blockTimes) : null;
-    const latestLongRead = ordered.find((protocol) => protocol.history && protocol.name !== current?.name) || longReads[longReads.length - 1] || current;
     const chapterCount = countProtocolUpgrades(enriched);
-    const features = chooseFeaturedAnthologyChapters(ordered, current);
-    const clashChapters = ordered
-        .filter((protocol) => protocol.history || protocol.contention || protocol.debate)
-        .slice(0, 5);
-    const nextArchiveBeat = ordered[0]?.name || current?.name || 'current protocol';
-    const shelves = new Map();
-
-    enriched.forEach((protocol) => {
-        const label = protocolEraLabel(protocol);
-        if (!shelves.has(label)) shelves.set(label, []);
-        shelves.get(label).push(protocol);
+    const eras = [];
+    ordered.forEach((protocol) => {
+        const era = protocolAnthologyEra(protocol);
+        let group = eras.find((candidate) => candidate.id === era.id);
+        if (!group) {
+            group = { ...era, protocols: [] };
+            eras.push(group);
+        }
+        group.protocols.push(protocol);
     });
+    const signature = JSON.stringify(ordered.map((protocol) => [
+        protocol.name,
+        protocol.date,
+        protocol.headline,
+        protocol.history?.title,
+        Boolean(protocol.history?.sections?.length),
+        Boolean(protocol.debate || protocol.contention)
+    ]));
+    if (board.dataset.anthologySignature === signature && board.querySelector('.protocol-anthology-library')) return;
 
-    const shelfHtml = Array.from(shelves.entries()).map(([label, shelfProtocols]) => {
-        const storyProtocol = [...shelfProtocols].reverse().find((protocol) => protocol.history || protocol.debate || protocol.contention)
-            || shelfProtocols[shelfProtocols.length - 1];
-        const visible = [...shelfProtocols].reverse().slice(0, 4);
-        return `
-            <section class="protocol-anthology-shelf">
-                <div class="protocol-anthology-shelf-head">
-                    <span>${escapeHtml(label)}</span>
-                    <strong>${escapeHtml(summarizeProtocolSpan(shelfProtocols))}</strong>
+    const html = `
+        <div class="protocol-anthology-library">
+            <section class="protocol-anthology-cover" aria-labelledby="protocol-anthology-cover-title">
+                <div class="protocol-anthology-cover-copy">
+                    <span class="feature-kicker">The living constitution of Tezos</span>
+                    <h3 id="protocol-anthology-cover-title">A chain that<br><em>keeps rewriting itself.</em></h3>
+                    <p>Follow the decisions, breakthroughs, reversals, and arguments that turned on-chain governance into a running history.</p>
+                    <div class="protocol-anthology-cover-actions">
+                        <a href="${escapeHtml(protocolStoryPath(current))}" data-protocol-open="${escapeHtml(current?.name || '')}">Read today’s chapter <span aria-hidden="true">→</span></a>
+                        <button type="button" data-anthology-jump>Browse every chapter</button>
+                    </div>
+                    <p class="protocol-anthology-cover-meta"><strong>${chapterCount} adopted upgrades</strong> · ${ordered.length} chapters · ${escapeHtml(summarizeProtocolSpan(enriched))}</p>
                 </div>
-                <p>${escapeHtml(storyProtocol?.headline || 'Protocol context captured from the amendment trail.')}</p>
-                <div class="protocol-anthology-shelf-chips">
-                    ${visible.map((protocol) => buildAnthologyChapterButton(protocol)).join('')}
+                <a class="protocol-anthology-current-cover" href="${escapeHtml(protocolStoryPath(current))}" data-protocol-open="${escapeHtml(current?.name || '')}" data-anthology-tone="violet">
+                    <span class="protocol-anthology-current-spine"><small>Now running</small><b>${escapeHtml(String(getProtocolUpgradeOrdinal(current, enriched) || ''))}</b></span>
+                    <span class="protocol-anthology-current-copy">
+                        <small>Current protocol · ${escapeHtml(formatProtocolDate(current))}</small>
+                        <strong>${escapeHtml(current?.name || 'Current protocol')}</strong>
+                        <span>${escapeHtml(current?.history?.title || current?.headline || 'The current operating chapter of Tezos.')}</span>
+                        <em>${escapeHtml(current?.changes?.[0] || 'Open the chapter')} <b aria-hidden="true">↗</b></em>
+                    </span>
+                </a>
+            </section>
+            <section class="protocol-anthology-ways" aria-labelledby="protocol-anthology-ways-title">
+                <div class="protocol-anthology-section-head">
+                    <div><span class="feature-kicker">Three ways in</span><h3 id="protocol-anthology-ways-title">Pick the question you care about.</h3></div>
+                    <p>Each lens reshuffles the same factual archive. Chapters can belong to more than one story.</p>
+                </div>
+                <div class="protocol-anthology-lenses">
+                    ${Object.entries(ANTHOLOGY_LENS_META).map(([id, lens], index) => `
+                        <button type="button" data-anthology-lens="${id}" data-anthology-tone="${['mint', 'violet', 'coral'][index]}">
+                            <span>${escapeHtml(lens.eyebrow)}</span>
+                            <strong>${escapeHtml(lens.title)}</strong>
+                            <small>${escapeHtml(lens.copy)}</small>
+                            <em>${escapeHtml(lens.trail)}</em>
+                        </button>
+                    `).join('')}
                 </div>
             </section>
-        `;
-    }).join('');
-
-    board.innerHTML = `
-        <div class="protocol-anthology-board">
-            <div class="protocol-anthology-brief">
-                <span class="feature-kicker">Curator's desk</span>
-                <h3>${escapeHtml(current?.name || 'Current')} is the live chapter. ${escapeHtml(latestLongRead?.name || 'Quebec')} is the closest deep read.</h3>
-                <p>The anthology is built from the protocol archive in this repo: activation dates, block receipts, change lists, debate notes, and long-form histories where the governance fight left a mark.</p>
-            </div>
-            <div class="protocol-anthology-metrics" aria-label="Protocol anthology evidence">
-                ${buildAnthologyMetric('Chapters', String(chapterCount), 'Paris C kept as follow-up record')}
-                ${buildAnthologyMetric('Long reads', String(longReads.length), 'curated history scenes')}
-                ${buildAnthologyMetric('Debate marks', String(debated.length), 'upgrades with dispute context')}
-                ${buildAnthologyMetric('Block time', slowest && fastest ? `${slowest}s → ${fastest}s` : 'syncing', 'fastest recorded target')}
-            </div>
-            <div class="protocol-anthology-featured" aria-label="Featured protocol chapters">
-                ${features.map(({ protocol, label }) => `
-                    <button class="protocol-anthology-feature ${protocol.history || protocol.contention || protocol.debate ? 'has-clash' : ''}" type="button" data-protocol-open="${escapeHtml(protocol.name)}">
-                        <span>${escapeHtml(label)}</span>
-                        <strong>${escapeHtml(protocol.name)}</strong>
-                        <small>${escapeHtml(protocol.history?.title || protocol.headline || 'Open protocol context')}</small>
-                    </button>
-                `).join('')}
-            </div>
-            <div class="protocol-anthology-live" aria-label="Living protocol anthology status">
-                <div class="protocol-anthology-pulse" aria-hidden="true">
-                    <span></span><span></span><span></span><span></span><span></span>
+            <section class="protocol-anthology-index" aria-labelledby="protocol-anthology-index-title">
+                <div class="protocol-anthology-index-head">
+                    <div>
+                        <span class="feature-kicker">The complete field guide · newest first</span>
+                        <h3 id="protocol-anthology-index-title">Find a protocol</h3>
+                    </div>
+                    <span id="protocol-anthology-results" role="status" aria-live="polite">${ordered.length} chapters</span>
                 </div>
-                <div class="protocol-anthology-live-copy">
-                    <span class="feature-kicker">Living archive</span>
-                    <strong>${escapeHtml(nextArchiveBeat)} keeps the front shelf warm.</strong>
-                    <small>${escapeHtml(String(clashChapters.length))} clash markers are lit for readers who want the amendment fights, not just the activation receipts.</small>
+                <div class="protocol-anthology-toolbar">
+                    <label class="protocol-anthology-search">
+                        <span class="sr-only">Search Protocol Anthology</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+                        <input id="protocol-anthology-search" type="search" placeholder="Try ‘block time’, ‘rollups’, or ‘liquidity’" autocomplete="off">
+                    </label>
+                    <div class="protocol-anthology-filters" role="group" aria-label="Filter protocol chapters">
+                        <button class="is-active" type="button" data-anthology-filter="all" aria-pressed="true">All</button>
+                        <button type="button" data-anthology-filter="long" aria-pressed="false">Deep reads</button>
+                        <button type="button" data-anthology-filter="debate" aria-pressed="false">Debate files</button>
+                    </div>
                 </div>
-                <div class="protocol-anthology-clash-map" aria-label="Protocol clash markers">
-                    ${clashChapters.map((protocol) => buildAnthologyClashButton(protocol)).join('')}
+                <div class="protocol-anthology-list">
+                    ${eras.map((era) => `
+                        <section class="protocol-anthology-era" data-anthology-era="${era.id}" aria-labelledby="protocol-era-${era.id}">
+                            <header><span>${escapeHtml(era.span)}</span><div><h4 id="protocol-era-${era.id}">${escapeHtml(era.title)}</h4><p>${escapeHtml(era.copy)}</p></div></header>
+                            <div>${era.protocols.map((protocol) => buildAnthologyChapterLink(protocol, enriched)).join('')}</div>
+                        </section>
+                    `).join('')}
                 </div>
-            </div>
-            <div class="protocol-anthology-shelves" aria-label="Protocol era shelves">
-                ${shelfHtml}
-            </div>
+                <p class="protocol-anthology-empty" hidden>No chapters match that search.</p>
+            </section>
+            <p class="protocol-anthology-library-status" role="status" aria-live="polite"></p>
         </div>
     `;
+    quietlySyncHtml(board, html);
+    board.dataset.anthologySignature = signature;
 
     if (!board.dataset.protocolAnthologyWired) {
         board.addEventListener('click', (event) => {
+            const jump = event.target.closest('[data-anthology-jump]');
+            if (jump) {
+                board.querySelector('#protocol-anthology-index-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                window.setTimeout(() => board.querySelector('#protocol-anthology-search')?.focus({ preventScroll: true }), 260);
+                return;
+            }
+            const lens = event.target.closest('[data-anthology-lens]');
+            if (lens) {
+                const nextLens = board.dataset.anthologyLens === lens.dataset.anthologyLens ? 'all' : lens.dataset.anthologyLens;
+                board.dataset.anthologyLens = nextLens;
+                board.querySelectorAll('[data-anthology-lens]').forEach((button) => {
+                    const active = nextLens !== 'all' && button.dataset.anthologyLens === nextLens;
+                    button.classList.toggle('is-active', active);
+                    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                });
+                applyAnthologyLibraryFilters(board);
+                board.querySelector('#protocol-anthology-index-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+            const filter = event.target.closest('[data-anthology-filter]');
+            if (filter) {
+                board.querySelectorAll('[data-anthology-filter]').forEach((button) => {
+                    const active = button === filter;
+                    button.classList.toggle('is-active', active);
+                    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                });
+                applyAnthologyLibraryFilters(board);
+                return;
+            }
             const trigger = event.target.closest('[data-protocol-open]');
             const name = trigger?.getAttribute('data-protocol-open');
             if (!name) return;
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
             openProtocolHistoryByName(name);
+        });
+        board.addEventListener('input', (event) => {
+            if (event.target.matches('#protocol-anthology-search')) applyAnthologyLibraryFilters(board);
         });
         board.dataset.protocolAnthologyWired = '1';
     }
@@ -4648,7 +4810,7 @@ async function renderInfographic(protocols, timelineEl, options = {}) {
         const currentRichMap = infographic._protocolRichMap || {};
         const richP = currentRichMap[name];
         if (richP && richP.history) {
-            showProtocolHistoryModal(richP.history, name);
+            openProtocolHistoryByName(name);
         } else if (typeof window.captureProtocol === 'function') {
             const proto = currentRichMap[name];
             if (proto) window.captureProtocol(proto);
@@ -4737,24 +4899,29 @@ function protocolToHistory(protocol) {
     };
 }
 
-async function openProtocolHistoryByName(protocolName) {
+async function openProtocolHistoryByName(protocolName, { updateRoute = true, replaceRoute = false } = {}) {
     const target = String(protocolName || '').trim();
     if (!target) return false;
     // Capture the launcher before the data await: a quiet timeline refresh may
     // otherwise move focus before the Story joins the overlay stack.
     const opener = document.activeElement;
     const data = await loadProtocolData();
-    const match = data?.protocols?.find((protocol) => protocol.name.toLowerCase() === target.toLowerCase())
+    const match = findProtocolByRouteValue(data?.protocols, target)
         || data?.protocols?.find((protocol) => protocol.name.toLowerCase().includes(target.toLowerCase()));
     const history = protocolToHistory(match);
     if (!match || !history) return false;
-    showProtocolHistoryModal(history, match.name, { opener });
+    if (updateRoute) setProtocolStoryRoute(match, { replace: replaceRoute });
+    showProtocolHistoryModal(history, match.name, {
+        opener,
+        protocol: match,
+        protocols: data.protocols
+    });
     return true;
 }
 
 window.openProtocolHistoryByName = openProtocolHistoryByName;
 
-function renderProtocolHistoryPrintDocument(history, protocolName) {
+function renderProtocolHistoryPrintDocument(history, protocolName, protocol = null) {
     const renderTextBlocks = (content = '') => String(content)
         .split(/\n{2,}/)
         .map((part) => part.trim())
@@ -4813,6 +4980,16 @@ function renderProtocolHistoryPrintDocument(history, protocolName) {
             </section>
         `;
     }).join('');
+    const printReceipts = [
+        protocol?.block ? { label: `Activation block ${Number(protocol.block).toLocaleString('en-US')}`, url: `https://tzkt.io/${protocol.block}` } : null,
+        ...(Array.isArray(history?.sources) ? history.sources : [])
+    ].filter((source) => source?.url);
+    const receiptsHtml = printReceipts.length ? `
+        <section>
+            <h2>Receipts & sources</h2>
+            <ul>${printReceipts.map((source) => `<li><strong>${escapeHtml(source.label || 'Source')}</strong><br><span>${escapeHtml(source.url)}</span></li>`).join('')}</ul>
+        </section>
+    ` : '';
 
     return `<!doctype html>
 <html>
@@ -4890,20 +5067,21 @@ function renderProtocolHistoryPrintDocument(history, protocolName) {
         <div class="subtitle">${escapeHtml(history?.subtitle || '')}</div>
     </header>
     ${sectionsHtml}
-    <footer>Printed from tezos.systems Protocol Anthology.</footer>
+    ${receiptsHtml}
+    <footer>Printed from <strong>${escapeHtml(protocolStoryUrl(protocol || protocolName))}</strong></footer>
 </main>
 </body>
 </html>`;
 }
 
-function printProtocolHistory(history, protocolName) {
+function printProtocolHistory(history, protocolName, protocol = null) {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
         window.print();
         return;
     }
     printWindow.document.open();
-    printWindow.document.write(renderProtocolHistoryPrintDocument(history, protocolName));
+    printWindow.document.write(renderProtocolHistoryPrintDocument(history, protocolName, protocol));
     printWindow.document.close();
     window.setTimeout(() => {
         printWindow.focus();
@@ -5001,7 +5179,7 @@ async function initRichTooltips(protocols, timelineEl = null, renderGeneration =
             event?.preventDefault?.();
             event?.stopPropagation?.();
             hideTooltip();
-            showProtocolHistoryModal(context.richP.history, context.name);
+            openProtocolHistoryByName(context.name);
             return true;
         };
 
@@ -5075,7 +5253,7 @@ async function initRichTooltips(protocols, timelineEl = null, renderGeneration =
     });
 }
 
-function showProtocolHistoryModal(history, protocolName, { opener = null } = {}) {
+function showProtocolHistoryModal(history, protocolName, { opener = null, protocol = null, protocols = [] } = {}) {
     const existing = document.getElementById('protocol-history-modal');
     if (existing) {
         existing._protocolStoryCleanup?.({ restoreFocus: false });
@@ -5092,121 +5270,191 @@ function showProtocolHistoryModal(history, protocolName, { opener = null } = {})
     const accentRgb = isClean ? '37,99,235' : isDark ? '200,200,200' : isMatrix ? '0,255,0' : isBubblegum ? '255,105,180' : isValley ? '231,182,108' : '0,212,255';
     const bg = isClean ? 'rgba(255, 255, 255, 0.98)' : isDark ? 'rgba(26, 26, 26, 0.98)' : isMatrix ? 'rgba(0, 8, 0, 0.98)' : isBubblegum ? 'rgba(26, 15, 34, 0.98)' : isValley ? 'rgba(29, 33, 22, 0.98)' : 'rgba(8, 8, 16, 0.98)';
     const borderColor = isClean ? 'rgba(0,0,0,0.1)' : isDark ? '#333333' : isMatrix ? 'rgba(0,255,0,0.3)' : isBubblegum ? 'rgba(255,105,180,0.3)' : isValley ? 'rgba(231,182,108,0.34)' : 'rgba(0,212,255,0.3)';
+    const records = Array.isArray(protocols) && protocols.length ? protocols : [protocol].filter(Boolean);
+    const record = protocol || findProtocolByRouteValue(records, protocolName);
+    const recordIndex = records.findIndex((item) => item?.name === record?.name);
+    const olderProtocol = recordIndex > 0 ? records[recordIndex - 1] : null;
+    const newerProtocol = recordIndex >= 0 && recordIndex < records.length - 1 ? records[recordIndex + 1] : null;
+    const storyWords = (history.sections || []).flatMap((section) => [
+        section.heading,
+        section.content,
+        ...(section.events || []).flatMap((event) => [event.date, event.text]),
+        section.left?.name,
+        section.left?.team,
+        section.left?.position,
+        section.left?.quote,
+        section.right?.name,
+        section.right?.team,
+        section.right?.position,
+        section.right?.quote
+    ]).filter(Boolean).join(' ');
+    const wordCount = storyWords.split(/\s+/).filter(Boolean).length;
+    const readMinutes = Math.max(1, Math.ceil(wordCount / 220));
+    const sectionLinks = [];
+    const topics = protocolAnthologyTopics(record);
+    const ordinal = getProtocolUpgradeOrdinal(record, records);
+    const whySection = (history.sections || []).find((section) => /why (it )?matter/i.test(section.heading || ''));
+    const whyItMatters = protocolBriefExcerpt(
+        String(whySection?.content || record?.headline || history.subtitle || '').split(/\n{2,}/)[0]
+    );
+    const nextStep = newerProtocol
+        ? `${newerProtocol.name} followed with ${String(newerProtocol.headline || newerProtocol.changes?.[0] || 'the next amendment').replace(/\.$/, '')}.`
+        : 'This is the current operating chapter of Tezos.';
+    const keyMoves = Array.isArray(record?.changes) ? record.changes.slice(0, 4) : [];
 
     let sectionsHtml = '';
-    for (const section of history.sections) {
+    for (const [sectionIndex, section] of history.sections.entries()) {
+        const sectionSlug = protocolRouteSlug(section.heading || `section-${sectionIndex + 1}`);
+        const sectionId = `story-${sectionSlug || `section-${sectionIndex + 1}`}`;
+        sectionLinks.push({ id: sectionId, label: section.heading || 'Protocol context' });
         if (section.type === 'timeline') {
-            sectionsHtml += `<h3 style="color:${accent}; font-size:1rem; margin:24px 0 12px; font-family:'Orbitron',sans-serif; letter-spacing:1px;">${escapeHtml(section.heading)}</h3>`;
-            sectionsHtml += `<div class="history-timeline" style="position:relative; padding-left:24px; border-left:2px solid ${borderColor};">`;
+            sectionsHtml += `<section class="protocol-story-section" aria-labelledby="${sectionId}"><h3 id="${sectionId}">${escapeHtml(section.heading)}</h3>`;
+            sectionsHtml += '<ol class="protocol-story-timeline">';
             for (const ev of section.events) {
-                const sideColor = ev.side === 'quebec' ? '#ff6b6b' : ev.side === 'qena' ? '#4ecdc4' : (isClean ? 'rgba(0,0,0,0.4)' : isDark ? 'rgba(200,200,200,0.5)' : 'rgba(255,255,255,0.5)');
                 sectionsHtml += `
-                    <div style="margin-bottom:16px; position:relative;">
-                        <div style="position:absolute; left:-30px; top:4px; width:12px; height:12px; border-radius:50%; background:${sideColor}; box-shadow:${isClean || isDark ? 'none' : '0 0 8px ' + sideColor};"></div>
-                        <div style="color:${isClean ? 'rgba(0,0,0,0.5)' : isDark ? 'rgba(232,232,232,0.4)' : 'rgba(255,255,255,0.4)'}; font-size:0.72rem; font-weight:600; margin-bottom:2px;">${escapeHtml(ev.date)}</div>
-                        <div style="color:${isClean ? 'rgba(0,0,0,0.8)' : isDark ? 'rgba(232,232,232,0.85)' : 'rgba(255,255,255,0.85)'}; font-size:0.82rem; line-height:1.5;">${escapeHtml(ev.text)}</div>
-                    </div>`;
+                    <li data-story-side="${escapeHtml(ev.side || 'neutral')}">
+                        <time>${escapeHtml(ev.date)}</time>
+                        <p>${escapeHtml(ev.text)}</p>
+                    </li>`;
             }
-            sectionsHtml += `<div style="display:flex; gap:16px; margin-top:8px; font-size:0.68rem; color:${isClean ? 'rgba(0,0,0,0.5)' : isDark ? 'rgba(232,232,232,0.4)' : 'rgba(255,255,255,0.4)'};">
-                <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff6b6b;margin-right:4px;"></span>Quebec</span>
-                <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ecdc4;margin-right:4px;"></span>Qena</span>
-            </div></div>`;
+            sectionsHtml += '</ol></section>';
         } else if (section.type === 'versus') {
-            sectionsHtml += `<h3 style="color:${accent}; font-size:1rem; margin:24px 0 12px; font-family:'Orbitron',sans-serif; letter-spacing:1px;">${escapeHtml(section.heading)}</h3>`;
-            sectionsHtml += `<div class="history-versus-grid">`;
-            for (const side of [section.left, section.right]) {
-                const sideColor = side === section.left ? '#ff6b6b' : '#4ecdc4';
+            sectionsHtml += `<section class="protocol-story-section" aria-labelledby="${sectionId}"><h3 id="${sectionId}">${escapeHtml(section.heading)}</h3>`;
+            sectionsHtml += '<div class="protocol-story-versus">';
+            for (const [sideIndex, side] of [section.left, section.right].entries()) {
                 sectionsHtml += `
-                    <div style="background:${isClean ? 'rgba(0,0,0,0.02)' : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.03)'}; border:1px solid ${sideColor}30; border-radius:10px; padding:16px;">
-                        <div style="color:${sideColor}; font-weight:700; font-size:0.9rem; margin-bottom:4px;">${escapeHtml(side.name)}</div>
-                        <div style="color:${isClean ? 'rgba(0,0,0,0.5)' : isDark ? 'rgba(232,232,232,0.4)' : 'rgba(255,255,255,0.4)'}; font-size:0.7rem; margin-bottom:8px;">${escapeHtml(side.team)}</div>
-                        <div style="color:${isClean ? 'rgba(0,0,0,0.75)' : isDark ? 'rgba(232,232,232,0.75)' : 'rgba(255,255,255,0.75)'}; font-size:0.8rem; line-height:1.5; margin-bottom:10px;">${escapeHtml(side.position)}</div>
-                        <div style="border-left:3px solid ${sideColor}40; padding-left:10px; color:${isClean ? 'rgba(0,0,0,0.6)' : isDark ? 'rgba(232,232,232,0.6)' : 'rgba(255,255,255,0.6)'}; font-style:italic; font-size:0.78rem; line-height:1.5;">"${escapeHtml(side.quote)}"</div>
-                    </div>`;
+                    <article data-story-side="${sideIndex === 0 ? 'left' : 'right'}">
+                        <h4>${escapeHtml(side.name)}</h4>
+                        <small>${escapeHtml(side.team)}</small>
+                        <p>${escapeHtml(side.position)}</p>
+                        ${side.quote ? `<blockquote>“${escapeHtml(side.quote)}”</blockquote>` : ''}
+                    </article>`;
             }
-            sectionsHtml += `</div>`;
+            sectionsHtml += `</div></section>`;
         } else {
-            sectionsHtml += `<h3 style="color:${accent}; font-size:1rem; margin:24px 0 12px; font-family:'Orbitron',sans-serif; letter-spacing:1px;">${escapeHtml(section.heading)}</h3>`;
+            sectionsHtml += `<section class="protocol-story-section" aria-labelledby="${sectionId}"><h3 id="${sectionId}">${escapeHtml(section.heading)}</h3>`;
             const paras = section.content.split('\n\n');
             for (const p of paras) {
-                const textHigh = isClean ? 'rgba(0,0,0,0.75)' : isDark ? 'rgba(232,232,232,0.75)' : 'rgba(255,255,255,0.75)';
-                const textMid = isClean ? 'rgba(0,0,0,0.6)' : isDark ? 'rgba(232,232,232,0.6)' : 'rgba(255,255,255,0.6)';
-                const bgSubtle = isClean ? 'rgba(0,0,0,0.02)' : isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.02)';
                 if (p.startsWith('•') || p.startsWith('- ')) {
-                    sectionsHtml += `<div style="color:${textHigh}; font-size:0.82rem; line-height:1.6; margin-bottom:6px; padding-left:12px;">${escapeHtml(p)}</div>`;
+                    const items = p.split('\n').map((item) => item.replace(/^[•-]\s*/, '').trim()).filter(Boolean);
+                    sectionsHtml += `<ul class="protocol-story-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
                 } else if (p.startsWith('"') || p.startsWith('\u201c')) {
-                    sectionsHtml += `<blockquote style="border-left:3px solid ${borderColor}; padding:10px 14px; margin:10px 0; color:${textMid}; font-style:italic; font-size:0.82rem; line-height:1.6; background:${bgSubtle}; border-radius:0 8px 8px 0;">${escapeHtml(p)}</blockquote>`;
+                    sectionsHtml += `<blockquote>${escapeHtml(p)}</blockquote>`;
                 } else {
-                    sectionsHtml += `<p style="color:${textHigh}; font-size:0.82rem; line-height:1.7; margin-bottom:12px;">${escapeHtml(p)}</p>`;
+                    sectionsHtml += `<p>${escapeHtml(p)}</p>`;
                 }
             }
+            sectionsHtml += '</section>';
         }
     }
+
+    const sources = Array.isArray(history.sources) ? history.sources.filter((source) => source?.url) : [];
+    const receipts = [
+        record?.block ? { label: `Activation block ${Number(record.block).toLocaleString('en-US')}`, url: `https://tzkt.io/${record.block}` } : null,
+        ...sources
+    ].filter(Boolean);
+    const sourcesHtml = receipts.length ? `
+        <section class="protocol-story-sources" aria-labelledby="protocol-story-sources-title">
+            <h3 id="protocol-story-sources-title">Receipts & sources</h3>
+            <div>${receipts.map((source) => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.label)} <span aria-hidden="true">↗</span></a>`).join('')}</div>
+        </section>
+    ` : '';
 
     const modal = document.createElement('div');
     modal.id = 'protocol-history-modal';
     modal.className = 'protocol-history-story-overlay';
     modal.setAttribute('aria-hidden', 'true');
-    modal.style.cssText = `
-        position:fixed; inset:0; z-index:10001; display:flex; align-items:center; justify-content:center;
-        background:rgba(0,0,0,0.85); backdrop-filter:blur(8px);
-        opacity:0; transition:opacity 0.3s ease;
-    `;
+    modal.dataset.anthologyTone = protocolAnthologyTone(record);
+    modal.style.setProperty('--protocol-story-accent', accent);
+    modal.style.setProperty('--protocol-story-accent-rgb', accentRgb);
     modal.innerHTML = `
-        <div class="modal-large protocol-history-story-modal" role="dialog" aria-modal="true" aria-labelledby="protocol-history-story-title" tabindex="-1" style="
-            background:${bg}; border:1px solid ${borderColor};
-            border-radius:16px; max-width:720px; width:92vw; max-height:85vh; overflow-y:auto;
-            padding:32px; position:relative;
-            box-shadow:0 0 60px rgba(${accentRgb},0.1), 0 20px 60px rgba(0,0,0,0.5);
-        ">
-            <div class="protocol-history-story-actions" style="position:absolute; top:16px; right:16px; display:flex; gap:8px; z-index:10;">
-                <button id="history-modal-share" title="Share this history" aria-label="Share this protocol history" style="
-                    background:rgba(255,255,255,0.08);
-                    border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.7);
-                    width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:18px;
-                    display:flex; align-items:center; justify-content:center;
-                    transition:all 0.2s;
-                ">📸</button>
-                <button id="history-modal-print" title="Print the full history" aria-label="Print the full protocol history" style="
-                    background:rgba(255,255,255,0.08);
-                    border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.7);
-                    width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:18px;
-                    display:flex; align-items:center; justify-content:center;
-                    transition:all 0.2s;
-                ">⎙</button>
-                <button id="history-modal-close" aria-label="Close protocol history" style="
-                    background:rgba(255,255,255,0.08);
-                    border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.7);
-                    width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:20px;
-                    display:flex; align-items:center; justify-content:center;
-                    transition:all 0.2s;
-                ">×</button>
+        <div class="modal-large protocol-history-story-modal" role="dialog" aria-modal="true" aria-labelledby="protocol-history-story-title" tabindex="-1">
+            <div class="protocol-story-topbar">
+                <a class="protocol-story-back" href="/anthology/"><span aria-hidden="true">←</span> All chapters</a>
+                <span class="protocol-story-topbar-title">${ordinal === null ? 'Follow-up' : `Chapter ${String(ordinal).padStart(2, '0')}`} · ${escapeHtml(record?.name || protocolName)}</span>
+                <button id="history-modal-close" type="button" aria-label="Close protocol history">×</button>
+                <span class="protocol-story-progress-rule" aria-hidden="true"><i></i></span>
             </div>
-            <div class="protocol-history-story-title" id="protocol-history-story-title" style="font-family:'Orbitron',sans-serif; color:${accent}; font-size:1.3rem; font-weight:700;
-                letter-spacing:2px; text-shadow:0 0 20px rgba(${accentRgb},0.4); margin-bottom:4px;">
-                ⚔ ${escapeHtml(history.title)}
+            <header class="protocol-story-header" data-anthology-tone="${protocolAnthologyTone(record)}">
+                <div class="protocol-story-cover-number" aria-hidden="true"><small>${ordinal === null ? 'Follow-up' : 'Chapter'}</small><b>${ordinal === null ? '—' : String(ordinal).padStart(2, '0')}</b></div>
+                <div class="protocol-story-cover-copy">
+                    <span class="feature-kicker">Protocol Anthology · ${escapeHtml(protocolAnthologyEra(record).title)}</span>
+                    <h2 class="protocol-history-story-title" id="protocol-history-story-title">${escapeHtml(history.title)}</h2>
+                    <p class="protocol-story-subtitle">${escapeHtml(history.subtitle)}</p>
+                    <div class="protocol-story-meta" aria-label="Story details">
+                        ${record?.date ? `<time datetime="${escapeHtml(record.date)}">${escapeHtml(formatProtocolDate(record))}</time>` : ''}
+                        <span>${readMinutes} min read</span>
+                        ${record?.block ? `<span>Block ${Number(record.block).toLocaleString('en-US')}</span>` : ''}
+                    </div>
+                    <div class="protocol-story-topic-row">${topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join('')}</div>
+                </div>
+            </header>
+            <div class="protocol-story-layout">
+                <aside class="protocol-story-rail" aria-label="Chapter tools">
+                    <div class="protocol-story-reading-progress"><span>Reading progress</span><strong><b>0</b>%</strong></div>
+                    <div class="protocol-history-story-actions" aria-label="Share and export this chapter">
+                        <button class="protocol-story-share-primary" id="history-modal-native-share" type="button"><span aria-hidden="true">↗</span> Share chapter</button>
+                        <button id="history-modal-copy-link" type="button"><span aria-hidden="true">⌁</span> Copy link</button>
+                        <button id="history-modal-share" type="button"><span aria-hidden="true">▧</span> Make image</button>
+                        <button id="history-modal-print" type="button"><span aria-hidden="true">↓</span> Print / PDF</button>
+                    </div>
+                    <p class="protocol-story-share-status" id="protocol-story-share-status" role="status" aria-live="polite"></p>
+                    ${sectionLinks.length > 1 ? `
+                        <nav class="protocol-story-contents" aria-label="In this chapter">
+                            <span>In this chapter</span>
+                            <div>${sectionLinks.map((section, index) => `<a href="#${section.id}" data-story-section-link="${section.id}"><b>${String(index + 1).padStart(2, '0')}</b>${escapeHtml(section.label)}</a>`).join('')}</div>
+                        </nav>
+                    ` : ''}
+                </aside>
+                <main class="protocol-story-main">
+                    <section class="protocol-story-brief" aria-labelledby="protocol-story-brief-title">
+                        <div class="protocol-story-brief-head"><span class="feature-kicker">The fast take</span><h3 id="protocol-story-brief-title">60-second brief</h3></div>
+                        <div>
+                            <article><span>01 · Defining move</span><p>${escapeHtml(record?.headline || history.subtitle || 'Protocol amendment')}</p></article>
+                            <article><span>02 · Why it mattered</span><p>${escapeHtml(whyItMatters || 'Open the chapter for the context behind this amendment.')}</p></article>
+                            <article><span>03 · What came next</span><p>${escapeHtml(nextStep)}</p></article>
+                        </div>
+                    </section>
+                    ${keyMoves.length ? `
+                        <section class="protocol-story-key-moves" aria-labelledby="protocol-story-key-moves-title">
+                            <span class="feature-kicker">At a glance</span>
+                            <h3 id="protocol-story-key-moves-title">Key moves</h3>
+                            <ul>${keyMoves.map((change) => `<li>${escapeHtml(change)}</li>`).join('')}</ul>
+                        </section>
+                    ` : ''}
+                    <article class="protocol-story-article">
+                        ${sectionsHtml}
+                        ${sourcesHtml}
+                    </article>
+                    <nav class="protocol-story-pagination" aria-label="Adjacent protocol chapters">
+                        ${olderProtocol ? `<a href="${escapeHtml(protocolStoryPath(olderProtocol))}" data-protocol-story-nav="${escapeHtml(olderProtocol.name)}"><span>← Older chapter</span><strong>${escapeHtml(olderProtocol.name)}</strong><small>${escapeHtml(olderProtocol.headline || '')}</small></a>` : '<span></span>'}
+                        ${newerProtocol ? `<a href="${escapeHtml(protocolStoryPath(newerProtocol))}" data-protocol-story-nav="${escapeHtml(newerProtocol.name)}"><span>Newer chapter →</span><strong>${escapeHtml(newerProtocol.name)}</strong><small>${escapeHtml(newerProtocol.headline || '')}</small></a>` : '<a href="/anthology/"><span>Back to</span><strong>All chapters</strong><small>Choose another trail through the archive.</small></a>'}
+                    </nav>
+                </main>
             </div>
-            <div style="color:rgba(255,255,255,0.4); font-size:0.78rem; margin-bottom:20px;">${escapeHtml(history.subtitle)}</div>
-            ${sectionsHtml}
         </div>
     `;
     document.body.appendChild(modal);
+    document.title = `${protocolName} Protocol — Protocol Anthology | tezos.systems`;
     requestAnimationFrame(() => { modal.style.opacity = '1'; });
 
     const clearDirectStoryRoute = () => {
-        const params = new URLSearchParams(window.location.hash.slice(1));
-        if (!params.has('protocol')) return;
-        params.delete('protocol');
-        const remainingHash = params.toString();
-        const nextUrl = `${window.location.pathname}${window.location.search}${remainingHash ? `#${remainingHash}` : ''}`;
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.slice(1));
+        const hadProtocolRoute = searchParams.has('protocol')
+            || hashParams.has('protocol')
+            || /^\/anthology\/[^/]+\/?$/i.test(window.location.pathname);
+        if (!hadProtocolRoute) return;
+        searchParams.delete('protocol');
+        hashParams.delete('protocol');
+        const search = searchParams.toString();
+        const hash = hashParams.toString();
+        const nextUrl = `/anthology/${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
         window.history.replaceState(
-            { ...(window.history.state || {}), tezosSystemsRoute: remainingHash ? 'hash' : 'home' },
+            { ...(window.history.state || {}), tezosSystemsRoute: 'anthology', protocol: null },
             '',
             nextUrl
         );
-        window.dispatchEvent(new CustomEvent('tezos:routechange', {
-            detail: { entryId: remainingHash ? '' : 'home', route: nextUrl, replace: true, current: false }
-        }));
     };
     const closeModal = () => {
         if (modal.dataset.overlayClosing === '1') return;
@@ -5215,6 +5463,7 @@ function showProtocolHistoryModal(history, protocolName, { opener = null } = {})
         modal.style.opacity = '0';
         modal.style.pointerEvents = 'none';
         clearDirectStoryRoute();
+        document.title = STANDALONE_ROUTE_TITLE || 'Protocol Anthology - Tezos Self-Amendment Story | tezos.systems';
         setTimeout(() => modal.remove(), 300);
     };
     modal._protocolStoryCleanup = ({ restoreFocus = true } = {}) => (
@@ -5234,22 +5483,103 @@ function showProtocolHistoryModal(history, protocolName, { opener = null } = {})
         restoreFocusSelector: '#header-protocol-chip, #features-gear, #hero-search-input'
     });
     modal.querySelector('#history-modal-close').addEventListener('click', closeModal);
+    modal.querySelector('.protocol-story-back')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        closeModal();
+    });
+    const storyScroller = modal.querySelector('.protocol-history-story-modal');
+    const storyProgressFill = modal.querySelector('.protocol-story-progress-rule i');
+    const storyProgressText = modal.querySelector('.protocol-story-reading-progress b');
+    const updateStoryProgress = () => {
+        if (!storyScroller) return;
+        const max = Math.max(1, storyScroller.scrollHeight - storyScroller.clientHeight);
+        const percent = Math.max(0, Math.min(100, Math.round((storyScroller.scrollTop / max) * 100)));
+        if (storyProgressFill) storyProgressFill.style.transform = `scaleX(${percent / 100})`;
+        if (storyProgressText) storyProgressText.textContent = String(percent);
+    };
+    storyScroller?.addEventListener('scroll', updateStoryProgress, { passive: true });
+    updateStoryProgress();
+    modal.querySelectorAll('[data-story-section-link]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            const target = modal.querySelector(`#${CSS.escape(link.dataset.storySectionLink)}`);
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
     modal.querySelector('#history-modal-print').addEventListener('click', (e) => {
         e.stopPropagation();
-        printProtocolHistory(history, protocolName);
+        printProtocolHistory(history, protocolName, record);
+    });
+    const shareStatus = modal.querySelector('#protocol-story-share-status');
+    const announceShareStatus = (message) => {
+        if (!shareStatus) return;
+        shareStatus.textContent = message;
+        window.clearTimeout(shareStatus._clearTimer);
+        shareStatus._clearTimer = window.setTimeout(() => { shareStatus.textContent = ''; }, 2400);
+    };
+    const copyStoryLink = async () => {
+        const url = protocolStoryUrl(record || protocolName);
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(url);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = url;
+                textarea.setAttribute('readonly', '');
+                textarea.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+            }
+            announceShareStatus('Chapter link copied.');
+            return true;
+        } catch (error) {
+            console.warn('[anthology] copy link failed:', error);
+            announceShareStatus('Could not copy the link.');
+            return false;
+        }
+    };
+    modal.querySelector('#history-modal-copy-link')?.addEventListener('click', copyStoryLink);
+    modal.querySelector('#history-modal-native-share')?.addEventListener('click', async () => {
+        const url = protocolStoryUrl(record || protocolName);
+        if (typeof navigator.share !== 'function') {
+            await copyStoryLink();
+            return;
+        }
+        try {
+            await navigator.share({
+                title: history.title,
+                text: history.subtitle || `${protocolName} in the Tezos Protocol Anthology`,
+                url
+            });
+            announceShareStatus('Share sheet opened.');
+        } catch (error) {
+            if (error?.name !== 'AbortError') {
+                console.warn('[anthology] native share failed:', error);
+                await copyStoryLink();
+            }
+        }
     });
     modal.querySelector('#history-modal-share').addEventListener('click', (e) => {
         e.stopPropagation();
         const btn = e.currentTarget;
-        if (btn.disabled) return;
-        btn.disabled = true;
-        btn.style.opacity = '0.5';
+        if (btn.getAttribute('aria-busy') === 'true') return;
+        btn.setAttribute('aria-busy', 'true');
         if (window.captureProtocolHistory) {
             window.captureProtocolHistory(protocolName).finally(() => {
-                btn.disabled = false;
-                btn.style.opacity = '';
+                btn.removeAttribute('aria-busy');
+                btn.focus({ preventScroll: true });
             });
+        } else {
+            btn.removeAttribute('aria-busy');
         }
+    });
+    modal.addEventListener('click', (event) => {
+        const link = event.target.closest('[data-protocol-story-nav]');
+        if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openProtocolHistoryByName(link.dataset.protocolStoryNav, { replaceRoute: true });
     });
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 }
@@ -5291,41 +5621,45 @@ function renderProtocolHistoryChamberShell(overlay) {
     body.innerHTML = `
         <div class="chamber-header protocol-history-chamber-header">
             <div class="chamber-title-row">
-                <h2 class="chamber-title" id="protocol-history-chamber-title">Protocol History Chamber</h2>
+                <h2 class="chamber-title" id="protocol-history-chamber-title">Protocol Anthology</h2>
             </div>
             <p class="protocol-history-chamber-lede">
-                The Tezos self-amendment archive: protocol lore, proposal context, impact views, and the path from Ushuaia back through every prior era.
+                Read Tezos one amendment at a time. Search every adopted chapter, open the governance arguments, and share the exact page you are reading.
             </p>
             <div class="protocol-alphabet-march" id="protocol-alphabet-march" aria-live="polite"></div>
             <div class="protocol-history-chamber-actions">
-                <button class="protocol-history-chamber-link protocol-history-chamber-action" type="button" data-protocol-history-jump="timeline">View Timeline</button>
-                <button class="protocol-history-chamber-link protocol-history-chamber-action" type="button" data-protocol-history-jump="impact">View Impact</button>
-                <a class="protocol-history-chamber-link" href="#history">Open network charts</a>
-                <button class="protocol-history-chamber-link" type="button" data-copy-hash="#protocol-history">Copy chamber link</button>
+                <button class="protocol-history-chamber-link protocol-history-chamber-action" type="button" data-anthology-share>Share anthology</button>
+                <button class="protocol-history-chamber-link" type="button" data-copy-hash="#protocol-history">Copy anthology link</button>
             </div>
-            <div class="protocol-history-anthology-host" id="protocol-history-anthology-board" aria-live="polite">
+            <div class="protocol-history-anthology-host" id="protocol-history-anthology-board">
                 <div class="protocol-anthology-loading">Reading the protocol archive...</div>
             </div>
         </div>
-        <div class="protocol-history-chamber-panel protocol-history-feature-panel">
-            <div class="upgrade-count">
-                <span class="upgrade-number" id="upgrade-count">--</span>
-                <span class="upgrade-label">Upgrades</span>
-            </div>
-            <div class="protocol-history-feature-copy">
-                <span class="feature-kicker">Self-amendment archive</span>
-                <p>Start at the current operating protocol, then fold backward through individual protocol lore and impact views.</p>
-            </div>
-            <div class="upgrade-status" id="upgrade-status">
-                <!-- Voting status will be inserted here -->
-            </div>
-            <div class="upgrade-timeline" id="upgrade-timeline">
-                <div class="chamber-loading">
-                    <div class="chamber-loading-text">Reading the protocol timeline</div>
-                    <div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div>
+        <details class="protocol-anthology-tools">
+            <summary>
+                <span><strong>Technical timeline & impact</strong><small>Activation rail, network impacts, and metric-by-metric comparison.</small></span>
+                <span aria-hidden="true">⌄</span>
+            </summary>
+            <div class="protocol-history-chamber-panel protocol-history-feature-panel">
+                <div class="upgrade-count">
+                    <span class="upgrade-number" id="upgrade-count">--</span>
+                    <span class="upgrade-label">Upgrades</span>
+                </div>
+                <div class="protocol-history-feature-copy">
+                    <span class="feature-kicker">Self-amendment archive</span>
+                    <p>Use the technical view when you want the complete activation rail or a metric-by-metric impact comparison.</p>
+                </div>
+                <div class="upgrade-status" id="upgrade-status">
+                    <!-- Voting status will be inserted here -->
+                </div>
+                <div class="upgrade-timeline" id="upgrade-timeline">
+                    <div class="chamber-loading">
+                        <div class="chamber-loading-text">Reading the protocol timeline</div>
+                        <div class="chamber-loading-bar"><div class="chamber-loading-fill"></div></div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </details>
     `;
     wireProtocolHistoryChamberActions(overlay);
 }
@@ -5333,6 +5667,8 @@ function renderProtocolHistoryChamberShell(overlay) {
 function revealProtocolHistorySection(section, attempt = 0) {
     const overlay = document.getElementById('protocol-history-chamber-modal');
     if (!overlay) return;
+    const tools = overlay.querySelector('.protocol-anthology-tools');
+    if (tools) tools.open = true;
 
     const isTimeline = section === 'timeline';
     const toggle = isTimeline
@@ -5362,6 +5698,40 @@ function wireProtocolHistoryChamberActions(overlay) {
         button.addEventListener('click', () => {
             revealProtocolHistorySection(button.dataset.protocolHistoryJump);
         });
+    });
+    overlay.querySelector('[data-anthology-share]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const url = new URL('/anthology/', window.location.origin).toString();
+        const copy = async () => {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(url);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = url;
+                textarea.setAttribute('readonly', '');
+                textarea.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+            }
+            const original = button.textContent;
+            button.textContent = 'Link copied';
+            window.setTimeout(() => { button.textContent = original; }, 1400);
+        };
+        if (typeof navigator.share !== 'function') {
+            await copy();
+            return;
+        }
+        try {
+            await navigator.share({
+                title: 'Protocol Anthology',
+                text: 'Read the Tezos self-amendment archive, one adopted protocol at a time.',
+                url
+            });
+        } catch (error) {
+            if (error?.name !== 'AbortError') await copy();
+        }
     });
 }
 
@@ -6241,7 +6611,9 @@ function initOfflineIndicator() {
 //   /name.tez          → resolve Tezos Domain and open My Tezos
 function getPrettyChamberPathRoute() {
     const slug = window.location.pathname.replace(/^\/+|\/+$/g, '');
-    if (!slug || slug.includes('/')) return null;
+    if (!slug) return null;
+    if (/^anthology\/[^/]+$/i.test(slug)) return 'protocol-history';
+    if (slug.includes('/')) return null;
     const entry = findCurrentSiteMapEntry({
         pathname: window.location.pathname,
         search: window.location.search,
@@ -6658,10 +7030,19 @@ function applyDeepLink() {
                 );
                 break;
             case 'protocol-history':
+                {
+                    const protocolRoute = getProtocolStoryRouteValue();
                 openHashModal(
-                    () => openProtocolHistoryChamber(),
+                    async () => {
+                        await openProtocolHistoryChamber();
+                        if (protocolRoute) {
+                            const opened = await openProtocolHistoryByName(protocolRoute, { updateRoute: false });
+                            if (!opened) window.history.replaceState(window.history.state || {}, '', '/anthology/');
+                        }
+                    },
                     'Failed to open Protocol History Chamber'
                 );
+                }
                 break;
             case 'history':
                 openHashModal(
@@ -7012,7 +7393,10 @@ function applyDeepLink() {
     if (params.get('protocol')) {
         const protocolName = params.get('protocol');
         openHashModal(
-            () => openProtocolHistoryByName(protocolName),
+            async () => {
+                await openProtocolHistoryChamber();
+                await openProtocolHistoryByName(protocolName);
+            },
             `Failed to open protocol history for ${protocolName || 'selected protocol'}`
         );
     }
