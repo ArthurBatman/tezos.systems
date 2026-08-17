@@ -6673,8 +6673,20 @@ async function checkVisitStreakBehavior() {
 
   try {
     const source = await readText('js/features/streak.js');
+    const styles = `${await readText('css/styles.css')}\n${await readText('css/shell-extras.css')}`;
     const queueImport = "import { enqueueToast } from '../ui/toast-queue.js';";
     assert.ok(source.includes(queueImport), 'visit streak must keep using the shared toast queue');
+    assert.doesNotMatch(source, /STREAK_SCOPE_COPY|Browser-local · Details in Settings/, 'signal toasts must not expose storage mechanics');
+    for (const contract of [
+      '.visit-streak-toast.signal-bloom',
+      '.signal-bloom-sigil',
+      '.signal-bloom-number',
+      '.signal-bloom-share',
+      '@keyframes signal-bloom-digit-enter',
+      '@media (prefers-reduced-motion: reduce)'
+    ]) {
+      assert.ok(styles.includes(contract), `Signal Bloom CSS missing ${contract}`);
+    }
     const testSource = source.replace(
       queueImport,
       'const enqueueToast = (item) => globalThis.__visitStreakEnqueue(item);'
@@ -6734,6 +6746,15 @@ async function checkVisitStreakBehavior() {
       item.show(() => {}, item.duration);
       return appended[0];
     };
+    const findByClass = (node, className) => {
+      if (!node) return null;
+      if (String(node.className || '').split(/\s+/).includes(className)) return node;
+      for (const child of node.children || []) {
+        const found = findByClass(child, className);
+        if (found) return found;
+      }
+      return null;
+    };
 
     const firstVisit = runVisit();
     assert.equal(firstVisit.queued.length, 0, 'first visit must start silently without a welcome toast');
@@ -6752,30 +6773,49 @@ async function checkVisitStreakBehavior() {
       tezos_streak_count: 1,
       tezos_streak_last_visit: yesterday
     });
-    assert.equal(nextDayVisit.queued.length, 1);
+    assert.equal(nextDayVisit.queued.length, 0, 'ordinary advancing days must stay silent');
     assert.equal(nextDayVisit.storage.getItem('tezos_streak_count'), '2');
-    const nextDayToast = renderToast(nextDayVisit.queued[0]);
-    assert.match(nextDayToast.textContent, /2-day visit streak/i);
-    assert.match(nextDayToast.textContent, /Browser-local/i);
-    assert.match(nextDayToast.textContent, /Settings → Visit streak/i);
 
     const resetVisit = runVisit({
       tezos_streak_count: 8,
       tezos_streak_last_visit: '2026-07-01'
     });
     assert.equal(resetVisit.storage.getItem('tezos_streak_count'), '1');
-    assert.match(renderToast(resetVisit.queued[0]).textContent, /Day 1[\s\S]*Come back tomorrow to start a streak/i);
+    assert.equal(resetVisit.queued.length, 0, 'a missed-day reset must stay silent');
 
-    const milestoneVisit = runVisit({
-      tezos_streak_count: 6,
-      tezos_streak_last_visit: yesterday
-    });
-    const milestoneToast = renderToast(milestoneVisit.queued[0]);
-    assert.ok(milestoneToast.classNames.has('milestone'));
-    assert.match(milestoneToast.children[0]?.textContent || '', /One week in the bakery[\s\S]*Settings → Visit streak/i);
-    assert.equal(milestoneToast.children[1]?.textContent, 'Share');
+    for (const ordinaryCount of [8, 14, 30, 60, 99, 101, 364, 366]) {
+      const ordinaryVisit = runVisit({
+        tezos_streak_count: ordinaryCount - 1,
+        tezos_streak_last_visit: yesterday
+      });
+      assert.equal(ordinaryVisit.queued.length, 0, `ordinary Day ${ordinaryCount} must stay silent`);
+      assert.equal(ordinaryVisit.storage.getItem('tezos_streak_count'), String(ordinaryCount));
+    }
 
-    pass('visit streak starts after day one, advances once per local calendar day, updates persistent help, and preserves milestone sharing');
+    const signalCounts = [7, 10, 11, 22, 33, 100, 111, 222, 333, 365, 444, 555, 666, 777, 888, 999, 1000, 1111];
+    for (const signalCount of signalCounts) {
+      const signalVisit = runVisit({
+        tezos_streak_count: signalCount - 1,
+        tezos_streak_last_visit: yesterday
+      });
+      assert.equal(signalVisit.queued.length, 1, `Day ${signalCount} must enqueue one hidden signal`);
+      assert.equal(signalVisit.queued[0].duration, 11000, `Day ${signalCount} signal duration mismatch`);
+      const signalToast = renderToast(signalVisit.queued[0]);
+      assert.match(signalToast.className, /\bsignal-bloom\b/);
+      assert.match(signalToast.className, /\bmilestone\b/);
+      assert.equal(signalToast['data-streak-count'], String(signalCount));
+      assert.ok(signalToast['data-signal-kind'], `Day ${signalCount} signal kind missing`);
+      const announcement = findByClass(signalToast, 'signal-bloom-announcement');
+      assert.match(announcement?.textContent || '', new RegExp(`Day ${signalCount.toLocaleString('en-US')}`));
+      assert.doesNotMatch(announcement?.textContent || '', /browser-local|stored locally|Settings → Visit streak/i);
+      const number = findByClass(signalToast, 'signal-bloom-number');
+      assert.equal((number?.children || []).map((child) => child.textContent).join(''), signalCount.toLocaleString('en-US'));
+      const share = findByClass(signalToast, 'signal-bloom-share');
+      assert.equal(share?.textContent, 'Share the signal');
+      assert.match(share?.['aria-label'] || '', new RegExp(`Day ${signalCount.toLocaleString('en-US')}`));
+    }
+
+    pass('visit streak advances quietly and blooms only for the hidden numerology and landmark signal catalog');
   } catch (error) {
     fail(`visit streak behavior failed: ${error.message}`);
   } finally {

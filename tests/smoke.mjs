@@ -23200,7 +23200,8 @@ async function smokeFirstVisitTour(browser, baseUrl) {
   await page.locator('#visit-streak-modal.active').waitFor({ state: 'visible', timeout: 5000 });
   const visitStreakHelp = await page.locator('#visit-streak-modal').innerText();
   assert(/consecutive local calendar days/i.test(visitStreakHelp), `first visit tour: visit streak meaning missing: ${visitStreakHelp}`);
-  assert(/7, 14, 30, 60, 100, and 365 days/i.test(visitStreakHelp), `first visit tour: visit streak milestones missing: ${visitStreakHelp}`);
+  assert(/Hidden signals:[\s\S]*meaningful number patterns surface on their own/i.test(visitStreakHelp), `first visit tour: hidden signal explanation missing: ${visitStreakHelp}`);
+  assert(!/7, 14, 30, 60, 100, and 365 days/i.test(visitStreakHelp), `first visit tour: exact hidden signal catalog must stay undisclosed: ${visitStreakHelp}`);
   assert(/no currency or points/i.test(visitStreakHelp) && /does not affect Tezos Maxis ranks or Passport progress/i.test(visitStreakHelp), `first visit tour: visit streak competitive boundary missing: ${visitStreakHelp}`);
   await page.locator('#visit-streak-modal-close').click();
   await page.locator('#visit-streak-modal.active').waitFor({ state: 'detached', timeout: 5000 });
@@ -23280,6 +23281,159 @@ async function smokeFirstVisitTour(browser, baseUrl) {
 
   assert(issues.length === 0, `first visit tour browser issues:\n${issues.join('\n')}`);
   log('ok - first visit tour smoke');
+}
+
+async function smokeVisitSignalBloom(browser, baseUrl) {
+  const issues = [];
+  const seedSignalVisit = ({ previousCount, theme }) => {
+    localStorage.setItem('tezos-systems-theme', theme);
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    if (sessionStorage.getItem('tezos-signal-bloom-smoke-seeded')) return;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const date = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    localStorage.setItem('tezos_streak_count', String(previousCount));
+    localStorage.setItem('tezos_streak_last_visit', date);
+    sessionStorage.setItem('tezos-signal-bloom-smoke-seeded', '1');
+  };
+
+  const desktopContext = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: 'no-preference',
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(desktopContext);
+  await desktopContext.addInitScript(seedSignalVisit, { previousCount: 110, theme: 'matrix' });
+  const desktopPage = await desktopContext.newPage();
+  attachIssueCollectors(desktopPage, 'visit signal bloom desktop', issues);
+  let response = await desktopPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `visit signal bloom desktop: dashboard failed with HTTP ${response?.status()}`);
+  const desktopBloom = desktopPage.locator('.signal-bloom.visible[data-streak-count="111"]');
+  await desktopBloom.waitFor({ state: 'visible', timeout: 15000 });
+  await desktopPage.waitForTimeout(1250);
+  const desktopState = await desktopBloom.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const digits = [...node.querySelectorAll('.signal-bloom-number > *')];
+    const announcement = node.querySelector('.signal-bloom-announcement');
+    const share = node.querySelector('.signal-bloom-share');
+    const sigil = node.querySelector('.signal-bloom-sigil');
+    const message = node.querySelector('.signal-bloom-message');
+    return {
+      announcement: announcement?.textContent || '',
+      badgePosition: getComputedStyle(node).position,
+      bottom: rect.bottom,
+      color: getComputedStyle(node).color,
+      digitAnimationNames: digits.map((digit) => getComputedStyle(digit).animationName),
+      digitOpacity: digits.map((digit) => Number(getComputedStyle(digit).opacity)),
+      height: rect.height,
+      kind: node.getAttribute('data-signal-kind') || '',
+      left: rect.left,
+      message: message?.textContent || '',
+      number: digits.map((digit) => digit.textContent || '').join(''),
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      right: rect.right,
+      shareLabel: share?.getAttribute('aria-label') || '',
+      shareText: share?.textContent || '',
+      sigilOpacity: Number(getComputedStyle(sigil).opacity),
+      top: rect.top,
+      viewport: { width: innerWidth, height: innerHeight },
+      width: rect.width
+    };
+  });
+  assert(desktopState.kind === 'repeating'
+    && desktopState.number === '111'
+    && desktopState.message === 'The signal repeats.'
+    && /Repeating signal[\s\S]*Day 111[\s\S]*The signal repeats/i.test(desktopState.announcement)
+    && !/browser-local|stored locally|Settings → Visit streak/i.test(desktopState.announcement)
+    && desktopState.shareText === 'Share the signal'
+    && /Share the Day 111 signal/i.test(desktopState.shareLabel)
+    && desktopState.badgePosition === 'fixed'
+    && desktopState.width >= 330
+    && desktopState.width <= 420
+    && desktopState.height >= 110
+    && desktopState.height <= 200
+    && desktopState.left >= 0
+    && desktopState.right <= desktopState.viewport.width
+    && desktopState.top >= 0
+    && desktopState.bottom <= desktopState.viewport.height
+    && desktopState.overflow <= 1
+    && desktopState.digitOpacity.every((opacity) => opacity > 0.98)
+    && desktopState.digitAnimationNames.every((name) => name.includes('signal-bloom-digit-enter'))
+    && desktopState.sigilOpacity > 0.98,
+  `visit signal bloom desktop: reveal or geometry mismatch ${JSON.stringify(desktopState)}`);
+
+  response = await desktopPage.reload({ waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `visit signal bloom reload: dashboard failed with HTTP ${response?.status()}`);
+  await desktopPage.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await desktopPage.waitForTimeout(1600);
+  await assertLocatorCount(desktopPage.locator('.signal-bloom'), 0, 'visit signal bloom same-day reload');
+  await desktopContext.close();
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 360, height: 720 },
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(mobileContext);
+  await mobileContext.addInitScript(seedSignalVisit, { previousCount: 21, theme: 'clean' });
+  const mobilePage = await mobileContext.newPage();
+  attachIssueCollectors(mobilePage, 'visit signal bloom mobile', issues);
+  response = await mobilePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  assert(response?.ok(), `visit signal bloom mobile: dashboard failed with HTTP ${response?.status()}`);
+  const mobileBloom = mobilePage.locator('.signal-bloom.visible[data-streak-count="22"]');
+  await mobileBloom.waitFor({ state: 'visible', timeout: 15000 });
+  const mobileState = await mobileBloom.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    const digits = [...node.querySelectorAll('.signal-bloom-digit')];
+    const share = node.querySelector('.signal-bloom-share');
+    const shareRect = share?.getBoundingClientRect();
+    const sigil = node.querySelector('.signal-bloom-sigil');
+    const message = node.querySelector('.signal-bloom-message');
+    return {
+      animationName: getComputedStyle(node).animationName,
+      bottom: rect.bottom,
+      digitAnimationNames: digits.map((digit) => getComputedStyle(digit).animationName),
+      digitOpacity: digits.map((digit) => Number(getComputedStyle(digit).opacity)),
+      digitTransforms: digits.map((digit) => getComputedStyle(digit).transform),
+      height: rect.height,
+      left: rect.left,
+      messageAnimationName: getComputedStyle(message).animationName,
+      messageOpacity: Number(getComputedStyle(message).opacity),
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      right: rect.right,
+      shareHeight: shareRect?.height || 0,
+      shareOpacity: Number(getComputedStyle(share).opacity),
+      sigilAnimationName: getComputedStyle(sigil).animationName,
+      sigilOpacity: Number(getComputedStyle(sigil).opacity),
+      top: rect.top,
+      viewport: { width: innerWidth, height: innerHeight },
+      width: rect.width
+    };
+  });
+  assert(mobileState.animationName === 'none'
+    && mobileState.digitAnimationNames.every((name) => name === 'none')
+    && mobileState.digitOpacity.every((opacity) => opacity === 1)
+    && mobileState.digitTransforms.every((transform) => transform === 'none')
+    && mobileState.messageAnimationName === 'none'
+    && mobileState.messageOpacity === 1
+    && mobileState.shareOpacity === 1
+    && mobileState.sigilAnimationName === 'none'
+    && mobileState.sigilOpacity === 1
+    && mobileState.shareHeight >= 44
+    && mobileState.width <= mobileState.viewport.width - 16
+    && mobileState.height >= 105
+    && mobileState.height <= 210
+    && mobileState.left >= 7
+    && mobileState.right <= mobileState.viewport.width - 7
+    && mobileState.top >= 0
+    && mobileState.bottom <= mobileState.viewport.height
+    && mobileState.overflow <= 1,
+  `visit signal bloom mobile reduced-motion or geometry mismatch ${JSON.stringify(mobileState)}`);
+  await mobileContext.close();
+
+  assert(issues.length === 0, `visit signal bloom browser issues:\n${issues.join('\n')}`);
+  log('ok - visit Signal Bloom desktop, mobile, reduced-motion, and same-day replay smoke');
 }
 
 async function smokeUxChanges(browser, baseUrl) {
@@ -31084,6 +31238,7 @@ async function smokeOverlayStack(browser, baseUrl) {
 function getSuiteCatalog(browser, baseUrl) {
   return [
     { name: 'first-visit-tour', description: 'Deep-link onboarding, first root visit, and tour prompt behavior', run: () => smokeFirstVisitTour(browser, baseUrl) },
+    { name: 'visit-signal-bloom', description: 'Rare visit landmarks bloom as theme-aware, shareable, reduced-motion-safe hidden signals without same-day replay', run: () => smokeVisitSignalBloom(browser, baseUrl) },
     { name: 'home-layout', description: 'Six device-local Home switches, inline Hide/Undo, persistence, tab sync, deep-link recovery, tour preview, Live Pulse gating, and responsive accessibility', run: () => smokeHomeLayout(browser, baseUrl) },
     { name: 'app-shell', description: 'Version metadata, service worker, manifest, icons, robots, sitemap, and shell assets', run: () => smokeAppShell(browser, baseUrl) },
     { name: 'release-update', description: 'Persistent desktop/mobile release dock, Later pill, activation fallback, and cross-tab service-worker lifecycle', run: () => smokeReleaseUpdateDock(browser, baseUrl) },

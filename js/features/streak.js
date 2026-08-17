@@ -5,18 +5,27 @@
 
 const STORAGE_KEY_COUNT = 'tezos_streak_count';
 const STORAGE_KEY_LAST = 'tezos_streak_last_visit';
-const STREAK_TOAST_DURATION = 6400;
-const MILESTONE_TOAST_DURATION = 11000;
-const MILESTONES = new Set([7, 14, 30, 60, 100, 365]);
-const STREAK_SCOPE_COPY = 'Browser-local · Details in Settings → Visit streak.';
-const MILESTONE_COPY = {
-    7: '🍞 One week in the bakery.',
-    14: '🍞 Two weeks. The oven knows you now.',
-    30: "🥖 30 days — you've watched dozens of cycles pass.",
-    60: '🥖 60 days of showing up.',
-    100: '🏛️ 100 days. Practically furniture.',
-    365: '🎂 A full year — and at least one protocol upgrade you lived through.'
-};
+const SIGNAL_TOAST_DURATION = 11000;
+const SIGNAL_MOMENTS = Object.freeze({
+    7: { kind: 'numerology', kicker: 'First signal', glyph: '✦', message: 'A pattern appears.' },
+    10: { kind: 'round', kicker: 'Landmark signal', glyph: '◇', message: 'Double digits. The counter has awakened.' },
+    11: { kind: 'master', kicker: 'Master signal', glyph: '✦', message: 'The signal echoes.' },
+    22: { kind: 'master', kicker: 'Master signal', glyph: '✦', message: 'The pattern holds.' },
+    33: { kind: 'master', kicker: 'Master signal', glyph: '✦', message: 'Still in tune.' },
+    100: { kind: 'round', kicker: 'Landmark signal', glyph: '◇', message: 'Triple digits. Okay, now this is a thing.' },
+    111: { kind: 'repeating', kicker: 'Repeating signal', glyph: '⁂', message: 'The signal repeats.' },
+    222: { kind: 'repeating', kicker: 'Repeating signal', glyph: '⁂', message: 'The pattern found you again.' },
+    333: { kind: 'repeating', kicker: 'Repeating signal', glyph: '⁂', message: 'Three threes. Still tuned in.' },
+    365: { kind: 'orbit', kicker: 'One full orbit', glyph: '◌', message: 'Still circling Tezos.' },
+    444: { kind: 'repeating', kicker: 'Repeating signal', glyph: '⁂', message: 'Four keeps knocking.' },
+    555: { kind: 'repeating', kicker: 'Repeating signal', glyph: '⁂', message: 'The pattern refuses to be subtle.' },
+    666: { kind: 'repeating', kicker: 'Unusual frequency', glyph: '⁂', message: 'Probably fine.' },
+    777: { kind: 'repeating', kicker: 'Lucky signal', glyph: '⁂', message: 'Obviously.' },
+    888: { kind: 'repeating', kicker: 'Repeating signal', glyph: '⁂', message: 'The loop keeps looping.' },
+    999: { kind: 'repeating', kicker: 'Threshold signal', glyph: '⁂', message: 'One step from four digits.' },
+    1000: { kind: 'round', kicker: 'Four-digit signal', glyph: '◇', message: 'You stayed.' },
+    1111: { kind: 'repeating', kicker: 'Gateway signal', glyph: '⁂', message: 'The signal became a doorway.' }
+});
 
 import { enqueueToast } from '../ui/toast-queue.js';
 
@@ -66,19 +75,6 @@ function updateStreak(now = new Date()) {
     return { count, isFirstVisit, didAdvance: true };
 }
 
-/**
- * Format the streak text
- */
-function formatStreak(count) {
-    if (count === 1) {
-        return `🔥 Day 1 · ${STREAK_SCOPE_COPY} Come back tomorrow to start a streak.`;
-    }
-    if (MILESTONE_COPY[count]) {
-        return `${MILESTONE_COPY[count]} ${STREAK_SCOPE_COPY}`;
-    }
-    return `🔥 ${count}-day visit streak · ${STREAK_SCOPE_COPY}`;
-}
-
 function renderCurrentStreak(count) {
     const current = document.getElementById('visit-streak-current');
     if (!current) return;
@@ -87,8 +83,9 @@ function renderCurrentStreak(count) {
         : 'No visit streak yet';
 }
 
-async function shareStreakMilestone(count, copy, button) {
+async function shareStreakSignal(count, moment, button) {
     const originalText = button?.textContent || '';
+    const formattedCount = count.toLocaleString('en-US');
     let card = null;
     try {
         if (button) {
@@ -111,9 +108,9 @@ async function shareStreakMilestone(count, copy, button) {
             <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:18px;flex:1;">
                 <div style="font-family:Orbitron,sans-serif;font-size:18px;font-weight:900;color:#00ff88;letter-spacing:0;text-transform:uppercase;">TEZOS SYSTEMS</div>
                 <div style="width:180px;height:1px;background:#00ff88;opacity:0.48;"></div>
-                <div style="font-size:14px;font-weight:800;color:rgba(255,255,255,0.42);letter-spacing:0;text-transform:uppercase;">Visit streak</div>
-                <div style="font-size:56px;line-height:1.04;font-weight:900;color:#ffffff;overflow-wrap:anywhere;">${copy}</div>
-                <div style="margin-top:auto;font-size:24px;font-weight:800;color:#00ff88;">${count.toLocaleString()} days straight watching Tezos run.</div>
+                <div style="font-size:14px;font-weight:800;color:rgba(255,255,255,0.42);letter-spacing:0;text-transform:uppercase;">Hidden signal · Day ${formattedCount}</div>
+                <div style="font-size:56px;line-height:1.04;font-weight:900;color:#ffffff;overflow-wrap:anywhere;">${moment.message}</div>
+                <div style="margin-top:auto;font-size:24px;font-weight:800;color:#00ff88;">${formattedCount} days straight watching Tezos run.</div>
             </div>
         `;
         appendCardSeal(card);
@@ -129,11 +126,11 @@ async function shareStreakMilestone(count, copy, button) {
         card = null;
 
         showShareModal(canvas, [{
-            label: '🔥 Streak',
-            text: `${count} days straight checking the Tezos network. Mainnet history stretches back to September 2018.\n\ntezos.systems`
-        }], 'Tezos Streak');
+            label: '✦ Signal',
+            text: `Day ${formattedCount}: ${moment.message}\n\nI found a hidden signal at tezos.systems`
+        }], 'Tezos Signal');
     } catch (error) {
-        console.error('Failed to share streak milestone', error);
+        console.error('Failed to share visit signal', error);
     } finally {
         if (card?.isConnected) card.remove();
         if (button) {
@@ -143,29 +140,70 @@ async function shareStreakMilestone(count, copy, button) {
     }
 }
 
-function showStreakToast({ text, shareText = text, count, isMilestone }, done, duration = 6000) {
-    const badge = document.createElement('div');
-    badge.className = 'visit-streak-toast';
-    badge.setAttribute('role', 'status');
-    badge.setAttribute('aria-live', 'polite');
-    if (isMilestone) badge.classList.add('milestone');
+function appendSignalDigits(number, count) {
+    Array.from(count.toLocaleString('en-US')).forEach((character) => {
+        const digit = document.createElement('span');
+        digit.className = character === ',' ? 'signal-bloom-separator' : 'signal-bloom-digit';
+        digit.textContent = character;
+        number.append(digit);
+    });
+}
 
-    if (isMilestone) {
-        const copy = document.createElement('span');
-        copy.className = 'visit-streak-copy';
-        copy.textContent = text;
-        const share = document.createElement('button');
-        share.className = 'visit-streak-share';
-        share.type = 'button';
-        share.textContent = 'Share';
-        share.addEventListener('click', (event) => {
-            event.stopPropagation();
-            shareStreakMilestone(count, shareText, share);
-        });
-        badge.append(copy, share);
-    } else {
-        badge.textContent = text;
-    }
+function showSignalBloom({ count, moment }, done, duration = SIGNAL_TOAST_DURATION) {
+    const formattedCount = count.toLocaleString('en-US');
+    const badge = document.createElement('div');
+    badge.className = 'visit-streak-toast signal-bloom milestone';
+    badge.setAttribute('data-signal-kind', moment.kind);
+    badge.setAttribute('data-streak-count', String(count));
+
+    const announcement = document.createElement('span');
+    announcement.className = 'signal-bloom-announcement';
+    announcement.setAttribute('role', 'status');
+    announcement.setAttribute('aria-live', 'polite');
+    announcement.setAttribute('aria-atomic', 'true');
+    announcement.textContent = `${moment.kicker}. Day ${formattedCount}. ${moment.message}`;
+
+    const sigil = document.createElement('span');
+    sigil.className = 'signal-bloom-sigil';
+    sigil.setAttribute('aria-hidden', 'true');
+    const outerRing = document.createElement('span');
+    outerRing.className = 'signal-bloom-ring signal-bloom-ring-outer';
+    const innerRing = document.createElement('span');
+    innerRing.className = 'signal-bloom-ring signal-bloom-ring-inner';
+    const glyph = document.createElement('span');
+    glyph.className = 'signal-bloom-glyph';
+    glyph.textContent = moment.glyph;
+    sigil.append(outerRing, innerRing, glyph);
+
+    const content = document.createElement('div');
+    content.className = 'signal-bloom-content';
+    const kicker = document.createElement('span');
+    kicker.className = 'signal-bloom-kicker';
+    kicker.textContent = moment.kicker;
+    const numberRow = document.createElement('span');
+    numberRow.className = 'signal-bloom-number-row';
+    numberRow.setAttribute('aria-hidden', 'true');
+    const day = document.createElement('span');
+    day.className = 'signal-bloom-day';
+    day.textContent = 'Day';
+    const number = document.createElement('strong');
+    number.className = 'signal-bloom-number';
+    appendSignalDigits(number, count);
+    numberRow.append(day, number);
+    const message = document.createElement('span');
+    message.className = 'signal-bloom-message';
+    message.textContent = moment.message;
+    const share = document.createElement('button');
+    share.className = 'signal-bloom-share';
+    share.type = 'button';
+    share.textContent = 'Share the signal';
+    share.setAttribute('aria-label', `Share the Day ${formattedCount} signal`);
+    share.addEventListener('click', (event) => {
+        event.stopPropagation();
+        shareStreakSignal(count, moment, share);
+    });
+    content.append(kicker, numberRow, message, share);
+    badge.append(announcement, sigil, content);
 
     document.body.appendChild(badge);
     requestAnimationFrame(() => badge.classList.add('visible'));
@@ -190,15 +228,14 @@ export function initStreak(now = new Date()) {
     // calendar day should not replay a streak the visitor already saw.
     if (isFirstVisit || !didAdvance) return;
 
-    const isMilestone = MILESTONES.has(count);
+    const moment = SIGNAL_MOMENTS[count];
+    // Ordinary days, missed-day resets, and non-special round numbers advance
+    // quietly. The sparse signal catalog is meant to be discovered by chance.
+    if (!moment) return;
+
     enqueueToast({
         priority: 3,
-        duration: isMilestone ? MILESTONE_TOAST_DURATION : STREAK_TOAST_DURATION,
-        show: (done, duration) => showStreakToast({
-            text: formatStreak(count),
-            shareText: MILESTONE_COPY[count],
-            count,
-            isMilestone
-        }, done, duration)
+        duration: SIGNAL_TOAST_DURATION,
+        show: (done, duration) => showSignalBloom({ count, moment }, done, duration)
     });
 }

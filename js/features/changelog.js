@@ -7,7 +7,9 @@ export const CHANGELOG = [
     {
         date: '2026-08-17',
         entries: [
-            { type: '✨', text: 'The bakers pill now shows three Newest Bakers by baking rights gained and three Closed Bakers by baking rights lost, with current size indicators for new bakers, exact one-year-prior size indicators for closed bakers, Tezos Domain or TzKT identities, and direct My Tezos and TzKT actions' }
+            { type: '✨', text: 'The bakers pill now shows three Newest Bakers by baking rights gained and three Closed Bakers by baking rights lost, with current size indicators for new bakers, exact one-year-prior size indicators for closed bakers, Tezos Domain or TzKT identities, and direct My Tezos and TzKT actions' },
+            { type: '✨', text: 'Visit streaks now stay quiet on ordinary days and reveal rare master-number, repeating-digit, round-number, and annual landmarks as hidden signals' },
+            { type: '🎨', text: 'Hidden visit signals now bloom through a theme-aware sigil, staggered digits, playful copy, reduced-motion-safe geometry, and a Share the signal keepsake' }
         ]
     },
     {

@@ -8902,32 +8902,6 @@ body.high-combo .stat-card {
     animation: visit-streak-pop 0.62s cubic-bezier(0.2, 1.35, 0.32, 1) both, visit-streak-glow 2s ease-in-out 0.62s infinite;
 }
 
-.visit-streak-copy {
-    min-width: 0;
-}
-
-.visit-streak-share {
-    flex: 0 0 auto;
-    border: 1px solid var(--streak-toast-strong-border);
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--streak-toast-color) 11%, transparent);
-    color: var(--streak-toast-color);
-    padding: 5px 9px;
-    font: inherit;
-    font-size: 0.72rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: background 0.18s ease, transform 0.18s ease;
-}
-
-.visit-streak-share:hover {
-    background: color-mix(in srgb, var(--streak-toast-color) 18%, transparent);
-}
-
-.visit-streak-share:active {
-    transform: translateY(1px) scale(0.98);
-}
-
 @keyframes visit-streak-pop {
     0% {
         opacity: 0;
@@ -9116,6 +9090,7 @@ body.high-combo .stat-card {
         justify-content: center;
         text-align: center;
     }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -9134,6 +9109,7 @@ body.high-combo .stat-card {
         border-color: var(--streak-toast-strong-border);
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 0 24px var(--streak-toast-pop-glow);
     }
+
 }
 
 /* ===== Deltas Panel (Since Last Visit) ===== */
