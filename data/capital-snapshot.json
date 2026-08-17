@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-16T18:51:14.089Z",
-  "contentHash": "d096afb34fbb8bafe0af80355fe1d317192810f75fa10237c1e6e0076d2199ca",
+  "generatedAt": "2026-08-17T02:01:31.090Z",
+  "contentHash": "e7a55dbc13b2d9f789f567798381500c6c85d0e5e4e2a061ec955c8729ffe03b",
   "sources": {
     "defillama": {
       "label": "DefiLlama",
@@ -12,21 +12,21 @@
         "https://api.llama.fi/protocols",
         "https://stablecoins.llama.fi/stablecoincharts/{chain}"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
         "chains": [
           {
             "id": "tezos",
-            "tvlDays": 2147,
+            "tvlDays": 2148,
             "stablecoinDays": 1463,
             "protocols": 22
           },
           {
             "id": "etherlink",
-            "tvlDays": 781,
+            "tvlDays": 782,
             "stablecoinDays": 246,
             "protocols": 20
           }
@@ -44,12 +44,12 @@
         "https://api.tzkt.io/v1/operations/transactions/count",
         "https://api.tzkt.io/v1/blocks"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
-        "statisticsLevel": 14530693,
+        "statisticsLevel": 14534971,
         "transactionDays": 30,
         "feeDays": 30,
         "transactionDefinition": "status=applied; TzKT transaction operations; includes indexed internal calls",
@@ -64,8 +64,8 @@
       "endpoints": [
         "https://explorer.etherlink.com/api/v2/stats"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
@@ -81,23 +81,23 @@
       "endpoints": [
         "https://explorer.etherlink.com/stats-service/api/v1/lines/{metric}"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
-        "requestedFrom": "2024-08-16",
-        "requestedTo": "2026-08-16",
+        "requestedFrom": "2024-08-17",
+        "requestedTo": "2026-08-17",
         "resolution": "DAY",
         "accountsGrowthDefinition": "Cumulative indexed-account series from Blockscout; newAccounts is its non-negative adjacent daily delta.",
         "returnedDays": {
           "newTransactions": 731,
-          "activeAccounts": 731,
-          "accountsGrowth": 731,
-          "averageTransactionFee": 731,
-          "transactionFees": 731,
+          "activeAccounts": 730,
+          "accountsGrowth": 730,
+          "averageTransactionFee": 730,
+          "transactionFees": 730,
           "averageGasPrice": 731,
-          "newAccounts": 730
+          "newAccounts": 729
         },
         "truncated": false
       }
@@ -112,9 +112,9 @@
         "https://api.coingecko.com/api/v3/coins/tezos/tickers"
       ],
       "retrievedAt": "2026-08-12T13:53:30.090Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "stale",
-      "error": "CoinGecko returned 93 usable ticker rows; expected the complete first page of 100",
+      "error": "CoinGecko returned 92 usable ticker rows; expected the complete first page of 100",
       "coverage": {
         "priceDays": {
           "usd": 365,
@@ -133,8 +133,8 @@
         "https://help.uranium.io/en/articles/10222923-what-is-the-contract-address",
         "https://help.uranium.io/en/articles/11604935-token-not-appearing-in-wallet-usdc-xu3o8"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
@@ -153,14 +153,14 @@
         "https://explorer.etherlink.com/api/v2/tokens/0x79052Ab3C166D4899a1e0DD033aC3b379AF0B1fD/counters",
         "https://explorer.etherlink.com/api/v2/tokens/0x79052Ab3C166D4899a1e0DD033aC3b379AF0B1fD/transfers"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
         "contract": "0x79052Ab3C166D4899a1e0DD033aC3b379AF0B1fD",
         "holderCounter": 3156,
-        "transferCounter": 80765,
+        "transferCounter": 80773,
         "latestTransferRows": 1,
         "truncated": true
       }
@@ -172,8 +172,8 @@
       "endpoints": [
         "https://api.llama.fi/protocols"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
@@ -193,8 +193,8 @@
       "endpoints": [
         "https://api.coingecko.com/api/v3/coins/list?include_platform=true"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
@@ -222,14 +222,14 @@
       "endpoints": [
         "https://data.objkt.com/v3/graphql"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
         "windowDays": 30,
         "listingSales": 30000,
-        "mintEvents": 17605,
+        "mintEvents": 17196,
         "marketplaceGroups": [
           "objktcom",
           "fxhash",
@@ -249,8 +249,8 @@
       "endpoints": [
         "https://gitlab.com/api/v4/projects/tezos%2Ftezos/repository/commits"
       ],
-      "retrievedAt": "2026-08-16T18:51:14.089Z",
-      "checkedAt": "2026-08-16T18:51:14.089Z",
+      "retrievedAt": "2026-08-17T02:01:31.090Z",
+      "checkedAt": "2026-08-17T02:01:31.090Z",
       "status": "ok",
       "error": null,
       "coverage": {
@@ -268,7 +268,7 @@
         "id": "tezos",
         "label": "Tezos",
         "tvl": {
-          "currentUsd": 18695004,
+          "currentUsd": 18618916,
           "history": [
             {
               "date": "2020-09-30",
@@ -8856,12 +8856,16 @@
             },
             {
               "date": "2026-08-16",
-              "valueUsd": 18695004
+              "valueUsd": 18663905
+            },
+            {
+              "date": "2026-08-17",
+              "valueUsd": 18618916
             }
           ]
         },
         "stablecoins": {
-          "currentUsd": 48638761.4,
+          "currentUsd": 48583674.95,
           "history": [
             {
               "date": "2022-08-15",
@@ -17637,8 +17641,8 @@
             },
             {
               "date": "2026-08-16",
-              "valueUsd": 48638761.4,
-              "canonicalUsd": 48638761.4,
+              "valueUsd": 48583674.95,
+              "canonicalUsd": 48583674.95,
               "bridgedUsd": 0
             }
           ]
@@ -17649,178 +17653,178 @@
             "name": "Youves",
             "category": "Synthetics",
             "parentProtocol": null,
-            "tvlUsd": 15988353.04,
+            "tvlUsd": 15950908.6,
             "url": "https://app.youves.com",
-            "sharePct": 76.6822
+            "sharePct": 76.799
           },
           {
             "slug": "bitfinex",
             "name": "Bitfinex",
             "category": "CEX",
             "parentProtocol": null,
-            "tvlUsd": 1902844.74,
+            "tvlUsd": 1902030.35,
             "url": "https://www.bitfinex.com",
-            "sharePct": 9.1263
+            "sharePct": 9.1577
           },
           {
             "slug": "sirius",
             "name": "Sirius",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 1618296.45,
+            "tvlUsd": 1595947.02,
             "url": "https://siriustoken.io/",
-            "sharePct": 7.7616
+            "sharePct": 7.684
           },
           {
             "slug": "kolibri",
             "name": "Kolibri",
             "category": "CDP",
             "parentProtocol": null,
-            "tvlUsd": 546261.55,
+            "tvlUsd": 536992.48,
             "url": "https://kolibri.finance",
-            "sharePct": 2.6199
+            "sharePct": 2.5855
           },
           {
             "slug": "quipuswap-v1",
             "name": "QuipuSwap V1",
             "category": "Dexs",
             "parentProtocol": "parent#quipuswap",
-            "tvlUsd": 285829.19,
+            "tvlUsd": 281539.82,
             "url": "https://quipuswap.com",
-            "sharePct": 1.3709
+            "sharePct": 1.3555
           },
           {
             "slug": "gate",
             "name": "Gate",
             "category": "CEX",
             "parentProtocol": null,
-            "tvlUsd": 161412.02,
+            "tvlUsd": 159297.71,
             "url": "https://www.gate.com",
-            "sharePct": 0.7742
+            "sharePct": 0.767
           },
           {
             "slug": "crunchy",
             "name": "Crunchy",
             "category": "Yield Aggregator",
             "parentProtocol": "parent#crunchy-network",
-            "tvlUsd": 53799.09,
+            "tvlUsd": 52857.64,
             "url": null,
-            "sharePct": 0.258
+            "sharePct": 0.2545
           },
           {
             "slug": "ctez",
             "name": "ctez",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 50443.55,
+            "tvlUsd": 49557.88,
             "url": null,
-            "sharePct": 0.2419
+            "sharePct": 0.2386
           },
           {
             "slug": "quipuswap-v3",
             "name": "QuipuSwap V3",
             "category": "Dexs",
             "parentProtocol": "parent#quipuswap",
-            "tvlUsd": 42723.8,
+            "tvlUsd": 42474.09,
             "url": "https://quipuswap.com",
-            "sharePct": 0.2049
+            "sharePct": 0.2045
           },
           {
             "slug": "quipuswap-stableswap",
             "name": "QuipuSwap Stableswap",
             "category": "Dexs",
             "parentProtocol": "parent#quipuswap",
-            "tvlUsd": 36080.66,
+            "tvlUsd": 35666.31,
             "url": "https://quipuswap.com",
-            "sharePct": 0.173
+            "sharePct": 0.1717
           },
           {
             "slug": "plenty",
             "name": "Plenty",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 35265.66,
+            "tvlUsd": 35231.61,
             "url": "https://www.plenty.network",
-            "sharePct": 0.1691
+            "sharePct": 0.1696
           },
           {
             "slug": "spicyswap",
             "name": "SpicySwap",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 33606.97,
+            "tvlUsd": 33173.53,
             "url": "https://spicyswap.xyz/#/app",
-            "sharePct": 0.1612
+            "sharePct": 0.1597
           },
           {
             "slug": "quipuswap-v2",
             "name": "QuipuSwap V2",
             "category": "Dexs",
             "parentProtocol": "parent#quipuswap",
-            "tvlUsd": 20930.24,
+            "tvlUsd": 20648.02,
             "url": "https://quipuswap.com",
-            "sharePct": 0.1004
+            "sharePct": 0.0994
           },
           {
             "slug": "kordfi",
             "name": "KordFi",
             "category": "Yield",
             "parentProtocol": null,
-            "tvlUsd": 18667.34,
+            "tvlUsd": 18396.26,
             "url": "https://kord.fi/",
-            "sharePct": 0.0895
+            "sharePct": 0.0886
           },
           {
             "slug": "matter-defi",
             "name": "Matter Defi",
             "category": "Yield",
             "parentProtocol": null,
-            "tvlUsd": 16470.93,
+            "tvlUsd": 16264.23,
             "url": "https://matterdefi.xyz",
-            "sharePct": 0.079
+            "sharePct": 0.0783
           },
           {
             "slug": "yupana",
             "name": "Yupana",
             "category": "Lending",
             "parentProtocol": null,
-            "tvlUsd": 15375.85,
+            "tvlUsd": 15211.14,
             "url": "https://yupana.finance/",
-            "sharePct": 0.0737
+            "sharePct": 0.0732
           },
           {
             "slug": "dexter-exchange",
             "name": "Dexter Exchange",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 11509.24,
+            "tvlUsd": 11353.37,
             "url": null,
-            "sharePct": 0.0552
+            "sharePct": 0.0547
           },
           {
             "slug": "vortex-protocol",
             "name": "Vortex Protocol",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 7575.44,
+            "tvlUsd": 7482.61,
             "url": null,
-            "sharePct": 0.0363
+            "sharePct": 0.036
           },
           {
             "slug": "aliensfarm",
             "name": "AliensFarm",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 1663.41,
+            "tvlUsd": 1649.42,
             "url": null,
-            "sharePct": 0.008
+            "sharePct": 0.0079
           },
           {
             "slug": "tezfin",
             "name": "TezFin",
             "category": "Lending",
             "parentProtocol": null,
-            "tvlUsd": 1088.82,
+            "tvlUsd": 1080.64,
             "url": "https://app.tezos.finance/dashboard",
             "sharePct": 0.0052
           },
@@ -17829,7 +17833,7 @@
             "name": "Flame DeFi",
             "category": "Yield",
             "parentProtocol": null,
-            "tvlUsd": 989.7,
+            "tvlUsd": 973.46,
             "url": null,
             "sharePct": 0.0047
           },
@@ -17838,7 +17842,7 @@
             "name": "Latoken",
             "category": "CEX",
             "parentProtocol": null,
-            "tvlUsd": 965.71,
+            "tvlUsd": 948.7,
             "url": "https://latoken.com",
             "sharePct": 0.0046
           }
@@ -17848,7 +17852,7 @@
         "id": "etherlink",
         "label": "Etherlink",
         "tvl": {
-          "currentUsd": 15596542,
+          "currentUsd": 15599037,
           "history": [
             {
               "date": "2024-06-27",
@@ -20972,12 +20976,16 @@
             },
             {
               "date": "2026-08-16",
-              "valueUsd": 15596542
+              "valueUsd": 15599231
+            },
+            {
+              "date": "2026-08-17",
+              "valueUsd": 15599037
             }
           ]
         },
         "stablecoins": {
-          "currentUsd": 19070539.74,
+          "currentUsd": 18935811.46,
           "history": [
             {
               "date": "2025-12-14",
@@ -22451,9 +22459,9 @@
             },
             {
               "date": "2026-08-16",
-              "valueUsd": 19070539.74,
-              "canonicalUsd": 6334935.82,
-              "bridgedUsd": 12735603.92
+              "valueUsd": 18935811.46,
+              "canonicalUsd": 6199159.36,
+              "bridgedUsd": 12736652.1
             }
           ]
         },
@@ -22463,9 +22471,9 @@
             "name": "Curve DEX",
             "category": "Dexs",
             "parentProtocol": "parent#curve-finance",
-            "tvlUsd": 8634476.92,
+            "tvlUsd": 8632496.3,
             "url": "https://curve.finance",
-            "sharePct": 25.5198
+            "sharePct": 25.5005
           },
           {
             "slug": "uranium.io",
@@ -22474,16 +22482,16 @@
             "parentProtocol": null,
             "tvlUsd": 7493425.35,
             "url": "https://uranium.io/en",
-            "sharePct": 22.1474
+            "sharePct": 22.1357
           },
           {
             "slug": "spiko",
             "name": "Spiko",
             "category": "RWA",
             "parentProtocol": null,
-            "tvlUsd": 4891455.25,
+            "tvlUsd": 4907847.65,
             "url": "https://www.spiko.io/",
-            "sharePct": 14.4571
+            "sharePct": 14.4979
           },
           {
             "slug": "ultrayield-curator",
@@ -22492,34 +22500,34 @@
             "parentProtocol": "parent#ultrayield",
             "tvlUsd": 4799329.83,
             "url": "https://ultrayield.app/",
-            "sharePct": 14.1848
+            "sharePct": 14.1773
           },
           {
             "slug": "morpho-blue",
             "name": "Morpho Blue",
             "category": "Lending",
             "parentProtocol": "parent#morpho",
-            "tvlUsd": 3652827.76,
+            "tvlUsd": 3652859.94,
             "url": "https://app.morpho.org",
-            "sharePct": 10.7962
+            "sharePct": 10.7906
           },
           {
             "slug": "gearbox",
             "name": "Gearbox",
             "category": "Lending",
             "parentProtocol": null,
-            "tvlUsd": 1470449.17,
+            "tvlUsd": 1470497.65,
             "url": "https://gearbox.finance/",
-            "sharePct": 4.346
+            "sharePct": 4.3439
           },
           {
             "slug": "liquidity-house",
             "name": "Liquidity House",
             "category": "Prediction Market",
             "parentProtocol": null,
-            "tvlUsd": 1137186.38,
+            "tvlUsd": 1142386.54,
             "url": "https://liquidity.house",
-            "sharePct": 3.361
+            "sharePct": 3.3746
           },
           {
             "slug": "rockawayx",
@@ -22528,68 +22536,68 @@
             "parentProtocol": null,
             "tvlUsd": 862727.3,
             "url": "https://rockawayx.com/",
-            "sharePct": 2.5499
+            "sharePct": 2.5485
           },
           {
             "slug": "hanji-protocol",
             "name": "Hanji Protocol",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 440265.23,
+            "tvlUsd": 439589.35,
             "url": "https://hanji.io",
-            "sharePct": 1.3012
+            "sharePct": 1.2986
           },
           {
             "slug": "uniswap-v3",
             "name": "Uniswap V3",
             "category": "Dexs",
             "parentProtocol": "parent#uniswap",
-            "tvlUsd": 224394.36,
+            "tvlUsd": 224347.84,
             "url": "https://app.uniswap.org/",
-            "sharePct": 0.6632
+            "sharePct": 0.6627
           },
           {
             "slug": "midas-rwa",
             "name": "Midas RWA",
             "category": "RWA",
             "parentProtocol": null,
-            "tvlUsd": 126587.08,
+            "tvlUsd": 126574.04,
             "url": "https://midas.app",
-            "sharePct": 0.3741
+            "sharePct": 0.3739
           },
           {
             "slug": "gate",
             "name": "Gate",
             "category": "CEX",
             "parentProtocol": null,
-            "tvlUsd": 57047.75,
+            "tvlUsd": 56038.07,
             "url": "https://www.gate.com",
-            "sharePct": 0.1686
+            "sharePct": 0.1655
           },
           {
             "slug": "organic-growth",
             "name": "Organic Growth",
             "category": "Launchpad",
             "parentProtocol": null,
-            "tvlUsd": 18112.98,
+            "tvlUsd": 17875.83,
             "url": "https://www.organicgrowth.wtf/",
-            "sharePct": 0.0535
+            "sharePct": 0.0528
           },
           {
             "slug": "iguanadex-v3",
             "name": "IguanaDEX V3",
             "category": "Dexs",
             "parentProtocol": "parent#iguanadex",
-            "tvlUsd": 11667.96,
+            "tvlUsd": 11789.89,
             "url": "https://iguanadex.com",
-            "sharePct": 0.0345
+            "sharePct": 0.0348
           },
           {
             "slug": "superloop",
             "name": "Superloop",
             "category": "Onchain Capital Allocator",
             "parentProtocol": "parent#superlend-xyz",
-            "tvlUsd": 7249.8,
+            "tvlUsd": 7228.82,
             "url": "https://loop.superlend.xyz/earn",
             "sharePct": 0.0214
           },
@@ -22598,7 +22606,7 @@
             "name": "Superlend",
             "category": "Lending",
             "parentProtocol": "parent#superlend-xyz",
-            "tvlUsd": 6653.71,
+            "tvlUsd": 6654.31,
             "url": "https://www.superlend.xyz/",
             "sharePct": 0.0197
           },
@@ -22607,9 +22615,9 @@
             "name": "TachySwap",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 216.61,
+            "tvlUsd": 238.67,
             "url": null,
-            "sharePct": 0.0006
+            "sharePct": 0.0007
           },
           {
             "slug": "iguana-stableswap",
@@ -22625,7 +22633,7 @@
             "name": "IguanaDEX V2",
             "category": "Dexs",
             "parentProtocol": "parent#iguanadex",
-            "tvlUsd": 102.28,
+            "tvlUsd": 111.88,
             "url": "https://iguanadex.com",
             "sharePct": 0.0003
           },
@@ -22634,7 +22642,7 @@
             "name": "Symmetric",
             "category": "Dexs",
             "parentProtocol": null,
-            "tvlUsd": 19.19,
+            "tvlUsd": 19.46,
             "url": null,
             "sharePct": 0.0001
           }
@@ -22651,36 +22659,31 @@
   "network": {
     "tezos": {
       "statistics": {
-        "level": 14530693,
-        "timestamp": "2026-08-16T18:51:13Z",
-        "totalSupplyMutez": 1113575073541841,
-        "circulatingSupplyMutez": 1093594006629019,
-        "totalVotingPowerMutez": 642473817171971,
-        "ownStakedMutez": 131620093949359,
-        "externalStakedMutez": 202179211738125,
-        "delegatedMutez": 308674511484487,
-        "stakingRatioPct": 29.9755,
-        "totalBakers": 195,
-        "totalStakers": 3030,
-        "totalDelegators": 138831
+        "level": 14534971,
+        "timestamp": "2026-08-17T02:01:25Z",
+        "totalSupplyMutez": 1113637580462084,
+        "circulatingSupplyMutez": 1093656513549262,
+        "totalVotingPowerMutez": 642072097039746,
+        "ownStakedMutez": 131557903454302,
+        "externalStakedMutez": 202195771099568,
+        "delegatedMutez": 308318422485876,
+        "stakingRatioPct": 29.9697,
+        "totalBakers": 193,
+        "totalStakers": 3029,
+        "totalDelegators": 138820
       },
       "accounts": {
-        "total": 5777543,
-        "funded": 3018936,
+        "total": 5777607,
+        "funded": 3018982,
         "definition": "All indexed accounts; funded accounts currently have balance greater than zero."
       },
       "transactions": {
         "latestCompletedDay": {
-          "date": "2026-08-15",
-          "count": 98000,
+          "date": "2026-08-16",
+          "count": 96217,
           "complete": true
         },
         "daily": [
-          {
-            "date": "2026-07-17",
-            "count": 118381,
-            "complete": true
-          },
           {
             "date": "2026-07-18",
             "count": 148592,
@@ -22825,6 +22828,11 @@
             "date": "2026-08-15",
             "count": 98000,
             "complete": true
+          },
+          {
+            "date": "2026-08-16",
+            "count": 96217,
+            "complete": true
           }
         ],
         "coverage": {
@@ -22836,25 +22844,18 @@
       },
       "fees": {
         "latestBlock": {
-          "level": 14530693,
-          "timestamp": "2026-08-16T18:51:13Z",
-          "totalMutez": 1803
+          "level": 14534971,
+          "timestamp": "2026-08-17T02:01:25Z",
+          "totalMutez": 1170
         },
         "latestCompletedDay": {
-          "date": "2026-08-15",
-          "totalMutez": 103492846,
-          "blockCount": 14320,
-          "averagePerBlockMutez": 7227.15,
+          "date": "2026-08-16",
+          "totalMutez": 89997729,
+          "blockCount": 14287,
+          "averagePerBlockMutez": 6299.27,
           "complete": true
         },
         "daily": [
-          {
-            "date": "2026-07-17",
-            "totalMutez": 363111330,
-            "blockCount": 14034,
-            "averagePerBlockMutez": 25873.69,
-            "complete": true
-          },
           {
             "date": "2026-07-18",
             "totalMutez": 214857592,
@@ -23057,6 +23058,13 @@
             "blockCount": 14320,
             "averagePerBlockMutez": 7227.15,
             "complete": true
+          },
+          {
+            "date": "2026-08-16",
+            "totalMutez": 89997729,
+            "blockCount": 14287,
+            "averagePerBlockMutez": 6299.27,
+            "complete": true
           }
         ],
         "coverage": {
@@ -23074,27 +23082,22 @@
     },
     "etherlink": {
       "counters": {
-        "totalAddresses": 1630371,
-        "totalBlocks": 51145099,
-        "totalTransactions": 97839076,
-        "transactionsToday": 108844,
-        "averageBlockTimeMs": 1929,
-        "networkUtilizationPct": 1.8e-7,
-        "gasUsedToday": "126876868036",
+        "totalAddresses": 1630412,
+        "totalBlocks": 51166565,
+        "totalTransactions": 97890897,
+        "transactionsToday": 102189,
+        "averageBlockTimeMs": 929,
+        "networkUtilizationPct": 5.2e-7,
+        "gasUsedToday": "119261591473",
         "gasPricesGwei": {
-          "slow": 1.09,
-          "average": 1.09,
-          "fast": 1.15
+          "slow": 1.12,
+          "average": 1.16,
+          "fast": 1.19
         },
-        "observedAt": "2026-08-16T18:50:52.926459Z"
+        "observedAt": "2026-08-17T02:01:05.903202Z"
       },
       "series": {
         "newTransactions": [
-          {
-            "date": "2024-08-16",
-            "value": 36584,
-            "approximate": false
-          },
           {
             "date": "2024-08-17",
             "value": 21794,
@@ -26742,16 +26745,16 @@
           },
           {
             "date": "2026-08-16",
-            "value": 69252,
+            "value": 102189,
+            "approximate": false
+          },
+          {
+            "date": "2026-08-17",
+            "value": 7737,
             "approximate": true
           }
         ],
         "activeAccounts": [
-          {
-            "date": "2024-08-16",
-            "value": 27460,
-            "approximate": false
-          },
           {
             "date": "2024-08-17",
             "value": 13010,
@@ -30405,11 +30408,6 @@
         ],
         "accountsGrowth": [
           {
-            "date": "2024-08-16",
-            "value": 70478,
-            "approximate": false
-          },
-          {
             "date": "2024-08-17",
             "value": 70481,
             "approximate": false
@@ -34062,11 +34060,6 @@
         ],
         "newAccounts": [
           {
-            "date": "2024-08-17",
-            "value": 3,
-            "approximate": false
-          },
-          {
             "date": "2024-08-18",
             "value": 0,
             "approximate": false
@@ -37713,11 +37706,6 @@
           }
         ],
         "averageTransactionFee": [
-          {
-            "date": "2024-08-16",
-            "value": 0.001730445576,
-            "approximate": false
-          },
           {
             "date": "2024-08-17",
             "value": 0.002122064445,
@@ -41371,11 +41359,6 @@
         ],
         "transactionFees": [
           {
-            "date": "2024-08-16",
-            "value": 63.30662097,
-            "approximate": false
-          },
-          {
             "date": "2024-08-17",
             "value": 46.248272506,
             "approximate": false
@@ -45028,11 +45011,6 @@
         ],
         "averageGasPrice": [
           {
-            "date": "2024-08-16",
-            "value": 0.99986333,
-            "approximate": false
-          },
-          {
             "date": "2024-08-17",
             "value": 0.99967881,
             "approximate": false
@@ -48679,7 +48657,12 @@
           },
           {
             "date": "2026-08-16",
-            "value": 0.99934033,
+            "value": 0.9995205,
+            "approximate": false
+          },
+          {
+            "date": "2026-08-17",
+            "value": 0.99958182,
             "approximate": true
           }
         ]
@@ -54626,26 +54609,26 @@
           "totalSupplyRaw": "1600000000000000000000000",
           "totalSupply": "1600000",
           "holders": 3156,
-          "exchangeRateUsd": 5.48
+          "exchangeRateUsd": 5.47
         },
         "counters": {
           "holders": 3156,
-          "transfers": 80765
+          "transfers": 80773
         },
         "latestTransfer": {
-          "timestamp": "2026-08-16T13:34:41.000000Z",
-          "transactionHash": "0xcae8252ac7b16f60f9709bc1095cb5c87779d03676203efceff8f3c2053da9e2",
-          "amountRaw": "2591942100599489697",
-          "amount": "2.591942100599489697",
+          "timestamp": "2026-08-17T01:00:47.000000Z",
+          "transactionHash": "0x1f8cdc54f7fdd67d3c464456cbf69792c80288d91e32c4883befec779ac79a48",
+          "amountRaw": "18918671667733970000",
+          "amount": "18.91867166773397",
           "from": {
-            "address": "0x977474593c982cFa8b197cAE302e6d01f789435b",
-            "name": "LiFiDiamond",
-            "isContract": true
-          },
-          "to": {
-            "address": "0x7527aec7AfBADd637eCC59351E8c2a36Da7Ce9a5",
+            "address": "0x9097E92907679A5A3EB9EDcc1fed3b6CFAdC81C4",
             "name": null,
             "isContract": false
+          },
+          "to": {
+            "address": "0xB387D0A73619791420De4a1e5e710023Cb0f49c0",
+            "name": "PancakeV3Pool",
+            "isContract": true
           }
         },
         "coverage": {
@@ -54677,9 +54660,9 @@
         "chains": [
           "etherlink"
         ],
-        "tvlUsd": 4891455.25,
+        "tvlUsd": 4907847.65,
         "chainTvlUsd": {
-          "etherlink": 4891455.25
+          "etherlink": 4907847.65
         },
         "url": "https://www.spiko.io/"
       },
@@ -54690,9 +54673,9 @@
         "chains": [
           "etherlink"
         ],
-        "tvlUsd": 126587.08,
+        "tvlUsd": 126574.04,
         "chainTvlUsd": {
-          "etherlink": 126587.08
+          "etherlink": 126574.04
         },
         "url": "https://midas.app"
       }
@@ -54894,8 +54877,8 @@
   "art": {
     "windowDays": 30,
     "range": {
-      "from": "2026-07-18T00:00:00.000Z",
-      "to": "2026-08-16T18:51:14.089Z"
+      "from": "2026-07-19T00:00:00.000Z",
+      "to": "2026-08-17T02:01:31.090Z"
     },
     "marketplaces": [
       {
@@ -54908,10 +54891,10 @@
           "KT1WvzYHCNBvDSdwafTHv7nJ1dWmZ8GCYuuC",
           "KT1Xjap1TwmDR1d8yEd8ErkraAj2mbdMrPZY"
         ],
-        "salesCount": 25227,
-        "volumeXtz": 707688.31147,
-        "buyers": 1603,
-        "sellers": 3786
+        "salesCount": 25183,
+        "volumeXtz": 684634.70747,
+        "buyers": 1591,
+        "sellers": 3774
       },
       {
         "id": "fxhash",
@@ -54919,10 +54902,10 @@
         "contracts": [
           "KT1GbyoDi7H1sfXmimXpptZJuCdHMh66WS9u"
         ],
-        "salesCount": 544,
-        "volumeXtz": 48149.574,
-        "buyers": 82,
-        "sellers": 347
+        "salesCount": 570,
+        "volumeXtz": 60626.874,
+        "buyers": 85,
+        "sellers": 357
       },
       {
         "id": "teia",
@@ -54930,10 +54913,10 @@
         "contracts": [
           "KT1PHubm9HtyQEJ4BBpMTVomq6mhbfNZ9z5w"
         ],
-        "salesCount": 1562,
-        "volumeXtz": 30766.806671,
-        "buyers": 365,
-        "sellers": 357
+        "salesCount": 1559,
+        "volumeXtz": 28984.916671,
+        "buyers": 360,
+        "sellers": 359
       },
       {
         "id": "hen",
@@ -54941,9 +54924,9 @@
         "contracts": [
           "KT1HbQepzV1nVGg8QVznG7z4RcHseD5kwqBn"
         ],
-        "salesCount": 2450,
-        "volumeXtz": 9907.696616,
-        "buyers": 163,
+        "salesCount": 2472,
+        "volumeXtz": 9527.933416,
+        "buyers": 162,
         "sellers": 647
       },
       {
@@ -54953,9 +54936,9 @@
           "KT1Dn3sambs7KZGW88hH2obZeSzfmCmGvpFo",
           "KT1HGL8vx7DP4xETVikL4LUYvFxSV19DxdFN"
         ],
-        "salesCount": 105,
-        "volumeXtz": 259.917,
-        "buyers": 15,
+        "salesCount": 103,
+        "volumeXtz": 255.917,
+        "buyers": 14,
         "sellers": 36
       },
       {
@@ -54966,8 +54949,8 @@
           "KT1BvWGFENd4CXW5F3u4n31xKfJhmBGipoqF",
           "KT1QtnHR8p2hBjUhPRy9BCWgy7s7L578PA7N"
         ],
-        "salesCount": 107,
-        "volumeXtz": 162.9648,
+        "salesCount": 108,
+        "volumeXtz": 163.0148,
         "buyers": 26,
         "sellers": 34
       },
@@ -54985,7 +54968,7 @@
     ],
     "dailySales": [
       {
-        "date": "2026-07-18",
+        "date": "2026-07-19",
         "salesCount": 0,
         "volumeXtz": 0,
         "buyers": 0,
@@ -54994,22 +54977,13 @@
         "coverage": "uncovered"
       },
       {
-        "date": "2026-07-19",
-        "salesCount": 307,
-        "volumeXtz": 8557.284,
-        "buyers": 103,
-        "sellers": 156,
+        "date": "2026-07-20",
+        "salesCount": 661,
+        "volumeXtz": 15329.337751,
+        "buyers": 180,
+        "sellers": 322,
         "complete": false,
         "coverage": "partial"
-      },
-      {
-        "date": "2026-07-20",
-        "salesCount": 789,
-        "volumeXtz": 38604.361751,
-        "buyers": 217,
-        "sellers": 393,
-        "complete": true,
-        "coverage": "complete"
       },
       {
         "date": "2026-07-21",
@@ -55247,23 +55221,24 @@
       },
       {
         "date": "2026-08-16",
-        "salesCount": 849,
-        "volumeXtz": 41441.070192,
-        "buyers": 182,
-        "sellers": 422,
+        "salesCount": 1161,
+        "volumeXtz": 53329.195992,
+        "buyers": 232,
+        "sellers": 553,
+        "complete": true,
+        "coverage": "complete"
+      },
+      {
+        "date": "2026-08-17",
+        "salesCount": 123,
+        "volumeXtz": 7202.275,
+        "buyers": 19,
+        "sellers": 34,
         "complete": false,
         "coverage": "partial"
       }
     ],
     "dailyMints": [
-      {
-        "date": "2026-07-18",
-        "mintOperations": 557,
-        "mints": 35127,
-        "minters": 267,
-        "complete": true,
-        "coverage": "complete"
-      },
       {
         "date": "2026-07-19",
         "mintOperations": 573,
@@ -55490,9 +55465,17 @@
       },
       {
         "date": "2026-08-16",
-        "mintOperations": 388,
-        "mints": 2210,
-        "minters": 202,
+        "mintOperations": 505,
+        "mints": 2726,
+        "minters": 249,
+        "complete": true,
+        "coverage": "complete"
+      },
+      {
+        "date": "2026-08-17",
+        "mintOperations": 31,
+        "mints": 117,
+        "minters": 21,
         "complete": false,
         "coverage": "partial"
       }
@@ -55502,33 +55485,33 @@
         "contract": "KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton",
         "name": "hic et nunc",
         "salesCount": 6184,
-        "volumeXtz": 182218.865327,
-        "buyers": 615,
-        "sellers": 1792
+        "volumeXtz": 159164.432127,
+        "buyers": 607,
+        "sellers": 1788
       },
       {
         "contract": "KT1XaCf6gkjFnKg3QmPfn6gep53moMvjkj1E",
         "name": "open objkt",
-        "salesCount": 2358,
-        "volumeXtz": 54043.96109,
-        "buyers": 479,
-        "sellers": 399
-      },
-      {
-        "contract": "KT1KEa8z6vWXDJrVqtMrAeDVzsvxat3kHaCE",
-        "name": "fx(hash): Genesis",
-        "salesCount": 137,
-        "volumeXtz": 24323.815,
-        "buyers": 41,
-        "sellers": 106
+        "salesCount": 2331,
+        "volumeXtz": 52909.80109,
+        "buyers": 475,
+        "sellers": 393
       },
       {
         "contract": "KT1U6EHmNxJTkvaWJ4ThczG4FSDaHC21ssvi",
         "name": "fx(hash)",
-        "salesCount": 378,
-        "volumeXtz": 23982.31999,
-        "buyers": 70,
-        "sellers": 258
+        "salesCount": 392,
+        "volumeXtz": 30832.61999,
+        "buyers": 71,
+        "sellers": 263
+      },
+      {
+        "contract": "KT1KEa8z6vWXDJrVqtMrAeDVzsvxat3kHaCE",
+        "name": "fx(hash): Genesis",
+        "salesCount": 154,
+        "volumeXtz": 30417.815,
+        "buyers": 43,
+        "sellers": 113
       },
       {
         "contract": "KT1RNFxvfEs62fj6Q7TRe9d1DBPSmZZFUztX",
@@ -55573,9 +55556,9 @@
       {
         "contract": "KT1Pvoiagpn7ttff4bNBK9KP9m58FYzxLzC5",
         "name": "Cipher Voss",
-        "salesCount": 28,
-        "volumeXtz": 8022.92222,
-        "buyers": 14,
+        "salesCount": 29,
+        "volumeXtz": 8023.86722,
+        "buyers": 15,
         "sellers": 7
       },
       {
@@ -55589,9 +55572,9 @@
       {
         "contract": "KT1VQNS6cbJMCkVbUF6amzrxdxiaQtgSQ97b",
         "name": "STILL WET",
-        "salesCount": 33,
-        "volumeXtz": 6788,
-        "buyers": 25,
+        "salesCount": 35,
+        "volumeXtz": 6888,
+        "buyers": 27,
         "sellers": 1
       },
       {
@@ -55635,20 +55618,20 @@
         "sellers": 28
       },
       {
+        "contract": "KT1EfsNuqwLAWDd3o4pvfUx1CAh5GMdTrRvr",
+        "name": "fx(params)",
+        "salesCount": 120,
+        "volumeXtz": 4647.38,
+        "buyers": 29,
+        "sellers": 72
+      },
+      {
         "contract": "KT1EbGTpmeCMZ2pDNARK6rYU36akRpD6gKfe",
         "name": "ABSTRACT, USA",
         "salesCount": 1,
         "volumeXtz": 4444,
         "buyers": 1,
         "sellers": 1
-      },
-      {
-        "contract": "KT1EfsNuqwLAWDd3o4pvfUx1CAh5GMdTrRvr",
-        "name": "fx(params)",
-        "salesCount": 115,
-        "volumeXtz": 4199.38,
-        "buyers": 29,
-        "sellers": 69
       },
       {
         "contract": "KT1CtDPiLjHiU1LVLrhshDry8jkR9h29tXNo",
@@ -55669,8 +55652,8 @@
       {
         "contract": "KT1VHoxXoYX9LYEKe1AjPHaRq3zPZ4cZd6my",
         "name": "The Happy Valley",
-        "salesCount": 217,
-        "volumeXtz": 3577.95,
+        "salesCount": 221,
+        "volumeXtz": 3563.45,
         "buyers": 92,
         "sellers": 67
       },
@@ -55717,8 +55700,8 @@
       {
         "contract": "KT1KNg58FFu6bLtX2A9aKZuFqUHVqK11TMDc",
         "name": "The Flo",
-        "salesCount": 84,
-        "volumeXtz": 3125,
+        "salesCount": 83,
+        "volumeXtz": 3105,
         "buyers": 42,
         "sellers": 4
       },
@@ -55821,8 +55804,8 @@
       {
         "contract": "KT1Ravct5EQEqFuEyVXB4MdazeRgR8ifVf23",
         "name": "The Internet",
-        "salesCount": 189,
-        "volumeXtz": 2381.48,
+        "salesCount": 188,
+        "volumeXtz": 2376.48,
         "buyers": 53,
         "sellers": 4
       },
@@ -55893,8 +55876,8 @@
       {
         "contract": "KT1BV6pUrW52meX53DMijSEFD9i1LaEhN72i",
         "name": "research",
-        "salesCount": 56,
-        "volumeXtz": 1931.11,
+        "salesCount": 54,
+        "volumeXtz": 1855.11,
         "buyers": 18,
         "sellers": 2
       }
@@ -55903,17 +55886,17 @@
       {
         "contract": "KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton",
         "name": "hic et nunc",
-        "volumeXtz": 25155241.280539,
-        "volume24hXtz": 5622.47019,
-        "items": 769689,
+        "volumeXtz": 25156655.457339,
+        "volume24hXtz": 4845.29699,
+        "items": 769695,
         "owners": 145805,
         "collectionType": "open"
       },
       {
         "contract": "KT1U6EHmNxJTkvaWJ4ThczG4FSDaHC21ssvi",
         "name": "fx(hash)",
-        "volumeXtz": 19569518.820188,
-        "volume24hXtz": 3381.995,
+        "volumeXtz": 19577241.848188,
+        "volume24hXtz": 9274.758,
         "items": 1020560,
         "owners": 35723,
         "collectionType": "open_generative"
@@ -55921,8 +55904,8 @@
       {
         "contract": "KT1KEa8z6vWXDJrVqtMrAeDVzsvxat3kHaCE",
         "name": "fx(hash): Genesis",
-        "volumeXtz": 7207525.290085,
-        "volume24hXtz": 17341.912746,
+        "volumeXtz": 7213619.290085,
+        "volume24hXtz": 18730.325746,
         "items": 584735,
         "owners": 20900,
         "collectionType": "open_generative"
@@ -55948,8 +55931,8 @@
       {
         "contract": "KT1EfsNuqwLAWDd3o4pvfUx1CAh5GMdTrRvr",
         "name": "fx(params)",
-        "volumeXtz": 1885006.539758,
-        "volume24hXtz": 1009.004999,
+        "volumeXtz": 1885454.539758,
+        "volume24hXtz": 1180,
         "items": 225365,
         "owners": 12908,
         "collectionType": "open_generative"
@@ -55957,19 +55940,19 @@
       {
         "contract": "KT1LjmAdYQCLBjwv4S2oFkEzyHVkomAf5MrW",
         "name": "Versum Items",
-        "volumeXtz": 887581.663665,
-        "volume24hXtz": 4.304,
+        "volumeXtz": 888582.057665,
+        "volume24hXtz": 1004.598,
         "items": 28306,
-        "owners": 20234,
+        "owners": 20235,
         "collectionType": "open"
       },
       {
         "contract": "KT1XaCf6gkjFnKg3QmPfn6gep53moMvjkj1E",
         "name": "open objkt",
-        "volumeXtz": 624411.638057,
-        "volume24hXtz": 917.43,
-        "items": 32835,
-        "owners": 9557,
+        "volumeXtz": 624733.518057,
+        "volume24hXtz": 929.315,
+        "items": 32850,
+        "owners": 9558,
         "collectionType": "open_edition"
       },
       {
@@ -55993,10 +55976,10 @@
       {
         "contract": "KT1MEEn4SZ7fD5c4FKXf68hZoWjtwcf4EGLg",
         "name": "The Lushtemples",
-        "volumeXtz": 499621.425143,
-        "volume24hXtz": 390,
+        "volumeXtz": 499921.425143,
+        "volume24hXtz": 690,
         "items": 31,
-        "owners": 1492,
+        "owners": 1490,
         "collectionType": "artist"
       },
       {
@@ -56012,7 +55995,7 @@
         "contract": "KT1HZVd9Cjc2CMe3sQvXgbxhpJkdena21pih",
         "name": "randomly common skeles",
         "volumeXtz": 416346.24967,
-        "volume24hXtz": 20.764979,
+        "volume24hXtz": 13.75998,
         "items": 37800,
         "owners": 5688,
         "collectionType": "collectible"
@@ -56092,8 +56075,8 @@
       {
         "contract": "KT1MxDwChiDwd6WBVs24g1NjERUoK622ZEFp",
         "name": "8bidou 8x8",
-        "volumeXtz": 196208.290903,
-        "volume24hXtz": 0,
+        "volumeXtz": 196208.340903,
+        "volume24hXtz": 0.05,
         "items": 19976,
         "owners": 6680,
         "collectionType": "open"
@@ -56245,8 +56228,8 @@
       {
         "contract": "KT1VHoxXoYX9LYEKe1AjPHaRq3zPZ4cZd6my",
         "name": "The Happy Valley",
-        "volumeXtz": 95002.677874,
-        "volume24hXtz": 24.5,
+        "volumeXtz": 95010.177874,
+        "volume24hXtz": 32,
         "items": 9277,
         "owners": 2061,
         "collectionType": "artist"
@@ -56356,7 +56339,7 @@
         "rank": 1,
         "address": "tz2C5fJeav1Q3jobVuN9S7Figr3JPq8m28po",
         "name": "kingtreebear",
-        "volumeXtz": 111239
+        "volumeXtz": 110739
       },
       {
         "rank": 2,
@@ -56374,55 +56357,55 @@
         "rank": 4,
         "address": "tz1corXrfedU71AZFPudxxYZasSSCGHefw2Y",
         "name": "famtez",
-        "volumeXtz": 32747.955
+        "volumeXtz": 32591.295
       },
       {
         "rank": 5,
-        "address": "tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4",
-        "name": "Absurdeity.tez",
-        "volumeXtz": 24161.295771
+        "address": "tz2MYtxnx1bUeMfAioWk61Pm7ZnjadJYVwqe",
+        "name": "tz2MYtxnx1bUeMfAioWk61Pm7ZnjadJYVwqe",
+        "volumeXtz": 25495.375746
       },
       {
         "rank": 6,
+        "address": "tz1X568Wdkb1ZUs8qfVYcsZD31YQ4UV3sdY4",
+        "name": "Absurdeity.tez",
+        "volumeXtz": 24392.705771
+      },
+      {
+        "rank": 7,
         "address": "tz1UW4ay6FkQKTzK4fjajaTJbNoyyXypWEYJ",
         "name": "snow.eth",
         "volumeXtz": 23400
       },
       {
-        "rank": 7,
+        "rank": 8,
         "address": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
         "name": "𝖲𝗇𝖾𝗄𝖾𝗍𝗈𝗌𝗁𝗂 🐍💗",
-        "volumeXtz": 22890.02
+        "volumeXtz": 22336.03
       },
       {
-        "rank": 8,
+        "rank": 9,
         "address": "tz1Ksao3FQKMJphWVSWKcd6MJGPmqobXvBPj",
         "name": "hotart.tez",
         "volumeXtz": 19496.495
       },
       {
-        "rank": 9,
-        "address": "tz2MYtxnx1bUeMfAioWk61Pm7ZnjadJYVwqe",
-        "name": "tz2MYtxnx1bUeMfAioWk61Pm7ZnjadJYVwqe",
-        "volumeXtz": 18417.875746
-      },
-      {
         "rank": 10,
         "address": "tz1c8HvtJEVtfRk6UvP1fXXKTWf1ozrhB4Nq",
         "name": "Yfi Fan",
-        "volumeXtz": 17605.039
+        "volumeXtz": 17697.819
       },
       {
         "rank": 11,
         "address": "tz2HVjeefNcwarykgchJcf296DSsUyBCApHD",
         "name": "Stampfigang",
-        "volumeXtz": 15785.440146
+        "volumeXtz": 15566.680146
       },
       {
         "rank": 12,
-        "address": "tz1Rz6T7n8CGk1dcLgciRJJ6UnpnbKzXfyAq",
-        "name": "tz1Rz6T7n8CGk1dcLgciRJJ6UnpnbKzXfyAq",
-        "volumeXtz": 14670.52
+        "address": "tz1VkyCFPMBcvR5SmvHARi7Kk2mMWbSKQFbh",
+        "name": "tz1VkyCFPMBcvR5SmvHARi7Kk2mMWbSKQFbh",
+        "volumeXtz": 14300
       },
       {
         "rank": 13,
@@ -56432,21 +56415,21 @@
       },
       {
         "rank": 14,
+        "address": "tz1Rz6T7n8CGk1dcLgciRJJ6UnpnbKzXfyAq",
+        "name": "tz1Rz6T7n8CGk1dcLgciRJJ6UnpnbKzXfyAq",
+        "volumeXtz": 12448.52
+      },
+      {
+        "rank": 15,
         "address": "tz1W3kA8oQ6RdaPAdUaV5os3CuqE6rFw7Qx7",
         "name": "Delronde2",
         "volumeXtz": 12144.01
       },
       {
-        "rank": 15,
-        "address": "tz1VkyCFPMBcvR5SmvHARi7Kk2mMWbSKQFbh",
-        "name": "tz1VkyCFPMBcvR5SmvHARi7Kk2mMWbSKQFbh",
-        "volumeXtz": 9800
-      },
-      {
         "rank": 16,
         "address": "tz1YY2w5YNv4iBMgohBgPRshhNanerPnad89",
         "name": "Brain_sss",
-        "volumeXtz": 9420.979938
+        "volumeXtz": 9438.979938
       },
       {
         "rank": 17,
@@ -56458,13 +56441,13 @@
         "rank": 18,
         "address": "tz2T6r5FJ3VUsXB4E28hX1SxVe5knKAqVALu",
         "name": "Christopher ",
-        "volumeXtz": 8747.989
+        "volumeXtz": 8724.989
       },
       {
         "rank": 19,
         "address": "tz1X7nLriHxPAc7en8u4czTkDReJQ756Hb5w",
         "name": "SecretariYat",
-        "volumeXtz": 8432.13
+        "volumeXtz": 8428.66
       },
       {
         "rank": 20,
@@ -56488,7 +56471,7 @@
         "rank": 23,
         "address": "tz1XEuFRAXi3a9V4XKtyyis4L2kdbV3y9eZh",
         "name": "Bret Jolliffe",
-        "volumeXtz": 7838.45639
+        "volumeXtz": 7976.25639
       },
       {
         "rank": 24,
@@ -56506,13 +56489,13 @@
         "rank": 26,
         "address": "tz1hQFSCGgjvao7sGySD2oY54eVoSruLPFdp",
         "name": "HuemansoftheUniverse",
-        "volumeXtz": 6852.85219
+        "volumeXtz": 6969.96219
       },
       {
         "rank": 27,
         "address": "tz1VFZJdgCUBB1YAPELmj1bh5nkp1TAr6RRH",
         "name": "Halving Fun ",
-        "volumeXtz": 6447.97
+        "volumeXtz": 6439.97
       },
       {
         "rank": 28,
@@ -56524,61 +56507,61 @@
         "rank": 29,
         "address": "tz1SFGqY87AigjcUnyGq5ZdETciYzGFfSZ3D",
         "name": "CoachPete",
-        "volumeXtz": 6173.2
+        "volumeXtz": 6143.2
       },
       {
         "rank": 30,
+        "address": "tz2Dz4kN8HVrkBDrYJEWq4JyZkzBUZUrPN3p",
+        "name": "cspok",
+        "volumeXtz": 6007.14399
+      },
+      {
+        "rank": 31,
         "address": "tz1Q3TTbr7EPkVnD7FXdEaxFeB48NmELaEaz",
         "name": "noclip",
         "volumeXtz": 5964.95
       },
       {
-        "rank": 31,
+        "rank": 32,
         "address": "tz1h5xSx15cQTe1n8cCS4zXjQKRfM7CNyGrc",
         "name": "mjdata",
         "volumeXtz": 5893.57
       },
       {
-        "rank": 32,
+        "rank": 33,
         "address": "tz1Tj2wf5AuxiUea4c7WifcX6BQJuoLQgTWF",
         "name": "TrippyCollector.Tez",
         "volumeXtz": 5797.795
       },
       {
-        "rank": 33,
+        "rank": 34,
         "address": "tz1WMYYBXeui9n1WL1Qb1GiRFtr6a1J3v4EQ",
         "name": "buy",
-        "volumeXtz": 5755.99
+        "volumeXtz": 5655.99
       },
       {
-        "rank": 34,
+        "rank": 35,
         "address": "tz1aLvmWNq1SbA8mTktMs9NwogU7rf8FiZHf",
         "name": "auger",
         "volumeXtz": 5577.69
       },
       {
-        "rank": 35,
+        "rank": 36,
         "address": "tz2RepZvXzYEw11FeFhpnFEu4bxbAkqPPZ69",
         "name": "tz2RepZvXzYEw11FeFhpnFEu4bxbAkqPPZ69",
         "volumeXtz": 5405.785
       },
       {
-        "rank": 36,
+        "rank": 37,
         "address": "tz1Q8VtWRvgEfF29RPvvA16QSZKsC5M7EqYQ",
         "name": "tz1Q8VtWRvgEfF29RPvvA16QSZKsC5M7EqYQ",
         "volumeXtz": 5000
       },
       {
-        "rank": 37,
-        "address": "tz2Dz4kN8HVrkBDrYJEWq4JyZkzBUZUrPN3p",
-        "name": "cspok",
-        "volumeXtz": 4854.24399
-      },
-      {
         "rank": 38,
         "address": "tz2EZC7yLhS8uf4U66XfNzimP1pdeiSTNGXx",
         "name": "edvvard",
-        "volumeXtz": 4687.28673
+        "volumeXtz": 4762.28673
       },
       {
         "rank": 39,
@@ -56590,13 +56573,13 @@
         "rank": 40,
         "address": "tz1MtMwpTM5o4uMq2g8EjbVEMprYNRki6AAD",
         "name": "💎🔥",
-        "volumeXtz": 4532.17709
+        "volumeXtz": 4477.94209
       },
       {
         "rank": 41,
         "address": "tz1SAwbsUyMLYGtPxWutwsDKi3wBUsyY5uV4",
         "name": "AUGUSTGROUND",
-        "volumeXtz": 4339.635
+        "volumeXtz": 4337.195
       },
       {
         "rank": 42,
@@ -56630,15 +56613,15 @@
       },
       {
         "rank": 47,
-        "address": "tz1fu6tB5VomjQpLFpo6bnFmiDJ2GJ4ZbVLq",
-        "name": "akiradice",
-        "volumeXtz": 3841.07222
-      },
-      {
-        "rank": 48,
         "address": "tz1UdjuZcLvKoV9iYDp5bRbmZaeFhUQAVLcc",
         "name": "McLlama",
         "volumeXtz": 3780.55
+      },
+      {
+        "rank": 48,
+        "address": "tz1fu6tB5VomjQpLFpo6bnFmiDJ2GJ4ZbVLq",
+        "name": "akiradice",
+        "volumeXtz": 3744.07222
       },
       {
         "rank": 49,
@@ -56654,15 +56637,15 @@
       },
       {
         "rank": 51,
-        "address": "tz1LYrMpZxUmmFArhgt49UHcLDEDjcvs6gQZ",
-        "name": "21BE",
-        "volumeXtz": 3537.403
+        "address": "tz1ZyYEtoExdQHPb5FmFbxGHfLU7zVAJRm8R",
+        "name": "bleedbetter",
+        "volumeXtz": 3580.663999
       },
       {
         "rank": 52,
-        "address": "tz1ZyYEtoExdQHPb5FmFbxGHfLU7zVAJRm8R",
-        "name": "bleedbetter",
-        "volumeXtz": 3525.663999
+        "address": "tz1LYrMpZxUmmFArhgt49UHcLDEDjcvs6gQZ",
+        "name": "21BE",
+        "volumeXtz": 3537.403
       },
       {
         "rank": 53,
@@ -56672,9 +56655,9 @@
       },
       {
         "rank": 54,
-        "address": "tz1LpGGTVx9yNZx2yJzT26gyKknuKogBUZ4k",
-        "name": "The5thForce",
-        "volumeXtz": 3199.9129
+        "address": "KT19WfBM5NVcD8ZDcabdJYG29v4H9g6gZp3n",
+        "name": "KT19WfBM5NVcD8ZDcabdJYG29v4H9g6gZp3n",
+        "volumeXtz": 3128.018
       },
       {
         "rank": 55,
@@ -56686,175 +56669,175 @@
         "rank": 56,
         "address": "tz1ZDqoyuK3xzT9aGR7UBJv8DswduTDBoxP5",
         "name": "Unknown Prophet ",
-        "volumeXtz": 3099.29
+        "volumeXtz": 3118.09
       },
       {
         "rank": 57,
+        "address": "tz1LpGGTVx9yNZx2yJzT26gyKknuKogBUZ4k",
+        "name": "The5thForce",
+        "volumeXtz": 3053.2229
+      },
+      {
+        "rank": 58,
         "address": "tz2NmFuTEpcTyNM37o4L8XNt3iL73dkr5a9T",
         "name": "Art by Stanley",
         "volumeXtz": 3048.12
       },
       {
-        "rank": 58,
+        "rank": 59,
         "address": "tz1Uz66hH8Gse1cYfoxDf72g5zpzF56gX6R5",
         "name": "tz1Uz66hH8Gse1cYfoxDf72g5zpzF56gX6R5",
         "volumeXtz": 3043
       },
       {
-        "rank": 59,
+        "rank": 60,
         "address": "tz1h4RB3X3a85aNyqk2m7PBicZmbVebWdiWu",
         "name": "DagieDee",
         "volumeXtz": 3015.24731
       },
       {
-        "rank": 60,
+        "rank": 61,
         "address": "tz1Umh9HtuMmaRjvHW1iCeaTu5HbhbxBDKqD",
         "name": "Duane Ang",
         "volumeXtz": 3000
       },
       {
-        "rank": 61,
+        "rank": 62,
         "address": "tz1Tw3CjVAPyxRWs2zzoaY4ydKyh4CEY7Qv6",
         "name": "ECCaro",
         "volumeXtz": 2958.429999
       },
       {
-        "rank": 62,
+        "rank": 63,
         "address": "tz1aE6d1KWoQG3RwjXZpwp1ocd3kbR8B3SG8",
         "name": "The Vulture Cult",
         "volumeXtz": 2950
       },
       {
-        "rank": 63,
+        "rank": 64,
         "address": "tz1YDugUdCc7s8w7jG8z75pLLDvgjTyE4tQa",
         "name": "Hegel Art Collector (Baroque Nose)",
         "volumeXtz": 2892
       },
       {
-        "rank": 64,
+        "rank": 65,
+        "address": "tz1bk2xb57tcAQD2VgSHfxWFgW4pK7WDMcZ5",
+        "name": "kendtran229",
+        "volumeXtz": 2891.935
+      },
+      {
+        "rank": 66,
         "address": "tz1Ux7uEC7wxiZgo1fhAWfjVcT5szRYMHq18",
         "name": "tz1Ux7uEC7wxiZgo1fhAWfjVcT5szRYMHq18",
         "volumeXtz": 2856.48
       },
       {
-        "rank": 65,
+        "rank": 67,
         "address": "tz1UhgjZ8J5aVGUsvZSqNvhYhtFBpPoJKT5X",
         "name": "tokioflo",
-        "volumeXtz": 2789.69
+        "volumeXtz": 2786.77
       },
       {
-        "rank": 66,
-        "address": "tz1bk2xb57tcAQD2VgSHfxWFgW4pK7WDMcZ5",
-        "name": "kendtran229",
-        "volumeXtz": 2773.27
+        "rank": 68,
+        "address": "tz1Nq3SREQnFLnVi2NauXSYHpfuYkNbGdQEs",
+        "name": "MikeLegendOnlyBens",
+        "volumeXtz": 2769.07
       },
       {
-        "rank": 67,
+        "rank": 69,
+        "address": "tz1ZBpQtFWmSMLm2pbjEiYXnAjCEBdpVpcEu",
+        "name": "licas33",
+        "volumeXtz": 2717.345
+      },
+      {
+        "rank": 70,
         "address": "tz1eA35EFQYDq6zLXkaeDy9uGzT7wsui6Sq2",
         "name": "Arashnikfar",
         "volumeXtz": 2700
       },
       {
-        "rank": 68,
+        "rank": 71,
         "address": "tz1fxqbnUK9t2KSLNW2tVv5P7VNpMHhV48ok",
         "name": "drleenft.tez",
         "volumeXtz": 2698.259782
       },
       {
-        "rank": 69,
+        "rank": 72,
         "address": "tz1QRXxx7R8fAnCESAkDWzShRYkmPJnUztYU",
         "name": "awHECK",
         "volumeXtz": 2695.8122
       },
       {
-        "rank": 70,
-        "address": "tz1ZBpQtFWmSMLm2pbjEiYXnAjCEBdpVpcEu",
-        "name": "licas33",
-        "volumeXtz": 2690.085
-      },
-      {
-        "rank": 71,
-        "address": "tz1edjzLnsZqBamgS2Yf7CrJgyreJZEAPWdG",
-        "name": "Twised1316",
-        "volumeXtz": 2679.598
-      },
-      {
-        "rank": 72,
+        "rank": 73,
         "address": "tz1N4R7zUKzLN6w342CUtBNMu3eAGjJQSjNR",
         "name": "Picotech",
-        "volumeXtz": 2635.738332
+        "volumeXtz": 2631.538332
       },
       {
-        "rank": 73,
+        "rank": 74,
+        "address": "tz2M9sX1NesKCZVT8xyBFs7DpX4cxEeyyXdJ",
+        "name": "Jt3ss",
+        "volumeXtz": 2625.16
+      },
+      {
+        "rank": 75,
         "address": "tz1cjHCorsyNqN3cWWKoYpzycBJmpifyoWd6",
         "name": "yangwong",
         "volumeXtz": 2569.3
       },
       {
-        "rank": 74,
-        "address": "tz1Sqhrj49cW9aTuwQrDa4mycnA7n5dDd7rF",
-        "name": "ABOSCH",
-        "volumeXtz": 2568.94
-      },
-      {
-        "rank": 75,
-        "address": "tz2M9sX1NesKCZVT8xyBFs7DpX4cxEeyyXdJ",
-        "name": "Jt3ss",
-        "volumeXtz": 2520.16
-      },
-      {
         "rank": 76,
+        "address": "tz1edjzLnsZqBamgS2Yf7CrJgyreJZEAPWdG",
+        "name": "Twised1316",
+        "volumeXtz": 2548.265
+      },
+      {
+        "rank": 77,
         "address": "tz2J6PEFh5sCu8aVZwvrhWKRuo5UNJMKfEYu",
         "name": "Frank Flux",
         "volumeXtz": 2519.69
       },
       {
-        "rank": 77,
+        "rank": 78,
         "address": "tz1eYYaVQsf4CgGRSxbfYxCMwrGi9WPMYvLs",
         "name": "tz1eYYaVQsf4CgGRSxbfYxCMwrGi9WPMYvLs",
         "volumeXtz": 2500
       },
       {
-        "rank": 78,
-        "address": "tz1bZHABECjsxFn8WEp7G9z5pxcp8jRSZFtS",
-        "name": "m4resi",
-        "volumeXtz": 2435.951762
-      },
-      {
         "rank": 79,
-        "address": "tz1d45L6aaXVU9Ry7oYA2cVePxyBMtcPggt1",
-        "name": "tz1d45L6aaXVU9Ry7oYA2cVePxyBMtcPggt1",
-        "volumeXtz": 2359.94
+        "address": "tz1Sqhrj49cW9aTuwQrDa4mycnA7n5dDd7rF",
+        "name": "ABOSCH",
+        "volumeXtz": 2488.94
       },
       {
         "rank": 80,
         "address": "tz1frwHr9XUJVHWJyBUj4nZ8tNccs7JuK9n3",
         "name": "sandytoes2211.tez",
-        "volumeXtz": 2340.89
+        "volumeXtz": 2447.39
       },
       {
         "rank": 81,
+        "address": "tz1bZHABECjsxFn8WEp7G9z5pxcp8jRSZFtS",
+        "name": "m4resi",
+        "volumeXtz": 2429.291762
+      },
+      {
+        "rank": 82,
+        "address": "tz1d45L6aaXVU9Ry7oYA2cVePxyBMtcPggt1",
+        "name": "tz1d45L6aaXVU9Ry7oYA2cVePxyBMtcPggt1",
+        "volumeXtz": 2359.94
+      },
+      {
+        "rank": 83,
         "address": "tz1gZ6HeNUhdMxuzhBff8NKrsPbpsq4qQ3pE",
         "name": "D",
         "volumeXtz": 2240.46111
       },
       {
-        "rank": 82,
+        "rank": 84,
         "address": "tz1Uj3YjahFeDyHkU9JK9kgTD3JjzjXFkmdL",
         "name": "tz1Uj3YjahFeDyHkU9JK9kgTD3JjzjXFkmdL",
         "volumeXtz": 2230.367105
-      },
-      {
-        "rank": 83,
-        "address": "tz1SYUWt4UwAAw3kgq4YspAJ6Zh7361RFAfK",
-        "name": "tz1SYUWt4UwAAw3kgq4YspAJ6Zh7361RFAfK",
-        "volumeXtz": 2227.7
-      },
-      {
-        "rank": 84,
-        "address": "KT19WfBM5NVcD8ZDcabdJYG29v4H9g6gZp3n",
-        "name": "KT19WfBM5NVcD8ZDcabdJYG29v4H9g6gZp3n",
-        "volumeXtz": 2209.778
       },
       {
         "rank": 85,
@@ -56864,45 +56847,45 @@
       },
       {
         "rank": 86,
+        "address": "tz1SYUWt4UwAAw3kgq4YspAJ6Zh7361RFAfK",
+        "name": "tz1SYUWt4UwAAw3kgq4YspAJ6Zh7361RFAfK",
+        "volumeXtz": 2181.96
+      },
+      {
+        "rank": 87,
         "address": "tz1U8zBE8Ms5WpqdCk2dWT27XvQPGwSZSU1E",
         "name": "Justin Aversano",
         "volumeXtz": 2161.695
       },
       {
-        "rank": 87,
+        "rank": 88,
         "address": "tz1VsGLcdV7k6eCtEFAHm86oKqsHzq75m1rj",
         "name": "jayray7",
-        "volumeXtz": 2154.39
-      },
-      {
-        "rank": 88,
-        "address": "tz1XsfthDLkQZA8baMSf7S22eSnfL4bWD4af",
-        "name": "excellerate",
-        "volumeXtz": 2112.214
+        "volumeXtz": 2139.62
       },
       {
         "rank": 89,
+        "address": "tz1XsfthDLkQZA8baMSf7S22eSnfL4bWD4af",
+        "name": "excellerate",
+        "volumeXtz": 2111.314
+      },
+      {
+        "rank": 90,
         "address": "tz1Z3QsHYXaPvBKGHJ9RKFU1S2DBaWPJNawu",
         "name": "AEW COMMUNITY",
         "volumeXtz": 2053.29
       },
       {
-        "rank": 90,
+        "rank": 91,
         "address": "tz1iUNoH3MGRvnmd4miJKuPErLxPsBAYnYbZ",
         "name": "basha",
         "volumeXtz": 2005
       },
       {
-        "rank": 91,
+        "rank": 92,
         "address": "tz1Z5KuUhoZukj6Rc6zRxscoaGcdYtobSFPX",
         "name": "arttseng",
         "volumeXtz": 1999.265
-      },
-      {
-        "rank": 92,
-        "address": "tz1Nq3SREQnFLnVi2NauXSYHpfuYkNbGdQEs",
-        "name": "MikeLegendOnlyBens",
-        "volumeXtz": 1966.07
       },
       {
         "rank": 93,
@@ -56918,39 +56901,39 @@
       },
       {
         "rank": 95,
-        "address": "tz1g9jiDLMcadVEfMxMhToUWNB6hvMcMsFKY",
-        "name": "Greg Nikshumika",
-        "volumeXtz": 1891.61
-      },
-      {
-        "rank": 96,
         "address": "tz1gdX9DgHojvyC5kFtgUQZ6HdYtC2DHehJX",
         "name": "tz1gdX9DgHojvyC5kFtgUQZ6HdYtC2DHehJX",
         "volumeXtz": 1881.9
       },
       {
-        "rank": 97,
+        "rank": 96,
         "address": "tz1TjRdRJggPQWZpv1QjgWbis5stShfr4ezB",
         "name": "PlantFaceAshToo",
         "volumeXtz": 1851
       },
       {
-        "rank": 98,
+        "rank": 97,
         "address": "tz1XEJFTcKBmQrQHgAEsQ4UUWfk1FMnG5SeA",
         "name": "thiagodini",
         "volumeXtz": 1798.498
       },
       {
-        "rank": 99,
+        "rank": 98,
         "address": "tz1MCi2heQtHqfHMttiWSZUgL1sVUbdEzZpH",
         "name": "kompucoma",
         "volumeXtz": 1791
       },
       {
-        "rank": 100,
+        "rank": 99,
         "address": "tz1QcjuWZ6kzBhfQS3AUwsojkX8N74hSvNeY",
         "name": "DaveFromLongIsland",
         "volumeXtz": 1789.74
+      },
+      {
+        "rank": 100,
+        "address": "tz1VK6FuYBSuDzWFRtpzRnMAdho7mkGnz19G",
+        "name": "sX_zr04",
+        "volumeXtz": 1767.36
       }
     ],
     "topArtists30d": [
@@ -56958,13 +56941,13 @@
         "rank": 1,
         "address": "tz1gBXG9fg8RMDH69KfKqwoTH5sFDmzt5yzm",
         "name": "zancan",
-        "volumeXtz": 48307.965996
+        "volumeXtz": 49207.965996
       },
       {
         "rank": 2,
         "address": "tz1N1vuWBsDtGMyj3No8NfeJdCBFu8v6gvSX",
         "name": "Kim Asendorf",
-        "volumeXtz": 27705.69
+        "volumeXtz": 34205.69
       },
       {
         "rank": 3,
@@ -56976,7 +56959,7 @@
         "rank": 4,
         "address": "tz1hqXAC9Avj3jQtHD1Wh9WL7YF9mRSD3qsq",
         "name": "Lorna Mills",
-        "volumeXtz": 26203.806
+        "volumeXtz": 27020.65
       },
       {
         "rank": 5,
@@ -57006,7 +56989,7 @@
         "rank": 9,
         "address": "tz1ZJvqkCy4cVfgk3FP7shjsNcfmwYVpzTRG",
         "name": "ex_mortal_",
-        "volumeXtz": 16159.25
+        "volumeXtz": 16227.89
       },
       {
         "rank": 10,
@@ -57028,15 +57011,15 @@
       },
       {
         "rank": 13,
-        "address": "tz1aN4H7n9AWCcAAZaHeuzHPFRMXRdjgTzD9",
-        "name": "Xu0xo",
-        "volumeXtz": 10380.47
+        "address": "tz1gVKxpEGC7QW1fZyEEMEW2kgJRbpgWLNpD",
+        "name": "Iskra Velitchkova",
+        "volumeXtz": 10931.824999
       },
       {
         "rank": 14,
-        "address": "tz1dEF5ZMTnBSkz2ZQPvpJjwyfeUUyGjeMtf",
-        "name": "ertdfgcvb",
-        "volumeXtz": 9680
+        "address": "tz1aN4H7n9AWCcAAZaHeuzHPFRMXRdjgTzD9",
+        "name": "Xu0xo",
+        "volumeXtz": 10380.47
       },
       {
         "rank": 15,
@@ -57048,7 +57031,7 @@
         "rank": 16,
         "address": "tz2NjS1D21cx2UDKmqEwYGA83ehc3Qn5PirR",
         "name": "Cipher Voss",
-        "volumeXtz": 8267.92222
+        "volumeXtz": 8268.86722
       },
       {
         "rank": 17,
@@ -57064,27 +57047,27 @@
       },
       {
         "rank": 19,
+        "address": "tz1dEF5ZMTnBSkz2ZQPvpJjwyfeUUyGjeMtf",
+        "name": "ertdfgcvb",
+        "volumeXtz": 7458
+      },
+      {
+        "rank": 20,
         "address": "tz1TFScVx3NGnjcuwCxYiHeD1Am6jCHcojK8",
         "name": "RJ",
         "volumeXtz": 7061.744999
       },
       {
-        "rank": 20,
+        "rank": 21,
         "address": "tz1NPvUeCoSKYTDJ7hoMDtmHjGPM7P6amwQb",
         "name": "𝓢𝓐𝓡𝓐🍀",
         "volumeXtz": 6974
       },
       {
-        "rank": 21,
+        "rank": 22,
         "address": "tz1ibvGxuDGTZr8qFLD1obNu64gP2mqtunr3",
         "name": "c843n.tez",
         "volumeXtz": 6750
-      },
-      {
-        "rank": 22,
-        "address": "tz1gVKxpEGC7QW1fZyEEMEW2kgJRbpgWLNpD",
-        "name": "Iskra Velitchkova",
-        "volumeXtz": 6431.824999
       },
       {
         "rank": 23,
@@ -57186,7 +57169,7 @@
         "rank": 39,
         "address": "tz1cKfERYdEfRi1MeRk4fSVzRorTkBWGFrVj",
         "name": "𝖲𝗇𝖾𝗄𝖾𝗍𝗈𝗌𝗁𝗂 🐍💗",
-        "volumeXtz": 4020.04
+        "volumeXtz": 4026.37
       },
       {
         "rank": 40,
@@ -57226,15 +57209,15 @@
       },
       {
         "rank": 46,
-        "address": "tz1fGpuMtvMVh6VrgsdpFbWgf3swn2G96cXR",
-        "name": "newPedro",
-        "volumeXtz": 3822.408291
-      },
-      {
-        "rank": 47,
         "address": "tz1USgZNB9Z8rExu4pm85YF9WwyER2QJn3Z6",
         "name": "tz1USgZNB9Z8rExu4pm85YF9WwyER2QJn3Z6",
         "volumeXtz": 3797
+      },
+      {
+        "rank": 47,
+        "address": "tz1fGpuMtvMVh6VrgsdpFbWgf3swn2G96cXR",
+        "name": "newPedro",
+        "volumeXtz": 3770.808291
       },
       {
         "rank": 48,
@@ -57244,159 +57227,159 @@
       },
       {
         "rank": 49,
+        "address": "tz2PsPRLTf3NPp43MqnHvWz1Q2URYQtisxs2",
+        "name": "goldcat",
+        "volumeXtz": 3731
+      },
+      {
+        "rank": 50,
+        "address": "tz1LBwyJMRkH4tcG19KwYzAW7fLYbjFmWdWy",
+        "name": "REAS",
+        "volumeXtz": 3676.789
+      },
+      {
+        "rank": 51,
+        "address": "tz1cfSjRH85gcotHhWDnz8EvH3gkHD6bQ9tr",
+        "name": "Refraction NFT",
+        "volumeXtz": 3670
+      },
+      {
+        "rank": 52,
         "address": "tz2EEPrxN9FLuWkbC8xTdanYsogsLRAkEhBw",
         "name": "Zarrina",
         "volumeXtz": 3655
       },
       {
-        "rank": 50,
-        "address": "tz1cfSjRH85gcotHhWDnz8EvH3gkHD6bQ9tr",
-        "name": "Refraction NFT",
-        "volumeXtz": 3650
-      },
-      {
-        "rank": 51,
+        "rank": 53,
         "address": "tz1QRkQzVLbCGLfMjRSsvKJ94KTvkmQiXAtY",
         "name": "qubibi",
         "volumeXtz": 3636.71
       },
       {
-        "rank": 52,
+        "rank": 54,
         "address": "tz1Rq3ppUXcRS2gTF6S6sfwVqXkoSvUiTHVb",
         "name": "tz1Rq3ppUXcRS2gTF6S6sfwVqXkoSvUiTHVb",
-        "volumeXtz": 3590.04
+        "volumeXtz": 3625.04
       },
       {
-        "rank": 53,
+        "rank": 55,
         "address": "tz1i9k6QoeCwqXKzGXM4vZ9fcRH9QkBrYoqx",
         "name": "Lesya Shevchenko ",
-        "volumeXtz": 3563.11
+        "volumeXtz": 3541.11
       },
       {
-        "rank": 54,
+        "rank": 56,
         "address": "tz1S7sxbjVbocFQZwUszfzoE5WxehQJ5oWfH",
         "name": "Ariel Institute",
         "volumeXtz": 3500
       },
       {
-        "rank": 55,
-        "address": "tz1Y8Pzjd6QuwwS9qREaKr1hvW4KMG2mtHNd",
-        "name": "Salawaki",
-        "volumeXtz": 3453.265997
-      },
-      {
-        "rank": 56,
+        "rank": 57,
         "address": "tz1dHWwthGnPBxSaqAd5469V3kxvD1h9rcWh",
         "name": "xer0x",
         "volumeXtz": 3448
       },
       {
-        "rank": 57,
+        "rank": 58,
+        "address": "tz1QgjmhrUD3X7kgS9mMHbUz4cS6uDiFGhAU",
+        "name": "Yazid",
+        "volumeXtz": 3397.874
+      },
+      {
+        "rank": 59,
         "address": "tz1h2tUYay7vuSWzQkNn7utu7W66yv3VMv6G",
         "name": "Sixela T",
         "volumeXtz": 3385
       },
       {
-        "rank": 58,
+        "rank": 60,
         "address": "tz1QrXB3DLk3JAigtbcBJE8dmiifVXwiDti4",
         "name": "Scorpion Dagger",
         "volumeXtz": 3383.69
       },
       {
-        "rank": 59,
+        "rank": 61,
         "address": "tz1RrKWKkF9KqnyXVanif3TEXjqcA4zBoJof",
         "name": "Eli",
         "volumeXtz": 3333
       },
       {
-        "rank": 60,
-        "address": "tz2PsPRLTf3NPp43MqnHvWz1Q2URYQtisxs2",
-        "name": "goldcat",
-        "volumeXtz": 3281
-      },
-      {
-        "rank": 61,
+        "rank": 62,
         "address": "tz1LbBGbEygyf5ueVm9paYn9N6aXH7EHHNPr",
         "name": "Merzmensch New Official",
         "volumeXtz": 3200
       },
       {
-        "rank": 62,
+        "rank": 63,
         "address": "tz1Rnh4HTR5cLb37pVo123DSekQQkymUEXVE",
         "name": "Elisabeth Sweet",
         "volumeXtz": 3200
       },
       {
-        "rank": 63,
-        "address": "tz1fnrNZjMZgkuaHXFgvodk3N1TuXcvcaFgB",
-        "name": "Spøgelsesmaskinen",
-        "volumeXtz": 3114.234
-      },
-      {
         "rank": 64,
         "address": "tz1Qr6zYF9hNiQRfxktLdNhqdGXFQziFsBsW",
         "name": "khwampa",
-        "volumeXtz": 3107
+        "volumeXtz": 3157
       },
       {
         "rank": 65,
+        "address": "tz1Y8Pzjd6QuwwS9qREaKr1hvW4KMG2mtHNd",
+        "name": "Salawaki",
+        "volumeXtz": 3141.100998
+      },
+      {
+        "rank": 66,
+        "address": "tz1fnrNZjMZgkuaHXFgvodk3N1TuXcvcaFgB",
+        "name": "Spøgelsesmaskinen",
+        "volumeXtz": 3064.234
+      },
+      {
+        "rank": 67,
         "address": "tz2XJQUp2BafezwYSfJCHUVpxmMcqZTdRsBu",
         "name": "danctrl",
         "volumeXtz": 3059.416
       },
       {
-        "rank": 66,
-        "address": "tz1QvewiYVtdPHbnHAzWXCM5L8tevnbjdGD4",
-        "name": "no hygiene",
-        "volumeXtz": 2957.5
-      },
-      {
-        "rank": 67,
+        "rank": 68,
         "address": "tz2E8QVXyjVNxzPuPTRR1X4cp11EL3SPHb5J",
         "name": "LitKristi 🪽",
         "volumeXtz": 2942
       },
       {
-        "rank": 68,
+        "rank": 69,
         "address": "tz1RX9GWY9mUToTdcanKy6rgLc4TsgnqUYUt",
         "name": "skomra",
         "volumeXtz": 2916.487998
       },
       {
-        "rank": 69,
+        "rank": 70,
         "address": "tz1TXCuNBCPdJysStEzJKiZBRhVV7r511dCz",
         "name": "Chepertom",
         "volumeXtz": 2880.495
       },
       {
-        "rank": 70,
-        "address": "tz1LBwyJMRkH4tcG19KwYzAW7fLYbjFmWdWy",
-        "name": "REAS",
-        "volumeXtz": 2822.789
+        "rank": 71,
+        "address": "tz1eS6gqPTTyWkBRnqFMv2q783A5t6fV7zQD",
+        "name": "The Internet",
+        "volumeXtz": 2784.48
       },
       {
-        "rank": 71,
+        "rank": 72,
         "address": "tz1PoDdN2oyRyF6DA73zTWAWYhNL4UGr3Egj",
         "name": "ciphrd",
         "volumeXtz": 2743.42
       },
       {
-        "rank": 72,
+        "rank": 73,
         "address": "tz1MbpUrXbg8TF9F2uCWJbviAEcD9wMM8sF7",
         "name": "kavehDesigner",
         "volumeXtz": 2700
       },
       {
-        "rank": 73,
-        "address": "tz1eS6gqPTTyWkBRnqFMv2q783A5t6fV7zQD",
-        "name": "The Internet",
-        "volumeXtz": 2694.48
-      },
-      {
         "rank": 74,
-        "address": "tz1fk5uj94VC2GHGZuC2rvfjY29sjfGVX49m",
-        "name": "Neda",
-        "volumeXtz": 2631.98
+        "address": "tz1QvewiYVtdPHbnHAzWXCM5L8tevnbjdGD4",
+        "name": "no hygiene",
+        "volumeXtz": 2637.5
       },
       {
         "rank": 75,
@@ -57430,33 +57413,33 @@
       },
       {
         "rank": 80,
-        "address": "tz1QgjmhrUD3X7kgS9mMHbUz4cS6uDiFGhAU",
-        "name": "Yazid",
-        "volumeXtz": 2449.374
-      },
-      {
-        "rank": 81,
         "address": "tz1h3reKGdiqWFMiGaLdnkG5eZWFd4MQzZrq",
         "name": "eloy",
         "volumeXtz": 2437
       },
       {
+        "rank": 81,
+        "address": "tz1fk5uj94VC2GHGZuC2rvfjY29sjfGVX49m",
+        "name": "Neda",
+        "volumeXtz": 2409.98
+      },
+      {
         "rank": 82,
+        "address": "tz1LTd9oQKEkQzJzL3xJHj8Sr7ESPw21dFo2",
+        "name": "OGD",
+        "volumeXtz": 2379.53
+      },
+      {
+        "rank": 83,
         "address": "tz1czjZUmhKtBbt1wrhAEc6p5T65c4nmoH1s",
         "name": "Michelle Thompson",
         "volumeXtz": 2361
       },
       {
-        "rank": 83,
-        "address": "tz1LTd9oQKEkQzJzL3xJHj8Sr7ESPw21dFo2",
-        "name": "OGD",
-        "volumeXtz": 2354.53
-      },
-      {
         "rank": 84,
-        "address": "tz1ccVPQUsLXG1wkNB11tq2LGiVDvped1qzC",
-        "name": "Leotorcello",
-        "volumeXtz": 59.2
+        "address": "tz1Yb9mrEBSsv35doLWovF4Dmwy2q4won9oa",
+        "name": "Andrea Belloni",
+        "volumeXtz": 66.98
       },
       {
         "rank": 85,
@@ -57478,9 +57461,9 @@
       },
       {
         "rank": 88,
-        "address": "tz1b36x2r4979rJfovuMeQ7mnr91SLyLHgpp",
-        "name": "Amber Vittoria",
-        "volumeXtz": 55
+        "address": "tz1ccVPQUsLXG1wkNB11tq2LGiVDvped1qzC",
+        "name": "Leotorcello",
+        "volumeXtz": 59.2
       },
       {
         "rank": 89,
@@ -57498,7 +57481,7 @@
         "rank": 91,
         "address": "tz1eJTuQjggj9Scukx4qnmDn4PMDYd8Pb9M6",
         "name": "nebülar",
-        "volumeXtz": 2156.603782
+        "volumeXtz": 2146.603782
       },
       {
         "rank": 92,
@@ -57520,39 +57503,39 @@
       },
       {
         "rank": 95,
+        "address": "tz1LcquAUksD7L2a985H4zF4roQqWetitQbx",
+        "name": "ama_plaka",
+        "volumeXtz": 2091.305
+      },
+      {
+        "rank": 96,
         "address": "tz1ioJXpGeDXxZCPn5xzK1atuZbNc46KyYMA",
         "name": "Presidente de Internet",
         "volumeXtz": 2064
       },
       {
-        "rank": 96,
+        "rank": 97,
         "address": "tz1Nm1dwJbF3ihsmHFDLoUQtcKSU4vfT36K1",
         "name": "Rustic, The",
         "volumeXtz": 2037.037
       },
       {
-        "rank": 97,
+        "rank": 98,
+        "address": "tz1KnV2zdFPtgRNdrDkAPaguDwXmvDpS2yKF",
+        "name": "Elna Frederick",
+        "volumeXtz": 2029.01
+      },
+      {
+        "rank": 99,
         "address": "tz1eJF2r9JsfDLAswoo5iCDk6Qv2yWt6fbMX",
         "name": "williamapan",
         "volumeXtz": 2028.325746
       },
       {
-        "rank": 98,
+        "rank": 100,
         "address": "tz1efcfVREqXrncZbtVQYi6TERoeCmeGYCoc",
         "name": "moesh1t",
         "volumeXtz": 2016.404999
-      },
-      {
-        "rank": 99,
-        "address": "tz1aoGW7baURcV5jizsNvGdGVtMuZg8X6jpD",
-        "name": "Osinachi",
-        "volumeXtz": 2015
-      },
-      {
-        "rank": 100,
-        "address": "tz1dgXcFWb6F4F1ohd34k62KTmAfT6W1yKNb",
-        "name": "zachlieberman.tez",
-        "volumeXtz": 1985.189
       }
     ],
     "coverage": {
@@ -57568,16 +57551,16 @@
           "maxPages": 60,
           "truncated": true,
           "completion": "most-recent-prefix",
-          "coverageStartDate": "2026-07-19"
+          "coverageStartDate": "2026-07-20"
         },
         "mintEvents": {
-          "rows": 17605,
-          "pages": 36,
+          "rows": 17196,
+          "pages": 35,
           "pageSize": 500,
           "maxPages": 40,
           "truncated": false,
           "completion": "terminal-short-page",
-          "coverageStartDate": "2026-07-18"
+          "coverageStartDate": "2026-07-19"
         },
         "lifetimeCollections": {
           "rows": 50,
@@ -57612,8 +57595,8 @@
       "repository": "https://gitlab.com/tezos/tezos",
       "windowDays": 28,
       "range": {
-        "from": "2026-07-19T18:51:14.089Z",
-        "to": "2026-08-16T18:51:14.089Z"
+        "from": "2026-07-20T02:01:31.090Z",
+        "to": "2026-08-17T02:01:31.090Z"
       },
       "daily": [
         {
