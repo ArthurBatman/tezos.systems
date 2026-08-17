@@ -1858,6 +1858,23 @@ async function installFeatureMocks(context, options = {}) {
     }
 
     if (url.includes('api.tezos.domains/graphql')) {
+      if (postData.includes('ReverseLookupBatch')) {
+        const body = JSON.parse(postData || '{}');
+        const reverseNames = new Map([
+          [SAMPLE_ADDRESS, 'qa-baker.tez'],
+          [SAMPLE_ADDRESS_2, 'second-baker.tez'],
+          [SAMPLE_DELEGATOR_ADDRESS, 'three-weeks.tez'],
+          [SAMPLE_IDLE_ADDRESS, 'retired-baker.tez']
+        ]);
+        const data = {};
+        Object.entries(body.variables || {}).forEach(([key, address]) => {
+          const index = key.match(/^address(\d+)$/)?.[1];
+          if (index === undefined) return;
+          const name = reverseNames.get(address) || null;
+          data[`record${index}`] = name ? { domain: { name } } : null;
+        });
+        return fulfillJson(route, { data });
+      }
       if (postData.includes('TezosDomainsNameLookup')) {
         const body = JSON.parse(postData || '{}');
         return fulfillJson(route, sampleTezosDomainsNameLookup(body.variables?.name || 'viral.tez', forwardDomainAddress, forwardDomainOwner));
@@ -2492,6 +2509,9 @@ async function installFeatureMocks(context, options = {}) {
         }));
       }
       if (url.includes('/statistics/current')) {
+        if (parsedUrl.searchParams.get('select') === 'totalBakingPower') {
+          return fulfillJson(route, 500000000000000);
+        }
         return fulfillJson(route, {
           totalSupply: 1050000000000000,
           totalFrozen: 295000000000000,
@@ -2518,11 +2538,21 @@ async function installFeatureMocks(context, options = {}) {
       if (url.includes('/blocks?')) {
         if (networkHealthBlocksDelayMs > 0) await sleep(networkHealthBlocksDelayMs);
         const params = new URL(url).searchParams;
+        const bakerSizeTimestamp = params.get('timestamp.le');
+        if (bakerSizeTimestamp && params.get('select') === 'level,cycle,timestamp') {
+          return fulfillJson(route, [{ level: 9887330, cycle: 961, timestamp: bakerSizeTimestamp }]);
+        }
         const requestedLevels = (params.get('level.in') || '').split(',').filter(Boolean).map(Number).filter(Number.isFinite);
         if (requestedLevels.length) {
           const now = Date.now();
+          const bakerClosureCycles = new Map([
+            [12310000, 1201],
+            [12200000, 1194],
+            [11800000, 1166]
+          ]);
           return fulfillJson(route, requestedLevels.map((level) => ({
             level,
+            cycle: bakerClosureCycles.get(level) || 1143,
             timestamp: new Date(now - Math.max(0, 12345678 - level) * 6000).toISOString(),
             protocol: null
           })));
@@ -2595,6 +2625,22 @@ async function installFeatureMocks(context, options = {}) {
           { code: 23, extras: { alias: 'Seoul' } },
           { code: 24, extras: { alias: 'Tallinn' } },
           { code: 25, hash: 'PsUshuai9QapM5TGj1JpuVGkdxz5GykdnEvS6Rh8SUVrARvZLCY', firstLevel: 13857889 }
+        ]);
+      }
+      if (parsedUrl.pathname === '/v1/delegates' && parsedUrl.searchParams.get('sort.desc') === 'activationLevel') {
+        const now = Date.now();
+        return fulfillJson(route, [
+          { address: SAMPLE_ADDRESS, alias: 'QA Baker', active: true, bakingPower: 6000000000000, activationLevel: 12325000, activationTime: new Date(now - 86400000).toISOString(), deactivationLevel: null, deactivationTime: null },
+          { address: SAMPLE_ADDRESS_2, alias: 'Second Baker', active: true, bakingPower: 600000000000, activationLevel: 12295000, activationTime: new Date(now - 3 * 86400000).toISOString(), deactivationLevel: null, deactivationTime: null },
+          { address: SAMPLE_DELEGATOR_ADDRESS, alias: null, active: true, bakingPower: 50000000000, activationLevel: 12050000, activationTime: new Date(now - 21 * 86400000).toISOString(), deactivationLevel: null, deactivationTime: null }
+        ]);
+      }
+      if (parsedUrl.pathname === '/v1/delegates' && parsedUrl.searchParams.get('sort.desc') === 'deactivationLevel') {
+        const now = Date.now();
+        return fulfillJson(route, [
+          { address: SAMPLE_IDLE_ADDRESS, alias: 'Retired Baker', active: false, bakingPower: 0, activationLevel: 11900000, activationTime: new Date(now - 90 * 86400000).toISOString(), deactivationLevel: 12310000, deactivationTime: new Date(now - 2 * 86400000).toISOString() },
+          { address: SAMPLE_REGULAR_DELEGATOR_ADDRESS, alias: 'Former Baker', active: false, bakingPower: 0, activationLevel: 11600000, activationTime: new Date(now - 180 * 86400000).toISOString(), deactivationLevel: 12200000, deactivationTime: new Date(now - 8 * 86400000).toISOString() },
+          { address: SAMPLE_STAKER_ADDRESS, alias: null, active: false, bakingPower: 0, activationLevel: 11000000, activationTime: new Date(now - 365 * 86400000).toISOString(), deactivationLevel: 11800000, deactivationTime: new Date(now - 28 * 86400000).toISOString() }
         ]);
       }
       if (url.includes('/delegates/count?active=true')) return fulfillJson(route, leaderboardBakers.length);
@@ -3275,6 +3321,17 @@ async function installFeatureMocks(context, options = {}) {
           firstActivity: 4123456,
           firstActivityTime: '2022-08-10T00:00:00Z'
         });
+      }
+      if (url.includes('/rewards/bakers/') && parsedUrl.searchParams.get('select')?.includes('totalBakingPower')) {
+        const address = parsedUrl.pathname.split('/').pop();
+        const closurePower = new Map([
+          [SAMPLE_IDLE_ADDRESS, 20000000000],
+          [SAMPLE_REGULAR_DELEGATOR_ADDRESS, 700000000000],
+          [SAMPLE_STAKER_ADDRESS, 8000000000000]
+        ]).get(address);
+        return fulfillJson(route, closurePower
+          ? [{ cycle: Number(parsedUrl.searchParams.get('cycle')), bakingPower: closurePower, totalBakingPower: 500000000000000 }]
+          : []);
       }
       if (url.includes(`/rewards/stakers/${SAMPLE_REGULAR_DELEGATOR_ADDRESS}`)) {
         return fulfillJson(route, []);
@@ -24636,6 +24693,12 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   const topBakersPill = page.locator('#top-continuity-panel .top-continuity-stat[data-card-history="total-bakers"]');
   await topBakersPill.click();
   await page.locator('#top-continuity-panel > #top-continuity-explain.is-visible').waitFor({ state: 'visible', timeout: 5000 });
+  await page.waitForFunction(() => {
+    const roster = document.querySelector('#top-continuity-baker-roster');
+    return roster?.getAttribute('aria-busy') === 'false'
+      && roster.querySelectorAll('.top-continuity-baker-list').length === 2
+      && roster.querySelectorAll('.top-continuity-baker-row').length === 6;
+  }, null, { timeout: 10000 });
   const topExplainState = await page.evaluate((beforeTop) => {
     const panel = document.querySelector('#top-continuity-panel');
     const pill = panel?.querySelector('.top-continuity-stat[data-card-history="total-bakers"]');
@@ -24657,7 +24720,15 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
       popoverCompact: Boolean(popoverRect && popoverRect.width <= 390),
       popoverText: popover?.textContent || '',
       popoverTintsFromPill: Boolean(pillRect && popoverRect && popoverRect.left < pillRect.right && popoverRect.right > pillRect.left),
-      role: popover?.getAttribute('role') || ''
+      role: popover?.getAttribute('role') || '',
+      listCounts: Array.from(popover?.querySelectorAll('.top-continuity-baker-list') || []).map((list) => list.querySelectorAll('.top-continuity-baker-row').length),
+      ages: Array.from(popover?.querySelectorAll('.top-continuity-baker-row time') || []).map((time) => time.textContent?.trim() || ''),
+      domains: Array.from(popover?.querySelectorAll('.top-continuity-baker-identity strong') || []).map((name) => name.textContent?.trim() || ''),
+      sizes: Array.from(popover?.querySelectorAll('[data-baker-size]') || []).map((badge) => badge.dataset.bakerSize || ''),
+      sizeLabels: Array.from(popover?.querySelectorAll('[data-baker-size]') || []).map((badge) => badge.getAttribute('aria-label') || ''),
+      saveActions: popover?.querySelectorAll('[data-baker-set-save-address]').length || 0,
+      tzktLinks: Array.from(popover?.querySelectorAll('.top-continuity-baker-actions a[href^="https://tzkt.io/"]') || []).map((link) => link.href),
+      freshness: popover?.querySelector('[data-baker-set-status]')?.textContent?.trim() || ''
     };
   }, mainTopBeforeExplain);
   assert(topExplainState.insidePanel && topExplainState.popoverBelowPanel, `feature workflows top pill explainer should be anchored inside the continuity panel: ${JSON.stringify(topExplainState)}`);
@@ -24667,6 +24738,36 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   assert(topExplainState.closeButton && topExplainState.chartButton, `feature workflows top pill popover controls missing: ${JSON.stringify(topExplainState)}`);
   assert(/Baker set/.test(topExplainState.popoverText) && /Open all-time chart/.test(topExplainState.popoverText), `feature workflows top pill popover copy mismatch: ${topExplainState.popoverText}`);
   assert(topExplainState.popoverCompact && topExplainState.popoverTintsFromPill, `feature workflows top pill popover geometry mismatch: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.listCounts.join(',') === '3,3'
+    && topExplainState.ages[0] === '1d'
+    && topExplainState.ages[2] === '3w'
+    && topExplainState.domains.includes('qa-baker.tez')
+    && topExplainState.domains.includes('retired-baker.tez')
+    && topExplainState.domains.includes('Former Baker')
+    && /Newest Bakers/i.test(topExplainState.popoverText)
+    && /baking rights gained/i.test(topExplainState.popoverText)
+    && /Closed Bakers/i.test(topExplainState.popoverText)
+    && /baking rights lost/i.test(topExplainState.popoverText), `feature workflows baker right-change lists mismatch: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.sizes.join(',') === 'large,medium,small,small,medium,large'
+    && topExplainState.sizeLabels.every((label) => /baker, .*% of (current network baking power|network baking power one year before closure)/.test(label)), `feature workflows baker size tiers mismatch: ${JSON.stringify(topExplainState)}`);
+  assert(topExplainState.saveActions === 6
+    && topExplainState.tzktLinks.length === 6
+    && /^Live /.test(topExplainState.freshness), `feature workflows baker right-change actions or provenance mismatch: ${JSON.stringify(topExplainState)}`);
+  await page.locator('#top-continuity-baker-roster [data-baker-set-save-address]').first().click();
+  await page.waitForFunction(() => {
+    const saved = JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]');
+    const action = document.querySelector('#top-continuity-baker-roster [data-baker-set-my-address]');
+    return saved.length === 1 && action?.textContent?.trim() === 'My';
+  }, null, { timeout: 5000 });
+  const savedBakerState = await page.evaluate(() => ({
+    entries: JSON.parse(localStorage.getItem('tezos-systems-saved-addresses') || '[]'),
+    href: document.querySelector('#top-continuity-baker-roster [data-baker-set-my-address]')?.getAttribute('href') || '',
+    status: document.querySelector('#top-continuity-baker-roster [data-baker-set-status]')?.textContent?.trim() || ''
+  }));
+  assert(savedBakerState.entries.length === 1
+    && savedBakerState.entries[0].label === 'qa-baker.tez'
+    && savedBakerState.href.includes('#my-baker=')
+    && /saved to My Tezos/.test(savedBakerState.status), `feature workflows baker My Tezos save mismatch: ${JSON.stringify(savedBakerState)}`);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => {
     const popover = document.querySelector('#top-continuity-explain');
@@ -24689,7 +24790,7 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
       opacity: Number.parseFloat(popoverStyle?.opacity || '1'),
       pointerEvents: popoverStyle?.pointerEvents || '',
       selected: pill?.classList.contains('is-explaining') || false,
-      tabStopsDisabled: Array.from(popover?.querySelectorAll('button') || []).every((button) => button.tabIndex === -1)
+      tabStopsDisabled: Array.from(popover?.querySelectorAll('button, a[href]') || []).every((control) => control.tabIndex === -1)
     };
   });
   assert(escapeState.activeElementKey === 'total-bakers' && escapeState.ariaExpanded === 'false' && !escapeState.selected && escapeState.inert && escapeState.opacity <= 0.01 && escapeState.pointerEvents === 'none' && escapeState.tabStopsDisabled, `feature workflows top pill Escape close mismatch: ${JSON.stringify(escapeState)}`);
@@ -24942,6 +25043,79 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   log('ok - feature workflow: state of tezos share');
 
   await context.close();
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    serviceWorkers: 'block'
+  });
+  await installFeatureMocks(mobileContext);
+  await mobileContext.addInitScript(() => {
+    localStorage.setItem('tezos-systems-theme', 'matrix');
+    localStorage.setItem('tezos-systems-stats-visible', 'true');
+    localStorage.setItem('tezos-toured', '1');
+    localStorage.setItem('tezos-welcomed', '1');
+    localStorage.setItem('tezos-systems-my-tezos-dismissed', '1');
+    localStorage.removeItem('tezos-systems-saved-addresses');
+  });
+  const mobilePage = await mobileContext.newPage();
+  attachIssueCollectors(mobilePage, 'feature workflows mobile baker set', issues);
+  const mobileResponse = await mobilePage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
+  assert(mobileResponse?.ok(), `feature workflows mobile baker set: dashboard failed with HTTP ${mobileResponse?.status()}`);
+  const mobileBakersPill = mobilePage.locator('#top-continuity-panel .top-continuity-stat[data-card-history="total-bakers"]');
+  await mobileBakersPill.tap();
+  await mobilePage.waitForFunction(() => {
+    const roster = document.querySelector('#top-continuity-baker-roster');
+    return roster?.getAttribute('aria-busy') === 'false'
+      && roster.querySelectorAll('.top-continuity-baker-row').length === 6;
+  }, null, { timeout: 10000 });
+  const mobileBakerSet = await mobilePage.evaluate(() => {
+    const panel = document.querySelector('#top-continuity-panel');
+    const popover = document.querySelector('#top-continuity-explain.is-visible');
+    const ticker = document.querySelector('#block-ticker-strip');
+    const panelRect = panel?.getBoundingClientRect();
+    const popoverRect = popover?.getBoundingClientRect();
+    const tickerRect = ticker?.getBoundingClientRect();
+    const controls = Array.from(popover?.querySelectorAll('.top-continuity-baker-actions :is(a, button)') || [])
+      .map((control) => {
+        const rect = control.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+    return {
+      position: popover ? getComputedStyle(popover).position : '',
+      panelOwnsPopover: popover?.parentElement === panel,
+      popoverInsideViewport: Boolean(popoverRect && popoverRect.left >= -1 && popoverRect.right <= innerWidth + 1),
+      popoverBelowPills: Boolean(panelRect && popoverRect && popoverRect.top > panelRect.top),
+      tickerClear: Boolean(popoverRect && tickerRect && popoverRect.bottom <= tickerRect.top + 1),
+      pageOverflow: document.documentElement.scrollWidth - innerWidth,
+      listCounts: Array.from(popover?.querySelectorAll('.top-continuity-baker-list') || []).map((list) => list.querySelectorAll('.top-continuity-baker-row').length),
+      headings: Array.from(popover?.querySelectorAll('.top-continuity-baker-heading strong') || []).map((heading) => heading.textContent?.trim() || ''),
+      actionCount: controls.length,
+      controls,
+      text: popover?.textContent || ''
+    };
+  });
+  assert(mobileBakerSet.position === 'relative'
+    && mobileBakerSet.panelOwnsPopover
+    && mobileBakerSet.popoverInsideViewport
+    && mobileBakerSet.popoverBelowPills
+    && mobileBakerSet.tickerClear
+    && mobileBakerSet.pageOverflow <= 1,
+  `feature workflows mobile baker set: in-flow panel geometry mismatch ${JSON.stringify(mobileBakerSet)}`);
+  assert(mobileBakerSet.listCounts.join(',') === '3,3'
+    && mobileBakerSet.headings.join(',') === 'Newest Bakers,Closed Bakers'
+    && /baking rights gained/i.test(mobileBakerSet.text)
+    && /baking rights lost/i.test(mobileBakerSet.text),
+  `feature workflows mobile baker set: lifecycle rows missing ${JSON.stringify(mobileBakerSet)}`);
+  assert(mobileBakerSet.actionCount === 12
+    && mobileBakerSet.controls.every(({ width, height }) => width >= 43.9 && height >= 43.9),
+  `feature workflows mobile baker set: action touch targets regressed ${JSON.stringify(mobileBakerSet)}`);
+  await mobilePage.locator('[data-close-top-continuity-explain]').tap();
+  await mobilePage.waitForFunction(() => document.querySelector('#top-continuity-explain')?.getAttribute('aria-hidden') === 'true', null, { timeout: 5000 });
+  await mobileContext.close();
+  log('ok - feature workflow: mobile baker lifecycle roster');
+
   assert(issues.length === 0, `feature workflows browser issues:\n${issues.join('\n')}`);
   log('ok - feature workflows smoke');
 }
@@ -30980,7 +31154,7 @@ function getSuiteCatalog(browser, baseUrl) {
     { name: 'baker-wallet-actions', description: 'Every canonical baker row exposes wallet-reviewed first-time delegation and exact Tezos stake operations', run: () => smokeBakerWalletActions(browser, baseUrl) },
     { name: 'whale-watch-chamber', description: 'Complete-window receipts, grouped flow legs, timestamp dormancy, receipt-backed awakenings, legacy giants alias, prepend anchoring, and mobile geometry', run: () => smokeWhaleWatchChamber(browser, baseUrl) },
     { name: 'cycle-history-chamber', description: 'Direct range and metric routes, focused charts, close lifecycle, restored entry focus, and mobile geometry', run: () => smokeCycleHistoryChamber(browser, baseUrl) },
-    { name: 'feature-workflows', description: 'Baker Directory, calculator modes, price intelligence, comparison, Whale Watch, Cycle History, and share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
+    { name: 'feature-workflows', description: 'Desktop/mobile baker lifecycle roster, Baker Directory, calculator modes, price intelligence, comparison, Whale Watch, Cycle History, and share cards', run: () => smokeFeatureWorkflows(browser, baseUrl) },
     { name: 'share-actions', description: 'Share modal copy, post, download, native share, and mobile photo fallback buttons', run: () => smokeShareActions(browser, baseUrl) },
     { name: 'info-modals', description: 'All section info modals and About Tezos launch-date copy', run: () => smokeInfoModals(browser, baseUrl) },
     { name: 'valley-theme', description: 'Valley lazy renderer, data motion, lifecycle, reading-state preservation, reduced motion, and responsive geometry', run: () => smokeValleyTheme(browser, baseUrl) },

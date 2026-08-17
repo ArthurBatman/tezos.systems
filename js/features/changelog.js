@@ -5,6 +5,12 @@
 
 export const CHANGELOG = [
     {
+        date: '2026-08-17',
+        entries: [
+            { type: '✨', text: 'The bakers pill now shows three Newest Bakers by baking rights gained and three Closed Bakers by baking rights lost, with current size indicators for new bakers, exact one-year-prior size indicators for closed bakers, Tezos Domain or TzKT identities, and direct My Tezos and TzKT actions' }
+        ]
+    },
+    {
         date: '2026-08-15',
         entries: [
             { type: '🎨', text: 'Protocol Anthology is now an editorial field guide with a current-chapter cover, three learning lenses, era shelves, larger chapter cards, and a 60-second brief in every reader' },

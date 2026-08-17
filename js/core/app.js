@@ -4,7 +4,7 @@
  */
 
 import './tzkt-throttle.js';
-import { fetchAllStats, fetchHeroStats, checkApiHealth, fetchWithDeadline } from './api.js';
+import { fetchAllStats, fetchHeroStats, checkApiHealth, fetchWithDeadline, fetchWithRetry } from './api.js';
 import {
     CHAMBER_CATEGORY_META,
     findCurrentSiteMapContext,
@@ -49,13 +49,19 @@ import { quietlyMutate, quietlySyncElement, quietlySyncHtml } from './quiet-refr
 import { versionedAsset } from './asset-version.js';
 import { CANONICAL_UPGRADE_COUNT, countProtocolUpgrades, getProtocolUpgradeOrdinal } from './protocol-count.js';
 import {
+    MAX_SAVED_MY_TEZOS_ADDRESSES,
+    SAVED_ADDRESSES_KEY,
     connectOctezWallet,
     disconnectOctezWallet,
     getStoredWalletAddress,
     initFooterDelegation,
+    isTezosAddress,
     preloadOctezConnect,
-    shortAddress
+    readSavedMyTezosEntries,
+    shortAddress,
+    upsertSavedMyTezosEntry
 } from './wallet.js';
+import { resolveTezReverseNames } from './tezos-domains.js';
 import { initArcadeEffects, toggleUltraMode } from '../effects/arcade-effects.js';
 import { closeCycleHistoryChamber, initHistoryModal, updateSparklines, addCardHistoryButtons, setLatestLiveMetric, openCardHistoryModal } from '../features/history.js';
 import { ensureCardShareButton, initShare, initProtocolShare, loadHtml2Canvas, showShareModal, setLiveAPY } from '../ui/share.js';
@@ -3299,7 +3305,7 @@ const TOP_CONTINUITY_EXPLANATIONS = {
     'total-bakers': {
         kicker: 'Baker set',
         title: 'Permissionless operators are the continuity layer.',
-        body: 'The baker count is the live validator surface behind every block, vote, attestation, and protocol upgrade.'
+        body: 'The newest and recently closed bakers, ordered by when baking rights were gained or lost.'
     },
     finality: {
         kicker: 'Finality',
@@ -3389,6 +3395,13 @@ function initUptimeClock() {
     const defaultUptimeAriaLabel = topContinuityHistory?.getAttribute('aria-label') || '';
     const defaultUptimeTitle = topContinuityHistory?.getAttribute('title') || '';
     const defaultUptimeAriaControls = topContinuityHistory?.getAttribute('aria-controls') || '';
+    const BAKER_SET_LIST_LIMIT = 3;
+    const BAKER_SET_REFRESH_MS = 15 * 60 * 1000;
+    const BAKER_SIZE_MEDIUM_SHARE = 0.001;
+    const BAKER_SIZE_LARGE_SHARE = 0.01;
+    let bakerSetSnapshot = null;
+    let bakerSetRefreshPromise = null;
+    let bakerSetRefreshError = '';
 
     const finalityButton = document.querySelector('[data-card-history="finality"]');
     finalityButton?.classList.remove('is-loading');
@@ -3820,12 +3833,269 @@ function initUptimeClock() {
     }
 
     function getTopContinuityPillValue(pill = explainActivePill) {
-        return pill?.querySelector('strong')?.textContent?.trim() || '';
+        const value = pill?.querySelector('strong');
+        return value?.dataset?.finalText || value?.textContent?.trim() || '';
     }
 
     function formatTopContinuityExplainTitle(pill, copy) {
         const value = getTopContinuityPillValue(pill);
         return value ? `${value}: ${copy.title}` : copy.title;
+    }
+
+    function compactBakerSetAge(value, now = Date.now()) {
+        const timestamp = Date.parse(value || '');
+        if (!Number.isFinite(timestamp)) return '—';
+        const elapsed = Math.max(0, now - timestamp);
+        const minute = 60 * 1000;
+        const hour = 60 * minute;
+        const day = 24 * hour;
+        const week = 7 * day;
+        if (elapsed < 90 * 1000) return 'now';
+        if (elapsed < hour) return `${Math.max(1, Math.floor(elapsed / minute))}m`;
+        if (elapsed < day) return `${Math.max(1, Math.floor(elapsed / hour))}h`;
+        if (elapsed < 2 * week) return `${Math.max(1, Math.floor(elapsed / day))}d`;
+        if (elapsed < 8 * week) return `${Math.max(1, Math.floor(elapsed / week))}w`;
+        if (elapsed < 730 * day) return `${Math.max(1, Math.floor(elapsed / (30 * day)))}mo`;
+        return `${Math.max(1, Math.floor(elapsed / (365 * day)))}y`;
+    }
+
+    function absoluteBakerSetTime(value) {
+        const timestamp = Date.parse(value || '');
+        if (!Number.isFinite(timestamp)) return 'Time unavailable';
+        return new Date(timestamp).toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
+    function bakerSizeTier(bakingPower, totalBakingPower, context = 'current network baking power') {
+        const power = Number(bakingPower);
+        const total = Number(totalBakingPower);
+        if (!Number.isFinite(power) || power <= 0 || !Number.isFinite(total) || total <= 0) return null;
+        const share = power / total;
+        const key = share >= BAKER_SIZE_LARGE_SHARE
+            ? 'large'
+            : share >= BAKER_SIZE_MEDIUM_SHARE
+                ? 'medium'
+                : 'small';
+        const percentage = share * 100;
+        const formattedShare = percentage < 0.01
+            ? percentage.toFixed(3)
+            : percentage < 1
+                ? percentage.toFixed(2)
+                : percentage.toFixed(1);
+        return {
+            key,
+            label: key[0].toUpperCase() + key.slice(1),
+            detail: `${formattedShare}% of ${context}`
+        };
+    }
+
+    function oneYearBeforeBakerEvent(value) {
+        const date = new Date(value || '');
+        if (!Number.isFinite(date.getTime())) return null;
+        date.setUTCFullYear(date.getUTCFullYear() - 1);
+        return date.toISOString();
+    }
+
+    function fetchTopContinuityTzktJson(url, retries = 2) {
+        return fetchWithRetry(url, {
+            cache: 'no-store',
+            memoryCache: false,
+            timeoutMs: 12_000,
+            __tezosSystemsPriority: 'interactive'
+        }, retries);
+    }
+
+    async function fetchTopContinuityBakerRows(active) {
+        const params = new URLSearchParams({
+            active: String(active),
+            select: 'address,alias,activationLevel,activationTime,deactivationLevel,deactivationTime,bakingPower',
+            'sort.desc': active ? 'activationLevel' : 'deactivationLevel',
+            limit: String(BAKER_SET_LIST_LIMIT)
+        });
+        if (active) params.set('bakingPower.gt', '0');
+        const rows = await fetchTopContinuityTzktJson(`${API_URLS.tzkt}/delegates?${params}`);
+        if (!Array.isArray(rows)) throw new Error('TzKT baker set returned an invalid payload');
+        return rows
+            .filter((row) => isTezosAddress(row?.address))
+            .filter((row) => !active || Number(row?.bakingPower) > 0)
+            .slice(0, BAKER_SET_LIST_LIMIT)
+            .map((row) => ({
+                address: String(row.address),
+                alias: String(row.alias || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+                bakingPower: Number(row.bakingPower) || 0,
+                eventLevel: Number(active ? row.activationLevel : row.deactivationLevel) || null,
+                eventTime: active ? row.activationTime : row.deactivationTime
+            }));
+    }
+
+    async function fetchTopContinuityTotalBakingPower() {
+        const payload = await fetchTopContinuityTzktJson(`${API_URLS.tzkt}/statistics/current?select=totalBakingPower`);
+        const total = Number(payload?.totalBakingPower ?? payload);
+        if (!Number.isFinite(total) || total <= 0) throw new Error('TzKT baking power total is unavailable');
+        return total;
+    }
+
+    async function attachClosedBakerSizes(rows) {
+        return Promise.all(rows.map(async (row) => {
+            const targetTime = oneYearBeforeBakerEvent(row.eventTime);
+            if (!targetTime) return row;
+            try {
+                const blockParams = new URLSearchParams({
+                    'timestamp.le': targetTime,
+                    'sort.desc': 'level',
+                    select: 'level,cycle,timestamp',
+                    limit: '1'
+                });
+                const blocks = await fetchTopContinuityTzktJson(`${API_URLS.tzkt}/blocks?${blockParams}`);
+                const referenceBlock = Array.isArray(blocks) ? blocks[0] : null;
+                const cycle = Number(referenceBlock?.cycle);
+                if (!Number.isFinite(cycle)) return row;
+
+                const rewardParams = new URLSearchParams({
+                    cycle: String(cycle),
+                    select: 'cycle,bakingPower,totalBakingPower',
+                    limit: '1'
+                });
+                const snapshots = await fetchTopContinuityTzktJson(`${API_URLS.tzkt}/rewards/bakers/${encodeURIComponent(row.address)}?${rewardParams}`);
+                const snapshot = Array.isArray(snapshots) ? snapshots[0] : null;
+                const size = bakerSizeTier(
+                    snapshot?.bakingPower,
+                    snapshot?.totalBakingPower,
+                    'network baking power one year before closure'
+                );
+                return size
+                    ? { ...row, size, sizeReferenceTime: referenceBlock?.timestamp || targetTime }
+                    : row;
+            } catch {
+                return row;
+            }
+        }));
+    }
+
+    async function fetchTopContinuityBakerSet() {
+        const [latest, closed, totalBakingPower] = await Promise.all([
+            fetchTopContinuityBakerRows(true),
+            fetchTopContinuityBakerRows(false),
+            fetchTopContinuityTotalBakingPower().catch(() => null)
+        ]);
+        const latestWithSizes = latest.map((row) => {
+            const size = bakerSizeTier(row.bakingPower, totalBakingPower);
+            return size ? { ...row, size } : row;
+        });
+        const closedWithSizes = await attachClosedBakerSizes(closed);
+        let domains = new Map();
+        try {
+            domains = await resolveTezReverseNames(
+                [...latestWithSizes, ...closedWithSizes].map((row) => row.address)
+            );
+        } catch (error) {
+            console.warn('[baker-set] Tezos Domains reverse lookup failed:', error?.message || error);
+        }
+        return {
+            latest: latestWithSizes,
+            closed: closedWithSizes,
+            domains,
+            observedAt: Date.now()
+        };
+    }
+
+    function renderTopContinuityBakerRow(row, kind, savedAddresses) {
+        const domain = bakerSetSnapshot?.domains?.get(row.address) || '';
+        const label = domain || row.alias || shortAddress(row.address);
+        const identityTitle = domain
+            ? `${domain} Tezos Domains reverse record · ${row.address}`
+            : row.alias
+                ? `${row.alias} · ${row.address}`
+                : row.address;
+        const saved = savedAddresses.has(row.address);
+        const sizeLabel = row.size ? `${row.size.label} baker, ${row.size.detail}` : 'Baker size unavailable';
+        const sizeBadge = row.size
+            ? `<span class="top-continuity-baker-size is-${escapeHtml(row.size.key)}" data-baker-size="${escapeHtml(row.size.key)}" aria-label="${escapeHtml(sizeLabel)}" title="${escapeHtml(`${row.size.label} baker · ${row.size.detail}`)}">${escapeHtml(row.size.label)}</span>`
+            : `<span class="top-continuity-baker-size is-unavailable" data-baker-size="unavailable" aria-label="${escapeHtml(sizeLabel)}" title="${escapeHtml(sizeLabel)}">—</span>`;
+        const myTezosAction = saved
+            ? `<a href="/#my-baker=${encodeURIComponent(row.address)}" data-quiet-key="baker-set-my:${escapeHtml(row.address)}" data-baker-set-my-address="${escapeHtml(row.address)}" aria-label="Open ${escapeHtml(label)} in My Tezos" title="Open in My Tezos">My</a>`
+            : `<button type="button" data-quiet-key="baker-set-my:${escapeHtml(row.address)}" data-baker-set-save-address="${escapeHtml(row.address)}" data-baker-set-label="${escapeHtml(label)}" aria-label="Add ${escapeHtml(label)} to saved My Tezos addresses" title="Add to My Tezos">+ My</button>`;
+        return `
+            <article class="top-continuity-baker-row is-${kind}" data-quiet-key="baker-set-${kind}:${escapeHtml(row.address)}" data-address="${escapeHtml(row.address)}">
+                <time datetime="${escapeHtml(row.eventTime || '')}" title="${escapeHtml(absoluteBakerSetTime(row.eventTime))}">${escapeHtml(compactBakerSetAge(row.eventTime))}</time>
+                <span class="top-continuity-baker-identity" title="${escapeHtml(identityTitle)}"><strong>${escapeHtml(label)}</strong></span>
+                ${sizeBadge}
+                <span class="top-continuity-baker-actions">
+                    ${myTezosAction}
+                    <a href="https://tzkt.io/${encodeURIComponent(row.address)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(label)} on TzKT" title="Open on TzKT">TzKT</a>
+                </span>
+            </article>
+        `;
+    }
+
+    function renderTopContinuityBakerList(title, note, rows, kind, savedAddresses) {
+        return `
+            <section class="top-continuity-baker-list" aria-label="${escapeHtml(title)}">
+                <div class="top-continuity-baker-heading"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(note)}</span></div>
+                ${rows.length
+                    ? rows.map((row) => renderTopContinuityBakerRow(row, kind, savedAddresses)).join('')
+                    : '<p class="top-continuity-baker-empty">No matching baker receipt returned.</p>'}
+            </section>
+        `;
+    }
+
+    function renderTopContinuityBakerRoster() {
+        const roster = document.getElementById('top-continuity-baker-roster');
+        if (!roster || explainActiveKey !== 'total-bakers') return;
+        roster.setAttribute('aria-busy', bakerSetRefreshPromise ? 'true' : 'false');
+        if (!bakerSetSnapshot) {
+            const markup = bakerSetRefreshPromise
+                ? '<div class="top-continuity-baker-loading"><span aria-hidden="true"></span><span>Loading recent baker changes…</span></div>'
+                : '<div class="top-continuity-baker-error"><span>Recent baker changes are unavailable.</span><button type="button" data-baker-set-retry>Retry</button></div>';
+            quietlySyncHtml(roster, markup);
+            return;
+        }
+
+        const savedAddresses = new Set(readSavedMyTezosEntries().map((entry) => entry.address));
+        const observed = new Date(bakerSetSnapshot.observedAt).toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+        const freshness = bakerSetRefreshPromise
+            ? 'Refreshing baker records…'
+            : bakerSetRefreshError
+                ? `Last good ${observed} · refresh unavailable`
+                : `Live ${observed}`;
+        quietlySyncHtml(roster, `
+            ${renderTopContinuityBakerList('Newest Bakers', 'baking rights gained', bakerSetSnapshot.latest, 'gained', savedAddresses)}
+            ${renderTopContinuityBakerList('Closed Bakers', 'baking rights lost', bakerSetSnapshot.closed, 'closed', savedAddresses)}
+            <p class="top-continuity-baker-freshness" data-baker-set-status data-tone="${bakerSetRefreshError ? 'stale' : 'live'}">${escapeHtml(freshness)}</p>
+        `);
+    }
+
+    function refreshTopContinuityBakerRoster({ force = false } = {}) {
+        const fresh = bakerSetSnapshot && Date.now() - bakerSetSnapshot.observedAt < BAKER_SET_REFRESH_MS;
+        if (!force && fresh) {
+            renderTopContinuityBakerRoster();
+            return Promise.resolve(bakerSetSnapshot);
+        }
+        if (bakerSetRefreshPromise) return bakerSetRefreshPromise;
+        bakerSetRefreshError = '';
+        bakerSetRefreshPromise = (async () => {
+            try {
+                bakerSetSnapshot = await fetchTopContinuityBakerSet();
+                return bakerSetSnapshot;
+            } catch (error) {
+                bakerSetRefreshError = error?.message || 'Baker set refresh failed';
+                console.warn('[baker-set] refresh failed:', bakerSetRefreshError);
+                return bakerSetSnapshot;
+            } finally {
+                bakerSetRefreshPromise = null;
+                renderTopContinuityBakerRoster();
+            }
+        })();
+        renderTopContinuityBakerRoster();
+        return bakerSetRefreshPromise;
     }
 
     function updateTopContinuityExplainTitle() {
@@ -3859,6 +4129,8 @@ function initUptimeClock() {
     }
 
     function renderTopContinuityExplain(explain, pill, copy, key) {
+        const isBakerSet = key === 'total-bakers';
+        explain.classList.toggle('is-baker-set', isBakerSet);
         explain.innerHTML = `
             <button type="button" class="top-continuity-explain-close" data-close-top-continuity-explain aria-label="Dismiss explanation">&times;</button>
             <div class="top-continuity-explain-copy">
@@ -3866,20 +4138,22 @@ function initUptimeClock() {
                 <strong id="top-continuity-explain-title" data-top-continuity-explain-title>${escapeHtml(formatTopContinuityExplainTitle(pill, copy))}</strong>
                 <p>${escapeHtml(copy.body)}</p>
             </div>
+            ${isBakerSet ? '<div class="top-continuity-baker-roster" id="top-continuity-baker-roster" aria-label="Newest and closed bakers by baking-right change" aria-busy="true"></div>' : ''}
             <div class="top-continuity-explain-actions">
                 <button type="button" class="top-continuity-explain-chart" data-open-card-history="${escapeHtml(key)}">Open all-time chart</button>
             </div>
         `;
+        if (isBakerSet) refreshTopContinuityBakerRoster();
     }
 
     function setTopContinuityExplainInteractive(explain, interactive) {
         if (!explain) return;
         explain.inert = !interactive;
-        explain.querySelectorAll('button').forEach((button) => {
+        explain.querySelectorAll('button, a[href]').forEach((control) => {
             if (interactive) {
-                button.removeAttribute('tabindex');
+                control.removeAttribute('tabindex');
             } else {
-                button.setAttribute('tabindex', '-1');
+                control.setAttribute('tabindex', '-1');
             }
         });
     }
@@ -3900,6 +4174,58 @@ function initUptimeClock() {
             if (!target) return;
             if (target.closest('[data-close-top-continuity-explain]')) {
                 closeTopContinuityExplanation({ returnFocus: true });
+                return;
+            }
+
+            const myTezosLink = target.closest('[data-baker-set-my-address]');
+            if (myTezosLink) {
+                event.preventDefault();
+                const address = myTezosLink.dataset.bakerSetMyAddress || '';
+                closeTopContinuityExplanation();
+                openMyTezosTarget(address).catch((error) => {
+                    console.warn('[baker-set] My Tezos open failed:', error?.message || error);
+                });
+                return;
+            }
+
+            const saveButton = target.closest('[data-baker-set-save-address]');
+            if (saveButton) {
+                event.stopPropagation();
+                const address = saveButton.dataset.bakerSetSaveAddress || '';
+                const label = saveButton.dataset.bakerSetLabel || null;
+                const current = readSavedMyTezosEntries();
+                const alreadySaved = current.some((entry) => entry.address === address);
+                const status = explain.querySelector('[data-baker-set-status]');
+                if (!alreadySaved && current.length >= MAX_SAVED_MY_TEZOS_ADDRESSES) {
+                    if (status) {
+                        status.dataset.tone = 'stale';
+                        status.textContent = `My Tezos already has ${MAX_SAVED_MY_TEZOS_ADDRESSES} saved addresses.`;
+                    }
+                    return;
+                }
+                try {
+                    upsertSavedMyTezosEntry(address, {
+                        label,
+                        included: true,
+                        source: 'baker-set-pill'
+                    });
+                    renderTopContinuityBakerRoster();
+                    const nextStatus = explain.querySelector('[data-baker-set-status]');
+                    if (nextStatus) {
+                        nextStatus.dataset.tone = 'live';
+                        nextStatus.textContent = `${label || shortAddress(address)} saved to My Tezos on this device.`;
+                    }
+                } catch (error) {
+                    if (status) {
+                        status.dataset.tone = 'stale';
+                        status.textContent = error?.message || 'Could not save this address.';
+                    }
+                }
+                return;
+            }
+
+            if (target.closest('[data-baker-set-retry]')) {
+                refreshTopContinuityBakerRoster({ force: true });
                 return;
             }
 
@@ -4044,6 +4370,21 @@ function initUptimeClock() {
         });
         window.addEventListener('hero-search-opened', () => closeTopContinuityExplanation());
         window.addEventListener('resize', repositionTopContinuityExplanation);
+    }
+
+    if (topContinuityPanel && topContinuityPanel.dataset.bakerSetSavedStateWired !== '1') {
+        topContinuityPanel.dataset.bakerSetSavedStateWired = '1';
+        window.addEventListener('my-tezos-portfolio-changed', () => {
+            if (explainActiveKey === 'total-bakers' && bakerSetSnapshot) {
+                renderTopContinuityBakerRoster();
+            }
+        });
+        window.addEventListener('storage', (event) => {
+            if (event.key !== SAVED_ADDRESSES_KEY) return;
+            if (explainActiveKey === 'total-bakers' && bakerSetSnapshot) {
+                renderTopContinuityBakerRoster();
+            }
+        });
     }
 
     if (topContinuityHistory && topContinuityHistory.dataset.milestoneCelebrationWired !== '1') {

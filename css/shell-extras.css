@@ -82,6 +82,211 @@
     line-height: 1.45;
 }
 
+.top-continuity-explain.is-baker-set {
+    gap: 0.65rem;
+}
+
+.top-continuity-baker-roster {
+    display: grid;
+    min-width: 0;
+    gap: 0.62rem;
+}
+
+.top-continuity-baker-list {
+    display: grid;
+    min-width: 0;
+    gap: 0.16rem;
+}
+
+.top-continuity-baker-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0 0.16rem 0.22rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 18%, transparent);
+}
+
+.top-continuity-baker-heading strong,
+.top-continuity-baker-heading span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.58rem;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.top-continuity-baker-heading strong {
+    color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 78%, var(--text-primary));
+    letter-spacing: 0.07em;
+}
+
+.top-continuity-baker-heading span {
+    color: var(--text-tertiary, var(--text-secondary));
+    letter-spacing: 0.035em;
+}
+
+.top-continuity-baker-row {
+    display: grid;
+    grid-template-columns: 2.35rem minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.42rem;
+    min-width: 0;
+    min-height: 30px;
+    padding: 0.12rem 0.16rem;
+    border-radius: 5px;
+}
+
+.top-continuity-baker-row:hover,
+.top-continuity-baker-row:focus-within {
+    background: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 7%, transparent);
+}
+
+.top-continuity-baker-row time {
+    color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 72%, var(--text-secondary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.top-continuity-baker-row.is-closed time {
+    color: color-mix(in srgb, #f08b72 70%, var(--text-secondary));
+}
+
+.top-continuity-baker-identity {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.top-continuity-baker-identity strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 760;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.top-continuity-baker-size {
+    min-width: 2.55rem;
+    padding: 0.18rem 0.28rem;
+    border: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 28%, transparent);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font: 800 0.48rem/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.025em;
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.top-continuity-baker-size.is-medium {
+    border-color: color-mix(in srgb, #e7b75d 45%, transparent);
+    color: color-mix(in srgb, #e7b75d 78%, var(--text-primary));
+}
+
+.top-continuity-baker-size.is-large {
+    border-color: color-mix(in srgb, #ef8b72 48%, transparent);
+    color: color-mix(in srgb, #ef8b72 82%, var(--text-primary));
+}
+
+.top-continuity-baker-size.is-unavailable {
+    border-color: color-mix(in srgb, var(--text-secondary) 22%, transparent);
+    color: var(--text-tertiary, var(--text-secondary));
+}
+
+.top-continuity-baker-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.26rem;
+}
+
+.top-continuity-baker-actions a,
+.top-continuity-baker-actions button,
+.top-continuity-baker-error button {
+    box-sizing: border-box;
+    min-height: 28px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 28%, var(--glass-border));
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 7%, var(--bg-primary));
+    color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 78%, var(--text-primary));
+    font: 800 0.56rem/1 'JetBrains Mono', monospace;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.top-continuity-baker-actions :is(a, button):is(:hover, :focus-visible),
+.top-continuity-baker-error button:is(:hover, :focus-visible) {
+    border-color: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 64%, var(--text-primary));
+    background: color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 13%, var(--bg-primary));
+    color: var(--text-primary);
+    outline: none;
+}
+
+.top-continuity-baker-freshness,
+.top-continuity-baker-empty,
+.top-continuity-baker-loading,
+.top-continuity-baker-error {
+    margin: 0;
+    color: var(--text-tertiary, var(--text-secondary));
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.57rem;
+    line-height: 1.35;
+}
+
+.top-continuity-baker-freshness {
+    padding-top: 0.05rem;
+    text-align: right;
+}
+
+.top-continuity-baker-freshness[data-tone="stale"] {
+    color: color-mix(in srgb, #f0a76f 72%, var(--text-secondary));
+}
+
+.top-continuity-baker-empty {
+    padding: 0.34rem 0.16rem;
+}
+
+.top-continuity-baker-loading,
+.top-continuity-baker-error {
+    min-height: 7.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.48rem;
+    padding: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 15%, transparent);
+    border-radius: 6px;
+    text-align: center;
+}
+
+.top-continuity-baker-error {
+    flex-direction: column;
+}
+
+.top-continuity-baker-loading > span:first-child {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--pill-color, var(--accent-cyan));
+    box-shadow: 0 0 10px color-mix(in srgb, var(--pill-color, var(--accent-cyan)) 55%, transparent);
+    animation: baker-set-loading 1.15s ease-in-out infinite;
+}
+
+@keyframes baker-set-loading {
+    50% { opacity: 0.34; }
+}
+
 .top-continuity-explain-actions {
     display: flex;
     justify-content: flex-start;
@@ -144,6 +349,10 @@
 @media (prefers-reduced-motion: reduce) {
     .top-continuity-explain {
         transition: none;
+    }
+
+    .top-continuity-baker-loading > span:first-child {
+        animation: none;
     }
 }
 
@@ -2128,6 +2337,20 @@
 
     .top-continuity-explain-chart {
         white-space: normal;
+    }
+
+    .top-continuity-baker-row {
+        grid-template-columns: 2.15rem minmax(0, 1fr) auto auto;
+        min-height: 44px;
+        gap: 0.34rem;
+        padding-block: 0;
+    }
+
+    .top-continuity-baker-actions a,
+    .top-continuity-baker-actions button {
+        min-width: 44px;
+        min-height: 44px;
+        padding-inline: 0.34rem;
     }
 
     .hot-today-section {
