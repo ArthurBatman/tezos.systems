@@ -6,6 +6,38 @@ import { fileURLToPath } from 'node:url';
 import { CHAMBER_ROUTES, routeImage, routeUrl } from './lib/chamber-routes.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const CHAMBER_CATEGORY_KEYS = Object.freeze([
+  'ecosystem',
+  'network',
+  'capital',
+  'bakers',
+  'governance',
+  'people',
+  'history'
+]);
+const CHAMBER_CATEGORY_BY_ROUTE_HASH = Object.freeze({
+  '#ecosystem': 'ecosystem',
+  '#pulse': 'network',
+  '#health': 'network',
+  '#tezosx': 'network',
+  '#capital': 'capital',
+  '#minerals': 'capital',
+  '#uranium': 'capital',
+  '#metals': 'capital',
+  '#whales': 'capital',
+  '#staking': 'capital',
+  '#leaderboard': 'bakers',
+  '#tz4': 'bakers',
+  '#chamber': 'governance',
+  '#l2chamber': 'governance',
+  '#lb': 'governance',
+  '#ledger-flow': 'people',
+  '#domains': 'people',
+  '#maxis': 'people',
+  '#tezoscrp': 'people',
+  '#protocol-history': 'history',
+  '#history': 'history'
+});
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -91,6 +123,39 @@ function absolutizeShellAssetRefs(html) {
   });
 }
 
+function setInitialChamberCategory(html, expandedKey) {
+  if (!CHAMBER_CATEGORY_KEYS.includes(expandedKey)) {
+    throw new Error(`Unknown initial Chamber category: ${expandedKey}`);
+  }
+
+  for (const categoryKey of CHAMBER_CATEGORY_KEYS) {
+    const marker = `data-chamber-category="${categoryKey}"`;
+    const markerIndex = html.indexOf(marker);
+    if (markerIndex < 0) throw new Error(`Route shell is missing Chamber category ${categoryKey}`);
+    const sectionStart = html.lastIndexOf('<section', markerIndex);
+    const sectionEndMarker = '</section>';
+    const sectionEnd = html.indexOf(sectionEndMarker, markerIndex);
+    if (sectionStart < 0 || sectionEnd < 0) throw new Error(`Route shell category ${categoryKey} is malformed`);
+
+    const expanded = categoryKey === expandedKey;
+    const cardsId = `chamber-category-${categoryKey}-cards`;
+    let section = html.slice(sectionStart, sectionEnd + sectionEndMarker.length);
+    section = section.replace(/data-chamber-expanded="(?:true|false)"/, `data-chamber-expanded="${expanded}"`);
+    section = section.replace(/aria-expanded="(?:true|false)"/, `aria-expanded="${expanded}"`);
+    section = section.replace(
+      new RegExp(`(id="${cardsId}")(?: hidden)?`),
+      `$1${expanded ? '' : ' hidden'}`
+    );
+    if (!section.includes(`data-chamber-expanded="${expanded}"`)
+      || !section.includes(`aria-expanded="${expanded}"`)
+      || !section.includes(`id="${cardsId}"${expanded ? '' : ' hidden'}`)) {
+      throw new Error(`Route shell category ${categoryKey} disclosure could not be set`);
+    }
+    html = `${html.slice(0, sectionStart)}${section}${html.slice(sectionEnd + sectionEndMarker.length)}`;
+  }
+  return html;
+}
+
 function renderRoute(route, dashboardShell) {
   const url = routeUrl(route);
   const image = routeImage(route);
@@ -119,6 +184,10 @@ function renderRoute(route, dashboardShell) {
     `\n${renderRouteStructuredData(route, url, image)}\n`
   );
   html = html.replace(/\s*<!-- Price Intelligence Structured Data -->\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/, '');
+  html = setInitialChamberCategory(
+    html,
+    CHAMBER_CATEGORY_BY_ROUTE_HASH[route.hash] || 'ecosystem'
+  );
   return html.replace(/[ \t]+$/gm, '');
 }
 

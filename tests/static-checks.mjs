@@ -9243,7 +9243,7 @@ async function checkEcosystemActivityContracts() {
 }
 
 async function checkChamberCategoryContracts() {
-  const [siteMapSource, app, styles, shellStyles, index, preload, manager, tour, readme, changelog, smoke] = await Promise.all([
+  const [siteMapSource, app, styles, shellStyles, index, preload, manager, tour, readme, changelog, smoke, routeGenerator] = await Promise.all([
     readText('js/core/site-map.js'),
     readText('js/core/app.js'),
     readText('css/styles.css'),
@@ -9254,9 +9254,16 @@ async function checkChamberCategoryContracts() {
     readText('js/features/tooltip-tour.js'),
     readText('README.md'),
     readText('js/features/changelog.js'),
-    readText('tests/smoke.mjs')
+    readText('tests/smoke.mjs'),
+    readText('scripts/generate-chamber-routes.mjs')
   ]);
   const expectedCategories = [
+    {
+      key: 'ecosystem',
+      label: 'Ecosystem',
+      question: 'Which apps are seeing on-chain activity?',
+      entryIds: ['ecosystem']
+    },
     {
       key: 'network',
       label: 'Network',
@@ -9268,12 +9275,6 @@ async function checkChamberCategoryContracts() {
       label: 'Capital',
       question: 'Where is value sitting and moving?',
       entryIds: ['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber']
-    },
-    {
-      key: 'ecosystem',
-      label: 'Ecosystem',
-      question: 'Which apps are seeing on-chain activity?',
-      entryIds: ['ecosystem']
     },
     {
       key: 'bakers',
@@ -9390,9 +9391,10 @@ async function checkChamberCategoryContracts() {
     "document.createElement('section')",
     "document.createElement('button')",
     "category.className = 'chamber-card-pair chamber-category'",
-    "window.matchMedia('(min-width: 760px)').matches",
-    "categoryConfig.key === 'network'",
-    'categoryConfig.key === _pendingChamberCategoryKey',
+    "const DEFAULT_CHAMBER_CATEGORY_KEY = 'ecosystem'",
+    'primeChamberCategoryFromRoute',
+    'const expanded = chamberCategoryShouldStartExpanded(categoryConfig.key)',
+    'setChamberCategoryExpanded(category, chamberCategoryShouldStartExpanded(categoryConfig.key))',
     'setChamberCategoryExpanded(category, true)',
     "setChamberCategoryVisible(categoryKey, true, 'deep-link')",
     "setChamberRoomVisible(entry.id, true, 'deep-link')",
@@ -9417,19 +9419,61 @@ async function checkChamberCategoryContracts() {
   ]) {
     assert(styles.includes(selector), `Chamber category CSS is missing ${selector}`);
   }
-  for (const selector of ['.chamber-category-toggle', '.chamber-category-hide', '.chamber-room-hide', '.home-layout-topic-group']) {
+  for (const selector of ['.chamber-category-toggle', '.chamber-category[data-chamber-expanded="false"] > .chamber-category-head .chamber-category-count', '.chamber-category-hide', '.chamber-room-hide', '.home-layout-topic-group']) {
     assert(shellStyles.includes(selector), `Chamber category shell CSS is missing ${selector}`);
   }
 
   const categoryIds = expectedCategories.map(({ key }) => key);
+  const staticCategoryState = [...index.matchAll(/<section class="chamber-card-pair chamber-category" data-chamber-category="([^"]+)" data-chamber-shell="1" data-chamber-expanded="(true|false)">/g)]
+    .map((match) => ({ key: match[1], expanded: match[2] === 'true' }));
+  assert.deepEqual(
+    staticCategoryState.map(({ key }) => key),
+    categoryIds,
+    'root Chamber shell order must put Ecosystem first before JavaScript runs'
+  );
+  assert.deepEqual(
+    staticCategoryState.filter(({ expanded }) => expanded).map(({ key }) => key),
+    ['ecosystem'],
+    'root Chamber shell must expose only Ecosystem before JavaScript runs'
+  );
   for (const source of [preload, manager]) {
     assert(source.includes('tezos-systems-explore-layout-v1'), 'Explore layout preload and manager must share one storage key');
     assert(source.includes('version: 1') && source.includes('hiddenCategories') && source.includes('hiddenRooms'), 'Explore layout preference must retain the version 1 category and room schema');
   }
   for (const id of categoryIds) {
+    const startsExpanded = id === 'ecosystem';
     assert(index.includes(`data-chamber-category-hide="${id}"`), `missing inline Hide control for Chamber category ${id}`);
     assert(index.includes(`data-chamber-category-toggle="${id}"`), `missing Customize home switch for Chamber category ${id}`);
+    assert(index.includes(`data-chamber-category="${id}" data-chamber-shell="1" data-chamber-expanded="${startsExpanded}"`), `Chamber category ${id} shell has the wrong first-paint disclosure state`);
+    assert(index.includes(`aria-expanded="${startsExpanded}" aria-controls="chamber-category-${id}-cards"`), `Chamber category ${id} disclosure has the wrong accessible first-paint state`);
+    assert(index.includes(`id="chamber-category-${id}-cards"${startsExpanded ? '>' : ' hidden>'}`), `Chamber category ${id} cards have the wrong first-paint visibility`);
     assert(shellStyles.includes(`[data-chamber-categories-hidden~="${id}"]`), `missing first-paint CSS token for Chamber category ${id}`);
+  }
+  for (const contract of [
+    'CHAMBER_CATEGORY_BY_ROUTE_HASH',
+    "'#domains': 'people'",
+    "'#history': 'history'",
+    "CHAMBER_CATEGORY_BY_ROUTE_HASH[route.hash] || 'ecosystem'",
+    'setInitialChamberCategory('
+  ]) {
+    assert(routeGenerator.includes(contract), `generated Chamber route disclosure contract is missing: ${contract}`);
+  }
+  for (const [slug, expandedKey] of [
+    ['chambers', 'ecosystem'],
+    ['ecosystem', 'ecosystem'],
+    ['domains', 'people'],
+    ['history', 'history'],
+    ['ctez', 'ecosystem']
+  ]) {
+    const routeShell = await readText(`${slug}/index.html`);
+    const routeCategoryState = [...routeShell.matchAll(/<section class="chamber-card-pair chamber-category" data-chamber-category="([^"]+)" data-chamber-shell="1" data-chamber-expanded="(true|false)">/g)]
+      .map((match) => ({ key: match[1], expanded: match[2] === 'true' }));
+    assert.deepEqual(routeCategoryState.map(({ key }) => key), categoryIds, `${slug} route shell must preserve Ecosystem-first category order`);
+    assert.deepEqual(
+      routeCategoryState.filter(({ expanded }) => expanded).map(({ key }) => key),
+      [expandedKey],
+      `${slug} route shell must expose only ${expandedKey} before JavaScript runs`
+    );
   }
   for (const { id } of expectedEntries) {
     assert(index.includes(`data-chamber-room-toggle="${id}"`), `missing Customize home switch for Chamber room ${id}`);

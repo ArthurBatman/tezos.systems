@@ -244,6 +244,13 @@ const ETHERLINK_PROMOTION_LEDGER = [
 ];
 const EXPECTED_CHAMBER_CATEGORIES = [
   {
+    key: 'ecosystem',
+    label: 'Ecosystem',
+    question: 'Which apps are seeing on-chain activity?',
+    cards: ['ecosystem-entry-card'],
+    layouts: ['featured']
+  },
+  {
     key: 'network',
     label: 'Network',
     question: 'What is the chain doing now?',
@@ -256,13 +263,6 @@ const EXPECTED_CHAMBER_CATEGORIES = [
     question: 'Where is value sitting and moving?',
     cards: ['capital-entry-card', 'minerals-entry-card', 'uranium-entry-card', 'metals-entry-card', 'whale-watch-entry-card', 'staking-entry-card'],
     layouts: ['featured', 'featured', 'featured', 'featured', 'wide', 'compact']
-  },
-  {
-    key: 'ecosystem',
-    label: 'Ecosystem',
-    question: 'Which apps are seeing on-chain activity?',
-    cards: ['ecosystem-entry-card'],
-    layouts: ['featured']
   },
   {
     key: 'bakers',
@@ -294,6 +294,15 @@ const EXPECTED_CHAMBER_CATEGORIES = [
   }
 ];
 const EXPECTED_CHAMBER_ORDER = EXPECTED_CHAMBER_CATEGORIES.flatMap((category) => category.cards);
+const DEFAULT_EXPANDED_CHAMBER_CATEGORY = 'ecosystem';
+
+function hasExpectedDefaultChamberDisclosure(categories) {
+  return categories.length === EXPECTED_CHAMBER_CATEGORIES.length
+    && categories.every((category) => {
+      const shouldBeOpen = category.key === DEFAULT_EXPANDED_CHAMBER_CATEGORY;
+      return category.open === shouldBeOpen && category.visibleCards === (shouldBeOpen ? 1 : 0);
+    });
+}
 
 function usage() {
   return `
@@ -3750,9 +3759,6 @@ async function assertChamberOrder(page, label) {
     assert(actual?.layouts.join(',') === expected.layouts.join(','), `${label}: Chamber category ${expected.key} density layout mismatch ${JSON.stringify(actual)}`);
     assert(actual?.count === String(expected.cards.length).padStart(2, '0'), `${label}: Chamber category ${expected.key} visible count mismatch ${JSON.stringify(actual)}`);
     assert(actual?.countLabel === `${expected.cards.length} ${expected.cards.length === 1 ? 'room' : 'rooms'}`, `${label}: Chamber category ${expected.key} accessible count mismatch ${JSON.stringify(actual)}`);
-    if (chamberState.viewportWidth >= 760) {
-      assert(actual?.open, `${label}: desktop Chamber category ${expected.key} must initialize open ${JSON.stringify(actual)}`);
-    }
   });
   const uniqueCards = new Set(chamberState.categories.flatMap((category) => category.cards));
   assert(uniqueCards.size === EXPECTED_CHAMBER_ORDER.length, `${label}: a Chamber card is duplicated across categories ${JSON.stringify(chamberState.categories)}`);
@@ -3760,6 +3766,10 @@ async function assertChamberOrder(page, label) {
 }
 
 async function assertPromotedLauncherGeometry(page, label, { desktop = false } = {}) {
+  for (const categoryKey of ['capital', 'bakers', 'history']) {
+    const toggle = page.locator(`#chambers-grid > .chamber-category[data-chamber-category="${categoryKey}"] .chamber-category-toggle`);
+    if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.evaluate((button) => button.click());
+  }
   await page.waitForFunction(() => {
     return ['whale-watch-entry-card', 'baker-directory-entry-card', 'cycle-history-entry-card']
       .every((id) => document.getElementById(id)?.getBoundingClientRect().height > 0);
@@ -4217,6 +4227,19 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     throw new Error(`${label}: Chamber launchers did not settle: ${JSON.stringify(readiness)}`);
   }
   await assertChamberOrder(page, label);
+  await page.waitForTimeout(250);
+  const initialCategories = await page.evaluate(() => Array.from(
+    document.querySelectorAll('#chambers-grid > .chamber-category'),
+    (category) => ({
+      key: category.dataset.chamberCategory || '',
+      open: category.dataset.chamberExpanded === 'true',
+      visibleCards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).filter((card) => card.getClientRects().length > 0).length
+    })
+  ));
+  assert(
+    hasExpectedDefaultChamberDisclosure(initialCategories),
+    `${label}: Ecosystem must be the only default-open Chamber category ${JSON.stringify(initialCategories)}`
+  );
   if (mockOptions.governanceLiveVote) {
     await page.waitForFunction(() => {
       const card = document.querySelector('#chamber-entry-card.chamber-entry-wide[data-chamber-entry-size="wide"]');
@@ -4225,19 +4248,6 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
     }, null, { timeout: 10000 });
   }
   if (viewport.width < 760) {
-    await page.waitForTimeout(250);
-    const initialCategories = await page.evaluate(() => Array.from(
-      document.querySelectorAll('#chambers-grid > .chamber-category'),
-      (category) => ({
-        key: category.dataset.chamberCategory || '',
-        open: category.dataset.chamberExpanded === 'true',
-        visibleCards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).filter((card) => card.getClientRects().length > 0).length
-      })
-    ));
-    assert(
-      initialCategories.every((category) => category.open === (category.key === 'network')),
-      `${label}: mobile must initialize only Network open ${JSON.stringify(initialCategories)}`
-    );
     const capitalHead = page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] > .chamber-category-head > .chamber-category-toggle');
     await page.evaluate(() => {
       const html = document.documentElement;
@@ -4333,6 +4343,15 @@ async function assertResponsiveChamberCards(browser, baseUrl, viewport, label, m
         && afterReaderScroll.restoreCallsAfterIntent === 0,
       `${label}: delayed disclosure restore overwrote immediate reader scroll ${JSON.stringify(afterReaderScroll)}`
     );
+    await page.evaluate(() => {
+      document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+        category.dataset.chamberExpanded = 'true';
+        category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+        const cards = category.querySelector(':scope > .chamber-category-cards');
+        if (cards) cards.hidden = false;
+      });
+    });
+  } else {
     await page.evaluate(() => {
       document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
         category.dataset.chamberExpanded = 'true';
@@ -6335,6 +6354,7 @@ async function smokeHeroCommandBar(browser, baseUrl) {
   await page.mouse.click(10, 10);
   await page.waitForFunction(() => !document.body.classList.contains('hero-search-mode') && document.getElementById('hero-search-panel')?.hidden, null, { timeout: 5000 });
 
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="history"] .chamber-category-toggle').click();
   await page.locator('#protocol-history-entry-card').waitFor({ state: 'visible', timeout: 10000 });
   const protocolEntryText = await page.locator('#protocol-history-entry-card').innerText();
   assert(/Protocol Anthology/i.test(protocolEntryText) && /Lore/i.test(protocolEntryText) && /Impact/i.test(protocolEntryText), `hero command bar: Protocol Anthology card missing expected copy: ${protocolEntryText}`);
@@ -8203,6 +8223,7 @@ async function smokeStakingChamber(browser, baseUrl) {
 
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await page.locator('#staking-entry-card').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#staking-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => {
@@ -8387,6 +8408,7 @@ async function smokeNetworkPulseLauncher(browser, baseUrl) {
   attachIssueCollectors(page, label, issues);
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `${label}: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="network"] .chamber-category-toggle').click();
   await page.locator('#network-pulse-entry-card').waitFor({ state: 'visible', timeout: 20000 });
 
   const expected = {
@@ -8488,6 +8510,26 @@ async function smokeDashboard(browser, baseUrl, viewport, label) {
   await expectCount(page, '#chambers-section', 1, label);
   assert(await page.locator('#chambers-section').isVisible(), `${label}: Chambers should be visible by default`);
   await page.waitForFunction(() => document.querySelectorAll('#chambers-section .chamber-entry-card').length >= 5, null, { timeout: 10000 });
+  const defaultCategories = await page.evaluate(() => Array.from(
+    document.querySelectorAll('#chambers-grid > .chamber-category'),
+    (category) => ({
+      key: category.dataset.chamberCategory || '',
+      open: category.dataset.chamberExpanded === 'true',
+      visibleCards: Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).filter((card) => card.getClientRects().length > 0).length
+    })
+  ));
+  assert(
+    hasExpectedDefaultChamberDisclosure(defaultCategories),
+    `${label}: Ecosystem must be the only default-open Chamber topic ${JSON.stringify(defaultCategories)}`
+  );
+  await page.evaluate(() => {
+    document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+    });
+  });
   if (viewport.width <= 720) {
     const mobileGutters = await page.evaluate(() => {
       const rect = (selector) => {
@@ -14598,6 +14640,7 @@ async function smokeLedgerFlowChamber(browser, baseUrl) {
 
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `ledger flow chamber: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="people"] .chamber-category-toggle').click();
   await page.locator('#ledger-flow-entry-card.chamber-entry-wide').waitFor({ state: 'visible', timeout: 15000 });
   await page.locator('#ledger-flow-entry-card').dispatchEvent('pointerenter');
   await page.locator('#ledger-flow-entry-card .ledger-flow-entry-hero:not(.is-fallback)').waitFor({ state: 'visible', timeout: 15000 });
@@ -16545,6 +16588,13 @@ async function smokeLauncherProjections(browser, baseUrl) {
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `launcher projections: dashboard failed with HTTP ${response?.status()}`);
   await page.evaluate(() => {
+    for (const key of ['capital', 'ecosystem', 'people']) {
+      const category = document.querySelector(`#chambers-grid > .chamber-category[data-chamber-category="${key}"]`);
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+    }
     for (const selector of ['#capital-entry-card', '#ecosystem-entry-card', '#maxis-entry-card']) {
       document.querySelector(selector)?.dispatchEvent(new PointerEvent('pointerenter'));
     }
@@ -16933,6 +16983,13 @@ async function smokeLauncherProjections(browser, baseUrl) {
   const fallbackResponse = await fallbackPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(fallbackResponse?.ok(), `launcher projection fallback: dashboard failed with HTTP ${fallbackResponse?.status()}`);
   await fallbackPage.evaluate(() => {
+    for (const key of ['capital', 'ecosystem', 'people']) {
+      const category = document.querySelector(`#chambers-grid > .chamber-category[data-chamber-category="${key}"]`);
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+    }
     for (const selector of ['#capital-entry-card', '#ecosystem-entry-card', '#uranium-entry-card', '#maxis-entry-card']) {
       document.querySelector(selector)?.dispatchEvent(new PointerEvent('pointerenter'));
     }
@@ -17045,6 +17102,7 @@ async function smokeLauncherProjections(browser, baseUrl) {
   });
   const deploySkewResponse = await deploySkewPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(deploySkewResponse?.ok(), `Capital launcher deploy skew: dashboard failed with HTTP ${deploySkewResponse?.status()}`);
+  await deploySkewPage.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await deploySkewPage.locator('#capital-entry-card').dispatchEvent('pointerenter');
   await deploySkewPage.locator('#capital-entry-card .capital-entry-price-line').waitFor({ state: 'attached', timeout: 20000 });
   assert(!deploySkewPaths.includes('/data/capital-snapshot.json'), `Capital deploy-skew fixture loaded full data before open: ${deploySkewPaths.join(', ')}`);
@@ -17178,6 +17236,7 @@ async function smokeCapitalChamber(browser, baseUrl) {
 
   const response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `capital chamber: dashboard failed with HTTP ${response?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await page.locator('#capital-entry-card').waitFor({ state: 'visible', timeout: 20000 });
   await page.locator('#capital-entry-card').dispatchEvent('pointerenter');
   await page.locator('#capital-entry-card .capital-entry-price-line').waitFor({ state: 'attached', timeout: 20000 });
@@ -17697,6 +17756,11 @@ async function smokeUraniumChamber(browser, baseUrl) {
     categoryHideButtons: document.querySelectorAll('[data-chamber-category-hide]').length,
     roomHideButtons: document.querySelectorAll('[data-chamber-room-hide]').length,
     roomSwitches: document.querySelectorAll('[data-chamber-room-toggle]').length,
+    expandedCategories: document.querySelectorAll('#chambers-grid > .chamber-category[data-chamber-expanded="true"]').length,
+    expandedCategoryKeys: Array.from(
+      document.querySelectorAll('#chambers-grid > .chamber-category[data-chamber-expanded="true"]'),
+      (category) => category.dataset.chamberCategory || ''
+    ),
     independentControls: [...document.querySelectorAll('#chambers-grid > .chamber-category')].every((category) => (
       category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.tagName === 'BUTTON'
       && category.querySelector(':scope > .chamber-category-head > .chamber-category-hide')?.tagName === 'BUTTON'
@@ -17710,8 +17774,14 @@ async function smokeUraniumChamber(browser, baseUrl) {
     && defaultPreferenceState.categoryHideButtons === 7
     && defaultPreferenceState.roomHideButtons === 21
     && defaultPreferenceState.roomSwitches === 21
+    && defaultPreferenceState.expandedCategories === 1
+    && defaultPreferenceState.expandedCategoryKeys.join(',') === DEFAULT_EXPANDED_CHAMBER_CATEGORY
     && defaultPreferenceState.independentControls,
   `Chamber category default/recovery controls failed ${JSON.stringify(defaultPreferenceState)}`);
+
+  for (const toggle of await preferencePage.locator('#chambers-grid > .chamber-category .chamber-category-toggle').all()) {
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+  }
 
   const mineralsHide = preferencePage.locator('[data-chamber-room-hide="minerals"]');
   await mineralsHide.scrollIntoViewIfNeeded();
@@ -18038,6 +18108,7 @@ async function smokeUraniumChamber(browser, baseUrl) {
   attachIssueCollectors(page, 'uranium chamber', issues);
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `uranium chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await page.locator('#uranium-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => document.querySelector('#uranium-entry-front')?.dataset.uraniumRendered === '1', null, { timeout: 10000 });
   await page.locator('#uranium-entry-front .uranium-entry-art img').scrollIntoViewIfNeeded();
@@ -18912,6 +18983,7 @@ async function smokeMineralsChamber(browser, baseUrl) {
 
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `minerals chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await page.locator('#minerals-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => document.querySelector('#minerals-entry-front')?.dataset.mineralsRendered === '1', null, { timeout: 10000 });
   const compactState = await page.evaluate(() => ({
@@ -19230,20 +19302,13 @@ async function smokeMineralsChamber(browser, baseUrl) {
     attachIssueCollectors(mobilePage, `minerals chamber ${viewport.width}px`, mobileIssues);
     const launcherMobileResponse = await mobilePage.goto(`${baseUrl}/?minerals-launcher-width=${viewport.width}`, { waitUntil: 'domcontentloaded' });
     assert(launcherMobileResponse?.ok(), `minerals chamber ${viewport.width}px: dashboard launcher failed with HTTP ${launcherMobileResponse?.status()}`);
+    await mobilePage.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
     await mobilePage.locator('#minerals-entry-card').dispatchEvent('pointerenter');
     await mobilePage.waitForFunction(() => (
       document.querySelector('#minerals-entry-front')?.dataset.mineralsRendered === '1'
         && Boolean(document.querySelector('#minerals-entry-front > .chamber-entry-footer'))
     ), null, { timeout: 10000 });
-    await mobilePage.evaluate(async () => {
-      const capital = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="capital"]');
-      if (capital) {
-        capital.dataset.chamberExpanded = 'true';
-        const cards = capital.querySelector(':scope > .chamber-category-cards');
-        if (cards) cards.hidden = false;
-      }
-      await document.fonts?.ready;
-    });
+    await mobilePage.evaluate(() => document.fonts?.ready);
     await mobilePage.locator('#minerals-entry-card').scrollIntoViewIfNeeded();
     await mobilePage.waitForFunction(() => (
       Array.from(document.querySelectorAll('#minerals-entry-front img')).every((image) => image.complete)
@@ -19663,6 +19728,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
 
   const launcherResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(launcherResponse?.ok(), `metals chamber: dashboard launcher failed with HTTP ${launcherResponse?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await page.locator('#metals-entry-card').dispatchEvent('pointerenter');
   await page.waitForFunction(() => document.querySelector('#metals-entry-front')?.dataset.metalsRendered === '1', null, { timeout: 10000 });
   const compactState = await page.evaluate(() => ({
@@ -20090,6 +20156,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     attachIssueCollectors(coldPage, 'metals chamber cold failure', coldIssues);
     const coldResponse = await coldPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     assert(coldResponse?.ok(), `metals chamber cold failure: dashboard failed with HTTP ${coldResponse?.status()}`);
+    await coldPage.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
     await coldPage.locator('#metals-entry-card').dispatchEvent('pointerenter');
     await coldPage.waitForFunction(() => {
       const text = document.querySelector('#metals-entry-front')?.textContent?.replace(/\s+/g, ' ').trim() || '';
@@ -20177,6 +20244,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     attachIssueCollectors(compactPage, 'metals chamber compact timer', compactIssues);
     const compactResponse = await compactPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     assert(compactResponse?.ok(), `metals chamber compact timer: dashboard failed with HTTP ${compactResponse?.status()}`);
+    await compactPage.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
     await compactPage.locator('#metals-entry-card').dispatchEvent('pointerenter');
     await compactPage.waitForFunction(() => (
       document.querySelector('#metals-entry-front')?.dataset.metalsRendered === '1'
@@ -20284,6 +20352,7 @@ async function smokeMetalsChamber(browser, baseUrl) {
     attachIssueCollectors(stalePage, 'metals chamber stale receipts', staleIssues);
     const staleResponse = await stalePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     assert(staleResponse?.ok(), `metals chamber stale receipts: dashboard failed with HTTP ${staleResponse?.status()}`);
+    await stalePage.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
     await stalePage.locator('#metals-entry-card').dispatchEvent('pointerenter');
     await stalePage.waitForFunction(() => document.querySelector('#metals-entry-front')?.dataset.metalsRendered === '1', null, { timeout: 10000 });
     const staleLauncher = await stalePage.evaluate(() => ({
@@ -21156,6 +21225,10 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(!lazyPollingBeforeIntent.tz4Wired, `governance testing period: tz4 launcher should remain unhydrated before intent ${JSON.stringify(lazyPollingBeforeIntent)}`);
   assert(lazyPollingModuleRequests.length === 0, `governance testing period: LB/tz4 modules loaded before route, visibility, or intent ${JSON.stringify(lazyPollingModuleRequests)}`);
 
+  for (const categoryKey of ['network', 'bakers', 'governance']) {
+    await page.locator(`#chambers-grid > .chamber-category[data-chamber-category="${categoryKey}"] .chamber-category-toggle`).click();
+  }
+
   await page.locator('#lb-entry-card').scrollIntoViewIfNeeded();
   await page.locator('#lb-entry-card').hover();
   await page.locator('#lb-entry-card[data-lb-live="true"][data-lb-refresh-interval="60000"]').waitFor({ state: 'visible', timeout: 10000 });
@@ -21210,6 +21283,14 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   await expectCount(page, '#chambers-section [data-stat="network-health"]', 1, 'governance testing period health tile in Chambers');
   await page.waitForFunction(() => document.querySelectorAll('#chambers-section .chamber-entry-card[data-updated-label]').length >= 6, null, { timeout: 10000 });
   await assertChamberOrder(page, 'governance testing period');
+  await page.evaluate(() => {
+    document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+    });
+  });
   await assertChamberControlGeometry(page, 'governance testing period');
   await page.waitForFunction(() => /Latest switches/i.test(document.querySelector('#tz4-entry-preview')?.textContent || ''), null, { timeout: 10000 });
   await page.locator('#chambers-section [data-stat="tz4-adoption"]').scrollIntoViewIfNeeded();
@@ -21239,6 +21320,14 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   attachIssueCollectors(adoptionPage, 'governance adoption entry card', issues);
   const adoptionResponse = await adoptionPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(adoptionResponse?.ok(), `governance adoption entry card: dashboard failed with HTTP ${adoptionResponse?.status()}`);
+  await adoptionPage.evaluate(() => {
+    document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+    });
+  });
   await adoptionPage.locator('#chamber-entry-card').scrollIntoViewIfNeeded();
   await adoptionPage.locator('#chamber-entry-card').hover();
   await adoptionPage.locator('#chamber-entry-card.chamber-entry-adoption.chamber-entry-wide[data-chamber-entry-size="wide"]').waitFor({ state: 'visible', timeout: 10000 });
@@ -22441,7 +22530,13 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   attachIssueCollectors(quietPage, 'quiet governance sizing', issues);
   const quietResponse = await quietPage.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(quietResponse?.ok(), `quiet governance sizing: dashboard failed with HTTP ${quietResponse?.status()}`);
+  await quietPage.locator('#chambers-grid > .chamber-category[data-chamber-category="governance"] .chamber-category-toggle').click();
   for (const selector of ['#chamber-entry-card', '#etherlink-governance-entry-card', '#lb-entry-card']) {
+    await quietPage.locator(selector).dispatchEvent('pointerenter');
+    await quietPage.waitForFunction((cardSelector) => {
+      const card = document.querySelector(cardSelector);
+      return Boolean(card && !card.hasAttribute('data-chamber-skeleton'));
+    }, selector, { timeout: 10000 });
     await quietPage.locator(selector).scrollIntoViewIfNeeded();
     await quietPage.locator(selector).hover();
   }
@@ -24466,6 +24561,7 @@ async function smokeWhaleWatchChamber(browser, baseUrl) {
   await page.setViewportSize({ width: 1440, height: 1000 });
   response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `Whale Watch: dashboard lifecycle route failed with HTTP ${response?.status()}`);
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
   await page.locator('#whale-watch-entry-card').dispatchEvent('pointerenter');
   const whaleOpenCue = page.locator('#whale-watch-entry-card [aria-label="Open Whale Watch Chamber"]');
   await whaleOpenCue.waitFor({ state: 'visible', timeout: 15000 });
@@ -24698,6 +24794,7 @@ async function smokeCycleHistoryChamber(browser, baseUrl) {
     page.locator('#history-modal-close').click()
   ]);
   await page.locator('main').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="history"] .chamber-category-toggle').click();
   await page.locator('#cycle-history-entry-card').scrollIntoViewIfNeeded();
   await assertPromotedLauncherGeometry(page, 'Cycle History desktop launcher geometry');
   assert(await page.locator('#cycle-history-entry-card .cycle-history-entry-route').getAttribute('href') === '/history/', 'Cycle History: entry card must retain the canonical first-party route');
@@ -24824,6 +24921,14 @@ async function smokeFeatureWorkflows(browser, baseUrl) {
   const response = await page.goto(`${baseUrl}/?theme=matrix`, { waitUntil: 'domcontentloaded' });
   assert(response?.ok(), `feature workflows: dashboard failed with HTTP ${response?.status()}`);
   await page.locator('main').waitFor({ state: 'visible', timeout: 15000 });
+  await page.evaluate(() => {
+    document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+    });
+  });
   await page.waitForFunction(() => document.querySelector('#staking-ratio-front')?.textContent?.trim() === '27.62%', null, { timeout: 10000 });
   await page.waitForFunction(() => document.querySelector('#staking-apy-front')?.textContent?.trim() === '4.2% / 12.7%', null, { timeout: 10000 });
   await page.waitForFunction(() => /pp$/.test(document.querySelector('#staking-trend')?.textContent?.trim() || ''), null, { timeout: 10000 });
@@ -25354,6 +25459,9 @@ async function smokeShareActions(browser, baseUrl) {
   await page.locator('#share-modal .share-modal-close').click();
   await page.locator('#share-modal').waitFor({ state: 'detached', timeout: 5000 });
 
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="capital"] .chamber-category-toggle').click();
+  await page.locator('#capital-entry-card').dispatchEvent('pointerenter');
+  await page.locator('#capital-entry-front[data-capital-rendered="1"]').waitFor({ state: 'attached', timeout: 20000 });
   await page.locator('#capital-entry-card > .card-share-btn').waitFor({ state: 'visible', timeout: 20000 });
   await page.locator('#capital-entry-card').scrollIntoViewIfNeeded();
   await page.locator('#capital-entry-card > .card-share-btn').click();
@@ -27805,6 +27913,7 @@ async function smokeQuietRefresh(browser, baseUrl) {
     `quiet refresh: labeled rail or timing identity drifted during reconciliation ${JSON.stringify({ hotBefore, hotAfter })}`
   );
 
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="network"] .chamber-category-toggle').click();
   await page.locator('#tezlink-entry-card .chamber-expand-cue').click();
   await page.locator('#tezlink-modal.active .tezlink-content').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#tezlink-chamber-body .panel-direct-link').waitFor({ state: 'attached', timeout: 10000 });
@@ -28137,6 +28246,19 @@ async function smokeLiveNumberShellMotion(browser, baseUrl, issues) {
       || Boolean(value.__dmMagicCancel)
       || value.classList.contains('is-shuffling')
     );
+
+    // Network is intentionally collapsed by default; expose its production
+    // card before testing viewport-gated motion on the real shell node.
+    const category = value.closest('.chamber-category');
+    if (category) {
+      category.dataset.chamberExpanded = 'true';
+      category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')
+        ?.setAttribute('aria-expanded', 'true');
+      const cards = category.querySelector(':scope > .chamber-category-cards');
+      if (cards) cards.hidden = false;
+      await frame();
+      await frame();
+    }
 
     // Isolate this existing production node from its network-health publisher
     // while exercising the shared raw-write observer.
@@ -29976,17 +30098,31 @@ async function smokeLazyChamberLoading(browser, baseUrl) {
     ...DEFERRED_CHAMBER_STYLE_PATHS,
     ...DEFERRED_CHAMBER_HEAVY_DATA_PATHS
   ]);
+  const allowedDefaultEcosystemResources = new Set([
+    '/js/features/ecosystem-chamber.js',
+    '/data/ecosystem-entry-summary.json',
+    '/css/ecosystem.min.css'
+  ]);
   const observedBeforeIntent = requestedPaths.filter((pathname) => (
-    forbiddenBeforeIntent.has(pathname)
+    (forbiddenBeforeIntent.has(pathname) && !allowedDefaultEcosystemResources.has(pathname))
     || /^\/data\/maxis\/seasons\/[^/]+\/summary\.json$/.test(pathname)
   ));
   assert(
     observedBeforeIntent.length === 0,
-    `lazy Chamber loading requested deferred resources without route, visibility, focus, or pointer intent: ${observedBeforeIntent.join(', ')}`
+    `lazy Chamber loading requested resources beyond the default-open Ecosystem launcher without route, visibility, focus, or pointer intent: ${observedBeforeIntent.join(', ')}`
+  );
+  assert(
+    !requestedPaths.includes('/data/ecosystem-stats.json'),
+    `default-open Ecosystem launcher loaded full Chamber history before explicit room intent: ${requestedPaths.join(', ')}`
   );
 
   const requestCountBeforeFocus = requestedPaths.length;
   const focusBefore = await page.evaluate(() => {
+    const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="people"]');
+    category.dataset.chamberExpanded = 'true';
+    category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+    const cards = category.querySelector(':scope > .chamber-category-cards');
+    if (cards) cards.hidden = false;
     const card = document.getElementById('ledger-flow-entry-card');
     window.__lazyLedgerSkeleton = card;
     const scrollY = window.scrollY;
@@ -30063,6 +30199,11 @@ async function smokeLazyChamberLoading(browser, baseUrl) {
     timeout: 5000
   });
   await retryPage.evaluate(() => {
+    const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="people"]');
+    category.dataset.chamberExpanded = 'true';
+    category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+    const cards = category.querySelector(':scope > .chamber-category-cards');
+    if (cards) cards.hidden = false;
     document.getElementById('ledger-flow-entry-card')?.dispatchEvent(new PointerEvent('pointerenter', {
       bubbles: true,
       pointerType: 'mouse'
@@ -30111,6 +30252,11 @@ async function smokeLazyChamberLoading(browser, baseUrl) {
   assert(cssResponse?.ok(), `lazy Chamber stylesheet retry: dashboard failed with HTTP ${cssResponse?.status()}`);
   await waitForLauncherShell(cssPage);
   await cssPage.evaluate(() => {
+    const category = document.querySelector('#chambers-grid > .chamber-category[data-chamber-category="people"]');
+    category.dataset.chamberExpanded = 'true';
+    category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+    const cards = category.querySelector(':scope > .chamber-category-cards');
+    if (cards) cards.hidden = false;
     document.getElementById('ledger-flow-entry-card')?.dispatchEvent(new PointerEvent('pointerenter', {
       bubbles: true,
       pointerType: 'mouse'
@@ -30294,7 +30440,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   }));
   assert(
     directHashState.active
-      && directHashState.openCategories.join(',') === 'network,people',
+      && directHashState.openCategories.join(',') === 'people',
     `direct #domains route must reveal People before opening its Chamber: ${JSON.stringify(directHashState)}`
   );
 
@@ -30386,7 +30532,7 @@ async function smokeChamberCategories(browser, baseUrl) {
   assert(refreshState.wrappersSame && refreshState.stakingSame, `Chamber organization replaced reusable category/card nodes: ${JSON.stringify(refreshState)}`);
   assert(refreshState.selection === refreshState.expectedSelection && refreshState.selection.length > 0, `Chamber organization lost reader selection: ${JSON.stringify(refreshState)}`);
   assert(refreshState.scrollDelta <= 1, `Chamber organization moved page scroll: ${JSON.stringify(refreshState)}`);
-  assert(refreshState.openCategories.join(',') === 'network,capital,people', `background refresh reset disclosure state: ${JSON.stringify(refreshState)}`);
+  assert(refreshState.openCategories.join(',') === 'capital,people', `background refresh reset disclosure state: ${JSON.stringify(refreshState)}`);
   assert(refreshState.categoryCount === 7 && refreshState.cardCount === EXPECTED_CHAMBER_ORDER.length, `late card organization duplicated categories or entries: ${JSON.stringify(refreshState)}`);
   assert(refreshState.passiveAnimations.length === 0, `ordinary freshness/live cards still animate their perimeter: ${JSON.stringify(refreshState.passiveAnimations)}`);
 
@@ -30430,8 +30576,38 @@ async function smokeChamberCategories(browser, baseUrl) {
       document.querySelectorAll('#chambers-grid > .chamber-category').length === 7
       && document.querySelectorAll('#chambers-grid .stat-card').length === expectedCount
     ), EXPECTED_CHAMBER_ORDER.length, { timeout: 15000 });
-    await hydrateDenseLayoutCards(layoutPage);
     await assertChamberOrder(layoutPage, `Chamber categories ${label}`);
+    const defaultDisclosureState = await layoutPage.evaluate(() => Array.from(
+      document.querySelectorAll('#chambers-grid > .chamber-category'),
+      (category) => ({
+        key: category.dataset.chamberCategory || '',
+        open: category.dataset.chamberExpanded === 'true',
+        visibleCards: category.querySelectorAll(':scope > .chamber-category-cards > .stat-card:not([hidden])').length
+          ? Array.from(category.querySelectorAll(':scope > .chamber-category-cards > .stat-card')).filter((card) => card.getClientRects().length > 0).length
+          : 0,
+        countBorder: getComputedStyle(category.querySelector('.chamber-category-count')).borderTopColor,
+        countBackground: getComputedStyle(category.querySelector('.chamber-category-count')).backgroundColor
+      })
+    ));
+    assert(
+      hasExpectedDefaultChamberDisclosure(defaultDisclosureState),
+      `Chamber categories ${label} must open only Ecosystem by default ${JSON.stringify(defaultDisclosureState)}`
+    );
+    assert(
+      defaultDisclosureState
+        .filter((category) => !category.open)
+        .every((category) => category.countBorder !== 'rgba(0, 0, 0, 0)' && category.countBackground !== 'rgba(0, 0, 0, 0)'),
+      `Chamber categories ${label} closed room counts lost their visual invitation ${JSON.stringify(defaultDisclosureState)}`
+    );
+    await layoutPage.evaluate(() => {
+      document.querySelectorAll('#chambers-grid > .chamber-category').forEach((category) => {
+        category.dataset.chamberExpanded = 'true';
+        category.querySelector(':scope > .chamber-category-head > .chamber-category-toggle')?.setAttribute('aria-expanded', 'true');
+        const cards = category.querySelector(':scope > .chamber-category-cards');
+        if (cards) cards.hidden = false;
+      });
+    });
+    await hydrateDenseLayoutCards(layoutPage);
     const geometry = await layoutPage.evaluate(() => {
       const grid = document.querySelector('#chambers-grid');
       const cards = Array.from(document.querySelectorAll('#chambers-grid .chamber-category-cards > .stat-card'));

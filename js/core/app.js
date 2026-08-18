@@ -296,6 +296,7 @@ async function init() {
     safe('theme', initTheme);
     safe('homeLayout', initHomeLayout);
     safe('chamberCategories', initChamberCategories);
+    safe('chamberCategoryRoute', primeChamberCategoryFromRoute);
     safe('myTezosCss', ensureMyTezosCss);
 
     // Initialize arcade effects
@@ -1492,6 +1493,7 @@ function initNavButtons() {
 // CHAMBERS SURFACE
 // ==========================================
 const CHAMBER_CARD_TARGETS = Object.freeze({
+    ecosystem: { selector: '#ecosystem-entry-card', layout: 'featured' },
     pulse: { selector: '#network-pulse-entry-card', layout: 'featured' },
     health: { selector: '[data-stat="network-health"]', layout: 'standard' },
     tezosx: { selector: '#tezlink-entry-card', layout: 'standard' },
@@ -1501,7 +1503,6 @@ const CHAMBER_CARD_TARGETS = Object.freeze({
     metals: { selector: '#metals-entry-card', layout: 'featured' },
     whales: { selector: '#whale-watch-entry-card', layout: 'wide' },
     'staking-chamber': { selector: '#staking-entry-card', layout: 'compact' },
-    ecosystem: { selector: '#ecosystem-entry-card', layout: 'featured' },
     leaderboard: { selector: '#baker-directory-entry-card', layout: 'wide' },
     tz4: { selector: '[data-stat="tz4-adoption"]', layout: 'compact' },
     chamber: { selector: '#chamber-entry-card', layout: 'standard' },
@@ -1648,7 +1649,16 @@ let _routedOverlayTransitionDepth = 0;
 let _searchRouteFocusTimer = null;
 let _lazyChamberObserver = null;
 let _chamberPairObserver = null;
+const DEFAULT_CHAMBER_CATEGORY_KEY = 'ecosystem';
 let _pendingChamberCategoryKey = '';
+
+function chamberCategoryShouldStartExpanded(categoryKey) {
+    return categoryKey === (_pendingChamberCategoryKey || DEFAULT_CHAMBER_CATEGORY_KEY);
+}
+
+function primeChamberCategoryFromRoute() {
+    _pendingChamberCategoryKey = findCurrentSiteMapEntry()?.chamberCategory || '';
+}
 
 function chamberEntryNode(entryId) {
     const target = CHAMBER_CARD_TARGETS[entryId];
@@ -2893,9 +2903,7 @@ function createChamberCategory(categoryConfig) {
     const category = document.createElement('section');
     category.className = 'chamber-card-pair chamber-category';
     category.dataset.chamberCategory = categoryConfig.key;
-    const expanded = window.matchMedia('(min-width: 760px)').matches
-        || categoryConfig.key === 'network'
-        || categoryConfig.key === _pendingChamberCategoryKey;
+    const expanded = chamberCategoryShouldStartExpanded(categoryConfig.key);
 
     const head = document.createElement('div');
     head.className = 'chamber-category-head';
@@ -2986,9 +2994,7 @@ function orderChambersSurface() {
             );
             if (!category) category = createChamberCategory(categoryConfig);
             if (category.dataset.chamberShell === '1' && category.dataset.chamberShellInitialized !== '1') {
-                setChamberCategoryExpanded(category, window.matchMedia('(min-width: 760px)').matches
-                    || categoryConfig.key === 'network'
-                    || categoryConfig.key === _pendingChamberCategoryKey);
+                setChamberCategoryExpanded(category, chamberCategoryShouldStartExpanded(categoryConfig.key));
                 category.dataset.chamberShellInitialized = '1';
             }
             wireChamberCategory(category);
@@ -3016,7 +3022,7 @@ function orderChambersSurface() {
 
             const cardCount = categoryCards?.querySelectorAll(':scope > .stat-card').length || 0;
             if (cardCount) {
-                if (categoryConfig.key === _pendingChamberCategoryKey) setChamberCategoryExpanded(category, true);
+                if (chamberCategoryShouldStartExpanded(categoryConfig.key)) setChamberCategoryExpanded(category, true);
                 const expectedNode = previousCategory
                     ? previousCategory.nextElementSibling
                     : grid.firstElementChild;

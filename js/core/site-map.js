@@ -526,6 +526,12 @@ export const SITE_MAP = [
 
 export const CHAMBER_CATEGORY_META = Object.freeze([
     Object.freeze({
+        key: 'ecosystem',
+        label: 'Ecosystem',
+        question: 'Which apps are seeing on-chain activity?',
+        entryIds: Object.freeze(['ecosystem'])
+    }),
+    Object.freeze({
         key: 'network',
         label: 'Network',
         question: 'What is the chain doing now?',
@@ -536,12 +542,6 @@ export const CHAMBER_CATEGORY_META = Object.freeze([
         label: 'Capital',
         question: 'Where is value sitting and moving?',
         entryIds: Object.freeze(['capital', 'minerals', 'uranium', 'metals', 'whales', 'staking-chamber'])
-    }),
-    Object.freeze({
-        key: 'ecosystem',
-        label: 'Ecosystem',
-        question: 'Which apps are seeing on-chain activity?',
-        entryIds: Object.freeze(['ecosystem'])
     }),
     Object.freeze({
         key: 'bakers',

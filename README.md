@@ -190,9 +190,9 @@ tezos.systems/
    During proposal and ballot windows, a compact Governance Alert strip sits
    above Chambers and reuses the live voting/My Tezos baker-vote logic to expose
    Chamber, My Tezos, RSS, and browser-reminder actions. Outside active voting
-   windows, the strip stays hidden. Explore now leads with the canonical Network
-   Pulse, Staking Chamber, and Tezos Maxis starter paths, while live signals and
-   specialist tools stay folded by category; legacy `#section=...` links can
+   windows, the strip stays hidden. Explore now leads with Ecosystem Activity
+   open, while every other live signal and specialist tool stays folded by
+   category; legacy `#section=...` links can
    still reveal the inline stat sections for focused QA and deep links.
 6. Background refreshes update hero stats, comparison data, governance state,
    cycle pulse, daily briefing, rewards tracker, price intelligence, baker
@@ -337,13 +337,13 @@ inline modal styles in `js/core/app.js`.
   continue opening without changing Home preferences. Valid preferences from
   `tezos-systems-chamber-categories-v1` migrate automatically.
 - Explore is a progressively disclosed launcher rather than a second dashboard:
-  the question-led Explore Tezos topics stay central, the three canonical starter rooms fit in the first
-  mobile view, and live signals, baker tools, account tools, markets, publishing,
+  the question-led Explore Tezos topics stay central, Ecosystem Activity is the
+  one default-open launcher, and live signals, baker tools, account tools, markets, publishing,
   and recovery open only when requested. Its mobile corner gift launcher owns a
   dedicated in-flow slot beside the top price rail and scrolls away with that
   rail instead of painting over telemetry or the centered wordmark.
 - Explore Tezos is visible by default and organizes all 21 room launchers into
-  seven question-led topics: Network, Capital, Ecosystem, Bakers, Governance,
+  seven question-led topics: Ecosystem, Network, Capital, Bakers, Governance,
   People & Accounts, and History. ctez Oven Exit and KT1 Multisig Recovery stay off the
   default topic grid and open from Explore's collapsed Recovery tools drawer or
   the corner gift tray launcher.

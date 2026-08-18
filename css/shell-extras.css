@@ -6721,6 +6721,43 @@ html:not([data-chamber-categories-preview="all"])[data-chamber-rooms-hidden~="hi
     cursor: pointer;
 }
 
+.chamber-category-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.15rem;
+    min-height: 1.55rem;
+    padding: 0.12rem 0.34rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    transition: color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.chamber-category[data-chamber-expanded="false"] > .chamber-category-head .chamber-category-count {
+    border-color: color-mix(in srgb, var(--accent-cyan) 28%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 7%, transparent);
+    color: color-mix(in srgb, var(--accent-cyan) 82%, var(--text-primary));
+    box-shadow: 0 0 14px color-mix(in srgb, var(--accent-cyan) 9%, transparent);
+}
+
+.chamber-category-cue {
+    opacity: 0.78;
+    transition: color 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.chamber-category-toggle:hover .chamber-category-count,
+.chamber-category-toggle:focus-visible .chamber-category-count {
+    border-color: color-mix(in srgb, var(--accent-cyan) 52%, transparent);
+    background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+    color: var(--accent-cyan);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--accent-cyan) 16%, transparent);
+}
+
+.chamber-category-toggle:hover .chamber-category-cue,
+.chamber-category-toggle:focus-visible .chamber-category-cue {
+    opacity: 1;
+}
+
 .chamber-category-toggle:focus-visible,
 .chamber-category-hide:focus-visible {
     outline: 2px solid var(--accent-cyan);
