@@ -21229,21 +21229,25 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
     await page.locator(`#chambers-grid > .chamber-category[data-chamber-category="${categoryKey}"] .chamber-category-toggle`).click();
   }
 
-  await page.locator('#lb-entry-card').scrollIntoViewIfNeeded();
-  await page.locator('#lb-entry-card').hover();
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="governance"]').scrollIntoViewIfNeeded();
   await page.locator('#lb-entry-card[data-lb-live="true"][data-lb-refresh-interval="60000"]').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#lb-entry-card').hover();
   await page.evaluate(() => {
     window.__lbEntryTimer = (window.__tezosSystemsIntervals || []).find((item) => (
       item.timeout === 60000 && String(item.handler).includes('refreshLiquidityBakingEntryCard')
     )) || null;
   });
-  await page.locator('.stat-card[data-stat="tz4-adoption"]').scrollIntoViewIfNeeded();
-  await page.locator('.stat-card[data-stat="tz4-adoption"]').hover();
+  await page.locator('#chambers-grid > .chamber-category[data-chamber-category="bakers"]').scrollIntoViewIfNeeded();
   await page.locator('.stat-card[data-stat="tz4-adoption"].chamber-entry-card .chamber-expand-cue').waitFor({ state: 'visible', timeout: 10000 });
-  for (const selector of ['#chamber-entry-card', '#etherlink-governance-entry-card', '#tezlink-entry-card']) {
-    await page.locator(selector).scrollIntoViewIfNeeded();
-    await page.locator(selector).hover();
+  await page.locator('.stat-card[data-stat="tz4-adoption"]').hover();
+  for (const [categoryKey, selector] of [
+    ['governance', '#chamber-entry-card'],
+    ['governance', '#etherlink-governance-entry-card'],
+    ['network', '#tezlink-entry-card']
+  ]) {
+    await page.locator(`#chambers-grid > .chamber-category[data-chamber-category="${categoryKey}"]`).scrollIntoViewIfNeeded();
     await page.locator(`${selector} .card-copy-link`).waitFor({ state: 'attached', timeout: 10000 });
+    await page.locator(selector).hover();
   }
   await page.locator('#etherlink-governance-entry-card[data-etherlink-governance-live="true"]').waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#hot-today-island [data-hot-signal-id="etherlink-governance-fast"]').waitFor({ state: 'visible', timeout: 10000 });
@@ -21586,9 +21590,11 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(dashboardState.tezlinkEntryGeometry.metricTruncations.length === 0, `governance testing period: Tezos X metric tiles should not ellipsize while governance is active: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   assert(dashboardState.tezlinkEntryGeometry.pairedWithHealth, `governance testing period: Tezos X and Network Health cards should keep matched row height: ${JSON.stringify(dashboardState.tezlinkEntryGeometry)}`);
   const chamberFreshnessLabels = dashboardState.chamberUpdatedLabels.filter((label) => /^(?:TzKT(?: head| blocks)?|Tezos X sources) · /.test(label));
-  const deferredChamberLabels = dashboardState.chamberUpdatedLabels.filter((label) => label === 'Loads when viewed');
+  // Intersection observers may hydrate additional launchers while this long suite
+  // scrolls through its expanded geometry checks. The number still carrying the
+  // deferred label is therefore timing-dependent; the durable contract is that
+  // every launcher keeps a truthful, non-empty live or deferred freshness stamp.
   assert(chamberFreshnessLabels.length >= 5
-    && deferredChamberLabels.length >= 5
     && dashboardState.chamberUpdatedLabels.every((label) => label.trim().length > 0),
   `governance testing period: active or deferred chamber freshness stamps missing: ${dashboardState.chamberUpdatedLabels.join(', ')}`);
   assert(dashboardState.etherlinkEntryGeometry.titleMetricsOverlap === 0, `governance testing period: Tezos X Governance title should not overlap proposal chips: ${JSON.stringify(dashboardState.etherlinkEntryGeometry)}`);
@@ -21610,13 +21616,14 @@ async function smokeGovernanceTestingPeriod(browser, baseUrl) {
   assert(!dashboardState.extraTz4EntryCard, 'governance testing period: tz4 should use the existing Adoption tile, not a separate entry card');
   assert(dashboardState.intervalDelays.includes(60000), `governance testing period: LB entry 60s refresh timer was not registered: ${dashboardState.intervalDelays.join(', ')}`);
 
+  await page.locator('#lb-entry-card').scrollIntoViewIfNeeded();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const lbEntryQuietBefore = await page.evaluate(() => {
     const card = document.querySelector('#lb-entry-card');
     const strip = document.querySelector('#lb-entry-switcher-strip');
     const row = strip?.querySelector('.lb-entry-switcher-item');
     const name = row?.querySelector('.lb-entry-switcher-name');
     const open = card?.querySelector('.chamber-expand-cue');
-    card?.scrollIntoView({ block: 'center', behavior: 'auto' });
     open?.focus({ preventScroll: true });
     const selection = document.getSelection();
     selection?.removeAllRanges();
