@@ -1,7 +1,7 @@
 {
   "kind": "tezos-whale-watch",
   "version": 1,
-  "generatedAt": "2026-08-18T13:19:04.767Z",
+  "generatedAt": "2026-08-18T19:09:58.610Z",
   "methodology": {
     "minimumTransferXtz": 1000,
     "minimumDormantBalanceXtz": 1000000,
@@ -15,12 +15,12 @@
     "largeAccounts": {
       "complete": true,
       "pages": 1,
-      "eligibleCount": 154
+      "eligibleCount": 155
     },
     "transfers24h": {
       "complete": true,
       "pages": 1,
-      "eligibleCount": 780
+      "eligibleCount": 798
     }
   },
   "dormant": {
@@ -43,58 +43,100 @@
   "awakenings": [],
   "transfers24h": {
     "window": {
-      "since": "2026-08-17T13:19:04.767Z",
-      "until": "2026-08-18T13:19:04.767Z",
+      "since": "2026-08-17T19:09:58.610Z",
+      "until": "2026-08-18T19:09:58.610Z",
       "hours": 24
     },
     "semantics": "Gross observed tez transferred by applied transaction operations. This is not economic volume and can include related internal hops.",
     "minimumXtz": 1000,
     "complete": true,
-    "operationCount": 780,
-    "operationGroupCount": 739,
-    "uniqueSenders": 188,
-    "uniqueTargets": 185,
-    "grossObservedMutez": 14146422116575,
+    "operationCount": 798,
+    "operationGroupCount": 758,
+    "uniqueSenders": 174,
+    "uniqueTargets": 171,
+    "grossObservedMutez": 18902559848503,
     "thresholds": [
       {
         "thresholdXtz": 1000,
-        "operationCount": 780,
-        "operationGroupCount": 739,
-        "grossObservedMutez": 14146422116575
+        "operationCount": 798,
+        "operationGroupCount": 758,
+        "grossObservedMutez": 18902559848503
       },
       {
         "thresholdXtz": 10000,
-        "operationCount": 482,
-        "operationGroupCount": 463,
-        "grossObservedMutez": 13098317889449
+        "operationCount": 512,
+        "operationGroupCount": 493,
+        "grossObservedMutez": 17882856696399
       },
       {
         "thresholdXtz": 100000,
         "operationCount": 20,
         "operationGroupCount": 19,
-        "grossObservedMutez": 4648610150001
+        "grossObservedMutez": 8429113174501
       },
       {
         "thresholdXtz": 1000000,
-        "operationCount": 0,
-        "operationGroupCount": 0,
-        "grossObservedMutez": 0
+        "operationCount": 2,
+        "operationGroupCount": 2,
+        "grossObservedMutez": 4132017000000
       }
     ],
     "largestOperation": {
-      "id": 2843050382458880,
-      "hash": "op69mGMfp9HtETcmCqSkEVJbzxiUecQJbGmAnVRRejFTu5Z8JSM",
+      "id": 2843903693684736,
+      "hash": "oo9Y3t15c7LASeGzc5H5p67pkdBNR2YvuXaTHADhMd3sEhoinJf",
       "type": "transaction",
       "action": null,
       "status": "applied",
-      "timestamp": "2026-08-18T06:47:16.000Z",
-      "amountMutez": 349999990000,
-      "sender": "tz1PpZctTPYj3GjY1B9wtWJh4hgd3XMo1t3R",
-      "senderAlias": "Bybit Hot Wallet",
-      "target": "tz1WPmqHxAp7WTgCCRfWKVDZ5uXkPSRDepS6",
+      "timestamp": "2026-08-18T16:15:22.000Z",
+      "amountMutez": 2532017000000,
+      "sender": "tz1eDKeD934e22muFRzVHxZYvFFx39QKHyj3",
+      "senderAlias": null,
+      "target": "tz1ShRCjaSja1UoWzrP85yJC9udh8tkwoq9u",
       "targetAlias": null
     },
     "topFlowStories": [
+      {
+        "hash": "oo9Y3t15c7LASeGzc5H5p67pkdBNR2YvuXaTHADhMd3sEhoinJf",
+        "timestamp": "2026-08-18T16:15:22.000Z",
+        "grossObservedMutez": 2532017000000,
+        "operations": [
+          {
+            "id": 2843903693684736,
+            "hash": "oo9Y3t15c7LASeGzc5H5p67pkdBNR2YvuXaTHADhMd3sEhoinJf",
+            "type": "transaction",
+            "action": null,
+            "status": "applied",
+            "timestamp": "2026-08-18T16:15:22.000Z",
+            "amountMutez": 2532017000000,
+            "sender": "tz1eDKeD934e22muFRzVHxZYvFFx39QKHyj3",
+            "senderAlias": null,
+            "target": "tz1ShRCjaSja1UoWzrP85yJC9udh8tkwoq9u",
+            "targetAlias": null
+          }
+        ],
+        "operationCount": 1
+      },
+      {
+        "hash": "ooborMRTKEMng7fqQXkrEhDi6FwbKLpPQWLJTtLq28eFjD5mT4b",
+        "timestamp": "2026-08-18T16:14:22.000Z",
+        "grossObservedMutez": 1600000000000,
+        "operations": [
+          {
+            "id": 2843902222532608,
+            "hash": "ooborMRTKEMng7fqQXkrEhDi6FwbKLpPQWLJTtLq28eFjD5mT4b",
+            "type": "transaction",
+            "action": null,
+            "status": "applied",
+            "timestamp": "2026-08-18T16:14:22.000Z",
+            "amountMutez": 1600000000000,
+            "sender": "tz1beW9AVJjE9QpTGYVPdtZCF5w1NPknMJ3T",
+            "senderAlias": "Upbit 12",
+            "target": "tz1QnM9XHpsRuWwSn1vXpLevuvPrJ2tMi8Eg",
+            "targetAlias": null
+          }
+        ],
+        "operationCount": 1
+      },
       {
         "hash": "op69mGMfp9HtETcmCqSkEVJbzxiUecQJbGmAnVRRejFTu5Z8JSM",
         "timestamp": "2026-08-18T06:47:16.000Z",
@@ -381,48 +423,6 @@
             "sender": "tz1UUeeH2i3rcCtKhdiHGT53PPTrN8sJQX7A",
             "senderAlias": null,
             "target": "tz1TPAStcaFVhXKL6Kf6vuNnhrUa9e77jEcF",
-            "targetAlias": null
-          }
-        ],
-        "operationCount": 1
-      },
-      {
-        "hash": "oodV39RDmTfDkXyivBxfJzEUo8kpmuB9Urjppyikc9cbd9eQ1Dc",
-        "timestamp": "2026-08-17T13:34:31.000Z",
-        "grossObservedMutez": 175756990000,
-        "operations": [
-          {
-            "id": 2841442260090880,
-            "hash": "oodV39RDmTfDkXyivBxfJzEUo8kpmuB9Urjppyikc9cbd9eQ1Dc",
-            "type": "transaction",
-            "action": null,
-            "status": "applied",
-            "timestamp": "2026-08-17T13:34:31.000Z",
-            "amountMutez": 175756990000,
-            "sender": "tz1PpZctTPYj3GjY1B9wtWJh4hgd3XMo1t3R",
-            "senderAlias": "Bybit Hot Wallet",
-            "target": "tz1fSkFqtvKTXrkDvuDoEAbBKM4iSzQCmYPh",
-            "targetAlias": null
-          }
-        ],
-        "operationCount": 1
-      },
-      {
-        "hash": "oomiG7KBoWWgUNUPK3AgCrP69q1kuzgKGVtGrHsm2cDwQMKsuBd",
-        "timestamp": "2026-08-17T13:34:55.000Z",
-        "grossObservedMutez": 175756985500,
-        "operations": [
-          {
-            "id": 2841442879799296,
-            "hash": "oomiG7KBoWWgUNUPK3AgCrP69q1kuzgKGVtGrHsm2cDwQMKsuBd",
-            "type": "transaction",
-            "action": null,
-            "status": "applied",
-            "timestamp": "2026-08-17T13:34:55.000Z",
-            "amountMutez": 175756985500,
-            "sender": "tz1fSkFqtvKTXrkDvuDoEAbBKM4iSzQCmYPh",
-            "senderAlias": null,
-            "target": "tz1SpwzPSvqE84XeXy6ve9XQ6anD9wCcy953",
             "targetAlias": null
           }
         ],
@@ -774,12 +774,12 @@
     {
       "label": "TzKT large-account ledger",
       "url": "https://api.tzkt.io/v1/accounts",
-      "observedAt": "2026-08-18T13:19:04.767Z"
+      "observedAt": "2026-08-18T19:09:58.610Z"
     },
     {
       "label": "TzKT applied transaction ledger",
       "url": "https://api.tzkt.io/v1/operations/transactions",
-      "observedAt": "2026-08-18T13:19:04.767Z"
+      "observedAt": "2026-08-18T19:09:58.610Z"
     }
   ]
 }
