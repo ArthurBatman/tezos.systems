@@ -2140,7 +2140,6 @@ async function main() {
     limit: String(config.contractCatalogLimit)
   }));
   const accountsQuery = new URLSearchParams({
-    'type.ne': 'contract',
     'sort.desc': 'numTransactions',
     select: 'address,alias,numTransactions,lastActivityTime',
     limit: '500'
@@ -2150,10 +2149,10 @@ async function main() {
     select: 'address,alias,numBallots,numProposals,stakedBalance,bakingPower,stakersCount,numDelegators,lastActivityTime',
     limit: '10000'
   });
-
   const [contractCatalogs, accounts, delegates, sales, mintResult] = await Promise.all([
     Promise.all(catalogQueries.map((query) => tzkt(`/contracts?${query}`))),
-    tzkt(`/accounts?${accountsQuery}`),
+    Promise.all(['user', 'delegate'].map((type) => tzkt(`/accounts?${accountsQuery}&type=${type}`)))
+      .then(([u, d]) => [...u, ...d].sort((a, b) => b.numTransactions - a.numTransactions).slice(0, 500)),
     tzkt(`/delegates?${delegatesQuery}`),
     fetchObjktSales(config.windowDays),
     fetchObjktMints(fromIso, generatedAt)
