@@ -2140,7 +2140,7 @@ async function main() {
     limit: String(config.contractCatalogLimit)
   }));
   const accountsQuery = new URLSearchParams({
-    type: 'user',
+    'type.ne': 'contract',
     'sort.desc': 'numTransactions',
     select: 'address,alias,numTransactions,lastActivityTime',
     limit: '500'
